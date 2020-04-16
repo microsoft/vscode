@@ -101,6 +101,8 @@ export class TerminalWidgetManager implements IDisposable {
 		console.log('computed', computed);
 		const marginRight = parseInt(computed.marginRight.replace('px', ''));
 		const width = parseInt(computed.width.replace('px', ''));
-		this._container.style.width = `${width - marginRight}px`;
+		console.log('width', width, 'marginRight', marginRight);
+		// this._container.style.width = `${width - marginRight}px`;
+		this._container.style.width = `${width}px`;
 	}
 }
