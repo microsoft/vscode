@@ -545,6 +545,8 @@ export class TerminalLinkManager extends DisposableStore {
 					}
 					link = this.osPath.join(this._processCwd, link);
 				} else {
+					// Remove \\?\ from paths so that they share the same underlying
+					// uri and don't open multiple tabs for the same file
 					link = link.replace(/^\\\\\?\\/, '');
 				}
 			} else {
