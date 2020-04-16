@@ -105,4 +105,6 @@ export interface IEnvironmentVariableInfo {
 
 	// TODO: Is this the right type for an icon?
 	getIcon(): string;
+
+	getActions?(): { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[];
 }

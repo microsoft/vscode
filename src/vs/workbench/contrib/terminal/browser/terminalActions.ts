@@ -1267,4 +1267,17 @@ export function registerTerminalActions() {
 			accessor.get(ITerminalService).findPrevious();
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.RELAUNCH,
+				title: localize('workbench.action.terminal.relaunch', "Terminal: Relaunch Active Terminal"),
+				f1: true,
+				category
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.relaunch();
+		}
+	});
 }

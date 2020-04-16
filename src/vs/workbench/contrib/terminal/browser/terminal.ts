@@ -472,6 +472,12 @@ export interface ITerminalInstance {
 	reuseTerminal(shell: IShellLaunchConfig): void;
 
 	/**
+	 * Relaunches the terminal, killing it and reusing the launch config used initially. Any
+	 * environment variable changes will be recalculated when this happens.
+	 */
+	relaunch(): void;
+
+	/**
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventSource: TitleEventSource): void;

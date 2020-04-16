@@ -10,7 +10,10 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
-import { $ } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
+const $ = dom.$;
 
 export enum HorizontalAlignment {
 	Left,
@@ -55,12 +58,13 @@ export class HoverWidget extends Widget {
 		private _container: HTMLElement,
 		private _target: IHoverTarget,
 		private _text: IMarkdownString,
-		private _linkHandler: (url: string) => void
+		private _linkHandler: (url: string) => void,
+		private _actions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] | undefined,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this._domNode = document.createElement('div');
-		this._domNode.style.position = 'fixed';
-		this._domNode.classList.add('terminal-message-widget', 'fadeIn', 'monaco-editor-hover');
+		this._domNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover');
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
@@ -74,16 +78,13 @@ export class HoverWidget extends Widget {
 		rowElement.appendChild(contentsElement);
 		this._domNode.appendChild(rowElement);
 
-		const statusBarElement = document.createElement('div');
-		statusBarElement.classList.add('hover-row', 'status-bar');
-		const actionsElements = $('div.actions');
-		const actionsContainer = $('div.action-container');
-		const action = $('a.action');
-		action.textContent = 'Action example';
-		actionsContainer.appendChild(action);
-		actionsElements.appendChild(actionsContainer);
-		statusBarElement.appendChild(actionsElements);
-		this._domNode.appendChild(statusBarElement);
+		if (this._actions && this._actions.length > 0) {
+			const statusBarElement = $('div.hover-row.status-bar');
+			const actionsElement = $('div.actions');
+			this._actions.forEach(action => this._renderAction(actionsElement, action));
+			statusBarElement.appendChild(actionsElement);
+			this._domNode.appendChild(statusBarElement);
+		}
 
 		this._mouseTracker = new CompositeMouseTracker([this._domNode, ..._target.targetElements]);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
@@ -94,9 +95,25 @@ export class HoverWidget extends Widget {
 		this.layout();
 	}
 
+	private _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
+		const actionContainer = dom.append(parent, $('div.action-container'));
+		const action = dom.append(actionContainer, $('a.action'));
+		if (actionOptions.iconClass) {
+			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
+		}
+		const label = dom.append(action, $('span'));
+		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
+		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
+			e.stopPropagation();
+			e.preventDefault();
+			actionOptions.run(actionContainer);
+		});
+	}
+
 	public layout(): void {
 		const anchor = this._target.proposeIdealAnchor();
-		console.log('anchor', anchor);
 		this._domNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
 		if (anchor.horizontalAlignment === HorizontalAlignment.Left) {
 			this._domNode.style.left = `${anchor.x}px`;
@@ -114,7 +131,7 @@ export class HoverWidget extends Widget {
 	public dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
-			// this._domNode.parentElement?.removeChild(this.domNode);
+			this._domNode.parentElement?.removeChild(this.domNode);
 			this._messageListeners.dispose();
 			this._target.dispose();
 			super.dispose();

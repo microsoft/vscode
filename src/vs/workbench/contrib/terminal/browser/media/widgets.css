@@ -10,7 +10,8 @@
 	overflow: visible;
 }
 
-.monaco-workbench .terminal-message-widget {
+.monaco-workbench .terminal-hover-widget {
+	position: fixed;
 	font-size: 14px;
 	line-height: 19px;
 	animation: fadein 100ms linear;
@@ -23,7 +24,7 @@
 	padding: 4px 8px;
 }
 
-.monaco-workbench .terminal-message-widget a {
+.monaco-workbench .terminal-hover-widget a {
 	color: #3794ff;
 }
 

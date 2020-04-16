@@ -5,10 +5,13 @@
 
 import { IEnvironmentVariableInfo, IMergedEnvironmentVariableCollection, IMergedEnvironmentVariableCollectionDiff, EnvironmentVariableMutatorType } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { format } from 'vs/base/common/strings';
+import { TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	constructor(
-		private _diff: IMergedEnvironmentVariableCollectionDiff
+		private readonly _diff: IMergedEnvironmentVariableCollectionDiff,
+		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 	}
 
@@ -21,6 +24,14 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 
 	getIcon(): string {
 		return 'warning';
+	}
+
+	getActions(): { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] {
+		return [{
+			label: 'Relaunch terminal',
+			run: () => this._terminalService.getActiveInstance()?.relaunch(),
+			commandId: TERMINAL_COMMAND_ID.RELAUNCH
+		}];
 	}
 
 	private _summarizeDiff(): string {
@@ -37,6 +48,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		});
 		this._diff.removed.forEach((mutators, variable) => {
 			mutators.forEach(mutator => {
+				// TODO: Localize
 				summary.push(`- Remove the change "${format(mutatorTypeLabel(mutator.type), mutator.value, variable)}"`);
 			});
 		});
@@ -67,6 +79,7 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 }
 
 function mutatorTypeLabel(type: EnvironmentVariableMutatorType): string {
+	// TODO: Localize
 	switch (type) {
 		case EnvironmentVariableMutatorType.Prepend: return 'Add `{0}` to the beginning of `{1}`';
 		case EnvironmentVariableMutatorType.Append: return 'Add `{0}` to the end of `{1}`';

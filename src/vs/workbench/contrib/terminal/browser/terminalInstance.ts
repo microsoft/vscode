@@ -97,7 +97,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
-	private _hoverManager: TerminalWidgetManager = new TerminalWidgetManager();
+	private _hoverManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentVariableWidget: EnvironmentVariableInfoWidget | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
@@ -1021,7 +1021,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public reuseTerminal(shell: IShellLaunchConfig): void {
+	public reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): void {
 		// Unsubscribe any key listener we may have.
 		this._pressAnyKeyToCloseListener?.dispose();
 		this._pressAnyKeyToCloseListener = undefined;
@@ -1030,8 +1030,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.dispose();
 
 		if (this._xterm) {
-			// Ensure new processes' output starts at start of new line
-			this._xterm.write('\n\x1b[G');
+			if (reset) {
+				this._xterm.reset();
+			} else {
+				// Ensure new processes' output starts at start of new line
+				this._xterm.write('\n\x1b[G');
+			}
 
 			// Print initialText if specified
 			if (shell.initialText) {
@@ -1045,11 +1049,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		// HACK: Force initialText to be non-falsy for reused terminals such that the
-		// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
-		// in Windows 10 1903 so we only want to use it when something is definitely written to the
-		// terminal.
-		shell.initialText = ' ';
+		if (!reset) {
+			// HACK: Force initialText to be non-falsy for reused terminals such that the
+			// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
+			// in Windows 10 1903 so we only want to use it when something is definitely written to the
+			// terminal.
+			shell.initialText = ' ';
+		}
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
@@ -1064,6 +1070,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
+	}
+
+	public relaunch(): void {
+		this.reuseTerminal(this._shellLaunchConfig, true);
 	}
 
 	private _onLineFeed(): void {
@@ -1349,10 +1359,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
-		if (!this._environmentVariableWidget) {
-			this._environmentVariableWidget = new EnvironmentVariableInfoWidget(info);
-			this._hoverManager.attachWidget(this._environmentVariableWidget);
-		}
+		this._environmentVariableWidget?.dispose();
+		this._environmentVariableWidget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
+		this._hoverManager.attachWidget(this._environmentVariableWidget);
 	}
 
 	private _getXtermTheme(theme?: IColorTheme): any {

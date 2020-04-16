@@ -25,7 +25,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
-import { EnvironmentVariableInfoStale, EnvironmentVariableInfoChangesActive } from 'vs/workbench/contrib/terminal/common/environmentVariableInfo';
+import { EnvironmentVariableInfoStale, EnvironmentVariableInfoChangesActive } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -332,7 +332,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			return;
 		}
 		console.log('environments differ', diff);
-		const info = new EnvironmentVariableInfoStale(diff);
+		const info = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff);
 		this._onEnvironmentVariableInfoChange.fire(info);
 		// const promptChoices: IPromptChoice[] = [
 		// 	{

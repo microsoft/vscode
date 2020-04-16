@@ -10,6 +10,7 @@ import { IViewportRange } from 'xterm';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { HoverWidget, HorizontalAlignment, VerticalAlignment, IProposedAnchor, IHoverTarget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TerminalHover extends Disposable implements ITerminalWidget {
 	readonly id = 'hover';
@@ -19,14 +20,15 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		private _cellDimensions: { width: number, height: number },
 		private _terminalDimensions: { width: number, height: number },
 		private _text: IMarkdownString,
-		private _linkHandler: (url: string) => void
+		private _linkHandler: (url: string) => void,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 	}
 
 	attach(container: HTMLElement): void {
 		const target = new CellHoverTarget(container, this._viewportRange, this._cellDimensions, this._terminalDimensions);
-		this._register(new HoverWidget(container, target, this._text, this._linkHandler));
+		this._register(this._instantiationService.createInstance(HoverWidget, container, target, this._text, this._linkHandler, []));
 	}
 }
 

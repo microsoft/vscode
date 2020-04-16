@@ -9,6 +9,7 @@ import { IViewportRange } from 'xterm';
 import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
@@ -18,7 +19,9 @@ export class TerminalWidgetManager implements IDisposable {
 
 	private _attached: Map<string, ITerminalWidget> = new Map();
 
-	constructor() {
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
+	) {
 	}
 
 	attachToElement(terminalWrapper: HTMLElement) {
@@ -50,7 +53,7 @@ export class TerminalWidgetManager implements IDisposable {
 		}
 		// dispose(this._hoverWidget);
 		// this._hoverListeners.clear();
-		const widget = new TerminalHover(viewportRange, cellDimensions, terminalDimensions, text, linkHandler);
+		const widget = this._instantiationService.createInstance(TerminalHover, viewportRange, cellDimensions, terminalDimensions, text, linkHandler);
 		this.attachWidget(widget);
 		// const hoverTarget = new CellHoverTarget(this._container, viewportRange, cellDimensions, terminalDimensions);
 		// this._hoverWidget = new HoverWidget(this._container, hoverTarget, text, linkHandler);
