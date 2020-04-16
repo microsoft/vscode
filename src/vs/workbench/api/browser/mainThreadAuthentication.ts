@@ -68,8 +68,14 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		private readonly notificationService: INotificationService
 	) {
 		super();
+	}
 
-		this.registerCommandsAndContextMenuItems();
+	public async initialize(): Promise<void> {
+		return this.registerCommandsAndContextMenuItems();
+	}
+
+	public hasSessions(): boolean {
+		return !!this._sessions.size;
 	}
 
 	private manageTrustedExtensions(quickInputService: IQuickInputService, storageService: IStorageService, accountName: string) {
@@ -230,6 +236,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		removed.forEach(sessionId => {
 			const accountName = this._sessions.get(sessionId);
 			if (accountName) {
+				this._sessions.delete(sessionId);
 				let sessionsForAccount = this._accounts.get(accountName) || [];
 				const sessionIndex = sessionsForAccount.indexOf(sessionId);
 				sessionsForAccount.splice(sessionIndex);
@@ -301,6 +308,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $registerAuthenticationProvider(id: string, displayName: string, supportsMultipleAccounts: boolean): Promise<void> {
 		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, supportsMultipleAccounts, this.notificationService);
+		await provider.initialize();
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 

@@ -258,7 +258,7 @@ export function registerCommands(): void {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: PAUSE_ID,
-		weight: KeybindingWeight.WorkbenchContrib,
+		weight: KeybindingWeight.WorkbenchContrib + 2, // take priority over focus next part while we are debugging
 		primary: KeyCode.F6,
 		when: CONTEXT_DEBUG_STATE.isEqualTo('running'),
 		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {

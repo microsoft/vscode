@@ -768,7 +768,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	async _executeNotebookCell(cell: ICellViewModel, tokenSource: CancellationTokenSource): Promise<void> {
+	private async _executeNotebookCell(cell: ICellViewModel, tokenSource: CancellationTokenSource): Promise<void> {
 		try {
 			cell.currentTokenSource = tokenSource;
 			const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
@@ -892,6 +892,7 @@ export const notebookOutputContainerColor = registerColor('notebook.outputContai
 }
 	, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
+// TODO currently also used for toolbar border, if we keep all of this, pick a generic name
 export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperator', {
 	dark: Color.fromHex('#808080').transparent(0.35),
 	light: Color.fromHex('#808080').transparent(0.35),
@@ -903,7 +904,8 @@ registerThemingParticipant((theme, collector) => {
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
 	if (color) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .monaco-editor-background,
-			.monaco-workbench .part.editor > .content .notebook-editor .cell .margin-view-overlays { background: ${color}; }`);
+			.monaco-workbench .part.editor > .content .notebook-editor .cell .margin-view-overlays,
+			.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-statusbar-container { background: ${color}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
@@ -933,9 +935,14 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	const containerBackground = theme.getColor(notebookOutputContainerColor);
-
 	if (containerBackground) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${containerBackground}; }`);
+	}
+
+	const editorBackgroundColor = theme.getColor(editorBackground);
+	if (editorBackgroundColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container { border-top: solid 1px ${editorBackgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > .monaco-toolbar { background-color: ${editorBackgroundColor}; }`);
 	}
 
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
@@ -948,10 +955,12 @@ registerThemingParticipant((theme, collector) => {
 	if (cellToolbarSeperator) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator { background-color: ${cellToolbarSeperator} }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator-short { background-color: ${cellToolbarSeperator} }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
 	}
 
 	// Cell Margin
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell { margin: ${EDITOR_TOP_MARGIN}px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
