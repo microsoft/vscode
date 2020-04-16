@@ -177,6 +177,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private render(hints: modes.SignatureHelp): void {
+		this.renderDisposeables.clear();
+
 		if (!this.domNodes) {
 			return;
 		}
