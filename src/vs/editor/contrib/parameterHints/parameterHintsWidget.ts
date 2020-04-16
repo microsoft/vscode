@@ -208,28 +208,26 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			this.renderParameters(code, signature, activeParameterIndex);
 		}
 
-
 		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
 		if (activeParameter?.documentation) {
 			const documentation = $('span.documentation');
 			if (typeof activeParameter.documentation === 'string') {
 				documentation.textContent = activeParameter.documentation;
 			} else {
-				const renderedContents = this.markdownRenderer.render(activeParameter.documentation);
+				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
 				dom.addClass(renderedContents.element, 'markdown-docs');
-				this.renderDisposeables.add(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.domNodes.docs, $('p', {}, documentation));
 		}
 
-		if (signature.documentation === undefined) { /** no op */ }
-		else if (typeof signature.documentation === 'string') {
+		if (signature.documentation === undefined) {
+			/** no op */
+		} else if (typeof signature.documentation === 'string') {
 			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
-			const renderedContents = this.markdownRenderer.render(signature.documentation);
+			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
 			dom.addClass(renderedContents.element, 'markdown-docs');
-			this.renderDisposeables.add(renderedContents);
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
