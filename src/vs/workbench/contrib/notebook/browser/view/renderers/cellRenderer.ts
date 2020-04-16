@@ -272,13 +272,13 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	renderTemplate(container: HTMLElement): MarkdownCellRenderTemplate {
+		const disposables = new DisposableStore();
+		const toolbar = disposables.add(this.createToolbar(container));
+
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const cellEditorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
 		const editingContainer = DOM.append(cellEditorPart, $('.markdown-editor-container'));
 		editingContainer.style.display = 'none';
-
-		const disposables = new DisposableStore();
-		const toolbar = disposables.add(this.createToolbar(cellEditorPart));
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
@@ -382,6 +382,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderTemplate(container: HTMLElement): CodeCellRenderTemplate {
 		const disposables = new DisposableStore();
+		const toolbar = disposables.add(this.createToolbar(container));
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
@@ -399,9 +400,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				height: 0
 			}
 		}, {});
-
-		const toolbar = this.createToolbar(editorPart);
-		disposables.add(toolbar);
 
 		const progressBar = new ProgressBar(editorPart);
 		progressBar.hide();
