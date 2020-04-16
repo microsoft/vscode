@@ -12,7 +12,7 @@
 }
 
 .monaco-workbench .terminal-message-widget {
-	font-size: 12px;
+	font-size: 14px;
 	line-height: 19px;
 	padding: 4px 8px;
 	animation: fadein 100ms linear;

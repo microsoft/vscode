@@ -61,13 +61,10 @@ export class HoverWidget extends Widget {
 		this._domNode.style.position = 'fixed';
 		this.layout();
 
-		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
+		this._domNode.classList.add('terminal-message-widget', 'fadeIn', 'monaco-editor-hover');
 
 		this._mouseTracker = new CompositeMouseTracker([this._domNode, ..._target.targetElements]);
-		this._mouseTracker.onMouseOut(() => {
-			console.log('Mouse tracker mouse out');
-			this.dispose();
-		});
+		this._mouseTracker.onMouseOut(() => this.dispose());
 		this._register(this._mouseTracker);
 
 		this._container.appendChild(this._domNode);
@@ -75,6 +72,7 @@ export class HoverWidget extends Widget {
 
 	public layout(): void {
 		const anchor = this._target.proposeIdealAnchor();
+		// TODO: Clamp to window bounds, go to secondary anchor if vertical gets clipped
 		if (anchor.horizontalAlignment === HorizontalAlignment.Left) {
 			this._domNode.style.left = `${anchor.x}px`;
 		} else {
@@ -94,7 +92,6 @@ export class HoverWidget extends Widget {
 	// }
 
 	public dispose(): void {
-		console.log('dispose');
 		if (this.domNode.parentElement === this._container) {
 			this._container.removeChild(this.domNode);
 		}
