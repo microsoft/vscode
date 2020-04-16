@@ -13,8 +13,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { distinct } from 'vs/base/common/arrays';
-import Severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Emitter, Event } from 'vs/base/common/event';
