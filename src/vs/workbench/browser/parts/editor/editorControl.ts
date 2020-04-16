@@ -113,7 +113,6 @@ export class EditorControl extends Disposable {
 			const editorPaneContainer = document.createElement('div');
 			addClass(editorPaneContainer, 'editor-instance');
 			editorPaneContainer.setAttribute('data-editor-id', descriptor.getId());
-			editorPaneContainer.setAttribute('role', 'code');
 
 			editorPane.create(editorPaneContainer);
 		}
