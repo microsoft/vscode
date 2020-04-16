@@ -20,10 +20,6 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .terminal-message-widget p {
-	margin: 0px;
-}
-
 .monaco-workbench .terminal-message-widget a {
 	color: #3794ff;
 }
@@ -51,6 +47,11 @@
 	text-align: center;
 	background-color: red;
 	z-index: 25;
+	opacity: 0.5;
+}
+
+.monaco-workbench .terminal-env-var-info:hover {
+	opacity: 1;
 }
 
 .monaco-workbench .terminal-env-var-info.codicon {

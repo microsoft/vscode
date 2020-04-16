@@ -246,8 +246,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 		this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
 		if (this._extEnvironmentVariableCollection.map.size > 0) {
-			const info = new EnvironmentVariableInfoChangesActive();
-			this._onEnvironmentVariableInfoChange.fire(info);
+			this._onEnvironmentVariableInfoChange.fire(new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection));
 		}
 
 
@@ -333,7 +332,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			return;
 		}
 		console.log('environments differ', diff);
-		const info = new EnvironmentVariableInfoStale();
+		const info = new EnvironmentVariableInfoStale(diff);
 		this._onEnvironmentVariableInfoChange.fire(info);
 		// const promptChoices: IPromptChoice[] = [
 		// 	{

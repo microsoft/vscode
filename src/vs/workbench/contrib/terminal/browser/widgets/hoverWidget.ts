@@ -62,7 +62,16 @@ export class HoverWidget extends Widget {
 			}
 		});
 		this._domNode.style.position = 'fixed';
-		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
+		this._domNode.classList.add('terminal-message-widget', 'fadeIn', 'monaco-editor-hover');
+
+		const contentElement = document.createElement('div');
+		contentElement.classList.add('hover-row', 'markdown-hover');
+		this._domNode.appendChild(contentElement);
+
+		const statusBarElement = document.createElement('div');
+		statusBarElement.classList.add('hover-row', 'status-bar');
+		statusBarElement.textContent = 'Action example';
+		this._domNode.appendChild(statusBarElement);
 
 		this._mouseTracker = new CompositeMouseTracker([this._domNode, ..._target.targetElements]);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
@@ -93,9 +102,7 @@ export class HoverWidget extends Widget {
 	public dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
-			if (this.domNode.parentElement === this._container) {
-				this._container.removeChild(this.domNode);
-			}
+			// this._domNode.parentElement?.removeChild(this.domNode);
 			this._messageListeners.dispose();
 			this._target.dispose();
 			super.dispose();

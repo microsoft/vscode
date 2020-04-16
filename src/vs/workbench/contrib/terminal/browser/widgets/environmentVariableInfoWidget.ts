@@ -14,6 +14,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 	readonly id = 'env-var-info';
 
 	private _domNode: HTMLElement | undefined;
+	private _container: HTMLElement | undefined;
 	private _hoverWidget: HoverWidget | undefined;
 
 	constructor(
@@ -23,6 +24,7 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 	}
 
 	attach(container: HTMLElement): void {
+		this._container = container;
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('terminal-env-var-info', 'codicon', `codicon-${this._info.getIcon()}`);
 		container.appendChild(this._domNode);
@@ -37,11 +39,11 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 	}
 
 	private _showHover() {
-		if (!this._domNode || this._hoverWidget) {
+		if (!this._domNode || !this._container || this._hoverWidget) {
 			return;
 		}
 		const target = new ElementHoverTarget(this._domNode);
-		this._hoverWidget = new HoverWidget(this._domNode, target, new MarkdownString(this._info.getInfo()), () => { });
+		this._hoverWidget = new HoverWidget(this._container, target, new MarkdownString(this._info.getInfo()), () => { });
 		this._register(this._hoverWidget);
 		this._register(this._hoverWidget.onDispose(() => this._hoverWidget = undefined));
 	}
