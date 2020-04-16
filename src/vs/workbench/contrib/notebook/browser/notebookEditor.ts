@@ -882,13 +882,13 @@ registerThemingParticipant((theme, collector) => {
 	}
 
 	// Cell Margin
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-editor-part > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-editor-part { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-container { width: calc(100% - ${CELL_RUN_GUTTER}px); }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .markdown-editor-container { margin-left: ${CELL_RUN_GUTTER}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
 });
