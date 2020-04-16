@@ -6,12 +6,15 @@
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
 import * as nls from 'vscode-nls';
+import TelemetryReporter from 'vscode-extension-telemetry';
 
 const localize = nls.loadMessageBundle();
 
 export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
 
 export async function activate(context: vscode.ExtensionContext) {
+	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
+	const telemetryReporter = new TelemetryReporter(name, version, aiKey);
 
 	const loginService = new AzureActiveDirectoryService();
 
@@ -24,15 +27,26 @@ export async function activate(context: vscode.ExtensionContext) {
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
 		login: async (scopes: string[] | undefined) => {
-			const loginScopes = scopes ? scopes.sort().join(' ') : 'https://management.core.windows.net/.default offline_access';
-			await loginService.login(loginScopes);
-			const session = loginService.sessions[loginService.sessions.length - 1];
-			onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
-			return loginService.sessions[0]!;
+			try {
+				telemetryReporter.sendTelemetryEvent('login');
+				const loginScopes = scopes ? scopes.sort().join(' ') : 'https://management.core.windows.net/.default offline_access';
+				await loginService.login(loginScopes);
+				const session = loginService.sessions[loginService.sessions.length - 1];
+				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
+				return loginService.sessions[0]!;
+			} catch (e) {
+				telemetryReporter.sendTelemetryEvent('loginFailed');
+				throw e;
+			}
 		},
 		logout: async (id: string) => {
-			await loginService.logout(id);
-			onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
+			try {
+				telemetryReporter.sendTelemetryEvent('logout');
+				await loginService.logout(id);
+				onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
+			} catch (e) {
+				telemetryReporter.sendTelemetryEvent('logoutFailed');
+			}
 		}
 	}));
 
