@@ -177,6 +177,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			handler: (accessor, args) => {
 				const quickInputService = accessor.get(IQuickInputService);
 				const storageService = accessor.get(IStorageService);
+				const dialogService = accessor.get(IDialogService);
 
 				const quickPick = quickInputService.createQuickPick();
 				const showUsage = nls.localize('showUsage', "Show Extensions and Features Using This Account");
@@ -189,8 +190,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 				quickPick.onDidAccept(e => {
 					const selected = quickPick.selectedItems[0];
 					if (selected.label === signOut) {
-						const sessionsForAccount = this._accounts.get(session.accountName);
-						sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+						this.signOut(dialogService, session);
 					}
 
 					if (selected.label === manage) {
@@ -213,6 +213,27 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		});
 
 		this._sessionMenuItems.set(session.accountName, [menuItem, manageCommand]);
+	}
+
+	async signOut(dialogService: IDialogService, session: modes.AuthenticationSession): Promise<void> {
+		const providerUsage = accountUsages.get(this.id);
+		const accountUsage = (providerUsage || {})[session.accountName] || [];
+		const sessionsForAccount = this._accounts.get(session.accountName);
+
+		// Skip dialog if nothing is using the account
+		if (!accountUsage.length) {
+			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+			return;
+		}
+
+		const result = await dialogService.confirm({
+			title: nls.localize('signOutConfirm', "Sign out of {0}", session.accountName),
+			message: nls.localize('signOutMessage', "The account {0} is currently used by: \n\n{1}\n\n Sign out of these features?", session.accountName, accountUsage.join('\n'))
+		});
+
+		if (result.confirmed) {
+			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+		}
 	}
 
 	async getSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {

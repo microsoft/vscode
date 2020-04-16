@@ -291,13 +291,8 @@ export class UserDataSyncAuthentication extends Disposable implements IUserDataS
 					const activeWasRemoved = !!event.removed.find(removed => removed === this.activeAccount!.id);
 					if (activeWasRemoved) {
 						this.setActiveAccount(undefined);
-						this.notificationService.notify({
-							severity: Severity.Info,
-							message: localize('turned off on logout', "Sync has stopped because you are no longer signed in."),
-							actions: {
-								primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.login())]
-							}
-						});
+						// User explicitly signed out, turn off sync.
+						this.userDataSyncEnablementService.setEnablement(false);
 						return;
 					}
 				}
