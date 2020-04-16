@@ -565,7 +565,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	async insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<void> {
 		const newLanguages = this.notebookViewModel!.languages;
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
-		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		const index = this.notebookViewModel!.getCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 		const newCell = this.notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, true);
 		this.list?.focusElement(newCell);
@@ -585,12 +585,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<void> {
 		(cell as CellViewModel).save();
-		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		const index = this.notebookViewModel!.getCellIndex(cell);
 		this.notebookViewModel!.deleteCell(index, true);
 	}
 
 	async moveCellDown(cell: ICellViewModel): Promise<void> {
-		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		const index = this.notebookViewModel!.getCellIndex(cell);
 		if (index === this.notebookViewModel!.viewCells.length - 1) {
 			return;
 		}
@@ -600,7 +600,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	async moveCellUp(cell: ICellViewModel): Promise<void> {
-		const index = this.notebookViewModel!.getViewCellIndex(cell);
+		const index = this.notebookViewModel!.getCellIndex(cell);
 		if (index === 0) {
 			return;
 		}

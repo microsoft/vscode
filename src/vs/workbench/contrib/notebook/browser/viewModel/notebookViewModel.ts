@@ -239,7 +239,7 @@ export class NotebookViewModel extends Disposable {
 		});
 	}
 
-	getViewCellIndex(cell: ICellViewModel) {
+	getCellIndex(cell: ICellViewModel) {
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
@@ -261,10 +261,10 @@ export class NotebookViewModel extends Disposable {
 			this._decorationsTree.resolveNode(node, versionId);
 		}
 		if (node.range === null) {
-			return { start: node.cachedAbsoluteStart - 1, length: node.cachedAbsoluteEnd - node.cachedAbsoluteStart };
+			return { start: node.cachedAbsoluteStart - 1, length: node.cachedAbsoluteEnd - node.cachedAbsoluteStart + 1 };
 		}
 
-		return { start: node.range.startLineNumber - 1, length: node.range.endLineNumber - node.range.startLineNumber };
+		return { start: node.range.startLineNumber - 1, length: node.range.endLineNumber - node.range.startLineNumber + 1 };
 	}
 
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null {
@@ -275,7 +275,7 @@ export class NotebookViewModel extends Disposable {
 				return null;
 			}
 
-			return this._deltaCellDecorationsImpl(0, [], [{ range: new Range(newRange.start + 1, 1, newRange.start + newRange.length + 1, 1), options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
+			return this._deltaCellDecorationsImpl(0, [], [{ range: new Range(newRange.start + 1, 1, newRange.start + newRange.length, 1), options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
 		}
 
 		if (!newRange) {
@@ -286,7 +286,7 @@ export class NotebookViewModel extends Disposable {
 		}
 
 		this._decorationsTree.delete(node);
-		node.reset(this.getVersionId(), newRange.start, newRange.start + newRange.length, new Range(newRange.start + 1, 1, newRange.start + newRange.length + 1, 1));
+		node.reset(this.getVersionId(), newRange.start, newRange.start + newRange.length, new Range(newRange.start + 1, 1, newRange.start + newRange.length, 1));
 		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
 		this._decorationsTree.insert(node);
 		return node.id;

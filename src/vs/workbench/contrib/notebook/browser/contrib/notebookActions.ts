@@ -171,7 +171,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		const idx = editor.viewModel?.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
@@ -453,7 +453,7 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 
 	const text = activeCell.getText();
 	await editor.insertNotebookCell(activeCell, kind, 'below', text);
-	const idx = editor.viewModel?.getViewCellIndex(activeCell);
+	const idx = editor.viewModel?.getCellIndex(activeCell);
 	if (typeof idx !== 'number') {
 		return;
 	}
@@ -862,7 +862,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		viewModel.deleteCell(viewModel.getViewCellIndex(context.cell), true);
+		viewModel.deleteCell(viewModel.getCellIndex(context.cell), true);
 		notebookService.setToCopy([context.cell.model]);
 	}
 });
@@ -900,7 +900,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const currCellIndex = viewModel.getViewCellIndex(context!.cell);
+		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
 		pasteCells.reverse().forEach(pasteCell => {
 			viewModel.insertCell(currCellIndex, pasteCell, true);
@@ -941,7 +941,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		const currCellIndex = viewModel.getViewCellIndex(context!.cell);
+		const currCellIndex = viewModel.getCellIndex(context!.cell);
 
 		pasteCells.reverse().forEach(pasteCell => {
 			viewModel.insertCell(currCellIndex + 1, pasteCell, true);
@@ -1020,7 +1020,7 @@ registerAction2(class extends Action2 {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
-		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		const idx = editor.viewModel?.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
@@ -1059,7 +1059,7 @@ registerAction2(class extends Action2 {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
-		const idx = editor.viewModel?.getViewCellIndex(activeCell);
+		const idx = editor.viewModel?.getCellIndex(activeCell);
 		if (typeof idx !== 'number') {
 			return;
 		}
@@ -1174,5 +1174,98 @@ registerAction2(class extends Action2 {
 			const firstCell = cells[0];
 			editor.layoutNotebookCell(firstCell, 400);
 		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.testSetHiddenRanges1',
+			title: 'Notebook Cells set hidden ranges: 2,3,4',
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			keybinding: {
+				when: IsDevelopmentContext,
+				primary: undefined,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const resource = editorService.activeEditor?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		editor.setHiddenAreas([{ start: 1, length: 3 }]);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.testSetHiddenRanges2',
+			title: 'Notebook Cells set hidden ranges: 4,5',
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			keybinding: {
+				when: IsDevelopmentContext,
+				primary: undefined,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const resource = editorService.activeEditor?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		editor.setHiddenAreas([{ start: 3, length: 2 }]);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.resetHiddenAreas',
+			title: 'Notebook Cells reset hidden ranges',
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			keybinding: {
+				when: IsDevelopmentContext,
+				primary: undefined,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const resource = editorService.activeEditor?.resource;
+		if (!resource) {
+			return;
+		}
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		editor.setHiddenAreas([]);
 	}
 });

@@ -21,6 +21,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IStyleController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -38,6 +39,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _viewModel: NotebookViewModel | null = null;
 	private _hiddenRangeIds: string[] = [];
+	private hiddenRangesPrefixSum: PrefixSumComputer | null = null;
 
 	constructor(
 		private listUser: string,
@@ -124,30 +126,44 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	attachViewModel(model: NotebookViewModel) {
 		this._viewModel = model;
 		this._viewModelStore.add(model.onDidChangeViewCells((e) => {
+			const currentRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
+			const newVisibleViewCells: CellViewModel[] = getVisibleCells(this._viewModel!.viewCells as CellViewModel[], currentRanges);
+
+			const oldVisibleViewCells: CellViewModel[] = [];
+			const oldViewCellMapping = new Set<string>();
+			for (let i = 0; i < this.length; i++) {
+				oldVisibleViewCells.push(this.element(i));
+				oldViewCellMapping.add(this.element(i).uri.toString());
+			}
+
+			const viewDiffs = diff<CellViewModel>(oldVisibleViewCells, newVisibleViewCells, a => {
+				return oldViewCellMapping.has(a.uri.toString());
+			});
+
 			if (e.synchronous) {
-				e.splices.reverse().forEach((diff) => {
+				viewDiffs.reverse().forEach((diff) => {
 					// remove output in the webview
-					for (let i = diff[0]; i < diff[0] + diff[1]; i++) {
+					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 						const cell = this.element(i);
 						cell?.model.outputs.forEach(output => {
 							this._onDidRemoveOutput.fire(output);
 						});
 					}
 
-					this.splice2(diff[0], diff[1], diff[2]);
+					this.splice2(diff.start, diff.deleteCount, diff.toInsert);
 				});
 			} else {
 				DOM.scheduleAtNextAnimationFrame(() => {
-					e.splices.reverse().forEach((diff) => {
+					viewDiffs.reverse().forEach((diff) => {
 						// remove output in the webview
-						for (let i = diff[0]; i < diff[0] + diff[1]; i++) {
+						for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 							const cell = this.element(i);
 							cell?.model.outputs.forEach(output => {
 								this._onDidRemoveOutput.fire(output);
 							});
 						}
 
-						this.splice2(diff[0], diff[1], diff[2]);
+						this.splice2(diff.start, diff.deleteCount, diff.toInsert);
 					});
 				});
 			}
@@ -184,6 +200,41 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._hiddenRangeIds = hiddenAreaIds;
 
 		this.updateHiddenAreasInView(oldRanges, newRanges);
+
+		// set hidden ranges prefix sum
+		let start = 0;
+		let index = 0;
+		let ret: number[] = [];
+
+		while (index < newRanges.length) {
+			for (let j = start; j < newRanges[index].start - 1; j++) {
+				ret.push(1);
+			}
+
+			ret.push(newRanges[index].length + 1);
+			start = newRanges[index].start + newRanges[index].length;
+			index++;
+		}
+
+		for (let i = start; i < this._viewModel!.viewCells.length; i++) {
+			ret.push(1);
+		}
+
+		const values = new Uint32Array(ret.length);
+		for (let i = 0; i < ret.length; i++) {
+			values[i] = ret[i];
+		}
+
+		this.hiddenRangesPrefixSum = new PrefixSumComputer(values);
+		// console.log(ret);
+		// for (let i = 0; i < this.hiddenRangesPrefixSum.getCount(); i++) {
+		// 	console.log(this.hiddenRangesPrefixSum.getAccumulatedValue(i));
+		// }
+
+		// for (let i = 0; i < this._viewModel!.viewCells.length; i++) {
+		// 	console.log(this.hiddenRangesPrefixSum.getIndexOf(i));
+		// }
+
 		return true;
 	}
 
@@ -221,8 +272,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.splice(start, deleteCount, elements);
 	}
 
+
 	getViewIndex(cell: ICellViewModel) {
-		return this._viewModel?.getViewCellIndex(cell);
+		const modelIndex = this._viewModel!.getCellIndex(cell);
+		if (!this.hiddenRangesPrefixSum) {
+			return modelIndex;
+		}
+
+		return this.hiddenRangesPrefixSum.getIndexOf(modelIndex).index;
 	}
 
 	focusElement(cell: ICellViewModel) {
@@ -327,8 +384,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	getAbsoluteTopOfElement(element: ICellViewModel): number {
-		let index = this._viewModel!.getViewCellIndex(element);
-		if (index < 0 || index >= this.length) {
+		let index = this.getViewIndex(element);
+		if (index === undefined || index < 0 || index >= this.length) {
 			throw new ListError(this.listUser, `Invalid index ${index}`);
 		}
 
@@ -341,7 +398,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 
 	updateElementHeight2(element: ICellViewModel, size: number): void {
-		const index = this._viewModel!.getViewCellIndex(element);
+		const index = this.getViewIndex(element);
+		if (index === undefined) {
+			return;
+		}
+
 		const focused = this.getSelection();
 		this.view.updateElementHeight(index, size, focused.length ? focused[0] : null);
 	}
