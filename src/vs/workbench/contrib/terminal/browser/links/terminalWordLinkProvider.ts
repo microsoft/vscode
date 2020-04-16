@@ -13,7 +13,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 		private readonly _xterm: Terminal,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
 		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void,
-		private readonly _leaveCallback: () => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
@@ -77,7 +76,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 				if (timeout !== undefined) {
 					window.clearTimeout(timeout);
 				}
-				this._leaveCallback();
 			}
 		});
 	}

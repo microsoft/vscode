@@ -40,4 +40,5 @@
 .monaco-workbench .terminal-hover-target {
 	position: absolute;
 	background: #3333ff88;
+	z-index: 20;
 }

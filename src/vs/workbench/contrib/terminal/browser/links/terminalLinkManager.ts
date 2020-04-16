@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -89,7 +89,6 @@ export class TerminalLinkManager extends DisposableStore {
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => boolean | void;
-	private readonly _leaveCallback: () => void;
 	private _linkMatchers: number[] = [];
 	private _webLinksAddon: ITerminalAddon | undefined;
 	private _linkProviders: IDisposable[] = [];
@@ -175,12 +174,6 @@ export class TerminalLinkManager extends DisposableStore {
 				linkHandler
 			);
 		};
-		this._leaveCallback = () => {
-			console.log('leaveCallback');
-			if (this._widgetManager) {
-				this._widgetManager.closeHover();
-			}
-		};
 
 		if (this._configHelper.config.experimentalLinkProvider) {
 			this.registerLinkProvider();
@@ -235,7 +228,6 @@ export class TerminalLinkManager extends DisposableStore {
 		const options: ILinkMatcherOptions = {
 			matchIndex,
 			tooltipCallback,
-			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
 		};
@@ -259,7 +251,6 @@ export class TerminalLinkManager extends DisposableStore {
 			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
 				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(callback),
 				tooltipCallback,
-				leaveCallback: this._leaveCallback,
 				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
 			});
 			this._xterm.loadAddon(this._webLinksAddon);
@@ -276,7 +267,6 @@ export class TerminalLinkManager extends DisposableStore {
 		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback,
-			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		}));
@@ -293,7 +283,6 @@ export class TerminalLinkManager extends DisposableStore {
 			matchIndex: 1,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback,
-			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		};
@@ -308,7 +297,7 @@ export class TerminalLinkManager extends DisposableStore {
 		};
 		const wrappedActivateCallback = this._wrapLinkHandler(this._handleProtocolLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipWebCallback, this._leaveCallback)
+			new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipWebCallback)
 		));
 
 		// Validated local links
@@ -323,7 +312,6 @@ export class TerminalLinkManager extends DisposableStore {
 				wrappedTextLinkActivateCallback,
 				wrappedDirectoryLinkActivateCallback,
 				tooltipValidatedLocalCallback,
-				this._leaveCallback,
 				async (link, cb) => cb(await this._resolvePath(link)))
 		));
 
@@ -351,7 +339,7 @@ export class TerminalLinkManager extends DisposableStore {
 		};
 		const wrappedWordActivateCallback = this._wrapLinkHandler(wordHandler);
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback, this._leaveCallback)
+			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback)
 		));
 	}
 

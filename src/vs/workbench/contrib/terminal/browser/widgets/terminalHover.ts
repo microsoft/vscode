@@ -71,7 +71,7 @@ export class TerminalWidgetManager implements IDisposable {
 		text: IMarkdownString,
 		linkHandler: (url: string) => void
 	): void {
-		if (!this._container || !this._xtermViewport || this._hoverWidget?.isMouseOver) {
+		if (!this._container) {
 			return;
 		}
 		dispose(this._hoverWidget);
@@ -114,8 +114,9 @@ export class TerminalWidgetManager implements IDisposable {
 
 class CellHoverTarget extends Widget implements IHoverTarget {
 	private _domNode: HTMLElement;
-	private _targetDomNodes: HTMLElement[] = [];
 	private _isDisposed: boolean = false;
+
+	readonly targetElements: readonly HTMLElement[];
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -127,6 +128,8 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('terminal-hover-targets');
+
+		const targets: HTMLElement[] = [];
 
 		const rowCount = viewportRange.end.y - viewportRange.start.y + 1;
 
@@ -142,7 +145,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		topTarget.style.bottom = `${bottomLeft.y}px`;
 		topTarget.style.width = `${width}px`;
 		topTarget.style.height = `${cellDimensions.height}px`;
-		this._targetDomNodes.push(topTarget);
+		targets.push(topTarget);
 		this._domNode.appendChild(topTarget);
 
 		// Add middle target rows
@@ -153,7 +156,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 			middleTarget.style.bottom = `${(terminalDimensions.height - viewportRange.start.y - 1 - (rowCount - 2)) * cellDimensions.height}px`;
 			middleTarget.style.width = `${terminalDimensions.width * cellDimensions.width}px`;
 			middleTarget.style.height = `${(rowCount - 2) * cellDimensions.height}px`;
-			this._targetDomNodes.push(middleTarget);
+			targets.push(middleTarget);
 			this._domNode.appendChild(middleTarget);
 		}
 
@@ -165,9 +168,11 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 			bottomTarget.style.bottom = `${(terminalDimensions.height - viewportRange.end.y - 1) * cellDimensions.height}px`;
 			bottomTarget.style.width = `${(viewportRange.end.x + 1) * cellDimensions.width}px`;
 			bottomTarget.style.height = `${cellDimensions.height}px`;
-			this._targetDomNodes.push(bottomTarget);
+			targets.push(bottomTarget);
 			this._domNode.appendChild(bottomTarget);
 		}
+
+		this.targetElements = targets;
 
 		this._container.appendChild(this._domNode);
 	}
@@ -181,7 +186,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 	}
 
 	proposeIdealAnchor(): IProposedAnchor {
-		const firstPosition = getDomNodePagePosition(this._targetDomNodes[0]);
+		const firstPosition = getDomNodePagePosition(this.targetElements[0]);
 		return {
 			x: firstPosition.left,
 			horizontalAlignment: HorizontalAlignment.Left,
@@ -191,7 +196,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 	}
 
 	proposeSecondaryAnchor(): IProposedAnchor {
-		const firstPosition = getDomNodePagePosition(this._targetDomNodes[0]);
+		const firstPosition = getDomNodePagePosition(this.targetElements[0]);
 		return {
 			x: firstPosition.left,
 			horizontalAlignment: HorizontalAlignment.Left,
