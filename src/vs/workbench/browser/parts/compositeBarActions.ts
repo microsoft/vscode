@@ -691,4 +691,9 @@ export class ToggleCompositePinnedAction extends Action {
 			this.compositeBar.pin(id);
 		}
 	}
+
+	setActivity(activity: IActivity): void {
+		this.activity = activity;
+		this.label = activity.name;
+	}
 }
