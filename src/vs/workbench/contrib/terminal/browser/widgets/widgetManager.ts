@@ -5,7 +5,6 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IViewportRange } from 'xterm';
 import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
@@ -17,8 +16,6 @@ export class TerminalWidgetManager implements IDisposable {
 
 	private _hoverWidget: HoverWidget | undefined;
 
-	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
-
 	private _attached: Map<string, ITerminalWidget> = new Map();
 
 	constructor() {
@@ -29,7 +26,7 @@ export class TerminalWidgetManager implements IDisposable {
 			this._container = document.createElement('div');
 			this._container.classList.add('terminal-widget-container');
 			terminalWrapper.appendChild(this._container);
-			this._initTerminalHeightWatcher(terminalWrapper);
+			this._trackTerminalDimensions(terminalWrapper);
 		}
 	}
 
@@ -39,17 +36,6 @@ export class TerminalWidgetManager implements IDisposable {
 			this._container = undefined;
 		}
 		this._xtermViewport = undefined;
-	}
-
-	showEnvironmentVariableInfo(info: IEnvironmentVariableInfo): IDisposable {
-		this._environmentVariableInfo = info;
-		return {
-			dispose: () => {
-				if (this._environmentVariableInfo === info) {
-					this._environmentVariableInfo = undefined;
-				}
-			}
-		};
 	}
 
 	showHover(
@@ -92,20 +78,24 @@ export class TerminalWidgetManager implements IDisposable {
 		this._hoverWidget?.dispose();
 	}
 
-	private _initTerminalHeightWatcher(terminalWrapper: HTMLElement) {
+	private _trackTerminalDimensions(terminalWrapper: HTMLElement) {
 		// Watch the xterm.js viewport for style changes and do a layout if it changes
 		this._xtermViewport = <HTMLElement>terminalWrapper.querySelector('.xterm-viewport');
-		if (!this._xtermViewport) {
+		const xtermElement = <HTMLElement>terminalWrapper.querySelector('.xterm');
+		if (!this._xtermViewport || !xtermElement) {
 			return;
 		}
-		const mutationObserver = new MutationObserver(() => this._refreshHeight());
-		mutationObserver.observe(this._xtermViewport, { attributes: true, attributeFilter: ['style'] });
+		const mutationObserver = new MutationObserver(() => this._refreshDimensions());
+		mutationObserver.observe(xtermElement, { attributes: true, attributeFilter: ['style'] });
+		this._refreshDimensions();
 	}
 
-	private _refreshHeight(): void {
+	private _refreshDimensions(): void {
 		if (!this._container || !this._xtermViewport) {
 			return;
 		}
-		this._container.style.height = this._xtermViewport.style.height;
+		const computed = window.getComputedStyle(this._xtermViewport);
+		const marginRight = parseInt(computed.marginRight.replace('px', ''));
+		this._container.style.width = `${this._xtermViewport.clientWidth - marginRight}px`;
 	}
 }
