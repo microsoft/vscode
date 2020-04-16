@@ -57,7 +57,11 @@ export class UserDataSyncAccountManager extends Disposable {
 		super();
 		this.userDataSyncAccountProvider = getUserDataSyncStore(productService, configurationService)?.authenticationProviderId;
 		if (this.userDataSyncAccountProvider) {
-			this._register(Event.once(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, providerId => providerId === this.userDataSyncAccountProvider))(() => this.initialize()));
+			if (authenticationService.isAuthenticationProviderRegistered(this.userDataSyncAccountProvider)) {
+				this.initialize();
+			} else {
+				this._register(Event.once(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, providerId => providerId === this.userDataSyncAccountProvider))(() => this.initialize()));
+			}
 		}
 	}
 

@@ -17,6 +17,7 @@ export const IAuthenticationService = createDecorator<IAuthenticationService>('I
 export interface IAuthenticationService {
 	_serviceBrand: undefined;
 
+	isAuthenticationProviderRegistered(id: string): boolean;
 	registerAuthenticationProvider(id: string, provider: MainThreadAuthenticationProvider): void;
 	unregisterAuthenticationProvider(id: string): void;
 	sessionsUpdate(providerId: string, event: AuthenticationSessionsChangeEvent): void;
@@ -54,6 +55,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				title: nls.localize('loading', "Loading...")
 			},
 		});
+	}
+
+	isAuthenticationProviderRegistered(id: string): boolean {
+		return this._authenticationProviders.has(id);
 	}
 
 	registerAuthenticationProvider(id: string, authenticationProvider: MainThreadAuthenticationProvider): void {
