@@ -56,8 +56,6 @@ export class HoverWidget extends Widget {
 			}
 		});
 		this._domNode.style.position = 'fixed';
-		this.layout();
-
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 
 		this._mouseTracker = new CompositeMouseTracker([this._domNode, ..._target.targetElements]);
@@ -65,11 +63,14 @@ export class HoverWidget extends Widget {
 		this._register(this._mouseTracker);
 
 		this._container.appendChild(this._domNode);
+
+		this.layout();
 	}
 
 	public layout(): void {
 		const anchor = this._target.proposeIdealAnchor();
-		// TODO: Clamp to window bounds, go to secondary anchor if vertical gets clipped
+		// TODO: go to secondary anchor if vertical gets clipped
+		this._domNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
 		if (anchor.horizontalAlignment === HorizontalAlignment.Left) {
 			this._domNode.style.left = `${anchor.x}px`;
 		} else {
@@ -81,10 +82,6 @@ export class HoverWidget extends Widget {
 			this._domNode.style.top = `${anchor.y}px`;
 		}
 	}
-
-	// public height(): number {
-
-	// }
 
 	public dispose(): void {
 		if (this.domNode.parentElement === this._container) {

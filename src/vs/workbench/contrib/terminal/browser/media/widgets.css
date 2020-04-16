@@ -16,9 +16,9 @@
 	line-height: 19px;
 	padding: 4px 8px;
 	animation: fadein 100ms linear;
-	white-space: nowrap;
 	/* Must be drawn on the top of the terminal's canvases */
 	z-index: 20;
+	overflow: hidden;
 }
 
 .monaco-workbench .terminal-message-widget p {
