@@ -1104,7 +1104,7 @@ export const enum ISuggestDataDtoField {
 export interface ISuggestDataDto {
 	[ISuggestDataDtoField.label]: string;
 	[ISuggestDataDtoField.label2]?: string | modes.CompletionItemLabel;
-	[ISuggestDataDtoField.kind]: modes.CompletionItemKind;
+	[ISuggestDataDtoField.kind]?: modes.CompletionItemKind;
 	[ISuggestDataDtoField.detail]?: string;
 	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
 	[ISuggestDataDtoField.sortText]?: string;

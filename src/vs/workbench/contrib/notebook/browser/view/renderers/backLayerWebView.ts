@@ -343,7 +343,11 @@ export class BackLayerWebView extends Disposable {
 					// const top = data.data.top;
 					// console.log('ack top ', top, ' version: ', data.version, ' - ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 				} else if (data.type === 'did-scroll-wheel') {
-					this.notebookEditor.triggerScroll(data.payload);
+					this.notebookEditor.triggerScroll({
+						...data.payload,
+						preventDefault: () => { },
+						stopPropagation: () => { }
+					});
 				}
 				return;
 			}

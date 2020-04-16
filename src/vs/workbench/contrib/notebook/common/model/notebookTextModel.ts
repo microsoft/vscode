@@ -31,6 +31,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _isUntitled: boolean | undefined = undefined;
 	private _versionId = 0;
 
+	get versionId() {
+		return this._versionId;
+	}
+
 	constructor(
 		public handle: number,
 		public viewType: string,

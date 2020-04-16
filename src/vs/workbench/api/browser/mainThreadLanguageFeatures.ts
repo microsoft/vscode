@@ -406,7 +406,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		return {
 			label: data[ISuggestDataDtoField.label2] || data[ISuggestDataDtoField.label],
-			kind: data[ISuggestDataDtoField.kind],
+			kind: data[ISuggestDataDtoField.kind] || modes.CompletionItemKind.Property,
 			tags: data[ISuggestDataDtoField.kindModifier],
 			detail: data[ISuggestDataDtoField.detail],
 			documentation: data[ISuggestDataDtoField.documentation],
