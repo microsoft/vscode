@@ -493,15 +493,15 @@ export class TerminalLinkManager extends DisposableStore {
 		let label = '';
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			if (isMacintosh) {
-				label = nls.localize('terminalLinkHandler.followLinkAlt.mac', "Option + click");
+				label = nls.localize('terminalLinkHandler.followLinkAlt.mac', "option + click");
 			} else {
-				label = nls.localize('terminalLinkHandler.followLinkAlt', "Alt + click");
+				label = nls.localize('terminalLinkHandler.followLinkAlt', "alt + click");
 			}
 		} else {
 			if (isMacintosh) {
-				label = nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click");
+				label = nls.localize('terminalLinkHandler.followLinkCmd', "cmd + click");
 			} else {
-				label = nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click");
+				label = nls.localize('terminalLinkHandler.followLinkCtrl', "ctrl + click");
 			}
 		}
 

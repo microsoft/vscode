@@ -61,7 +61,7 @@ export class HoverWidget extends Widget {
 		this._domNode.style.position = 'fixed';
 		this.layout();
 
-		this._domNode.classList.add('terminal-message-widget', 'fadeIn', 'monaco-editor-hover');
+		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 
 		this._mouseTracker = new CompositeMouseTracker([this._domNode, ..._target.targetElements]);
 		this._mouseTracker.onMouseOut(() => this.dispose());
