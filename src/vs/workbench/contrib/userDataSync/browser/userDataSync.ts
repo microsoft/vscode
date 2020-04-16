@@ -172,7 +172,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onDidChangeAccountStatus(status: AccountStatus): void {
 		this.accountStatusContext.set(status);
-		if (status === AccountStatus.Unavailable && this.userDataSyncEnablementService.isEnabled()) {
+		if (status === AccountStatus.Unavailable) {
 			this.doTurnOff(false);
 		}
 	}
@@ -572,6 +572,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async doTurnOff(turnOffEveryWhere: boolean): Promise<void> {
+		if (!this.userDataSyncEnablementService.isEnabled()) {
+			return;
+		}
 		if (turnOffEveryWhere) {
 			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 			await this.userDataSyncService.reset();
