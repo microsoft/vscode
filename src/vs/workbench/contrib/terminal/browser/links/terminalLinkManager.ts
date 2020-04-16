@@ -134,7 +134,7 @@ export class TerminalLinkManager extends DisposableStore {
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
 
-		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => {
+		this._tooltipCallback = (e: MouseEvent, uri: string, linkRange: IViewportRange, linkHandler: (url: string) => void) => {
 			if (!this._widgetManager) {
 				return;
 			}
@@ -165,7 +165,7 @@ export class TerminalLinkManager extends DisposableStore {
 			};
 
 			this._widgetManager.showHover(
-				location,
+				linkRange,
 				cellDimensions,
 				terminalDimensions,
 				// location.start.x * core._renderService.dimensions.actualCellWidth,

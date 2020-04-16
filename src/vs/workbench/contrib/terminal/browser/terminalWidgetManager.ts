@@ -11,19 +11,13 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { IViewportRange } from 'xterm';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 
-export enum WidgetVerticalAlignment {
-	Bottom,
-	Top
-}
-
-const WIDGET_HEIGHT = 29;
+// const WIDGET_HEIGHT = 29;
 
 export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
 	private _xtermViewport: HTMLElement | undefined;
 
 	private _hoverWidget: HoverWidget | undefined;
-	private _hoverOverlayWidget: OverlayWidget | undefined;
 	private readonly _hoverListeners = new DisposableStore();
 
 	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
@@ -71,7 +65,7 @@ export class TerminalWidgetManager implements IDisposable {
 	}
 
 	public showHover(
-		location: IViewportRange,
+		viewportRange: IViewportRange,
 		cellDimensions: { width: number, height: number },
 		terminalDimensions: { width: number, height: number },
 		text: IMarkdownString,
@@ -84,11 +78,17 @@ export class TerminalWidgetManager implements IDisposable {
 		this._hoverListeners.clear();
 
 		// TODO: Determine whether the tooltip should show on the bottom or top
-		const left = location.start.x * cellDimensions.width;
-		const top = location.start.y * cellDimensions.height;
-		this._hoverWidget = new HoverWidget(this._xtermViewport, this._container, left, top, text, WidgetVerticalAlignment.Bottom, linkHandler);
-		// TODO: Fill in target length
-		this._hoverOverlayWidget = new OverlayWidget(this._container, left, top, 50, 20);
+		// const left = location.start.x * cellDimensions.width;
+		// const top = location.start.y * cellDimensions.height;
+
+		// TODO: Create targets and manage tooltip mouse leaving and positioning
+		// this._hoverOverlayWidget = new HoverTarget(this._container, left, top, 50, 20);
+
+		const target = new CellHoverTarget(this._container, viewportRange, cellDimensions, terminalDimensions);
+
+
+		// this._hoverWidget = new HoverWidget(this._xtermViewport, this._container, target, left, top, text, linkHandler);
+		this._hoverWidget = new HoverWidget(this._container, target, text, linkHandler);
 	}
 
 	public closeHover(): void {
@@ -96,7 +96,7 @@ export class TerminalWidgetManager implements IDisposable {
 		this._hoverListeners.clear();
 		// const currentWidget = this._hoverWidget;
 		this._hoverWidget?.dispose();
-		this._hoverOverlayWidget?.dispose();
+		// this._hoverOverlayWidget?.dispose();
 		// setTimeout(() => {
 		// 	if (this._hoverWidget && !this._hoverWidget.mouseOver && this._hoverWidget === currentWidget) {
 		// 		this._hoverListeners.add(HoverWidget.fadeOut(this._hoverWidget));
@@ -118,33 +118,20 @@ class HoverWidget extends Widget {
 
 	private _isMouseOver = false;
 
-	public get left(): number { return this._left; }
-	public get row(): number { return this._y; }
-	public get text(): IMarkdownString { return this._text; }
+	// public get left(): number { return this._left; }
+	// public get row(): number { return this._y; }
+	// public get text(): IMarkdownString { return this._text; }
 	public get domNode(): HTMLElement { return this._domNode; }
-	public get verticalAlignment(): WidgetVerticalAlignment { return this._verticalAlignment; }
+	// public get verticalAlignment(): WidgetVerticalAlignment { return this._verticalAlignment; }
 	public get isMouseOver(): boolean { return this._isMouseOver; }
 
-	// public static fadeOut(messageWidget: HoverWidget): IDisposable {
-	// 	let handle: any;
-	// 	const dispose = () => {
-	// 		messageWidget.dispose();
-	// 		clearTimeout(handle);
-	// 		messageWidget.domNode.removeEventListener('animationend', dispose);
-	// 	};
-	// 	handle = setTimeout(dispose, 110);
-	// 	messageWidget.domNode.addEventListener('animationend', dispose);
-	// 	messageWidget.domNode.classList.add('fadeOut');
-	// 	return { dispose };
-	// }
-
 	constructor(
-		relativeElement: HTMLElement,
 		private _container: HTMLElement,
-		private _left: number,
-		private _y: number,
+		/**
+		 * One or more targets that the hover must not overlap
+		 */
+		private _target: IHoverTarget,
 		private _text: IMarkdownString,
-		private _verticalAlignment: WidgetVerticalAlignment,
 		private _linkHandler: (url: string) => void
 	) {
 		super();
@@ -155,19 +142,7 @@ class HoverWidget extends Widget {
 			}
 		});
 		this._domNode.style.position = 'fixed';
-		const relativePosition = getDomNodePagePosition(relativeElement);
-		this._domNode.style.left = `${relativePosition.left + this._left}px`;
-
-		// if (this.verticalAlignment === WidgetVerticalAlignment.Top) {
-		// 	// Y position is to the top of the widget
-		// 	// this._domNode.style.bottom = `${Math.max(_y, WIDGET_HEIGHT) - WIDGET_HEIGHT}px`;
-		// 	// this._domNode.style.top =
-		// } else {
-		// 	// Y position is to the bottom of the widget
-		// 	// this._domNode.style.bottom = `${Math.min(_y, _container.offsetHeight - WIDGET_HEIGHT)}px`;
-		// 	this._domNode.style.bottom = `${_y}px`;
-		// }
-		this._domNode.style.top = `${relativePosition.top + this._y - WIDGET_HEIGHT}px`;
+		this.layout();
 
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 
@@ -176,41 +151,146 @@ class HoverWidget extends Widget {
 			console.log('mouseout');
 			this._isMouseOver = false;
 			this.dispose();
-			// this._messageListeners.add(HoverWidget.fadeOut(this));
 		});
 
 		this._container.appendChild(this._domNode);
 	}
+
+	public layout(): void {
+		const anchor = this._target.proposeIdealAnchor();
+		console.log('anchor', anchor);
+		this._domNode.style.left = `${anchor.x}px`;
+		if (anchor.verticalAlignment === VerticalAlignment.Bottom) {
+			this._domNode.style.bottom = `${anchor.y}px`;
+		} else {
+			this._domNode.style.top = `${anchor.y}px`;
+		}
+	}
+
+	// public height(): number {
+
+	// }
 
 	public dispose(): void {
 		console.log('dispose');
 		if (this.domNode.parentElement === this._container) {
 			this._container.removeChild(this.domNode);
 		}
-
 		this._messageListeners.dispose();
+		super.dispose();
 	}
 }
 
-class OverlayWidget extends Widget {
+enum HorizontalAlignment {
+	Left,
+	Right
+}
+
+enum VerticalAlignment {
+	Top,
+	Bottom
+}
+
+interface IProposedAnchor {
+	x: number;
+	y: number;
+	horizontalAlignment: HorizontalAlignment;
+	verticalAlignment: VerticalAlignment;
+}
+
+/**
+ * A target for a hover which can know about domain-specific locations.
+ */
+interface IHoverTarget {
+	proposeIdealAnchor(): IProposedAnchor
+	proposeSecondaryAnchor(): IProposedAnchor
+}
+
+class CellHoverTarget extends Widget implements IHoverTarget {
 	private _domNode: HTMLElement;
+	private _targetDomNodes: HTMLElement[] = [];
+	private _isDisposed: boolean = false;
 
 	constructor(
 		private readonly _container: HTMLElement,
-		x: number,
-		y: number,
-		width: number,
-		height: number
+		viewportRange: IViewportRange,
+		cellDimensions: { width: number, height: number },
+		terminalDimensions: { width: number, height: number }
 	) {
 		super();
+
 		this._domNode = document.createElement('div');
-		this._domNode.classList.add('terminal-overlay-widget');
-		this._domNode.style.left = `${x}px`;
-		this._domNode.style.top = `${y}px`;
-		this._domNode.style.width = `${width}px`;
-		this._domNode.style.height = `${height}px`;
+		this._domNode.classList.add('terminal-hover-targets');
+
+		const rowCount = viewportRange.end.y - viewportRange.start.y + 1;
+
+		// Add top target row
+		const bottomLeft = {
+			x: viewportRange.start.x * cellDimensions.width,
+			y: (terminalDimensions.height - viewportRange.start.y - 1) * cellDimensions.height
+		};
+		const width = (viewportRange.end.y > viewportRange.start.y ? terminalDimensions.width - viewportRange.start.x : viewportRange.end.x - viewportRange.start.x + 1) * cellDimensions.width;
+		const topTarget = document.createElement('div');
+		topTarget.classList.add('terminal-hover-target');
+		topTarget.style.left = `${bottomLeft.x}px`;
+		topTarget.style.bottom = `${bottomLeft.y}px`;
+		topTarget.style.width = `${width}px`;
+		topTarget.style.height = `${cellDimensions.height}px`;
+		this._targetDomNodes.push(topTarget);
+		this._domNode.appendChild(topTarget);
+
+		// Add middle target rows
+		if (rowCount > 2) {
+			const middleTarget = document.createElement('div');
+			middleTarget.classList.add('terminal-hover-target');
+			middleTarget.style.left = `0px`;
+			middleTarget.style.bottom = `${(terminalDimensions.height - viewportRange.start.y - 1 - (rowCount - 2)) * cellDimensions.height}px`;
+			middleTarget.style.width = `${terminalDimensions.width * cellDimensions.width}px`;
+			middleTarget.style.height = `${(rowCount - 2) * cellDimensions.height}px`;
+			this._targetDomNodes.push(middleTarget);
+			this._domNode.appendChild(middleTarget);
+		}
+
+		// Add bottom target row
+		if (rowCount > 1) {
+			const bottomTarget = document.createElement('div');
+			bottomTarget.classList.add('terminal-hover-target');
+			bottomTarget.style.left = `0px`;
+			bottomTarget.style.bottom = `${(terminalDimensions.height - viewportRange.end.y - 1) * cellDimensions.height}px`;
+			bottomTarget.style.width = `${(viewportRange.end.x + 1) * cellDimensions.width}px`;
+			bottomTarget.style.height = `${cellDimensions.height}px`;
+			this._targetDomNodes.push(bottomTarget);
+			this._domNode.appendChild(bottomTarget);
+		}
+
 		this._container.appendChild(this._domNode);
 	}
 
-	get domNode() { return this._domNode; }
+	dispose(): void {
+		if (!this._isDisposed) {
+			this._container.removeChild(this._domNode);
+		}
+		this._isDisposed = true;
+		super.dispose();
+	}
+
+	proposeIdealAnchor(): IProposedAnchor {
+		const firstPosition = getDomNodePagePosition(this._targetDomNodes[0]);
+		return {
+			x: firstPosition.left,
+			horizontalAlignment: HorizontalAlignment.Left,
+			y: document.documentElement.clientHeight - firstPosition.top - 1,
+			verticalAlignment: VerticalAlignment.Bottom
+		};
+	}
+
+	proposeSecondaryAnchor(): IProposedAnchor {
+		const firstPosition = getDomNodePagePosition(this._targetDomNodes[0]);
+		return {
+			x: firstPosition.left,
+			horizontalAlignment: HorizontalAlignment.Left,
+			y: firstPosition.top + firstPosition.height - 1,
+			verticalAlignment: VerticalAlignment.Top
+		};
+	}
 }

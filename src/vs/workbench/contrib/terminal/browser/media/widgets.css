@@ -31,5 +31,13 @@
 
 .monaco-workbench .terminal-overlay-widget {
 	position: absolute;
+	left: 0;
+	/* Align to bottom like the terminal's viewport */
+	bottom: 0;
 	color: #3794ff;
+}
+
+.monaco-workbench .terminal-hover-target {
+	position: absolute;
+	background: #3333ff88;
 }
