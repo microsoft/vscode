@@ -250,12 +250,13 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 	constructor(
 		id: string,
 		name: string,
+		cssClass: string | undefined,
 		iconUrl: URI | undefined,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super({ id, name: id, iconUrl }, viewletService, layoutService, telemetryService);
+		super({ id, name, iconUrl, cssClass }, viewletService, layoutService, telemetryService);
 	}
 }
 

@@ -49,6 +49,7 @@ import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { URI } from 'vs/base/common/uri';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -905,10 +906,32 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 	}
 
-	getTitle(): string {
+	private shouldUseContainerInfo(): boolean {
 		// use registered title if any of our panes are statically registered to this container
 		const allViewDescriptors = this.viewDescriptorService.getViewDescriptors(this.viewContainer).allViewDescriptors;
-		const containerTitle = this.paneItems.length === 0 || allViewDescriptors.length === 0 || allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id) === this.viewContainer) ? this.viewContainer.name : this.paneItems[0].pane.title;
+
+		if (allViewDescriptors.length === 0) {
+			return true;
+		}
+
+		if (this.paneItems.length === 0) {
+			return true;
+		}
+
+		return allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id) === this.viewContainer);
+	}
+
+	getIcon(): URI | string | undefined {
+		if (this.shouldUseContainerInfo()) {
+			return this.viewContainer.icon;
+		} else {
+			const view = this.viewDescriptorService.getViewDescriptor(this.paneItems[0].pane.id);
+			return view?.containerIcon || 'codicon-window';
+		}
+	}
+
+	getTitle(): string {
+		const containerTitle = this.shouldUseContainerInfo() ? this.viewContainer.name : this.paneItems[0].pane.title;
 
 		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;

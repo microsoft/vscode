@@ -46,6 +46,7 @@ import { Before2D } from 'vs/workbench/browser/dnd';
 interface IPlaceholderViewlet {
 	id: string;
 	name?: string;
+	cssClass?: string;
 	iconUrl?: UriComponents;
 	views?: { when?: string }[];
 }
@@ -54,12 +55,15 @@ interface IPinnedViewlet {
 	id: string;
 	pinned: boolean;
 	order?: number;
+	cssClass?: string;
+	iconUrl?: UriComponents;
 	visible: boolean;
 }
 
 interface ICachedViewlet {
 	id: string;
 	name?: string;
+	cssClass?: string;
 	iconUrl?: UriComponents;
 	pinned: boolean;
 	order?: number;
@@ -100,6 +104,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private readonly cachedViewlets: ICachedViewlet[] = [];
 	private readonly compositeActions = new Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
 	private readonly viewletDisposables = new Map<string, IDisposable>();
+	private readonly viewPaneContainerListeners = new Map<string, IDisposable>();
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
@@ -219,6 +224,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const viewContainer = this.getViewContainer(viewletDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
 				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+
+				if (!this.viewPaneContainerListeners.get(viewlet.getId())) {
+					const activeViewlet = this.viewletService.getActiveViewlet();
+					if (activeViewlet?.getId() === viewlet.getId()) {
+						this.viewPaneContainerListeners.set(viewlet.getId(), activeViewlet.onTitleAreaUpdate(() => this.updateActivity(viewletDescriptor, viewDescriptors)));
+					}
+				}
+
 				if (viewDescriptors.activeViewDescriptors.length === 0) {
 					this.hideComposite(viewletDescriptor.id); // Update the composite bar by hiding
 				}
@@ -448,15 +461,24 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
 			const viewlet = this.viewletService.getViewlet(compositeId);
+			const cachedComposite = this.cachedViewlets.filter(c => c.id === compositeId)[0];
+
 			if (viewlet) {
+				const activity: IActivity = {
+					id: viewlet.id,
+					name: cachedComposite?.name || viewlet.name,
+					cssClass: !!cachedComposite ? cachedComposite.cssClass : viewlet.cssClass,
+					iconUrl: !!cachedComposite ? (!!cachedComposite.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined) : viewlet.iconUrl,
+					keybindingId: viewlet.keybindingId
+				};
+
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(ViewletActivityAction, viewlet),
-					pinnedAction: new ToggleCompositePinnedAction(viewlet, this.compositeBar)
+					activityAction: this.instantiationService.createInstance(ViewletActivityAction, activity),
+					pinnedAction: new ToggleCompositePinnedAction(activity, this.compositeBar)
 				};
 			} else {
-				const cachedComposite = this.cachedViewlets.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite?.name || compositeId, cachedComposite?.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite?.name || compositeId, cachedComposite?.cssClass, cachedComposite?.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -502,30 +524,38 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			disposable.dispose();
 		}
 
+		const viewPaneContainerListener = this.viewPaneContainerListeners.get(viewletId);
+		if (viewPaneContainerListener) {
+			viewPaneContainerListener.dispose();
+		}
+
 		this.viewletDisposables.delete(viewletId);
+		this.viewPaneContainerListeners.delete(viewletId);
 		this.hideComposite(viewletId);
 	}
 
 	private updateActivity(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
-		const viewDescriptor = viewDescriptors.activeViewDescriptors[0];
+		const activeViewlet = this.viewletService.getActiveViewlet();
+		const title = activeViewlet?.getTitle() || viewlet.name;
+		const icon = activeViewlet?.getIcon();
 
-		// Use the viewlet icon if any view inside belongs to it statically
-		const shouldUseViewletIcon = viewDescriptors.allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id)?.id === viewlet.id);
+		if (activeViewlet?.getId() !== viewlet.id) {
+			return;
+		}
 
 		const activity: IActivity = {
 			id: viewlet.id,
-			name: shouldUseViewletIcon ? viewlet.name : viewDescriptor.name,
-			cssClass: shouldUseViewletIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : (viewDescriptor.containerIcon === undefined ? 'codicon-window' : undefined)),
-			iconUrl: shouldUseViewletIcon ? viewlet.iconUrl : (viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined),
+			name: activeViewlet?.getId() === viewlet.id ? title : viewlet.name,
+			cssClass: activeViewlet?.getId() === viewlet.id && icon ? (isString(icon) ? icon : undefined) : viewlet.cssClass,
+			iconUrl: activeViewlet?.getId() === viewlet.id && icon ? (icon instanceof URI ? icon : undefined) : viewlet.iconUrl,
 			keybindingId: viewlet.keybindingId
 		};
 
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
 		activityAction.setActivity(activity);
+		pinnedAction.setActivity(activity);
 
-		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
-			pinnedAction.setActivity(activity);
-		}
+		this.saveCachedViewlets();
 	}
 
 	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection, hideIfEmpty?: boolean): void {
@@ -647,21 +677,19 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private saveCachedViewlets(): void {
 		const state: ICachedViewlet[] = [];
-		const allViewlets = this.viewletService.getViewlets();
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 		for (const compositeItem of compositeItems) {
 			const viewContainer = this.getViewContainer(compositeItem.id);
-			const viewlet = allViewlets.filter(({ id }) => id === compositeItem.id)[0];
-			if (viewlet) {
-				const views: { when: string | undefined }[] = [];
-				if (viewContainer) {
-					const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-					for (const { when } of viewDescriptors.allViewDescriptors) {
-						views.push({ when: when ? when.serialize() : undefined });
-					}
+			const views: { when: string | undefined }[] = [];
+			if (viewContainer) {
+				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+				for (const { when } of viewDescriptors.allViewDescriptors) {
+					views.push({ when: when ? when.serialize() : undefined });
 				}
-				state.push({ id: compositeItem.id, name: viewlet.name, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+
+				const activity = this.getCompositeActions(compositeItem.id).activityAction.activity;
+				state.push({ id: compositeItem.id, name: activity.name, cssClass: activity.cssClass, iconUrl: activity.iconUrl && activity.iconUrl.scheme === Schemas.file ? activity.iconUrl : undefined, views, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 			} else {
 				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false });
 			}
@@ -685,8 +713,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private storeCachedViewletsState(cachedViewlets: ICachedViewlet[]): void {
-		this.pinnedViewletsValue = JSON.stringify(cachedViewlets.map(({ id, pinned, visible, order }) => (<IPinnedViewlet>{ id, pinned, visible, order })));
-		this.placeholderViewletsValue = JSON.stringify(cachedViewlets.map(({ id, iconUrl, name, views }) => (<IPlaceholderViewlet>{ id, iconUrl, name, views })));
+		this.pinnedViewletsValue = JSON.stringify(cachedViewlets.map(({ id, cssClass, iconUrl, name, pinned, visible, order }) => (<IPinnedViewlet>{ id, cssClass, iconUrl, name, pinned, visible, order })));
+		this.placeholderViewletsValue = JSON.stringify(cachedViewlets.map(({ id, cssClass, iconUrl, name, views }) => (<IPlaceholderViewlet>{ id, cssClass, iconUrl, name, views })));
 	}
 
 	private _pinnedViewletsValue: string | undefined;

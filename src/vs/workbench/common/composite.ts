@@ -19,6 +19,11 @@ export interface IComposite {
 	readonly onDidBlur: Event<void>;
 
 	/**
+	 * An event when the composite lost focus.
+	 */
+	readonly onTitleAreaUpdate: Event<void>;
+
+	/**
 	 * Returns the unique identifier of this composite.
 	 */
 	getId(): string;

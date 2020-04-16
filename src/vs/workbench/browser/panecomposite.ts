@@ -16,6 +16,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ViewPaneContainer } from './parts/views/viewPaneContainer';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { URI } from 'vs/base/common/uri';
 
 export class PaneComposite extends Composite implements IPaneComposite {
 
@@ -85,6 +86,10 @@ export class PaneComposite extends Composite implements IPaneComposite {
 
 	getTitle(): string {
 		return this.viewPaneContainer.getTitle();
+	}
+
+	getIcon(): URI | string | undefined {
+		return this.viewPaneContainer.getIcon();
 	}
 
 	saveState(): void {
