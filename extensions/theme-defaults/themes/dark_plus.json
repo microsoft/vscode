@@ -98,6 +98,16 @@
 			}
 		},
 		{
+			"name": "Constants and enums",
+			"scope": [
+				"variable.other.constant",
+				"variable.other.enummember"
+			],
+			"settings": {
+				"foreground": "#D4D4D4",
+			}
+		},
+		{
 			"name": "Object keys, TS grammar specific",
 			"scope": [
 				"meta.object-literal.key"

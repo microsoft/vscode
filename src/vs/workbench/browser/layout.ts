@@ -615,6 +615,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return !!container && isAncestor(activeElement, container);
 	}
 
+	focusPart(part: Parts): void {
+		switch (part) {
+			case Parts.EDITOR_PART:
+				this.editorGroupService.activeGroup.focus();
+				break;
+			case Parts.PANEL_PART:
+				const activePanel = this.panelService.getActivePanel();
+				if (activePanel) {
+					activePanel.focus();
+				}
+				break;
+			case Parts.SIDEBAR_PART:
+				const activeViewlet = this.viewletService.getActiveViewlet();
+				if (activeViewlet) {
+					activeViewlet.focus();
+				}
+				break;
+			default:
+				// Status Bar, Activity Bar and Title Bar simply pass focus to container
+				const container = this.getContainer(part);
+				if (container) {
+					container.focus();
+				}
+		}
+	}
+
 	getContainer(part: Parts): HTMLElement | undefined {
 		switch (part) {
 			case Parts.TITLEBAR_PART:

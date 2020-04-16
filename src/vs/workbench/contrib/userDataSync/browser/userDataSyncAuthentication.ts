@@ -13,8 +13,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { distinct } from 'vs/base/common/arrays';
-import Severity from 'vs/base/common/severity';
-import { Action } from 'vs/base/common/actions';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -274,14 +272,14 @@ export class UserDataSyncAuthentication extends Disposable implements IUserDataS
 
 	private async onDidChangeSessions(e: { providerId: string, event: AuthenticationSessionsChangeEvent }): Promise<void> {
 		const { providerId, event } = e;
-		if (!this.userDataSyncEnablementService.isEnabled()) {
-			if (event.added) {
-				this._onAccountsAvailable.fire();
-			}
-			return;
-		}
-
 		if (providerId === this._authenticationProviderId) {
+			if (!this.userDataSyncEnablementService.isEnabled()) {
+				if (event.added.length) {
+					this._onAccountsAvailable.fire();
+				}
+				return;
+			}
+
 			if (this.loginInProgress) {
 				return;
 			}
@@ -291,13 +289,8 @@ export class UserDataSyncAuthentication extends Disposable implements IUserDataS
 					const activeWasRemoved = !!event.removed.find(removed => removed === this.activeAccount!.id);
 					if (activeWasRemoved) {
 						this.setActiveAccount(undefined);
-						this.notificationService.notify({
-							severity: Severity.Info,
-							message: localize('turned off on logout', "Sync has stopped because you are no longer signed in."),
-							actions: {
-								primary: [new Action('sign in', localize('sign in', "Sign in"), undefined, true, () => this.login())]
-							}
-						});
+						// User explicitly signed out, turn off sync.
+						this.userDataSyncEnablementService.setEnablement(false);
 						return;
 					}
 				}

@@ -50,10 +50,19 @@ export interface NotebookDocumentMetadata {
 	hasExecutionOrder: boolean;
 }
 
+export enum NotebookCellRunState {
+	Running = 1,
+	Idle = 2,
+	Success = 3,
+	Error = 4
+}
+
 export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
 	executionOrder?: number;
+	statusMessage?: string;
+	runState?: NotebookCellRunState;
 }
 
 export interface INotebookDisplayOrder {

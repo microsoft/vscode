@@ -10,7 +10,6 @@ import { ExtensionContext, workspace, window, Disposable, commands, Uri, OutputC
 import { findGit, Git, IGit } from './git';
 import { Model } from './model';
 import { CommandCenter } from './commands';
-import { GitContentProvider } from './contentProvider';
 import { GitFileSystemProvider } from './fileSystemProvider';
 import { GitDecorations } from './decorationProvider';
 import { Askpass } from './askpass';
@@ -81,7 +80,6 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 
 	disposables.push(
 		new CommandCenter(git, model, outputChannel, telemetryReporter),
-		new GitContentProvider(model),
 		new GitFileSystemProvider(model),
 		new GitDecorations(model),
 		new GitProtocolHandler(),

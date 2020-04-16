@@ -12,8 +12,8 @@ import { Event } from 'vs/base/common/event';
 import { ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { TestRemotePathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { TestPathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 class TestTerminalLinkManager extends TerminalLinkManager {
@@ -93,7 +93,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 	setup(() => {
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
-		instantiationService.stub(IRemotePathService, new TestRemotePathService(TestEnvironmentService));
+		instantiationService.stub(IPathService, new TestPathService());
 	});
 
 	suite('localLinkRegex', () => {
@@ -254,6 +254,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			assert.equal(linkHandler.preprocessPath('~/src/file3'), 'C:\\Users\\Me\\src\\file3');
 			assert.equal(linkHandler.preprocessPath('~\\src\\file4'), 'C:\\Users\\Me\\src\\file4');
 			assert.equal(linkHandler.preprocessPath('C:\\absolute\\path\\file5'), 'C:\\absolute\\path\\file5');
+			assert.equal(linkHandler.preprocessPath('\\\\?\\C:\\absolute\\path\\extended\\file6'), 'C:\\absolute\\path\\extended\\file6');
 		});
 		test('Windows - spaces', () => {
 			const linkHandler = new TestTerminalLinkManager(new TestXterm() as any, {

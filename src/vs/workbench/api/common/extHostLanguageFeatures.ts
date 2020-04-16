@@ -956,7 +956,7 @@ class SuggestAdapter {
 			//
 			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
 			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
-			[extHostProtocol.ISuggestDataDtoField.kind]: typeConvert.CompletionItemKind.from(item.kind),
+			[extHostProtocol.ISuggestDataDtoField.kind]: item.kind ? typeConvert.CompletionItemKind.from(item.kind) : undefined,
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
 			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),

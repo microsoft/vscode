@@ -333,7 +333,10 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	editorContainer: HTMLElement;
+	statusBarContainer: HTMLElement;
+	cellRunStatusContainer: HTMLElement;
+	cellStatusMessageContainer: HTMLElement;
+	cellStatusPlaceholderContainer: HTMLElement;
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
