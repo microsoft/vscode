@@ -1228,7 +1228,7 @@ bindings@^1.5.0:
   dependencies:
     file-uri-to-path "1.0.0"
 
-bl@^4.0.1:
+bl@^4.0.1, bl@^4.0.2:
   version "4.0.2"
   resolved "https://registry.yarnpkg.com/bl/-/bl-4.0.2.tgz#52b71e9088515d0606d9dd9cc7aa48dc1f98e73a"
   integrity sha512-j4OH8f6Qg2bGuWfRiltT2HYGx0e1QcBTrK9KAHNMwMZdQnDZFk0ZSYIpADjYCB3U12nicC5tVJwSIhwOWjb4RQ==
@@ -2406,6 +2406,14 @@ decompress-zip@0.3.0:
     q "^1.1.2"
     readable-stream "^1.1.8"
     touch "0.0.3"
+
+deemon@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/deemon/-/deemon-1.4.0.tgz#01c09cc23eec41e5d7ddac082eb52c3611d38dff"
+  integrity sha512-S0zK5tNTdVFsJZVUeKi/CYJn4zzhW0Y55lwXzv2hVxb7ajzAHf91BhE5y2xvx1X7czIZ6PHLPDj00TVAmylVXw==
+  dependencies:
+    bl "^4.0.2"
+    tree-kill "^1.2.2"
 
 deep-extend@^0.6.0:
   version "0.6.0"
@@ -9151,6 +9159,11 @@ tough-cookie@~2.4.3:
   version "0.3.9"
   resolved "https://registry.yarnpkg.com/traverse/-/traverse-0.3.9.tgz#717b8f220cc0bb7b44e40514c22b2e8bbc70d8b9"
   integrity sha1-cXuPIgzAu3tE5AUUwisui7xw2Lk=
+
+tree-kill@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/tree-kill/-/tree-kill-1.2.2.tgz#4ca09a9092c88b73a7cdc5e8a01b507b0790a0cc"
+  integrity sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==
 
 truncate-utf8-bytes@^1.0.0:
   version "1.0.2"

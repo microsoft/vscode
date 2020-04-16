@@ -87,6 +87,7 @@ export interface ParsedArgs {
 	'force-renderer-accessibility'?: boolean;
 	'ignore-certificate-errors'?: boolean;
 	'allow-insecure-localhost'?: boolean;
+	'log-net-log'?: string;
 }
 
 /**
@@ -200,6 +201,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'force-renderer-accessibility': { type: 'boolean' },
 	'ignore-certificate-errors': { type: 'boolean' },
 	'allow-insecure-localhost': { type: 'boolean' },
+	'log-net-log': { type: 'string' },
 	'_urls': { type: 'string[]' },
 
 	_: { type: 'string[]' } // main arguments
