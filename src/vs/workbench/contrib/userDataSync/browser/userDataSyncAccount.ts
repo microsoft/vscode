@@ -35,8 +35,7 @@ export interface IUserDataSyncAccount {
 export const enum AccountStatus {
 	Uninitialized = 'uninitialized',
 	Unavailable = 'unavailable',
-	Inactive = 'inactive',
-	Active = 'active',
+	Available = 'available',
 }
 
 export class UserDataSyncAccounts extends Disposable {
@@ -116,21 +115,22 @@ export class UserDataSyncAccounts extends Disposable {
 				}
 			}
 
+			if (currentAccount) {
+				// Always use current account if available
+				status = AccountStatus.Available;
+				allAccounts.set(currentAccount.accountName, currentAccount);
+			}
+
+			// update access token
 			if (currentSession) {
-				status = AccountStatus.Inactive;
 				try {
 					const token = await currentSession.getAccessToken();
 					await this.authenticationTokenService.setToken(token);
-					status = AccountStatus.Active;
 				} catch (e) {
-					// Ignore error
+					this.logService.error(e);
 				}
 			}
 
-			if (currentAccount) {
-				// Always use current account if available
-				allAccounts.set(currentAccount.accountName, currentAccount);
-			}
 		}
 
 		this._all = values(allAccounts);

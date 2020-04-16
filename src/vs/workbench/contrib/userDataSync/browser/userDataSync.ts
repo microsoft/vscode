@@ -90,7 +90,6 @@ const getIdentityTitle = (label: string, userDataSyncAccountService: UserDataSyn
 	return account ? `${label} (${authenticationService.getDisplayName(account.providerId)}:${account.accountName})` : label;
 };
 const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn on...") };
-const signInCommand = { id: 'workbench.userData.actions.signin', title: localize('sign in', "Preferences Sync: Sign in to sync") };
 const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) { return getIdentityTitle(localize('stop sync', "Preferences Sync: Turn Off"), userDataSyncAccountService, authenticationService); } };
 const resolveSettingsConflictsCommand = { id: 'workbench.userData.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
@@ -173,7 +172,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onDidChangeAccountStatus(status: AccountStatus): void {
 		this.accountStatusContext.set(status);
-		this.updateBadge();
 		if (status === AccountStatus.Unavailable) {
 			this.doTurnOff(false);
 		}
@@ -390,9 +388,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		let clazz: string | undefined;
 		let priority: number | undefined = undefined;
 
-		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccounts.status === AccountStatus.Inactive) {
-			badge = new NumberBadge(1, () => localize('sign in to sync', "Sign in to Sync"));
-		} else if (this.userDataSyncService.conflicts.length) {
+		if (this.userDataSyncService.conflicts.length) {
 			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, syncResourceConflict) => { return result + syncResourceConflict.conflicts.length; }, 0), () => localize('has conflicts', "Preferences Sync: Conflicts Detected"));
 		}
 
@@ -462,7 +458,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		// User did not pick an account or login failed
-		if (this.userDataSyncAccounts.status !== AccountStatus.Active) {
+		if (this.userDataSyncAccounts.status !== AccountStatus.Available) {
 			throw new Error(localize('no account', "No account available"));
 		}
 
@@ -651,7 +647,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerActions(): void {
 		this.registerTurnOnSyncAction();
-		this.registerSignInAction();
 		this.registerShowSettingsConflictsAction();
 		this.registerShowKeybindingsConflictsAction();
 		this.registerShowSnippetsConflictsAction();
@@ -703,31 +698,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			},
 			when: turnOnSyncWhenContext,
 		});
-	}
-
-	private registerSignInAction(): void {
-		const that = this;
-		this._register(registerAction2(class StopSyncAction extends Action2 {
-			constructor() {
-				super({
-					id: signInCommand.id,
-					title: localize('sign in 2', "Preferences Sync: Sign in to sync (1)"),
-					menu: {
-						group: '5_sync',
-						id: MenuId.GlobalActivity,
-						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Inactive)),
-						order: 2
-					},
-				});
-			}
-			async run(): Promise<any> {
-				try {
-					await that.userDataSyncAccounts.login();
-				} catch (e) {
-					that.notificationService.error(e);
-				}
-			}
-		}));
 	}
 
 	private registerShowSettingsConflictsAction(): void {
@@ -816,7 +786,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerSyncStatusAction(): void {
 		const that = this;
-		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Active), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized));
 		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
