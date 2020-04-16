@@ -13,11 +13,14 @@
 .monaco-workbench .terminal-message-widget {
 	font-size: 14px;
 	line-height: 19px;
-	padding: 4px 8px;
 	animation: fadein 100ms linear;
 	/* Must be drawn on the top of the terminal's canvases */
 	z-index: 20;
 	overflow: hidden;
+}
+
+.monaco-editor-hover .hover-contents {
+	padding: 4px 8px;
 }
 
 .monaco-workbench .terminal-message-widget a {
@@ -34,7 +37,6 @@
 
 .monaco-workbench .terminal-hover-target {
 	position: absolute;
-	background: #3333ff88;
 	z-index: 30;
 }
 

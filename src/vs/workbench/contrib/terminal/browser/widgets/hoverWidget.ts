@@ -8,6 +8,9 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Event, Emitter } from 'vs/base/common/event';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
+import { $ } from 'vs/base/browser/dom';
 
 export enum HorizontalAlignment {
 	Left,
@@ -55,22 +58,31 @@ export class HoverWidget extends Widget {
 		private _linkHandler: (url: string) => void
 	) {
 		super();
-		this._domNode = renderMarkdown(this._text, {
+		this._domNode = document.createElement('div');
+		this._domNode.style.position = 'fixed';
+		this._domNode.classList.add('terminal-message-widget', 'fadeIn', 'monaco-editor-hover');
+
+		const rowElement = $('div.hover-row.markdown-hover');
+		const contentsElement = $('div.hover-contents');
+		const markdownElement = renderMarkdown(this._text, {
 			actionHandler: {
 				callback: this._linkHandler,
 				disposeables: this._messageListeners
 			}
 		});
-		this._domNode.style.position = 'fixed';
-		this._domNode.classList.add('terminal-message-widget', 'fadeIn', 'monaco-editor-hover');
-
-		const contentElement = document.createElement('div');
-		contentElement.classList.add('hover-row', 'markdown-hover');
-		this._domNode.appendChild(contentElement);
+		contentsElement.appendChild(markdownElement);
+		rowElement.appendChild(contentsElement);
+		this._domNode.appendChild(rowElement);
 
 		const statusBarElement = document.createElement('div');
 		statusBarElement.classList.add('hover-row', 'status-bar');
-		statusBarElement.textContent = 'Action example';
+		const actionsElements = $('div.actions');
+		const actionsContainer = $('div.action-container');
+		const action = $('a.action');
+		action.textContent = 'Action example';
+		actionsContainer.appendChild(action);
+		actionsElements.appendChild(actionsContainer);
+		statusBarElement.appendChild(actionsElements);
 		this._domNode.appendChild(statusBarElement);
 
 		this._mouseTracker = new CompositeMouseTracker([this._domNode, ..._target.targetElements]);
@@ -156,3 +168,38 @@ class CompositeMouseTracker extends Widget {
 		}
 	}
 }
+
+
+registerThemingParticipant((theme, collector) => {
+	const editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
+	if (editorHoverHighlightColor) {
+		collector.addRule(`.integrated-terminal .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
+	}
+	const hoverBackground = theme.getColor(editorHoverBackground);
+	if (hoverBackground) {
+		collector.addRule(`.integrated-terminal .monaco-editor-hover { background-color: ${hoverBackground}; }`);
+	}
+	const hoverBorder = theme.getColor(editorHoverBorder);
+	if (hoverBorder) {
+		collector.addRule(`.integrated-terminal .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
+		collector.addRule(`.integrated-terminal .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
+		collector.addRule(`.integrated-terminal .monaco-editor-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
+		collector.addRule(`.integrated-terminal .monaco-editor-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
+	}
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.integrated-terminal .monaco-editor-hover a { color: ${link}; }`);
+	}
+	const hoverForeground = theme.getColor(editorHoverForeground);
+	if (hoverForeground) {
+		collector.addRule(`.integrated-terminal .monaco-editor-hover { color: ${hoverForeground}; }`);
+	}
+	const actionsBackground = theme.getColor(editorHoverStatusBarBackground);
+	if (actionsBackground) {
+		collector.addRule(`.integrated-terminal .monaco-editor-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
+	}
+	const codeBackground = theme.getColor(textCodeBlockBackground);
+	if (codeBackground) {
+		collector.addRule(`.integrated-terminal .monaco-editor-hover code { background-color: ${codeBackground}; }`);
+	}
+});

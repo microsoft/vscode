@@ -58,7 +58,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		};
 		const width = (viewportRange.end.y > viewportRange.start.y ? terminalDimensions.width - viewportRange.start.x : viewportRange.end.x - viewportRange.start.x + 1) * cellDimensions.width;
 		const topTarget = document.createElement('div');
-		topTarget.classList.add('terminal-hover-target');
+		topTarget.classList.add('terminal-hover-target', 'hoverHighlight');
 		topTarget.style.left = `${bottomLeft.x}px`;
 		topTarget.style.bottom = `${bottomLeft.y}px`;
 		topTarget.style.width = `${width}px`;
@@ -69,7 +69,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		// Add middle target rows
 		if (rowCount > 2) {
 			const middleTarget = document.createElement('div');
-			middleTarget.classList.add('terminal-hover-target');
+			middleTarget.classList.add('terminal-hover-target', 'hoverHighlight');
 			middleTarget.style.left = `0px`;
 			middleTarget.style.bottom = `${(terminalDimensions.height - viewportRange.start.y - 1 - (rowCount - 2)) * cellDimensions.height}px`;
 			middleTarget.style.width = `${terminalDimensions.width * cellDimensions.width}px`;
@@ -81,7 +81,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		// Add bottom target row
 		if (rowCount > 1) {
 			const bottomTarget = document.createElement('div');
-			bottomTarget.classList.add('terminal-hover-target');
+			bottomTarget.classList.add('terminal-hover-target', 'hoverHighlight');
 			bottomTarget.style.left = `0px`;
 			bottomTarget.style.bottom = `${(terminalDimensions.height - viewportRange.end.y - 1) * cellDimensions.height}px`;
 			bottomTarget.style.width = `${(viewportRange.end.x + 1) * cellDimensions.width}px`;
