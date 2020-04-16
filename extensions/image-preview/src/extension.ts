@@ -33,4 +33,3 @@ export function activate(context: vscode.ExtensionContext) {
 		previewManager.activePreview?.zoomOut();
 	}));
 }
-

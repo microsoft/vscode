@@ -215,9 +215,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 		const inputName = this.input?.getName();
 		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly compare editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly compare editor");
+			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly compare", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly compare");
 		} else {
-			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0} compare editor", inputName) : nls.localize('editableEditorAriaLabel', "Compare editor");
+			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0} compare", inputName) : nls.localize('editableEditorAriaLabel', "Compare");
 		}
 
 		return ariaLabel;

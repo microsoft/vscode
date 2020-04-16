@@ -13,6 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { matchesFuzzy } from 'vs/base/common/filters';
 import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 
 export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -94,7 +95,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				label,
 				description: this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? launch.name : '',
 				highlights: { label: withNullAsUndefined(matchesFuzzy(filter, label, true)) },
-				accept: () => this.commandService.executeCommand('debug.addConfiguration', launch.uri.toString())
+				accept: () => this.commandService.executeCommand(ADD_CONFIGURATION_ID, launch.uri.toString())
 			});
 		}
 

@@ -8,6 +8,8 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 //  ------ API types
 
@@ -18,7 +20,7 @@ export const Extensions = {
 };
 
 export interface IconDefaults {
-	font?: string;
+	fontId?: string;
 	character: string;
 }
 
@@ -69,7 +71,21 @@ class IconRegistry implements IIconRegistry {
 	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
 	private iconsById: { [key: string]: IconContribution };
-	private iconSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
+	private iconSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
+		definitions: {
+			icons: {
+				type: 'object',
+				properties: {
+					fontId: { type: 'string', description: localize('iconDefintion.fontId', 'The id of the font to use. If not set, the font that is defined first is used.') },
+					fontCharacter: { type: 'string', description: localize('iconDefintion.fontCharacter', 'The font character associated with the icon definition.') }
+				},
+				additionalProperties: false,
+				defaultSnippets: [{ body: { fontCharacter: '\\\\e030' } }]
+			}
+		},
+		type: 'object',
+		properties: {}
+	};
 	private iconReferenceSchema: IJSONSchema & { enum: string[], enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
@@ -79,10 +95,11 @@ class IconRegistry implements IIconRegistry {
 	public registerIcon(id: string, defaults: IconDefaults, description: string, deprecationMessage?: string): ThemeIcon {
 		let iconContribution: IconContribution = { id, description, defaults, deprecationMessage };
 		this.iconsById[id] = iconContribution;
-		let propertySchema: IJSONSchema = { type: 'object', description, properties: { font: { type: 'string' }, fontCharacter: { type: 'string' } }, defaultSnippets: [{ body: { fontCharacter: '\\\\e030' } }] };
+		let propertySchema: IJSONSchema = { description, $ref: '#/definitions/icons' };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
+		propertySchema.markdownDescription = localize('iconPreview', "Current icon: {0}", `$(${id})`);
 		this.iconSchema.properties[id] = propertySchema;
 		this.iconReferenceSchema.enum.push(id);
 		this.iconReferenceSchema.enumDescriptions.push(description);
@@ -538,6 +555,18 @@ registerIcon('ungroup-by-ref-type', { character: '\eb98' }, localize('ungroup-by
 registerIcon('bell-dot', { character: '\f101' }, localize('bell-dot', ''));
 registerIcon('debug-alt-2', { character: '\f102' }, localize('debug-alt-2', ''));
 registerIcon('debug-alt', { character: '\f103' }, localize('debug-alt', ''));
+
+export const iconsSchemaId = 'vscode://schemas/icons';
+
+let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+schemaRegistry.registerSchema(iconsSchemaId, iconRegistry.getIconSchema());
+
+const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(iconsSchemaId), 200);
+iconRegistry.onDidChangeSchema(() => {
+	if (!delayer.isScheduled()) {
+		delayer.schedule();
+	}
+});
 
 
 // setTimeout(_ => console.log(colorRegistry.toString()), 5000);

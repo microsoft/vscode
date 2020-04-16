@@ -290,7 +290,7 @@ export class CommandCenter {
 	}
 
 	@command('git.openResource')
-	async openResource(resource: Resource): Promise<void> {
+	async openResource(resource: Resource, preserveFocus: boolean): Promise<void> {
 		const repository = this.model.getRepository(resource.resourceUri);
 
 		if (!repository) {
@@ -301,7 +301,7 @@ export class CommandCenter {
 		const openDiffOnClick = config.get<boolean>('openDiffOnClick');
 
 		if (openDiffOnClick) {
-			await this._openResource(resource, undefined, true, false);
+			await this._openResource(resource, undefined, preserveFocus, false);
 		} else {
 			await this.openFile(resource);
 		}

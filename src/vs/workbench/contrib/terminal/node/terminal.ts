@@ -125,7 +125,7 @@ async function detectAvailableWindowsShells(): Promise<IShellDefinition[]> {
 		// 	`${process.env['HOMEDRIVE']}\\cygwin\\bin\\bash.exe`
 		// ]
 	};
-	const promises: PromiseLike<IShellDefinition | undefined>[] = [];
+	const promises: Promise<IShellDefinition | undefined>[] = [];
 	Object.keys(expectedLocations).forEach(key => promises.push(validateShellPaths(key, expectedLocations[key])));
 	const shells = await Promise.all(promises);
 	return coalesce(shells);

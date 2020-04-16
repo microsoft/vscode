@@ -5,7 +5,6 @@
 
 import { binarySearch, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { first, forEach, size } from 'vs/base/common/collections';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { LRUCache } from 'vs/base/common/map';
 import { commonPrefixLength } from 'vs/base/common/strings';
@@ -14,18 +13,19 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { Iterable } from 'vs/base/common/iterator';
 
 export abstract class TreeElement {
 
 	abstract id: string;
-	abstract children: { [id: string]: TreeElement };
+	abstract children: Map<string, TreeElement>;
 	abstract parent: TreeElement | undefined;
 
 	abstract adopt(newParent: TreeElement): TreeElement;
 
 	remove(): void {
 		if (this.parent) {
-			delete this.parent.children[this.id];
+			this.parent.children.delete(this.id);
 		}
 	}
 
@@ -37,13 +37,13 @@ export abstract class TreeElement {
 			candidateId = `${container.id}/${candidate}`;
 		} else {
 			candidateId = `${container.id}/${candidate.name}`;
-			if (container.children[candidateId] !== undefined) {
+			if (container.children.get(candidateId) !== undefined) {
 				candidateId = `${container.id}/${candidate.name}_${candidate.range.startLineNumber}_${candidate.range.startColumn}`;
 			}
 		}
 
 		let id = candidateId;
-		for (let i = 0; container.children[id] !== undefined; i++) {
+		for (let i = 0; container.children.get(id) !== undefined; i++) {
 			id = `${candidateId}_${i}`;
 		}
 
@@ -61,8 +61,8 @@ export abstract class TreeElement {
 		if (len < element.id.length) {
 			return undefined;
 		}
-		for (const key in element.children) {
-			let candidate = TreeElement.getElementById(id, element.children[key]);
+		for (const [, child] of element.children) {
+			let candidate = TreeElement.getElementById(id, child);
 			if (candidate) {
 				return candidate;
 			}
@@ -72,17 +72,14 @@ export abstract class TreeElement {
 
 	static size(element: TreeElement): number {
 		let res = 1;
-		for (const key in element.children) {
-			res += TreeElement.size(element.children[key]);
+		for (const [, child] of element.children) {
+			res += TreeElement.size(child);
 		}
 		return res;
 	}
 
 	static empty(element: TreeElement): boolean {
-		for (const _key in element.children) {
-			return false;
-		}
-		return true;
+		return element.children.size === 0;
 	}
 }
 
@@ -96,7 +93,7 @@ export interface IOutlineMarker {
 
 export class OutlineElement extends TreeElement {
 
-	children: { [id: string]: OutlineElement; } = Object.create(null);
+	children = new Map<string, OutlineElement>();
 	marker: { count: number, topSev: MarkerSeverity } | undefined;
 
 	constructor(
@@ -109,14 +106,16 @@ export class OutlineElement extends TreeElement {
 
 	adopt(parent: TreeElement): OutlineElement {
 		let res = new OutlineElement(this.id, parent, this.symbol);
-		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
+		for (const [key, value] of this.children) {
+			res.children.set(key, value.adopt(res));
+		}
 		return res;
 	}
 }
 
 export class OutlineGroup extends TreeElement {
 
-	children: { [id: string]: OutlineElement; } = Object.create(null);
+	children = new Map<string, OutlineElement>();
 
 	constructor(
 		readonly id: string,
@@ -129,7 +128,9 @@ export class OutlineGroup extends TreeElement {
 
 	adopt(parent: TreeElement): OutlineGroup {
 		let res = new OutlineGroup(this.id, parent, this.provider, this.providerIndex);
-		forEach(this.children, entry => res.children[entry.key] = entry.value.adopt(res));
+		for (const [key, value] of this.children) {
+			res.children.set(key, value.adopt(res));
+		}
 		return res;
 	}
 
@@ -137,9 +138,8 @@ export class OutlineGroup extends TreeElement {
 		return position ? this._getItemEnclosingPosition(position, this.children) : undefined;
 	}
 
-	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement | undefined {
-		for (let key in children) {
-			let item = children[key];
+	private _getItemEnclosingPosition(position: IPosition, children: Map<string, OutlineElement>): OutlineElement | undefined {
+		for (const [, item] of children) {
 			if (!item.symbol.range || !Range.containsPosition(item.symbol.range, position)) {
 				continue;
 			}
@@ -149,8 +149,8 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	updateMarker(marker: IOutlineMarker[]): void {
-		for (const key in this.children) {
-			this._updateMarker(marker, this.children[key]);
+		for (const [, child] of this.children) {
+			this._updateMarker(marker, child);
 		}
 	}
 
@@ -187,8 +187,8 @@ export class OutlineGroup extends TreeElement {
 		// this outline element. This might remove markers from this element and
 		// therefore we remember that we have had markers. That allows us to render
 		// the dot, saying 'this element has children with markers'
-		for (const key in item.children) {
-			this._updateMarker(myMarkers, item.children[key]);
+		for (const [, child] of item.children) {
+			this._updateMarker(myMarkers, child);
 		}
 
 		if (myTopSev) {
@@ -332,7 +332,7 @@ export class OutlineModel extends TreeElement {
 				return group;
 			}).then(group => {
 				if (!TreeElement.empty(group)) {
-					result._groups[id] = group;
+					result._groups.set(id, group);
 				} else {
 					group.remove();
 				}
@@ -365,7 +365,7 @@ export class OutlineModel extends TreeElement {
 				OutlineModel._makeOutlineElement(childInfo, res);
 			}
 		}
-		container.children[res.id] = res;
+		container.children.set(res.id, res);
 	}
 
 	static get(element: TreeElement | undefined): OutlineModel | undefined {
@@ -381,8 +381,8 @@ export class OutlineModel extends TreeElement {
 	readonly id = 'root';
 	readonly parent = undefined;
 
-	protected _groups: { [id: string]: OutlineGroup; } = Object.create(null);
-	children: { [id: string]: OutlineGroup | OutlineElement; } = Object.create(null);
+	protected _groups = new Map<string, OutlineGroup>();
+	children = new Map<string, OutlineGroup | OutlineElement>();
 
 	protected constructor(readonly textModel: ITextModel) {
 		super();
@@ -393,16 +393,17 @@ export class OutlineModel extends TreeElement {
 
 	adopt(): OutlineModel {
 		let res = new OutlineModel(this.textModel);
-		forEach(this._groups, entry => res._groups[entry.key] = entry.value.adopt(res));
+		for (const [key, value] of this._groups) {
+			res._groups.set(key, value.adopt(res));
+		}
 		return res._compact();
 	}
 
 	private _compact(): this {
 		let count = 0;
-		for (const key in this._groups) {
-			let group = this._groups[key];
-			if (first(group.children) === undefined) { // empty
-				delete this._groups[key];
+		for (const [key, group] of this._groups) {
+			if (group.children.size === 0) { // empty
+				this._groups.delete(key);
 			} else {
 				count += 1;
 			}
@@ -412,11 +413,10 @@ export class OutlineModel extends TreeElement {
 			this.children = this._groups;
 		} else {
 			// adopt all elements of the first group
-			let group = first(this._groups);
-			for (let key in group!.children) {
-				let child = group!.children[key];
+			let group = Iterable.first(this._groups.values())!;
+			for (let [, child] of group.children) {
 				child.parent = this;
-				this.children[child.id] = child;
+				this.children.set(child.id, child);
 			}
 		}
 		return this;
@@ -426,7 +426,7 @@ export class OutlineModel extends TreeElement {
 		if (this.textModel.uri.toString() !== other.textModel.uri.toString()) {
 			return false;
 		}
-		if (size(this._groups) !== size(other._groups)) {
+		if (this._groups.size !== other._groups.size) {
 			return false;
 		}
 		this._groups = other._groups;
@@ -448,8 +448,7 @@ export class OutlineModel extends TreeElement {
 		}
 
 		let result: OutlineElement | undefined = undefined;
-		for (const key in this._groups) {
-			const group = this._groups[key];
+		for (const [, group] of this._groups) {
 			result = group.getItemEnclosingPosition(position);
 			if (result && (!preferredGroup || preferredGroup === group)) {
 				break;
@@ -467,8 +466,8 @@ export class OutlineModel extends TreeElement {
 		// outline element starts for quicker look up
 		marker.sort(Range.compareRangesUsingStarts);
 
-		for (const key in this._groups) {
-			this._groups[key].updateMarker(marker.slice(0));
+		for (const [, group] of this._groups) {
+			group.updateMarker(marker.slice(0));
 		}
 	}
 }

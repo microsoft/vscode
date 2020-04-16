@@ -16,6 +16,8 @@ import { NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CO
 import { BaseCellRenderTemplate, CellEditState, CellRunState, ICellViewModel, INotebookEditor, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.code.insertCellAbove';
 const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'workbench.notebook.code.insertCellBelow';
@@ -28,6 +30,10 @@ const DELETE_CELL_COMMAND_ID = 'workbench.notebook.cell.delete';
 
 const MOVE_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.moveUp';
 const MOVE_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.moveDown';
+const COPY_CELL_COMMAND_ID = 'workbench.notebook.cell.copy';
+const CUT_CELL_COMMAND_ID = 'workbench.notebook.cell.cut';
+const PASTE_CELL_COMMAND_ID = 'workbench.notebook.cell.paste';
+const PASTE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.cell.pasteAbove';
 const COPY_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.copyUp';
 const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
 
@@ -59,7 +65,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
 				primary: KeyMod.WinCtrl | KeyCode.Enter,
 				win: {
-					primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
 				},
 				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			},
@@ -787,6 +793,158 @@ registerAction2(class extends Action2 {
 		}
 
 		return moveCell(context, 'down');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: COPY_CELL_COMMAND_ID,
+				title: localize('notebookActions.copy', "Copy Cell"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true,
+				keybinding: {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
+					weight: EDITOR_WIDGET_ACTION_WEIGHT
+				},
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
+		const notebookService = accessor.get<INotebookService>(INotebookService);
+		clipboardService.writeText(context.cell.getText());
+		notebookService.setToCopy([context.cell.model]);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: CUT_CELL_COMMAND_ID,
+				title: localize('notebookActions.cut', "Cut Cell"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true,
+				keybinding: {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
+					weight: EDITOR_WIDGET_ACTION_WEIGHT
+				},
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
+		const notebookService = accessor.get<INotebookService>(INotebookService);
+		clipboardService.writeText(context.cell.getText());
+		const viewModel = context.notebookEditor.viewModel;
+
+		if (!viewModel) {
+			return;
+		}
+
+		viewModel.deleteCell(viewModel.getViewCellIndex(context.cell), true);
+		notebookService.setToCopy([context.cell.model]);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: PASTE_CELL_ABOVE_COMMAND_ID,
+				title: localize('notebookActions.pasteAbove', "Paste Cell Above"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true,
+				keybinding: {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V,
+					weight: EDITOR_WIDGET_ACTION_WEIGHT
+				},
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const notebookService = accessor.get<INotebookService>(INotebookService);
+		const pasteCells = notebookService.getToCopy() || [];
+
+		const viewModel = context.notebookEditor.viewModel;
+
+		if (!viewModel) {
+			return;
+		}
+
+		const currCellIndex = viewModel.getViewCellIndex(context!.cell);
+
+		pasteCells.reverse().forEach(pasteCell => {
+			viewModel.insertCell(currCellIndex, pasteCell, true);
+			return;
+		});
+	}
+});
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: PASTE_CELL_COMMAND_ID,
+				title: localize('notebookActions.paste', "Paste Cell"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true,
+				keybinding: {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
+					weight: EDITOR_WIDGET_ACTION_WEIGHT
+				},
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const notebookService = accessor.get<INotebookService>(INotebookService);
+		const pasteCells = notebookService.getToCopy() || [];
+
+		const viewModel = context.notebookEditor.viewModel;
+
+		if (!viewModel) {
+			return;
+		}
+
+		const currCellIndex = viewModel.getViewCellIndex(context!.cell);
+
+		pasteCells.reverse().forEach(pasteCell => {
+			viewModel.insertCell(currCellIndex + 1, pasteCell, true);
+			return;
+		});
 	}
 });
 

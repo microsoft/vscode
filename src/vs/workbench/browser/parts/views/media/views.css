@@ -74,8 +74,11 @@
 	box-sizing: border-box;
 }
 
-.monaco-workbench .pane > .pane-body .welcome-view-content > *:last-child {
-	margin-bottom: 1em;
+.monaco-workbench .pane > .pane-body .welcome-view-content > * {
+	margin-block-start: 1em;
+	margin-block-end: 1em;
+	margin-inline-start: 0px;
+	margin-inline-end: 0px;
 }
 
 .customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {

@@ -20,7 +20,7 @@ import { renderExpressionValue, renderViewTree, IInputBoxOptions, AbstractExpres
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IAsyncDataSource, ITreeMouseEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
@@ -296,7 +296,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	}
 }
 
-class WatchExpressionsAccessibilityProvider implements IAccessibilityProvider<IExpression> {
+class WatchExpressionsAccessibilityProvider implements IListAccessibilityProvider<IExpression> {
 	getAriaLabel(element: IExpression): string {
 		if (element instanceof Expression) {
 			return nls.localize('watchExpressionAriaLabel', "{0} value {1}, watch, debug", (<Expression>element).name, (<Expression>element).value);

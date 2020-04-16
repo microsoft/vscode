@@ -109,16 +109,8 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 	}
 
 	protected getAriaLabel(): string {
-		let ariaLabel: string;
-
-		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.resource) : this.input?.getName();
-		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly editor");
-		} else {
-			ariaLabel = inputName ? nls.localize('writeableEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('writeableEditorAriaLabel', "Editor");
-		}
-
-		return ariaLabel;
+		const inputName = this.input instanceof UntitledTextEditorInput ? basenameOrAuthority(this.input.resource) : this.input?.getName() || nls.localize('writeableEditorAriaLabel', "Editor");
+		return this.input?.isReadonly() ? nls.localize('readonlyEditor', "{0} readonly", inputName) : inputName;
 	}
 
 	/**

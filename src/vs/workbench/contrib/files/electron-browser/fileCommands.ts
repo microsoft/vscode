@@ -16,7 +16,7 @@ import { IElectronService } from 'vs/platform/electron/node/electron';
 export function revealResourcesInOS(resources: URI[], electronService: IElectronService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
 		sequence(resources.map(r => async () => {
-			if (r.scheme === Schemas.file) {
+			if (r.scheme === Schemas.file || r.scheme === Schemas.userData) {
 				electronService.showItemInFolder(r.fsPath);
 			}
 		}));

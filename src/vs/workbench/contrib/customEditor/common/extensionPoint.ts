@@ -9,28 +9,28 @@ import { CustomEditorPriority, CustomEditorSelector } from 'vs/workbench/contrib
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { languagesExtPoint } from 'vs/workbench/services/mode/common/workbenchModeService';
 
-namespace WebviewEditorContribution {
+namespace Fields {
 	export const viewType = 'viewType';
 	export const displayName = 'displayName';
 	export const selector = 'selector';
 	export const priority = 'priority';
 }
 
-export interface IWebviewEditorsExtensionPoint {
-	readonly [WebviewEditorContribution.viewType]: string;
-	readonly [WebviewEditorContribution.displayName]: string;
-	readonly [WebviewEditorContribution.selector]?: readonly CustomEditorSelector[];
-	readonly [WebviewEditorContribution.priority]?: string;
+export interface ICustomEditorsExtensionPoint {
+	readonly [Fields.viewType]: string;
+	readonly [Fields.displayName]: string;
+	readonly [Fields.selector]?: readonly CustomEditorSelector[];
+	readonly [Fields.priority]?: string;
 }
 
-const webviewEditorsContribution: IJSONSchema = {
+const CustomEditorsContribution: IJSONSchema = {
 	description: nls.localize('contributes.customEditors', 'Contributed custom editors.'),
 	type: 'array',
 	defaultSnippets: [{
 		body: [{
-			[WebviewEditorContribution.viewType]: '$1',
-			[WebviewEditorContribution.displayName]: '$2',
-			[WebviewEditorContribution.selector]: [{
+			[Fields.viewType]: '$1',
+			[Fields.displayName]: '$2',
+			[Fields.selector]: [{
 				filenamePattern: '$3'
 			}],
 		}]
@@ -38,20 +38,20 @@ const webviewEditorsContribution: IJSONSchema = {
 	items: {
 		type: 'object',
 		required: [
-			WebviewEditorContribution.viewType,
-			WebviewEditorContribution.displayName,
-			WebviewEditorContribution.selector,
+			Fields.viewType,
+			Fields.displayName,
+			Fields.selector,
 		],
 		properties: {
-			[WebviewEditorContribution.viewType]: {
+			[Fields.viewType]: {
 				type: 'string',
 				description: nls.localize('contributes.viewType', 'Unique identifier of the custom editor.'),
 			},
-			[WebviewEditorContribution.displayName]: {
+			[Fields.displayName]: {
 				type: 'string',
 				description: nls.localize('contributes.displayName', 'Human readable name of the custom editor. This is displayed to users when selecting which editor to use.'),
 			},
-			[WebviewEditorContribution.selector]: {
+			[Fields.selector]: {
 				type: 'array',
 				description: nls.localize('contributes.selector', 'Set of globs that the custom editor is enabled for.'),
 				items: {
@@ -69,7 +69,7 @@ const webviewEditorsContribution: IJSONSchema = {
 					}
 				}
 			},
-			[WebviewEditorContribution.priority]: {
+			[Fields.priority]: {
 				type: 'string',
 				description: nls.localize('contributes.priority', 'Controls when the custom editor is used. May be overridden by users.'),
 				enum: [
@@ -86,8 +86,8 @@ const webviewEditorsContribution: IJSONSchema = {
 	}
 };
 
-export const webviewEditorsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IWebviewEditorsExtensionPoint[]>({
+export const customEditorsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ICustomEditorsExtensionPoint[]>({
 	extensionPoint: 'customEditors',
 	deps: [languagesExtPoint],
-	jsonSchema: webviewEditorsContribution
+	jsonSchema: CustomEditorsContribution
 });

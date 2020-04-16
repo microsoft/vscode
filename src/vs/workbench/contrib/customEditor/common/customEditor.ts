@@ -76,14 +76,14 @@ export class CustomEditorInfo {
 
 	public readonly id: string;
 	public readonly displayName: string;
-	public readonly providerDisplayName: string | undefined;
+	public readonly providerDisplayName: string;
 	public readonly priority: CustomEditorPriority;
 	public readonly selector: readonly CustomEditorSelector[];
 
 	constructor(descriptor: {
 		readonly id: string;
 		readonly displayName: string;
-		readonly providerDisplayName: string | undefined;
+		readonly providerDisplayName: string;
 		readonly priority: CustomEditorPriority;
 		readonly selector: readonly CustomEditorSelector[];
 	}) {

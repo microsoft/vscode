@@ -16,6 +16,9 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IOutput, IRenderOutput, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { IDimension } from 'vs/editor/common/editorCommon';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -38,13 +41,12 @@ export class CodeCell extends Disposable {
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
 		const totalHeight = lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
-		templateData.editor?.layout(
+		this.layoutEditor(
 			{
 				width: width,
 				height: totalHeight
 			}
 		);
-		// viewCell.editorHeight = totalHeight;
 
 		const cts = new CancellationTokenSource();
 		this._register({ dispose() { cts.dispose(true); } });
@@ -60,7 +62,8 @@ export class CodeCell extends Disposable {
 				const width = this.viewCell.layoutInfo.editorWidth;
 
 				if (realContentHeight !== undefined && realContentHeight !== totalHeight) {
-					templateData.editor?.layout(
+					// TODO not redundant with content change event?
+					this.layoutEditor(
 						{
 							width: width,
 							height: realContentHeight
@@ -98,37 +101,16 @@ export class CodeCell extends Disposable {
 			}
 
 			const layoutInfo = templateData.editor!.getLayoutInfo();
-			const realContentHeight = templateData.editor!.getContentHeight();
-
 			if (layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
-				templateData.editor?.layout(
-					{
-						width: viewCell.layoutInfo.editorWidth,
-						height: realContentHeight
-					}
-				);
-
-				viewCell.editorHeight = realContentHeight;
-				this.relayoutCell();
+				this.onCellWidthChange();
 			}
 		}));
 
 		this._register(templateData.editor!.onDidContentSizeChange((e) => {
 			if (e.contentHeightChanged) {
 				if (this.viewCell.layoutInfo.editorHeight !== e.contentHeight) {
-					let viewLayout = templateData.editor!.getLayoutInfo();
-
-					templateData.editor?.layout(
-						{
-							width: viewLayout.width,
-							height: e.contentHeight
-						}
-					);
-
-					this.viewCell.editorHeight = e.contentHeight;
-					this.relayoutCell();
+					this.onCellHeightChange(e.contentHeight);
 				}
-
 			}
 		}));
 
@@ -240,6 +222,37 @@ export class CodeCell extends Disposable {
 		}
 	}
 
+	private layoutEditor(dimension: IDimension): void {
+		this.templateData.editor?.layout(dimension);
+		this.templateData.statusBarContainer.style.width = `${dimension.width}px`;
+	}
+
+	private onCellWidthChange(): void {
+		const realContentHeight = this.templateData.editor!.getContentHeight();
+		this.layoutEditor(
+			{
+				width: this.viewCell.layoutInfo.editorWidth,
+				height: realContentHeight
+			}
+		);
+
+		this.viewCell.editorHeight = realContentHeight;
+		this.relayoutCell();
+	}
+
+	private onCellHeightChange(newHeight: number): void {
+		const viewLayout = this.templateData.editor!.getLayoutInfo();
+		this.layoutEditor(
+			{
+				width: viewLayout.width,
+				height: newHeight
+			}
+		);
+
+		this.viewCell.editorHeight = newHeight;
+		this.relayoutCell();
+	}
+
 	renderOutput(currOutput: IOutput, index: number, beforeElement?: HTMLElement) {
 		if (!this.outputResizeListeners.has(currOutput)) {
 			this.outputResizeListeners.set(currOutput, new DisposableStore());
@@ -255,12 +268,26 @@ export class CodeCell extends Disposable {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
 				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-code');
+				mimeTypePicker.tabIndex = 0;
+				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype");
 				outputItemDiv.appendChild(mimeTypePicker);
 				this.outputResizeListeners.get(currOutput)!.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
-					e.preventDefault();
-					e.stopPropagation();
-					await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					if (e.leftButton) {
+						e.preventDefault();
+						e.stopPropagation();
+						await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					}
 				}));
+
+				this.outputResizeListeners.get(currOutput)!.add((DOM.addDisposableListener(mimeTypePicker, DOM.EventType.KEY_DOWN, async e => {
+					const event = new StandardKeyboardEvent(e);
+					if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
+						e.preventDefault();
+						e.stopPropagation();
+						await this.pickActiveMimeTypeRenderer(transformedDisplayOutput);
+					}
+				})));
+
 			}
 			let pickedMimeTypeRenderer = currOutput.orderedMimeTypes[currOutput.pickedMimeTypeIndex];
 
@@ -341,7 +368,7 @@ export class CodeCell extends Disposable {
 
 	generateRendererInfo(renderId: number | undefined): string {
 		if (renderId === undefined || renderId === -1) {
-			return 'builtin';
+			return nls.localize('builtinRenderInfo', "built-in");
 		}
 
 		let renderInfo = this.notebookService.getRendererInfo(renderId);
@@ -350,7 +377,7 @@ export class CodeCell extends Disposable {
 			return renderInfo.id.value;
 		}
 
-		return 'builtin';
+		return nls.localize('builtinRenderInfo', "built-in");
 	}
 
 	async pickActiveMimeTypeRenderer(output: ITransformedDisplayOutputDto) {

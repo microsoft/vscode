@@ -5,9 +5,10 @@
 
 import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag } from 'electron';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
@@ -16,14 +17,14 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
-import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 
 
 class WebviewTagHandle extends Disposable {
@@ -217,6 +218,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private readonly _protocolProvider: WebviewProtocolProvider;
 
 	private readonly _domReady: Promise<void>;
+	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
 
 	constructor(
 		id: string,
@@ -354,12 +356,32 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		if (!this.element) {
 			return;
 		}
-		try {
-			this.element.focus();
-		} catch {
-			// noop
-		}
-		this._send('focus');
+
+		// Workaround for https://github.com/microsoft/vscode/issues/75209
+		// Electron's webview.focus is async so for a sequence of actions such as:
+		//
+		// 1. Open webview
+		// 1. Show quick pick from command palette
+		//
+		// We end up focusing the webview after showing the quick pick, which causes
+		// the quick pick to instantly dismiss.
+		//
+		// Workarount this by debouncing the focus and making sure we are not focused on an input
+		// when we try to re-focus.
+		this._focusDelayer.trigger(async () => {
+			if (!this.focused || !this.element) {
+				return;
+			}
+			if (document.activeElement?.tagName === 'INPUT') {
+				return;
+			}
+			try {
+				this.element.focus();
+			} catch {
+				// noop
+			}
+			this._send('focus');
+		});
 
 		// Handle focus change programmatically (do not rely on event from <webview>)
 		this.handleFocusChange(true);

@@ -361,9 +361,11 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	private getMarkersItem(): IStatusbarEntry {
 		const markersStatistics = this.markerService.getStatistics();
+		const tooltip = this.getMarkersTooltip(markersStatistics);
 		return {
 			text: this.getMarkersText(markersStatistics),
-			tooltip: this.getMarkersTooltip(markersStatistics),
+			ariaLabel: tooltip,
+			tooltip,
 			command: 'workbench.actions.view.toggleProblems'
 		};
 	}

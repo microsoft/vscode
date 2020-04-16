@@ -963,14 +963,16 @@ suite('EditorService', () => {
 
 		let overrideCalled = false;
 
-		const handler = service.overrideOpenEditor(editor => {
-			if (editor === input1) {
-				overrideCalled = true;
+		const handler = service.overrideOpenEditor({
+			open: editor => {
+				if (editor === input1) {
+					overrideCalled = true;
 
-				return { override: service.openEditor(input2, { pinned: true }) };
+					return { override: service.openEditor(input2, { pinned: true }) };
+				}
+
+				return undefined;
 			}
-
-			return undefined;
 		});
 
 		await service.openEditor(input1, { pinned: true });

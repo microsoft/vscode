@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!vs/workbench/contrib/debug/browser/media/repl';
+import 'vs/css!./media/repl';
 import { URI as uri } from 'vs/base/common/uri';
+import { Color } from 'vs/base/common/color';
 import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -20,7 +21,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -33,7 +34,7 @@ import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
@@ -58,6 +59,7 @@ import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -75,7 +77,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
-	private static readonly REPL_INPUT_LINE_HEIGHT = 19;
 	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
 
 	private history: HistoryNavigator<string>;
@@ -284,6 +285,14 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
 			const backgroundColor = this.themeService.getColorTheme().getColor(this.getBackgroundColor());
 
+			this.replInput.updateOptions({
+				fontSize,
+				lineHeight: debugConsole.lineHeight,
+				fontFamily: debugConsole.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : debugConsole.fontFamily
+			});
+
+			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
+
 			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.innerHTML = `
 				.repl .repl-tree .expression {
@@ -299,12 +308,20 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 					background-position-y: calc(100% - ${fontSize * 1.4 / 2 - 8}px);
 				}
 
+				.repl .repl-input-wrapper .repl-input-chevron {
+					line-height: ${replInputLineHeight}px
+				}
+
 				.repl .repl-input-wrapper .monaco-editor .lines-content {
 					background-color: ${backgroundColor};
 				}
 			`;
 
 			this.tree.rerender();
+
+			if (this.dimension) {
+				this.layoutBody(this.dimension.height, this.dimension.width);
+			}
 		}
 	}
 
@@ -396,7 +413,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	protected layoutBody(height: number, width: number): void {
 		this.dimension = new dom.Dimension(width, height);
-		const replInputHeight = Repl.REPL_INPUT_LINE_HEIGHT * this.replInputLineCount;
+		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
 		if (this.tree) {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			const treeHeight = height - replInputHeight;
@@ -408,7 +425,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 		this.replInputContainer.style.height = `${replInputHeight}px`;
 
-		this.replInput.layout({ width: width - 20, height: replInputHeight });
+		this.replInput.layout({ width: width - 30, height: replInputHeight });
 	}
 
 	focus(): void {
@@ -543,6 +560,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
+		dom.append(this.replInputContainer, $('.repl-input-chevron.codicon.codicon-chevron-right'));
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
@@ -794,3 +812,13 @@ export class ClearReplAction extends Action {
 function getReplView(viewsService: IViewsService): Repl | undefined {
 	return viewsService.getActiveViewWithId(REPL_VIEW_ID) as Repl ?? undefined;
 }
+
+registerThemingParticipant((theme, collector) => {
+	const inputBorderColor = theme.getColor(inputBorder) || Color.fromHex('#80808060');
+
+	collector.addRule(`
+		.repl .repl-input-wrapper {
+			border-top: 1px solid ${inputBorderColor};
+		}
+	`);
+});

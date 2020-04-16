@@ -70,6 +70,11 @@ export interface IEditorPane extends IComposite {
 	readonly input: IEditorInput | undefined;
 
 	/**
+	 * The assigned options of the editor.
+	 */
+	readonly options: EditorOptions | undefined;
+
+	/**
 	 * The assigned group this editor is showing in.
 	 */
 	readonly group: IEditorGroup | undefined;
@@ -1298,6 +1303,7 @@ export interface IWorkbenchEditorConfiguration {
 
 interface IEditorPartConfiguration {
 	showTabs?: boolean;
+	scrollToSwitchTabs?: 'off' | 'natural' | 'reverse';
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';

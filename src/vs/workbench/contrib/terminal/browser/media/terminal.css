@@ -156,11 +156,6 @@
 	cursor: pointer!important;
 }
 
-/* Rotate icon when terminal is in the sidebar */
-.monaco-workbench .part.sidebar .title-actions .terminal-action.codicon-split-horizontal {
-	transform: rotate(-90deg);
-}
-
 .monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal,
 .monaco-pane-view .pane > .pane-header .monaco-action-bar .switch-terminal {
 	border-width: 1px;

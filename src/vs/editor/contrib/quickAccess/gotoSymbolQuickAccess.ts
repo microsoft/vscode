@@ -13,10 +13,10 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
 import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
@@ -35,8 +35,10 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	static SCOPE_PREFIX = ':';
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
-	constructor(protected options?: IGotoSymbolQuickAccessProviderOptions) {
-		super({ ...options, canAcceptInBackground: true });
+	constructor(protected options: IGotoSymbolQuickAccessProviderOptions = Object.create(null)) {
+		super(options);
+
+		options.canAcceptInBackground = true;
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
@@ -220,6 +222,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 			const symbolLabel = trim(symbol.name);
 			const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+			const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
 
 			let containerLabel = symbol.containerName;
 			if (options?.extraContainerLabel) {
@@ -238,14 +241,28 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 			if (query.original.length > filterPos) {
 
-				// Score by symbol
-				[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, filterPos, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
+				// First: try to score on the entire query, it is possible that
+				// the symbol matches perfectly (e.g. searching for "change log"
+				// can be a match on a markdown symbol "change log"). In that
+				// case we want to skip the container query altogether.
+				let skipContainerQuery = false;
+				if (symbolQuery !== query) {
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, { ...query, values: undefined /* disable multi-query support */ }, filterPos, symbolLabelIconOffset);
+					if (symbolScore) {
+						skipContainerQuery = true; // since we consumed the query, skip any container matching
+					}
+				}
+
+				// Otherwise: score on the symbol query and match on the container later
 				if (!symbolScore) {
-					continue;
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, filterPos, symbolLabelIconOffset);
+					if (!symbolScore) {
+						continue;
+					}
 				}
 
 				// Score by container if specified
-				if (containerQuery) {
+				if (!skipContainerQuery && containerQuery) {
 					if (containerLabel && containerQuery.original.length > 0) {
 						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
@@ -396,11 +413,11 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		}
 
 		const roots: DocumentSymbol[] = [];
-		for (const child of values(model.children)) {
+		for (const child of model.children.values()) {
 			if (child instanceof OutlineElement) {
 				roots.push(child.symbol);
 			} else {
-				roots.push(...values(child.children).map(child => child.symbol));
+				roots.push(...Iterable.map(child.children.values(), child => child.symbol));
 			}
 		}
 

@@ -138,6 +138,8 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 		return this.doGetEditors().map(({ editor, groupId }): IEditorQuickPickItem => {
 			const resource = toResource(editor, { supportSideBySide: SideBySideEditor.MASTER });
 			const isDirty = editor.isDirty() && !editor.isSaving();
+			const description = editor.getDescription();
+			const nameAndDescription = description ? `${editor.getName()} ${description}` : editor.getName();
 
 			return {
 				groupId,
@@ -146,11 +148,11 @@ export abstract class BaseEditorQuickAccessProvider extends PickerQuickAccessPro
 				ariaLabel: (() => {
 					if (mapGroupIdToGroupAriaLabel.size > 1) {
 						return isDirty ?
-							localize('entryAriaLabelWithGroupDirty', "{0}, dirty, {1}", editor.getName(), mapGroupIdToGroupAriaLabel.get(groupId)) :
-							localize('entryAriaLabelWithGroup', "{0}, {1}", editor.getName(), mapGroupIdToGroupAriaLabel.get(groupId));
+							localize('entryAriaLabelWithGroupDirty', "{0}, dirty, {1}", nameAndDescription, mapGroupIdToGroupAriaLabel.get(groupId)) :
+							localize('entryAriaLabelWithGroup', "{0}, {1}", nameAndDescription, mapGroupIdToGroupAriaLabel.get(groupId));
 					}
 
-					return isDirty ? localize('entryAriaLabelDirty', "{0}, dirty", editor.getName()) : editor.getName();
+					return isDirty ? localize('entryAriaLabelDirty', "{0}, dirty", nameAndDescription) : nameAndDescription;
 				})(),
 				description: editor.getDescription(),
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource),

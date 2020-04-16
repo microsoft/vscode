@@ -849,7 +849,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	isLayoutCentered(): boolean {
-		return this.centeredLayoutWidget.isActive();
+		if (this.centeredLayoutWidget) {
+			return this.centeredLayoutWidget.isActive();
+		}
+
+		return false;
 	}
 
 	private doCreateGridControl(options?: IEditorPartCreationOptions): void {

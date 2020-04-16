@@ -715,7 +715,7 @@ export class IssueReporter extends Disposable {
 		type IssueReporterSearchError = {
 			message: string;
 		};
-		this.telemetryService.publicLog2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
+		this.telemetryService.publicLog2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message }, true);
 	}
 
 	private setUpTypes(): void {

@@ -7,7 +7,7 @@ import 'vs/css!./media/tunnelView';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewDescriptor, IEditableData, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
-import { WorkbenchAsyncDataTree, ResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, IContextKey, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -24,7 +24,7 @@ import { Disposable, IDisposable, toDisposable, MutableDisposable, dispose, Disp
 import { ActionBar, ActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, MenuRegistry, MenuItemAction, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IRemoteExplorerService, TunnelModel, MakeAddress, TunnelType, ITunnelItem, Tunnel } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -507,7 +507,20 @@ export class TunnelPanel extends ViewPane {
 						return item.label;
 					}
 				},
-				multipleSelectionSupport: false
+				multipleSelectionSupport: false,
+				accessibilityProvider: {
+					getAriaLabel: (item: ITunnelItem | ITunnelGroup) => {
+						if (item instanceof TunnelItem) {
+							if (item.localAddress) {
+								return nls.localize('remote.tunnel.ariaLabelForwarded', "Remote port {0}:{1} forwarded to local address {2}", item.remoteHost, item.remotePort, item.localAddress);
+							} else {
+								return nls.localize('remote.tunnel.ariaLabelCandidate', "Remote port {0}:{1} not forwarded", item.remoteHost, item.remotePort);
+							}
+						} else {
+							return item.label;
+						}
+					}
+				}
 			}
 		);
 		const actionRunner: ActionRunner = new ActionRunner();
@@ -524,7 +537,7 @@ export class TunnelPanel extends ViewPane {
 			this.tree.updateChildren(undefined, true);
 		}));
 
-		const navigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false }));
+		const navigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false }));
 
 		this._register(Event.debounce(navigator.onDidOpenResource, (last, event) => event, 75, true)(e => {
 			if (e.element && (e.element.tunnelType === TunnelType.Add)) {
@@ -701,7 +714,7 @@ const invalidPortNumberString: string = nls.localize('remote.tunnelsView.portNum
 namespace ForwardPortAction {
 	export const INLINE_ID = 'remote.tunnel.forwardInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.forwardCommandPalette';
-	export const LABEL = nls.localize('remote.tunnel.forward', "Forward a Port");
+	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.forward', "Forward a Port"), original: 'Forward a Port' };
 	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
 	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
 
@@ -785,7 +798,7 @@ function makeTunnelPicks(tunnels: Tunnel[]): QuickPickInput<QuickPickTunnel>[] {
 	});
 	if (picks.length === 0) {
 		picks.push({
-			label: nls.localize('remote.tunnel.closeNoPorts', "No ports currently forwarded. Try running the {0} command", ForwardPortAction.LABEL)
+			label: nls.localize('remote.tunnel.closeNoPorts', "No ports currently forwarded. Try running the {0} command", ForwardPortAction.LABEL.value)
 		});
 	}
 	return picks;
@@ -794,7 +807,7 @@ function makeTunnelPicks(tunnels: Tunnel[]): QuickPickInput<QuickPickTunnel>[] {
 namespace ClosePortAction {
 	export const INLINE_ID = 'remote.tunnel.closeInline';
 	export const COMMANDPALETTE_ID = 'remote.tunnel.closeCommandPalette';
-	export const LABEL = nls.localize('remote.tunnel.close', "Stop Forwarding Port");
+	export const LABEL: ILocalizedString = { value: nls.localize('remote.tunnel.close', "Stop Forwarding Port"), original: 'Stop Forwarding Port' };
 
 	export function inlineHandler(): ICommandHandler {
 		return async (accessor, arg) => {

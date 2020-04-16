@@ -72,6 +72,11 @@
 	opacity: 0.9;
 }
 
+.settings-editor > .settings-header > .settings-header-controls .last-synced-label {
+	padding-top: 7px;
+	opacity: 0.9;
+}
+
 .settings-editor .settings-tabs-widget > .monaco-action-bar .action-item .action-details {
 	opacity: 0.9;
 }

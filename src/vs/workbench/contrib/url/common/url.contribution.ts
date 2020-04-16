@@ -34,8 +34,10 @@ export class OpenUrlAction extends Action {
 
 	run(): Promise<any> {
 		return this.quickInputService.input({ prompt: 'URL to open' }).then(input => {
-			const uri = URI.parse(input);
-			this.urlService.open(uri, { trusted: true });
+			if (input) {
+				const uri = URI.parse(input);
+				this.urlService.open(uri, { trusted: true });
+			}
 		});
 	}
 }

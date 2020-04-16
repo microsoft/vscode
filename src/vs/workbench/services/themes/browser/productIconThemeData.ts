@@ -108,13 +108,15 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 					case 'label':
 					case 'description':
 					case 'settingsId':
-					case 'extensionData':
 					case 'styleSheetContent':
 					case 'watch':
 						(theme as any)[key] = data[key];
 						break;
 					case 'location':
 						theme.location = URI.revive(data.location);
+						break;
+					case 'extensionData':
+						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
 						break;
 				}
 			}
@@ -130,9 +132,10 @@ export class ProductIconThemeData implements IWorkbenchProductIconTheme {
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			location: this.location,
+			location: this.location?.toJSON(),
 			styleSheetContent: this.styleSheetContent,
-			watch: this.watch
+			watch: this.watch,
+			extensionData: ExtensionData.toJSONObject(this.extensionData),
 		});
 		storageService.store(PERSISTED_PRODUCT_ICON_THEME_STORAGE_KEY, data, StorageScope.GLOBAL);
 	}

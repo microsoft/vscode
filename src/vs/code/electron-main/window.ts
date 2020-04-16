@@ -118,6 +118,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private readonly touchBarGroups: TouchBarSegmentedControl[];
 
+	private currentHttpProxy?: string;
+
 	constructor(
 		config: IWindowCreationOptions,
 		@ILogService private readonly logService: ILogService,
@@ -593,6 +595,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (newMenuBarVisibility !== this.currentMenuBarVisibility) {
 			this.currentMenuBarVisibility = newMenuBarVisibility;
 			this.setMenuBarVisibility(newMenuBarVisibility);
+		}
+		// Do not set to empty configuration at startup if setting is empty to not override configuration through CLI options:
+		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim() || undefined;
+		if (newHttpProxy !== this.currentHttpProxy) {
+			this.currentHttpProxy = newHttpProxy;
+			this._win.webContents.session.setProxy({
+				proxyRules: newHttpProxy || '',
+				proxyBypassRules: '',
+				pacScript: '',
+			});
 		}
 	}
 

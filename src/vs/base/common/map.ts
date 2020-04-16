@@ -5,7 +5,9 @@
 
 import { URI } from 'vs/base/common/uri';
 import { CharCode } from 'vs/base/common/charCode';
-import { compareIgnoreCase } from 'vs/base/common/strings';
+import { compareSubstringIgnoreCase, compare, compareSubstring } from 'vs/base/common/strings';
+import { Schemas } from 'vs/base/common/network';
+import { isLinux } from 'vs/base/common/platform';
 
 /**
  * @deprecated ES6: use `[...SetOrMap.values()]`
@@ -102,7 +104,10 @@ export class PathIterator implements IKeyIterator<string> {
 	private _from!: number;
 	private _to!: number;
 
-	constructor(private _splitOnBackslash: boolean = true) { }
+	constructor(
+		private readonly _splitOnBackslash: boolean = true,
+		private readonly _caseSensitive: boolean = true
+	) { }
 
 	reset(key: string): this {
 		this._value = key.replace(/\\$|\/$/, '');
@@ -135,27 +140,9 @@ export class PathIterator implements IKeyIterator<string> {
 	}
 
 	cmp(a: string): number {
-
-		let aPos = 0;
-		const aLen = a.length;
-		let thisPos = this._from;
-
-		while (aPos < aLen && thisPos < this._to) {
-			const cmp = a.charCodeAt(aPos) - this._value.charCodeAt(thisPos);
-			if (cmp !== 0) {
-				return cmp;
-			}
-			aPos += 1;
-			thisPos += 1;
-		}
-
-		if (aLen === this._to - this._from) {
-			return 0;
-		} else if (aPos < aLen) {
-			return -1;
-		} else {
-			return 1;
-		}
+		return this._caseSensitive
+			? compareSubstring(a, this._value, 0, a.length, this._from, this._to)
+			: compareSubstringIgnoreCase(a, this._value, 0, a.length, this._from, this._to);
 	}
 
 	value(): string {
@@ -169,7 +156,7 @@ const enum UriIteratorState {
 
 export class UriIterator implements IKeyIterator<URI> {
 
-	private _pathIterator = new PathIterator(false);
+	private _pathIterator!: PathIterator;
 	private _value!: URI;
 	private _states: UriIteratorState[] = [];
 	private _stateIdx: number = 0;
@@ -184,8 +171,14 @@ export class UriIterator implements IKeyIterator<URI> {
 			this._states.push(UriIteratorState.Authority);
 		}
 		if (this._value.path) {
-			this._states.push(UriIteratorState.Path);
+			//todo@jrieken the case-sensitive logic is copied form `resources.ts#hasToIgnoreCase`
+			// which cannot be used because it depends on this
+			const caseSensitive = key.scheme === Schemas.file && isLinux;
+			this._pathIterator = new PathIterator(false, caseSensitive);
 			this._pathIterator.reset(key.path);
+			if (this._pathIterator.value()) {
+				this._states.push(UriIteratorState.Path);
+			}
 		}
 		if (this._value.query) {
 			this._states.push(UriIteratorState.Query);
@@ -213,15 +206,15 @@ export class UriIterator implements IKeyIterator<URI> {
 
 	cmp(a: string): number {
 		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
-			return compareIgnoreCase(a, this._value.scheme);
+			return compareSubstringIgnoreCase(a, this._value.scheme);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
-			return compareIgnoreCase(a, this._value.authority);
+			return compareSubstringIgnoreCase(a, this._value.authority);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
 			return this._pathIterator.cmp(a);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Query) {
-			return compareIgnoreCase(a, this._value.query);
+			return compare(a, this._value.query);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Fragment) {
-			return compareIgnoreCase(a, this._value.fragment);
+			return compare(a, this._value.fragment);
 		}
 		throw new Error();
 	}

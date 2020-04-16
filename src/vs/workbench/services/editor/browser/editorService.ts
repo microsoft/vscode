@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, toResource, IVisibleEditorPane } from 'vs/workbench/common/editor';
@@ -17,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct, insert } from 'vs/base/common/arrays';
@@ -33,6 +34,8 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
+import { DEFAULT_CUSTOM_EDITOR, updateViewTypeSchema, editorAssociationsConfigurationNode } from 'vs/workbench/services/editor/browser/editorAssociationsSetting';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -477,13 +480,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return toDisposable(() => remove());
 	}
 
+	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] {
+		const ret = [];
+		for (const handler of this.openEditorHandlers) {
+			const handlers = handler.getEditorOverrides ? handler.getEditorOverrides(editorInput, options, group).map(val => { return [handler, val] as [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]; }) : [];
+			ret.push(...handlers);
+		}
+
+		return ret;
+	}
+
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
 		if (event.options && event.options.ignoreOverrides) {
 			return;
 		}
 
 		for (const handler of this.openEditorHandlers) {
-			const result = handler(event.editor, event.options, group);
+			const result = handler.open(event.editor, event.options, group);
 			const override = result?.override;
 			if (override) {
 				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
@@ -1078,6 +1091,48 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	//#region Custom View Type
+	private customEditorViewTypesHandlers = new Map<string, ICustomEditorViewTypesHandler>();
+	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable {
+		if (this.customEditorViewTypesHandlers.has(source)) {
+			throw new Error(`Use a different name for the custom editor component, ${source} is already occupied.`);
+		}
+
+		this.customEditorViewTypesHandlers.set(source, handler);
+		this.updateSchema();
+
+		const viewTypeChangeEvent = handler.onDidChangeViewTypes(() => {
+			this.updateSchema();
+		});
+
+		return {
+			dispose: () => {
+				viewTypeChangeEvent.dispose();
+				this.customEditorViewTypesHandlers.delete(source);
+				this.updateSchema();
+			}
+		};
+	}
+
+	private updateSchema() {
+		const enumValues: string[] = [];
+		const enumDescriptions: string[] = [];
+
+		const infos: ICustomEditorInfo[] = [DEFAULT_CUSTOM_EDITOR];
+
+		for (const [, handler] of this.customEditorViewTypesHandlers) {
+			infos.push(...handler.getViewTypes());
+		}
+
+		infos.forEach(info => {
+			enumValues.push(info.id);
+			enumDescriptions.push(nls.localize('editorAssociations.viewType.sourceDescription', "Source: {0}", info.providerDisplayName));
+		});
+
+		updateViewTypeSchema(enumValues, enumDescriptions);
+	}
+
+	//#endregion
 	dispose(): void {
 		super.dispose();
 
@@ -1109,6 +1164,10 @@ export class DelegatingEditorService implements IEditorService {
 		private editorOpenHandler: IEditorOpenHandler,
 		@IEditorService private editorService: EditorService
 	) { }
+
+	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) {
+		return [];
+	}
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
@@ -1181,7 +1240,14 @@ export class DelegatingEditorService implements IEditorService {
 	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void> { return this.editorService.revert(editors, options); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<void> { return this.editorService.revertAll(options); }
 
+	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
 	//#endregion
 }
 
 registerSingleton(IEditorService, EditorService);
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+	.registerConfiguration(editorAssociationsConfigurationNode);
