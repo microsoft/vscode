@@ -570,9 +570,13 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		const documentEntry = this._documents.add(viewType, document);
 
 		if (this.isEditable(document)) {
-			document.onDidEdit(e => {
-				const editId = documentEntry.addEdit(e);
-				this._proxy.$onDidEdit(document.uri, viewType, editId, e.label);
+			document.onDidChange(e => {
+				if (isEditEvent(e)) {
+					const editId = documentEntry.addEdit(e);
+					this._proxy.$onDidEdit(document.uri, viewType, editId, e.label);
+				} else {
+					this._proxy.$onContentChange(document.uri, viewType);
+				}
 			});
 		}
 
@@ -708,7 +712,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 	}
 
 	private isEditable(document: vscode.CustomDocument): document is vscode.EditableCustomDocument {
-		return !!(document as vscode.EditableCustomDocument).onDidEdit;
+		return !!(document as vscode.EditableCustomDocument).onDidChange;
 	}
 
 	private getEditableCustomDocument(viewType: string, resource: UriComponents): vscode.EditableCustomDocument {
@@ -743,4 +747,9 @@ function getDefaultLocalResourceRoots(
 		...(workspace?.getWorkspaceFolders() || []).map(x => x.uri),
 		extension.extensionLocation,
 	];
+}
+
+function isEditEvent(e: vscode.CustomDocumentContentChangeEvent | vscode.CustomDocumentEditEvent): e is vscode.CustomDocumentEditEvent {
+	return typeof (e as vscode.CustomDocumentEditEvent).undo === 'function'
+		&& typeof (e as vscode.CustomDocumentEditEvent).redo === 'function';
 }

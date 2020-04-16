@@ -425,13 +425,13 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public async $onDidEdit(resourceComponents: UriComponents, viewType: string, editId: number, label: string | undefined): Promise<void> {
-		const resource = URI.revive(resourceComponents);
-		const model = await this._customEditorService.models.get(resource, viewType);
-		if (!model || !(model instanceof MainThreadCustomEditorModel)) {
-			throw new Error('Could not find model for webview editor');
-		}
-
+		const model = await this.getCustomEditorModel(resourceComponents, viewType);
 		model.pushEdit(editId, label);
+	}
+
+	public async $onContentChange(resourceComponents: UriComponents, viewType: string): Promise<void> {
+		const model = await this.getCustomEditorModel(resourceComponents, viewType);
+		model.changeContent();
 	}
 
 	private hookupWebviewEventDelegate(handle: extHostProtocol.WebviewPanelHandle, input: WebviewInput) {
@@ -540,6 +540,15 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		return this._webviewInputs.getInputForHandle(handle);
 	}
 
+	private async getCustomEditorModel(resourceComponents: UriComponents, viewType: string) {
+		const resource = URI.revive(resourceComponents);
+		const model = await this._customEditorService.models.get(resource, viewType);
+		if (!model || !(model instanceof MainThreadCustomEditorModel)) {
+			throw new Error('Could not find model for webview editor');
+		}
+		return model;
+	}
+
 	private static getWebviewResolvedFailedContent(viewType: string) {
 		return `<!DOCTYPE html>
 		<html>
@@ -597,11 +606,12 @@ namespace HotExitState {
 class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
 
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
-	private _fromBackup: boolean = false;
+	private readonly _fromBackup: boolean = false;
 
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
+	private _isDirtyFromContentChange = false;
 
 	private _ongoingSave?: CancelablePromise<void>;
 
@@ -676,6 +686,9 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	public isDirty(): boolean {
+		if (this._isDirtyFromContentChange) {
+			return true;
+		}
 		if (this._edits.length > 0) {
 			return this._savePoint !== this._currentEditIndex;
 		}
@@ -714,6 +727,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			label: label ?? localize('defaultEditLabel', "Edit"),
 			undo: () => this.undo(),
 			redo: () => this.redo(),
+		});
+	}
+
+	public changeContent() {
+		this.change(() => {
+			this._isDirtyFromContentChange = true;
 		});
 	}
 
@@ -779,12 +798,13 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return;
 		}
 
-		if (this._currentEditIndex === this._savePoint) {
+		if (this._currentEditIndex === this._savePoint && !this._isDirtyFromContentChange) {
 			return;
 		}
 
 		this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
 		this.change(() => {
+			this._isDirtyFromContentChange = false;
 			this._currentEditIndex = this._savePoint;
 			this.spliceEdits();
 		});
@@ -805,6 +825,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this._ongoingSave = savePromise;
 
 		this.change(() => {
+			this._isDirtyFromContentChange = false;
 			this._savePoint = this._currentEditIndex;
 		});
 

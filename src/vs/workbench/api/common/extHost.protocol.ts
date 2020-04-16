@@ -615,6 +615,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$unregisterEditorProvider(viewType: string): void;
 
 	$onDidEdit(resource: UriComponents, viewType: string, editId: number, label: string | undefined): void;
+	$onContentChange(resource: UriComponents, viewType: string): void;
 }
 
 export interface WebviewPanelViewStateData {

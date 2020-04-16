@@ -1176,6 +1176,8 @@ declare module 'vscode' {
 
 	/**
 	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`EditableCustomDocument`](#EditableCustomDocument).
+	 *
+	 * @see [`EditableCustomDocument.onDidChange`](#EditableCustomDocument.onDidChange).
 	 */
 	interface CustomDocumentEditEvent {
 		/**
@@ -1198,6 +1200,16 @@ declare module 'vscode' {
 		 * This is shown in the UI to users.
 		 */
 		readonly label?: string;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that the content of a [`EditableCustomDocument`](#EditableCustomDocument)
+	 * has changed.
+	 *
+	 * @see [`EditableCustomDocument.onDidChange`](#EditableCustomDocument.onDidChange).
+	 */
+	interface CustomDocumentContentChangeEvent {
+		// marker interface
 	}
 
 	/**
@@ -1265,10 +1277,20 @@ declare module 'vscode' {
 		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
 		 * define what an edit is and what data is stored on each edit.
 		 *
-		 * Firing this will cause VS Code to mark the editors as being dirty. This also allows the user to then undo and
-		 * redo the edit in the custom editor.
+		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
+		 * saves or reverts the file.
+		 *
+		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
+		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
+		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
+		 *
+		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
+		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
+		 * `save` or `revert` the file.
+		 *
+		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
 		 */
-		readonly onDidEdit: Event<CustomDocumentEditEvent>;
+		readonly onDidChange: Event<CustomDocumentEditEvent> | Event<CustomDocumentContentChangeEvent>;
 
 		/**
 		 * Revert a custom editor to its last saved state.
