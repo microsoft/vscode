@@ -162,6 +162,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows .cell-editor-part > .monaco-toolbar .action-item .action-label {
 	display: flex;
 	align-items: center;
+	margin: auto;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container {
