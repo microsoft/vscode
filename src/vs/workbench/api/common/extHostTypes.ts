@@ -1291,6 +1291,7 @@ export class SignatureInformation {
 	label: string;
 	documentation?: string | MarkdownString;
 	parameters: ParameterInformation[];
+	activeParameter?: number;
 
 	constructor(label: string, documentation?: string | MarkdownString) {
 		this.label = label;

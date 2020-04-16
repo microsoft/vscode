@@ -86,6 +86,25 @@ interface ICommand {
 	handler: (...args: any[]) => unknown;
 }
 
+interface IHomeIndicator {
+
+	/**
+	 * The location to open when clicking the home indicator.
+	 */
+	href: string;
+
+	/**
+	 * The icon name for the home indicator. This needs to be one of the existing
+	 * icons from our Codicon icon set. For example `sync`.
+	 */
+	icon: string;
+
+	/**
+	 * A tooltip that will appear while hovering over the home indicator.
+	 */
+	title: string;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -180,6 +199,11 @@ interface IWorkbenchConstructionOptions {
 	 * Note: commands can be called from extensions if the identifier is known!
 	 */
 	readonly commands?: readonly ICommand[];
+
+	/**
+	 * Optional home indicator to appear above the hamburger menu in the activity bar.
+	 */
+	readonly homeIndicator?: IHomeIndicator;
 
 	//#endregion
 
@@ -324,7 +348,10 @@ export {
 
 	// Commands
 	ICommand,
-	commands
+	commands,
+
+	// Home Indicator
+	IHomeIndicator
 };
 
 //#endregion
