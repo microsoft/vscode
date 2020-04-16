@@ -161,7 +161,7 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: string, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
 	let score = 0;
 
-	if (queryLowerCharAtIndex !== targetLower[targetIndex]) {
+	if (!considerAsEqual(queryLowerCharAtIndex, targetLower[targetIndex])) {
 		return score; // no match of characters
 	}
 
@@ -226,6 +226,19 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	// }
 
 	return score;
+}
+
+function considerAsEqual(a: string, b: string): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	// Special case path spearators: ignore platform differences
+	if (a === '/' || a === '\\') {
+		return b === '/' || b === '\\';
+	}
+
+	return false;
 }
 
 function scoreSeparatorAtPos(charCode: number): number {
