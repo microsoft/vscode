@@ -146,7 +146,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			group: '1_accounts',
 			command: {
 				id: `configureSessions${session.id}`,
-				title: session.accountName
+				title: `${session.accountName} (${this.displayName})`
 			},
 			order: 3
 		});
