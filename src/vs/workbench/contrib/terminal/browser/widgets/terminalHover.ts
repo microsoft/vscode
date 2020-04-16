@@ -11,8 +11,6 @@ import { IViewportRange } from 'xterm';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { HoverWidget, HorizontalAlignment, VerticalAlignment, IProposedAnchor, IHoverTarget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 
-// const WIDGET_HEIGHT = 29;
-
 export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
 	private _xtermViewport: HTMLElement | undefined;
@@ -77,31 +75,13 @@ export class TerminalWidgetManager implements IDisposable {
 		dispose(this._hoverWidget);
 		this._hoverListeners.clear();
 
-		// TODO: Determine whether the tooltip should show on the bottom or top
-		// const left = location.start.x * cellDimensions.width;
-		// const top = location.start.y * cellDimensions.height;
-
-		// TODO: Create targets and manage tooltip mouse leaving and positioning
-		// this._hoverOverlayWidget = new HoverTarget(this._container, left, top, 50, 20);
-
-		const target = new CellHoverTarget(this._container, viewportRange, cellDimensions, terminalDimensions);
-
-
-		// this._hoverWidget = new HoverWidget(this._xtermViewport, this._container, target, left, top, text, linkHandler);
-		this._hoverWidget = new HoverWidget(this._container, target, text, linkHandler);
+		const hoverTarget = new CellHoverTarget(this._container, viewportRange, cellDimensions, terminalDimensions);
+		this._hoverWidget = new HoverWidget(this._container, hoverTarget, text, linkHandler);
 	}
 
 	public closeHover(): void {
-		console.log('closeHover');
 		this._hoverListeners.clear();
-		// const currentWidget = this._hoverWidget;
 		this._hoverWidget?.dispose();
-		// this._hoverOverlayWidget?.dispose();
-		// setTimeout(() => {
-		// 	if (this._hoverWidget && !this._hoverWidget.mouseOver && this._hoverWidget === currentWidget) {
-		// 		this._hoverListeners.add(HoverWidget.fadeOut(this._hoverWidget));
-		// 	}
-		// }, 50);
 	}
 
 	private _refreshHeight(): void {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -29,7 +29,7 @@ export interface IProposedAnchor {
 /**
  * A target for a hover which can know about domain-specific locations.
  */
-export interface IHoverTarget {
+export interface IHoverTarget extends IDisposable {
 	readonly targetElements: readonly HTMLElement[];
 	proposeIdealAnchor(): IProposedAnchor;
 	proposeSecondaryAnchor(): IProposedAnchor;
@@ -44,9 +44,6 @@ export class HoverWidget extends Widget {
 
 	constructor(
 		private _container: HTMLElement,
-		/**
-		 * One or more targets that the hover must not overlap
-		 */
 		private _target: IHoverTarget,
 		private _text: IMarkdownString,
 		private _linkHandler: (url: string) => void
@@ -64,7 +61,7 @@ export class HoverWidget extends Widget {
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 
 		this._mouseTracker = new CompositeMouseTracker([this._domNode, ..._target.targetElements]);
-		this._mouseTracker.onMouseOut(() => this.dispose());
+		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
 		this._register(this._mouseTracker);
 
 		this._container.appendChild(this._domNode);
@@ -83,8 +80,6 @@ export class HoverWidget extends Widget {
 		} else {
 			this._domNode.style.top = `${anchor.y}px`;
 		}
-
-		// TODO: Support horizontal alignment
 	}
 
 	// public height(): number {
@@ -96,6 +91,7 @@ export class HoverWidget extends Widget {
 			this._container.removeChild(this.domNode);
 		}
 		this._messageListeners.dispose();
+		this._target.dispose();
 		super.dispose();
 	}
 }
