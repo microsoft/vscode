@@ -939,7 +939,8 @@ export namespace SignatureInformation {
 		return {
 			label: info.label,
 			documentation: info.documentation ? MarkdownString.fromStrict(info.documentation) : undefined,
-			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.from) : []
+			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.from) : [],
+			activeParameter: info.activeParameter,
 		};
 	}
 
@@ -947,7 +948,8 @@ export namespace SignatureInformation {
 		return {
 			label: info.label,
 			documentation: htmlContent.isMarkdownString(info.documentation) ? MarkdownString.to(info.documentation) : info.documentation,
-			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.to) : []
+			parameters: Array.isArray(info.parameters) ? info.parameters.map(ParameterInformation.to) : [],
+			activeParameter: info.activeParameter,
 		};
 	}
 }

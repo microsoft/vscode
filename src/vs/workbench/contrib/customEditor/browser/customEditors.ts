@@ -28,7 +28,7 @@ import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/comm
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverride, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverride, ICustomEditorViewTypesHandler, ICustomEditorInfo, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
 import { CustomEditorInput } from './customEditorInput';
 import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/browser/editorAssociationsSetting';
@@ -352,8 +352,24 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		this._register(this.editorService.overrideOpenEditor({
-			open: (editor, options, group) => {
-				return this.onEditorOpening(editor, options, group);
+			open: (editor, options, group, id) => {
+				return this.onEditorOpening(editor, options, group, id);
+			},
+			getEditorOverrides: (editor: IEditorInput, _options: IEditorOptions | undefined, _group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
+				const resource = editor.resource;
+				if (!resource) {
+					return [];
+				}
+
+				const customEditors = this.customEditorService.getAllCustomEditors(resource);
+				return customEditors.allEditors.map(entry => {
+					return {
+						id: entry.id,
+						active: editor instanceof CustomEditorInput && editor.viewType === entry.id,
+						label: entry.displayName,
+						detail: entry.providerDisplayName,
+					};
+				});
 			}
 		}));
 
@@ -371,10 +387,11 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 	private onEditorOpening(
 		editor: IEditorInput,
 		options: ITextEditorOptions | undefined,
-		group: IEditorGroup
+		group: IEditorGroup,
+		id?: string,
 	): IOpenEditorOverride | undefined {
 		if (editor instanceof CustomEditorInput) {
-			if (editor.group === group.id) {
+			if (editor.group === group.id && editor.viewType === id) {
 				// No need to do anything
 				return undefined;
 			} else {
@@ -382,7 +399,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				// Unlike normal editor inputs, we do not want to share custom editor inputs
 				// between multiple editors / groups.
 				return {
-					override: this.customEditorService.openWith(editor.resource, editor.viewType, options, group)
+					override: this.customEditorService.openWith(editor.resource, id ?? editor.viewType, options, group)
 				};
 			}
 		}
@@ -392,17 +409,28 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		}
 
 		const resource = editor.resource;
-		if (resource) {
-			return this.onResourceEditorOpening(resource, editor, options, group);
+		if (!resource) {
+			return undefined;
 		}
-		return undefined;
+
+		if (id) {
+			if (editor instanceof FileEditorInput && id === defaultCustomEditor.id) {
+				return undefined;
+			}
+
+			return {
+				override: this.customEditorService.openWith(resource, id, { ...options, ignoreOverrides: true }, group)
+			};
+		}
+
+		return this.onResourceEditorOpening(resource, editor, options, group);
 	}
 
 	private onResourceEditorOpening(
 		resource: URI,
 		editor: IEditorInput,
 		options: ITextEditorOptions | undefined,
-		group: IEditorGroup
+		group: IEditorGroup,
 	): IOpenEditorOverride | undefined {
 		const userConfiguredEditors = this.customEditorService.getUserConfiguredCustomEditors(resource);
 		const contributedEditors = this.customEditorService.getContributedCustomEditors(resource);

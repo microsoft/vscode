@@ -536,6 +536,10 @@ export class ReopenResourcesAction extends Action {
 
 	async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
+		if (!activeInput) {
+			return;
+		}
+
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (!activeEditorPane) {
 			return;
@@ -543,13 +547,12 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		const activeResource = activeInput ? activeInput.resource : undefined;
-
+		const activeResource = activeInput.resource;
 		if (!activeResource) {
 			return;
 		}
 
-		const overrides = this.editorService.getEditorOverrides(activeInput!, options, group);
+		const overrides = this.editorService.getEditorOverrides(activeInput, options, group);
 		const items: (IQuickPickItem & { handler?: IOpenEditorOverrideHandler })[] = overrides.map((override) => {
 			return {
 				handler: override[0],
