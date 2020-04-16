@@ -15,6 +15,8 @@ import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/vie
 import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDimension, hide, show } from 'vs/base/browser/dom';
+import { renderCodicons } from 'vs/base/common/codicons';
+import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
 
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;
@@ -22,6 +24,7 @@ export class StatefullMarkdownCell extends Disposable {
 	private editingContainer: HTMLElement;
 
 	private localDisposables: DisposableStore;
+	private foldingState: CellFoldingState;
 
 	constructor(
 		private notebookEditor: INotebookEditor,
@@ -150,7 +153,36 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		}));
 
+		this.foldingState = viewCell.foldingState;
+		this.setFoldingIndicator();
+
+		this._register(viewCell.onDidChangeFoldingState(() => {
+			const foldingState = viewCell.foldingState;
+
+			if (foldingState !== this.foldingState) {
+				this.foldingState = foldingState;
+				this.setFoldingIndicator();
+			}
+		}));
+
 		viewUpdate();
+	}
+
+	setFoldingIndicator() {
+		switch (this.foldingState) {
+			case CellFoldingState.None:
+				this.templateData.foldingIndicator.innerHTML = '';
+				break;
+			case CellFoldingState.Collapsed:
+				this.templateData.foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
+				break;
+			case CellFoldingState.Expanded:
+				this.templateData.foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');
+				break;
+
+			default:
+				break;
+		}
 	}
 
 	bindEditorListeners(model: ITextModel, dimension?: IDimension) {

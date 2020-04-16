@@ -30,7 +30,7 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
 import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/notebookFindWidget';
-import { CellEditState, CellFocusMode, ICellViewModel, INotebookEditor, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, INotebookCellList, ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellViewModel, INotebookEditor, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, INotebookCellList, ICellRange, INotebookEditorMouseEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -44,6 +44,7 @@ import { CellKind, CellUri, IOutput } from 'vs/workbench/contrib/notebook/common
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { FoldingController } from 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -125,6 +126,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
 		this.findWidget = this.instantiationService.createInstance(NotebookFindWidget, this);
+		this._register(this.instantiationService.createInstance(FoldingController, this));
 		this.findWidget.updateTheme(this.themeService.getColorTheme());
 	}
 
@@ -253,6 +255,18 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			if (this.webviewTransparentCover) {
 				// no matter when
 				this.webviewTransparentCover.style.display = 'none';
+			}
+		}));
+
+		this._register(this.list.onMouseDown(e => {
+			if (e.element) {
+				this._onMouseDown.fire({ event: e.browserEvent, target: e.element });
+			}
+		}));
+
+		this._register(this.list.onMouseUp(e => {
+			if (e.element) {
+				this._onMouseUp.fire({ event: e.browserEvent, target: e.element });
 			}
 		}));
 
@@ -544,6 +558,15 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.findWidget.hide();
 		this.focus();
 	}
+
+	//#endregion
+
+	//#region Mouse Events
+	private readonly _onMouseUp: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
+	public readonly onMouseUp: Event<INotebookEditorMouseEvent> = this._onMouseUp.event;
+
+	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
+	public readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
 
 	//#endregion
 

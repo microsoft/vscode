@@ -436,6 +436,13 @@
 	filter: brightness(0) invert(1)
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container .notebook-folding-indicator {
+	position: absolute;
+	top: 32px;
+	left: 26px;
+	cursor: pointer;
+}
+
 /** Theming */
 
 /* .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown pre {

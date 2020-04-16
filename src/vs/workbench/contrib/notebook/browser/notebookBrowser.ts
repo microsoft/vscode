@@ -3,12 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
+import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -18,12 +21,9 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { NOTEBOOK_EDITABLE_CONTEXT_KEY, NOTEBOOK_EXECUTING_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { ScrollEvent } from 'vs/base/common/scrollable';
-import { IListStyles, IListOptions } from 'vs/base/browser/ui/list/listWidget';
-import { IListEvent } from 'vs/base/browser/ui/list/list';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -88,6 +88,11 @@ export interface ICellViewModel {
 	getText(): string;
 	metadata: NotebookCellMetadata | undefined;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
+}
+
+export interface INotebookEditorMouseEvent {
+	readonly event: MouseEvent;
+	readonly target: CellViewModel;
 }
 
 export interface INotebookEditor {
@@ -277,6 +282,18 @@ export interface INotebookEditor {
 	 * Hide Find Widget
 	 */
 	hideFind(): void;
+
+	/**
+	 * An event emitted on a "mouseup".
+	 * @event
+	 */
+	onMouseUp(listener: (e: INotebookEditorMouseEvent) => void): IDisposable;
+
+	/**
+	 * An event emitted on a "mousedown".
+	 * @event
+	 */
+	onMouseDown(listener: (e: INotebookEditorMouseEvent) => void): IDisposable;
 }
 
 export interface INotebookCellList {
@@ -289,6 +306,8 @@ export interface INotebookCellList {
 	length: number;
 	rowsContainer: HTMLElement;
 	readonly onDidRemoveOutput: Event<IOutput>;
+	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
+	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	detachViewModel(): void;
 	attachViewModel(viewModel: NotebookViewModel): void;
 	clear(): void;
@@ -330,6 +349,7 @@ export interface BaseCellRenderTemplate {
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	editingContainer: HTMLElement;
+	foldingIndicator: HTMLElement;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
@@ -402,10 +422,16 @@ export enum CursorAtBoundary {
 }
 
 /**
- * [start, start + length]
+ * [start, start + length - 1]
  */
 export interface ICellRange {
+	/**
+	 * zero based index
+	 */
 	start: number;
+	/**
+	 * One based, includes `start`
+	 */
 	length: number;
 }
 
