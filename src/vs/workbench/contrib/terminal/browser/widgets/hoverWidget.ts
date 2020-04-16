@@ -75,7 +75,11 @@ export class HoverWidget extends Widget {
 
 	public layout(): void {
 		const anchor = this._target.proposeIdealAnchor();
-		this._domNode.style.left = `${anchor.x}px`;
+		if (anchor.horizontalAlignment === HorizontalAlignment.Left) {
+			this._domNode.style.left = `${anchor.x}px`;
+		} else {
+			this._domNode.style.right = `${anchor.x}px`;
+		}
 		if (anchor.verticalAlignment === VerticalAlignment.Bottom) {
 			this._domNode.style.bottom = `${anchor.y}px`;
 		} else {
