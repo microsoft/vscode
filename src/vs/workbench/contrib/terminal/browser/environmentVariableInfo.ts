@@ -11,6 +11,7 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	constructor(
 		private readonly _diff: IMergedEnvironmentVariableCollectionDiff,
+		private readonly _terminalId: number,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 	}
@@ -29,7 +30,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	getActions(): { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] {
 		return [{
 			label: 'Relaunch terminal',
-			run: () => this._terminalService.getActiveInstance()?.relaunch(),
+			run: () => this._terminalService.getInstanceFromId(this._terminalId)?.relaunch(),
 			commandId: TERMINAL_COMMAND_ID.RELAUNCH
 		}];
 	}

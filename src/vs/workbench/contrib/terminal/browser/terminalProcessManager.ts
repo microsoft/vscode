@@ -332,7 +332,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			return;
 		}
 		console.log('environments differ', diff);
-		const info = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff);
+		const info = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._terminalId);
 		this._onEnvironmentVariableInfoChange.fire(info);
 		// const promptChoices: IPromptChoice[] = [
 		// 	{
