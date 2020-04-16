@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { Event, Emitter } from 'vs/base/common/event';
+import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { isMacintosh } from 'vs/base/common/platform';
 import { ScrollEvent } from 'vs/base/common/scrollable';
+import { Range } from 'vs/editor/common/core/range';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
+import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { isMacintosh } from 'vs/base/common/platform';
-import { NOTEBOOK_EDITOR_CURSOR_BOUNDARY, IOutput, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { Range } from 'vs/editor/common/core/range';
-import { CellRevealType, CellRevealPosition, CursorAtBoundary, ICellViewModel, INotebookCellList, ICellRange, reduceCellRanges, getVisibleCells } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { IStyleController, IListStyles } from 'vs/base/browser/ui/list/listWidget';
-import { TrackedRangeStickiness } from 'vs/editor/common/model';
-import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
+import { diff, IOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
