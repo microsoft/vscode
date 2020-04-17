@@ -165,8 +165,6 @@ class WebviewPortMappingProvider extends Disposable {
 
 class WebviewKeyboardHandler {
 
-	private _ignoreMenuShortcut = false;
-
 	private readonly _webviews = new Set<WebviewTagHandle>();
 	private readonly _isUsingNativeTitleBars: boolean;
 
@@ -181,22 +179,15 @@ class WebviewKeyboardHandler {
 
 		const disposables = new DisposableStore();
 		if (this.shouldToggleMenuShortcutsEnablement) {
-			disposables.add(webviewHandle.onFirstLoad(contents => {
-				contents.on('before-input-event', (_event, input) => {
-					if (input.type === 'keyDown' && document.activeElement === webviewHandle.webview) {
-						this._ignoreMenuShortcut = input.control || input.meta;
-						this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
-					}
-				});
-
-				this.setIgnoreMenuShortcutsForWebview(webviewHandle, this._ignoreMenuShortcut);
+			disposables.add(webviewHandle.onFirstLoad(() => {
+				this.setIgnoreMenuShortcutsForWebview(webviewHandle, true);
 			}));
 		}
 
 		disposables.add(addDisposableListener(webviewHandle.webview, 'ipc-message', (event) => {
 			switch (event.channel) {
 				case 'did-focus':
-					this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
+					this.setIgnoreMenuShortcuts(true);
 					break;
 
 				case 'did-blur':
