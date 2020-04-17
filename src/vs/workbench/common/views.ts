@@ -207,11 +207,39 @@ export interface IViewDescriptor {
 	readonly remoteAuthority?: string | string[];
 }
 
+export interface IViewDescriptorRef {
+	viewDescriptor: IViewDescriptor;
+	index: number;
+}
+
+export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
+	collapsed: boolean;
+	size?: number;
+}
+
 export interface IViewDescriptorCollection extends IDisposable {
-	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
-	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
-	readonly activeViewDescriptors: IViewDescriptor[];
+
 	readonly allViewDescriptors: IViewDescriptor[];
+	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
+
+	readonly activeViewDescriptors: IViewDescriptor[];
+	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
+
+	readonly visibleViewDescriptors: IViewDescriptor[];
+	readonly onDidAdd: Event<IAddedViewDescriptorRef[]>;
+	readonly onDidRemove: Event<IViewDescriptorRef[]>
+	readonly onDidMove: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }>
+
+	isVisible(id: string): boolean;
+	setVisible(id: string, visible: boolean, size?: number): void;
+
+	isCollapsed(id: string): boolean;
+	setCollapsed(id: string, collapsed: boolean): void;
+
+	getSize(id: string): number | undefined;
+	setSize(id: string, size: number): void
+
+	move(from: string, to: string): void;
 }
 
 export enum ViewContentPriority {
