@@ -8,7 +8,7 @@ import { addDisposableListener } from 'vs/base/browser/dom';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
@@ -162,32 +162,27 @@ class WebviewPortMappingProvider extends Disposable {
 	}
 }
 
-class WebviewKeyboardHandler {
+class WebviewKeyboardHandler extends Disposable {
 
 	private _ignoreMenuShortcut = false;
 
-	private readonly _webviews = new Set<WebviewTagHandle>();
+	constructor(
+		private readonly _webviewHandle: WebviewTagHandle
+	) {
+		super();
 
-	public add(
-		webviewHandle: WebviewTagHandle,
-	): IDisposable {
-		this._webviews.add(webviewHandle);
-
-		const disposables = new DisposableStore();
 		if (this.shouldToggleMenuShortcutsEnablement) {
-			disposables.add(webviewHandle.onFirstLoad(contents => {
+			this._register(_webviewHandle.onFirstLoad(contents => {
 				contents.on('before-input-event', (_event, input) => {
-					if (input.type === 'keyDown' && document.activeElement === webviewHandle.webview) {
+					if (input.type === 'keyDown' && document.activeElement === this._webviewHandle.webview) {
 						this._ignoreMenuShortcut = input.control || input.meta;
 						this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
 					}
 				});
-
-				this.setIgnoreMenuShortcutsForWebview(webviewHandle, this._ignoreMenuShortcut);
 			}));
 		}
 
-		disposables.add(addDisposableListener(webviewHandle.webview, 'ipc-message', (event) => {
+		this._register(addDisposableListener(this._webviewHandle.webview, 'ipc-message', (event) => {
 			switch (event.channel) {
 				case 'did-focus':
 					this.setIgnoreMenuShortcuts(this._ignoreMenuShortcut);
@@ -198,11 +193,6 @@ class WebviewKeyboardHandler {
 					return;
 			}
 		}));
-
-		return toDisposable(() => {
-			disposables.dispose();
-			this._webviews.delete(webviewHandle);
-		});
 	}
 
 	private get shouldToggleMenuShortcutsEnablement() {
@@ -210,23 +200,17 @@ class WebviewKeyboardHandler {
 	}
 
 	private setIgnoreMenuShortcuts(value: boolean) {
-		for (const webview of this._webviews) {
-			this.setIgnoreMenuShortcutsForWebview(webview, value);
+		if (!this.shouldToggleMenuShortcutsEnablement) {
+			return;
 		}
-	}
-
-	private setIgnoreMenuShortcutsForWebview(webview: WebviewTagHandle, value: boolean) {
-		if (this.shouldToggleMenuShortcutsEnablement) {
-			const contents = webview.webContents;
-			contents?.setIgnoreMenuShortcuts(value);
+		const contents = this._webviewHandle.webContents;
+		if (contents) {
+			contents.setIgnoreMenuShortcuts(value);
 		}
 	}
 }
 
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
-
-	private static readonly _webviewKeyboardHandler = new WebviewKeyboardHandler();
-
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
 
@@ -235,6 +219,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	private readonly _domReady: Promise<void>;
 	private readonly _focusDelayer = this._register(new ThrottledDelayer(10));
+	private _elementFocusImpl!: (options?: FocusOptions | undefined) => void;
 
 	constructor(
 		id: string,
@@ -266,7 +251,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			tunnelService,
 		));
 
-		this._register(ElectronWebviewBasedWebview._webviewKeyboardHandler.add(webviewAndContents));
+		this._register(new WebviewKeyboardHandler(webviewAndContents));
 
 		this._domReady = new Promise(resolve => {
 			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
@@ -332,6 +317,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	protected createElement(options: WebviewOptions) {
 		const element = document.createElement('webview');
+
+		this._elementFocusImpl = element.focus.bind(element);
+		element.focus = () => {
+			this.doFocus();
+		};
 		element.setAttribute('partition', `webview${Date.now()}`);
 		element.setAttribute('webpreferences', 'contextIsolation=yes');
 		element.className = `webview ${options.customClasses || ''}`;
@@ -369,6 +359,13 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	public focus(): void {
+		this.doFocus();
+
+		// Handle focus change programmatically (do not rely on event from <webview>)
+		this.handleFocusChange(true);
+	}
+
+	private doFocus() {
 		if (!this.element) {
 			return;
 		}
@@ -388,19 +385,17 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			if (!this.focused || !this.element) {
 				return;
 			}
+
 			if (document.activeElement?.tagName === 'INPUT') {
 				return;
 			}
 			try {
-				this.element.focus();
+				this._elementFocusImpl();
 			} catch {
 				// noop
 			}
 			this._send('focus');
 		});
-
-		// Handle focus change programmatically (do not rely on event from <webview>)
-		this.handleFocusChange(true);
 	}
 
 	protected style(): void {
