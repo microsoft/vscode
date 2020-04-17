@@ -15,6 +15,7 @@
 			"type": "node",
 			"request": "attach",
 			"name": "Attach to Extension Host",
+			"timeout": 30000,
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
