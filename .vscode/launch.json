@@ -188,6 +188,7 @@
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
+			"browserLaunchLocation": "workspace"
 		},
 		{
 			"type": "node",
