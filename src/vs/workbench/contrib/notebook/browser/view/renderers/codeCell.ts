@@ -59,18 +59,8 @@ export class CodeCell extends Disposable {
 				}
 
 				const realContentHeight = templateData.editor?.getContentHeight();
-				const width = this.viewCell.layoutInfo.editorWidth;
-
 				if (realContentHeight !== undefined && realContentHeight !== totalHeight) {
-					// TODO not redundant with content change event?
-					this.layoutEditor(
-						{
-							width: width,
-							height: realContentHeight
-						}
-					);
-
-					viewCell.editorHeight = realContentHeight;
+					this.onCellHeightChange(realContentHeight);
 				}
 
 				if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.focusMode === CellFocusMode.Editor) {
