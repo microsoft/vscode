@@ -105,7 +105,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 					if (result) {
 						let timeout: number | undefined;
 						let documentMouseOutListener: IDisposable | undefined;
-						const cancelHover = () => {
+						const clearTimer = () => {
 							if (timeout !== undefined) {
 								window.clearTimeout(timeout);
 							}
@@ -122,12 +122,13 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 								}
 							},
 							hover: (event: MouseEvent, text: string) => {
-								documentMouseOutListener = addDisposableListener(document, EventType.MOUSE_OVER, () => cancelHover());
+								documentMouseOutListener = addDisposableListener(document, EventType.MOUSE_OVER, () => clearTimer());
 								timeout = window.setTimeout(() => {
 									this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));
+									clearTimer();
 								}, TOOLTIP_HOVER_THRESHOLD);
 							},
-							leave: () => cancelHover()
+							leave: () => clearTimer()
 						});
 					} else {
 						callback(undefined);

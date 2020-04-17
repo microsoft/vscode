@@ -66,7 +66,7 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 		const range = { start, end };
 		let timeout: number | undefined;
 		let documentMouseOutListener: IDisposable | undefined;
-		const cancelHover = () => {
+		const clearTimer = () => {
 			if (timeout !== undefined) {
 				window.clearTimeout(timeout);
 			}
@@ -77,12 +77,13 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 			range,
 			activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
 			hover: (event: MouseEvent, text: string) => {
-				documentMouseOutListener = addDisposableListener(document, EventType.MOUSE_OVER, () => cancelHover());
+				documentMouseOutListener = addDisposableListener(document, EventType.MOUSE_OVER, () => clearTimer());
 				timeout = window.setTimeout(() => {
 					this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
+					clearTimer();
 				}, TOOLTIP_HOVER_THRESHOLD);
 			},
-			leave: () => cancelHover()
+			leave: () => clearTimer()
 		});
 	}
 }

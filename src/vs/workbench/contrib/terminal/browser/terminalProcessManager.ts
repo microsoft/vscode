@@ -325,38 +325,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	private _onEnvironmentVariableCollectionChange(newCollection: IMergedEnvironmentVariableCollection): void {
-		// TODO: React to changes in environment variable collections
 		const diff = this._extEnvironmentVariableCollection!.diff(newCollection);
 		if (diff === undefined) {
 			return;
 		}
-		console.log('environments differ', diff);
 		const info = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._terminalId);
 		this._onEnvironmentVariableInfoChange.fire(info);
-		// const promptChoices: IPromptChoice[] = [
-		// 	{
-		// 		label: nls.localize('apply', "Apply"),
-		// 		run: () => {
-		// 			let text = '';
-		// 			newAdditions.forEach((mutator, variable) => {
-		// 				// TODO: Support other common shells
-		// 				// TODO: Escape the new values properly
-		// 				switch (mutator.type) {
-		// 					case EnvironmentVariableMutatorType.Append:
-		// 						text += `export ${variable}="$${variable}${mutator.value}"\n`;
-		// 						break;
-		// 					case EnvironmentVariableMutatorType.Prepend:
-		// 						text += `export ${variable}="${mutator.value}$${variable}"\n`;
-		// 						break;
-		// 					case EnvironmentVariableMutatorType.Replace:
-		// 						text += `export ${variable}="${mutator.value}"\n`;
-		// 						break;
-		// 				}
-		// 			});
-		// 			this.write(text);
-		// 		}
-		// 	} as IPromptChoice
-		// ];
-		// this._notificationService.prompt(Severity.Info, nls.localize('environmentchange', "An extension wants to change the terminal environment, do you want to send commands to set the variables in the terminal? Note if you have an application open in the terminal this may not work."), promptChoices);
 	}
 }

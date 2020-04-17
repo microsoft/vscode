@@ -138,21 +138,6 @@ export class TerminalLinkManager extends DisposableStore {
 				return;
 			}
 
-			// Get the row bottom up
-			// let offsetRow = this._xterm.rows - location.start.y;
-			// let verticalAlignment = WidgetVerticalAlignment.Bottom;
-
-			// TODO: Calculate this within the widget itself
-			// Show the tooltip on the top of the next row to avoid obscuring the first row
-			// if (location.start.y <= 0) {
-			// 	offsetRow = this._xterm.rows - 1;
-			// 	verticalAlignment = WidgetVerticalAlignment.Top;
-			// 	// The start of the wrapped line is above the viewport, move to start of the line
-			// 	if (location.start.y < 0) {
-			// 		location.start.x = 0;
-			// 	}
-			// }
-
 			const core = (this._xterm as any)._core as XTermCore;
 			const cellDimensions = {
 				width: core._renderService.dimensions.actualCellWidth,
@@ -167,10 +152,7 @@ export class TerminalLinkManager extends DisposableStore {
 				linkRange,
 				cellDimensions,
 				terminalDimensions,
-				// location.start.x * core._renderService.dimensions.actualCellWidth,
-				// offsetRow * core._renderService.dimensions.actualCellHeight,
 				this._getLinkHoverString(uri),
-				// verticalAlignment,
 				linkHandler
 			);
 		};
