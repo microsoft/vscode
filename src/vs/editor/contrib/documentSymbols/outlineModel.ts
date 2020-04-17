@@ -120,14 +120,14 @@ export class OutlineGroup extends TreeElement {
 	constructor(
 		readonly id: string,
 		public parent: TreeElement | undefined,
-		readonly provider: DocumentSymbolProvider,
-		readonly providerIndex: number,
+		readonly label: string,
+		readonly order: number,
 	) {
 		super();
 	}
 
 	adopt(parent: TreeElement): OutlineGroup {
-		let res = new OutlineGroup(this.id, parent, this.provider, this.providerIndex);
+		let res = new OutlineGroup(this.id, parent, this.label, this.order);
 		for (const [key, value] of this.children) {
 			res.children.set(key, value.adopt(res));
 		}
@@ -320,7 +320,7 @@ export class OutlineModel extends TreeElement {
 		const promises = provider.map((provider, index) => {
 
 			let id = TreeElement.findId(`provider_${index}`, result);
-			let group = new OutlineGroup(id, result, provider, index);
+			let group = new OutlineGroup(id, result, provider.displayName ?? 'Unknown Outline Provider', index);
 
 			return Promise.resolve(provider.provideDocumentSymbols(result.textModel, cts.token)).then(result => {
 				for (const info of result || []) {
