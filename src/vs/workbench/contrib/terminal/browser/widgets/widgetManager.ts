@@ -4,25 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IViewportRange } from 'xterm';
 import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
-import { TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
 	private _xtermViewport: HTMLElement | undefined;
-
 	private _hoverWidget: HoverWidget | undefined;
-
 	private _attached: Map<string, ITerminalWidget> = new Map();
-
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
-	) {
-	}
 
 	attachToElement(terminalWrapper: HTMLElement) {
 		if (!this._container) {
@@ -39,24 +28,6 @@ export class TerminalWidgetManager implements IDisposable {
 			this._container = undefined;
 		}
 		this._xtermViewport = undefined;
-	}
-
-	showHover(
-		viewportRange: IViewportRange,
-		cellDimensions: { width: number, height: number },
-		terminalDimensions: { width: number, height: number },
-		text: IMarkdownString,
-		linkHandler: (url: string) => void
-	): void {
-		if (!this._container) {
-			return;
-		}
-		// dispose(this._hoverWidget);
-		// this._hoverListeners.clear();
-		const widget = this._instantiationService.createInstance(TerminalHover, viewportRange, cellDimensions, terminalDimensions, text, linkHandler);
-		this.attachWidget(widget);
-		// const hoverTarget = new CellHoverTarget(this._container, viewportRange, cellDimensions, terminalDimensions);
-		// this._hoverWidget = new HoverWidget(this._container, hoverTarget, text, linkHandler);
 	}
 
 	attachWidget(widget: ITerminalWidget): IDisposable | undefined {

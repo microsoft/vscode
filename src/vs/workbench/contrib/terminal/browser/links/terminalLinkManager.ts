@@ -33,6 +33,7 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -148,7 +149,7 @@ export class TerminalLinkManager extends DisposableStore {
 				height: this._xterm.rows
 			};
 
-			this._widgetManager.showHover(
+			this._showHover(
 				linkRange,
 				cellDimensions,
 				terminalDimensions,
@@ -175,6 +176,19 @@ export class TerminalLinkManager extends DisposableStore {
 				}
 			}
 		});
+	}
+
+	private _showHover(
+		viewportRange: IViewportRange,
+		cellDimensions: { width: number, height: number },
+		terminalDimensions: { width: number, height: number },
+		text: IMarkdownString,
+		linkHandler: (url: string) => void
+	) {
+		if (this._widgetManager) {
+			const widget = this._instantiationService.createInstance(TerminalHover, viewportRange, cellDimensions, terminalDimensions, text, linkHandler);
+			this._widgetManager.attachWidget(widget);
+		}
 	}
 
 	private _registerLinkMatchers() {
