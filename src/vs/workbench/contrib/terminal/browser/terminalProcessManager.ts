@@ -63,6 +63,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private _latencyLastMeasured: number = 0;
 	private _initialCwd: string | undefined;
 	private _extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
+	private _environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 
 	private readonly _onProcessReady = this._register(new Emitter<void>());
 	public get onProcessReady(): Event<void> { return this._onProcessReady.event; }
@@ -80,6 +81,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	public get onProcessResolvedShellLaunchConfig(): Event<IShellLaunchConfig> { return this._onProcessOverrideShellLaunchConfig.event; }
 	private readonly _onEnvironmentVariableInfoChange = this._register(new Emitter<IEnvironmentVariableInfo>());
 	public get onEnvironmentVariableInfoChanged(): Event<IEnvironmentVariableInfo> { return this._onEnvironmentVariableInfoChange.event; }
+
+	public get environmentVariableInfo(): IEnvironmentVariableInfo | undefined { return this._environmentVariableInfo; }
 
 	constructor(
 		private readonly _terminalId: number,
@@ -246,7 +249,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 		this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
 		if (this._extEnvironmentVariableCollection.map.size > 0) {
-			this._onEnvironmentVariableInfoChange.fire(new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection));
+			this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
+			this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
 		}
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
@@ -329,7 +333,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (diff === undefined) {
 			return;
 		}
-		const info = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._terminalId);
-		this._onEnvironmentVariableInfoChange.fire(info);
+		this._environmentVariableInfo = this._instantiationService.createInstance(EnvironmentVariableInfoStale, diff, this._terminalId);
+		this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
 	}
 }

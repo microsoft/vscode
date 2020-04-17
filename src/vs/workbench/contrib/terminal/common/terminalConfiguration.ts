@@ -255,6 +255,17 @@ export const terminalConfiguration: IConfigurationNode = {
 			},
 			default: {}
 		},
+		'terminal.integrated.environmentChangesIndicator': {
+			markdownDescription: localize('terminal.integrated.environmentChangesIndicator', "Whether to display the environment changes indicator on each terminal which explains whether extensions have made, or want to make changes to the terminal's environment."),
+			type: 'string',
+			enum: ['off', 'on', 'warnonly'],
+			enumDescriptions: [
+				localize('terminal.integrated.environmentChangesIndicator.off', "Disable the indicator."),
+				localize('terminal.integrated.environmentChangesIndicator.on', "Enable the indicator."),
+				localize('terminal.integrated.environmentChangesIndicator.warnonly', "Only show the warning indicator when a terminal's environment is 'stale', not the information indicator that shows a terminal has had its environment modified by an extension."),
+			],
+			default: 'on'
+		},
 		'terminal.integrated.showExitAlert': {
 			description: localize('terminal.integrated.showExitAlert', "Controls whether to show the alert \"The terminal process terminated with exit code\" when exit code is non-zero."),
 			type: 'boolean',

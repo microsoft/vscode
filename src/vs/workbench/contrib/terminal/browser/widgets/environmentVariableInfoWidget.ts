@@ -18,6 +18,8 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 	private _container: HTMLElement | undefined;
 	private _hoverWidget: HoverWidget | undefined;
 
+	get requiresAction() { return this._info.requiresAction; }
+
 	constructor(
 		private _info: IEnvironmentVariableInfo,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService

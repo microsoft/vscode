@@ -9,6 +9,8 @@ import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal
 import { localize } from 'vs/nls';
 
 export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
+	readonly requiresAction = true;
+
 	constructor(
 		private readonly _diff: IMergedEnvironmentVariableCollectionDiff,
 		private readonly _terminalId: number,
@@ -57,6 +59,8 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 }
 
 export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariableInfo {
+	readonly requiresAction = false;
+
 	constructor(
 		private _collection: IMergedEnvironmentVariableCollection
 	) {

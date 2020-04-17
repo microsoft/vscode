@@ -99,7 +99,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
-	private _environmentVariableWidget: EnvironmentVariableInfoWidget | undefined;
+	private _environmentVariableWidgetDisposable: IDisposable | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
@@ -1157,6 +1157,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Never set webgl as it's an addon not a rendererType
 			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
 		}
+		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
 
 	private async _updateUnicodeVersion(): Promise<void> {
@@ -1360,9 +1361,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
-		this._environmentVariableWidget?.dispose();
-		this._environmentVariableWidget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
-		this._widgetManager.attachWidget(this._environmentVariableWidget);
+		this._refreshEnvironmentVariableInfoWidgetState(info);
+	}
+
+	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
+		this._environmentVariableWidgetDisposable?.dispose();
+
+		// Check if the widget should not exist
+		if (!info ||
+			this._configHelper.config.environmentChangesIndicator === 'off' ||
+			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction) {
+			return;
+		}
+
+		// (Re-)create the widget
+		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
+		this._environmentVariableWidgetDisposable = this._widgetManager.attachWidget(widget);
 	}
 
 	private _getXtermTheme(theme?: IColorTheme): any {

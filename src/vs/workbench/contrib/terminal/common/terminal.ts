@@ -125,6 +125,7 @@ export interface ITerminalConfiguration {
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
+	environmentChangesIndicator: 'off' | 'on' | 'warnonly';
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
@@ -295,6 +296,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly remoteAuthority: string | undefined;
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
+	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;

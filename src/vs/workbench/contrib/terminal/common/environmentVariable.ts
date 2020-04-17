@@ -100,6 +100,7 @@ export interface IEnvironmentVariableService {
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
 
 export interface IEnvironmentVariableInfo {
+	readonly requiresAction: boolean;
 	getInfo(): string;
 	getIcon(): string;
 	getActions?(): { label: string, iconClass?: string, run: () => void, commandId: string }[];
