@@ -86,13 +86,13 @@ export function getWordAtText(column: number, wordDefinition: RegExp, text: stri
 	for (let i = 1; ; i++) {
 		// check time budget
 		if (Date.now() - t1 >= config.timeBudget) {
-			break;
+			// break;
 		}
 
 		// reset the index at which the regexp should start matching, also know where it
 		// should stop so that subsequent search don't repeat previous searches
 		const regexIndex = pos - config.windowSize * i;
-		wordDefinition.lastIndex = regexIndex;
+		wordDefinition.lastIndex = Math.max(0, regexIndex);
 		match = _findRegexMatchEnclosingPosition(wordDefinition, text, pos, prevRegexIndex);
 
 		// stop: found something
