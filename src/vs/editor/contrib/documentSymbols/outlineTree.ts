@@ -301,7 +301,7 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 		let uri: URI | undefined;
 
 		if (outline) {
-			uri = outline.textModel.uri;
+			uri = outline.uri;
 		}
 
 		if (!(element instanceof OutlineElement)) {
