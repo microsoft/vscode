@@ -576,6 +576,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return;
 		}
+		if (!this.userDataSyncEnablementService.canToggleEnablement()) {
+			return;
+		}
 		if (turnOffEveryWhere) {
 			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 			await this.userDataSyncService.reset();
@@ -598,8 +601,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		}
 	}
-
-
 
 	private getConflictsEditorInputs(syncResource: SyncResource): DiffEditorInput[] {
 		return this.editorService.editors.filter(input => {
@@ -650,14 +651,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private registerActions(): void {
-		this.registerTurnOnSyncAction();
+		if (this.userDataSyncEnablementService.canToggleEnablement()) {
+			this.registerTurnOnSyncAction();
+			this.registerTurnOffSyncAction();
+		}
 		this.registerSignInAction(); // When Sync is turned on from CLI
 		this.registerShowSettingsConflictsAction();
 		this.registerShowKeybindingsConflictsAction();
 		this.registerShowSnippetsConflictsAction();
 		this.registerSyncStatusAction();
 
-		this.registerTurnOffSyncAction();
 		this.registerConfigureSyncAction();
 		this.registerShowActivityAction();
 		this.registerShowSettingsAction();
@@ -881,7 +884,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
 					items.push({ id: showSyncActivityCommand.id, label: showSyncActivityCommand.title(that.userDataSyncService) });
 					items.push({ type: 'separator' });
-					items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title(that.userDataSyncAccounts, that.authenticationService) });
+					if (that.userDataSyncEnablementService.canToggleEnablement()) {
+						items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title(that.userDataSyncAccounts, that.authenticationService) });
+					}
 					quickPick.items = items;
 					disposables.add(quickPick.onDidAccept(() => {
 						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
@@ -1056,7 +1061,6 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 
 		return false;
 	}
-
 
 	private createAcceptChangesWidgetRenderer(): void {
 		if (!this.acceptChangesButton) {
