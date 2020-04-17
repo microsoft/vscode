@@ -985,6 +985,7 @@ export class SearchView extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.size = new dom.Dimension(width, height);
 		this.reLayout();
 	}

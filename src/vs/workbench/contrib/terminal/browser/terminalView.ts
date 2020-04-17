@@ -121,6 +121,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
 		// Update orientation of split button icon
 		if (this._splitTerminalAction) {

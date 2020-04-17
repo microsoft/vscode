@@ -117,6 +117,7 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.editor.layout({ height, width });
 	}
 

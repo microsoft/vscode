@@ -156,6 +156,7 @@ export class VariablesView extends ViewPane {
 	}
 
 	layoutBody(width: number, height: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
 
