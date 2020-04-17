@@ -225,11 +225,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return normalizeDriveLetter(getFolderUri().fsPath);
 
 					case 'cwd':
-						try {
-							return normalizeDriveLetter(getFolderUri().fsPath);
-						} catch (error) {
-							return process.cwd();
-						}
+						return ((folderUri || argument) ? normalizeDriveLetter(getFolderUri().fsPath) : process.cwd());
 
 					case 'workspaceRootFolderName':
 					case 'workspaceFolderBasename':
@@ -253,20 +249,17 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return getFilePath();
 
 					case 'relativeFile':
-						const filePath = getFilePath();
-						try {
-							return paths.normalize(paths.relative(getFolderUri().fsPath, filePath));
-						} catch (error) {
-							return filePath;
+						if (folderUri || argument) {
+							return paths.normalize(paths.relative(getFolderUri().fsPath, getFilePath()));
 						}
+						return getFilePath();
 
 					case 'relativeFileDirname':
 						const dirname = paths.dirname(getFilePath());
-						try {
+						if (folderUri || argument) {
 							return paths.normalize(paths.relative(getFolderUri().fsPath, dirname));
-						} catch (error) {
-							return dirname;
 						}
+						return dirname;
 
 					case 'fileDirname':
 						return paths.dirname(getFilePath());
