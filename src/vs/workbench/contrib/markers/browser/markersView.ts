@@ -301,6 +301,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
 							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+							this.tree.rerender(updated);
 						}
 					}
 				}
