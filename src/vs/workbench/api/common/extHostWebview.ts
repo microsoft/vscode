@@ -457,17 +457,17 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.CustomEditorProvider | vscode.CustomTextEditorProvider,
-		options: vscode.WebviewPanelOptions | undefined = {}
+		options: { webviewOptions?: vscode.WebviewPanelOptions, supportsMultipleEditorsPerResource?: boolean },
 	): vscode.Disposable {
 		const disposables = new DisposableStore();
 		if ('resolveCustomTextEditor' in provider) {
 			disposables.add(this._editorProviders.addTextProvider(viewType, extension, provider));
-			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options, {
+			this._proxy.$registerTextEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, {
 				supportsMove: !!provider.moveCustomTextEditor,
 			});
 		} else {
 			disposables.add(this._editorProviders.addCustomProvider(viewType, extension, provider));
-			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options);
+			this._proxy.$registerCustomEditorProvider(toExtensionData(extension), viewType, options.webviewOptions || {}, !!options.supportsMultipleEditorsPerResource);
 		}
 
 		return extHostTypes.Disposable.from(

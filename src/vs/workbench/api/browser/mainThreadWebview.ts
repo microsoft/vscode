@@ -152,7 +152,7 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			this.updateWebviewViewStates(this._editorService.activeEditor);
 		}));
 
-		// This reviver's only job is to activate webview panel extensions
+		// This reviver's only job is to activate extensions.
 		// This should trigger the real reviver to be registered from the extension host side.
 		this._register(_webviewWorkbenchService.registerResolver({
 			canResolve: (webview: WebviewInput) => {
@@ -306,11 +306,11 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 	}
 
 	public $registerTextEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, capabilities: extHostProtocol.CustomTextEditorCapabilities): void {
-		this.registerEditorProvider(ModelType.Text, extensionData, viewType, options, capabilities);
+		this.registerEditorProvider(ModelType.Text, extensionData, viewType, options, capabilities, true);
 	}
 
-	public $registerCustomEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions): void {
-		this.registerEditorProvider(ModelType.Custom, extensionData, viewType, options, {});
+	public $registerCustomEditorProvider(extensionData: extHostProtocol.WebviewExtensionDescription, viewType: string, options: modes.IWebviewPanelOptions, supportsMultipleEditorsPerResource: boolean): void {
+		this.registerEditorProvider(ModelType.Custom, extensionData, viewType, options, {}, supportsMultipleEditorsPerResource);
 	}
 
 	private registerEditorProvider(
@@ -319,10 +319,15 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 		viewType: string,
 		options: modes.IWebviewPanelOptions,
 		capabilities: extHostProtocol.CustomTextEditorCapabilities,
+		supportsMultipleEditorsPerResource: boolean,
 	): DisposableStore {
 		if (this._editorProviders.has(viewType)) {
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
+
+		this._customEditorService.registerCustomEditorCapabilities(viewType, {
+			supportsMultipleEditorsPerResource
+		});
 
 		const extension = reviveWebviewExtension(extensionData);
 
