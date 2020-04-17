@@ -73,10 +73,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._onDidChangeOutputs.fire(splices);
 		}));
 
-		this._register(this.model.onDidChangeMetadata(() => {
-			this._onDidChangeMetadata.fire();
-		}));
-
 		this._outputCollection = new Array(this.model.outputs.length);
 		this._buffer = null;
 
@@ -97,7 +93,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}
 		}));
 
-		this._register(this.onDidChangeLanguage((e) => {
+		this._register(this.onDidChangeState((e) => {
+			if (!e.languageChanged) {
+				return;
+			}
+
 			if (this._textModel && !this._textModel.isDisposed()) {
 
 			}

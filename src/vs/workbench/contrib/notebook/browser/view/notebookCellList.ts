@@ -98,8 +98,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				// we only validate the first focused element
 				const focusedElement = e.elements[0];
 
-				cursorSelectionListener = focusedElement.onDidChangeCursorSelection(() => {
-					recomputeContext(focusedElement);
+				cursorSelectionListener = focusedElement.onDidChangeState((e) => {
+					if (e.selectionChanged) {
+						recomputeContext(focusedElement);
+					}
 				});
 
 				textEditorAttachListener = focusedElement.onDidChangeEditorAttachState(() => {
@@ -478,7 +480,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 
 			const editorAttachedPromise = new Promise((resolve, reject) => {
-				element.onDidChangeEditorAttachState(state => state ? resolve() : reject());
+				element.onDidChangeEditorAttachState(() => {
+					element.editorAttached ? resolve() : reject();
+				});
 			});
 
 			editorAttachedPromise.then(() => {
@@ -750,7 +754,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 function getEditorAttachedPromise(element: CellViewModel) {
 	return new Promise((resolve, reject) => {
-		Event.once(element.onDidChangeEditorAttachState)(state => state ? resolve() : reject());
+		Event.once(element.onDidChangeEditorAttachState)(() => element.editorAttached ? resolve() : reject());
 	});
 }
 

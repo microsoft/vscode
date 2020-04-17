@@ -421,6 +421,15 @@ export enum CursorAtBoundary {
 	Both
 }
 
+export interface CellViewModelStateChangeEvent {
+	metadataChanged?: boolean;
+	selectionChanged?: boolean;
+	focusModeChanged?: boolean;
+	runStateChanged?: boolean;
+	editStateChanged?: boolean;
+	languageChanged?: boolean;
+}
+
 /**
  * [start, start + length - 1]
  */

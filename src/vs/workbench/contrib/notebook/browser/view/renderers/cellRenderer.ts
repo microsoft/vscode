@@ -327,13 +327,17 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			};
 
 			updateForMetadata();
-			elementDisposable.add(element.onDidChangeMetadata(() => {
-				updateForMetadata();
+			elementDisposable.add(element.onDidChangeState((e) => {
+				if (e.metadataChanged) {
+					updateForMetadata();
+				}
 			}));
 
 			const editModeKey = contextKeyService.createKey(NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, element.editState === CellEditState.Editing);
-			elementDisposable.add(element.onDidChangeCellEditState(() => {
-				editModeKey.set(element.editState === CellEditState.Editing);
+			elementDisposable.add(element.onDidChangeState((e) => {
+				if (e.editStateChanged) {
+					editModeKey.set(element.editState === CellEditState.Editing);
+				}
 			}));
 
 			this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
@@ -517,13 +521,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const runStateKey = contextKeyService.createKey(NOTEBOOK_CELL_RUN_STATE_CONTEXT_KEY, CellRunState[element.runState]);
 		this.updateForRunState(element, templateData, runStateKey);
-		elementDisposable.add(element.onDidChangeCellRunState(() => this.updateForRunState(element, templateData, runStateKey)));
+		elementDisposable.add(element.onDidChangeState((e) => {
+			if (e.runStateChanged) {
+				this.updateForRunState(element, templateData, runStateKey);
+			}
+		}));
 
 		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
 		contextKeyService.createKey(NOTEBOOK_VIEW_TYPE, element.viewType);
 		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
 		this.updateForMetadata(element, templateData, cellEditableKey);
-		elementDisposable.add(element.onDidChangeMetadata(() => this.updateForMetadata(element, templateData, cellEditableKey)));
+		elementDisposable.add(element.onDidChangeState((e) => {
+			if (e.metadataChanged) {
+				this.updateForMetadata(element, templateData, cellEditableKey);
+			}
+		}));
 
 		this.setupCellToolbarActions(contextKeyService, templateData, elementDisposable);
 

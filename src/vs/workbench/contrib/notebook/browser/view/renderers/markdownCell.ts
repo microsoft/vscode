@@ -142,12 +142,18 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		};
 
-		this._register(viewCell.onDidChangeCellEditState(() => {
-			this.localDisposables.clear();
-			viewUpdate();
+		this._register(viewCell.onDidChangeState((e) => {
+			if (e.editStateChanged) {
+				this.localDisposables.clear();
+				viewUpdate();
+			}
 		}));
 
-		this._register(viewCell.onDidChangeFocusMode(() => {
+		this._register(viewCell.onDidChangeState((e) => {
+			if (!e.focusModeChanged) {
+				return;
+			}
+
 			if (viewCell.focusMode === CellFocusMode.Editor) {
 				this.editor?.focus();
 			}

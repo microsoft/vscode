@@ -69,19 +69,29 @@ export class CodeCell extends Disposable {
 			}
 		});
 
-		this._register(viewCell.onDidChangeFocusMode(() => {
+		this._register(viewCell.onDidChangeState((e) => {
+			if (!e.focusModeChanged) {
+				return;
+			}
+
 			if (viewCell.focusMode === CellFocusMode.Editor) {
 				templateData.editor?.focus();
 			}
 		}));
 
 		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
-		this._register(viewCell.onDidChangeMetadata(() => {
-			templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
+		this._register(viewCell.onDidChangeState((e) => {
+			if (e.metadataChanged) {
+				templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
+			}
 		}));
 
-		this._register(viewCell.onDidChangeLanguage((e) => {
-			const mode = this._modeService.create(e);
+		this._register(viewCell.onDidChangeState((e) => {
+			if (!e.languageChanged) {
+				return;
+			}
+
+			const mode = this._modeService.create(viewCell.language);
 			templateData.editor?.getModel()?.setMode(mode.languageIdentifier);
 		}));
 
