@@ -247,13 +247,13 @@ async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<
 
 class RemoteProviderQuickPick {
 
-	private quickpick: QuickPick<QuickPickItem & { remote: Remote }>;
+	private quickpick: QuickPick<QuickPickItem & { remote?: Remote }>;
 
 	constructor(private provider: RemoteProvider) {
 		this.quickpick = window.createQuickPick();
 		this.quickpick.ignoreFocusOut = true;
 
-		if (provider.searchSupport) {
+		if (provider.supportsQuery) {
 			this.quickpick.placeholder = localize('type to search', "Repository name (type to search)");
 			this.quickpick.onDidChangeValue(this.onDidChangeValue, this);
 		} else {
@@ -272,16 +272,22 @@ class RemoteProviderQuickPick {
 		const remotes = await this.provider.getRemotes(this.quickpick.value);
 		this.quickpick.busy = false;
 
-		this.quickpick.items = remotes.map(remote => ({
-			label: remote.name,
-			description: remote.url,
-			remote
-		}));
+		if (remotes.length === 0) {
+			this.quickpick.items = [{
+				label: localize('none found', "No remote repositories found."),
+				alwaysShow: true
+			}];
+		} else {
+			this.quickpick.items = remotes.map(remote => ({
+				label: remote.name,
+				description: remote.url,
+				remote
+			}));
+		}
 	}
 
 	async pick(): Promise<Remote | undefined> {
 		this.query();
-
 		const result = await getQuickPickResult(this.quickpick);
 		return result?.remote;
 	}
@@ -514,18 +520,25 @@ export class CommandCenter {
 			const providers = this.model.getRemoteProviders()
 				.map(provider => ({ label: localize('clonefrom', "Clone from {0}", provider.name), alwaysShow: true, provider }));
 
-			quickpick.items = providers;
 			quickpick.placeholder = providers.length === 0
-				? localize('provide url', "Provide repository URL to clone from")
-				: localize('provide url or pick', "Provide repository URL or pick a repository source");
+				? localize('provide url', "Provide repository URL.")
+				: localize('provide url or pick', "Provide repository URL or pick a repository source.");
 
-			quickpick.onDidChangeValue(value => {
+			const updatePicks = (value?: string) => {
 				if (value) {
-					quickpick.items = [{ label: value, description: localize('repourl', "Clone from URL"), alwaysShow: true }, ...providers];
+					quickpick.items = [{
+						label: localize('repourl', "Clone from URL"),
+						description: value,
+						alwaysShow: true
+					},
+					...providers];
 				} else {
 					quickpick.items = providers;
 				}
-			});
+			};
+
+			quickpick.onDidChangeValue(updatePicks);
+			updatePicks();
 
 			const result = await getQuickPickResult(quickpick);
 
