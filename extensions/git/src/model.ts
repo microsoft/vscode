@@ -51,7 +51,7 @@ export interface Remote {
 
 export interface RemoteProvider {
 	readonly name: string;
-	readonly searchSupport?: boolean;
+	readonly supportsQuery?: boolean;
 	getRemotes(query?: string): Remote[] | Promise<Remote[]>;
 }
 
