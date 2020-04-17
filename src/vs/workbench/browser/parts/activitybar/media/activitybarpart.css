@@ -14,6 +14,14 @@
 	justify-content: space-between;
 }
 
+/*
+ * Fix menu jumping and background inheritance in Safari
+ */
+.monaco-workbench .activitybar > .content {
+	position: absolute;
+	background-color: inherit;
+}
+
 /** Home Bar */
 
 .monaco-workbench .activitybar > .content > .home-bar {
