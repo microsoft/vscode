@@ -39,6 +39,7 @@ import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuAction
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { Before2D } from 'vs/workbench/browser/dnd';
+import { IActivity } from 'vs/workbench/common/activity';
 
 interface ICachedPanel {
 	id: string;
@@ -209,12 +210,16 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		for (const panel of panels) {
 			this.enableCompositeActions(panel);
-			const viewContainer = this.getViewContainer(panel.id);
-			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				this.onDidChangeActiveViews(panel, viewDescriptors);
-				this.panelDisposables.set(panel.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors)));
-			}
+			const viewContainer = this.getViewContainer(panel.id)!;
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+			this.onDidChangeActiveViews(panel, viewDescriptors, viewContainer.hideIfEmpty);
+
+			const disposables = new DisposableStore();
+			disposables.add(viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors, viewContainer.hideIfEmpty)));
+			disposables.add(viewDescriptors.onDidChangeViews(() => this.onDidUpdateViews(panel, viewDescriptors)));
+			disposables.add(viewDescriptors.onDidMove(() => this.onDidUpdateViews(panel, viewDescriptors)));
+
+			this.panelDisposables.set(panel.id, disposables);
 		}
 	}
 
@@ -230,19 +235,37 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private enableCompositeActions(panel: PanelDescriptor): void {
 		const { activityAction, pinnedAction } = this.getCompositeActions(panel.id);
-		if (activityAction instanceof PlaceHolderPanelActivityAction) {
-			activityAction.setActivity(panel);
-		}
+		activityAction.setActivity(panel);
 
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
 			pinnedAction.setActivity(panel);
 		}
 	}
 
-	private onDidChangeActiveViews(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+	private updateActivity(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+		const activity: IActivity = {
+			id: panel.id,
+			name: viewDescriptors.getTitle(),
+			keybindingId: panel.keybindingId
+		};
+
+		const { activityAction, pinnedAction } = this.getCompositeActions(panel.id);
+		activityAction.setActivity(activity);
+
+		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
+			pinnedAction.setActivity(activity);
+		}
+	}
+
+	private onDidUpdateViews(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+		this.updateActivity(panel, viewDescriptors);
+	}
+
+	private onDidChangeActiveViews(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection, hideIfEmpty?: boolean): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
+			this.updateActivity(panel, viewDescriptors);
 			this.compositeBar.addComposite(panel);
-		} else {
+		} else if (hideIfEmpty) {
 			this.hideComposite(panel.id);
 		}
 	}
@@ -538,28 +561,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		return false;
-	}
-
-	protected onTitleAreaUpdate(compositeId: string): void {
-		super.onTitleAreaUpdate(compositeId);
-
-		const activePanel = this.getActivePanel();
-		const panel = this.createComposite(compositeId, activePanel?.getId() === compositeId);
-
-		if (panel) {
-			const compositeActions = this.compositeActions.get(compositeId);
-			if (compositeActions) {
-				compositeActions.activityAction.setActivity({
-					id: compositeActions.activityAction.id,
-					name: panel.getTitle() || compositeActions.activityAction.label
-				});
-
-				compositeActions.pinnedAction.setActivity({
-					id: compositeActions.activityAction.id,
-					name: panel.getTitle() || compositeActions.activityAction.label
-				});
-			}
-		}
 	}
 
 	private getToolbarWidth(): number {
