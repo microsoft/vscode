@@ -610,8 +610,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 		for (const compositeItem of compositeItems) {
-			const activityAction = this.getCompositeActions(compositeItem.id).activityAction;
-			state.push({ id: compositeItem.id, name: activityAction.label, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+			const viewContainer = this.getViewContainer(compositeItem.id)!;
+			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+
+			state.push({ id: compositeItem.id, name: viewDescriptors.getTitle(), pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 		}
 
 		this.cachedPanelsValue = JSON.stringify(state);
