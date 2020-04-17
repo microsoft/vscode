@@ -264,7 +264,7 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 			deepStrictEqual([...diff.added.entries()], [...diff2.added.entries()], 'Swapping the order of the entries in the other collection should yield the same result');
 		});
 
-		test('should remove entries in the diff that come after a Replce', () => {
+		test('should remove entries in the diff that come after a Replace', () => {
 			const merged1 = new MergedEnvironmentVariableCollection(new Map([
 				['ext1', {
 					map: deserializeEnvironmentVariableCollection([
@@ -285,10 +285,8 @@ suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
 					])
 				}]
 			]));
-			const diff = merged1.diff(merged4)!;
-			strictEqual(diff.changed.size, 0);
-			strictEqual(diff.removed.size, 0);
-			deepStrictEqual([...diff.added.entries()], [], 'Replace should ignore any entries after it');
+			const diff = merged1.diff(merged4);
+			strictEqual(diff, undefined, 'Replace should ignore any entries after it');
 		});
 
 		test('should generate removed diffs', () => {
