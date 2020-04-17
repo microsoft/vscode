@@ -21,11 +21,11 @@
 			]
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
 			"port": 9222,
-			"urlFilter": "*"
+			"urlFilter": "*sharedProcess.html*",
 		},
 		{
 			"type": "node",
@@ -359,14 +359,15 @@
 	],
 	"compounds": [
 		{
-			"name": "Debug VS Code Main, Renderer & Extension Host",
+			"name": "VS Code",
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Main Process",
-				"Attach to Extension Host"
+				"Attach to Extension Host",
+				"Attach to Shared Process",
 			],
 			"presentation": {
-				"group": "1_vscode",
+				"group": "0_vscode",
 				"order": 1
 			}
 		},
