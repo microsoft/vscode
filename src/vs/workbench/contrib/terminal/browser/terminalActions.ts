@@ -1271,7 +1271,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.RELAUNCH,
-				title: localize('workbench.action.terminal.relaunch', "Terminal: Relaunch Active Terminal"),
+				title: localize('workbench.action.terminal.relaunch', "Relaunch Active Terminal"),
 				f1: true,
 				category
 			});
