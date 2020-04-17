@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 
 export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
 	private _xtermViewport: HTMLElement | undefined;
-	private _hoverWidget: HoverWidget | undefined;
 	private _attached: Map<string, ITerminalWidget> = new Map();
 
 	attachToElement(terminalWrapper: HTMLElement) {
@@ -46,10 +44,6 @@ export class TerminalWidgetManager implements IDisposable {
 				}
 			}
 		};
-	}
-
-	closeHover(): void {
-		this._hoverWidget?.dispose();
 	}
 
 	private _trackTerminalDimensions(terminalWrapper: HTMLElement) {

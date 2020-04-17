@@ -97,7 +97,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
-	private _hoverManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
+	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
 	private _environmentVariableWidget: EnvironmentVariableInfoWidget | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
@@ -587,8 +587,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
-		this._hoverManager.attachToElement(this._wrapperElement);
-		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._hoverManager));
+		this._widgetManager.attachToElement(this._wrapperElement);
+		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
 
 		const computedStyle = window.getComputedStyle(this._container);
 		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
@@ -723,7 +723,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);
 		this._commandTrackerAddon = undefined;
-		dispose(this._hoverManager);
+		dispose(this._widgetManager);
 
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
@@ -917,7 +917,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _onProcessData(data: string): void {
-		this._hoverManager?.closeHover();
 		this._xterm?.write(data);
 	}
 
@@ -1363,7 +1362,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
 		this._environmentVariableWidget?.dispose();
 		this._environmentVariableWidget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
-		this._hoverManager.attachWidget(this._environmentVariableWidget);
+		this._widgetManager.attachWidget(this._environmentVariableWidget);
 	}
 
 	private _getXtermTheme(theme?: IColorTheme): any {
