@@ -68,7 +68,7 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 	async function assertLink(text: string, os: OperatingSystem, expected: { text: string, range: [number, number][] }) {
 		const xterm = new Terminal();
-		const provider = new TerminalValidatedLocalLinkProvider(xterm, os, () => { }, () => { }, () => { }, () => { }, (_, cb) => { cb({ uri: URI.file('/'), isDirectory: false }); });
+		const provider = new TerminalValidatedLocalLinkProvider(xterm, os, () => { }, () => { }, () => { }, (_, cb) => { cb({ uri: URI.file('/'), isDirectory: false }); });
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));

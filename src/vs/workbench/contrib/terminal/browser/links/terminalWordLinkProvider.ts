@@ -7,13 +7,14 @@ import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink } f
 import { convertBufferRangeToViewport, TOOLTIP_HOVER_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
 export class TerminalWordLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
 		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void,
-		private readonly _leaveCallback: () => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
@@ -64,21 +65,25 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 
 		const range = { start, end };
 		let timeout: number | undefined;
+		let documentMouseOutListener: IDisposable | undefined;
+		const clearTimer = () => {
+			if (timeout !== undefined) {
+				window.clearTimeout(timeout);
+			}
+			documentMouseOutListener?.dispose();
+		};
 		callback({
 			text,
 			range,
 			activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
 			hover: (event: MouseEvent, text: string) => {
+				documentMouseOutListener = addDisposableListener(document, EventType.MOUSE_OVER, () => clearTimer());
 				timeout = window.setTimeout(() => {
 					this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
+					clearTimer();
 				}, TOOLTIP_HOVER_THRESHOLD);
 			},
-			leave: () => {
-				if (timeout !== undefined) {
-					window.clearTimeout(timeout);
-				}
-				this._leaveCallback();
-			}
+			leave: () => clearTimer()
 		});
 	}
 }

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { TerminalWidgetManager, WidgetVerticalAlignment } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -32,6 +32,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { TerminalHover } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -88,7 +90,6 @@ export class TerminalLinkManager extends DisposableStore {
 	private _gitDiffPreImagePattern: RegExp;
 	private _gitDiffPostImagePattern: RegExp;
 	private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => boolean | void;
-	private readonly _leaveCallback: () => void;
 	private _linkMatchers: number[] = [];
 	private _webLinksAddon: ITerminalAddon | undefined;
 	private _linkProviders: IDisposable[] = [];
@@ -133,48 +134,28 @@ export class TerminalLinkManager extends DisposableStore {
 		// Matches '+++ b/src/file1', capturing 'src/file1' in group 1
 		this._gitDiffPostImagePattern = /^\+\+\+ b\/(\S*)/;
 
-		this._tooltipCallback = (e: MouseEvent, uri: string, location: IViewportRange, linkHandler: (url: string) => void) => {
+		this._tooltipCallback = (e: MouseEvent, uri: string, linkRange: IViewportRange, linkHandler: (url: string) => void) => {
 			if (!this._widgetManager) {
 				return;
 			}
 
-			// Get the row bottom up
-			let offsetRow = this._xterm.rows - location.start.y;
-			let verticalAlignment = WidgetVerticalAlignment.Bottom;
+			const core = (this._xterm as any)._core as XTermCore;
+			const cellDimensions = {
+				width: core._renderService.dimensions.actualCellWidth,
+				height: core._renderService.dimensions.actualCellHeight
+			};
+			const terminalDimensions = {
+				width: this._xterm.cols,
+				height: this._xterm.rows
+			};
 
-			// Show the tooltip on the top of the next row to avoid obscuring the first row
-			if (location.start.y <= 0) {
-				offsetRow = this._xterm.rows - 1;
-				verticalAlignment = WidgetVerticalAlignment.Top;
-				// The start of the wrapped line is above the viewport, move to start of the line
-				if (location.start.y < 0) {
-					location.start.x = 0;
-				}
-			}
-
-			if (this._configHelper.config.rendererType === 'dom') {
-				const font = this._configHelper.getFont();
-				const charWidth = font.charWidth;
-				const charHeight = font.charHeight;
-
-				const leftPosition = location.start.x * (charWidth! + (font.letterSpacing / window.devicePixelRatio));
-				const bottomPosition = offsetRow * (Math.ceil(charHeight! * window.devicePixelRatio) * font.lineHeight) / window.devicePixelRatio;
-
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
-			} else {
-				const target = (e.target as HTMLElement);
-				const colWidth = target.offsetWidth / this._xterm.cols;
-				const rowHeight = target.offsetHeight / this._xterm.rows;
-
-				const leftPosition = location.start.x * colWidth;
-				const bottomPosition = offsetRow * rowHeight;
-				this._widgetManager.showMessage(leftPosition, bottomPosition, this._getLinkHoverString(uri), verticalAlignment, linkHandler);
-			}
-		};
-		this._leaveCallback = () => {
-			if (this._widgetManager) {
-				this._widgetManager.closeMessage();
-			}
+			this._showHover(
+				linkRange,
+				cellDimensions,
+				terminalDimensions,
+				this._getLinkHoverString(uri),
+				linkHandler
+			);
 		};
 
 		if (this._configHelper.config.experimentalLinkProvider) {
@@ -195,6 +176,19 @@ export class TerminalLinkManager extends DisposableStore {
 				}
 			}
 		});
+	}
+
+	private _showHover(
+		viewportRange: IViewportRange,
+		cellDimensions: { width: number, height: number },
+		terminalDimensions: { width: number, height: number },
+		text: IMarkdownString,
+		linkHandler: (url: string) => void
+	) {
+		if (this._widgetManager) {
+			const widget = this._instantiationService.createInstance(TerminalHover, viewportRange, cellDimensions, terminalDimensions, text, linkHandler);
+			this._widgetManager.attachWidget(widget);
+		}
 	}
 
 	private _registerLinkMatchers() {
@@ -230,7 +224,6 @@ export class TerminalLinkManager extends DisposableStore {
 		const options: ILinkMatcherOptions = {
 			matchIndex,
 			tooltipCallback,
-			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: CUSTOM_LINK_PRIORITY
 		};
@@ -254,7 +247,6 @@ export class TerminalLinkManager extends DisposableStore {
 			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
 				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(callback),
 				tooltipCallback,
-				leaveCallback: this._leaveCallback,
 				willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e)
 			});
 			this._xterm.loadAddon(this._webLinksAddon);
@@ -271,7 +263,6 @@ export class TerminalLinkManager extends DisposableStore {
 		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback,
-			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		}));
@@ -288,7 +279,6 @@ export class TerminalLinkManager extends DisposableStore {
 			matchIndex: 1,
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
 			tooltipCallback,
-			leaveCallback: this._leaveCallback,
 			willLinkActivate: (e: MouseEvent) => this._isLinkActivationModifierDown(e),
 			priority: LOCAL_LINK_PRIORITY
 		};
@@ -303,7 +293,7 @@ export class TerminalLinkManager extends DisposableStore {
 		};
 		const wrappedActivateCallback = this._wrapLinkHandler(this._handleProtocolLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipWebCallback, this._leaveCallback)
+			new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipWebCallback)
 		));
 
 		// Validated local links
@@ -318,7 +308,6 @@ export class TerminalLinkManager extends DisposableStore {
 				wrappedTextLinkActivateCallback,
 				wrappedDirectoryLinkActivateCallback,
 				tooltipValidatedLocalCallback,
-				this._leaveCallback,
 				async (link, cb) => cb(await this._resolvePath(link)))
 		));
 
@@ -346,7 +335,7 @@ export class TerminalLinkManager extends DisposableStore {
 		};
 		const wrappedWordActivateCallback = this._wrapLinkHandler(wordHandler);
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback, this._leaveCallback)
+			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback)
 		));
 	}
 
@@ -500,15 +489,15 @@ export class TerminalLinkManager extends DisposableStore {
 		let label = '';
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			if (isMacintosh) {
-				label = nls.localize('terminalLinkHandler.followLinkAlt.mac', "Option + click");
+				label = nls.localize('terminalLinkHandler.followLinkAlt.mac', "option + click");
 			} else {
-				label = nls.localize('terminalLinkHandler.followLinkAlt', "Alt + click");
+				label = nls.localize('terminalLinkHandler.followLinkAlt', "alt + click");
 			}
 		} else {
 			if (isMacintosh) {
-				label = nls.localize('terminalLinkHandler.followLinkCmd', "Cmd + click");
+				label = nls.localize('terminalLinkHandler.followLinkCmd', "cmd + click");
 			} else {
-				label = nls.localize('terminalLinkHandler.followLinkCtrl', "Ctrl + click");
+				label = nls.localize('terminalLinkHandler.followLinkCtrl', "ctrl + click");
 			}
 		}
 
