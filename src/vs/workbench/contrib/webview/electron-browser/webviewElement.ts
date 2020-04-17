@@ -12,6 +12,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -167,6 +168,11 @@ class WebviewKeyboardHandler {
 	private _ignoreMenuShortcut = false;
 
 	private readonly _webviews = new Set<WebviewTagHandle>();
+	private readonly _isUsingNativeTitleBars: boolean;
+
+	constructor(configurationService: IConfigurationService) {
+		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
+	}
 
 	public add(
 		webviewHandle: WebviewTagHandle,
@@ -206,7 +212,7 @@ class WebviewKeyboardHandler {
 	}
 
 	private get shouldToggleMenuShortcutsEnablement() {
-		return isMacintosh;
+		return isMacintosh || this._isUsingNativeTitleBars;
 	}
 
 	private setIgnoreMenuShortcuts(value: boolean) {
@@ -225,7 +231,14 @@ class WebviewKeyboardHandler {
 
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
 
-	private static readonly _webviewKeyboardHandler = new WebviewKeyboardHandler();
+	private static _webviewKeyboardHandler: WebviewKeyboardHandler | undefined;
+
+	private static getWebviewKeyboardHandler(configService: IConfigurationService) {
+		if (!this._webviewKeyboardHandler) {
+			this._webviewKeyboardHandler = new WebviewKeyboardHandler(configService);
+		}
+		return this._webviewKeyboardHandler;
+	}
 
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
@@ -248,6 +261,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IEnvironmentService environementService: IEnvironmentService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super(id, options, contentOptions, _webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
 
@@ -267,7 +281,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			tunnelService,
 		));
 
-		this._register(ElectronWebviewBasedWebview._webviewKeyboardHandler.add(webviewAndContents));
+		this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService).add(webviewAndContents));
 
 		this._domReady = new Promise(resolve => {
 			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
