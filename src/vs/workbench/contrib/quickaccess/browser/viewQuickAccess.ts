@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IQuickPickSeparator, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickSeparator, IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewDescriptorService, IViewsService, ViewContainer, Extensions as ViewExtensions, IViewContainersRegistry } from 'vs/workbench/common/views';
@@ -221,7 +221,7 @@ export class QuickAccessViewPickerAction extends Action {
 	async run(): Promise<void> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
-		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
+		this.quickInputService.quickAccess.show(ViewQuickAccessProvider.PREFIX, { quickNavigateConfiguration: { keybindings: keys }, itemActivation: ItemActivation.FIRST });
 	}
 }
 

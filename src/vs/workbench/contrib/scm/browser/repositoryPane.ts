@@ -962,6 +962,10 @@ export class RepositoryPane extends ViewPane {
 			return;
 		}
 
+		if (width !== undefined) {
+			super.layoutBody(height, width);
+		}
+
 		this.cachedHeight = height;
 		this.cachedWidth = width;
 

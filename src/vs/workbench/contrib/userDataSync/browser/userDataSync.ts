@@ -89,7 +89,7 @@ const getIdentityTitle = (label: string, userDataSyncAccountService: UserDataSyn
 	const account = userDataSyncAccountService.current;
 	return account ? `${label} (${authenticationService.getDisplayName(account.providerId)}:${account.accountName})` : label;
 };
-const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn on...") };
+const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
 const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) { return getIdentityTitle(localize('stop sync', "Preferences Sync: Turn Off"), userDataSyncAccountService, authenticationService); } };
 const resolveSettingsConflictsCommand = { id: 'workbench.userData.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
@@ -301,9 +301,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case UserDataSyncErrorCode.SessionExpired:
 				this.notificationService.notify({
 					severity: Severity.Info,
-					message: localize('turned off', "Sync was turned off from another device."),
+					message: localize('turned off', "Preferences sync was turned off from another device."),
 					actions: {
-						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Sync"), undefined, true, () => this.turnOn())]
+						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
 					}
 				});
 				return;
@@ -404,7 +404,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
 				[
 					localize('open doc', "Open Documentation"),
-					localize('turn on sync', "Turn on Sync"),
+					localize('turn on', "Turn On"),
 					localize('cancel', "Cancel"),
 				],
 				{
@@ -421,7 +421,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
 			disposables.add(quickPick);
-			quickPick.title = localize('turn on title', "Preferences Sync: Turn On");
+			quickPick.title = localize('Preferences Sync Title', "Preferences Sync");
 			quickPick.ok = false;
 			quickPick.customButton = true;
 			const requiresLogin = this.userDataSyncAccounts.all.length === 0;

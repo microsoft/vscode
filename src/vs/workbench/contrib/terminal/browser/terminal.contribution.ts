@@ -159,6 +159,17 @@ if (BrowserFeatures.clipboard.readText) {
 	}
 }
 
+if (platform.isWeb) {
+	// Register standard external terminal keybinding as integrated terminal when in web as the
+	// external terminal is not available
+	KeybindingsRegistry.registerKeybindingRule({
+		id: TERMINAL_COMMAND_ID.NEW,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
+	});
+}
+
 // Delete word left: ctrl+w
 registerSendSequenceKeybinding(String.fromCharCode('W'.charCodeAt(0) - 64), {
 	primary: KeyMod.CtrlCmd | KeyCode.Backspace,

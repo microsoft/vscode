@@ -16,6 +16,10 @@ export class FoldingController extends Disposable {
 		super();
 
 		this._register(this._notebookEditor.onMouseUp(e => { this.onMouseUp(e); }));
+		this._register(this._notebookEditor.viewModel!.onDidFoldingRegionChanged(() => {
+			const hiddenRanges = this._notebookEditor.viewModel!.getHiddenRanges();
+			this._notebookEditor.setHiddenAreas(hiddenRanges);
+		}));
 	}
 
 	onMouseUp(e: INotebookEditorMouseEvent) {
@@ -48,9 +52,6 @@ export class FoldingController extends Disposable {
 			}
 
 			viewModel.setFoldingState(cellViewModel, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed);
-
-			const hiddenRanges = viewModel.getHiddenRanges();
-			this._notebookEditor.setHiddenAreas(hiddenRanges);
 		}
 
 		return;

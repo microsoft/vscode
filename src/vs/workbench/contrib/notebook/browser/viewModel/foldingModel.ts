@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
+import { ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -17,6 +19,11 @@ export class FoldingModel extends Disposable {
 	get regions() {
 		return this._regions;
 	}
+
+	private _onDidFoldingRegionChanges = new Emitter<void>();
+	onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
+
+	private _foldingRangeDecorationIds: string[] = [];
 
 	constructor(
 		// private readonly _notebookEditor: INotebookEditor
@@ -38,6 +45,10 @@ export class FoldingModel extends Disposable {
 		}));
 
 		this.recompute();
+	}
+
+	public setCollapsed(index: number, newState: boolean) {
+		this._regions.setCollapsed(index, newState);
 	}
 
 	recompute() {
@@ -88,7 +99,61 @@ export class FoldingModel extends Disposable {
 			};
 		});
 
-		this._regions = sanitizeRanges(rawFoldingRanges, 5000);
+		const newRegions = sanitizeRanges(rawFoldingRanges, 5000);
+
+		// restore collased state
+		let i = 0;
+		let nextCollapsed = () => {
+			while (i < this._regions.length) {
+				let isCollapsed = this._regions.isCollapsed(i);
+				i++;
+				if (isCollapsed) {
+					return i - 1;
+				}
+			}
+			return -1;
+		};
+
+		let k = 0;
+		let collapsedIndex = nextCollapsed();
+
+		while (collapsedIndex !== -1 && k < newRegions.length) {
+			// get the latest range
+			let decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[collapsedIndex]);
+			if (decRange) {
+				let collasedStartIndex = decRange.start;
+
+				while (k < newRegions.length) {
+					let startIndex = newRegions.getStartLineNumber(k) - 1;
+					if (collasedStartIndex >= startIndex) {
+						newRegions.setCollapsed(k, collasedStartIndex === startIndex);
+						k++;
+					} else {
+						break;
+					}
+				}
+			}
+			collapsedIndex = nextCollapsed();
+		}
+
+		while (k < newRegions.length) {
+			newRegions.setCollapsed(k, false);
+			k++;
+		}
+
+		const cellRanges: ICellRange[] = [];
+		for (let i = 0; i < newRegions.length; i++) {
+			const region = newRegions.toRegion(i);
+			cellRanges.push({ start: region.startLineNumber - 1, length: region.endLineNumber - region.startLineNumber + 1 });
+		}
+
+		// remove old tracked ranges and add new ones
+		// TODO@rebornix, implement delta
+		this._foldingRangeDecorationIds.forEach(id => this._viewModel!.setTrackedRange(id, null, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter));
+		this._foldingRangeDecorationIds = cellRanges.map(region => this._viewModel!.setTrackedRange(null, region, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter)).filter(str => str !== null) as string[];
+
+		this._regions = newRegions;
+		this._onDidFoldingRegionChanges.fire();
 	}
 }
 
