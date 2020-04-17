@@ -14,6 +14,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSymbol, DocumentSymbolProvider, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { Iterable } from 'vs/base/common/iterator';
+import { MovingAverage } from 'vs/base/common/numbers';
 
 export abstract class TreeElement {
 
@@ -202,21 +203,7 @@ export class OutlineGroup extends TreeElement {
 	}
 }
 
-class MovingAverage {
 
-	private _n = 1;
-	private _val = 0;
-
-	update(value: number): this {
-		this._val = this._val + (value - this._val) / this._n;
-		this._n += 1;
-		return this;
-	}
-
-	get value(): number {
-		return this._val;
-	}
-}
 
 export class OutlineModel extends TreeElement {
 
