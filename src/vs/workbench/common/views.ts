@@ -43,6 +43,8 @@ export interface IViewContainerDescriptor {
 
 	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
+	readonly storageId?: string;
+
 	readonly icon?: string | URI;
 
 	readonly order?: number;
@@ -223,7 +225,7 @@ export interface IViewDescriptorCollection extends IDisposable {
 	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
 
 	readonly activeViewDescriptors: IViewDescriptor[];
-	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
+	readonly onDidChangeActiveViews: Event<ReadonlyArray<IViewDescriptor>>;
 
 	readonly visibleViewDescriptors: IViewDescriptor[];
 	readonly onDidAdd: Event<IAddedViewDescriptorRef[]>;

@@ -51,6 +51,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	id: VIEWLET_ID,
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
+	storageId: 'workbench.scm.views.state',
 	icon: 'codicon-source-control',
 	order: 2
 }, ViewContainerLocation.Sidebar);

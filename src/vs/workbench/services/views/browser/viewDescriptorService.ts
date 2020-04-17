@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewDescriptorCollection } from 'vs/workbench/common/views';
-import { IContextKey, RawContextKey, IContextKeyService, IReadableSet, IContextKeyChangeEvent } from 'vs/platform/contextkey/common/contextkey';
+import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewDescriptorCollection, IAddedViewDescriptorRef, IViewDescriptorRef } from 'vs/workbench/common/views';
+import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -13,162 +13,52 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
-import { firstIndex } from 'vs/base/common/arrays';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
-
-class CounterSet<T> implements IReadableSet<T> {
-
-	private map = new Map<T, number>();
-
-	add(value: T): CounterSet<T> {
-		this.map.set(value, (this.map.get(value) || 0) + 1);
-		return this;
-	}
-
-	delete(value: T): boolean {
-		let counter = this.map.get(value) || 0;
-
-		if (counter === 0) {
-			return false;
-		}
-
-		counter--;
-
-		if (counter === 0) {
-			this.map.delete(value);
-		} else {
-			this.map.set(value, counter);
-		}
-
-		return true;
-	}
-
-	has(value: T): boolean {
-		return this.map.has(value);
-	}
-}
-
-interface IViewItem {
-	viewDescriptor: IViewDescriptor;
-	active: boolean;
-}
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { PersistentContributableViewsModel, ViewDescriptorsModel } from 'vs/workbench/services/views/common/viewsModel';
 
 class ViewDescriptorCollection extends Disposable implements IViewDescriptorCollection {
 
-	private contextKeys = new CounterSet<string>();
-	private items: IViewItem[] = [];
-
-	private _onDidChangeViews: Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> = this._register(new Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }>());
-	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> = this._onDidChangeViews.event;
-
-	private _onDidChangeActiveViews: Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> = this._register(new Emitter<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }>());
-	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> = this._onDidChangeActiveViews.event;
-
-	get activeViewDescriptors(): IViewDescriptor[] {
-		return this.items
-			.filter(i => i.active)
-			.map(i => i.viewDescriptor);
-	}
-
-	get allViewDescriptors(): IViewDescriptor[] {
-		return this.items.map(i => i.viewDescriptor);
-	}
+	private readonly viewDescriptorsModel: ViewDescriptorsModel;
+	private readonly viewsModel: PersistentContributableViewsModel;
 
 	constructor(
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		container: ViewContainer,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
-		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(this.onContextChanged, this));
+		this.viewDescriptorsModel = instantiationService.createInstance(ViewDescriptorsModel);
+		this.viewsModel = instantiationService.createInstance(PersistentContributableViewsModel, container.storageId || `${container.id}.state`, this.viewDescriptorsModel);
 	}
 
-	addViews(viewDescriptors: IViewDescriptor[]): void {
-		const added: IViewDescriptor[] = [];
+	get allViewDescriptors(): IViewDescriptor[] { return this.viewDescriptorsModel.allViewDescriptors; }
+	get onDidChangeViews(): Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }> { return this.viewDescriptorsModel.onDidChangeViews; }
 
-		for (const viewDescriptor of viewDescriptors) {
-			const item = {
-				viewDescriptor,
-				active: this.isViewDescriptorActive(viewDescriptor) // TODO: should read from some state?
-			};
+	get activeViewDescriptors(): IViewDescriptor[] { return this.viewDescriptorsModel.activeViewDescriptors; }
+	get _onDidChangeActiveViews(): Event<{ added: IViewDescriptor[], removed: IViewDescriptor[]; }> { return this.viewDescriptorsModel.onDidChangeActiveViews; }
+	get onDidChangeActiveViews(): Event<ReadonlyArray<IViewDescriptor>> { return this.viewsModel.onDidChangeActiveViews; }
 
-			this.items.push(item);
+	addViews(viewDescriptors: IViewDescriptor[]): void { return this.viewDescriptorsModel.addViews(viewDescriptors); }
+	removeViews(viewDescriptors: IViewDescriptor[]): void { return this.viewDescriptorsModel.removeViews(viewDescriptors); }
 
-			if (viewDescriptor.when) {
-				for (const key of viewDescriptor.when.keys()) {
-					this.contextKeys.add(key);
-				}
-			}
+	get visibleViewDescriptors(): IViewDescriptor[] { return this.viewsModel.visibleViewDescriptors; }
+	get onDidAdd(): Event<IAddedViewDescriptorRef[]> { return this.viewsModel.onDidAdd; }
+	get onDidRemove(): Event<IViewDescriptorRef[]> { return this.viewsModel.onDidRemove; }
+	get onDidMove(): Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }> { return this.viewsModel.onDidMove; }
 
-			if (item.active) {
-				added.push(viewDescriptor);
-			}
-		}
+	isVisible(id: string): boolean { return this.viewsModel.isVisible(id); }
+	setVisible(id: string, visible: boolean, size?: number): void { return this.viewsModel.setVisible(id, visible, size); }
 
-		this._onDidChangeViews.fire({ added: viewDescriptors, removed: [] });
+	isCollapsed(id: string): boolean { return this.viewsModel.isCollapsed(id); }
+	setCollapsed(id: string, collapsed: boolean): void { return this.viewsModel.setCollapsed(id, collapsed); }
 
-		if (added.length) {
-			this._onDidChangeActiveViews.fire({ added, removed: [] });
-		}
-	}
+	getSize(id: string): number | undefined { return this.viewsModel.getSize(id); }
+	setSize(id: string, size: number): void { return this.viewsModel.setSize(id, size); }
 
-	removeViews(viewDescriptors: IViewDescriptor[]): void {
-		const removed: IViewDescriptor[] = [];
+	move(from: string, to: string): void { return this.viewsModel.move(from, to); }
 
-		for (const viewDescriptor of viewDescriptors) {
-			const index = firstIndex(this.items, i => i.viewDescriptor.id === viewDescriptor.id);
-
-			if (index === -1) {
-				continue;
-			}
-
-			const item = this.items[index];
-			this.items.splice(index, 1);
-
-			if (viewDescriptor.when) {
-				for (const key of viewDescriptor.when.keys()) {
-					this.contextKeys.delete(key);
-				}
-			}
-
-			if (item.active) {
-				removed.push(viewDescriptor);
-			}
-		}
-
-		this._onDidChangeViews.fire({ added: [], removed: viewDescriptors });
-
-		if (removed.length) {
-			this._onDidChangeActiveViews.fire({ added: [], removed });
-		}
-	}
-
-	private onContextChanged(event: IContextKeyChangeEvent): void {
-		const removed: IViewDescriptor[] = [];
-		const added: IViewDescriptor[] = [];
-
-		for (const item of this.items) {
-			const active = this.isViewDescriptorActive(item.viewDescriptor);
-
-			if (item.active !== active) {
-				if (active) {
-					added.push(item.viewDescriptor);
-				} else {
-					removed.push(item.viewDescriptor);
-				}
-			}
-
-			item.active = active;
-		}
-
-		if (added.length || removed.length) {
-			this._onDidChangeActiveViews.fire({ added, removed });
-		}
-	}
-
-	private isViewDescriptorActive(viewDescriptor: IViewDescriptor): boolean {
-		return !viewDescriptor.when || this.contextKeyService.contextMatchesRules(viewDescriptor.when);
-	}
 }
 
 interface ICachedViewContainerInfo {
@@ -216,6 +106,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
@@ -492,9 +383,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		return this.viewContainersRegistry.registerViewContainer({
 			id,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 			name: 'Custom Views', // we don't want to see this, so no need to localize
 			icon: location === ViewContainerLocation.Sidebar ? 'codicon-window' : undefined,
+			storageId: `${id}.state`,
 			hideIfEmpty: true
 		}, location);
 	}
@@ -636,10 +528,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		if (!viewDescriptorCollection) {
 			const disposables = new DisposableStore();
-			viewDescriptorCollection = disposables.add(new ViewDescriptorCollection(this.contextKeyService));
+			viewDescriptorCollection = disposables.add(this.instantiationService.createInstance(ViewDescriptorCollection, viewContainer));
 
 			this.onDidChangeActiveViews({ added: viewDescriptorCollection.activeViewDescriptors, removed: [] });
-			viewDescriptorCollection.onDidChangeActiveViews(changed => this.onDidChangeActiveViews(changed), this, disposables);
+			viewDescriptorCollection._onDidChangeActiveViews(changed => this.onDidChangeActiveViews(changed), this, disposables);
 
 			this.viewDescriptorCollections.set(viewContainer, { viewDescriptorCollection, disposable: disposables });
 
