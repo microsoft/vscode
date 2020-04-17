@@ -17,7 +17,6 @@ import {
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -103,7 +102,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
 		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
-		instantiationService.set(IExtensionRecommendationsService, instantiationService.createInstance(ExtensionRecommendationsService));
+		instantiationService.stub(IExtensionRecommendationsService, {});
 
 		instantiationService.stub(INotificationService, { prompt: () => null! });
 	});

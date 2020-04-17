@@ -677,14 +677,14 @@
         "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.preferences.renameShorthandProperties%",
+          "description": "%typescript.preferences.useAliasesForRenames%",
           "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
           "scope": "resource"
         },
         "typescript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.preferences.renameShorthandProperties%",
+          "description": "%typescript.preferences.useAliasesForRenames%",
           "deprecationMessage": "%typescript.preferences.renameShorthandProperties.deprecationMessage%",
           "scope": "resource"
         },

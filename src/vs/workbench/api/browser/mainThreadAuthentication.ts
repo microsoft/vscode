@@ -68,8 +68,14 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		private readonly notificationService: INotificationService
 	) {
 		super();
+	}
 
-		this.registerCommandsAndContextMenuItems();
+	public async initialize(): Promise<void> {
+		return this.registerCommandsAndContextMenuItems();
+	}
+
+	public hasSessions(): boolean {
+		return !!this._sessions.size;
 	}
 
 	private manageTrustedExtensions(quickInputService: IQuickInputService, storageService: IStorageService, accountName: string) {
@@ -120,35 +126,8 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.show();
 	}
 
-	private createSignInMenu(hasSessions: boolean): void {
-		this._signInMenuDisposables.push(CommandsRegistry.registerCommand({
-			id: `signIn${this.id}`,
-			handler: (accessor, args) => {
-				this.login();
-			},
-		}));
-
-		this._signInMenuItem = {
-			group: '2_providers',
-			command: {
-				id: `signIn${this.id}`,
-				title: hasSessions
-					? nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName)
-					: nls.localize('addAccount', "Sign in to {0}", this.displayName)
-			},
-			order: 3
-		};
-
-		this._signInMenuDisposables.push(MenuRegistry.appendMenuItem(MenuId.AccountsContext, this._signInMenuItem));
-	}
-
 	private async registerCommandsAndContextMenuItems(): Promise<void> {
 		const sessions = await this._proxy.$getSessions(this.id);
-
-		if (!sessions.length || (sessions.length && this.supportsMultipleAccounts)) {
-			this.createSignInMenu(!!sessions.length);
-		}
-
 		sessions.forEach(session => this.registerSession(session));
 	}
 
@@ -167,7 +146,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			group: '1_accounts',
 			command: {
 				id: `configureSessions${session.id}`,
-				title: session.accountName
+				title: `${session.accountName} (${this.displayName})`
 			},
 			order: 3
 		});
@@ -177,6 +156,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			handler: (accessor, args) => {
 				const quickInputService = accessor.get(IQuickInputService);
 				const storageService = accessor.get(IStorageService);
+				const dialogService = accessor.get(IDialogService);
 
 				const quickPick = quickInputService.createQuickPick();
 				const showUsage = nls.localize('showUsage', "Show Extensions and Features Using This Account");
@@ -189,8 +169,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 				quickPick.onDidAccept(e => {
 					const selected = quickPick.selectedItems[0];
 					if (selected.label === signOut) {
-						const sessionsForAccount = this._accounts.get(session.accountName);
-						sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+						this.signOut(dialogService, session);
 					}
 
 					if (selected.label === manage) {
@@ -215,6 +194,27 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		this._sessionMenuItems.set(session.accountName, [menuItem, manageCommand]);
 	}
 
+	async signOut(dialogService: IDialogService, session: modes.AuthenticationSession): Promise<void> {
+		const providerUsage = accountUsages.get(this.id);
+		const accountUsage = (providerUsage || {})[session.accountName] || [];
+		const sessionsForAccount = this._accounts.get(session.accountName);
+
+		// Skip dialog if nothing is using the account
+		if (!accountUsage.length) {
+			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+			return;
+		}
+
+		const result = await dialogService.confirm({
+			title: nls.localize('signOutConfirm', "Sign out of {0}", session.accountName),
+			message: nls.localize('signOutMessage', "The account {0} is currently used by: \n\n{1}\n\n Sign out of these features?", session.accountName, accountUsage.join('\n'))
+		});
+
+		if (result.confirmed) {
+			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+		}
+	}
+
 	async getSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
 		return (await this._proxy.$getSessions(this.id)).map(session => {
 			return {
@@ -236,6 +236,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		removed.forEach(sessionId => {
 			const accountName = this._sessions.get(sessionId);
 			if (accountName) {
+				this._sessions.delete(sessionId);
 				let sessionsForAccount = this._accounts.get(accountName) || [];
 				const sessionIndex = sessionsForAccount.indexOf(sessionId);
 				sessionsForAccount.splice(sessionIndex);
@@ -250,8 +251,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 					if (this._signInMenuItem) {
 						this._signInMenuItem.command.title = nls.localize('addAccount', "Sign in to {0}", this.displayName);
-					} else {
-						this.createSignInMenu(false);
 					}
 				}
 			}
@@ -309,6 +308,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	async $registerAuthenticationProvider(id: string, displayName: string, supportsMultipleAccounts: boolean): Promise<void> {
 		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, supportsMultipleAccounts, this.notificationService);
+		await provider.initialize();
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}
 

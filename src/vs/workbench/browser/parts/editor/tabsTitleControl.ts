@@ -43,7 +43,7 @@ import { withNullAsUndefined, assertAllDefined, assertIsDefined } from 'vs/base/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
 
 interface IEditorInputLabel {
@@ -97,7 +97,7 @@ export class TabsTitleControl extends TitleControl {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IRemotePathService private readonly remotePathService: IRemotePathService
+		@IPathService private readonly pathService: IPathService
 	) {
 		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickInputService, themeService, extensionService, configurationService, fileService);
 
@@ -107,7 +107,7 @@ export class TabsTitleControl extends TitleControl {
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
 		// remote OS.
-		(async () => this.path = await this.remotePathService.path)();
+		(async () => this.path = await this.pathService.path)();
 	}
 
 	protected registerListeners(): void {
@@ -1040,6 +1040,9 @@ export class TabsTitleControl extends TitleControl {
 
 		if (tabLabel.ariaLabel) {
 			tabContainer.setAttribute('aria-label', tabLabel.ariaLabel);
+			// Set aria-description to empty string so that screen readers would not read the title as well
+			// More details https://github.com/microsoft/vscode/issues/95378
+			tabContainer.setAttribute('aria-description', '');
 		}
 		tabContainer.title = title;
 

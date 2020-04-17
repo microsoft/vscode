@@ -569,6 +569,8 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.focusSixthEditorGroup',
 	'workbench.action.focusSeventhEditorGroup',
 	'workbench.action.focusEighthEditorGroup',
+	'workbench.action.focusNextPart',
+	'workbench.action.focusPreviousPart',
 	'workbench.action.nextPanelView',
 	'workbench.action.previousPanelView',
 	'workbench.action.nextSideBarView',

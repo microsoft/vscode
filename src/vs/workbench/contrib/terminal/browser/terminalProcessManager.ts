@@ -24,8 +24,8 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { Disposable } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IEnvironmentVariableService, IMergedEnvironmentVariableCollection, IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
 import { EnvironmentVariableInfoStale, EnvironmentVariableInfoChangesActive } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 /** The amount of time to consider terminal errors to be related to the launch */
 const LAUNCHING_DURATION = 500;
@@ -94,7 +94,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IProductService private readonly _productService: IProductService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IRemotePathService private readonly _remotePathService: IRemotePathService,
+		@IPathService private readonly _pathService: IPathService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService
 	) {
 		super();
@@ -138,12 +138,12 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			const hasRemoteAuthority = !!this.remoteAuthority;
 			let launchRemotely = hasRemoteAuthority || forceExtHostProcess;
 
-			// userHomeSync is needed here as remote resolvers can launch local terminals before
+			// resolvedUserHome is needed here as remote resolvers can launch local terminals before
 			// they're connected to the remote.
-			this.userHome = this._remotePathService.userHomeSync?.fsPath;
+			this.userHome = this._pathService.resolvedUserHome?.fsPath;
 			this.os = platform.OS;
 			if (launchRemotely) {
-				const userHomeUri = await this._remotePathService.userHome;
+				const userHomeUri = await this._pathService.userHome;
 				this.userHome = userHomeUri.path;
 				if (hasRemoteAuthority) {
 					const remoteEnv = await this._remoteAgentService.getEnvironment();
@@ -248,7 +248,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		if (this._extEnvironmentVariableCollection.map.size > 0) {
 			this._onEnvironmentVariableInfoChange.fire(new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection));
 		}
-
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;
 		return this._terminalInstanceService.createTerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, useConpty);

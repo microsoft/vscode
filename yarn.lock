@@ -1228,7 +1228,7 @@ bindings@^1.5.0:
   dependencies:
     file-uri-to-path "1.0.0"
 
-bl@^4.0.1:
+bl@^4.0.1, bl@^4.0.2:
   version "4.0.2"
   resolved "https://registry.yarnpkg.com/bl/-/bl-4.0.2.tgz#52b71e9088515d0606d9dd9cc7aa48dc1f98e73a"
   integrity sha512-j4OH8f6Qg2bGuWfRiltT2HYGx0e1QcBTrK9KAHNMwMZdQnDZFk0ZSYIpADjYCB3U12nicC5tVJwSIhwOWjb4RQ==
@@ -2406,6 +2406,14 @@ decompress-zip@0.3.0:
     q "^1.1.2"
     readable-stream "^1.1.8"
     touch "0.0.3"
+
+deemon@^1.4.0:
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/deemon/-/deemon-1.4.0.tgz#01c09cc23eec41e5d7ddac082eb52c3611d38dff"
+  integrity sha512-S0zK5tNTdVFsJZVUeKi/CYJn4zzhW0Y55lwXzv2hVxb7ajzAHf91BhE5y2xvx1X7czIZ6PHLPDj00TVAmylVXw==
+  dependencies:
+    bl "^4.0.2"
+    tree-kill "^1.2.2"
 
 deep-extend@^0.6.0:
   version "0.6.0"
@@ -5396,9 +5404,10 @@ just-debounce@^1.0.0:
   resolved "https://registry.yarnpkg.com/just-debounce/-/just-debounce-1.0.0.tgz#87fccfaeffc0b68cd19d55f6722943f929ea35ea"
   integrity sha1-h/zPrv/AtozRnVX2cilD+SnqNeo=
 
-"keytar@github:rmacfarlane/node-keytar#334424bd26414923782f144110f4beda19168d24":
-  version "5.4.0"
-  resolved "https://codeload.github.com/rmacfarlane/node-keytar/tar.gz/334424bd26414923782f144110f4beda19168d24"
+keytar@^5.5.0:
+  version "5.5.0"
+  resolved "https://registry.yarnpkg.com/keytar/-/keytar-5.5.0.tgz#971de0fd5f480f9d397f4e4debf96e5ed886f12e"
+  integrity sha512-1d/F2qAL/qijpm25wNq8eez4mE+/J4eBvqyLfspIYIeCEHn3nttFwplowIZfbdNCjFGWh68MzGZOd2vS61Ffew==
   dependencies:
     nan "2.14.0"
     prebuild-install "5.3.3"
@@ -6287,10 +6296,10 @@ node-pre-gyp@^0.10.0:
     semver "^5.3.0"
     tar "^4"
 
-node-pty@0.10.0-beta7:
-  version "0.10.0-beta7"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta7.tgz#7e383b2d1fe2f34509b57187f5a9a6ff90c46111"
-  integrity sha512-oC2VyIz9YaIvv6lWjAPZbUzmhLW1ouFmxOogNRNQrKeUzUi2yM/QRmybs+dW/Mhd3V89Yh61Ml0J5yuWiMIBbw==
+node-pty@0.10.0-beta8:
+  version "0.10.0-beta8"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.10.0-beta8.tgz#f4aa56c71a794f4580373a3030dfebd25240c6db"
+  integrity sha512-Ul/hLsadC0SvvShxpne+kq2ebSMcitewlNhrwoXXBvFdCqxJt7Ai1AgMhH7AKBUp06uBeYXThJ2ihTszrkdnYw==
   dependencies:
     nan "^2.14.0"
 
@@ -8215,10 +8224,10 @@ semver-greatest-satisfied-range@^1.1.0:
   dependencies:
     sver-compat "^1.5.0"
 
-semver-umd@^5.5.5:
-  version "5.5.5"
-  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.5.tgz#a2e4280d0e92a2b27695c18811f0e939e144d86f"
-  integrity sha512-8rUq0nnTzlexpAdYmm8UDYsLkBn0MnBkfrGWPmyDBDDzv71dPOH07szOOaLj/5hO3BYmumYwS+wp3C60zLzh5g==
+semver-umd@^5.5.6:
+  version "5.5.6"
+  resolved "https://registry.yarnpkg.com/semver-umd/-/semver-umd-5.5.6.tgz#1d185bbd2caec825c564b54907cd09e14083f228"
+  integrity sha512-6ARYXVi4Y4VO5HfyCjT/6xyykBtJwEXSGQ8ON4UPQSFOjZUDsbAE0J614QcBBsLTTyQMEqvsXN804vAqpydjzw==
 
 "semver@2 || 3 || 4 || 5", semver@^5.1.0, semver@^5.3.0:
   version "5.4.1"
@@ -9150,6 +9159,11 @@ tough-cookie@~2.4.3:
   version "0.3.9"
   resolved "https://registry.yarnpkg.com/traverse/-/traverse-0.3.9.tgz#717b8f220cc0bb7b44e40514c22b2e8bbc70d8b9"
   integrity sha1-cXuPIgzAu3tE5AUUwisui7xw2Lk=
+
+tree-kill@^1.2.2:
+  version "1.2.2"
+  resolved "https://registry.yarnpkg.com/tree-kill/-/tree-kill-1.2.2.tgz#4ca09a9092c88b73a7cdc5e8a01b507b0790a0cc"
+  integrity sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==
 
 truncate-utf8-bytes@^1.0.0:
   version "1.0.2"

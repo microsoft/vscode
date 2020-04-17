@@ -828,21 +828,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: SCM Input Box
-
-	/**
-	 * Represents the input box in the Source Control viewlet.
-	 */
-	export interface SourceControlInputBox {
-
-		/**
-		 * Controls whether the input box is visible (default is `true`).
-		 */
-		visible: boolean;
-	}
-
-	//#endregion
-
 	//#region Terminal data write event https://github.com/microsoft/vscode/issues/78502
 
 	export interface TerminalDataWriteEvent {
@@ -1506,6 +1491,13 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
+	export enum NotebookCellRunState {
+		Running = 1,
+		Idle = 2,
+		Success = 3,
+		Error = 4
+	}
+
 	export interface NotebookCellMetadata {
 		/**
 		 * Controls if the content of a cell is editable or not.
@@ -1522,6 +1514,16 @@ declare module 'vscode' {
 		 * The order in which this cell was executed.
 		 */
 		executionOrder?: number;
+
+		/**
+		 * A status message to be shown in the cell's status bar
+		 */
+		statusMessage?: string;
+
+		/**
+		 * The cell's current run state
+		 */
+		runState?: NotebookCellRunState;
 	}
 
 	export interface NotebookCell {
@@ -1922,64 +1924,25 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/90208
-
-	export interface ExtensionContext {
-		/**
-		 * @deprecated THIS API PROPOSAL WILL BE DROPPED
-		 */
-		asExtensionUri(relativePath: string): Uri;
-
-		/**
-		 * The uri of the directory containing the extension.
-		 */
-		readonly extensionUri: Uri;
-	}
-
-	export interface Extension<T> {
-		/**
-		 * @deprecated THIS API PROPOSAL WILL BE DROPPED
-		 */
-		asExtensionUri(relativePath: string): Uri;
-
-		/**
-		 * The uri of the directory containing the extension.
-		 */
-		readonly extensionUri: Uri;
-	}
-
-	export namespace Uri {
-
-		/**
-		 * Create a new uri which path is the result of joining
-		 * the path of the base uri with the provided path segments.
-		 *
-		 * - Note 1: `joinPath` only affects the path component
-		 * and all other components (scheme, authority, query, and fragment) are
-		 * left as they are.
-		 * - Note 2: The base uri must have a path; an error is thrown otherwise.
-		 *
-		 * The path segments are normalized in the following ways:
-		 * - sequences of path separators (`/` or `\`) are replaced with a single separator
-		 * - for `file`-uris on windows, the backslash-character (`\`) is considered a path-separator
-		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segement
-		 * - paths have a root which always remains, for instance on windows drive-letters are roots
-		 * so that is true: `joinPath(Uri.file('file:///c:/root'), '../../other').fsPath === 'c:/other'`
-		 *
-		 * @param base An uri. Must have a path.
-		 * @param pathSegments One more more path fragments
-		 * @returns A new uri which path is joined with the given fragments
-		 */
-		export function joinPath(base: Uri, ...pathSegments: string[]): Uri;
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/91541
 
 	export enum CompletionItemKind {
 		User = 25,
 		Issue = 26,
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/94637
+
+	export interface SignatureInformation {
+
+		/**
+		 * The index of the active parameter.
+		 *
+		 * If provided, this is used in place of `SignatureHelp.activeSignature`.
+		 */
+		activeParameter?: number;
 	}
 
 	//#endregion
