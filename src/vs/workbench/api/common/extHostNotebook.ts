@@ -10,12 +10,14 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes, ICellDeleteEdit, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
+import { NotImplementedProxy } from 'vs/base/common/types';
 
 interface IObservable<T> {
 	proxy: T;
@@ -40,39 +42,48 @@ function getObservable<T extends Object>(obj: T): IObservable<T> {
 
 export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 
-	private originalSource: string[];
+	// private originalSource: string[];
 	private _outputs: any[];
 	private _onDidChangeOutputs = new Emitter<ISplice<vscode.CellOutput>[]>();
 	onDidChangeOutputs: Event<ISplice<vscode.CellOutput>[]> = this._onDidChangeOutputs.event;
-	private _textDocument: vscode.TextDocument | undefined;
-	private _initalVersion: number = -1;
+	// private _textDocument: vscode.TextDocument | undefined;
+	// private _initalVersion: number = -1;
 	private _outputMapping = new Set<vscode.CellOutput>();
 	private _metadata: vscode.NotebookCellMetadata;
 
 	private _metadataChangeListener: IDisposable;
 
+	private _documentData: ExtHostDocumentData;
+
+	get document(): vscode.TextDocument {
+		return this._documentData.document;
+	}
+
 	get source() {
-		if (this._textDocument && this._initalVersion !== this._textDocument?.version) {
-			return this._textDocument.getText();
-		} else {
-			return this.originalSource.join('\n');
-		}
+		// todo@jrieken remove this
+		return this._documentData.getText();
 	}
 
 	constructor(
-		private viewType: string,
-		private documentUri: URI,
+		private readonly viewType: string,
+		private readonly documentUri: URI,
 		readonly handle: number,
 		readonly uri: URI,
-		private _content: string,
+		content: string,
 		public readonly cellKind: CellKind,
 		public language: string,
 		outputs: any[],
 		_metadata: vscode.NotebookCellMetadata | undefined,
-		private _proxy: MainThreadNotebookShape
+		private _proxy: MainThreadNotebookShape,
 	) {
 		super();
-		this.originalSource = this._content.split(/\r|\n|\r\n/g);
+		this._documentData = new ExtHostDocumentData(
+			new class extends NotImplementedProxy<MainThreadDocumentsShape>('document') { },
+			uri,
+			content.split(/\r|\n|\r\n/g), '\n',
+			language, 0, false
+		);
+
 		this._outputs = outputs;
 
 		const observableMetadata = getObservable(_metadata || {});
@@ -125,26 +136,19 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		return this._proxy.$updateNotebookCellMetadata(this.viewType, this.documentUri, this.handle, this._metadata);
 	}
 
-	getContent(): string {
-		if (this._textDocument && this._initalVersion !== this._textDocument?.version) {
-			return this._textDocument.getText();
-		} else {
-			return this.originalSource.join('\n');
-		}
-	}
-
-	attachTextDocument(document: vscode.TextDocument) {
-		this._textDocument = document;
-		this._initalVersion = this._textDocument.version;
+	attachTextDocument(document: ExtHostDocumentData) {
+		this._documentData = document;
+		// this._initalVersion = this._documentData.version;
 	}
 
 	detachTextDocument() {
-		if (this._textDocument && this._textDocument.version !== this._initalVersion) {
-			this.originalSource = this._textDocument.getText().split(/\r|\n|\r\n/g);
-		}
+		// no-op? keep stale document until new comes along?
 
-		this._textDocument = undefined;
-		this._initalVersion = -1;
+		// if (this._textDocument && this._textDocument.version !== this._initalVersion) {
+		// 	this.originalSource = this._textDocument.getText().split(/\r|\n|\r\n/g);
+		// }
+		// this._textDocument = undefined;
+		// this._initalVersion = -1;
 	}
 }
 
@@ -256,10 +260,10 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			let cellDtos = splice[2];
 			let newCells = cellDtos.map(cell => {
 				const extCell = new ExtHostCell(this.viewType, this.uri, cell.handle, URI.revive(cell.uri), cell.source.join('\n'), cell.cellKind, cell.language, cell.outputs, cell.metadata, this._proxy);
-				const document = this._documentsAndEditors.getDocument(URI.revive(cell.uri));
+				const documentData = this._documentsAndEditors.getDocument(URI.revive(cell.uri));
 
-				if (document) {
-					extCell.attachTextDocument(document.document);
+				if (documentData) {
+					extCell.attachTextDocument(documentData);
 				}
 
 				if (!this._cellDisposableMapping.has(extCell.handle)) {
@@ -366,15 +370,15 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		return this.cells.find(cell => cell.handle === cellHandle);
 	}
 
-	attachCellTextDocument(textDocument: vscode.TextDocument) {
-		let cell = this.cells.find(cell => cell.uri.toString() === textDocument.uri.toString());
+	attachCellTextDocument(textDocument: ExtHostDocumentData) {
+		let cell = this.cells.find(cell => cell.uri.toString() === textDocument.document.uri.toString());
 		if (cell) {
 			cell.attachTextDocument(textDocument);
 		}
 	}
 
-	detachCellTextDocument(textDocument: vscode.TextDocument) {
-		let cell = this.cells.find(cell => cell.uri.toString() === textDocument.uri.toString());
+	detachCellTextDocument(textDocument: ExtHostDocumentData) {
+		let cell = this.cells.find(cell => cell.uri.toString() === textDocument.document.uri.toString());
 		if (cell) {
 			cell.detachTextDocument();
 		}
@@ -468,22 +472,22 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	) {
 		super();
 		this._register(this._documentsAndEditors.onDidAddDocuments(documents => {
-			for (const { document: textDocument } of documents) {
-				let data = CellUri.parse(textDocument.uri);
+			for (const documentData of documents) {
+				let data = CellUri.parse(documentData.document.uri);
 				if (data) {
 					if (this.document.uri.toString() === data.notebook.toString()) {
-						document.attachCellTextDocument(textDocument);
+						document.attachCellTextDocument(documentData);
 					}
 				}
 			}
 		}));
 
 		this._register(this._documentsAndEditors.onDidRemoveDocuments(documents => {
-			for (const { document: textDocument } of documents) {
-				let data = CellUri.parse(textDocument.uri);
+			for (const documentData of documents) {
+				let data = CellUri.parse(documentData.document.uri);
 				if (data) {
 					if (this.document.uri.toString() === data.notebook.toString()) {
-						document.detachCellTextDocument(textDocument);
+						document.detachCellTextDocument(documentData);
 					}
 				}
 			}

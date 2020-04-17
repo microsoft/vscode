@@ -1558,6 +1558,8 @@ declare module 'vscode' {
 	export interface NotebookCell {
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
+		readonly document: TextDocument;
+		// API remove `source` or doc it as shorthand for document.getText()
 		readonly source: string;
 		language: string;
 		outputs: CellOutput[];
