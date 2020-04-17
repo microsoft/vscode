@@ -198,6 +198,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 		// Skip dialog if nothing is using the account
 		if (!accountUsage.length) {
+			accountUsages.set(this.id, { [session.accountName]: [] });
 			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
 			return;
 		}
@@ -208,6 +209,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		});
 
 		if (result.confirmed) {
+			accountUsages.set(this.id, { [session.accountName]: [] });
 			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
 		}
 	}
