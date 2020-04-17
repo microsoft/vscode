@@ -36,7 +36,8 @@ const SecondLevelDomainWhitelist = [
 	'amazonaws.com',
 	'cloudapp.net',
 	'rhcloud.com',
-	'google.com'
+	'google.com',
+	'azure.com'
 ];
 
 function stripLowLevelDomains(domain: string): string | null {
