@@ -201,7 +201,7 @@
 }
 
 .menubar.compact .toolbar-toggle-more {
-	position: absolute;
+	position: relative;
 	left: 0px;
 	top: 0px;
 	cursor: pointer;

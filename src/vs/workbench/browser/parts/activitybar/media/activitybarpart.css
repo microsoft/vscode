@@ -22,6 +22,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	order: -1;
 }
 
 .monaco-workbench .activitybar > .content > .home-bar > .action-label {
