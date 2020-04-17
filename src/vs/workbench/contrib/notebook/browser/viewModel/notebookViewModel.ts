@@ -279,7 +279,7 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			return;
 		}
 
-		this._foldingModel.regions.setCollapsed(range, state === CellFoldingState.Collapsed);
+		this._foldingModel.setCollapsed(range, state === CellFoldingState.Collapsed);
 		this._updateFoldingRanges();
 	}
 
@@ -349,10 +349,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	}
 
 	getTrackedRange(id: string): ICellRange | null {
-		return this.getDecorationRange(id);
+		return this._getDecorationRange(id);
 	}
 
-	getDecorationRange(decorationId: string): ICellRange | null {
+	private _getDecorationRange(decorationId: string): ICellRange | null {
 		const node = this._decorations[decorationId];
 		if (!node) {
 			return null;
