@@ -59,7 +59,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly model: NotebookCellTextModel,
-		readonly eventDispatcher: NotebookEventDispatcher,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
@@ -83,22 +82,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			indicatorHeight: 0,
 			bottomToolbarOffset: 0
 		};
-
-		this._register(eventDispatcher.onDidChangeLayout((e) => {
-			if (e.source.width !== undefined) {
-				this.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
-			}
-		}));
-
-		this._register(this.onDidChangeState((e) => {
-			if (!e.languageChanged) {
-				return;
-			}
-
-			if (this._textModel && !this._textModel.isDisposed()) {
-
-			}
-		}));
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent) {

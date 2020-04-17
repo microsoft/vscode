@@ -226,6 +226,18 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 		this._register(this.eventDispatcher.onDidChangeLayout((e) => {
 			this._layoutInfo = e.value;
+
+			this._viewCells.forEach(cell => {
+				if (cell.cellKind === CellKind.Markdown) {
+					if (e.source.width || e.source.fontInfo) {
+						cell.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
+					}
+				} else {
+					if (e.source.width !== undefined) {
+						cell.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
+					}
+				}
+			});
 		}));
 
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
@@ -321,6 +333,11 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		if (updateHiddenAreas || k < this._hiddenRanges.length) {
 			this._hiddenRanges = newHiddenAreas;
 			this._onDidFoldingRegionChanges.fire();
+			this._viewCells.forEach(cell => {
+				if (cell.cellKind === CellKind.Markdown) {
+					cell.triggerfoldingStateChange();
+				}
+			});
 		}
 	}
 
@@ -730,8 +747,8 @@ export type CellViewModel = CodeCellViewModel | MarkdownCellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: NotebookCellTextModel) {
 	if (cell.cellKind === CellKind.Code) {
-		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher, notebookViewModel.layoutInfo);
+		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.layoutInfo);
 	} else {
-		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher, notebookViewModel.layoutInfo, notebookViewModel);
+		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.layoutInfo, notebookViewModel);
 	}
 }

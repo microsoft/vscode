@@ -47,7 +47,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly model: NotebookCellTextModel,
-		readonly eventDispatcher: NotebookEventDispatcher,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly foldingDelegate: FoldingRegionDelegate,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -60,16 +59,10 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
 			totalHeight: 0
 		};
+	}
 
-		this._register(eventDispatcher.onDidChangeLayout((e) => {
-			if (e.source.width || e.source.fontInfo) {
-				this.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
-			}
-		}));
-
-		this._register(foldingDelegate.onDidFoldingRegionChanged(() => {
-			this._onDidChangeState.fire({ foldingStateChanged: true });
-		}));
+	triggerfoldingStateChange() {
+		this._onDidChangeState.fire({ foldingStateChanged: true });
 	}
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
