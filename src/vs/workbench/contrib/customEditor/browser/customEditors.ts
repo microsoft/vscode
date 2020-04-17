@@ -391,7 +391,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		id?: string,
 	): IOpenEditorOverride | undefined {
 		if (editor instanceof CustomEditorInput) {
-			if (editor.group === group.id && editor.viewType === id) {
+			if (editor.group === group.id && (editor.viewType === id || typeof id !== 'string')) {
 				// No need to do anything
 				return undefined;
 			} else {
