@@ -15,8 +15,8 @@
 	font-size: 14px;
 	line-height: 19px;
 	animation: fadein 100ms linear;
-	/* Must be drawn on the top of the terminal's canvases */
-	z-index: 20;
+	/* Must be higher than sash's z-index and terminal canvases */
+	z-index: 40;
 	overflow: hidden;
 }
 

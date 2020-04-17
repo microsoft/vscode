@@ -5,7 +5,7 @@
 
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IHoverTarget, IProposedAnchor, HorizontalAlignment, VerticalAlignment, HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
+import { IHoverTarget, IHoverAnchor, HorizontalAlignment as HorizontalAnchorSide, VerticalAlignment as VerticalAnchorSide, HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
@@ -59,18 +59,15 @@ class ElementHoverTarget implements IHoverTarget {
 		this.targetElements = [this._element];
 	}
 
-	proposeIdealAnchor(): IProposedAnchor {
+	get anchor(): IHoverAnchor {
 		const position = getDomNodePagePosition(this._element);
 		return {
-			x: document.documentElement.clientWidth - position.left - position.width,
-			horizontalAlignment: HorizontalAlignment.Right,
+			x: position.left,
+			horizontalAnchorSide: HorizontalAnchorSide.Left,
 			y: document.documentElement.clientHeight - position.top - 1,
-			verticalAlignment: VerticalAlignment.Bottom
+			verticalAnchorSide: VerticalAnchorSide.Bottom,
+			fallbackY: position.top + position.height
 		};
-	}
-
-	proposeSecondaryAnchor(): IProposedAnchor {
-		throw new Error('Method not implemented.');
 	}
 
 	dispose(): void {

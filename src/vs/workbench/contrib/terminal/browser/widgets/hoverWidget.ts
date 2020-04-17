@@ -25,11 +25,15 @@ export enum VerticalAlignment {
 	Bottom
 }
 
-export interface IProposedAnchor {
+export interface IHoverAnchor {
 	x: number;
 	y: number;
-	horizontalAlignment: HorizontalAlignment;
-	verticalAlignment: VerticalAlignment;
+	horizontalAnchorSide: HorizontalAlignment;
+	verticalAnchorSide: VerticalAlignment;
+	/**
+	 * Fallback Y value to try with opposite VerticalAlignment if the hover does not fit vertically.
+	 */
+	fallbackY: number;
 }
 
 /**
@@ -37,8 +41,7 @@ export interface IProposedAnchor {
  */
 export interface IHoverTarget extends IDisposable {
 	readonly targetElements: readonly HTMLElement[];
-	proposeIdealAnchor(): IProposedAnchor;
-	proposeSecondaryAnchor(): IProposedAnchor;
+	readonly anchor: IHoverAnchor;
 }
 
 export class HoverWidget extends Widget {
@@ -113,18 +116,37 @@ export class HoverWidget extends Widget {
 	}
 
 	public layout(): void {
-		const anchor = this._target.proposeIdealAnchor();
-		this._domNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
-		if (anchor.horizontalAlignment === HorizontalAlignment.Left) {
-			this._domNode.style.left = `${anchor.x}px`;
+		const anchor = this._target.anchor;
+
+		if (anchor.horizontalAnchorSide === HorizontalAlignment.Left) {
+			if (anchor.x + this._domNode.clientWidth * 0.75 > document.documentElement.clientWidth) {
+				// Shift the hover to the left when > 25% would be cut off
+				const width = Math.floor(this._domNode.clientWidth * 0.75);
+				this._domNode.style.width = `${width}px`;
+				this._domNode.style.maxWidth = '';
+				this._domNode.style.left = `${document.documentElement.clientWidth - width}px`;
+			} else {
+				this._domNode.style.width = '';
+				this._domNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
+				this._domNode.style.left = `${anchor.x}px`;
+			}
 		} else {
 			this._domNode.style.right = `${anchor.x}px`;
 		}
-		// TODO: Go to secondary anchor if vertical gets clipped
-		if (anchor.verticalAlignment === VerticalAlignment.Bottom) {
-			this._domNode.style.bottom = `${anchor.y}px`;
+		// Use fallback y value if there is not enough vertical space
+		if (anchor.verticalAnchorSide === VerticalAlignment.Bottom) {
+			if (anchor.y + this._domNode.clientHeight > document.documentElement.clientHeight) {
+				this._domNode.style.top = `${anchor.fallbackY}px`;
+			} else {
+				this._domNode.style.bottom = `${anchor.y}px`;
+			}
 		} else {
-			this._domNode.style.top = `${anchor.y}px`;
+			if (anchor.y + this._domNode.clientHeight > document.documentElement.clientHeight) {
+				console.log('fallback, set bottom to', `${anchor.fallbackY}px`);
+				this._domNode.style.bottom = `${anchor.fallbackY}px`;
+			} else {
+				this._domNode.style.top = `${anchor.y}px`;
+			}
 		}
 	}
 

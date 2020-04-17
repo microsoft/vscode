@@ -8,7 +8,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IViewportRange } from 'xterm';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { HoverWidget, HorizontalAlignment, VerticalAlignment, IProposedAnchor, IHoverTarget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
+import { HoverWidget, HorizontalAlignment, VerticalAlignment, IHoverAnchor, IHoverTarget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -105,23 +105,14 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		super.dispose();
 	}
 
-	proposeIdealAnchor(): IProposedAnchor {
+	get anchor(): IHoverAnchor {
 		const firstPosition = getDomNodePagePosition(this.targetElements[0]);
 		return {
 			x: firstPosition.left,
-			horizontalAlignment: HorizontalAlignment.Left,
+			horizontalAnchorSide: HorizontalAlignment.Left,
 			y: document.documentElement.clientHeight - firstPosition.top - 1,
-			verticalAlignment: VerticalAlignment.Bottom
-		};
-	}
-
-	proposeSecondaryAnchor(): IProposedAnchor {
-		const firstPosition = getDomNodePagePosition(this.targetElements[0]);
-		return {
-			x: firstPosition.left,
-			horizontalAlignment: HorizontalAlignment.Left,
-			y: firstPosition.top + firstPosition.height - 1,
-			verticalAlignment: VerticalAlignment.Top
+			verticalAnchorSide: VerticalAlignment.Bottom,
+			fallbackY: firstPosition.top + firstPosition.height - 1
 		};
 	}
 }
