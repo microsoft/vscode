@@ -102,5 +102,5 @@ export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVa
 export interface IEnvironmentVariableInfo {
 	getInfo(): string;
 	getIcon(): string;
-	getActions?(): { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[];
+	getActions?(): { label: string, iconClass?: string, run: () => void, commandId: string }[];
 }

@@ -26,7 +26,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		return 'warning';
 	}
 
-	getActions(): { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] {
+	getActions(): { label: string, iconClass?: string, run: () => void, commandId: string }[] {
 		return [{
 			label: localize('relaunchTerminalLabel', "Relaunch terminal"),
 			run: () => this._terminalService.getInstanceFromId(this._terminalId)?.relaunch(),
