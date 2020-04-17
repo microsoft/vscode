@@ -859,8 +859,7 @@ export class SearchView extends ViewPane {
 
 	focus(): void {
 		super.focus();
-
-		const updatedText = this.updateTextFromSelection({ allowSearchOnType: false });
+		const updatedText = this.searchConfig.seedOnFocus ? this.updateTextFromSelection({ allowSearchOnType: false }) : false;
 		this.searchWidget.focus(undefined, undefined, updatedText);
 	}
 

@@ -789,6 +789,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('search.searchOnType', "Search all files as you type.")
 		},
+		'search.seedOnFocus': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('search.seedOnFocus', "Update workspace seach query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
+		},
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',
 			default: 300,
