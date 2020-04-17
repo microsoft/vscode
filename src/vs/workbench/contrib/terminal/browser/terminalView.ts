@@ -64,6 +64,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
 		this._parentDomElement = container;
 		dom.addClass(this._parentDomElement, 'integrated-terminal');
 		this._fontStyleElement = document.createElement('style');

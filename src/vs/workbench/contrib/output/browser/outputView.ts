@@ -88,6 +88,7 @@ export class OutputViewPane extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
 		this.editor.create(container);
 		addClass(container, 'output-view');
 		const codeEditor = <ICodeEditor>this.editor.getControl();
