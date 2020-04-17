@@ -33,9 +33,12 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { isMacintosh } from 'vs/base/common/platform';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IViewsService } from 'vs/workbench/common/views';
+import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
 
 /** Specified in searchview.css */
 export const SingleLineInputHeight = 24;
+
+export const searchShowContextIcon = registerIcon('search-show-context', Codicon.listSelection);
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -349,7 +352,7 @@ export class SearchWidget extends Widget {
 		this._register(this.searchInputFocusTracker.onDidBlur(() => this.searchInputBoxFocused.set(false)));
 
 
-		this.showContextCheckbox = new Checkbox({ isChecked: false, title: nls.localize('showContext', "Show Context"), actionClassName: 'codicon-list-selection' });
+		this.showContextCheckbox = new Checkbox({ isChecked: false, title: nls.localize('showContext', "Show Context"), icon: searchShowContextIcon });
 		this._register(this.showContextCheckbox.onChange(() => this.onContextLinesChanged()));
 
 		if (options.showContextToggle) {

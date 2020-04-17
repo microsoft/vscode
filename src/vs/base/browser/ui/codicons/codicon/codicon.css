@@ -82,6 +82,7 @@
 .codicon-git-fork-private:before { content: "\ea75" }
 .codicon-lock:before { content: "\ea75" }
 .codicon-mirror-private:before { content: "\ea75" }
+.codicon-list-close:before,
 .codicon-close:before { content: "\ea76" }
 .codicon-remove-close:before { content: "\ea76" }
 .codicon-x:before { content: "\ea76" }
@@ -95,6 +96,8 @@
 .codicon-device-desktop:before { content: "\ea7a" }
 .codicon-file:before { content: "\ea7b" }
 .codicon-file-text:before { content: "\ea7b" }
+.codicon-toolbar-more:before,
+.codicon-menubar-more:before,
 .codicon-more:before { content: "\ea7c" }
 .codicon-ellipsis:before { content: "\ea7c" }
 .codicon-kebab-horizontal:before { content: "\ea7c" }
@@ -181,10 +184,15 @@
 .codicon-bug:before { content: "\eaaf" }
 .codicon-calendar:before { content: "\eab0" }
 .codicon-case-sensitive:before { content: "\eab1" }
+
+.codicon-menu-selection:before,
 .codicon-check:before { content: "\eab2" }
 .codicon-checklist:before { content: "\eab3" }
 .codicon-chevron-down:before { content: "\eab4" }
 .codicon-chevron-left:before { content: "\eab5" }
+
+.codicon-menu-submenu:before,
+.codicon-breadcrumb-separator:before,
 .codicon-chevron-right:before { content: "\eab6" }
 .codicon-chevron-up:before { content: "\eab7" }
 .codicon-chrome-close:before { content: "\eab8" }
@@ -370,9 +378,13 @@
 .codicon-thumbsdown:before { content: "\eb6b" }
 .codicon-thumbsup:before { content: "\eb6c" }
 .codicon-tools:before { content: "\eb6d" }
+.codicon-scrollbar-button-down:before,
 .codicon-triangle-down:before { content: "\eb6e" }
+.codicon-scrollbar-button-left:before,
 .codicon-triangle-left:before { content: "\eb6f" }
+.codicon-scrollbar-button-right:before,
 .codicon-triangle-right:before { content: "\eb70" }
+.codicon-scrollbar-button-up:before,
 .codicon-triangle-up:before { content: "\eb71" }
 .codicon-twitter:before { content: "\eb72" }
 .codicon-unfold:before { content: "\eb73" }
@@ -393,7 +405,10 @@
 .codicon-zoom-out:before { content: "\eb82" }
 .codicon-list-filter:before { content: "\eb83" }
 .codicon-list-flat:before { content: "\eb84" }
+.codicon-search-show-context:before,
 .codicon-list-selection:before { content: "\eb85" }
+
+.codicon-find-selection:before,
 .codicon-selection:before { content: "\eb85" }
 .codicon-list-tree:before { content: "\eb86" }
 .codicon-debug-breakpoint-function-unverified:before { content: "\eb87" }

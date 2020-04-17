@@ -37,6 +37,9 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
+
+export const findSelectionIcon = registerIcon('find-selection', Codicon.selection);
 
 export interface IFindController {
 	replace(): void;
@@ -1017,7 +1020,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new Checkbox({
-			actionClassName: 'codicon codicon-selection',
+			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false
 		}));
