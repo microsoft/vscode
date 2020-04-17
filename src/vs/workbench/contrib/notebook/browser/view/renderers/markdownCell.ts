@@ -131,7 +131,11 @@ export class StatefullMarkdownCell extends Disposable {
 						notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 					}));
 
-					this.localDisposables.add(viewCell.onDidChangeContent(() => {
+					this.localDisposables.add(viewCell.onDidChangeState((e) => {
+						if (!e.contentChanged) {
+							return;
+						}
+
 						this.markdownContainer.innerHTML = '';
 						let renderedHTML = viewCell.getHTML();
 						if (renderedHTML) {
@@ -162,7 +166,11 @@ export class StatefullMarkdownCell extends Disposable {
 		this.foldingState = viewCell.foldingState;
 		this.setFoldingIndicator();
 
-		this._register(viewCell.onDidChangeFoldingState(() => {
+		this._register(viewCell.onDidChangeState((e) => {
+			if (!e.foldingStateChanged) {
+				return;
+			}
+
 			const foldingState = viewCell.foldingState;
 
 			if (foldingState !== this.foldingState) {

@@ -35,9 +35,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this.model.outputs;
 	}
 
-	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-
 	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
@@ -191,7 +188,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
 				this.model.contentChange();
-				this._onDidChangeContent.fire();
+				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}
 

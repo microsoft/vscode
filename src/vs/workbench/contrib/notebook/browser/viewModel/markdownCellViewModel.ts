@@ -22,9 +22,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	cellKind: CellKind.Markdown = CellKind.Markdown;
 	private _mdRenderer: MarkdownRenderer | null = null;
 	private _html: HTMLElement | null = null;
-	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-
 	private _layoutInfo: MarkdownCellLayoutInfo;
 
 	get layoutInfo() {
@@ -41,9 +38,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	protected readonly _onDidChangeLayout = new Emitter<MarkdownCellLayoutChangeEvent>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
-
-	protected readonly _onDidChangeFoldingState = new Emitter<void>();
-	readonly onDidChangeFoldingState = this._onDidChangeFoldingState.event;
 
 	get foldingState() {
 		return this.foldingDelegate.getFoldingState(this);
@@ -74,7 +68,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		}));
 
 		this._register(foldingDelegate.onDidFoldingRegionChanged(() => {
-			this._onDidChangeFoldingState.fire();
+			this._onDidChangeState.fire({ foldingStateChanged: true });
 		}));
 	}
 
@@ -149,7 +143,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 			this._register(this._textModel.onDidChangeContent(() => {
 				this.model.contentChange();
 				this._html = null;
-				this._onDidChangeContent.fire();
+				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}
 		return this._textModel;
