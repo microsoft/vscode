@@ -120,7 +120,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
 
-	get sync(): 'on' | 'off' { return 'on'; }
+	get sync(): 'on' | 'off' | undefined { return undefined; }
 
 	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
