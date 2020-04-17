@@ -49,7 +49,16 @@
 		"inputValidation.errorBackground": "#5f0d0d",
 		"inputValidation.errorBorder": "#9d2f23",
 		"badge.background": "#7f5d38",
-		"progressBar.background": "#7f5d38"
+		"progressBar.background": "#7f5d38",
+		"debugView.valueChangedHighlight": "#7f5d38",
+		"debugView.stateLabelBackground": "#7f5d38",
+		"debugView.exceptionLabelBackground": "#5f0d0d",
+		"debugTokenExpression.name": "#DC3958",
+		"debugTokenExpression.value": "#A57A4C",
+		"debugTokenExpression.number": "#F79A32",
+		"debugTokenExpression.string": "#889B4A",
+		"debugTokenExpression.boolean": "#F79A32",
+		"debugTokenExpression.error": "#9d2f23"
 	},
 	"tokenColors": [
 		{
