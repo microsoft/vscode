@@ -62,7 +62,7 @@ export class ScrollbarArrow extends Widget {
 
 		this.domNode = document.createElement('div');
 		this.domNode.className = opts.className;
-		addClasses(this.domNode, opts.icon.className);
+		addClasses(this.domNode, opts.icon.classNames);
 
 		this.domNode.style.position = 'absolute';
 		this.domNode.style.width = ARROW_IMG_SIZE + 'px';

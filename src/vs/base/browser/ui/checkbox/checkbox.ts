@@ -99,7 +99,7 @@ export class Checkbox extends Widget {
 
 		const classes = ['monaco-custom-checkbox'];
 		if (this._opts.icon) {
-			classes.push(this._opts.icon.className);
+			classes.push(this._opts.icon.classNames);
 		} else {
 			classes.push('codicon'); // todo: remove once codicon fully adopted
 		}

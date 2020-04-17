@@ -39,7 +39,7 @@ export class Codicon {
 		}
 		createCSSRule(`.codicon-${id}:before`, `content: '${def.character}'`, getOrCreateStyleSheet());
 	}
-	public get className() { return 'codicon codicon-' + this.id; }
+	public get classNames() { return 'codicon codicon-' + this.id; }
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
 }
 
