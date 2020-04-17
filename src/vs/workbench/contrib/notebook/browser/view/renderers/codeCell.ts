@@ -442,7 +442,7 @@ export class CodeCell extends Disposable {
 		this._timer = setTimeout(() => {
 			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			this._timer = null;
-		}, 500);
+		}, 200);
 	}
 
 	dispose() {
