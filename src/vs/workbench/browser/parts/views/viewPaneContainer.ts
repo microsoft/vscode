@@ -904,9 +904,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getTitle(): string {
-		// use registered title if any of our panes are statically registered to this container
-		const allViewDescriptors = this.viewDescriptorService.getViewDescriptors(this.viewContainer).allViewDescriptors;
-		const containerTitle = this.paneItems.length === 0 || allViewDescriptors.length === 0 || allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id) === this.viewContainer) ? this.viewContainer.name : this.paneItems[0].pane.title;
+		const containerTitle = this.viewsDescriptors.getTitle();
 
 		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;

@@ -161,9 +161,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 				if (this.activity.iconUrl) {
 					// Apply background color to activity bar item provided with iconUrls
 					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+					this.label.style.color = '';
 				} else {
 					// Apply foreground color to activity bar items provided with codicons
 					this.label.style.color = foreground ? foreground.toString() : '';
+					this.label.style.backgroundColor = '';
 				}
 
 				const dragColor = colors.activeBackgroundColor || colors.activeForegroundColor;

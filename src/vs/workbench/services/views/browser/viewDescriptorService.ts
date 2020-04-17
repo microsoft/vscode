@@ -18,6 +18,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PersistentViewsModel, ViewDescriptorsModel } from 'vs/workbench/services/views/common/viewsModel';
+import { URI } from 'vs/base/common/uri';
 
 class ViewDescriptorCollection extends Disposable implements IViewDescriptorCollection {
 
@@ -25,7 +26,7 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 	private readonly viewsModel: PersistentViewsModel;
 
 	constructor(
-		container: ViewContainer,
+		private readonly container: ViewContainer,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -54,11 +55,30 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 	isCollapsed(id: string): boolean { return this.viewsModel.isCollapsed(id); }
 	setCollapsed(id: string, collapsed: boolean): void { return this.viewsModel.setCollapsed(id, collapsed); }
 
+	private shouldUseContainerInfo(): boolean {
+		if (this.allViewDescriptors.length === 0) {
+			return true;
+		}
+
+		if (this.visibleViewDescriptors.length === 0) {
+			return true;
+		}
+
+		return this.allViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.container);
+	}
+
+	getTitle(): string {
+		return this.shouldUseContainerInfo() ? this.container.name : this.visibleViewDescriptors[0].name;
+	}
+
+	getIcon(): URI | string | undefined {
+		return this.shouldUseContainerInfo() ? this.container.icon : this.visibleViewDescriptors[0]?.containerIcon || 'codicon-window';
+	}
+
 	getSize(id: string): number | undefined { return this.viewsModel.getSize(id); }
 	setSize(id: string, size: number): void { return this.viewsModel.setSize(id, size); }
 
 	move(from: string, to: string): void { return this.viewsModel.move(from, to); }
-
 }
 
 interface ICachedViewContainerInfo {

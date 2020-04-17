@@ -241,6 +241,9 @@ export interface IViewDescriptorCollection extends IDisposable {
 	getSize(id: string): number | undefined;
 	setSize(id: string, size: number): void
 
+	getTitle(): string;
+	getIcon(): URI | string | undefined;
+
 	move(from: string, to: string): void;
 }
 

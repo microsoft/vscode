@@ -492,7 +492,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			const viewContainer = this.getViewContainer(viewlet.id)!;
 			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
 			this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty);
-			this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty)));
+
+			const disposables = new DisposableStore();
+			disposables.add(viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty)));
+			disposables.add(viewDescriptors.onDidChangeViews(() => this.onDidUpdateViews(viewlet, viewDescriptors)));
+			disposables.add(viewDescriptors.onDidMove(() => this.onDidUpdateViews(viewlet, viewDescriptors)));
+
+			this.viewletDisposables.set(viewlet.id, disposables);
 		}
 	}
 
@@ -507,16 +513,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateActivity(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
-		const viewDescriptor = viewDescriptors.activeViewDescriptors[0];
-
-		// Use the viewlet icon if any view inside belongs to it statically
-		const shouldUseViewletIcon = viewDescriptors.allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id)?.id === viewlet.id);
+		const icon = viewDescriptors.getIcon();
 
 		const activity: IActivity = {
 			id: viewlet.id,
-			name: shouldUseViewletIcon ? viewlet.name : viewDescriptor.name,
-			cssClass: shouldUseViewletIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : (viewDescriptor.containerIcon === undefined ? 'codicon-window' : undefined)),
-			iconUrl: shouldUseViewletIcon ? viewlet.iconUrl : (viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined),
+			name: viewDescriptors.getTitle(),
+			cssClass: isString(icon) ? icon : undefined,
+			iconUrl: icon instanceof URI ? icon : undefined,
 			keybindingId: viewlet.keybindingId
 		};
 
@@ -526,6 +529,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
 			pinnedAction.setActivity(activity);
 		}
+	}
+
+	private onDidUpdateViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+		this.updateActivity(viewlet, viewDescriptors);
 	}
 
 	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection, hideIfEmpty?: boolean): void {

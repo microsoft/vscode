@@ -182,7 +182,20 @@ export class ViewsModel extends Disposable {
 	}
 
 	get visibleViewDescriptors(): IViewDescriptor[] {
-		return this.viewDescriptors.filter(v => this.isViewDescriptorVisible(v));
+		return this.viewDescriptors.filter(v => this.isViewDescriptorVisible(v)).sort((a, b) => {
+			const aIndex = this.viewStates.get(a.id)?.order;
+			const bIndex = this.viewStates.get(b.id)?.order;
+
+			if (aIndex === undefined) {
+				return 1;
+			}
+
+			if (bIndex === undefined) {
+				return -1;
+			}
+
+			return aIndex - bIndex;
+		});
 	}
 
 	private _onDidAdd = this._register(new Emitter<IAddedViewDescriptorRef[]>());
