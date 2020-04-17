@@ -10,18 +10,19 @@ import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { IWorkbenchThemeService, COLOR_THEME_SETTING, ICON_THEME_SETTING, IColorTheme, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { IWorkbenchThemeService, IWorkbenchTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { VIEWLET_ID, IExtensionsViewPaneContainer } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Color } from 'vs/base/common/color';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { colorThemeSchemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IQuickInputService, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { DEFAULT_PRODUCT_ICON_THEME_ID } from 'vs/workbench/services/themes/browser/productIconThemeData';
 
 export class SelectColorThemeAction extends Action {
 
@@ -34,8 +35,7 @@ export class SelectColorThemeAction extends Action {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IViewletService private readonly viewletService: IViewletService
 	) {
 		super(id, label);
 	}
@@ -60,13 +60,8 @@ export class SelectColorThemeAction extends Action {
 				selectThemeTimeout = window.setTimeout(() => {
 					selectThemeTimeout = undefined;
 					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-					let target: ConfigurationTarget | undefined = undefined;
-					if (applyTheme) {
-						const confValue = this.configurationService.inspect(COLOR_THEME_SETTING);
-						target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
-					}
 
-					this.themeService.setColorTheme(themeId, target).then(undefined,
+					this.themeService.setColorTheme(themeId, applyTheme ? 'auto' : undefined).then(undefined,
 						err => {
 							onUnexpectedError(err);
 							this.themeService.setColorTheme(currentTheme.id, undefined);
@@ -108,7 +103,83 @@ export class SelectColorThemeAction extends Action {
 	}
 }
 
-class SelectIconThemeAction extends Action {
+abstract class AbstractIconThemeAction extends Action {
+	constructor(
+		id: string,
+		label: string,
+		private readonly quickInputService: IQuickInputService,
+		private readonly extensionGalleryService: IExtensionGalleryService,
+		private readonly viewletService: IViewletService
+
+	) {
+		super(id, label);
+	}
+
+	protected abstract get builtInEntry(): QuickPickInput<ThemeItem>;
+	protected abstract get installMessage(): string | undefined;
+	protected abstract get placeholderMessage(): string;
+	protected abstract get marketplaceTag(): string;
+
+	protected abstract setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<any>;
+
+	protected pick(themes: IWorkbenchTheme[], currentTheme: IWorkbenchTheme) {
+		let picks: QuickPickInput<ThemeItem>[] = [this.builtInEntry];
+		picks = picks.concat(
+			toEntries(themes),
+			configurationEntries(this.extensionGalleryService, this.installMessage)
+		);
+
+		let selectThemeTimeout: number | undefined;
+
+		const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
+			if (selectThemeTimeout) {
+				clearTimeout(selectThemeTimeout);
+			}
+			selectThemeTimeout = window.setTimeout(() => {
+				selectThemeTimeout = undefined;
+				const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
+				this.setTheme(themeId, applyTheme ? 'auto' : undefined).then(undefined,
+					err => {
+						onUnexpectedError(err);
+						this.setTheme(currentTheme.id, undefined);
+					}
+				);
+			}, applyTheme ? 0 : 200);
+		};
+
+		return new Promise((s, _) => {
+			let isCompleted = false;
+
+			const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
+			const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
+			quickpick.items = picks;
+			quickpick.placeholder = this.placeholderMessage;
+			quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
+			quickpick.canSelectMany = false;
+			quickpick.onDidAccept(_ => {
+				const theme = quickpick.activeItems[0];
+				if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
+					openExtensionViewlet(this.viewletService, `${this.marketplaceTag} ${quickpick.value}`);
+				} else {
+					selectTheme(theme, true);
+				}
+				isCompleted = true;
+				quickpick.hide();
+				s();
+			});
+			quickpick.onDidChangeActive(themes => selectTheme(themes[0], false));
+			quickpick.onDidHide(() => {
+				if (!isCompleted) {
+					selectTheme(currentTheme, true);
+					s();
+				}
+			});
+			quickpick.show();
+		});
+	}
+}
+
+class SelectFileIconThemeAction extends AbstractIconThemeAction {
 
 	static readonly ID = 'workbench.action.selectIconTheme';
 	static readonly LABEL = localize('selectIconTheme.label', "File Icon Theme");
@@ -116,84 +187,61 @@ class SelectIconThemeAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IQuickInputService quickInputService: IQuickInputService,
 		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
-		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
+		@IViewletService viewletService: IViewletService
 
 	) {
-		super(id, label);
+		super(id, label, quickInputService, extensionGalleryService, viewletService);
 	}
 
-	run(): Promise<void> {
-		return this.themeService.getFileIconThemes().then(themes => {
-			const currentTheme = this.themeService.getFileIconTheme();
+	protected builtInEntry: QuickPickInput<ThemeItem> = { id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') };
+	protected installMessage = localize('installIconThemes', "Install Additional File Icon Themes...");
+	protected placeholderMessage = localize('themes.selectIconTheme', "Select File Icon Theme");
+	protected marketplaceTag = 'tag:icon-theme';
+	protected setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto') {
+		return this.themeService.setFileIconTheme(id, settingsTarget);
+	}
 
-			let picks: QuickPickInput<ThemeItem>[] = [{ id: '', label: localize('noIconThemeLabel', 'None'), description: localize('noIconThemeDesc', 'Disable file icons') }];
-			picks = picks.concat(
-				toEntries(themes),
-				configurationEntries(this.extensionGalleryService, localize('installIconThemes', "Install Additional File Icon Themes..."))
-			);
-
-			let selectThemeTimeout: number | undefined;
-
-			const selectTheme = (theme: ThemeItem, applyTheme: boolean) => {
-				if (selectThemeTimeout) {
-					clearTimeout(selectThemeTimeout);
-				}
-				selectThemeTimeout = window.setTimeout(() => {
-					selectThemeTimeout = undefined;
-					const themeId = theme && theme.id !== undefined ? theme.id : currentTheme.id;
-					let target: ConfigurationTarget | undefined = undefined;
-					if (applyTheme) {
-						const confValue = this.configurationService.inspect(ICON_THEME_SETTING);
-						target = typeof confValue.workspaceValue !== 'undefined' ? ConfigurationTarget.WORKSPACE : ConfigurationTarget.USER;
-					}
-					this.themeService.setFileIconTheme(themeId, target).then(undefined,
-						err => {
-							onUnexpectedError(err);
-							this.themeService.setFileIconTheme(currentTheme.id, undefined);
-						}
-					);
-				}, applyTheme ? 0 : 200);
-			};
-
-			return new Promise((s, _) => {
-				let isCompleted = false;
-
-				const autoFocusIndex = firstIndex(picks, p => isItem(p) && p.id === currentTheme.id);
-				const quickpick = this.quickInputService.createQuickPick<ThemeItem>();
-				quickpick.items = picks;
-				quickpick.placeholder = localize('themes.selectIconTheme', "Select File Icon Theme");
-				quickpick.activeItems = [picks[autoFocusIndex] as ThemeItem];
-				quickpick.canSelectMany = false;
-				quickpick.onDidAccept(_ => {
-					const theme = quickpick.activeItems[0];
-					if (!theme || typeof theme.id === 'undefined') { // 'pick in marketplace' entry
-						openExtensionViewlet(this.viewletService, `tag:icon-theme ${quickpick.value}`);
-					} else {
-						selectTheme(theme, true);
-					}
-					isCompleted = true;
-					quickpick.hide();
-					s();
-				});
-				quickpick.onDidChangeActive(themes => selectTheme(themes[0], false));
-				quickpick.onDidHide(() => {
-					if (!isCompleted) {
-						selectTheme(currentTheme, true);
-						s();
-					}
-				});
-				quickpick.show();
-			});
-		});
+	async run(): Promise<void> {
+		this.pick(await this.themeService.getFileIconThemes(), this.themeService.getFileIconTheme());
 	}
 }
 
-function configurationEntries(extensionGalleryService: IExtensionGalleryService, label: string): QuickPickInput<ThemeItem>[] {
-	if (extensionGalleryService.isEnabled()) {
+
+class SelectProductIconThemeAction extends AbstractIconThemeAction {
+
+	static readonly ID = 'workbench.action.selectProductIconTheme';
+	static readonly LABEL = localize('selectProductIconTheme.label', "Product Icon Theme");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService quickInputService: IQuickInputService,
+		@IWorkbenchThemeService private readonly themeService: IWorkbenchThemeService,
+		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
+		@IViewletService viewletService: IViewletService
+
+	) {
+		super(id, label, quickInputService, extensionGalleryService, viewletService);
+	}
+
+	protected builtInEntry: QuickPickInput<ThemeItem> = { id: DEFAULT_PRODUCT_ICON_THEME_ID, label: localize('defaultProductIconThemeLabel', 'Default') };
+	protected installMessage = undefined; //localize('installProductIconThemes', "Install Additional Product Icon Themes...");
+	protected placeholderMessage = localize('themes.selectProductIconTheme', "Select Product Icon Theme");
+	protected marketplaceTag = 'tag:product-icon-theme';
+	protected setTheme(id: string, settingsTarget: ConfigurationTarget | undefined | 'auto') {
+		return this.themeService.setProductIconTheme(id, settingsTarget);
+	}
+
+	async run(): Promise<void> {
+		this.pick(await this.themeService.getProductIconThemes(), this.themeService.getProductIconTheme());
+	}
+}
+
+function configurationEntries(extensionGalleryService: IExtensionGalleryService, label: string | undefined): QuickPickInput<ThemeItem>[] {
+	if (extensionGalleryService.isEnabled() && label !== undefined) {
 		return [
 			{
 				type: 'separator'
@@ -227,8 +275,8 @@ function isItem(i: QuickPickInput<ThemeItem>): i is ThemeItem {
 	return (<any>i)['type'] !== 'separator';
 }
 
-function toEntries(themes: Array<IColorTheme | IFileIconTheme>, label?: string): QuickPickInput<ThemeItem>[] {
-	const toEntry = (theme: IColorTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
+function toEntries(themes: Array<IWorkbenchTheme>, label?: string): QuickPickInput<ThemeItem>[] {
+	const toEntry = (theme: IWorkbenchTheme): ThemeItem => ({ id: theme.id, label: theme.label, description: theme.description });
 	const sorter = (t1: ThemeItem, t2: ThemeItem) => t1.label.localeCompare(t2.label);
 	let entries: QuickPickInput<ThemeItem>[] = themes.map(toEntry).sort(sorter);
 	if (entries.length > 0 && label) {
@@ -288,8 +336,11 @@ const category = localize('preferences', "Preferences");
 const colorThemeDescriptor = SyncActionDescriptor.create(SelectColorThemeAction, SelectColorThemeAction.ID, SelectColorThemeAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_T) });
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(colorThemeDescriptor, 'Preferences: Color Theme', category);
 
-const iconThemeDescriptor = SyncActionDescriptor.create(SelectIconThemeAction, SelectIconThemeAction.ID, SelectIconThemeAction.LABEL);
-Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(iconThemeDescriptor, 'Preferences: File Icon Theme', category);
+const fileIconThemeDescriptor = SyncActionDescriptor.create(SelectFileIconThemeAction, SelectFileIconThemeAction.ID, SelectFileIconThemeAction.LABEL);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(fileIconThemeDescriptor, 'Preferences: File Icon Theme', category);
+
+const productIconThemeDescriptor = SyncActionDescriptor.create(SelectProductIconThemeAction, SelectProductIconThemeAction.ID, SelectProductIconThemeAction.LABEL);
+Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions).registerWorkbenchAction(productIconThemeDescriptor, 'Preferences: Product Icon Theme', category);
 
 
 const developerCategory = localize('developer', "Developer");
@@ -309,7 +360,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	group: '4_themes',
 	command: {
-		id: SelectIconThemeAction.ID,
+		id: SelectFileIconThemeAction.ID,
 		title: localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
 	},
 	order: 2
@@ -327,7 +378,7 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	group: '4_themes',
 	command: {
-		id: SelectIconThemeAction.ID,
+		id: SelectFileIconThemeAction.ID,
 		title: localize('themes.selectIconTheme.label', "File Icon Theme")
 	},
 	order: 2

@@ -113,6 +113,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
 	included?: boolean;
 	tags?: string[];
+	disallowSyncIgnore?: boolean;
 }
 
 export interface IConfigurationExtensionInfo {

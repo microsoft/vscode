@@ -227,7 +227,7 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector, theme
 	 * nothing.
 	 */
 	function setBasicColor(styleCode: number): void {
-		const theme = themeService.getTheme();
+		const theme = themeService.getColorTheme();
 		let colorType: 'foreground' | 'background' | undefined;
 		let colorIndex: number | undefined;
 

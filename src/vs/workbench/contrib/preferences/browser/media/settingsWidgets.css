@@ -13,16 +13,16 @@
 }
 
 /* Deal with overflow */
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget .setting-list-value,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget .setting-list-sibling {
-	white-space: nowrap;
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
+	white-space: pre;
 	overflow: hidden;
 	text-overflow: ellipsis;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget .setting-list-value {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-value {
 	max-width: 90%;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-widget .setting-list-sibling {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
 	max-width: 10%;
 }
 

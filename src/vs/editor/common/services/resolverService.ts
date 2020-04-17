@@ -61,6 +61,11 @@ export interface ITextEditorModel extends IEditorModel {
 	 * Figure out if this model is resolved or not.
 	 */
 	isResolved(): this is IResolvedTextEditorModel;
+
+	/**
+	 * The mode id of the text model if known.
+	 */
+	getMode(): string | undefined;
 }
 
 export interface IResolvedTextEditorModel extends ITextEditorModel {

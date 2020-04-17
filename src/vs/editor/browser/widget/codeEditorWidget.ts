@@ -32,7 +32,7 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, ICursorStateComputer } from 'vs/editor/common/model';
+import { EndOfLinePreference, IIdentifiedSingleEditOperation, IModelDecoration, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, ICursorStateComputer, IWordAtPosition } from 'vs/editor/common/model';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent } from 'vs/editor/common/model/textModelEvents';
@@ -52,6 +52,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
+import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 
 let EDITOR_ID = 0;
 
@@ -376,6 +377,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._configuration.getRawOptions();
 	}
 
+	public getConfiguredWordAtPosition(position: Position): IWordAtPosition | null {
+		if (!this._modelData) {
+			return null;
+		}
+		return WordOperations.getWordAtPosition(this._modelData.model, this._configuration.options.get(EditorOption.wordSeparators), position);
+	}
+
 	public getValue(options: { preserveBOM: boolean; lineEnding: string; } | null = null): string {
 		if (!this._modelData) {
 			return '';
@@ -450,6 +458,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return [];
 		}
 		return this._modelData.viewModel.getVisibleRanges();
+	}
+
+	public getVisibleRangesPlusViewportAboveBelow(): Range[] {
+		if (!this._modelData) {
+			return [];
+		}
+		return this._modelData.viewModel.getVisibleRangesPlusViewportAboveBelow();
 	}
 
 	public getWhitespaces(): IEditorWhitespace[] {
@@ -542,7 +557,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const validatedModelRange = this._modelData.model.validateRange(modelRange);
 		const viewRange = this._modelData.viewModel.coordinatesConverter.convertModelRangeToViewRange(validatedModelRange);
 
-		this._modelData.cursor.emitCursorRevealRange('api', viewRange, verticalType, revealHorizontal, scrollType);
+		this._modelData.cursor.emitCursorRevealRange('api', viewRange, null, verticalType, revealHorizontal, scrollType);
 	}
 
 	public revealLine(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
@@ -555,6 +570,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public revealLineInCenterIfOutsideViewport(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
 		this._revealLine(lineNumber, VerticalRevealType.CenterIfOutsideViewport, scrollType);
+	}
+
+	public revealLineNearTop(lineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealLine(lineNumber, VerticalRevealType.NearTop, scrollType);
 	}
 
 	private _revealLine(lineNumber: number, revealType: VerticalRevealType, scrollType: editorCommon.ScrollType): void {
@@ -592,6 +611,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._revealPosition(
 			position,
 			VerticalRevealType.CenterIfOutsideViewport,
+			true,
+			scrollType
+		);
+	}
+
+	public revealPositionNearTop(position: IPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealPosition(
+			position,
+			VerticalRevealType.NearTop,
 			true,
 			scrollType
 		);
@@ -685,6 +713,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 	}
 
+	public revealLinesNearTop(startLineNumber: number, endLineNumber: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealLines(
+			startLineNumber,
+			endLineNumber,
+			VerticalRevealType.NearTop,
+			scrollType
+		);
+	}
+
 	private _revealLines(startLineNumber: number, endLineNumber: number, verticalType: VerticalRevealType, scrollType: editorCommon.ScrollType): void {
 		if (typeof startLineNumber !== 'number' || typeof endLineNumber !== 'number') {
 			throw new Error('Invalid arguments');
@@ -720,6 +757,24 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._revealRange(
 			range,
 			VerticalRevealType.CenterIfOutsideViewport,
+			true,
+			scrollType
+		);
+	}
+
+	public revealRangeNearTop(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealRange(
+			range,
+			VerticalRevealType.NearTop,
+			true,
+			scrollType
+		);
+	}
+
+	public revealRangeNearTopIfOutsideViewport(range: IRange, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Smooth): void {
+		this._revealRange(
+			range,
+			VerticalRevealType.NearTopIfOutsideViewport,
 			true,
 			scrollType
 		);
@@ -1503,11 +1558,18 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			};
 		}
 
+		const onDidChangeTextFocus = (textFocus: boolean) => {
+			if (this._modelData) {
+				this._modelData.cursor.setHasFocus(textFocus);
+			}
+			this._editorTextFocus.setValue(textFocus);
+		};
+
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
 		viewOutgoingEvents.onDidContentSizeChange = (e) => this._onDidContentSizeChange.fire(e);
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
-		viewOutgoingEvents.onDidGainFocus = () => this._editorTextFocus.setValue(true);
-		viewOutgoingEvents.onDidLoseFocus = () => this._editorTextFocus.setValue(false);
+		viewOutgoingEvents.onDidGainFocus = () => onDidChangeTextFocus(true);
+		viewOutgoingEvents.onDidLoseFocus = () => onDidChangeTextFocus(false);
 		viewOutgoingEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewOutgoingEvents.onMouseDown = (e) => this._onMouseDown.fire(e);
 		viewOutgoingEvents.onMouseUp = (e) => this._onMouseUp.fire(e);
@@ -1548,7 +1610,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._modelData = null;
 
 		this._domElement.removeAttribute('data-mode-id');
-		if (removeDomNode) {
+		if (removeDomNode && this._domElement.contains(removeDomNode)) {
 			this._domElement.removeChild(removeDomNode);
 		}
 
@@ -1619,6 +1681,7 @@ class EditorContextKeysManager extends Disposable {
 	private readonly _editorTextFocus: IContextKey<boolean>;
 	private readonly _editorTabMovesFocus: IContextKey<boolean>;
 	private readonly _editorReadonly: IContextKey<boolean>;
+	private readonly _editorColumnSelection: IContextKey<boolean>;
 	private readonly _hasMultipleSelections: IContextKey<boolean>;
 	private readonly _hasNonEmptySelection: IContextKey<boolean>;
 	private readonly _canUndo: IContextKey<boolean>;
@@ -1640,6 +1703,7 @@ class EditorContextKeysManager extends Disposable {
 		this._editorTextFocus = EditorContextKeys.editorTextFocus.bindTo(contextKeyService);
 		this._editorTabMovesFocus = EditorContextKeys.tabMovesFocus.bindTo(contextKeyService);
 		this._editorReadonly = EditorContextKeys.readOnly.bindTo(contextKeyService);
+		this._editorColumnSelection = EditorContextKeys.columnSelection.bindTo(contextKeyService);
 		this._hasMultipleSelections = EditorContextKeys.hasMultipleSelections.bindTo(contextKeyService);
 		this._hasNonEmptySelection = EditorContextKeys.hasNonEmptySelection.bindTo(contextKeyService);
 		this._canUndo = EditorContextKeys.canUndo.bindTo(contextKeyService);
@@ -1667,6 +1731,7 @@ class EditorContextKeysManager extends Disposable {
 
 		this._editorTabMovesFocus.set(options.get(EditorOption.tabFocusMode));
 		this._editorReadonly.set(options.get(EditorOption.readOnly));
+		this._editorColumnSelection.set(options.get(EditorOption.columnSelection));
 	}
 
 	private _updateFromSelection(): void {

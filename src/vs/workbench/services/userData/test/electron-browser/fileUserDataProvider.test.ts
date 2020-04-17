@@ -348,7 +348,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('file added change event', done => {
 		const expected = joinPath(userDataResource, 'settings.json');
 		const target = joinPath(localUserDataResource, 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.ADDED)) {
 				done();
 			}
@@ -362,7 +362,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('file updated change event', done => {
 		const expected = joinPath(userDataResource, 'settings.json');
 		const target = joinPath(localUserDataResource, 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.UPDATED)) {
 				done();
 			}
@@ -376,7 +376,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('file deleted change event', done => {
 		const expected = joinPath(userDataResource, 'settings.json');
 		const target = joinPath(localUserDataResource, 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.DELETED)) {
 				done();
 			}
@@ -390,7 +390,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('file under folder created change event', done => {
 		const expected = joinPath(userDataResource, 'snippets', 'settings.json');
 		const target = joinPath(localUserDataResource, 'snippets', 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.ADDED)) {
 				done();
 			}
@@ -404,7 +404,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('file under folder updated change event', done => {
 		const expected = joinPath(userDataResource, 'snippets', 'settings.json');
 		const target = joinPath(localUserDataResource, 'snippets', 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.UPDATED)) {
 				done();
 			}
@@ -418,7 +418,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('file under folder deleted change event', done => {
 		const expected = joinPath(userDataResource, 'snippets', 'settings.json');
 		const target = joinPath(localUserDataResource, 'snippets', 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.DELETED)) {
 				done();
 			}
@@ -432,7 +432,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('event is not triggered if file is not under user data', async () => {
 		const target = joinPath(dirname(localUserDataResource), 'settings.json');
 		let triggered = false;
-		testObject.onFileChanges(() => triggered = true);
+		testObject.onDidFilesChange(() => triggered = true);
 		fileEventEmitter.fire([{
 			resource: target,
 			type: FileChangeType.DELETED
@@ -446,7 +446,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('backup file created change event', done => {
 		const expected = joinPath(userDataResource, BACKUPS, 'settings.json');
 		const target = joinPath(localBackupsResource, 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.ADDED)) {
 				done();
 			}
@@ -460,7 +460,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('backup file update change event', done => {
 		const expected = joinPath(userDataResource, BACKUPS, 'settings.json');
 		const target = joinPath(localBackupsResource, 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.UPDATED)) {
 				done();
 			}
@@ -474,7 +474,7 @@ suite('FileUserDataProvider - Watching', () => {
 	test('backup file delete change event', done => {
 		const expected = joinPath(userDataResource, BACKUPS, 'settings.json');
 		const target = joinPath(localBackupsResource, 'settings.json');
-		testObject.onFileChanges(e => {
+		testObject.onDidFilesChange(e => {
 			if (e.contains(expected, FileChangeType.DELETED)) {
 				done();
 			}

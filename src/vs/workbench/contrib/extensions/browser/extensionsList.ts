@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/extension';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
-import { Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -13,9 +14,9 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { Event } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, MaliciousStatusLabelAction, ExtensionActionViewItem, StatusLabelAction, RemoteInstallAction, SystemDisabledWarningAction, ExtensionToolTipAction, LocalInstallAction, SyncIgnoredIconAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
+import { Label, RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, TooltipWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -56,17 +57,18 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) { }
 
 	get templateId() { return 'extension'; }
 
 	renderTemplate(root: HTMLElement): ITemplateData {
-		const recommendationWidget = this.instantiationService.createInstance(RecommendationWidget, root);
-		const element = append(root, $('.extension'));
+		const recommendationWidget = this.instantiationService.createInstance(RecommendationWidget, append(root, $('.extension-bookmark-container')));
+		const element = append(root, $('.extension-list-item'));
 		const iconContainer = append(element, $('.icon-container'));
 		const icon = append(iconContainer, $<HTMLImageElement>('img.icon'));
 		const iconRemoteBadgeWidget = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, false);
+		const extensionPackBadgeWidget = this.instantiationService.createInstance(ExtensionPackBadgeWidget, iconContainer);
 		const details = append(element, $('.details'));
 		const headerContainer = append(details, $('.header-container'));
 		const header = append(headerContainer, $('.header'));
@@ -80,7 +82,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const author = append(footer, $('.author.ellipsis'));
 		const actionbar = new ActionBar(footer, {
 			animated: false,
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 				if (action.id === ManageExtensionAction.ID) {
 					return (<ManageExtensionAction>action).createActionViewItem();
 				}
@@ -93,6 +95,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const actions = [
 			this.instantiationService.createInstance(StatusLabelAction),
+			this.instantiationService.createInstance(SyncIgnoredIconAction),
 			this.instantiationService.createInstance(UpdateAction),
 			reloadAction,
 			this.instantiationService.createInstance(InstallAction),
@@ -107,6 +110,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const widgets = [
 			recommendationWidget,
 			iconRemoteBadgeWidget,
+			extensionPackBadgeWidget,
 			headerRemoteBadgeWidget,
 			tooltipWidget,
 			this.instantiationService.createInstance(Label, version, (e: IExtension) => e.version),
@@ -197,6 +201,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				data.actionbar.viewItems.forEach(item => (<ExtensionActionViewItem>item).setFocus(false));
 			}
 		}, this, data.extensionDisposables);
+
 	}
 
 	disposeTemplate(data: ITemplateData): void {

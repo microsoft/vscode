@@ -23,14 +23,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService, IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { DefineKeybindingWidget, KeybindingsSearchWidget, KeybindingsSearchOptions } from 'vs/workbench/contrib/preferences/browser/keybindingWidgets';
 import {
-	IKeybindingsEditor, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
+	IKeybindingsEditorPane, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_COPY,
 	KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR,
 	KEYBINDINGS_EDITOR_COMMAND_RECORD_SEARCH_KEYS, KEYBINDINGS_EDITOR_COMMAND_SORTBY_PRECEDENCE, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, KEYBINDINGS_EDITOR_COMMAND_DEFINE_WHEN
 } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
@@ -46,6 +46,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = DOM.$;
 
@@ -55,7 +56,7 @@ interface ColumnItem {
 	width: number;
 }
 
-export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor {
+export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorPane {
 
 	static readonly ID: string = 'workbench.editor.keybindings';
 
@@ -373,7 +374,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 		const actionBar = this._register(new ActionBar(this.actionsContainer, {
 			animated: false,
-			actionViewItemProvider: (action: Action) => {
+			actionViewItemProvider: (action: IAction) => {
 				if (action.id === this.sortByPrecedenceAction.id) {
 					return new CheckboxActionViewItem(null, action);
 				}
@@ -458,12 +459,13 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 			ariaLabel: localize('keybindingsLabel', "Keybindings"),
 			setRowLineHeight: false,
 			horizontalScrolling: false,
+			accessibilityProvider: new AccessibilityProvider(),
 			overrideStyles: {
 				listBackground: editorBackground
 			}
-		}));
+		})) as WorkbenchList<IListEntry>;
 		this._register(this.keybindingsList.onContextMenu(e => this.onContextMenu(e)));
-		this._register(this.keybindingsList.onFocusChange(e => this.onFocusChange(e)));
+		this._register(this.keybindingsList.onDidChangeFocus(e => this.onFocusChange(e)));
 		this._register(this.keybindingsList.onDidFocus(() => {
 			DOM.addClass(this.keybindingsList.getHTMLElement(), 'focused');
 		}));
@@ -551,7 +553,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.unAssignedKeybindingItemToRevealAndFocus = null;
 				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
 					this.selectEntry(currentSelectedIndex, preserveFocus);
-				} else if (this.editorService.activeControl === this && !preserveFocus) {
+				} else if (this.editorService.activeEditorPane === this && !preserveFocus) {
 					this.focus();
 				}
 			}
@@ -826,7 +828,6 @@ class KeybindingItemRenderer implements IListRenderer<IKeybindingItemEntry, Keyb
 
 		this.keybindingsEditor.layoutColumns(elements);
 		this.keybindingsEditor.onLayout(() => this.keybindingsEditor.layoutColumns(elements));
-		parent.setAttribute('aria-labelledby', elements.map(e => e.getAttribute('id')).join(' '));
 
 		return {
 			parent,
@@ -854,7 +855,7 @@ abstract class Column extends Disposable {
 	abstract readonly element: HTMLElement;
 	abstract render(keybindingItemEntry: IKeybindingItemEntry): void;
 
-	constructor(protected keybindingsEditor: IKeybindingsEditor) {
+	constructor(protected keybindingsEditor: IKeybindingsEditorPane) {
 		super();
 	}
 
@@ -867,7 +868,7 @@ class ActionsColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 		@IKeybindingService private keybindingsService: IKeybindingService
 	) {
 		super(keybindingsEditor);
@@ -921,7 +922,7 @@ class CommandColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 	) {
 		super(keybindingsEditor);
 		this.element = this.commandColumn = DOM.append(parent, $('.column.command', { id: 'command_' + ++Column.COUNTER }));
@@ -933,7 +934,6 @@ class CommandColumn extends Column {
 		const commandIdMatched = !!(keybindingItem.commandLabel && keybindingItemEntry.commandIdMatches);
 		const commandDefaultLabelMatched = !!keybindingItemEntry.commandDefaultLabelMatches;
 		DOM.toggleClass(this.commandColumn, 'vertical-align-column', commandIdMatched || commandDefaultLabelMatched);
-		this.commandColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		let commandLabel: HighlightedLabel | undefined;
 		if (keybindingItem.commandLabel) {
 			commandLabel = new HighlightedLabel(this.commandColumn, false);
@@ -951,10 +951,6 @@ class CommandColumn extends Column {
 			commandLabel.element.title = keybindingItem.commandLabel ? localize('title', "{0} ({1})", keybindingItem.commandLabel, keybindingItem.command) : keybindingItem.command;
 		}
 	}
-
-	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return localize('commandAriaLabel', "Command is {0}.", keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command);
-	}
 }
 
 class KeybindingColumn extends Column {
@@ -964,7 +960,7 @@ class KeybindingColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 	) {
 		super(keybindingsEditor);
 
@@ -974,14 +970,9 @@ class KeybindingColumn extends Column {
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.keybindingLabel);
-		this.keybindingLabel.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		if (keybindingItemEntry.keybindingItem.keybinding) {
 			new KeybindingLabel(this.keybindingLabel, OS).set(keybindingItemEntry.keybindingItem.keybinding, keybindingItemEntry.keybindingMatches);
 		}
-	}
-
-	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return keybindingItemEntry.keybindingItem.keybinding ? localize('keybindingAriaLabel', "Keybinding is {0}.", keybindingItemEntry.keybindingItem.keybinding.getAriaLabel()) : localize('noKeybinding', "No Keybinding assigned.");
 	}
 }
 
@@ -992,7 +983,7 @@ class SourceColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 	) {
 		super(keybindingsEditor);
 		this.element = this.sourceColumn = DOM.append(parent, $('.column.source', { id: 'source_' + ++Column.COUNTER }));
@@ -1000,12 +991,7 @@ class SourceColumn extends Column {
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.sourceColumn);
-		this.sourceColumn.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		new HighlightedLabel(this.sourceColumn, false).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
-	}
-
-	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return localize('sourceAriaLabel', "Source is {0}.", keybindingItemEntry.keybindingItem.source);
 	}
 }
 
@@ -1024,7 +1010,7 @@ class WhenColumn extends Column {
 
 	constructor(
 		parent: HTMLElement,
-		keybindingsEditor: IKeybindingsEditor,
+		keybindingsEditor: IKeybindingsEditorPane,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
@@ -1096,7 +1082,6 @@ class WhenColumn extends Column {
 			}
 		}, this, this.renderDisposables);
 		this.whenInput.value = keybindingItemEntry.keybindingItem.when || '';
-		this.whenLabel.setAttribute('aria-label', this.getAriaLabel(keybindingItemEntry));
 		DOM.toggleClass(this.whenLabel, 'code', !!keybindingItemEntry.keybindingItem.when);
 		DOM.toggleClass(this.whenLabel, 'empty', !keybindingItemEntry.keybindingItem.when);
 		if (keybindingItemEntry.keybindingItem.when) {
@@ -1117,13 +1102,21 @@ class WhenColumn extends Column {
 			this.keybindingsEditor.selectKeybinding(keybindingItemEntry);
 		}, this, this.renderDisposables);
 	}
-
-	private getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		return keybindingItemEntry.keybindingItem.when ? localize('whenAriaLabel', "When is {0}.", keybindingItemEntry.keybindingItem.when) : localize('noWhen', "No when context.");
-	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingItemEntry> {
+
+	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
+		let ariaLabel = localize('commandAriaLabel', "Command is {0}.", keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command);
+		ariaLabel += keybindingItemEntry.keybindingItem.keybinding ? localize('keybindingAriaLabel', "Keybinding is {0}.", keybindingItemEntry.keybindingItem.keybinding.getAriaLabel()) : localize('noKeybinding', "No Keybinding assigned.");
+		ariaLabel += localize('sourceAriaLabel', "Source is {0}.", keybindingItemEntry.keybindingItem.source);
+		ariaLabel += keybindingItemEntry.keybindingItem.when ? localize('whenAriaLabel', "When is {0}.", keybindingItemEntry.keybindingItem.when) : localize('noWhen', "No when context.");
+		return ariaLabel;
+	}
+
+}
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const listHighlightForegroundColor = theme.getColor(listHighlightForeground);
 	if (listHighlightForegroundColor) {
 		collector.addRule(`.keybindings-editor > .keybindings-body > .keybindings-list-container .monaco-list-row > .column .highlight { color: ${listHighlightForegroundColor}; }`);

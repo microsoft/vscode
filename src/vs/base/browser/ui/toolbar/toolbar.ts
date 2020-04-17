@@ -86,7 +86,7 @@ export class ToolBar extends Disposable {
 		return this.actionBar.actionRunner;
 	}
 
-	set context(context: any) {
+	set context(context: unknown) {
 		this.actionBar.context = context;
 		if (this.toggleMenuActionViewItem.value) {
 			this.toggleMenuActionViewItem.value.setActionContext(context);
@@ -166,10 +166,8 @@ class ToggleMenuAction extends Action {
 		this.toggleDropdownMenu = toggleDropdownMenu;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.toggleDropdownMenu();
-
-		return Promise.resolve(true);
 	}
 
 	get menuActions(): ReadonlyArray<IAction> {

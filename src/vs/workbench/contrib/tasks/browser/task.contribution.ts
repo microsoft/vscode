@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 
-import { QuickOpenHandler } from 'vs/workbench/contrib/tasks/browser/taskQuickOpen';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -18,15 +17,11 @@ import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
-import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 
 import { TaskEvent, TaskEventKind, TaskGroup, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-
-import { QuickOpenActionContributor } from '../browser/quickOpen';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -39,6 +34,8 @@ import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/t
 import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -125,6 +122,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 		} else {
 			const itemProps: IStatusbarEntry = {
 				text: `$(tools) ${tasks.length}`,
+				ariaLabel: nls.localize('numberOfRunningTasks', "{0} running tasks", tasks.length),
 				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
 				command: 'workbench.action.tasks.showTasks',
 			};
@@ -260,22 +258,18 @@ KeybindingsRegistry.registerKeybindingRule({
 let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel({ id: AbstractTaskService.OutputChannelId, label: AbstractTaskService.OutputChannelLabel, log: false });
 
-// Register Quick Open
-const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
+
+// Register Quick Access
+const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
 const tasksPickerContextKey = 'inTasksPicker';
 
-quickOpenRegistry.registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		QuickOpenHandler,
-		QuickOpenHandler.ID,
-		'task ',
-		tasksPickerContextKey,
-		nls.localize('quickOpen.task', "Run Task")
-	)
-);
-
-const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: TasksQuickAccessProvider,
+	prefix: TasksQuickAccessProvider.PREFIX,
+	contextKey: tasksPickerContextKey,
+	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), needsEditor: false }]
+});
 
 // tasks.json validation
 let schema: IJSONSchema = {
@@ -346,7 +340,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'task.autoDetect': {
-			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions my provide settings to disabled auto detection."),
+			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions may also provide settings that disable auto detection."),
 			type: 'string',
 			enum: ['on', 'off'],
 			default: 'on'

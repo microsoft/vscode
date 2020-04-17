@@ -13,11 +13,12 @@ import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import * as minimist from 'vscode-minimist';
+import * as minimist from 'minimist';
 import * as path from 'vs/base/common/path';
 import { LocalSearchService } from 'vs/workbench/services/search/node/searchService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEnvironmentService, TestContextService, TestEditorService, TestEditorGroupsService, TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -35,6 +36,13 @@ import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 // declare var __dirname: string;
 
@@ -61,11 +69,17 @@ suite.skip('TextSearch performance (integration)', () => {
 		const configurationService = new TestConfigurationService();
 		const textResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 		const logService = new NullLogService();
+		const dialogService = new TestDialogService();
+		const notificationService = new TestNotificationService();
+		const undoRedoService = new UndoRedoService(dialogService, notificationService);
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],
 			[ITextResourcePropertiesService, textResourcePropertiesService],
-			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), logService)],
+			[IDialogService, dialogService],
+			[INotificationService, notificationService],
+			[IUndoRedoService, undoRedoService],
+			[IModelService, new ModelServiceImpl(configurationService, textResourcePropertiesService, new TestThemeService(), logService, undoRedoService, dialogService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],

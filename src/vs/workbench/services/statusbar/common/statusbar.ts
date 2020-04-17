@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
+import { Command } from 'vs/editor/common/modes';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -28,6 +29,11 @@ export interface IStatusbarEntry {
 	readonly text: string;
 
 	/**
+	 * Text to be read out by the screen reader.
+	 */
+	readonly ariaLabel: string;
+
+	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
 	readonly tooltip?: string;
@@ -45,12 +51,7 @@ export interface IStatusbarEntry {
 	/**
 	 * An optional id of a command that is known to the workbench to execute on click
 	 */
-	readonly command?: string;
-
-	/**
-	 * Optional arguments for the command.
-	 */
-	readonly arguments?: any[];
+	readonly command?: string | Command;
 
 	/**
 	 * Whether to show a beak above the status bar entry.

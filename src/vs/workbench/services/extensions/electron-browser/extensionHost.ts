@@ -42,6 +42,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { joinPath } from 'vs/base/common/resources';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOutputChannelRegistry, Extensions } from 'vs/workbench/services/output/common/output';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 
@@ -78,7 +79,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IElectronService private readonly _electronService: IElectronService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
@@ -416,7 +417,7 @@ export class ExtensionHostProcessWorker implements IExtensionHostStarter {
 						extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
 						extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 						globalStorageHome: URI.file(this._environmentService.globalStorageHome),
-						userHome: URI.file(this._environmentService.userHome),
+						userHome: this._environmentService.userHome,
 						webviewResourceRoot: this._environmentService.webviewResourceRoot,
 						webviewCspSource: this._environmentService.webviewCspSource,
 					},

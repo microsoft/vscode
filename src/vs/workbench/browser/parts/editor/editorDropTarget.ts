@@ -7,8 +7,8 @@ import 'vs/css!./media/editordroptarget';
 import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver, containsDragType } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
 import { IEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorIdentifier, EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
@@ -18,11 +18,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { find } from 'vs/base/common/arrays';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 interface IDropOperation {
 	splitDirection?: GroupDirection;
@@ -48,8 +48,8 @@ class DropOverlay extends Themable {
 		private groupView: IEditorGroupView,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
-		@IFileDialogService private readonly fileDialogService: IFileDialogService
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(themeService);
 
@@ -308,8 +308,11 @@ class DropOverlay extends Themable {
 								}
 
 								// Open as untitled file with the provided contents
-								const contents = VSBuffer.wrap(new Uint8Array(event.target.result)).toString();
-								const untitledEditor = this.textFileService.untitled.create({ associatedResource: proposedFilePath, initialValue: contents });
+								const untitledEditor = this.editorService.createEditorInput({
+									resource: proposedFilePath,
+									forceUntitled: true,
+									contents: VSBuffer.wrap(new Uint8Array(event.target.result)).toString()
+								});
 
 								if (!targetGroup) {
 									targetGroup = ensureTargetGroup();

@@ -64,7 +64,16 @@
 	margin-top: 10px;
 }
 
+.settings-editor > .settings-header > .settings-header-controls .settings-target-container {
+	flex: auto;
+}
+
 .settings-editor > .settings-header > .settings-header-controls .settings-tabs-widget .action-label {
+	opacity: 0.9;
+}
+
+.settings-editor > .settings-header > .settings-header-controls .last-synced-label {
+	padding-top: 7px;
 	opacity: 0.9;
 }
 
@@ -314,8 +323,19 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides {
-	opacity: 0.5;
+	opacity: 0.9;
 	font-style: italic;
+	margin-right: 4px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored {
+	opacity: 0.9;
+	font-style: italic;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-ignored .codicon {
+	vertical-align: text-top;
+	padding-left: 1px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope {

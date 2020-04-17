@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, Task2 } from 'vscode';
 
-suite('workspace-namespace', () => {
+suite('vscode API - tasks', () => {
 
 	suite('Tasks', () => {
 		let disposables: Disposable[] = [];

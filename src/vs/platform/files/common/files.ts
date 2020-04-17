@@ -63,12 +63,12 @@ export interface IFileService {
 	 * Allows to listen for file changes. The event will fire for every file within the opened workspace
 	 * (if any) as well as all files that have been watched explicitly using the #watch() API.
 	 */
-	readonly onFileChanges: Event<FileChangesEvent>;
+	readonly onDidFilesChange: Event<FileChangesEvent>;
 
 	/**
 	 * An event that is fired upon successful completion of a certain file operation.
 	 */
-	readonly onAfterOperation: Event<FileOperationEvent>;
+	readonly onDidRunOperation: Event<FileOperationEvent>;
 
 	/**
 	 * Resolve the properties of a file/folder identified by the resource.
@@ -395,6 +395,8 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_NOT_FOUND;
 		case FileSystemProviderErrorCode.FileIsADirectory:
 			return FileOperationResult.FILE_IS_DIRECTORY;
+		case FileSystemProviderErrorCode.FileNotADirectory:
+			return FileOperationResult.FILE_NOT_DIRECTORY;
 		case FileSystemProviderErrorCode.NoPermissions:
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
@@ -471,15 +473,7 @@ export interface IFileChange {
 
 export class FileChangesEvent {
 
-	private readonly _changes: readonly IFileChange[];
-
-	constructor(changes: readonly IFileChange[]) {
-		this._changes = changes;
-	}
-
-	get changes() {
-		return this._changes;
-	}
+	constructor(public readonly changes: readonly IFileChange[]) { }
 
 	/**
 	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
@@ -493,7 +487,7 @@ export class FileChangesEvent {
 
 		const checkForChangeType = !isUndefinedOrNull(type);
 
-		return this._changes.some(change => {
+		return this.changes.some(change => {
 			if (checkForChangeType && change.type !== type) {
 				return false;
 			}
@@ -550,11 +544,11 @@ export class FileChangesEvent {
 	}
 
 	private getOfType(type: FileChangeType): IFileChange[] {
-		return this._changes.filter(change => change.type === type);
+		return this.changes.filter(change => change.type === type);
 	}
 
 	private hasType(type: FileChangeType): boolean {
-		return this._changes.some(change => {
+		return this.changes.some(change => {
 			return change.type === type;
 		});
 	}
@@ -771,6 +765,7 @@ export const enum FileOperationResult {
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
 	FILE_EXCEEDS_MEMORY_LIMIT,
+	FILE_NOT_DIRECTORY,
 	FILE_OTHER_ERROR
 }
 

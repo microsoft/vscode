@@ -70,7 +70,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleMultiCursorModifierAction, ToggleMultiCursorModifierAction.ID, ToggleMultiCursorModifierAction.LABEL), 'Toggle Multi-Cursor Modifier');
 MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
-	group: '3_multi',
+	group: '4_config',
 	command: {
 		id: ToggleMultiCursorModifierAction.ID,
 		title: nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor")
@@ -79,7 +79,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
 	order: 1
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarSelectionMenu, {
-	group: '3_multi',
+	group: '4_config',
 	command: {
 		id: ToggleMultiCursorModifierAction.ID,
 		title: (

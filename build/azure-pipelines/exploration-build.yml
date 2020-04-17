@@ -27,10 +27,10 @@ steps:
     git config user.email "vscode@microsoft.com"
     git config user.name "VSCode"
 
-    git checkout origin/electron-6.0.x
+    git checkout origin/electron-8.0.x
     git merge origin/master
 
     # Push master branch into exploration branch
-    git push origin HEAD:electron-6.0.x
+    git push origin HEAD:electron-8.0.x
 
   displayName: Sync & Merge Exploration

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { codiconStartMarker } from 'vs/base/common/codicon';
+
 const escapeCodiconsRegex = /(\\)?\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)/gi;
 export function escapeCodicons(text: string): string {
 	return text.replace(escapeCodiconsRegex, (match, escaped) => escaped ? match : `\\${match}`);
@@ -26,4 +28,13 @@ export function renderCodicons(text: string): string {
 			? `$(${codicon})`
 			: `<span class="codicon codicon-${name}${animation ? ` codicon-animation-${animation}` : ''}"></span>`;
 	});
+}
+
+const stripCodiconsRegex = /(\s)?(\\)?\$\([a-z0-9\-]+?(?:~[a-z0-9\-]*?)?\)(\s)?/gi;
+export function stripCodicons(text: string): string {
+	if (text.indexOf(codiconStartMarker) === -1) {
+		return text;
+	}
+
+	return text.replace(stripCodiconsRegex, (match, preWhitespace, escaped, postWhitespace) => escaped ? match : preWhitespace || postWhitespace || '');
 }

@@ -5,9 +5,9 @@
 
 import severity from 'vs/base/common/severity';
 import * as dom from 'vs/base/browser/dom';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
-import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult } from 'vs/workbench/contrib/debug/common/replModel';
+import { SimpleReplElement, RawObjectReplElement, ReplEvaluationInput, ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -27,6 +27,10 @@ import { localize } from 'vs/nls';
 const $ = dom.$;
 
 interface IReplEvaluationInputTemplateData {
+	label: HighlightedLabel;
+}
+
+interface IReplGroupTemplateData {
 	label: HighlightedLabel;
 }
 
@@ -76,6 +80,29 @@ export class ReplEvaluationInputsRenderer implements ITreeRenderer<ReplEvaluatio
 	}
 }
 
+export class ReplGroupRenderer implements ITreeRenderer<ReplGroup, FuzzyScore, IReplGroupTemplateData> {
+	static readonly ID = 'replGroup';
+
+	get templateId(): string {
+		return ReplGroupRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IReplEvaluationInputTemplateData {
+		const input = dom.append(container, $('.expression'));
+		const label = new HighlightedLabel(input, false);
+		return { label };
+	}
+
+	renderElement(element: ITreeNode<ReplGroup, FuzzyScore>, _index: number, templateData: IReplGroupTemplateData): void {
+		const replGroup = element.element;
+		templateData.label.set(replGroup.name, createMatches(element.filterData));
+	}
+
+	disposeTemplate(_templateData: IReplEvaluationInputTemplateData): void {
+		// noop
+	}
+}
+
 export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluationResult, FuzzyScore, IReplEvaluationResultTemplateData> {
 	static readonly ID = 'replEvaluationResult';
 
@@ -96,7 +123,6 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 	renderElement(element: ITreeNode<ReplEvaluationResult, FuzzyScore>, index: number, templateData: IReplEvaluationResultTemplateData): void {
 		const expression = element.element;
 		renderExpressionValue(expression, templateData.value, {
-			preserveWhitespace: !expression.hasChildren,
 			showHover: false,
 			colorize: true,
 			linkDetector: this.linkDetector
@@ -230,7 +256,6 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		// value
 		renderExpressionValue(element.value, templateData.value, {
-			preserveWhitespace: true,
 			showHover: false,
 			linkDetector: this.linkDetector
 		});
@@ -298,6 +323,9 @@ export class ReplDelegate extends CachedListVirtualDelegate<IReplElement> {
 			// Variable with no name is a top level variable which should be rendered like a repl element #17404
 			return ReplSimpleElementsRenderer.ID;
 		}
+		if (element instanceof ReplGroup) {
+			return ReplGroupRenderer.ID;
+		}
 
 		return ReplRawObjectsRenderer.ID;
 	}
@@ -319,7 +347,7 @@ export class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElem
 			return true;
 		}
 
-		return !!(<IExpressionContainer>element).hasChildren;
+		return !!(<IExpressionContainer | ReplGroup>element).hasChildren;
 	}
 
 	getChildren(element: IReplElement | IDebugSession): Promise<IReplElement[]> {
@@ -329,12 +357,15 @@ export class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElem
 		if (element instanceof RawObjectReplElement) {
 			return element.getChildren();
 		}
+		if (element instanceof ReplGroup) {
+			return Promise.resolve(element.getChildren());
+		}
 
 		return (<IExpression>element).getChildren();
 	}
 }
 
-export class ReplAccessibilityProvider implements IAccessibilityProvider<IReplElement> {
+export class ReplAccessibilityProvider implements IListAccessibilityProvider<IReplElement> {
 	getAriaLabel(element: IReplElement): string {
 		if (element instanceof Variable) {
 			return localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", element.name, element.value);
@@ -344,6 +375,9 @@ export class ReplAccessibilityProvider implements IAccessibilityProvider<IReplEl
 		}
 		if (element instanceof RawObjectReplElement) {
 			return localize('replRawObjectAriaLabel', "Repl variable {0} has value {1}, read eval print loop, debug", element.name, element.value);
+		}
+		if (element instanceof ReplGroup) {
+			return localize('replGroup', "Repl group {0}, read eval print loop, debug", element.name);
 		}
 
 		return '';

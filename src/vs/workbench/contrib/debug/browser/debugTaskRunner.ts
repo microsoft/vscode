@@ -8,7 +8,6 @@ import severity from 'vs/base/common/severity';
 import { Event } from 'vs/base/common/event';
 import Constants from 'vs/workbench/contrib/markers/browser/constants';
 import { ITaskService, ITaskSummary } from 'vs/workbench/contrib/tasks/common/taskService';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -18,6 +17,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { createErrorWithActions } from 'vs/base/common/errorsWithActions';
+import { IViewsService } from 'vs/workbench/common/views';
 
 function once(match: (e: TaskEvent) => boolean, event: Event<TaskEvent>): Event<TaskEvent> {
 	return (listener, thisArgs = null, disposables?) => {
@@ -44,7 +44,7 @@ export class DebugTaskRunner {
 		@ITaskService private readonly taskService: ITaskService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IPanelService private readonly panelService: IPanelService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@IDialogService private readonly dialogService: IDialogService,
 	) { }
 
@@ -56,7 +56,8 @@ export class DebugTaskRunner {
 		try {
 			this.canceled = false;
 			const taskSummary = await this.runTask(root, taskId);
-			if (this.canceled) {
+			if (this.canceled || (taskSummary && taskSummary.exitCode === undefined)) {
+				// User canceled, either debugging, or the prelaunch task
 				return TaskRunResult.Failure;
 			}
 
@@ -68,7 +69,10 @@ export class DebugTaskRunner {
 				return TaskRunResult.Success;
 			}
 			if (onTaskErrors === 'showErrors') {
-				this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+				await this.viewsService.openView(Constants.MARKERS_VIEW_ID);
+				return Promise.resolve(TaskRunResult.Failure);
+			}
+			if (onTaskErrors === 'abort') {
 				return Promise.resolve(TaskRunResult.Failure);
 			}
 
@@ -77,27 +81,32 @@ export class DebugTaskRunner {
 				? nls.localize('preLaunchTaskErrors', "Errors exist after running preLaunchTask '{0}'.", taskLabel)
 				: errorCount === 1
 					? nls.localize('preLaunchTaskError', "Error exists after running preLaunchTask '{0}'.", taskLabel)
-					: nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary ? taskSummary.exitCode : 0);
+					: taskSummary && typeof taskSummary.exitCode === 'number'
+						? nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", taskLabel, taskSummary.exitCode)
+						: nls.localize('preLaunchTaskTerminated', "The preLaunchTask '{0}' terminated.", taskLabel);
 
-			const result = await this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('cancel', "Cancel")], {
+			const result = await this.dialogService.show(severity.Warning, message, [nls.localize('debugAnyway', "Debug Anyway"), nls.localize('showErrors', "Show Errors"), nls.localize('abort', "Abort")], {
 				checkbox: {
 					label: nls.localize('remember', "Remember my choice in user settings"),
 				},
 				cancelId: 2
 			});
 
-			if (result.choice === 2) {
-				return Promise.resolve(TaskRunResult.Failure);
-			}
+
 			const debugAnyway = result.choice === 0;
+			const abort = result.choice === 2;
 			if (result.checkboxChecked) {
-				this.configurationService.updateValue('debug.onTaskErrors', debugAnyway ? 'debugAnyway' : 'showErrors');
+				this.configurationService.updateValue('debug.onTaskErrors', result.choice === 0 ? 'debugAnyway' : abort ? 'abort' : 'showErrors');
+			}
+
+			if (abort) {
+				return Promise.resolve(TaskRunResult.Failure);
 			}
 			if (debugAnyway) {
 				return TaskRunResult.Success;
 			}
 
-			this.panelService.openPanel(Constants.MARKERS_PANEL_ID);
+			await this.viewsService.openView(Constants.MARKERS_VIEW_ID);
 			return Promise.resolve(TaskRunResult.Failure);
 		} catch (err) {
 			await onError(err.message, [this.taskService.configureAction()]);

@@ -34,7 +34,7 @@ export class ColorPickerHeader extends Disposable {
 		const colorBox = dom.append(this.domNode, $('.original-color'));
 		colorBox.style.backgroundColor = Color.Format.CSS.format(this.model.originalColor) || '';
 
-		this.backgroundColor = themeService.getTheme().getColor(editorHoverBackground) || Color.white;
+		this.backgroundColor = themeService.getColorTheme().getColor(editorHoverBackground) || Color.white;
 		this._register(registerThemingParticipant((theme, collector) => {
 			this.backgroundColor = theme.getColor(editorHoverBackground) || Color.white;
 		}));

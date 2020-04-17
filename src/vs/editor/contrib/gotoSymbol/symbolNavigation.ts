@@ -19,6 +19,7 @@ import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isEqual } from 'vs/base/common/resources';
+import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 
 export const ctxHasSymbols = new RawContextKey('hasSymbols', false);
 
@@ -127,7 +128,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 			resource: reference.uri,
 			options: {
 				selection: Range.collapseToStart(reference.range),
-				revealInCenterIfOutsideViewport: true
+				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport
 			}
 		}, source).finally(() => {
 			this._ignoreEditorChange = false;

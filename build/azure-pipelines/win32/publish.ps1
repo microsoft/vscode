@@ -11,13 +11,12 @@ $SystemExe = "$Repo\.build\win32-$Arch\system-setup\VSCodeSetup.exe"
 $UserExe = "$Repo\.build\win32-$Arch\user-setup\VSCodeSetup.exe"
 $Zip = "$Repo\.build\win32-$Arch\archive\VSCode-win32-$Arch.zip"
 $LegacyServer = "$Root\vscode-reh-win32-$Arch"
-$ServerName = "vscode-server-win32-$Arch"
-$Server = "$Root\$ServerName"
+$Server = "$Root\vscode-server-win32-$Arch"
 $ServerZip = "$Repo\.build\vscode-server-win32-$Arch.zip"
 $Build = "$Root\VSCode-win32-$Arch"
 
 # Create server archive
-exec { Rename-Item -Path $LegacyServer -NewName $ServerName }
+exec { xcopy $LegacyServer $Server /H /E /I }
 exec { .\node_modules\7zip\7zip-lite\7z.exe a -tzip $ServerZip $Server -r }
 
 # get version
@@ -31,6 +30,8 @@ exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup "
 exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup "VSCodeUserSetup-$Arch-$Version.exe" $UserExe }
 exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform" archive "vscode-server-win32-$Arch.zip" $ServerZip }
 
+# Skip hockey app because build failure.
+# https://github.com/microsoft/vscode/issues/90491
 # publish hockeyapp symbols
-$hockeyAppId = if ("$Arch" -eq "ia32") { "$env:VSCODE_HOCKEYAPP_ID_WIN32" } else { "$env:VSCODE_HOCKEYAPP_ID_WIN64" }
-exec { node build/azure-pipelines/common/symbols.js "$env:VSCODE_MIXIN_PASSWORD" "$env:VSCODE_HOCKEYAPP_TOKEN" "$Arch" $hockeyAppId }
+# $hockeyAppId = if ("$Arch" -eq "ia32") { "$env:VSCODE_HOCKEYAPP_ID_WIN32" } else { "$env:VSCODE_HOCKEYAPP_ID_WIN64" }
+# exec { node build/azure-pipelines/common/symbols.js "$env:VSCODE_MIXIN_PASSWORD" "$env:VSCODE_HOCKEYAPP_TOKEN" "$Arch" $hockeyAppId }

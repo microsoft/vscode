@@ -13,9 +13,9 @@ import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
-import { ITheme } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { EditorTheme } from 'vs/editor/common/view/viewContext';
 
 export class OutputPosition {
 	outputLineIndex: number;
@@ -131,7 +131,7 @@ export interface IViewModelLinesCollection extends IDisposable {
 	getViewLineData(viewLineNumber: number): ViewLineData;
 	getViewLinesData(viewStartLineNumber: number, viewEndLineNumber: number, needed: boolean[]): Array<ViewLineData | null>;
 
-	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations;
+	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations;
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[];
 }
 
@@ -940,7 +940,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		return this.lines[lineIndex].getViewLineNumberOfModelPosition(deltaLineNumber, this.model.getLineMaxColumn(lineIndex + 1));
 	}
 
-	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
+	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
 		for (const decoration of decorations) {
@@ -1561,7 +1561,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		return result;
 	}
 
-	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: ITheme): IOverviewRulerDecorations {
+	public getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations {
 		const decorations = this.model.getOverviewRulerDecorations(ownerId, filterOutValidation);
 		const result = new OverviewRulerDecorations();
 		for (const decoration of decorations) {

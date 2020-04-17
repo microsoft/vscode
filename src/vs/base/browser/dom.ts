@@ -8,7 +8,6 @@ import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -49,117 +48,7 @@ interface IDomClassList {
 	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
-const _manualClassList = new class implements IDomClassList {
-
-	private _lastStart: number = -1;
-	private _lastEnd: number = -1;
-
-	private _findClassName(node: HTMLElement, className: string): void {
-
-		let classes = node.className;
-		if (!classes) {
-			this._lastStart = -1;
-			return;
-		}
-
-		className = className.trim();
-
-		let classesLen = classes.length,
-			classLen = className.length;
-
-		if (classLen === 0) {
-			this._lastStart = -1;
-			return;
-		}
-
-		if (classesLen < classLen) {
-			this._lastStart = -1;
-			return;
-		}
-
-		if (classes === className) {
-			this._lastStart = 0;
-			this._lastEnd = classesLen;
-			return;
-		}
-
-		let idx = -1,
-			idxEnd: number;
-
-		while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
-
-			idxEnd = idx + classLen;
-
-			// a class that is followed by another class
-			if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
-				this._lastStart = idx;
-				this._lastEnd = idxEnd + 1;
-				return;
-			}
-
-			// last class
-			if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
-				this._lastStart = idx - 1;
-				this._lastEnd = idxEnd;
-				return;
-			}
-
-			// equal - duplicate of cmp above
-			if (idx === 0 && idxEnd === classesLen) {
-				this._lastStart = 0;
-				this._lastEnd = idxEnd;
-				return;
-			}
-		}
-
-		this._lastStart = -1;
-	}
-
-	hasClass(node: HTMLElement, className: string): boolean {
-		this._findClassName(node, className);
-		return this._lastStart !== -1;
-	}
-
-	addClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
-	}
-
-	addClass(node: HTMLElement, className: string): void {
-		if (!node.className) { // doesn't have it for sure
-			node.className = className;
-		} else {
-			this._findClassName(node, className); // see if it's already there
-			if (this._lastStart === -1) {
-				node.className = node.className + ' ' + className;
-			}
-		}
-	}
-
-	removeClass(node: HTMLElement, className: string): void {
-		this._findClassName(node, className);
-		if (this._lastStart === -1) {
-			return; // Prevent styles invalidation if not necessary
-		} else {
-			node.className = node.className.substring(0, this._lastStart) + node.className.substring(this._lastEnd);
-		}
-	}
-
-	removeClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
-	}
-
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-		this._findClassName(node, className);
-		if (this._lastStart !== -1 && (shouldHaveIt === undefined || !shouldHaveIt)) {
-			this.removeClass(node, className);
-		}
-		if (this._lastStart === -1 && (shouldHaveIt === undefined || shouldHaveIt)) {
-			this.addClass(node, className);
-		}
-	}
-};
-
-const _nativeClassList = new class implements IDomClassList {
+const _classList: IDomClassList = new class implements IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean {
 		return Boolean(className) && node.classList && node.classList.contains(className);
 	}
@@ -191,9 +80,6 @@ const _nativeClassList = new class implements IDomClassList {
 	}
 };
 
-// In IE11 there is only partial support for `classList` which makes us keep our
-// custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
-const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
 export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
 export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
 export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
@@ -273,6 +159,11 @@ export let addStandardDisposableGenericMouseDownListner = function addStandardDi
 	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
+};
 export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
 }
@@ -606,7 +497,12 @@ class SizeUtils {
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
 
-export class Dimension {
+export interface IDimension {
+	readonly width: number;
+	readonly height: number;
+}
+
+export class Dimension implements IDimension {
 
 	constructor(
 		public readonly width: number,
@@ -926,6 +822,7 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
+	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',

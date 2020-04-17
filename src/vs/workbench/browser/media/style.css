@@ -23,9 +23,9 @@
 .linux:lang(ja) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif; }
 .linux:lang(ko) { font-family: "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif; }
 
-.mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Inconsolata, "Courier New", monospace; }
-.windows { --monaco-monospace-font: Consolas, Inconsolata, "Courier New", monospace; }
-.linux { --monaco-monospace-font: "Droid Sans Mono", Inconsolata, "Courier New", monospace, "Droid Sans Fallback"; }
+.mac { --monaco-monospace-font: "SF Mono", Monaco, Menlo, Courier, monospace; }
+.windows { --monaco-monospace-font: Consolas, "Courier New", monospace; }
+.linux { --monaco-monospace-font: "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace; }
 
 /* Global Styles */
 
@@ -223,9 +223,7 @@ body.web {
 .monaco-workbench [tabindex="-1"]:active,
 .monaco-workbench select:active,
 .monaco-workbench input[type="button"]:active,
-.monaco-workbench input[type="checkbox"]:active,
-.monaco-workbench .monaco-tree .monaco-tree-row
-.monaco-workbench .monaco-tree.focused.no-focused-item:active:before {
+.monaco-workbench input[type="checkbox"]:active {
 	outline: 0 !important; /* fixes some flashing outlines from showing up when clicking */
 }
 
@@ -233,12 +231,6 @@ body.web {
 	border-color: transparent; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
 }
 
-.monaco-workbench .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
-	outline-width: 1px; /* higher contrast color for focusable elements in a row that shows focus feedback */
-	outline-style: solid;
-}
-
-.monaco-workbench .monaco-tree.focused.no-focused-item:focus:before,
 .monaco-workbench .monaco-list:not(.element-focused):focus:before {
 	position: absolute;
 	top: 0;
@@ -267,7 +259,6 @@ body.web {
 	outline: 0 !important; /* outline is not going well with decoration */
 }
 
-.monaco-workbench .monaco-tree.focused:focus,
 .monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }

@@ -81,7 +81,7 @@ export class CommandService extends Disposable implements ICommandService {
 		}
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id, args });
-			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]);
+			const result = this._instantiationService.invokeFunction(command.handler, ...args);
 			this._onDidExecuteCommand.fire({ commandId: id, args });
 			return Promise.resolve(result);
 		} catch (err) {

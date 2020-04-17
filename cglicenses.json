@@ -81,5 +81,93 @@
 		"prependLicenseText": [
 			"Copyright (c) Microsoft Corporation. All rights reserved."
 		]
+	},
+	{
+		// Reason: The license at https://github.com/rbuckton/reflect-metadata/blob/master/LICENSE
+		// does not include a clear Copyright statement (it's in https://github.com/rbuckton/reflect-metadata/blob/master/CopyrightNotice.txt).
+		"name": "reflect-metadata",
+		"prependLicenseText": [
+			"Copyright (c) Microsoft Corporation. All rights reserved."
+		]
+	},
+	{
+		// Reason: The license at https://github.com/reem/rust-unreachable/blob/master/LICENSE-MIT
+		// cannot be found by the OSS tool automatically.
+		"name": "reem/rust-unreachable",
+		"fullLicenseText": [
+			"Copyright (c) 2015 The rust-unreachable Developers",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE."
+		]
+	},
+	{
+		// Reason: The license at https://github.com/reem/rust-void/blob/master/LICENSE-MIT
+		// cannot be found by the OSS tool automatically.
+		"name": "reem/rust-void",
+		"fullLicenseText": [
+			"Copyright (c) 2015 The rust-void Developers",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE."
+		]
+	},
+	{
+		// Reason: The license at https://github.com/mrhooray/crc-rs/blob/master/LICENSE-MIT
+		// cannot be found by the OSS tool automatically.
+		"name": "mrhooray/crc-rs",
+		"fullLicenseText": [
+			"MIT License",
+			"",
+			"Copyright (c) 2017 crc-rs Developers",
+			"",
+			"Permission is hereby granted, free of charge, to any person obtaining a copy",
+			"of this software and associated documentation files (the \"Software\"), to deal",
+			"in the Software without restriction, including without limitation the rights",
+			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+			"copies of the Software, and to permit persons to whom the Software is",
+			"furnished to do so, subject to the following conditions:",
+			"",
+			"The above copyright notice and this permission notice shall be included in all",
+			"copies or substantial portions of the Software.",
+			"",
+			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+			"SOFTWARE."
+		]
 	}
 ]

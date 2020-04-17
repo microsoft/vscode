@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass } from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -25,6 +26,7 @@ export const enum WebviewMessageChannels {
 	loadResource = 'load-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
+	wheel = 'did-scroll-wheel'
 }
 
 interface IKeydownEvent {
@@ -117,6 +119,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleFocusChange(true);
 		}));
 
+		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
+			this._onDidWheel.fire(event);
+		}));
+
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
 		}));
@@ -152,6 +158,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
 	public readonly onDidScroll = this._onDidScroll.event;
+
+	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
+	public readonly onDidWheel = this._onDidWheel.event;
 
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
 	public readonly onDidUpdateState = this._onDidUpdateState.event;
@@ -284,6 +293,12 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	windowDidDragEnd(): void {
 		if (this.element) {
 			this.element.style.pointerEvents = '';
+		}
+	}
+
+	public selectAll() {
+		if (this.element) {
+			this._send('execCommand', 'selectAll');
 		}
 	}
 }

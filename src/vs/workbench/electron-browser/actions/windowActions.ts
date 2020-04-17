@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/actions';
+
 import { URI } from 'vs/base/common/uri';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
@@ -18,7 +20,8 @@ import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -33,10 +36,8 @@ export class CloseCurrentWindowAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.electronService.closeWindow();
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -90,10 +91,8 @@ export class ZoomInAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.setConfiguredZoomLevel(webFrame.getZoomLevel() + 1);
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -110,10 +109,8 @@ export class ZoomOutAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.setConfiguredZoomLevel(webFrame.getZoomLevel() - 1);
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -130,10 +127,8 @@ export class ZoomResetAction extends BaseZoomAction {
 		super(id, label, configurationService);
 	}
 
-	run(): Promise<boolean> {
+	async run(): Promise<void> {
 		this.setConfiguredZoomLevel(0);
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -159,20 +154,26 @@ export class ReloadWindowWithExtensionsDisabledAction extends Action {
 
 export abstract class BaseSwitchWindow extends Action {
 
-	private closeWindowAction: IQuickInputButton = {
-		iconClass: 'action-remove-from-recently-opened',
+	private readonly closeWindowAction: IQuickInputButton = {
+		iconClass: 'codicon-close',
 		tooltip: nls.localize('close', "Close Window")
+	};
+
+	private readonly closeDirtyWindowAction: IQuickInputButton = {
+		iconClass: 'dirty-window codicon-circle-filled',
+		tooltip: nls.localize('close', "Close Window"),
+		alwaysVisible: true
 	};
 
 	constructor(
 		id: string,
 		label: string,
-		private electronEnvironmentService: IElectronEnvironmentService,
-		private quickInputService: IQuickInputService,
-		private keybindingService: IKeybindingService,
-		private modelService: IModelService,
-		private modeService: IModeService,
-		private electronService: IElectronService
+		private readonly environmentService: INativeWorkbenchEnvironmentService,
+		private readonly quickInputService: IQuickInputService,
+		private readonly keybindingService: IKeybindingService,
+		private readonly modelService: IModelService,
+		private readonly modeService: IModeService,
+		private readonly electronService: IElectronService
 	) {
 		super(id, label);
 	}
@@ -180,7 +181,7 @@ export abstract class BaseSwitchWindow extends Action {
 	protected abstract isQuickNavigate(): boolean;
 
 	async run(): Promise<void> {
-		const currentWindowId = this.electronEnvironmentService.windowId;
+		const currentWindowId = this.environmentService.configuration.windowId;
 
 		const windows = await this.electronService.getWindows();
 		const placeHolder = nls.localize('switchWindowPlaceHolder', "Select a window to switch to");
@@ -190,9 +191,10 @@ export abstract class BaseSwitchWindow extends Action {
 			return {
 				payload: win.id,
 				label: win.title,
+				ariaLabel: win.dirty ? nls.localize('windowDirtyAriaLabel', "{0}, dirty window", win.title) : win.title,
 				iconClasses: getIconClasses(this.modelService, this.modeService, resource, fileKind),
 				description: (currentWindowId === win.id) ? nls.localize('current', "Current Window") : undefined,
-				buttons: (!this.isQuickNavigate() && currentWindowId !== win.id) ? [this.closeWindowAction] : undefined
+				buttons: currentWindowId !== win.id ? win.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
 			};
 		});
 		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
@@ -203,7 +205,7 @@ export abstract class BaseSwitchWindow extends Action {
 			placeHolder,
 			quickNavigate: this.isQuickNavigate() ? { keybindings: this.keybindingService.lookupKeybindings(this.id) } : undefined,
 			onDidTriggerItemButton: async context => {
-				await this.electronService.closeWindow();
+				await this.electronService.closeWindowById(context.item.payload);
 				context.removeItem();
 			}
 		});
@@ -222,14 +224,14 @@ export class SwitchWindow extends BaseSwitchWindow {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronEnvironmentService electronEnvironmentService: IElectronEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, electronEnvironmentService, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, environmentService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -245,14 +247,14 @@ export class QuickSwitchWindow extends BaseSwitchWindow {
 	constructor(
 		id: string,
 		label: string,
-		@IElectronEnvironmentService electronEnvironmentService: IElectronEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService modelService: IModelService,
 		@IModeService modeService: IModeService,
 		@IElectronService electronService: IElectronService
 	) {
-		super(id, label, electronEnvironmentService, quickInputService, keybindingService, modelService, modeService, electronService);
+		super(id, label, environmentService, quickInputService, keybindingService, modelService, modeService, electronService);
 	}
 
 	protected isQuickNavigate(): boolean {

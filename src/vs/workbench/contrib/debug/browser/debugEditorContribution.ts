@@ -136,17 +136,19 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 		model.forceTokenization(lineNumber);
 		const lineTokens = model.getLineTokens(lineNumber);
 		for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
-			const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
-			const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
 			const tokenType = lineTokens.getStandardTokenType(tokenIndex);
-			const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
 
 			// Token is a word and not a comment
 			if (tokenType === StandardTokenType.Other) {
 				DEFAULT_WORD_REGEXP.lastIndex = 0; // We assume tokens will usually map 1:1 to words if they match
+
+				const tokenStartOffset = lineTokens.getStartOffset(tokenIndex);
+				const tokenEndOffset = lineTokens.getEndOffset(tokenIndex);
+				const tokenStr = lineContent.substring(tokenStartOffset, tokenEndOffset);
 				const wordMatch = DEFAULT_WORD_REGEXP.exec(tokenStr);
 
 				if (wordMatch) {
+
 					const word = wordMatch[0];
 					if (!result.has(word)) {
 						result.set(word, []);

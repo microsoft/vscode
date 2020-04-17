@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { URI } from 'vs/base/common/uri';
 import { ISCMService, ISCMRepository, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { registerThemingParticipant, ITheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector, themeColorFromId, IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { Color, RGBA } from 'vs/base/common/color';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -140,7 +140,7 @@ function getChangeType(change: IChange): ChangeType {
 	}
 }
 
-function getChangeTypeColor(theme: ITheme, changeType: ChangeType): Color | undefined {
+function getChangeTypeColor(theme: IColorTheme, changeType: ChangeType): Color | undefined {
 	switch (changeType) {
 		case ChangeType.Modify: return theme.getColor(editorGutterModifiedBackground);
 		case ChangeType.Add: return theme.getColor(editorGutterAddedBackground);
@@ -183,8 +183,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
 
-		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
-		this._applyTheme(themeService.getTheme());
+		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
+		this._applyTheme(themeService.getColorTheme());
 
 		this.contextKeyService = contextKeyService.createScoped();
 		this.contextKeyService.createKey('originalResourceScheme', this.model.original!.uri.scheme);
@@ -230,7 +230,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.renderTitle();
 
 		const changeType = getChangeType(change);
-		const changeTypeColor = getChangeTypeColor(this.themeService.getTheme(), changeType);
+		const changeTypeColor = getChangeTypeColor(this.themeService.getColorTheme(), changeType);
 		this.style({ frameColor: changeTypeColor, arrowColor: changeTypeColor });
 
 		this._actionbarWidget!.context = [this.model.modified!.uri, this.model.changes, index];
@@ -343,7 +343,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.diffEditor.revealLinesInCenter(start, end, ScrollType.Immediate);
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		const borderColor = theme.getColor(peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
@@ -1063,12 +1063,16 @@ export class DirtyDiffModel extends Disposable {
 
 		return this.diffDelayer
 			.trigger(() => this.diff())
-			.then((changes: IChange[]) => {
+			.then((changes: IChange[] | null) => {
 				if (!this._editorModel || this._editorModel.isDisposed() || !this._originalModel || this._originalModel.isDisposed()) {
 					return; // disposed
 				}
 
 				if (this._originalModel.getValueLength() === 0) {
+					changes = [];
+				}
+
+				if (!changes) {
 					changes = [];
 				}
 
@@ -1313,7 +1317,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 	// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
 	// etc.
 	private onEditorsChanged(): void {
-		const models = this.editorService.visibleTextEditorWidgets
+		const models = this.editorService.visibleTextEditorControls
 
 			// only interested in code editor widgets
 			.filter(c => c instanceof CodeEditorWidget)
@@ -1368,7 +1372,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 registerEditorContribution(DirtyDiffController.ID, DirtyDiffController);
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const editorGutterModifiedBackgroundColor = theme.getColor(editorGutterModifiedBackground);
 	if (editorGutterModifiedBackgroundColor) {
 		collector.addRule(`

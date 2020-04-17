@@ -5,11 +5,7 @@
 
 import * as assert from 'assert';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
-import type { IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { TestUserDataSyncUtilService } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 suite('KeybindingsMerge - No Conflicts', () => {
 
@@ -613,32 +609,11 @@ suite('KeybindingsMerge - No Conflicts', () => {
 });
 
 async function mergeKeybindings(localContent: string, remoteContent: string, baseContent: string | null) {
-	const userDataSyncUtilService = new MockUserDataSyncUtilService();
+	const userDataSyncUtilService = new TestUserDataSyncUtilService();
 	const formattingOptions = await userDataSyncUtilService.resolveFormattingOptions();
 	return merge(localContent, remoteContent, baseContent, formattingOptions, userDataSyncUtilService);
 }
 
 function stringify(value: any): string {
 	return JSON.stringify(value, null, '\t');
-}
-
-class MockUserDataSyncUtilService implements IUserDataSyncUtilService {
-
-	_serviceBrand: any;
-
-	async resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>> {
-		const keys: IStringDictionary<string> = {};
-		for (const keybinding of userbindings) {
-			keys[keybinding] = keybinding;
-		}
-		return keys;
-	}
-
-	async resolveFormattingOptions(file?: URI): Promise<FormattingOptions> {
-		return { eol: '\n', insertSpaces: false, tabSize: 4 };
-	}
-
-	async updateConfigurationValue(key: string, value: any): Promise<void> { }
-
-	async ignoreExtensionsToSync(extensions: IExtensionIdentifier[]): Promise<void> { }
 }

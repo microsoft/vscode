@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
-import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { DARK, IColorTheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { Emitter } from 'vs/base/common/event';
 
 interface WebviewThemeData {
@@ -30,7 +30,7 @@ export class WebviewThemeDataProvider extends Disposable {
 	) {
 		super();
 
-		this._register(this._themeService.onThemeChange(() => {
+		this._register(this._themeService.onDidColorThemeChange(() => {
 			this.reset();
 		}));
 
@@ -42,8 +42,8 @@ export class WebviewThemeDataProvider extends Disposable {
 		}));
 	}
 
-	public getTheme(): ITheme {
-		return this._themeService.getTheme();
+	public getTheme(): IColorTheme {
+		return this._themeService.getColorTheme();
 	}
 
 	@WebviewThemeDataProvider.MEMOIZER
@@ -53,7 +53,7 @@ export class WebviewThemeDataProvider extends Disposable {
 		const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
 		const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 
-		const theme = this._themeService.getTheme();
+		const theme = this._themeService.getColorTheme();
 		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
 			const color = theme.getColor(entry.id);
 			if (color) {
@@ -89,7 +89,7 @@ enum ApiThemeClassName {
 }
 
 namespace ApiThemeClassName {
-	export function fromTheme(theme: ITheme): ApiThemeClassName {
+	export function fromTheme(theme: IColorTheme): ApiThemeClassName {
 		switch (theme.type) {
 			case LIGHT: return ApiThemeClassName.light;
 			case DARK: return ApiThemeClassName.dark;

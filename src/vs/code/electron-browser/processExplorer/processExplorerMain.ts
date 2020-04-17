@@ -75,7 +75,11 @@ function getProcessItem(processes: FormattedProcessItem[], item: ProcessItem, in
 
 	// Recurse into children if any
 	if (Array.isArray(item.children)) {
-		item.children.forEach(child => getProcessItem(processes, child, indent + 1, isLocal));
+		item.children.forEach(child => {
+			if (child) {
+				getProcessItem(processes, child, indent + 1, isLocal);
+			}
+		});
 	}
 }
 

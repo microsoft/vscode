@@ -164,7 +164,7 @@ export async function applyCodeAction(
 	});
 
 	if (action.edit) {
-		await bulkEditService.apply(action.edit, { editor });
+		await bulkEditService.apply(action.edit, { editor, label: action.title });
 	}
 
 	if (action.command) {

@@ -19,6 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { Schemas } from 'vs/base/common/network';
 
 export class PreferencesEditorInput extends SideBySideEditorInput {
 	static readonly ID: string = 'workbench.editorinputs.preferencesEditorInput';
@@ -75,6 +76,8 @@ export class KeybindingsEditorInput extends EditorInput {
 
 	searchOptions: IKeybindingsEditorSearchOptions | null = null;
 
+	readonly resource = undefined;
+
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.keybindingsModel = instantiationService.createInstance(KeybindingsEditorModel, OS);
@@ -101,8 +104,9 @@ export class SettingsEditor2Input extends EditorInput {
 
 	static readonly ID: string = 'workbench.input.settings2';
 	private readonly _settingsModel: Settings2EditorModel;
-	private resource: URI = URI.from({
-		scheme: 'vscode-settings',
+
+	readonly resource: URI = URI.from({
+		scheme: Schemas.vscodeSettings,
 		path: `settingseditor`
 	});
 
@@ -128,9 +132,5 @@ export class SettingsEditor2Input extends EditorInput {
 
 	resolve(): Promise<Settings2EditorModel> {
 		return Promise.resolve(this._settingsModel);
-	}
-
-	getResource(): URI {
-		return this.resource;
 	}
 }

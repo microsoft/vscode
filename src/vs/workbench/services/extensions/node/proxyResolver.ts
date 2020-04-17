@@ -16,12 +16,13 @@ import { endsWith } from 'vs/base/common/strings';
 import { IExtHostWorkspaceProvider } from 'vs/workbench/api/common/extHostWorkspace';
 import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { ProxyAgent } from 'vscode-proxy-agent';
-import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protocol';
+import { MainThreadTelemetryShape, IInitData } from 'vs/workbench/api/common/extHost.protocol';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
 import { promisify } from 'util';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 interface ConnectionResult {
 	proxy: string;
@@ -35,9 +36,10 @@ export function connectProxyResolver(
 	configProvider: ExtHostConfigProvider,
 	extensionService: ExtHostExtensionService,
 	extHostLogService: ILogService,
-	mainThreadTelemetry: MainThreadTelemetryShape
+	mainThreadTelemetry: MainThreadTelemetryShape,
+	initData: IInitData,
 ) {
-	const resolveProxy = setupProxyResolution(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry);
+	const resolveProxy = setupProxyResolution(extHostWorkspace, configProvider, extHostLogService, mainThreadTelemetry, initData);
 	const lookup = createPatchedModules(configProvider, resolveProxy);
 	return configureModuleLoading(extensionService, lookup);
 }
@@ -48,7 +50,8 @@ function setupProxyResolution(
 	extHostWorkspace: IExtHostWorkspaceProvider,
 	configProvider: ExtHostConfigProvider,
 	extHostLogService: ILogService,
-	mainThreadTelemetry: MainThreadTelemetryShape
+	mainThreadTelemetry: MainThreadTelemetryShape,
+	initData: IInitData,
 ) {
 	const env = process.env;
 
@@ -139,12 +142,14 @@ function setupProxyResolution(
 			timeout = setTimeout(logEvent, 10 * 60 * 1000);
 		}
 
+		const useHostProxy = initData.environment.useHostProxy;
+		const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 		useSystemCertificates(extHostLogService, flags.useSystemCertificates, opts, () => {
-			useProxySettings(flags.useProxySettings, req, opts, url, callback);
+			useProxySettings(doUseHostProxy, flags.useProxySettings, req, opts, url, callback);
 		});
 	}
 
-	function useProxySettings(useProxySettings: boolean, req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
+	function useProxySettings(useHostProxy: boolean, useProxySettings: boolean, req: http.ClientRequest, opts: http.RequestOptions, url: string, callback: (proxy?: string) => void) {
 
 		if (!useProxySettings) {
 			callback('DIRECT');
@@ -189,6 +194,12 @@ function setupProxyResolution(
 			collectResult(results, proxy, parsedUrl.protocol === 'https:' ? 'HTTPS' : 'HTTP', req);
 			callback(proxy);
 			extHostLogService.trace('ProxyResolver#resolveProxy cached', url, proxy);
+			return;
+		}
+
+		if (!useHostProxy) {
+			callback('DIRECT');
+			extHostLogService.trace('ProxyResolver#resolveProxy unconfigured', url, 'DIRECT');
 			return;
 		}
 
@@ -308,14 +319,14 @@ function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProx
 			override: assign({}, http, patches(http, resolveProxy, { config: 'override' }, certSetting, true)),
 			onRequest: assign({}, http, patches(http, resolveProxy, proxySetting, certSetting, true)),
 			default: assign(http, patches(http, resolveProxy, proxySetting, certSetting, false)) // run last
-		},
+		} as Record<string, typeof http>,
 		https: {
 			off: assign({}, https, patches(https, resolveProxy, { config: 'off' }, certSetting, true)),
 			on: assign({}, https, patches(https, resolveProxy, { config: 'on' }, certSetting, true)),
 			override: assign({}, https, patches(https, resolveProxy, { config: 'override' }, certSetting, true)),
 			onRequest: assign({}, https, patches(https, resolveProxy, proxySetting, certSetting, true)),
 			default: assign(https, patches(https, resolveProxy, proxySetting, certSetting, false)) // run last
-		},
+		} as Record<string, typeof https>,
 		tls: assign(tls, tlsPatches(tls))
 	};
 }
@@ -340,7 +351,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 			options = options || {};
 
 			if (options.socketPath) {
-				return original.apply(null, arguments as unknown as any[]);
+				return original.apply(null, arguments as any);
 			}
 
 			const originalAgent = options.agent;
@@ -376,7 +387,7 @@ function patches(originals: typeof http | typeof https, resolveProxy: ReturnType
 				return original(options, callback);
 			}
 
-			return original.apply(null, arguments as unknown as any[]);
+			return original.apply(null, arguments as any);
 		}
 		return patched;
 	}
@@ -389,7 +400,7 @@ function tlsPatches(originals: typeof tls) {
 
 	function patch(original: typeof tls.createSecureContext): typeof tls.createSecureContext {
 		return function (details: tls.SecureContextOptions): ReturnType<typeof tls.createSecureContext> {
-			const context = original.apply(null, arguments as unknown as any[]);
+			const context = original.apply(null, arguments as any);
 			const certs = (details as any)._vscodeAdditionalCaCerts;
 			if (certs) {
 				for (const cert of certs) {
@@ -401,6 +412,7 @@ function tlsPatches(originals: typeof tls) {
 	}
 }
 
+const modulesCache = new Map<IExtensionDescription | undefined, { http?: typeof http, https?: typeof https }>();
 function configureModuleLoading(extensionService: ExtHostExtensionService, lookup: ReturnType<typeof createPatchedModules>): Promise<void> {
 	return extensionService.getExtensionPathIndex()
 		.then(extensionPaths => {
@@ -417,10 +429,18 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 
 				const modules = lookup[request];
 				const ext = extensionPaths.findSubstr(URI.file(parent.filename).fsPath);
-				if (ext && ext.enableProposedApi) {
-					return (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
+				let cache = modulesCache.get(ext);
+				if (!cache) {
+					modulesCache.set(ext, cache = {});
 				}
-				return modules.default;
+				if (!cache[request]) {
+					let mod = modules.default;
+					if (ext && ext.enableProposedApi) {
+						mod = (modules as any)[(<any>ext).proxySupport] || modules.onRequest;
+					}
+					cache[request] = <any>{ ...mod }; // Copy to work around #93167.
+				}
+				return cache[request];
 			};
 		});
 }

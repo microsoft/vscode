@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -153,7 +153,7 @@ export class RemoteFileSystemProvider extends Disposable implements
 
 		// Support cancellation
 		if (token) {
-			Event.once(token.onCancellationRequested)(() => {
+			token.onCancellationRequested(() => {
 
 				// Ensure to end the stream properly with an error
 				// to indicate the cancellation.

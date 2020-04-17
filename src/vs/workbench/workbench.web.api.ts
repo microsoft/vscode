@@ -16,6 +16,7 @@ import { IUpdateProvider, IUpdate } from 'vs/workbench/services/update/browser/u
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -34,31 +35,79 @@ interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
 }
 
-interface TunnelOptions {
+interface ITunnelFactory {
+	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
+}
+
+interface ITunnelOptions {
 	remoteAddress: { port: number, host: string };
-	// The desired local port. If this port can't be used, then another will be chosen.
+
+	/**
+	 * The desired local port. If this port can't be used, then another will be chosen.
+	 */
 	localAddressPort?: number;
+
 	label?: string;
 }
 
-interface Tunnel {
+interface ITunnel extends IDisposable {
 	remoteAddress: { port: number, host: string };
-	//The complete local address(ex. localhost:1234)
+
+	/**
+	 * The complete local address(ex. localhost:1234)
+	 */
 	localAddress: string;
-	// Implementers of Tunnel should fire onDidDispose when dispose is called.
+
+	/**
+	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
+	 */
 	onDidDispose: Event<void>;
-	dispose(): void;
 }
 
-interface ITunnelFactory {
-	(tunnelOptions: TunnelOptions): Thenable<Tunnel> | undefined;
+interface IShowPortCandidate {
+	(host: string, port: number, detail: string): Promise<boolean>;
 }
 
-interface IShowCandidate {
-	(host: string, port: number, detail: string): Thenable<boolean>;
+interface ICommand {
+
+	/**
+	 * An identifier for the command. Commands can be executed from extensions
+	 * using the `vscode.commands.executeCommand` API using that command ID.
+	 */
+	id: string,
+
+	/**
+	 * A function that is being executed with any arguments passed over. The
+	 * return type will be send back to the caller.
+	 *
+	 * Note: arguments and return type should be serializable so that they can
+	 * be exchanged across processes boundaries.
+	 */
+	handler: (...args: any[]) => unknown;
+}
+
+interface IHomeIndicator {
+
+	/**
+	 * The location to open when clicking the home indicator.
+	 */
+	href: string;
+
+	/**
+	 * The icon name for the home indicator. This needs to be one of the existing
+	 * icons from our Codicon icon set. For example `sync`.
+	 */
+	icon: string;
+
+	/**
+	 * A tooltip that will appear while hovering over the home indicator.
+	 */
+	title: string;
 }
 
 interface IWorkbenchConstructionOptions {
+
+	//#region Connection related configuration
 
 	/**
 	 * The remote authority is the IP:PORT from where the workbench is served
@@ -78,6 +127,36 @@ interface IWorkbenchConstructionOptions {
 	readonly webviewEndpoint?: string;
 
 	/**
+	 * A factory for web sockets.
+	 */
+	readonly webSocketFactory?: IWebSocketFactory;
+
+	/**
+	 * A provider for resource URIs.
+	 */
+	readonly resourceUriProvider?: IResourceUriProvider;
+
+	/**
+	 * Resolves an external uri before it is opened.
+	 */
+	readonly resolveExternalUri?: IExternalUriResolver;
+
+	/**
+	 * Support for creating tunnels.
+	 */
+	readonly tunnelFactory?: ITunnelFactory;
+
+	/**
+	 * Support for filtering candidate ports
+	 */
+	readonly showCandidate?: IShowPortCandidate;
+
+	//#endregion
+
+
+	//#region Workbench configuration
+
+	/**
 	 * A handler for opening workspaces and providing the initial workspace.
 	 */
 	readonly workspaceProvider?: IWorkspaceProvider;
@@ -87,16 +166,6 @@ interface IWorkbenchConstructionOptions {
 	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
 	userDataProvider?: IFileSystemProvider;
-
-	/**
-	 * A factory for web sockets.
-	 */
-	readonly webSocketFactory?: IWebSocketFactory;
-
-	/**
-	 * A provider for resource URIs.
-	 */
-	readonly resourceUriProvider?: IResourceUriProvider;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
@@ -124,19 +193,22 @@ interface IWorkbenchConstructionOptions {
 	readonly resolveCommonTelemetryProperties?: ICommontTelemetryPropertiesResolver;
 
 	/**
-	 * Resolves an external uri before it is opened.
+	 * A set of optional commands that should be registered with the commands
+	 * registry.
+	 *
+	 * Note: commands can be called from extensions if the identifier is known!
 	 */
-	readonly resolveExternalUri?: IExternalUriResolver;
+	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Support for creating tunnels.
+	 * Optional home indicator to appear above the hamburger menu in the activity bar.
 	 */
-	readonly tunnelFactory?: ITunnelFactory;
+	readonly homeIndicator?: IHomeIndicator;
 
-	/**
-	 * Support for filtering candidate ports
-	 */
-	readonly showCandidate?: IShowCandidate;
+	//#endregion
+
+
+	//#region Diagnostics
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.
@@ -147,6 +219,14 @@ interface IWorkbenchConstructionOptions {
 	 * Whether to enable the smoke test driver.
 	 */
 	readonly driver?: boolean;
+
+	//#endregion
+}
+
+interface IWorkbench {
+	commands: {
+		executeCommand(command: string, ...args: any[]): Promise<unknown>;
+	}
 }
 
 /**
@@ -155,8 +235,52 @@ interface IWorkbenchConstructionOptions {
  * @param domElement the container to create the workbench in
  * @param options for setting up the workbench
  */
-function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	return main(domElement, options);
+let created = false;
+let workbenchPromiseResolve: Function;
+const workbenchPromise = new Promise<IWorkbench>(resolve => workbenchPromiseResolve = resolve);
+async function create(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
+
+	// Assert that the workbench is not created more than once. We currently
+	// do not support this and require a full context switch to clean-up.
+	if (created) {
+		throw new Error('Unable to create the VSCode workbench more than once.');
+	} else {
+		created = true;
+	}
+
+	// Startup workbench and resolve waiters
+	const workbench = await main(domElement, options);
+	workbenchPromiseResolve(workbench);
+
+	// Register commands if any
+	if (Array.isArray(options.commands)) {
+		for (const command of options.commands) {
+			CommandsRegistry.registerCommand(command.id, (accessor, ...args) => {
+				// we currently only pass on the arguments but not the accessor
+				// to the command to reduce our exposure of internal API.
+				return command.handler(...args);
+			});
+		}
+	}
+}
+
+
+//#region API Facade
+
+namespace commands {
+
+	/**
+	* Allows to execute any command if known with the provided arguments.
+	*
+	* @param command Identifier of the command to execute.
+	* @param rest Parameters passed to the command function.
+	* @return A promise that resolves to the returned value of the given command.
+	*/
+	export async function executeCommand(command: string, ...args: any[]): Promise<unknown> {
+		const workbench = await workbenchPromise;
+
+		return workbench.commands.executeCommand(command, ...args);
+	}
 }
 
 export {
@@ -164,6 +288,7 @@ export {
 	// Factory
 	create,
 	IWorkbenchConstructionOptions,
+	IWorkbench,
 
 	// Basic Types
 	URI,
@@ -211,5 +336,22 @@ export {
 	ICommontTelemetryPropertiesResolver,
 
 	// External Uris
-	IExternalUriResolver
+	IExternalUriResolver,
+
+	// Tunnel
+	ITunnelFactory,
+	ITunnel,
+	ITunnelOptions,
+
+	// Ports
+	IShowPortCandidate,
+
+	// Commands
+	ICommand,
+	commands,
+
+	// Home Indicator
+	IHomeIndicator
 };
+
+//#endregion

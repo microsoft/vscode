@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ITreeNode, ITreeRenderer, ITreeDragAndDrop, ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -300,7 +300,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	}
 }
 
-export class SearchAccessibilityProvider implements IAccessibilityProvider<RenderableMatch> {
+export class SearchAccessibilityProvider implements IListAccessibilityProvider<RenderableMatch> {
 
 	constructor(
 		private searchModel: SearchModel,
@@ -329,10 +329,10 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider<Rende
 			const range = match.range();
 			const matchText = match.text().substr(0, range.endColumn + 150);
 			if (replace) {
-				return nls.localize('replacePreviewResultAria', "Replace term {0} with {1} at column position {2} in line with text {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
+				return nls.localize('replacePreviewResultAria', "Replace '{0}' with '{1}' at column {2} in line {3}", matchString, match.replaceString, range.startColumn + 1, matchText);
 			}
 
-			return nls.localize('searchResultAria', "Found term {0} at column position {1} in line with text {2}", matchString, range.startColumn + 1, matchText);
+			return nls.localize('searchResultAria', "Found '{0}' at column {1} in line '{2}'", matchString, range.startColumn + 1, matchText);
 		}
 		return null;
 	}
@@ -369,7 +369,7 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const elements = (data as ElementsDragAndDropData<RenderableMatch>).elements;
 		const resources: URI[] = elements
-			.filter(e => e instanceof FileMatch)
+			.filter<FileMatch>((e): e is FileMatch => e instanceof FileMatch)
 			.map((fm: FileMatch) => fm.resource);
 
 		if (resources.length) {

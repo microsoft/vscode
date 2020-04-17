@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import { CallHierarchyItem, CallHierarchyDirection, CallHierarchyModel, } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
@@ -13,6 +13,8 @@ import { SymbolKinds, Location } from 'vs/editor/common/modes';
 import * as dom from 'vs/base/browser/dom';
 import { compare } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { localize } from 'vs/nls';
 
 export class Call {
 	constructor(
@@ -136,5 +138,20 @@ export class VirtualDelegate implements IListVirtualDelegate<Call> {
 
 	getTemplateId(_element: Call): string {
 		return CallRenderer.id;
+	}
+}
+
+export class AccessibilityProvider implements IListAccessibilityProvider<Call> {
+
+	constructor(
+		public getDirection: () => CallHierarchyDirection
+	) { }
+
+	getAriaLabel(element: Call): string | null {
+		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
+			return localize('from', "calls from {0}", element.item.name);
+		} else {
+			return localize('to', "callers fo {0}", element.item.name);
+		}
 	}
 }

@@ -56,8 +56,8 @@ export class ExplorerService implements IExplorerService {
 
 		this.model = new ExplorerModel(this.contextService, this.fileService);
 		this.disposables.add(this.model);
-		this.disposables.add(this.fileService.onAfterOperation(e => this.onFileOperation(e)));
-		this.disposables.add(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.disposables.add(this.fileService.onDidRunOperation(e => this.onDidRunOperation(e)));
+		this.disposables.add(this.fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
 		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>())));
 		this.disposables.add(Event.any<{ scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(e => {
 			let affected = false;
@@ -203,7 +203,7 @@ export class ExplorerService implements IExplorerService {
 	refresh(): void {
 		this.model.roots.forEach(r => r.forgetChildren());
 		this._onDidChangeItem.fire({ recursive: true });
-		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.getResource() : undefined;
+		const resource = this.editorService.activeEditor ? this.editorService.activeEditor.resource : undefined;
 		const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
 
 		if (resource && autoReveal) {
@@ -214,7 +214,7 @@ export class ExplorerService implements IExplorerService {
 
 	// File events
 
-	private onFileOperation(e: FileOperationEvent): void {
+	private onDidRunOperation(e: FileOperationEvent): void {
 		// Add
 		if (e.isOperation(FileOperation.CREATE) || e.isOperation(FileOperation.COPY)) {
 			const addedElement = e.target;
@@ -294,7 +294,7 @@ export class ExplorerService implements IExplorerService {
 		}
 	}
 
-	private onFileChanges(e: FileChangesEvent): void {
+	private onDidFilesChange(e: FileChangesEvent): void {
 		// Check if an explorer refresh is necessary (delayed to give internal events a chance to react first)
 		// Note: there is no guarantee when the internal events are fired vs real ones. Code has to deal with the fact that one might
 		// be fired first over the other or not at all.

@@ -241,7 +241,7 @@ export class ChangeIndentationSizeAction extends EditorAction {
 					}
 				}
 			});
-		}, 50/* quick open is sensitive to being opened so soon after another */);
+		}, 50/* quick input is sensitive to being opened so soon after another */);
 	}
 }
 

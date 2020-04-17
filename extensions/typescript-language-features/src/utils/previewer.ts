@@ -68,8 +68,8 @@ function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 		case 'extends':
 		case 'param':
 		case 'template':
-			const body = (tag.text || '').split(/^([\w\.]+)\s*-?\s*/);
-			if (body && body.length === 3) {
+			const body = (tag.text || '').split(/^(\S+)\s*-?\s*/);
+			if (body?.length === 3) {
 				const param = body[1];
 				const doc = body[2];
 				const label = `*@${tag.name}* \`${param}\``;

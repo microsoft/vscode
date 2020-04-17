@@ -13,9 +13,9 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { VIEWLET_ID, SortOrder, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
-import { FileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/fileEditorTracker';
+import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { BinaryFileEditor } from 'vs/workbench/contrib/files/browser/editors/binaryFileEditor';
@@ -102,19 +102,18 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 // Register default file input factory
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileInputFactory({
-	createFileInput: (resource, encoding, mode, instantiationService): IFileEditorInput => {
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerFileEditorInputFactory({
+	createFileEditorInput: (resource, encoding, mode, instantiationService): IFileEditorInput => {
 		return instantiationService.createInstance(FileEditorInput, resource, encoding, mode);
 	},
 
-	isFileInput: (obj): obj is IFileEditorInput => {
+	isFileEditorInput: (obj): obj is IFileEditorInput => {
 		return obj instanceof FileEditorInput;
 	}
 });
 
-interface ISerializedFileInput {
-	resource: string;
-	resourceJSON: object;
+interface ISerializedFileEditorInput {
+	resourceJSON: UriComponents;
 	encoding?: string;
 	modeId?: string;
 }
@@ -128,25 +127,24 @@ class FileEditorInputFactory implements IEditorInputFactory {
 
 	serialize(editorInput: EditorInput): string {
 		const fileEditorInput = <FileEditorInput>editorInput;
-		const resource = fileEditorInput.getResource();
-		const fileInput: ISerializedFileInput = {
-			resource: resource.toString(), // Keep for backwards compatibility
+		const resource = fileEditorInput.resource;
+		const serializedFileEditorInput: ISerializedFileEditorInput = {
 			resourceJSON: resource.toJSON(),
 			encoding: fileEditorInput.getEncoding(),
 			modeId: fileEditorInput.getPreferredMode() // only using the preferred user associated mode here if available to not store redundant data
 		};
 
-		return JSON.stringify(fileInput);
+		return JSON.stringify(serializedFileEditorInput);
 	}
 
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): FileEditorInput {
 		return instantiationService.invokeFunction<FileEditorInput>(accessor => {
-			const fileInput: ISerializedFileInput = JSON.parse(serializedEditorInput);
-			const resource = !!fileInput.resourceJSON ? URI.revive(<UriComponents>fileInput.resourceJSON) : URI.parse(fileInput.resource);
-			const encoding = fileInput.encoding;
-			const mode = fileInput.modeId;
+			const serializedFileEditorInput: ISerializedFileEditorInput = JSON.parse(serializedEditorInput);
+			const resource = URI.revive(serializedFileEditorInput.resourceJSON);
+			const encoding = serializedFileEditorInput.encoding;
+			const mode = serializedFileEditorInput.modeId;
 
-			return accessor.get(IEditorService).createInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
+			return accessor.get(IEditorService).createEditorInput({ resource, encoding, mode, forceFile: true }) as FileEditorInput;
 		});
 	}
 }
@@ -156,8 +154,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 // Register Explorer views
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ExplorerViewletViewsContribution, LifecyclePhase.Starting);
 
-// Register File Editor Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(FileEditorTracker, LifecyclePhase.Starting);
+// Register Text File Editor Tracker
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileEditorTracker, LifecyclePhase.Starting);
 
 // Register Text File Save Error Handler
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TextFileSaveErrorHandler, LifecyclePhase.Starting);
@@ -181,9 +179,9 @@ const hotExitConfiguration: IConfigurationPropertySchema = platform.isNative ?
 		'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 		'default': HotExitConfiguration.ON_EXIT,
 		'markdownEnumDescriptions': [
-			nls.localize('hotExit.off', 'Disable hot exit.'),
-			nls.localize('hotExit.onExit', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu). All windows with backups will be restored upon next launch.'),
-			nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. To restore folder windows as they were before shutdown set `#window.restoreWindows#` to `all`.')
+			nls.localize('hotExit.off', 'Disable hot exit. A prompt will show when attempting to close a window with dirty files.'),
+			nls.localize('hotExit.onExit', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu). All windows without folders opened will be restored upon next launch. A list of workspaces with unsaved files can be accessed via `File > Open Recent > More...`'),
+			nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. A list of workspaces with unsaved files can be accessed via `File > Open Recent > More...`')
 		],
 		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 	} : {
@@ -192,7 +190,7 @@ const hotExitConfiguration: IConfigurationPropertySchema = platform.isNative ?
 		'enum': [HotExitConfiguration.OFF, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE],
 		'default': HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE,
 		'markdownEnumDescriptions': [
-			nls.localize('hotExit.off', 'Disable hot exit.'),
+			nls.localize('hotExit.off', 'Disable hot exit. A prompt will show when attempting to close a window with dirty files.'),
 			nls.localize('hotExit.onExitAndWindowCloseBrowser', 'Hot exit will be triggered when the browser quits or the window or tab is closed.')
 		],
 		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
@@ -204,9 +202,9 @@ configurationRegistry.registerConfiguration({
 	'title': nls.localize('filesConfigurationTitle', "Files"),
 	'type': 'object',
 	'properties': {
-		'files.exclude': {
+		[FILES_EXCLUDE_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
+			'markdownDescription': nls.localize('exclude', "Configure glob patterns for excluding files and folders. For example, the files explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search specific excludes. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			'default': { '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true },
 			'scope': ConfigurationScope.RESOURCE,
 			'additionalProperties': {
@@ -229,7 +227,7 @@ configurationRegistry.registerConfiguration({
 				]
 			}
 		},
-		'files.associations': {
+		[FILES_ASSOCIATIONS_CONFIG]: {
 			'type': 'object',
 			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
 		},
@@ -307,14 +305,14 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.watcherExclude': {
 			'type': 'object',
-			'default': platform.isWindows /* https://github.com/Microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true },
-			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths (i.e. prefix with ** or the full path to match properly). Changing this setting requires a restart. When you experience Code consuming lots of cpu time on startup, you can exclude large folders to reduce the initial load."),
+			'default': platform.isWindows /* https://github.com/Microsoft/vscode/issues/23954 */ ? { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true } : { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/**': true, '**/.hg/store/**': true },
+			'description': nls.localize('watcherExclude', "Configure glob patterns of file paths to exclude from file watching. Patterns must match on absolute paths (i.e. prefix with ** or the full path to match properly). Changing this setting requires a restart. When you experience Code consuming lots of CPU time on startup, you can exclude large folders to reduce the initial load."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.hotExit': hotExitConfiguration,
 		'files.defaultLanguage': {
 			'type': 'string',
-			'description': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
+			'markdownDescription': nls.localize('defaultLanguage', "The default language mode that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language mode of the currently active text editor if any.")
 		},
 		'files.maxMemoryForLargeFilesMB': {
 			'type': 'number',

@@ -10,10 +10,9 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceEdit } from 'vs/editor/common/modes';
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/bulkEditPane';
-import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext } from 'vs/workbench/common/views';
+import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, FocusedViewContext, IViewsService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
-import { ViewPaneContainer, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { PaneCompositePanel } from 'vs/workbench/browser/panel';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -27,13 +26,11 @@ import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/act
 import { IEditorInput } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
 
-function getBulkEditPane(panelService: IPanelService): BulkEditPane | undefined {
-	let view: ViewPane | undefined;
-	const activePanel = panelService.openPanel(BulkEditPane.ID, true);
-	if (activePanel instanceof PaneCompositePanel) {
-		view = activePanel.getViewPaneContainer().getView(BulkEditPane.ID);
-	}
+async function getBulkEditPane(viewsService: IViewsService): Promise<BulkEditPane | undefined> {
+	const view = await viewsService.openView(BulkEditPane.ID, true);
 	if (view instanceof BulkEditPane) {
 		return view;
 	}
@@ -51,11 +48,11 @@ class UXState {
 		this._activePanel = _panelService.getActivePanel()?.getId();
 	}
 
-	restore(): void {
+	async restore(): Promise<void> {
 
 		// (1) restore previous panel
 		if (typeof this._activePanel === 'string') {
-			this._panelService.openPanel(this._activePanel);
+			await this._panelService.openPanel(this._activePanel);
 		} else {
 			this._panelService.hideActivePanel();
 		}
@@ -67,9 +64,9 @@ class UXState {
 
 				let resource: URI | undefined;
 				if (input instanceof DiffEditorInput) {
-					resource = input.modifiedInput.getResource();
+					resource = input.modifiedInput.resource;
 				} else {
-					resource = input.getResource();
+					resource = input.resource;
 				}
 
 				if (resource?.scheme === BulkEditPreviewProvider.Schema) {
@@ -101,7 +98,9 @@ class BulkEditPreviewContribution {
 
 	constructor(
 		@IPanelService private readonly _panelService: IPanelService,
+		@IViewsService private readonly _viewsService: IViewsService,
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
+		@IDialogService private readonly _dialogService: IDialogService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -112,22 +111,40 @@ class BulkEditPreviewContribution {
 	private async _previewEdit(edit: WorkspaceEdit) {
 		this._ctxEnabled.set(true);
 
+		const uxState = this._activeSession?.uxState ?? new UXState(this._panelService, this._editorGroupsService);
+		const view = await getBulkEditPane(this._viewsService);
+		if (!view) {
+			this._ctxEnabled.set(false);
+			return edit;
+		}
+
+		// check for active preview session and let the user decide
+		if (view.hasInput()) {
+			const choice = await this._dialogService.show(
+				Severity.Info,
+				localize('overlap', "Another refactoring is being previewed."),
+				[localize('cancel', "Cancel"), localize('continue', "Continue")],
+				{ detail: localize('detail', "Press 'Continue' to discard the previous refactoring and continue with the current refactoring.") }
+			);
+
+			if (choice.choice === 0) {
+				// this refactoring is being cancelled
+				return { edits: [] };
+			}
+		}
+
 		// session
 		let session: PreviewSession;
 		if (this._activeSession) {
 			this._activeSession.cts.dispose(true);
-			session = new PreviewSession(this._activeSession.uxState);
+			session = new PreviewSession(uxState);
 		} else {
-			session = new PreviewSession(new UXState(this._panelService, this._editorGroupsService));
+			session = new PreviewSession(uxState);
 		}
 		this._activeSession = session;
 
 		// the actual work...
 		try {
-			const view = getBulkEditPane(this._panelService);
-			if (!view) {
-				return edit;
-			}
 
 			const newEditOrUndefined = await view.setInput(edit, session.cts.token);
 			if (!newEditOrUndefined) {
@@ -139,7 +156,7 @@ class BulkEditPreviewContribution {
 		} finally {
 			// restore UX state
 			if (this._activeSession === session) {
-				this._activeSession.uxState.restore();
+				await this._activeSession.uxState.restore();
 				this._activeSession.cts.dispose();
 				this._ctxEnabled.set(false);
 				this._activeSession = undefined;
@@ -174,9 +191,9 @@ registerAction2(class ApplyAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): any {
-		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+	async run(accessor: ServicesAccessor): Promise<any> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.accept();
 		}
@@ -203,9 +220,9 @@ registerAction2(class DiscardAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.discard();
 		}
@@ -234,9 +251,9 @@ registerAction2(class ToggleAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.toggleChecked();
 		}
@@ -263,9 +280,9 @@ registerAction2(class GroupByFile extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.groupByFile();
 		}
@@ -290,9 +307,9 @@ registerAction2(class GroupByType extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.groupByType();
 		}
@@ -316,9 +333,9 @@ registerAction2(class ToggleGrouping extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void | Promise<void> {
-		const panelService = accessor.get(IPanelService);
-		const view = getBulkEditPane(panelService);
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = await getBulkEditPane(viewsService);
 		if (view) {
 			view.toggleGrouping();
 		}

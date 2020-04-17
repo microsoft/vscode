@@ -280,7 +280,7 @@ export class WalkThroughPart extends BaseEditor {
 				}
 
 				const content = model.main.textEditorModel.getValue(EndOfLinePreference.LF);
-				if (!strings.endsWith(input.getResource().path, '.md')) {
+				if (!strings.endsWith(input.resource.path, '.md')) {
 					this.content.innerHTML = content;
 					this.updateSizeClasses();
 					this.decorateContent();
@@ -426,7 +426,7 @@ export class WalkThroughPart extends BaseEditor {
 				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 3,
-			fixedOverflowWidgets: true,
+			fixedOverflowWidgets: false,
 			lineNumbersMinChars: 1,
 			minimap: { enabled: false },
 		};

@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
-suite('window namespace tests', () => {
+// TODO@Daniel flaky tests (https://github.com/microsoft/vscode/issues/92826)
+((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - terminal', () => {
 	suiteSetup(async () => {
 		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
 		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
@@ -18,6 +19,7 @@ suite('window namespace tests', () => {
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
 		});
+
 
 		test('sendText immediately after createTerminal should not throw', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
@@ -31,6 +33,45 @@ suite('window namespace tests', () => {
 			}));
 			const terminal = window.createTerminal();
 			doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
+		});
+
+		test('echo works in the default shell', (done) => {
+			disposables.push(window.onDidOpenTerminal(term => {
+				try {
+					equal(terminal, term);
+				} catch (e) {
+					done(e);
+				}
+				let data = '';
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					data += e.data;
+					if (data.indexOf(expected) !== 0) {
+						terminal.dispose();
+						disposables.push(window.onDidCloseTerminal(() => done()));
+					}
+				}));
+			}));
+			// Use a single character to avoid winpty/conpty issues with injected sequences
+			const expected = '`';
+			const terminal = window.createTerminal({
+				env: {
+					TEST: '`'
+				}
+			});
+			terminal.show();
+			doesNotThrow(() => {
+				// Print an environment variable value so the echo statement doesn't get matched
+				if (process.platform === 'win32') {
+					terminal.sendText(`$env:TEST`);
+				} else {
+					terminal.sendText(`echo $TEST`);
+				}
+			});
 		});
 
 		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
@@ -391,15 +432,18 @@ suite('window namespace tests', () => {
 							// HACK: Ignore the event if dimension(s) are zero (#83778)
 							return;
 						}
-						try {
-							equal(e.dimensions.columns, 10);
-							equal(e.dimensions.rows, 5);
-							equal(e.terminal, terminal);
-						} catch (e) {
-							done(e);
+						// The default pty dimensions have a chance to appear here since override
+						// dimensions happens after the terminal is created. If so just ignore and
+						// wait for the right dimensions
+						if (e.dimensions.columns === 10 || e.dimensions.rows === 5) {
+							try {
+								equal(e.terminal, terminal);
+							} catch (e) {
+								done(e);
+							}
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
 						}
-						disposables.push(window.onDidCloseTerminal(() => done()));
-						terminal.dispose();
 					}));
 				}));
 				const writeEmitter = new EventEmitter<string>();
@@ -437,7 +481,7 @@ suite('window namespace tests', () => {
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(),
+					open: () => closeEmitter.fire(undefined),
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
@@ -528,6 +572,202 @@ suite('window namespace tests', () => {
 				} catch (e) {
 					done(e);
 				}
+			});
+		});
+
+		suite('getEnvironmentVariableCollection', () => {
+			test('should have collection variables apply to terminals immediately after setting', (done) => {
+				// Text to match on before passing the test
+				const expectedText = [
+					'~a2~',
+					'b1~b2~',
+					'~c2~c1'
+				];
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					// Multiple expected could show up in the same data event
+					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+						expectedText.shift();
+						// Check if all string are found, if so finish the test
+						if (expectedText.length === 0) {
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}
+				}));
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.append('B', '~b2~');
+				collection.prepend('C', '~c2~');
+				const terminal = window.createTerminal({
+					env: {
+						A: 'a1',
+						B: 'b1',
+						C: 'c1'
+					}
+				});
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
+				terminal.sendText('$env:C');
+				terminal.sendText('echo $C');
+			});
+
+			test('should have collection variables apply to environment variables that don\'t exist', (done) => {
+				// Text to match on before passing the test
+				const expectedText = [
+					'~a2~',
+					'~b2~',
+					'~c2~'
+				];
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					// Multiple expected could show up in the same data event
+					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+						expectedText.shift();
+						// Check if all string are found, if so finish the test
+						if (expectedText.length === 0) {
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}
+				}));
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.append('B', '~b2~');
+				collection.prepend('C', '~c2~');
+				const terminal = window.createTerminal({
+					env: {
+						A: null,
+						B: null,
+						C: null
+					}
+				});
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
+				terminal.sendText('$env:C');
+				terminal.sendText('echo $C');
+			});
+
+			test('should respect clearing entries', (done) => {
+				// Text to match on before passing the test
+				const expectedText = [
+					'~a1~',
+					'~b1~'
+				];
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					// Multiple expected could show up in the same data event
+					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+						expectedText.shift();
+						// Check if all string are found, if so finish the test
+						if (expectedText.length === 0) {
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}
+				}));
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.replace('B', '~a2~');
+				collection.clear();
+				const terminal = window.createTerminal({
+					env: {
+						A: '~a1~',
+						B: '~b1~'
+					}
+				});
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
+			});
+
+			test('should respect deleting entries', (done) => {
+				// Text to match on before passing the test
+				const expectedText = [
+					'~a1~',
+					'~b2~'
+				];
+				disposables.push(window.onDidWriteTerminalData(e => {
+					try {
+						equal(terminal, e.terminal);
+					} catch (e) {
+						done(e);
+					}
+					// Multiple expected could show up in the same data event
+					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
+						expectedText.shift();
+						// Check if all string are found, if so finish the test
+						if (expectedText.length === 0) {
+							disposables.push(window.onDidCloseTerminal(() => done()));
+							terminal.dispose();
+						}
+					}
+				}));
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.replace('B', '~b2~');
+				collection.delete('A');
+				const terminal = window.createTerminal({
+					env: {
+						A: '~a1~',
+						B: '~b2~'
+					}
+				});
+				// Run both PowerShell and sh commands, errors don't matter we're just looking for
+				// the correct output
+				terminal.sendText('$env:A');
+				terminal.sendText('echo $A');
+				terminal.sendText('$env:B');
+				terminal.sendText('echo $B');
+			});
+
+			test('get and forEach should work', () => {
+				const collection = window.getEnvironmentVariableCollection();
+				disposables.push(collection);
+				collection.replace('A', '~a2~');
+				collection.append('B', '~b2~');
+				collection.prepend('C', '~c2~');
+
+				// Verify get
+				deepEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
+				deepEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
+				deepEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
+
+				// Verify forEach
+				const entries: [string, EnvironmentVariableMutator][] = [];
+				collection.forEach((v, m) => entries.push([v, m]));
+				deepEqual(entries, [
+					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
+					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
+					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
+				]);
 			});
 		});
 	});

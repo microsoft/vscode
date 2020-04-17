@@ -3,17 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IWorkbenchEnvironmentService, IEnvironmentConfiguration } from 'vs/workbench/services/environment/common/environmentService';
 import { memoize } from 'vs/base/common/decorators';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
 import { join } from 'vs/base/common/path';
 import product from 'vs/platform/product/common/product';
+import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 
-export class NativeWorkbenchEnvironmentService extends EnvironmentService implements IWorkbenchEnvironmentService {
+export interface INativeWorkbenchEnvironmentService extends IWorkbenchEnvironmentService, INativeEnvironmentService {
+
+	readonly configuration: INativeEnvironmentConfiguration;
+
+	readonly disableCrashReporter: boolean;
+
+	readonly cliPath: string;
+
+	readonly log?: string;
+	readonly extHostLogsPath: URI;
+
+	readonly userHome: URI;
+}
+
+export interface INativeEnvironmentConfiguration extends IEnvironmentConfiguration, INativeWindowConfiguration { }
+
+export class NativeWorkbenchEnvironmentService extends EnvironmentService implements INativeWorkbenchEnvironmentService {
 
 	_serviceBrand: undefined;
 
@@ -34,12 +50,14 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.userData }); }
 
 	@memoize
-	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.windowId}.log`)); }
+	get logFile(): URI { return URI.file(join(this.logsPath, `renderer${this.configuration.windowId}.log`)); }
+
+	@memoize
+	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
 
 	constructor(
-		readonly configuration: IWindowConfiguration,
-		execPath: string,
-		private readonly windowId: number
+		readonly configuration: INativeEnvironmentConfiguration,
+		execPath: string
 	) {
 		super(configuration, execPath);
 

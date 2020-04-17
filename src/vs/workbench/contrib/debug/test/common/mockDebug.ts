@@ -134,6 +134,10 @@ export class MockDebugService implements IDebugService {
 
 export class MockSession implements IDebugSession {
 
+	cancel(_progressId: string): Promise<DebugProtocol.CancelResponse> {
+		throw new Error('Method not implemented.');
+	}
+
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]> {
 		throw new Error('Method not implemented.');
 	}
@@ -219,6 +223,18 @@ export class MockSession implements IDebugSession {
 	}
 
 	get onDidChangeName(): Event<string> {
+		throw new Error('not implemented');
+	}
+
+	get onDidProgressStart(): Event<DebugProtocol.ProgressStartEvent> {
+		throw new Error('not implemented');
+	}
+
+	get onDidProgressUpdate(): Event<DebugProtocol.ProgressUpdateEvent> {
+		throw new Error('not implemented');
+	}
+
+	get onDidProgressEnd(): Event<DebugProtocol.ProgressEndEvent> {
 		throw new Error('not implemented');
 	}
 
@@ -327,8 +343,6 @@ export class MockSession implements IDebugSession {
 	goto(threadId: number, targetId: number): Promise<DebugProtocol.GotoResponse> {
 		throw new Error('Method not implemented.');
 	}
-
-	shutdown(): void { }
 }
 
 export class MockRawSession {

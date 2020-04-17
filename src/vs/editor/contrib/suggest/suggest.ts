@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { first } from 'vs/base/common/async';
-import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError, canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
@@ -17,20 +16,29 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Range } from 'vs/editor/common/core/range';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { isDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const Context = {
 	Visible: new RawContextKey<boolean>('suggestWidgetVisible', false),
+	DetailsVisible: new RawContextKey<boolean>('suggestWidgetDetailsVisible', false),
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false),
 	MakesTextEdit: new RawContextKey('suggestionMakesTextEdit', true),
-	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true)
+	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true),
+	HasInsertAndReplaceRange: new RawContextKey('suggestionHasInsertAndReplaceRange', false),
+	CanResolve: new RawContextKey('suggestionCanResolve', false),
 };
+
+export const suggestWidgetStatusbarMenu = new MenuId('suggestWidgetStatusBar');
 
 export class CompletionItem {
 
 	_brand!: 'ISuggestionItem';
 
+	private static readonly _defaultResolve = () => Promise.resolve();
+
 	readonly resolve: (token: CancellationToken) => Promise<void>;
 	isResolved: boolean = false;
+
 
 	//
 	readonly editStart: IPosition;
@@ -82,14 +90,14 @@ export class CompletionItem {
 		// create the suggestion resolver
 		const { resolveCompletionItem } = provider;
 		if (typeof resolveCompletionItem !== 'function') {
-			this.resolve = () => Promise.resolve();
+			this.resolve = CompletionItem._defaultResolve;
 			this.isResolved = true;
 		} else {
 			let cached: Promise<void> | undefined;
 			this.resolve = (token) => {
 				if (!cached) {
-					cached = Promise.resolve(resolveCompletionItem.call(provider, model, position, completion, token)).then(value => {
-						assign(completion, value);
+					cached = Promise.resolve(resolveCompletionItem.call(provider, model, Position.lift(position), completion, token)).then(value => {
+						Object.assign(completion, value);
 						this.isResolved = true;
 					}, err => {
 						if (isPromiseCanceledError(err)) {

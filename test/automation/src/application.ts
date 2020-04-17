@@ -126,8 +126,7 @@ export class Application {
 			extraArgs,
 			remote: this.options.remote,
 			web: this.options.web,
-			browser: this.options.browser,
-			headless: this.options.headless
+			browser: this.options.browser
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
@@ -147,7 +146,7 @@ export class Application {
 		}
 
 		// wait a bit, since focus might be stolen off widgets
-		// as soon as they open (e.g. quick open)
+		// as soon as they open (e.g. quick access)
 		await new Promise(c => setTimeout(c, 1000));
 	}
 }

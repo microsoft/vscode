@@ -70,6 +70,6 @@ export class ActivityUpdater extends Disposable implements IWorkbenchContributio
 		const { errors, warnings, infos } = this.markerService.getStatistics();
 		const total = errors + warnings + infos;
 		const message = localize('totalProblems', 'Total {0} Problems', total);
-		this.activity.value = this.activityService.showActivity(Constants.MARKERS_PANEL_ID, new NumberBadge(total, () => message));
+		this.activity.value = this.activityService.showActivity(Constants.MARKERS_CONTAINER_ID, new NumberBadge(total, () => message));
 	}
 }

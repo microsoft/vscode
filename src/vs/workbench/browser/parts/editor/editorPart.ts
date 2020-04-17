@@ -13,14 +13,12 @@ import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
-import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { EditorDropTarget, EditorDropTargetDelegate } from 'vs/workbench/browser/parts/editor/editorDropTarget';
@@ -31,6 +29,8 @@ import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/bro
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IBoundarySashes } from 'vs/base/browser/ui/grid/gridview';
+import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -174,7 +174,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const newPartOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
 
 		this.enforcedPartOptions.forEach(enforcedPartOptions => {
-			assign(newPartOptions, enforcedPartOptions); // check for overrides
+			Object.assign(newPartOptions, enforcedPartOptions); // check for overrides
 		});
 
 		this._partOptions = newPartOptions;
@@ -209,7 +209,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	get groups(): IEditorGroupView[] {
-		return values(this.groupViews);
+		return Array.from(this.groupViews.values());
 	}
 
 	get count(): number {
@@ -825,6 +825,20 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Drop support
 		this._register(this.createEditorDropTarget(this.container, {}));
 
+		// No drop in the editor
+		const overlay = document.createElement('div');
+		addClass(overlay, 'drop-block-overlay');
+		parent.appendChild(overlay);
+
+		CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
+			onDragStart: e => {
+				toggleClass(overlay, 'visible', true);
+			},
+			onDragEnd: e => {
+				toggleClass(overlay, 'visible', false);
+			}
+		});
+
 		return this.container;
 	}
 
@@ -835,7 +849,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	isLayoutCentered(): boolean {
-		return this.centeredLayoutWidget.isActive();
+		if (this.centeredLayoutWidget) {
+			return this.centeredLayoutWidget.isActive();
+		}
+
+		return false;
 	}
 
 	private doCreateGridControl(options?: IEditorPartCreationOptions): void {
@@ -947,11 +965,15 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doSetGridWidget(gridWidget: SerializableGrid<IEditorGroupView>): void {
+		let boundarySashes: IBoundarySashes = {};
+
 		if (this.gridWidget) {
+			boundarySashes = this.gridWidget.boundarySashes;
 			this.gridWidget.dispose();
 		}
 
 		this.gridWidget = gridWidget;
+		this.gridWidget.boundarySashes = boundarySashes;
 		this.gridWidgetView.gridWidget = gridWidget;
 
 		this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
@@ -970,6 +992,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private get isEmpty(): boolean {
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty;
+	}
+
+	setBoundarySashes(sashes: IBoundarySashes): void {
+		this.gridWidget.boundarySashes = sashes;
+		this.centeredLayoutWidget.boundarySashes = sashes;
 	}
 
 	layout(width: number, height: number): void {

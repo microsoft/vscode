@@ -8,24 +8,35 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
-import { listInvalidItemForeground } from 'vs/platform/theme/common/colorRegistry';
+import { listInvalidItemForeground, listDeemphasizedForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { explorerRootErrorEmitter } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
 import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 
-export function provideDecorations(fileStat: ExplorerItem | null): IDecorationData | undefined {
-	if (fileStat && fileStat.isRoot && fileStat.isError) {
+export function provideDecorations(fileStat: ExplorerItem): IDecorationData | undefined {
+	if (fileStat.isRoot && fileStat.isError) {
 		return {
-			tooltip: localize('canNotResolve', "Can not resolve workspace folder"),
+			tooltip: localize('canNotResolve', "Unable to resolve workspace folder"),
 			letter: '!',
 			color: listInvalidItemForeground,
 		};
 	}
-	if (fileStat && fileStat.isSymbolicLink) {
+	if (fileStat.isSymbolicLink) {
 		return {
 			tooltip: localize('symbolicLlink', "Symbolic Link"),
 			letter: '\u2937'
+		};
+	}
+	if (fileStat.isUnknown) {
+		return {
+			tooltip: localize('unknown', "Unknown File Type"),
+			letter: '?'
+		};
+	}
+	if (fileStat.isExcluded) {
+		return {
+			color: listDeemphasizedForeground,
 		};
 	}
 
@@ -61,6 +72,10 @@ export class ExplorerDecorationsProvider implements IDecorationsProvider {
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
 		const fileStat = this.explorerService.findClosest(resource);
+		if (!fileStat) {
+			return undefined;
+		}
+
 		return provideDecorations(fileStat);
 	}
 

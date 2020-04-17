@@ -57,6 +57,12 @@ const nodeCachedDataDir = getNodeCachedDir();
 // Configure static command line arguments
 const argvConfig = configureCommandlineSwitchesSync(args);
 
+// Remove env set by snap https://github.com/microsoft/vscode/issues/85344
+if (process.env['SNAP']) {
+	delete process.env['GDK_PIXBUF_MODULE_FILE'];
+	delete process.env['GDK_PIXBUF_MODULEDIR'];
+}
+
 /**
  * Support user defined locale: load it early before app('ready')
  * to have more things running in parallel.
@@ -82,7 +88,7 @@ app.once('ready', function () {
 			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
 		};
 
-		contentTracing.startRecording(traceOptions, () => onReady());
+		contentTracing.startRecording(traceOptions).finally(() => onReady());
 	} else {
 		onReady();
 	}
@@ -131,8 +137,15 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// provided by Electron
-		'disable-color-correct-rendering'
+		'disable-color-correct-rendering',
+
+		// override for the color profile to use
+		'force-color-profile'
 	];
+
+	if (process.platform === 'linux') {
+		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+	}
 
 	// Read argv config
 	const argvConfig = readArgvConfigSync();
@@ -144,7 +157,16 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		}
 
 		const argvValue = argvConfig[argvKey];
-		if (argvValue === true || argvValue === 'true') {
+
+		// Color profile
+		if (argvKey === 'force-color-profile') {
+			if (argvValue) {
+				app.commandLine.appendSwitch(argvKey, argvValue);
+			}
+		}
+
+		// Others
+		else if (argvValue === true || argvValue === 'true') {
 			if (argvKey === 'disable-hardware-acceleration') {
 				app.disableHardwareAcceleration(); // needs to be called explicitly
 			} else {
@@ -158,6 +180,9 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	if (jsFlags) {
 		app.commandLine.appendSwitch('js-flags', jsFlags);
 	}
+
+	// TODO@Deepak Electron 7 workaround for https://github.com/microsoft/vscode/issues/88873
+	app.commandLine.appendSwitch('disable-features', 'LayoutNG');
 
 	return argvConfig;
 }
@@ -297,7 +322,7 @@ function getUserDataPath(cliArgs) {
  * @returns {ParsedArgs}
  */
 function parseCLIArgs() {
-	const minimist = require('vscode-minimist');
+	const minimist = require('minimist');
 
 	return minimist(process.argv, {
 		string: [
@@ -325,7 +350,7 @@ function setCurrentWorkingDirectory() {
 function registerListeners() {
 
 	/**
-	 * Mac: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
+	 * macOS: when someone drops a file to the not-yet running VSCode, the open-file event fires even before
 	 * the app-ready event. We listen very early for open-file and remember this upon startup as path to open.
 	 *
 	 * @type {string[]}
@@ -337,7 +362,7 @@ function registerListeners() {
 	});
 
 	/**
-	 * React to open-url requests.
+	 * macOS: react to open-url requests.
 	 *
 	 * @type {string[]}
 	 */

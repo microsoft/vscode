@@ -463,7 +463,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 	}
 
 	public tokenize2(line: string, lineState: modes.IState, offsetDelta: number): TokenizationResult2 {
-		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneThemeService.getTheme().tokenTheme);
+		let tokensCollector = new MonarchModernTokensCollector(this._modeService, this._standaloneThemeService.getColorTheme().tokenTheme);
 		let endLineState = this._tokenize(line, <MonarchLineState>lineState, offsetDelta, tokensCollector);
 		return tokensCollector.finalize(endLineState);
 	}
@@ -501,7 +501,7 @@ export class MonarchTokenizer implements modes.ITokenizationSupport {
 			}
 
 			let result = line.search(regex);
-			if (result === -1) {
+			if (result === -1 || (result !== 0 && rule.matchOnlyAtLineStart)) {
 				continue;
 			}
 

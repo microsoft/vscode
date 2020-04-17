@@ -50,7 +50,7 @@ export class ConflictDetector {
 		}
 
 		// listen to file changes
-		this._disposables.add(fileService.onFileChanges(e => {
+		this._disposables.add(fileService.onDidFilesChange(e => {
 			for (let change of e.changes) {
 
 				if (modelService.getModel(change.resource)) {

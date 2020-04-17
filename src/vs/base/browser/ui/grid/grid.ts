@@ -7,7 +7,7 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { tail2 as tail, equals } from 'vs/base/common/arrays';
-import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, IGridViewOptions } from './gridview';
+import { orthogonal, IView as IGridViewView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles, IViewSize, IGridViewOptions, IBoundarySashes } from './gridview';
 import { Event } from 'vs/base/common/event';
 
 export { Orientation, Sizing as GridViewSizing, IViewSize, orthogonal, LayoutPriority } from './gridview';
@@ -211,6 +211,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 	get maximumWidth(): number { return this.gridview.maximumWidth; }
 	get maximumHeight(): number { return this.gridview.maximumHeight; }
 	get onDidChange(): Event<{ width: number; height: number; } | undefined> { return this.gridview.onDidChange; }
+
+	get boundarySashes(): IBoundarySashes { return this.gridview.boundarySashes; }
+	set boundarySashes(boundarySashes: IBoundarySashes) { this.gridview.boundarySashes = boundarySashes; }
 
 	get element(): HTMLElement { return this.gridview.element; }
 

@@ -10,6 +10,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import * as errors from 'vs/base/common/errors';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { getRandomElement } from 'vs/base/common/arrays';
+import { isFunction } from 'vs/base/common/types';
 
 /**
  * An `IChannel` is an abstraction over a collection of commands.
@@ -525,7 +526,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			this.activeRequests.add(disposable);
 		});
 
-		return result.finally(() => this.activeRequests.delete(disposable));
+		return result.finally(() => { this.activeRequests.delete(disposable); });
 	}
 
 	private requestEvent(channelName: string, name: string, arg?: any): Event<any> {
@@ -707,24 +708,26 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	 * be selected and when listening without a router, every client
 	 * will be listened to.
 	 */
-	getChannel<T extends IChannel>(channelName: string, router?: IClientRouter<TContext>): T {
+	getChannel<T extends IChannel>(channelName: string, router: IClientRouter<TContext>): T;
+	getChannel<T extends IChannel>(channelName: string, clientFilter: (client: Client<TContext>) => boolean): T;
+	getChannel<T extends IChannel>(channelName: string, routerOrClientFilter: IClientRouter<TContext> | ((client: Client<TContext>) => boolean)): T {
 		const that = this;
 
 		return {
 			call(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				let connectionPromise: Promise<Client<TContext>>;
 
-				if (router) {
-					connectionPromise = router.routeCall(that, command, arg);
-				} else {
+				if (isFunction(routerOrClientFilter)) {
 					// when no router is provided, we go random client picking
-					let connection = getRandomElement(that.connections);
+					let connection = getRandomElement(that.connections.filter(routerOrClientFilter));
 
 					connectionPromise = connection
 						// if we found a client, let's call on it
 						? Promise.resolve(connection)
 						// else, let's wait for a client to come along
-						: Event.toPromise(that.onDidAddConnection);
+						: Event.toPromise(Event.filter(that.onDidAddConnection, routerOrClientFilter));
+				} else {
+					connectionPromise = routerOrClientFilter.routeCall(that, command, arg);
 				}
 
 				const channelPromise = connectionPromise
@@ -734,11 +737,11 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 					.call(command, arg, cancellationToken);
 			},
 			listen(event: string, arg: any): Event<T> {
-				if (!router) {
-					return that.getMulticastEvent(channelName, event, arg);
+				if (isFunction(routerOrClientFilter)) {
+					return that.getMulticastEvent(channelName, routerOrClientFilter, event, arg);
 				}
 
-				const channelPromise = router.routeEvent(that, event, arg)
+				const channelPromise = routerOrClientFilter.routeEvent(that, event, arg)
 					.then(connection => (connection as Connection<TContext>).channelClient.getChannel(channelName));
 
 				return getDelayedChannel(channelPromise)
@@ -747,7 +750,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 		} as T;
 	}
 
-	private getMulticastEvent<T extends IChannel>(channelName: string, eventName: string, arg: any): Event<T> {
+	private getMulticastEvent<T extends IChannel>(channelName: string, clientFilter: (client: Client<TContext>) => boolean, eventName: string, arg: any): Event<T> {
 		const that = this;
 		let disposables = new DisposableStore();
 
@@ -784,8 +787,8 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 					map.delete(connection);
 				};
 
-				that.connections.forEach(onDidAddConnection);
-				that.onDidAddConnection(onDidAddConnection, undefined, disposables);
+				that.connections.filter(clientFilter).forEach(onDidAddConnection);
+				Event.filter(that.onDidAddConnection, clientFilter)(onDidAddConnection, undefined, disposables);
 				that.onDidRemoveConnection(onDidRemoveConnection, undefined, disposables);
 				eventMultiplexer.event(emitter.fire, emitter, disposables);
 

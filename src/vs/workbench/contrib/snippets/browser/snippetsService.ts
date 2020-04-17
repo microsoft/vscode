@@ -5,7 +5,6 @@
 
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { combinedDisposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { values } from 'vs/base/common/map';
 import * as resources from 'vs/base/common/resources';
 import { endsWith, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -116,7 +115,7 @@ namespace snippetExt {
 function watch(service: IFileService, resource: URI, callback: (type: FileChangeType, resource: URI) => any): IDisposable {
 	return combinedDisposable(
 		service.watch(resource),
-		service.onFileChanges(e => {
+		service.onDidFilesChange(e => {
 			for (const change of e.changes) {
 				if (resources.isEqualOrParent(change.resource, resource)) {
 					callback(change.type, change.resource);
@@ -162,8 +161,9 @@ class SnippetsService implements ISnippetsService {
 		return Promise.all(promises);
 	}
 
-	getSnippetFiles(): Promise<SnippetFile[]> {
-		return this._joinSnippets().then(() => values(this._files));
+	async getSnippetFiles(): Promise<Iterable<SnippetFile>> {
+		await this._joinSnippets();
+		return this._files.values();
 	}
 
 	getSnippets(languageId: LanguageId): Promise<Snippet[]> {
@@ -277,7 +277,7 @@ class SnippetsService implements ISnippetsService {
 					this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 				} else {
 					// watch
-					bucket.add(this._fileService.onFileChanges(e => {
+					bucket.add(this._fileService.onDidFilesChange(e => {
 						if (e.contains(snippetFolder, FileChangeType.ADDED)) {
 							this._initFolderSnippets(SnippetSource.Workspace, snippetFolder, bucket);
 						}
@@ -289,7 +289,7 @@ class SnippetsService implements ISnippetsService {
 	}
 
 	private _initUserSnippets(): Promise<any> {
-		const userSnippetsFolder = resources.joinPath(this._environmentService.userRoamingDataHome, 'snippets');
+		const userSnippetsFolder = this._environmentService.snippetsHome;
 		return this._fileService.createFolder(userSnippetsFolder).then(() => this._initFolderSnippets(SnippetSource.User, userSnippetsFolder, this._disposables));
 	}
 

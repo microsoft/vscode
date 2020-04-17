@@ -20,7 +20,7 @@ export class TypeScriptServerError extends Error {
 
 	private constructor(
 		serverId: string,
-		version: TypeScriptVersion,
+		public readonly version: TypeScriptVersion,
 		private readonly response: Proto.Response,
 		public readonly serverMessage: string | undefined,
 		public readonly serverStack: string | undefined

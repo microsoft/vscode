@@ -6,9 +6,8 @@
 import * as platform from 'vs/platform/registry/common/platform';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Color, RGBA } from 'vs/base/common/color';
-import { ITheme } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
-
 import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -27,7 +26,7 @@ export interface ColorContribution {
 
 
 export interface ColorFunction {
-	(theme: ITheme): Color | undefined;
+	(theme: IColorTheme): Color | undefined;
 }
 
 export interface ColorDefaults {
@@ -71,7 +70,7 @@ export interface IColorRegistry {
 	/**
 	 * Gets the default color of the given id
 	 */
-	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined;
+	resolveDefaultColor(id: ColorIdentifier, theme: IColorTheme): Color | undefined;
 
 	/**
 	 * JSON schema for an object to assign color values to one of the color contributions.
@@ -84,8 +83,6 @@ export interface IColorRegistry {
 	getColorReferenceSchema(): IJSONSchema;
 
 }
-
-
 
 class ColorRegistry implements IColorRegistry {
 
@@ -131,7 +128,7 @@ class ColorRegistry implements IColorRegistry {
 		return Object.keys(this.colorsById).map(id => this.colorsById[id]);
 	}
 
-	public resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color | undefined {
+	public resolveDefaultColor(id: ColorIdentifier, theme: IColorTheme): Color | undefined {
 		const colorDesc = this.colorsById[id];
 		if (colorDesc && colorDesc.defaults) {
 			const colorValue = colorDesc.defaults[theme.type];
@@ -227,10 +224,6 @@ export const simpleCheckboxBackground = registerColor('checkbox.background', { d
 export const simpleCheckboxForeground = registerColor('checkbox.foreground', { dark: selectForeground, light: selectForeground, hc: selectForeground }, nls.localize('checkbox.foreground', "Foreground color of checkbox widget."));
 export const simpleCheckboxBorder = registerColor('checkbox.border', { dark: selectBorder, light: selectBorder, hc: selectBorder }, nls.localize('checkbox.border', "Border color of checkbox widget."));
 
-
-export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#0066BF', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
-export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
-
 export const buttonForeground = registerColor('button.foreground', { dark: Color.white, light: Color.white, hc: Color.white }, nls.localize('buttonForeground', "Button foreground color."));
 export const buttonBackground = registerColor('button.background', { dark: '#0E639C', light: '#007ACC', hc: null }, nls.localize('buttonBackground', "Button background color."));
 export const buttonHoverBackground = registerColor('button.hoverBackground', { dark: lighten(buttonBackground, 0.2), light: darken(buttonBackground, 0.2), hc: null }, nls.localize('buttonHoverBackground', "Button background color when hovering."));
@@ -278,6 +271,15 @@ export const editorWidgetForeground = registerColor('editorWidget.foreground', {
 export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget.'));
 
 export const editorWidgetResizeBorder = registerColor('editorWidget.resizeBorder', { light: null, dark: null, hc: null }, nls.localize('editorWidgetResizeBorder', "Border color of the resize bar of editor widgets. The color is only used if the widget chooses to have a resize border and if the color is not overridden by a widget."));
+
+/**
+ * Quick pick widget
+ */
+export const quickInputBackground = registerColor('quickInput.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hc: editorWidgetBackground }, nls.localize('pickerBackground', "Quick picker background color. The quick picker widget is the container for pickers like the command palette."));
+export const quickInputForeground = registerColor('quickInput.foreground', { dark: editorWidgetForeground, light: editorWidgetForeground, hc: editorWidgetForeground }, nls.localize('pickerForeground', "Quick picker foreground color. The quick picker widget is the container for pickers like the command palette."));
+export const quickInputTitleBackground = registerColor('quickInputTitle.background', { dark: new Color(new RGBA(255, 255, 255, 0.105)), light: new Color(new RGBA(0, 0, 0, 0.06)), hc: '#000000' }, nls.localize('pickerTitleBackground', "Quick picker title background color. The quick picker widget is the container for pickers like the command palette."));
+export const pickerGroupForeground = registerColor('pickerGroup.foreground', { dark: '#3794FF', light: '#0066BF', hc: Color.white }, nls.localize('pickerGroupForeground', "Quick picker color for grouping labels."));
+export const pickerGroupBorder = registerColor('pickerGroup.border', { dark: '#3F3F46', light: '#CCCEDB', hc: Color.white }, nls.localize('pickerGroupBorder', "Quick picker color for grouping borders."));
 
 /**
  * Editor selection colors.
@@ -363,6 +365,7 @@ export const listFilterWidgetNoMatchesOutline = registerColor('listFilterWidget.
 export const listFilterMatchHighlight = registerColor('list.filterMatchBackground', { dark: editorFindMatchHighlight, light: editorFindMatchHighlight, hc: null }, nls.localize('listFilterMatchHighlight', 'Background color of the filtered match.'));
 export const listFilterMatchHighlightBorder = registerColor('list.filterMatchBorder', { dark: editorFindMatchHighlightBorder, light: editorFindMatchHighlightBorder, hc: contrastBorder }, nls.localize('listFilterMatchHighlightBorder', 'Border color of the filtered match.'));
 export const treeIndentGuidesStroke = registerColor('tree.indentGuidesStroke', { dark: '#585858', light: '#a9a9a9', hc: '#a9a9a9' }, nls.localize('treeIndentGuidesStroke', "Tree stroke color for the indentation guides."));
+export const listDeemphasizedForeground = registerColor('list.deemphasizedForeground', { dark: '#8C8C8C', light: '#8E8E90', hc: '#A7A8A9' }, nls.localize('listDeemphasizedForeground', "List/Tree foreground color for items that are deemphasized. "));
 
 /**
  * Menu colors
@@ -424,6 +427,11 @@ export const minimapFindMatch = registerColor('minimap.findMatchHighlight', { li
 export const minimapSelection = registerColor('minimap.selectionHighlight', { light: '#ADD6FF', dark: '#264F78', hc: '#ffffff' }, nls.localize('minimapSelectionHighlight', 'Minimap marker color for the editor selection.'), true);
 export const minimapError = registerColor('minimap.errorHighlight', { dark: new Color(new RGBA(255, 18, 18, 0.7)), light: new Color(new RGBA(255, 18, 18, 0.7)), hc: new Color(new RGBA(255, 50, 50, 1)) }, nls.localize('minimapError', 'Minimap marker color for errors.'));
 export const minimapWarning = registerColor('minimap.warningHighlight', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningBorder }, nls.localize('overviewRuleWarning', 'Minimap marker color for warnings.'));
+export const minimapBackground = registerColor('minimap.background', { dark: null, light: null, hc: null }, nls.localize('minimapBackground', "Minimap background color."));
+
+export const minimapSliderBackground = registerColor('minimapSlider.background', { light: transparent(scrollbarSliderBackground, 0.5), dark: transparent(scrollbarSliderBackground, 0.5), hc: transparent(scrollbarSliderBackground, 0.5) }, nls.localize('minimapSliderBackground', "Minimap slider background color."));
+export const minimapSliderHoverBackground = registerColor('minimapSlider.hoverBackground', { light: transparent(scrollbarSliderHoverBackground, 0.5), dark: transparent(scrollbarSliderHoverBackground, 0.5), hc: transparent(scrollbarSliderHoverBackground, 0.5) }, nls.localize('minimapSliderHoverBackground', "Minimap slider background color when hovering."));
+export const minimapSliderActiveBackground = registerColor('minimapSlider.activeBackground', { light: transparent(scrollbarSliderActiveBackground, 0.5), dark: transparent(scrollbarSliderActiveBackground, 0.5), hc: transparent(scrollbarSliderActiveBackground, 0.5) }, nls.localize('minimapSliderActiveBackground', "Minimap slider background color when clicked on."));
 
 export const problemsErrorIconForeground = registerColor('problemsErrorIcon.foreground', { dark: editorErrorForeground, light: editorErrorForeground, hc: editorErrorForeground }, nls.localize('problemsErrorIconForeground', "The color used for the problems error icon."));
 export const problemsWarningIconForeground = registerColor('problemsWarningIcon.foreground', { dark: editorWarningForeground, light: editorWarningForeground, hc: editorWarningForeground }, nls.localize('problemsWarningIconForeground', "The color used for the problems warning icon."));
@@ -495,7 +503,7 @@ function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue,
 /**
  * @param colorValue Resolve a color value in the context of a theme
  */
-export function resolveColorValue(colorValue: ColorValue | null, theme: ITheme): Color | undefined {
+export function resolveColorValue(colorValue: ColorValue | null, theme: IColorTheme): Color | undefined {
 	if (colorValue === null) {
 		return undefined;
 	} else if (typeof colorValue === 'string') {

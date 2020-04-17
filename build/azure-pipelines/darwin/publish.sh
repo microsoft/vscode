@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# remove pkg from archive
-zip -d ../VSCode-darwin.zip "*.pkg"
-
 # publish the build
 node build/azure-pipelines/common/createAsset.js \
 	darwin \
@@ -22,7 +19,9 @@ node build/azure-pipelines/common/createAsset.js \
 	../vscode-server-darwin.zip
 
 # publish hockeyapp symbols
-node build/azure-pipelines/common/symbols.js "$VSCODE_MIXIN_PASSWORD" "$VSCODE_HOCKEYAPP_TOKEN" x64 "$VSCODE_HOCKEYAPP_ID_MACOS"
+# node build/azure-pipelines/common/symbols.js "$VSCODE_MIXIN_PASSWORD" "$VSCODE_HOCKEYAPP_TOKEN" x64 "$VSCODE_HOCKEYAPP_ID_MACOS"
+# Skip hockey app because build failure.
+# https://github.com/microsoft/vscode/issues/90491
 
 # upload configuration
 yarn gulp upload-vscode-configuration

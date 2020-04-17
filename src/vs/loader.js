@@ -923,7 +923,11 @@ var AMDLoader;
                 var hashDataNow = _this._crypto.createHash('md5').update(scriptSource, 'utf8').digest();
                 if (!hashData.equals(hashDataNow)) {
                     moduleManager.getConfig().onError(new Error("FAILED TO VERIFY CACHED DATA, deleting stale '" + cachedDataPath + "' now, but a RESTART IS REQUIRED"));
-                    _this._fs.unlink(cachedDataPath, function (err) { return moduleManager.getConfig().onError(err); });
+                    _this._fs.unlink(cachedDataPath, function (err) {
+                        if (err) {
+                            moduleManager.getConfig().onError(err);
+                        }
+                    });
                 }
             }, Math.ceil(5000 * (1 + Math.random())));
         };

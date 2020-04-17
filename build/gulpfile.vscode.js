@@ -37,10 +37,8 @@ const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask } = require('./gulpfile.extensions');
 
 const productionDependencies = deps.getProductionDependencies(path.dirname(__dirname));
-// @ts-ignore
 const baseModules = Object.keys(process.binding('natives')).filter(n => !/^_|\//.test(n));
 const nodeModules = ['electron', 'original-fs']
-	// @ts-ignore JSON checking: dependencies property is optional
 	.concat(Object.keys(product.dependencies || {}))
 	.concat(_.uniq(productionDependencies.map(d => d.name)))
 	.concat(baseModules);
@@ -93,7 +91,6 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 		resources: vscodeResources,
 		loaderConfig: common.loaderConfig(nodeModules),
 		out: 'out-vscode',
-		inlineAmdImages: true,
 		bundleInfo: undefined
 	})
 ));
@@ -159,6 +156,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const checksums = computeChecksums(out, [
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
+			'vs/workbench/services/extensions/node/extensionHostProcess.js',
 			'vs/code/electron-browser/workbench/workbench.html',
 			'vs/code/electron-browser/workbench/workbench.js'
 		]);
@@ -326,6 +324,7 @@ const buildRoot = path.dirname(root);
 const BUILD_TARGETS = [
 	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
+	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
 	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
@@ -458,20 +457,30 @@ const generateVSCodeConfigurationTask = task.define('generate-vscode-configurati
 		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
 		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'Visual\\ Studio\\ Code\\ -\\ Insiders.app' : 'Visual\\ Studio\\ Code.app';
 		const appPath = path.join(buildDir, `VSCode-darwin/${appName}/Contents/Resources/app/bin/code`);
-		const codeProc = cp.exec(`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`);
+		const codeProc = cp.exec(
+			`${appPath} --export-default-configuration='${allConfigDetailsPath}' --wait --user-data-dir='${userDataDir}' --extensions-dir='${extensionsDir}'`,
+			(err, stdout, stderr) => {
+				clearTimeout(timer);
+				if (err) {
+					console.log(`err: ${err} ${err.message} ${err.toString()}`);
+					reject(err);
+				}
 
+				if (stdout) {
+					console.log(`stdout: ${stdout}`);
+				}
+
+				if (stderr) {
+					console.log(`stderr: ${stderr}`);
+				}
+
+				resolve();
+			}
+		);
 		const timer = setTimeout(() => {
 			codeProc.kill();
 			reject(new Error('export-default-configuration process timed out'));
-		}, 10 * 1000);
-
-		codeProc.stdout.on('data', d => console.log(d.toString()));
-		codeProc.stderr.on('data', d => console.log(d.toString()));
-
-		codeProc.on('exit', () => {
-			clearTimeout(timer);
-			resolve();
-		});
+		}, 12 * 1000);
 
 		codeProc.on('error', err => {
 			clearTimeout(timer);

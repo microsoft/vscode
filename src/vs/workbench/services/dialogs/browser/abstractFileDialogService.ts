@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, isWorkspaceToOpen, isFileToOpen } from 'vs/platform/windows/common/windows';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, FileFilter, IFileDialogService, IDialogService, ConfirmResult, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -14,7 +14,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 import { IInstantiationService, } from 'vs/platform/instantiation/common/instantiation';
 import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
-import { WORKSPACE_EXTENSION, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
+import { WORKSPACE_EXTENSION, isUntitledWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -24,6 +24,7 @@ import Severity from 'vs/base/common/severity';
 import { coalesce } from 'vs/base/common/arrays';
 import { trim } from 'vs/base/common/strings';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 export abstract class AbstractFileDialogService implements IFileDialogService {
 
@@ -39,7 +40,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@IFileService protected readonly fileService: IFileService,
 		@IOpenerService protected readonly openerService: IOpenerService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
+		@ILabelService private readonly labelService: ILabelService
 	) { }
 
 	defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): URI | undefined {
@@ -85,10 +88,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
+		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
+			return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev testing mode because we cannot assume we run interactive
 		}
 
+		return this.doShowSaveConfirm(fileNamesOrResources);
+	}
+
+	protected async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
 		if (fileNamesOrResources.length === 0) {
 			return ConfirmResult.DONT_SAVE;
 		}
@@ -132,6 +139,11 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			const stat = await this.fileService.resolve(uri);
 
 			const toOpen: IWindowOpenable = stat.isDirectory ? { folderUri: uri } : { fileUri: uri };
+			if (!isWorkspaceToOpen(toOpen) && isFileToOpen(toOpen)) {
+				// add the picked file into the list of recently opened
+				this.workspacesService.addRecentlyOpened([{ fileUri: toOpen.fileUri, label: this.labelService.getUriLabel(toOpen.fileUri) }]);
+			}
+
 			if (stat.isDirectory || options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([toOpen], { forceNewWindow: options.forceNewWindow });
 			} else {
@@ -146,6 +158,9 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 		const uri = await this.pickResource({ canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: options.defaultUri, title, availableFileSystems });
 		if (uri) {
+			// add the picked file into the list of recently opened
+			this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
+
 			if (options.forceNewWindow || preferNewWindow) {
 				return this.hostService.openWindow([{ fileUri: uri }], { forceNewWindow: options.forceNewWindow });
 			} else {
@@ -203,15 +218,19 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
-		const simpleFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
+		const simpleFileDialog = this.createSimpleFileDialog();
 
 		return simpleFileDialog.showOpenDialog(options);
 	}
 
 	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const remoteFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
+		const remoteFileDialog = this.createSimpleFileDialog();
 
 		return remoteFileDialog.showSaveDialog(options);
+	}
+
+	protected createSimpleFileDialog(): SimpleFileDialog {
+		return this.instantiationService.createInstance(SimpleFileDialog);
 	}
 
 	protected getSchemeFilterForWindow(): string {

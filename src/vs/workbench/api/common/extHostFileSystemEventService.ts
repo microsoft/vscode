@@ -199,7 +199,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 		const edits: WorkspaceEdit[] = [];
 
-		await emitter.fireAsync(data, token, async (thenable, listener: IExtensionListener<E>) => {
+		await emitter.fireAsync(data, token, async (thenable, listener) => {
 			// ignore all results except for WorkspaceEdits. Those are stored in an array.
 			const now = Date.now();
 			const result = await Promise.resolve(thenable);
@@ -208,7 +208,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 			}
 
 			if (Date.now() - now > timeout) {
-				this._logService.warn('SLOW file-participant', listener.extension?.identifier);
+				this._logService.warn('SLOW file-participant', (<IExtensionListener<E>>listener).extension?.identifier);
 			}
 		});
 

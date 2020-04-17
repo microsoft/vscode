@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, app } from 'electron';
+import { ipcMain as ipc, app, BrowserWindow } from 'electron';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateService } from 'vs/platform/state/node/state';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -12,8 +12,8 @@ import { ICodeWindow } from 'vs/platform/windows/electron-main/windows';
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Barrier } from 'vs/base/common/async';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { Barrier, timeout } from 'vs/base/common/async';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -106,7 +106,7 @@ export interface ILifecycleMainService {
 	/**
 	 * Forcefully shutdown the application. No livecycle event handlers are triggered.
 	 */
-	kill(code?: number): void;
+	kill(code?: number): Promise<void>;
 
 	/**
 	 * Returns a promise that resolves when a certain lifecycle phase
@@ -141,7 +141,28 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
-	private windowToCloseRequest: Set<number> = new Set();
+	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
+	readonly onBeforeShutdown = this._onBeforeShutdown.event;
+
+	private readonly _onWillShutdown = this._register(new Emitter<ShutdownEvent>());
+	readonly onWillShutdown = this._onWillShutdown.event;
+
+	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
+	readonly onBeforeWindowClose = this._onBeforeWindowClose.event;
+
+	private readonly _onBeforeWindowUnload = this._register(new Emitter<IWindowUnloadEvent>());
+	readonly onBeforeWindowUnload = this._onBeforeWindowUnload.event;
+
+	private _quitRequested = false;
+	get quitRequested(): boolean { return this._quitRequested; }
+
+	private _wasRestarted: boolean = false;
+	get wasRestarted(): boolean { return this._wasRestarted; }
+
+	private _phase = LifecycleMainPhase.Starting;
+	get phase(): LifecycleMainPhase { return this._phase; }
+
+	private readonly windowToCloseRequest = new Set<number>();
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
@@ -150,28 +171,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private pendingWillShutdownPromise: Promise<void> | null = null;
 
-	private _quitRequested = false;
-	get quitRequested(): boolean { return this._quitRequested; }
-
-	private _wasRestarted: boolean = false;
-	get wasRestarted(): boolean { return this._wasRestarted; }
-
-	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
-	readonly onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
-
-	private readonly _onWillShutdown = this._register(new Emitter<ShutdownEvent>());
-	readonly onWillShutdown: Event<ShutdownEvent> = this._onWillShutdown.event;
-
-	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
-	readonly onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
-
-	private readonly _onBeforeWindowUnload = this._register(new Emitter<IWindowUnloadEvent>());
-	readonly onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
-
-	private _phase: LifecycleMainPhase = LifecycleMainPhase.Starting;
-	get phase(): LifecycleMainPhase { return this._phase; }
-
-	private phaseWhen = new Map<LifecycleMainPhase, Barrier>();
+	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -550,9 +550,45 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		this.quit().then(veto => quitVetoed = veto);
 	}
 
-	kill(code?: number): void {
+	async kill(code?: number): Promise<void> {
 		this.logService.trace('Lifecycle#kill()');
 
+		// The kill() method is only used in 2 situations:
+		// - when an instance fails to start at all
+		// - when extension tests run from CLI to report proper exit code
+		//
+		// From extension tests we have seen issues where calling app.exit()
+		// with an opened window can lead to native crashes (Linux) when webviews
+		// are involved. As such, we should make sure to destroy any opened
+		// window before calling app.exit().
+		//
+		// Note: Electron implements a similar logic here:
+		// https://github.com/electron/electron/blob/fe5318d753637c3903e23fc1ed1b263025887b6a/spec-main/window-helpers.ts#L5
+
+		await Promise.race([
+
+			// still do not block more than 1s
+			timeout(1000),
+
+			// destroy any opened window
+			(async () => {
+				for (const window of BrowserWindow.getAllWindows()) {
+					if (window && !window.isDestroyed()) {
+						let whenWindowClosed: Promise<void>;
+						if (window.webContents && !window.webContents.isDestroyed()) {
+							whenWindowClosed = new Promise(c => window.once('closed', c));
+						} else {
+							whenWindowClosed = Promise.resolve();
+						}
+
+						window.destroy();
+						await whenWindowClosed;
+					}
+				}
+			})()
+		]);
+
+		// Now exit either after 1s or all windows destroyed
 		app.exit(code);
 	}
 }

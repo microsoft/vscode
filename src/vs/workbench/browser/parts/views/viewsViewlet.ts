@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOM from 'vs/base/browser/dom';
 import { IAction } from 'vs/base/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -13,11 +12,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewPaneContainer, ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { WorkbenchTree, IListService } from 'vs/platform/list/browser/listService';
-import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ITreeConfiguration, ITreeOptions } from 'vs/base/parts/tree/browser/tree';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -145,31 +140,4 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 	}
 
 	abstract getTitle(): string;
-}
-
-export class FileIconThemableWorkbenchTree extends WorkbenchTree {
-
-	constructor(
-		container: HTMLElement,
-		configuration: ITreeConfiguration,
-		options: ITreeOptions,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IListService listService: IListService,
-		@IThemeService themeService: IWorkbenchThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService
-	) {
-		super(container, configuration, { ...options, ...{ showTwistie: false, twistiePixels: 12 } }, contextKeyService, listService, themeService, instantiationService, configurationService);
-
-		DOM.addClass(container, 'file-icon-themable-tree');
-		DOM.addClass(container, 'show-file-icons');
-
-		const onFileIconThemeChange = (fileIconTheme: IFileIconTheme) => {
-			DOM.toggleClass(container, 'align-icons-and-twisties', fileIconTheme.hasFileIcons && !fileIconTheme.hasFolderIcons);
-			DOM.toggleClass(container, 'hide-arrows', fileIconTheme.hidesExplorerArrows === true);
-		};
-
-		this.disposables.push(themeService.onDidFileIconThemeChange(onFileIconThemeChange));
-		onFileIconThemeChange(themeService.getFileIconTheme());
-	}
 }

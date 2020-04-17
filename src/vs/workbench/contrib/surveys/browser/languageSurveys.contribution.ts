@@ -53,8 +53,7 @@ class LanguageSurvey extends Disposable {
 			// Process model-save event every 250ms to reduce load
 			const onModelsSavedWorker = this._register(new RunOnceWorker<ITextFileEditorModel>(models => {
 				models.forEach(m => {
-					const model = modelService.getModel(m.resource);
-					if (model && model.getModeId() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
+					if (m.getMode() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
 						const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
 						storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL);
 						storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL);

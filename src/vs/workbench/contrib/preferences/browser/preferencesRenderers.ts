@@ -1091,7 +1091,8 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render(this.associatedSettingsEditorModel))));
@@ -1099,24 +1100,39 @@ class WorkspaceConfigurationRenderer extends Disposable {
 
 	render(associatedSettingsEditorModel: IPreferencesEditorModel<ISetting>): void {
 		this.associatedSettingsEditorModel = associatedSettingsEditorModel;
-		// Dim other configurations in workspace configuration file only in the context of Settings Editor
-		if (this.associatedSettingsEditorModel && this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceSettingsEditorModel instanceof WorkspaceConfigurationEditorModel) {
+		const markerData: IMarkerData[] = [];
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.workspaceSettingsEditorModel instanceof WorkspaceConfigurationEditorModel) {
 			const ranges: IRange[] = [];
 			for (const settingsGroup of this.workspaceSettingsEditorModel.configurationGroups) {
 				for (const section of settingsGroup.sections) {
 					for (const setting of section.settings) {
-						if (setting.key !== 'settings') {
-							ranges.push({
-								startLineNumber: setting.keyRange.startLineNumber,
-								startColumn: setting.keyRange.startColumn - 1,
-								endLineNumber: setting.valueRange.endLineNumber,
-								endColumn: setting.valueRange.endColumn
+						if (setting.key === 'folders' || setting.key === 'tasks' || setting.key === 'launch' || setting.key === 'extensions') {
+							if (this.associatedSettingsEditorModel) {
+								// Dim other configurations in workspace configuration file only in the context of Settings Editor
+								ranges.push({
+									startLineNumber: setting.keyRange.startLineNumber,
+									startColumn: setting.keyRange.startColumn - 1,
+									endLineNumber: setting.valueRange.endLineNumber,
+									endColumn: setting.valueRange.endColumn
+								});
+							}
+						} else if (setting.key !== 'settings') {
+							markerData.push({
+								severity: MarkerSeverity.Hint,
+								tags: [MarkerTag.Unnecessary],
+								...setting.range,
+								message: nls.localize('unsupportedProperty', "Unsupported Property")
 							});
 						}
 					}
 				}
 			}
 			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range)));
+		}
+		if (markerData.length) {
+			this.markerService.changeOne('preferencesEditor', this.workspaceSettingsEditorModel.uri, markerData);
+		} else {
+			this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
 		}
 	}
 
@@ -1133,6 +1149,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	dispose(): void {
+		this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}

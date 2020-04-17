@@ -11,7 +11,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 
 export const Extensions = {
 	WorkbenchActions: 'workbench.contributions.actions'
@@ -22,17 +22,18 @@ export interface IWorkbenchActionRegistry {
 	/**
 	 * Registers a workbench action to the platform. Workbench actions are not
 	 * visible by default and can only be invoked through a keybinding if provided.
+	 * @deprecated Register directly with KeybindingsRegistry and MenuRegistry or use registerAction2 instead.
 	 */
 	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable;
 }
 
 Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionRegistry {
 
-	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
+	registerWorkbenchAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable {
 		return this.registerWorkbenchCommandFromAction(descriptor, alias, category, when);
 	}
 
-	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpr): IDisposable {
+	private registerWorkbenchCommandFromAction(descriptor: SyncActionDescriptor, alias: string, category?: string, when?: ContextKeyExpression): IDisposable {
 		const registrations = new DisposableStore();
 
 		// command
@@ -44,7 +45,10 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		KeybindingsRegistry.registerKeybindingRule({
 			id: descriptor.id,
 			weight: weight,
-			when: (descriptor.keybindingContext || when ? ContextKeyExpr.and(descriptor.keybindingContext, when) : null),
+			when:
+				descriptor.keybindingContext && when
+					? ContextKeyExpr.and(descriptor.keybindingContext, when)
+					: descriptor.keybindingContext || when || null,
 			primary: keybindings ? keybindings.primary : 0,
 			secondary: keybindings?.secondary,
 			win: keybindings?.win,
@@ -95,7 +99,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 		};
 	}
 
-	private async triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: any): Promise<void> {
+	private async triggerAndDisposeAction(instantiationService: IInstantiationService, lifecycleService: ILifecycleService, descriptor: SyncActionDescriptor, args: unknown): Promise<void> {
 
 		// run action when workbench is created
 		await lifecycleService.when(LifecyclePhase.Ready);
@@ -112,7 +116,7 @@ Registry.add(Extensions.WorkbenchActions, new class implements IWorkbenchActionR
 
 		// otherwise run and dispose
 		try {
-			const from = args?.from || 'keybinding';
+			const from = (args as any)?.from || 'keybinding';
 			await actionInstance.run(undefined, { from });
 		} finally {
 			actionInstance.dispose();

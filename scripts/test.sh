@@ -29,10 +29,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	cd $ROOT ; ulimit -n 4096 ; \
 		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/electron/index.js "$@"
+		test/unit/electron/index.js "$@"
 else
 	cd $ROOT ; \
 		ELECTRON_ENABLE_LOGGING=1 \
 		"$CODE" \
-		test/electron/index.js --no-sandbox "$@" # Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox.
+		test/unit/electron/index.js --no-sandbox "$@" # Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox.
 fi

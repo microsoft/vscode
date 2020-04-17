@@ -89,18 +89,11 @@
 	white-space: pre;
 }
 
-.monaco-editor.vs-dark .review-widget .body .comment-body h4 {
-	margin: 0;
-}
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .author {
 	line-height: 22px;
 }
 
-.monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .author {
-	color: #fff;
-	font-weight: 600;
-}
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .isPending {
 	margin: 0 5px 0 5px;
@@ -108,7 +101,7 @@
 	font-style: italic;
 }
 
-.monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-body {
+.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-body {
 	padding-top: 4px;
 }
 
@@ -146,22 +139,8 @@
 	margin-right: 4px;
 }
 
-.monaco-editor .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
-	background-image: url("./close-light.svg");
-	background-size: 16px;
-}
-
-.monaco-editor.vs-dark .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
-	background-image: url("./close-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .head .review-actions > .monaco-action-bar .codicon.expand-review-action {
-	background-image: url("./close-hc.svg");
-}
-
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
 	display: none;
-	background-image: url("./reaction-light.svg");
 	background-size: 16px;
 	width: 26px;
 	height: 16px;
@@ -176,14 +155,6 @@
 	background-size: 16px;
 }
 
-.monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-hc.svg");
-}
-
 .monaco-editor .review-widget .body .review-comment .comment-title .action-label {
 	display: block;
 	height: 16px;
@@ -191,23 +162,6 @@
 	background-size: 16px;
 	background-position: center center;
 	background-repeat: no-repeat;
-}
-
-.monaco-editor .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-light.svg");
-	width: 16px;
-	height: 16px;
-	background-size: 16px;
-	background-position: center;
-	background-repeat: no-repeat;
-}
-
-.monaco-editor.vs-dark .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-dark.svg");
-}
-
-.monaco-editor.hc-black .review-widget .body .review-comment .comment-title .action-label.toolbar-toggle-pickReactions {
-	background-image: url("./reaction-hc.svg");
 }
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label {
@@ -220,10 +174,6 @@
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.disabled {
 	opacity: 0.6;
-}
-
-.monaco-editor.vs-dark .review-widget .body span.created_at {
-	color: #e0e0e0;
 }
 
 .monaco-editor .review-widget .body .comment-body p,
@@ -353,6 +303,7 @@
 	width: auto;
 	padding: 4px 10px;
 	margin-left: 5px;
+	margin-bottom: 5px;
 }
 
 .monaco-editor .review-widget .body .comment-form .monaco-text-button {
@@ -409,10 +360,6 @@
 
 .monaco-editor .review-widget .head .review-actions > .monaco-action-bar .action-label.codicon {
 	margin: 0;
-}
-
-.monaco-editor .review-widget .head .review-actions .action-label.codicon.close-review-action {
-	background: url("./close.svg") center center no-repeat;
 }
 
 .monaco-editor .review-widget > .body {

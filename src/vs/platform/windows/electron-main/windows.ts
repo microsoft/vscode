@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IWindowConfiguration, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, OpenContext } from 'vs/platform/windows/node/window';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -39,7 +40,7 @@ export interface ICodeWindow extends IDisposable {
 
 	readonly id: number;
 	readonly win: BrowserWindow;
-	readonly config: IWindowConfiguration | undefined;
+	readonly config: INativeWindowConfiguration | undefined;
 
 	readonly openedFolderUri?: URI;
 	readonly openedWorkspace?: IWorkspaceIdentifier;
@@ -60,8 +61,8 @@ export interface ICodeWindow extends IDisposable {
 
 	addTabbedWindow(window: ICodeWindow): void;
 
-	load(config: IWindowConfiguration, isReload?: boolean): void;
-	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
+	load(config: INativeWindowConfiguration, isReload?: boolean): void;
+	reload(configuration?: INativeWindowConfiguration, cli?: ParsedArgs): void;
 
 	focus(): void;
 	close(): void;
@@ -78,6 +79,9 @@ export interface ICodeWindow extends IDisposable {
 
 	setRepresentedFilename(name: string): void;
 	getRepresentedFilename(): string | undefined;
+
+	setDocumentEdited(edited: boolean): void;
+	isDocumentEdited(): boolean;
 
 	handleTitleDoubleClick(): void;
 

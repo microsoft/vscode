@@ -9,15 +9,17 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
+import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 
-export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspacesService, Promise<any> /* only methods, not events */, number /* window ID */> {
+export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspacesService, Promise<unknown> /* only methods, not events */, number /* window ID */> {
 
 	_serviceBrand: undefined;
 
 	constructor(
 		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService
+		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
+		@IBackupMainService private readonly backupMainService: IBackupMainService
 	) {
 	}
 
@@ -51,24 +53,28 @@ export class WorkspacesService implements AddFirstParameterToFunctions<IWorkspac
 	readonly onRecentlyOpenedChange = this.workspacesHistoryMainService.onRecentlyOpenedChange;
 
 	async getRecentlyOpened(windowId: number): Promise<IRecentlyOpened> {
-		const window = this.windowsMainService.getWindowById(windowId);
-		if (window?.config) {
-			return this.workspacesHistoryMainService.getRecentlyOpened(window.config.workspace, window.config.folderUri, window.config.filesToOpenOrCreate);
-		}
-
-		return this.workspacesHistoryMainService.getRecentlyOpened();
+		return this.workspacesHistoryMainService.getRecentlyOpened(this.windowsMainService.getWindowById(windowId));
 	}
 
 	async addRecentlyOpened(windowId: number, recents: IRecent[]): Promise<void> {
 		return this.workspacesHistoryMainService.addRecentlyOpened(recents);
 	}
 
-	async removeFromRecentlyOpened(windowId: number, paths: URI[]): Promise<void> {
-		return this.workspacesHistoryMainService.removeFromRecentlyOpened(paths);
+	async removeRecentlyOpened(windowId: number, paths: URI[]): Promise<void> {
+		return this.workspacesHistoryMainService.removeRecentlyOpened(paths);
 	}
 
 	async clearRecentlyOpened(windowId: number): Promise<void> {
 		return this.workspacesHistoryMainService.clearRecentlyOpened();
+	}
+
+	//#endregion
+
+
+	//#region Dirty Workspaces
+
+	async getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>> {
+		return this.backupMainService.getDirtyWorkspaces();
 	}
 
 	//#endregion

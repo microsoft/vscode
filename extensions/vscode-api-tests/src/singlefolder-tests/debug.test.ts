@@ -4,23 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { debug, workspace, commands, window, Disposable } from 'vscode';
+import { debug, workspace, Disposable, commands, window } from 'vscode';
+import { disposeAll } from '../utils';
 import { basename } from 'path';
-import { disposeAll, createRandomFile } from '../utils';
 
-suite('Debug', function () {
+suite('vscode API - debug', function () {
 
 	test('breakpoints', async function () {
 		assert.equal(debug.breakpoints.length, 0);
 		let onDidChangeBreakpointsCounter = 0;
 		const toDispose: Disposable[] = [];
-		let onBreakpointsChange: () => void;
 
 		toDispose.push(debug.onDidChangeBreakpoints(() => {
 			onDidChangeBreakpointsCounter++;
-			if (onBreakpointsChange) {
-				onBreakpointsChange();
-			}
 		}));
 
 		debug.addBreakpoints([{ id: '1', enabled: true }, { id: '2', enabled: false, condition: '2 < 5' }]);
@@ -38,35 +34,28 @@ suite('Debug', function () {
 		assert.equal(onDidChangeBreakpointsCounter, 3);
 		assert.equal(debug.breakpoints.length, 0);
 
-		const file = await createRandomFile('let i = 5;', undefined, '.js');
-		const doc = await workspace.openTextDocument(file);
-		await window.showTextDocument(doc, undefined, false);
-
-		const breakpointsChanged = new Promise<void>(resolve => onBreakpointsChange = resolve);
-		await commands.executeCommand('editor.debug.action.toggleBreakpoint');
-		await breakpointsChanged;
-		assert.equal(debug.breakpoints.length, 1);
-		assert.equal(debug.breakpoints[0].enabled, true);
-
-		const breakpointsChangedSecond = new Promise<void>(resolve => onBreakpointsChange = resolve);
-		await commands.executeCommand('editor.debug.action.toggleBreakpoint');
-		await breakpointsChangedSecond;
-		assert.equal(debug.breakpoints.length, 0);
-
 		disposeAll(toDispose);
 	});
 
-	test('start debugging', async function () {
-		assert.equal(debug.activeDebugSession, undefined);
+	test.skip('start debugging', async function () {
 		let stoppedEvents = 0;
 		let variablesReceived: () => void;
-		let capabilitiesReceived: () => void;
 		let initializedReceived: () => void;
 		let configurationDoneReceived: () => void;
+		const toDispose: Disposable[] = [];
+		if (debug.activeDebugSession) {
+			// We are re-running due to flakyness, make sure to clear out state
+			let sessionTerminatedRetry: () => void;
+			toDispose.push(debug.onDidTerminateDebugSession(() => {
+				sessionTerminatedRetry();
+			}));
+			const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminatedRetry = resolve);
+			await commands.executeCommand('workbench.action.debug.stop');
+			await sessionTerminatedPromise;
+		}
 
 		const firstVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
-		const toDispose: Disposable[] = [];
-		toDispose.push(debug.registerDebugAdapterTrackerFactory('node2', {
+		toDispose.push(debug.registerDebugAdapterTrackerFactory('*', {
 			createDebugAdapterTracker: () => ({
 				onDidSendMessage: m => {
 					if (m.event === 'stopped') {
@@ -74,9 +63,6 @@ suite('Debug', function () {
 					}
 					if (m.type === 'response' && m.command === 'variables') {
 						variablesReceived();
-					}
-					if (m.event === 'capabilities') {
-						capabilitiesReceived();
 					}
 					if (m.event === 'initialized') {
 						initializedReceived();
@@ -88,19 +74,15 @@ suite('Debug', function () {
 			})
 		}));
 
-		const capabilitiesPromise = new Promise<void>(resolve => capabilitiesReceived = resolve);
 		const initializedPromise = new Promise<void>(resolve => initializedReceived = resolve);
 		const configurationDonePromise = new Promise<void>(resolve => configurationDoneReceived = resolve);
 		const success = await debug.startDebugging(workspace.workspaceFolders![0], 'Launch debug.js');
 		assert.equal(success, true);
-		await capabilitiesPromise;
 		await initializedPromise;
 		await configurationDonePromise;
 
-		assert.notEqual(debug.activeDebugSession, undefined);
-		assert.equal(debug.activeDebugSession?.name, 'Launch debug.js');
-
 		await firstVariablesRetrieved;
+		assert.notEqual(debug.activeDebugSession, undefined);
 		assert.equal(stoppedEvents, 1);
 
 		const secondVariablesRetrieved = new Promise<void>(resolve => variablesReceived = resolve);
@@ -133,8 +115,6 @@ suite('Debug', function () {
 		const sessionTerminatedPromise = new Promise<void>(resolve => sessionTerminated = resolve);
 		await commands.executeCommand('workbench.action.debug.stop');
 		await sessionTerminatedPromise;
-		assert.equal(debug.activeDebugSession, undefined);
-
 		disposeAll(toDispose);
 	});
 

@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { normalize, isAbsolute, posix } from 'vs/base/common/path';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,7 +17,6 @@ import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from '
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { tildify } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -27,17 +26,20 @@ import { ResourceLabels, IResourceLabelProps, IResourceLabelOptions, IResourceLa
 import { FileKind } from 'vs/platform/files/common/files';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, ITreeElement } from 'vs/base/browser/ui/tree/tree';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TreeResourceNavigator, WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import type { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import type { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -239,12 +241,12 @@ class RootFolderTreeItem extends BaseTreeItem {
 
 class RootTreeItem extends BaseTreeItem {
 
-	constructor(private _environmentService: IEnvironmentService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
+	constructor(private _pathService: IPathService, private _contextService: IWorkspaceContextService, private _labelService: ILabelService) {
 		super(undefined, 'Root');
 	}
 
 	add(session: IDebugSession): SessionTreeItem {
-		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._environmentService, this._contextService));
+		return this.createIfNeeded(session.getId(), () => new SessionTreeItem(this._labelService, this, session, this._pathService, this._contextService));
 	}
 
 	find(session: IDebugSession): SessionTreeItem {
@@ -260,7 +262,7 @@ class SessionTreeItem extends BaseTreeItem {
 	private _map = new Map<string, BaseTreeItem>();
 	private _labelService: ILabelService;
 
-	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _environmentService: IEnvironmentService, private rootProvider: IWorkspaceContextService) {
+	constructor(labelService: ILabelService, parent: BaseTreeItem, session: IDebugSession, private _pathService: IPathService, private rootProvider: IWorkspaceContextService) {
 		super(parent, session.getLabel(), true);
 		this._labelService = labelService;
 		this._session = session;
@@ -345,8 +347,9 @@ class SessionTreeItem extends BaseTreeItem {
 				} else {
 					// on unix try to tildify absolute paths
 					path = normalize(path);
-					if (!isWindows) {
-						path = tildify(path, this._environmentService.userHome);
+					const userHome = this._pathService.resolvedUserHome;
+					if (userHome && !isWindows) {
+						path = tildify(path, userHome.fsPath);
 					}
 				}
 			}
@@ -421,15 +424,21 @@ export class LoadedScriptsView extends ViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IDebugService private readonly debugService: IDebugService,
-		@ILabelService private readonly labelService: ILabelService
+		@ILabelService private readonly labelService: ILabelService,
+		@IPathService private readonly pathService: IPathService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('loadedScriptsSection', "Loaded Scripts Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-loaded-scripts');
 		dom.addClass(container, 'show-file-icons');
 
@@ -437,12 +446,12 @@ export class LoadedScriptsView extends ViewPane {
 
 		this.filter = new LoadedScriptsFilter();
 
-		const root = new RootTreeItem(this.environmentService, this.contextService, this.labelService);
+		const root = new RootTreeItem(this.pathService, this.contextService, this.labelService);
 
 		this.treeLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.treeLabels);
 
-		this.tree = this.instantiationService.createInstance(WorkbenchCompressibleObjectTree,
+		this.tree = <WorkbenchCompressibleObjectTree<LoadedScriptsItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchCompressibleObjectTree,
 			'LoadedScriptsView',
 			this.treeContainer,
 			new LoadedScriptsDelegate(),
@@ -466,7 +475,7 @@ export class LoadedScriptsView extends ViewPane {
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'loadedScriptsAriaLabel' }, "Debug Loaded Scripts"),
 				overrideStyles: {
-					listBackground: SIDE_BAR_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			}
 		);
@@ -699,7 +708,7 @@ class LoadedScriptsRenderer implements ICompressibleTreeRenderer<BaseTreeItem, F
 	}
 }
 
-class LoadedSciptsAccessibilityProvider implements IAccessibilityProvider<LoadedScriptsItem> {
+class LoadedSciptsAccessibilityProvider implements IListAccessibilityProvider<LoadedScriptsItem> {
 
 	getAriaLabel(element: LoadedScriptsItem): string {
 

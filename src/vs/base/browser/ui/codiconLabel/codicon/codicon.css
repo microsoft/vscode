@@ -5,7 +5,7 @@
 
 @font-face {
 	font-family: "codicon";
-	src: url("./codicon.ttf?be537a78617db0869caa4b4cc683a24a") format("truetype");
+	src: url("./codicon.ttf?5d4d76ab2ce5108968ad644d591a16a6") format("truetype");
 }
 
 .codicon[class*='codicon-'] {
@@ -303,6 +303,7 @@
 .codicon-paintcan:before { content: "\eb2a" }
 .codicon-pin:before { content: "\eb2b" }
 .codicon-play:before { content: "\eb2c" }
+.codicon-run:before { content: "\eb2c" }
 .codicon-plug:before { content: "\eb2d" }
 .codicon-preserve-case:before { content: "\eb2e" }
 .codicon-preview:before { content: "\eb2f" }
@@ -359,6 +360,8 @@
 .codicon-symbol-misc:before { content: "\eb63" }
 .codicon-symbol-operator:before { content: "\eb64" }
 .codicon-symbol-property:before { content: "\eb65" }
+.codicon-wrench:before { content: "\eb65" }
+.codicon-wrench-subaction:before { content: "\eb65" }
 .codicon-symbol-snippet:before { content: "\eb66" }
 .codicon-tasklist:before { content: "\eb67" }
 .codicon-telescope:before { content: "\eb68" }
@@ -413,4 +416,14 @@
 .codicon-feedback:before { content: "\eb96" }
 .codicon-group-by-ref-type:before { content: "\eb97" }
 .codicon-ungroup-by-ref-type:before { content: "\eb98" }
-.codicon-debug-alt:before { content: "\f101" }
+.codicon-account:before { content: "\eb99" }
+.codicon-bell-dot:before { content: "\eb9a" }
+.codicon-debug-console:before { content: "\eb9b" }
+.codicon-library:before { content: "\eb9c" }
+.codicon-output:before { content: "\eb9d" }
+.codicon-run-all:before { content: "\eb9e" }
+.codicon-sync-ignored:before { content: "\eb9f" }
+.codicon-pinned:before { content: "\eba0" }
+.codicon-github-inverted:before { content: "\eba1" }
+.codicon-debug-alt-2:before { content: "\f101" }
+.codicon-debug-alt:before { content: "\f102" }

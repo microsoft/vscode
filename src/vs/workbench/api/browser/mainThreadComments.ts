@@ -14,12 +14,13 @@ import * as modes from 'vs/editor/common/modes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
 import { ICommentInfo, ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsPanel';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
-import { COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 
 export class MainThreadCommentThread implements modes.CommentThread {
@@ -343,13 +344,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	private _activeCommentThread?: MainThreadCommentThread;
 	private readonly _activeCommentThreadDisposables = this._register(new DisposableStore());
 
-	private _openPanelListener: IDisposable | null = null;
+	private _openViewListener: IDisposable | null = null;
 
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ICommentService private readonly _commentService: ICommentService,
-		@IPanelService private readonly _panelService: IPanelService
+		@IViewsService private readonly _viewsService: IViewsService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
@@ -376,10 +378,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._commentService.registerCommentController(providerId, provider);
 		this._commentControllers.set(handle, provider);
 
-		const commentsPanelAlreadyConstructed = this._panelService.getPanels().some(panel => panel.id === COMMENTS_PANEL_ID);
+		const commentsPanelAlreadyConstructed = !!this._viewDescriptorService.getViewDescriptor(COMMENTS_VIEW_ID);
 		if (!commentsPanelAlreadyConstructed) {
-			this.registerPanel(commentsPanelAlreadyConstructed);
-			this.registerOpenPanelListener(commentsPanelAlreadyConstructed);
+			this.registerView(commentsPanelAlreadyConstructed);
+			this.registerViewOpenedListener(commentsPanelAlreadyConstructed);
 		}
 		this._commentService.setWorkspaceComments(String(handle), []);
 	}
@@ -444,27 +446,38 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		return provider.deleteCommentThread(commentThreadHandle);
 	}
 
-	private registerPanel(commentsPanelAlreadyConstructed: boolean) {
-		if (!commentsPanelAlreadyConstructed) {
-			Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(PanelDescriptor.create(
-				CommentsPanel,
-				COMMENTS_PANEL_ID,
-				COMMENTS_PANEL_TITLE,
-				'commentsPanel',
-				10
-			));
+	private registerView(commentsViewAlreadyRegistered: boolean) {
+		if (!commentsViewAlreadyRegistered) {
+			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
+				id: COMMENTS_VIEW_ID,
+				name: COMMENTS_VIEW_TITLE,
+				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, COMMENTS_VIEW_TITLE, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+				hideIfEmpty: true,
+				order: 10,
+			}, ViewContainerLocation.Panel);
+
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
+				id: COMMENTS_VIEW_ID,
+				name: COMMENTS_VIEW_TITLE,
+				canToggleVisibility: false,
+				ctorDescriptor: new SyncDescriptor(CommentsPanel),
+				canMoveView: true,
+				focusCommand: {
+					id: 'workbench.action.focusCommentsPanel'
+				}
+			}], VIEW_CONTAINER);
 		}
 	}
 
 	/**
-	 * If the comments panel has never been opened, the constructor for it has not yet run so it has
-	 * no listeners for comment threads being set or updated. Listen for the panel opening for the
+	 * If the comments view has never been opened, the constructor for it has not yet run so it has
+	 * no listeners for comment threads being set or updated. Listen for the view opening for the
 	 * first time and send it comments then.
 	 */
-	private registerOpenPanelListener(commentsPanelAlreadyConstructed: boolean) {
-		if (!commentsPanelAlreadyConstructed && !this._openPanelListener) {
-			this._openPanelListener = this._panelService.onDidPanelOpen(e => {
-				if (e.panel.getId() === COMMENTS_PANEL_ID) {
+	private registerViewOpenedListener(commentsPanelAlreadyConstructed: boolean) {
+		if (!commentsPanelAlreadyConstructed && !this._openViewListener) {
+			this._openViewListener = this._viewsService.onDidChangeViewVisibility(e => {
+				if (e.id === COMMENTS_VIEW_ID && e.visible) {
 					keys(this._commentControllers).forEach(handle => {
 						let threads = this._commentControllers.get(handle)!.getAllComments();
 
@@ -474,9 +487,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 						}
 					});
 
-					if (this._openPanelListener) {
-						this._openPanelListener.dispose();
-						this._openPanelListener = null;
+					if (this._openViewListener) {
+						this._openViewListener.dispose();
+						this._openViewListener = null;
 					}
 				}
 			});

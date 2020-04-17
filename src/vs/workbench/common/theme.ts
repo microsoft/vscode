@@ -5,13 +5,12 @@
 
 import * as nls from 'vs/nls';
 import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder, activeContrastBorder, editorWidgetForeground, editorErrorForeground, editorWarningForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 
 // < --- Workbench (not customizable) --- >
 
-export function WORKBENCH_BACKGROUND(theme: ITheme): Color {
+export function WORKBENCH_BACKGROUND(theme: IColorTheme): Color {
 	switch (theme.type) {
 		case 'dark':
 			return Color.fromHex('#252526');
@@ -24,11 +23,13 @@ export function WORKBENCH_BACKGROUND(theme: ITheme): Color {
 
 // < --- Tabs --- >
 
+//#region Tab Background
+
 export const TAB_ACTIVE_BACKGROUND = registerColor('tab.activeBackground', {
 	dark: editorBackground,
 	light: editorBackground,
 	hc: editorBackground
-}, nls.localize('tabActiveBackground', "Active tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabActiveBackground', "Active tab background color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_ACTIVE_BACKGROUND = registerColor('tab.unfocusedActiveBackground', {
 	dark: TAB_ACTIVE_BACKGROUND,
@@ -40,7 +41,45 @@ export const TAB_INACTIVE_BACKGROUND = registerColor('tab.inactiveBackground', {
 	dark: '#2D2D2D',
 	light: '#ECECEC',
 	hc: null
-}, nls.localize('tabInactiveBackground', "Inactive tab background color. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabInactiveBackground', "Inactive tab background color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_INACTIVE_BACKGROUND = registerColor('tab.unfocusedInactiveBackground', {
+	dark: TAB_INACTIVE_BACKGROUND,
+	light: TAB_INACTIVE_BACKGROUND,
+	hc: TAB_INACTIVE_BACKGROUND
+}, nls.localize('tabUnfocusedInactiveBackground', "Inactive tab background color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+//#endregion
+
+//#region Tab Foreground
+
+export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
+	dark: Color.white,
+	light: '#333333',
+	hc: Color.white
+}, nls.localize('tabActiveForeground', "Active tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_INACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
+	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
+	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
+	hc: Color.white
+}, nls.localize('tabInactiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_ACTIVE_FOREGROUND = registerColor('tab.unfocusedActiveForeground', {
+	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
+	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
+	hc: Color.white
+}, nls.localize('tabUnfocusedActiveForeground', "Active tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedInactiveForeground', {
+	dark: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
+	light: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
+	hc: Color.white
+}, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+//#endregion
+
+//#region Tab Hover Foreground/Background
 
 export const TAB_HOVER_BACKGROUND = registerColor('tab.hoverBackground', {
 	dark: null,
@@ -54,11 +93,21 @@ export const TAB_UNFOCUSED_HOVER_BACKGROUND = registerColor('tab.unfocusedHoverB
 	hc: null
 }, nls.localize('tabUnfocusedHoverBackground', "Tab background color in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_BORDER = registerColor('tab.border', {
-	dark: '#252526',
-	light: '#F3F3F3',
-	hc: contrastBorder
-}, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+export const TAB_HOVER_FOREGROUND = registerColor('tab.hoverForeground', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabHoverForeground', "Tab foreground color when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_HOVER_FOREGROUND = registerColor('tab.unfocusedHoverForeground', {
+	dark: transparent(TAB_HOVER_FOREGROUND, 0.5),
+	light: transparent(TAB_HOVER_FOREGROUND, 0.5),
+	hc: null
+}, nls.localize('tabUnfocusedHoverForeground', "Tab foreground color in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+//#endregion
+
+//#region Tab Borders
 
 export const TAB_ACTIVE_BORDER = registerColor('tab.activeBorder', {
 	dark: null,
@@ -84,6 +133,22 @@ export const TAB_UNFOCUSED_ACTIVE_BORDER_TOP = registerColor('tab.unfocusedActiv
 	hc: null
 }, nls.localize('tabActiveUnfocusedBorderTop', "Border to the top of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_HOVER_BORDER = registerColor('tab.hoverBorder', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('tabHoverBorder', "Border to highlight tabs when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorder', {
+	dark: transparent(TAB_HOVER_BORDER, 0.5),
+	light: transparent(TAB_HOVER_BORDER, 0.7),
+	hc: null
+}, nls.localize('tabUnfocusedHoverBorder', "Border to highlight tabs in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+//#endregion
+
+//#region Tab Modified Border
+
 export const TAB_ACTIVE_MODIFIED_BORDER = registerColor('tab.activeModifiedBorder', {
 	dark: '#3399CC',
 	light: '#33AAEE',
@@ -108,41 +173,13 @@ export const TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER = registerColor('tab.unfocus
 	hc: Color.white
 }, nls.localize('unfocusedINactiveModifiedBorder', "Border on the top of modified (dirty) inactive tabs in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
-export const TAB_HOVER_BORDER = registerColor('tab.hoverBorder', {
-	dark: null,
-	light: null,
-	hc: null
-}, nls.localize('tabHoverBorder', "Border to highlight tabs when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+//#endregion
 
-export const TAB_UNFOCUSED_HOVER_BORDER = registerColor('tab.unfocusedHoverBorder', {
-	dark: transparent(TAB_HOVER_BORDER, 0.5),
-	light: transparent(TAB_HOVER_BORDER, 0.7),
-	hc: null
-}, nls.localize('tabUnfocusedHoverBorder', "Border to highlight tabs in an unfocused group when hovering. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
-export const TAB_ACTIVE_FOREGROUND = registerColor('tab.activeForeground', {
-	dark: Color.white,
-	light: '#333333',
-	hc: Color.white
-}, nls.localize('tabActiveForeground', "Active tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
-export const TAB_INACTIVE_FOREGROUND = registerColor('tab.inactiveForeground', {
-	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
-	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
-	hc: Color.white
-}, nls.localize('tabInactiveForeground', "Inactive tab foreground color in an active group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
-export const TAB_UNFOCUSED_ACTIVE_FOREGROUND = registerColor('tab.unfocusedActiveForeground', {
-	dark: transparent(TAB_ACTIVE_FOREGROUND, 0.5),
-	light: transparent(TAB_ACTIVE_FOREGROUND, 0.7),
-	hc: Color.white
-}, nls.localize('tabUnfocusedActiveForeground', "Active tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
-
-export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedInactiveForeground', {
-	dark: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
-	light: transparent(TAB_INACTIVE_FOREGROUND, 0.5),
-	hc: Color.white
-}, nls.localize('tabUnfocusedInactiveForeground', "Inactive tab foreground color in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+export const TAB_BORDER = registerColor('tab.border', {
+	dark: '#252526',
+	light: '#F3F3F3',
+	hc: contrastBorder
+}, nls.localize('tabBorder', "Border to separate tabs from each other. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 // < --- Editors --- >
 
@@ -179,7 +216,7 @@ export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHea
 export const EDITOR_GROUP_HEADER_TABS_BORDER = registerColor('editorGroupHeader.tabsBorder', {
 	dark: null,
 	light: null,
-	hc: contrastBorder
+	hc: null
 }, nls.localize('tabsContainerBorder', "Border color of the editor group title header when tabs are enabled. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroupHeader.noTabsBackground', {
@@ -187,6 +224,12 @@ export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroup
 	light: editorBackground,
 	hc: editorBackground
 }, nls.localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled (`\"workbench.editor.showTabs\": false`). Editor groups are the containers of editors."));
+
+export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
+	dark: null,
+	light: null,
+	hc: contrastBorder
+}, nls.localize('editorTitleContainerBorder', "Border color of the editor group title header. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_BORDER = registerColor('editorGroup.border', {
 	dark: '#444444',
@@ -461,20 +504,6 @@ export const SIDE_BAR_SECTION_HEADER_BORDER = registerColor('sideBarSectionHeade
 }, nls.localize('sideBarSectionHeaderBorder', "Side bar section header border color. The side bar is the container for views like explorer and search."));
 
 
-// < --- Quick Input -- >
-
-export const QUICK_INPUT_BACKGROUND = registerColor('quickInput.background', {
-	dark: SIDE_BAR_BACKGROUND,
-	light: SIDE_BAR_BACKGROUND,
-	hc: SIDE_BAR_BACKGROUND
-}, nls.localize('quickInputBackground', "Quick Input background color. The Quick Input widget is the container for views like the color theme picker."));
-
-export const QUICK_INPUT_FOREGROUND = registerColor('quickInput.foreground', {
-	dark: SIDE_BAR_FOREGROUND,
-	light: SIDE_BAR_FOREGROUND,
-	hc: SIDE_BAR_FOREGROUND
-}, nls.localize('quickInputForeground', "Quick Input foreground color. The Quick Input widget is the container for views like the color theme picker."));
-
 // < --- Title Bar --- >
 
 export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForeground', {
@@ -606,41 +635,3 @@ export const WINDOW_INACTIVE_BORDER = registerColor('window.inactiveBorder', {
 	light: null,
 	hc: contrastBorder
 }, nls.localize('windowInactiveBorder', "The color used for the border of the window when it is inactive. Only supported in the desktop client when using the custom title bar."));
-
-/**
- * Base class for all themable workbench components.
- */
-export class Themable extends Disposable {
-	protected theme: ITheme;
-
-	constructor(
-		protected themeService: IThemeService
-	) {
-		super();
-
-		this.theme = themeService.getTheme();
-
-		// Hook up to theme changes
-		this._register(this.themeService.onThemeChange(theme => this.onThemeChange(theme)));
-	}
-
-	protected onThemeChange(theme: ITheme): void {
-		this.theme = theme;
-
-		this.updateStyles();
-	}
-
-	protected updateStyles(): void {
-		// Subclasses to override
-	}
-
-	protected getColor(id: string, modify?: (color: Color, theme: ITheme) => Color): string | null {
-		let color = this.theme.getColor(id);
-
-		if (color && modify) {
-			color = modify(color, this.theme);
-		}
-
-		return color ? color.toString() : null;
-	}
-}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.watchTask = exports.compileTask = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, URI, Event, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, URI, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace } from 'vs/workbench/workbench.web.api';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { streamToBuffer } from 'vs/base/common/buffer';
@@ -116,8 +116,8 @@ class PollingURLCallbackProvider extends Disposable implements IURLCallbackProvi
 		FRAGMENT: 'vscode-fragment'
 	};
 
-	private readonly _onCallback: Emitter<URI> = this._register(new Emitter<URI>());
-	readonly onCallback: Event<URI> = this._onCallback.event;
+	private readonly _onCallback = this._register(new Emitter<URI>());
+	readonly onCallback = this._onCallback.event;
 
 	create(options?: Partial<UriComponents>): URI {
 		const queryValues: Map<string, string> = new Map();
@@ -322,7 +322,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 			// Payload
 			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
-				payload = JSON.parse(value);
+				try {
+					payload = JSON.parse(value);
+				} catch (error) {
+					console.error(error); // possible invalid JSON
+				}
 				break;
 		}
 	});

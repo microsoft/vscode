@@ -27,7 +27,6 @@ const stringRegex = /^(['"]).*\1$/;
 const $ = dom.$;
 
 export interface IRenderValueOptions {
-	preserveWhitespace?: boolean;
 	showChanged?: boolean;
 	maxValueLength?: number;
 	showHover?: boolean;
@@ -47,11 +46,6 @@ export function renderViewTree(container: HTMLElement): HTMLElement {
 	dom.addClass(treeContainer, 'debug-view-content');
 	container.appendChild(treeContainer);
 	return treeContainer;
-}
-
-export function replaceWhitespace(value: string): string {
-	const map: { [x: string]: string } = { '\n': '\\n', '\r': '\\r', '\t': '\\t' };
-	return value.replace(/[\n\r\t]/g, char => map[char]);
 }
 
 export function renderExpressionValue(expressionOrValue: IExpressionContainer | string, container: HTMLElement, options: IRenderValueOptions): void {
@@ -86,11 +80,10 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 	if (options.maxValueLength && value && value.length > options.maxValueLength) {
 		value = value.substr(0, options.maxValueLength) + '...';
 	}
-	if (value && !options.preserveWhitespace) {
-		value = replaceWhitespace(value);
-	} else {
-		value = value || '';
+	if (!value) {
+		value = '';
 	}
+
 	if (options.linkDetector) {
 		container.textContent = '';
 		const session = (expressionOrValue instanceof ExpressionContainer) ? expressionOrValue.getSession() : undefined;
@@ -105,20 +98,19 @@ export function renderExpressionValue(expressionOrValue: IExpressionContainer | 
 
 export function renderVariable(variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
 	if (variable.available) {
-		let text = replaceWhitespace(variable.name);
+		let text = variable.name;
 		if (variable.value && typeof variable.name === 'string') {
 			text += ':';
 		}
 		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
 		dom.toggleClass(data.name, 'virtual', !!variable.presentationHint && variable.presentationHint.kind === 'virtual');
-	} else if (variable.value && typeof variable.name === 'string') {
+	} else if (variable.value && typeof variable.name === 'string' && variable.name) {
 		data.label.set(':');
 	}
 
 	renderExpressionValue(variable, data.value, {
 		showChanged,
 		maxValueLength: MAX_VALUE_RENDER_LENGTH_IN_VIEWLET,
-		preserveWhitespace: false,
 		showHover: true,
 		colorize: true,
 		linkDetector
@@ -185,7 +177,7 @@ export abstract class AbstractExpressionsRenderer implements ITreeRenderer<IExpr
 		const inputBox = new InputBox(inputBoxContainer, this.contextViewService, options);
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
 
-		inputBox.value = replaceWhitespace(options.initialValue);
+		inputBox.value = options.initialValue;
 		inputBox.focus();
 		inputBox.select();
 

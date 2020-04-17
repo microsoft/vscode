@@ -11,16 +11,16 @@ import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
+import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { CustomFileEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { defaultEditorId } from 'vs/workbench/contrib/customEditor/browser/customEditors';
-import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CONTEXT_HAS_CUSTOM_EDITORS, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
+import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import type { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 const viewCategory = nls.localize('viewCategory', "View");
 
@@ -40,7 +40,7 @@ CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAcces
 // #region Reopen With
 
 const REOPEN_WITH_COMMAND_ID = 'reOpenWith';
-const REOPEN_WITH_TITLE = { value: nls.localize('reopenWith.title', 'Reopen With'), original: 'Reopen With' };
+const REOPEN_WITH_TITLE = { value: nls.localize('reopenWith.title', 'Reopen With...'), original: 'Reopen With...' };
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REOPEN_WITH_COMMAND_ID,
@@ -56,7 +56,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			group = editorGroupService.getGroup(editorContext.groupId);
 		} else if (!resource) {
 			if (editorService.activeEditor) {
-				resource = editorService.activeEditor.getResource();
+				resource = editorService.activeEditor.resource;
 				group = editorGroupService.activeGroup;
 			}
 		}
@@ -80,11 +80,21 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		title: REOPEN_WITH_TITLE,
 		category: viewCategory,
 	},
-	when: CONTEXT_HAS_CUSTOM_EDITORS,
+	when: CONTEXT_CUSTOM_EDITORS.notEqualsTo(''),
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: REOPEN_WITH_COMMAND_ID,
+		title: REOPEN_WITH_TITLE,
+		category: viewCategory,
+	},
+	group: '6_reopen',
+	order: 20,
+	when: CONTEXT_CUSTOM_EDITORS.notEqualsTo(''),
 });
 
 // #endregion
-
 
 (new class UndoCustomEditorCommand extends Command {
 	public static readonly ID = 'editor.action.customEditor.undo';
@@ -103,19 +113,11 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	}
 
 	public runCommand(accessor: ServicesAccessor): void {
-		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-
-		const activeCustomEditor = customEditorService.activeCustomEditor;
-		if (!activeCustomEditor) {
-			return;
+		const editorService = accessor.get<IEditorService>(IEditorService);
+		const activeInput = editorService.activeEditorPane?.input;
+		if (activeInput instanceof CustomEditorInput) {
+			activeInput.undo();
 		}
-
-		const model = customEditorService.models.get(activeCustomEditor.resource, activeCustomEditor.viewType);
-		if (!model) {
-			return;
-		}
-
-		model.undo();
 	}
 }).register();
 
@@ -138,19 +140,11 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	}
 
 	public runCommand(accessor: ServicesAccessor): void {
-		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-
-		const activeCustomEditor = customEditorService.activeCustomEditor;
-		if (!activeCustomEditor) {
-			return;
+		const editorService = accessor.get<IEditorService>(IEditorService);
+		const activeInput = editorService.activeEditorPane?.input;
+		if (activeInput instanceof CustomEditorInput) {
+			activeInput.redo();
 		}
-
-		const model = customEditorService.models.get(activeCustomEditor.resource, activeCustomEditor.viewType);
-		if (!model) {
-			return;
-		}
-
-		model.redo();
 	}
 }).register();
 
@@ -160,20 +154,20 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	constructor() {
 		super({
 			id: ToggleCustomEditorCommand.ID,
-			precondition: CONTEXT_HAS_CUSTOM_EDITORS,
+			precondition: CONTEXT_CUSTOM_EDITORS,
 		});
 	}
 
 	public runCommand(accessor: ServicesAccessor): void {
 		const editorService = accessor.get<IEditorService>(IEditorService);
-		const activeControl = editorService.activeControl;
-		if (!activeControl) {
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!activeEditorPane) {
 			return;
 		}
 
-		const activeGroup = activeControl.group;
-		const activeEditor = activeControl.input;
-		const targetResource = activeEditor.getResource();
+		const activeGroup = activeEditorPane.group;
+		const activeEditor = activeEditorPane.input;
+		const targetResource = activeEditor.resource;
 
 		if (!targetResource) {
 			return;
@@ -181,8 +175,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 
 		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
 
-		let toggleView = defaultEditorId;
-		if (!(activeEditor instanceof CustomFileEditorInput)) {
+		let toggleView = defaultCustomEditor.id;
+		if (!(activeEditor instanceof CustomEditorInput)) {
 			const bestAvailableEditor = customEditorService.getContributedCustomEditors(targetResource).bestAvailableEditor;
 			if (bestAvailableEditor) {
 				toggleView = bestAvailableEditor.id;
@@ -191,7 +185,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			}
 		}
 
-		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup);
+		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup.id);
 
 		editorService.replaceEditors([{
 			editor: activeEditor,

@@ -286,7 +286,7 @@ export class MultiCursorSession {
 
 		if (s.isEmpty()) {
 			// selection is empty => expand to current word
-			const word = editor.getModel().getWordAtPosition(s.getStartPosition());
+			const word = editor.getConfiguredWordAtPosition(s.getStartPosition());
 			if (!word) {
 				return null;
 			}
@@ -505,7 +505,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		if (!selection.isEmpty()) {
 			return selection;
 		}
-		const word = model.getWordAtPosition(selection.getStartPosition());
+		const word = this._editor.getConfiguredWordAtPosition(selection.getStartPosition());
 		if (!word) {
 			return selection;
 		}
@@ -786,11 +786,13 @@ class SelectionHighlighterState {
 	public readonly searchText: string;
 	public readonly matchCase: boolean;
 	public readonly wordSeparators: string | null;
+	public readonly modelVersionId: number;
 
-	constructor(searchText: string, matchCase: boolean, wordSeparators: string | null) {
+	constructor(searchText: string, matchCase: boolean, wordSeparators: string | null, modelVersionId: number) {
 		this.searchText = searchText;
 		this.matchCase = matchCase;
 		this.wordSeparators = wordSeparators;
+		this.modelVersionId = modelVersionId;
 	}
 
 	/**
@@ -807,6 +809,7 @@ class SelectionHighlighterState {
 			a.searchText === b.searchText
 			&& a.matchCase === b.matchCase
 			&& a.wordSeparators === b.wordSeparators
+			&& a.modelVersionId === b.modelVersionId
 		);
 	}
 }
@@ -856,6 +859,11 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		}));
 		this._register(editor.onDidChangeModel((e) => {
 			this._setState(null);
+		}));
+		this._register(editor.onDidChangeModelContent((e) => {
+			if (this._isEnabled) {
+				this.updateSoon.schedule();
+			}
 		}));
 		this._register(CommonFindController.get(editor).getState().onFindReplaceStateChange((e) => {
 			this._update();
@@ -939,7 +947,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 			}
 		}
 
-		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null);
+		return new SelectionHighlighterState(r.searchText, r.matchCase, r.wholeWord ? editor.getOption(EditorOption.wordSeparators) : null, editor.getModel().getVersionId());
 	}
 
 	private _setState(state: SelectionHighlighterState | null): void {

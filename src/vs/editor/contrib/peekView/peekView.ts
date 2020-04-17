@@ -17,7 +17,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
-import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -57,7 +57,7 @@ registerSingleton(IPeekViewService, class implements IPeekViewService {
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);
-	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
+	export const notInPeekEditor = inPeekEditor.toNegated();
 }
 
 class PeekContextController implements IEditorContribution {

@@ -16,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -31,9 +31,10 @@ import { coalesce, find } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { values } from 'vs/base/common/map';
 import { assertIsDefined } from 'vs/base/common/types';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
+import { Command } from 'vs/editor/common/modes';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 interface IPendingStatusbarEntry {
 	id: string;
@@ -54,7 +55,7 @@ interface IStatusbarViewModelEntry {
 
 class StatusbarViewModel extends Disposable {
 
-	private static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
+	static readonly HIDDEN_ENTRIES_KEY = 'workbench.statusbar.hidden';
 
 	private readonly _entries: IStatusbarViewModelEntry[] = [];
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
@@ -64,7 +65,7 @@ class StatusbarViewModel extends Disposable {
 	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
 
-	constructor(private storageService: IStorageService) {
+	constructor(private readonly storageService: IStorageService) {
 		super();
 
 		this.restoreState();
@@ -225,7 +226,7 @@ class StatusbarViewModel extends Disposable {
 
 	private saveState(): void {
 		if (this.hidden.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(values(this.hidden)), StorageScope.GLOBAL);
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL);
 		} else {
 			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
 		}
@@ -303,14 +304,12 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 		this.checked = !model.isHidden(id);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		if (this.model.isHidden(this.id)) {
 			this.model.show(this.id);
 		} else {
 			this.model.hide(this.id);
 		}
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -320,10 +319,8 @@ class HideStatusbarEntryAction extends Action {
 		super(id, nls.localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		this.model.hide(this.id);
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -344,25 +341,25 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
-	private readonly viewModel: StatusbarViewModel;
+	private readonly viewModel = this._register(new StatusbarViewModel(this.storageService));
+
+	readonly onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
 
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
-
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextMenuService private contextMenuService: IContextMenuService
+		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
-		this.viewModel = this._register(new StatusbarViewModel(storageService));
-		this.onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
+		storageKeysSyncRegistryService.registerStorageKey({ key: StatusbarViewModel.HIDDEN_ENTRIES_KEY, version: 1 });
 
 		this.registerListeners();
 	}
@@ -452,6 +449,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.leftItemsContainer = document.createElement('div');
 		addClasses(this.leftItemsContainer, 'left-items', 'items-container');
 		this.element.appendChild(this.leftItemsContainer);
+		this.element.tabIndex = -1;
 
 		// Right items container
 		this.rightItemsContainer = document.createElement('div');
@@ -627,6 +625,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return itemContainer;
 	}
 
+	focus(): void {
+		this.getContainer();
+	}
+
 	layout(width: number, height: number): void {
 		super.layout(width, height);
 		super.layoutContents(width, height);
@@ -640,6 +642,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 class StatusbarEntryItem extends Disposable {
+
 	private entry!: IStatusbarEntry;
 
 	private labelContainer!: HTMLElement;
@@ -691,6 +694,10 @@ class StatusbarEntryItem extends Disposable {
 			}
 		}
 
+		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
+			this.labelContainer.setAttribute('aria-label', entry.ariaLabel);
+		}
+
 		// Update: Tooltip (on the container, because label can be disabled)
 		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
 			if (entry.tooltip) {
@@ -706,7 +713,7 @@ class StatusbarEntryItem extends Disposable {
 
 			const command = entry.command;
 			if (command) {
-				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command, entry.arguments));
+				this.commandListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
 
 				removeClass(this.labelContainer, 'disabled');
 			} else {
@@ -742,13 +749,14 @@ class StatusbarEntryItem extends Disposable {
 		this.entry = entry;
 	}
 
-	private async executeCommand(id: string, args?: unknown[]): Promise<void> {
-		args = args || [];
+	private async executeCommand(command: string | Command): Promise<void> {
+		const id = typeof command === 'string' ? command : command.id;
+		const args = typeof command === 'string' ? [] : command.arguments ?? [];
 
 		// Maintain old behaviour of always focusing the editor here
-		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
-		if (activeTextEditorWidget) {
-			activeTextEditorWidget.focus();
+		const activeTextEditorControl = this.editorService.activeTextEditorControl;
+		if (activeTextEditorControl) {
+			activeTextEditorControl.focus();
 		}
 
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
@@ -770,9 +778,9 @@ class StatusbarEntryItem extends Disposable {
 
 		if (color) {
 			if (isThemeColor(color)) {
-				colorResult = (this.themeService.getTheme().getColor(color.id) || Color.transparent).toString();
+				colorResult = (this.themeService.getColorTheme().getColor(color.id) || Color.transparent).toString();
 
-				const listener = this.themeService.onThemeChange(theme => {
+				const listener = this.themeService.onDidColorThemeChange(theme => {
 					const colorValue = (theme.getColor(color.id) || Color.transparent).toString();
 
 					if (isBackground) {
@@ -808,7 +816,7 @@ class StatusbarEntryItem extends Disposable {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const statusBarItemHoverBackground = theme.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
 	if (statusBarItemHoverBackground) {
 		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:hover { background-color: ${statusBarItemHoverBackground}; }`);

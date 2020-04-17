@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, IExpression, IScope, CONTEXT_VARIABLES_FOCUSED, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
-import { Variable, Scope } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Variable, Scope, ErrorScope } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree, renderVariable, IInputBoxOptions, AbstractExpressionsRenderer, IExpressionTemplateData } from 'vs/workbench/contrib/debug/browser/baseDebugView';
@@ -17,8 +17,8 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,8 +30,10 @@ import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabe
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const $ = dom.$;
 let forgetScopes = true;
@@ -54,9 +56,12 @@ export class VariablesView extends ViewPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.onFocusStackFrameScheduler = new RunOnceScheduler(async () => {
@@ -75,8 +80,11 @@ export class VariablesView extends ViewPane {
 				if (stackFrame) {
 					const scopes = await stackFrame.getScopes();
 					// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
-					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
-						this.tree.expand(scopes[0]);
+					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0) {
+						const toExpand = scopes.filter(s => !s.expensive).shift();
+						if (toExpand) {
+							this.tree.expand(toExpand);
+						}
 					}
 				}
 
@@ -85,18 +93,21 @@ export class VariablesView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-variables');
 		const treeContainer = renderViewTree(container);
 
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>>(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
-			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer()],
+		this.tree = <WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
+			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer(), new ScopeErrorRenderer()],
 			new VariablesDataSource(), {
 			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
@@ -104,10 +115,6 @@ export class VariablesView extends ViewPane {
 
 		CONTEXT_VARIABLES_FOCUSED.bindTo(this.tree.contextKeyService);
 
-		if (this.toolbar) {
-			const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
-			this.toolbar.setActions([collapseAction])();
-		}
 		this.tree.updateChildren();
 
 		this._register(this.debugService.getViewModel().onDidFocusStackFrame(sf => {
@@ -142,6 +149,10 @@ export class VariablesView extends ViewPane {
 				this.tree.rerender(e);
 			}
 		}));
+	}
+
+	getActions(): IAction[] {
+		return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
 	}
 
 	layoutBody(width: number, height: number): void {
@@ -209,7 +220,7 @@ function isViewModel(obj: any): obj is IViewModel {
 export class VariablesDataSource implements IAsyncDataSource<IViewModel, IExpression | IScope> {
 
 	hasChildren(element: IViewModel | IExpression | IScope): boolean {
-		if (isViewModel(element) || element instanceof Scope) {
+		if (isViewModel(element)) {
 			return true;
 		}
 
@@ -238,6 +249,10 @@ class VariablesDelegate implements IListVirtualDelegate<IExpression | IScope> {
 	}
 
 	getTemplateId(element: IExpression | IScope): string {
+		if (element instanceof ErrorScope) {
+			return ScopeErrorRenderer.ID;
+		}
+
 		if (element instanceof Scope) {
 			return ScopesRenderer.ID;
 		}
@@ -266,6 +281,33 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
+		// noop
+	}
+}
+
+interface IScopeErrorTemplateData {
+	error: HTMLElement;
+}
+
+class ScopeErrorRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeErrorTemplateData> {
+
+	static readonly ID = 'scopeError';
+
+	get templateId(): string {
+		return ScopeErrorRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IScopeErrorTemplateData {
+		const wrapper = dom.append(container, $('.scope'));
+		const error = dom.append(wrapper, $('.error'));
+		return { error };
+	}
+
+	renderElement(element: ITreeNode<IScope, FuzzyScore>, index: number, templateData: IScopeErrorTemplateData): void {
+		templateData.error.innerText = element.element.name;
+	}
+
+	disposeTemplate(): void {
 		// noop
 	}
 }
@@ -306,7 +348,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 }
 
-class VariablesAccessibilityProvider implements IAccessibilityProvider<IExpression | IScope> {
+class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpression | IScope> {
 	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
 			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);

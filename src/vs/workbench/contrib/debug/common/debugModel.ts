@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
-import * as lifecycle from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -17,12 +16,12 @@ import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
 	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
 } from 'vs/workbench/contrib/debug/common/debug';
-import { Source, UNKNOWN_SOURCE_LABEL } from 'vs/workbench/contrib/debug/common/debugSource';
+import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { commonSuffixLength } from 'vs/base/common/strings';
 import { posix } from 'vs/base/common/path';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { ITextEditor } from 'vs/workbench/common/editor';
+import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { mixin } from 'vs/base/common/objects';
 
 export class ExpressionContainer implements IExpressionContainer {
@@ -270,6 +269,21 @@ export class Scope extends ExpressionContainer implements IScope {
 	}
 }
 
+export class ErrorScope extends Scope {
+
+	constructor(
+		stackFrame: IStackFrame,
+		index: number,
+		message: string,
+	) {
+		super(stackFrame, index, message, 0, false);
+	}
+
+	toString(): string {
+		return this.name;
+	}
+}
+
 export class StackFrame implements IStackFrame {
 
 	private scopes: Promise<Scope[]> | undefined;
@@ -291,10 +305,20 @@ export class StackFrame implements IStackFrame {
 	getScopes(): Promise<IScope[]> {
 		if (!this.scopes) {
 			this.scopes = this.thread.session.scopes(this.frameId, this.thread.threadId).then(response => {
-				return response && response.body && response.body.scopes ?
-					response.body.scopes.map((rs, index) => new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
-						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined)) : [];
-			}, err => []);
+				if (!response || !response.body || !response.body.scopes) {
+					return [];
+				}
+
+				const scopeNameIndexes = new Map<string, number>();
+				return response.body.scopes.map(rs => {
+					const previousIndex = scopeNameIndexes.get(rs.name);
+					const index = typeof previousIndex === 'number' ? previousIndex + 1 : 0;
+					scopeNameIndexes.set(rs.name, index);
+					return new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
+						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined);
+
+				});
+			}, err => [new ErrorScope(this, 0, err.message)]);
 		}
 
 		return this.scopes;
@@ -348,7 +372,7 @@ export class StackFrame implements IStackFrame {
 		return sourceToString === UNKNOWN_SOURCE_LABEL ? this.name : `${this.name} (${sourceToString})`;
 	}
 
-	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditor | undefined> {
+	async openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<ITextEditorPane | undefined> {
 		if (this.source.available) {
 			return this.source.openInEditor(editorService, this.range, preserveFocus, sideBySide, pinned);
 		}
@@ -515,6 +539,7 @@ interface IBreakpointSessionData extends DebugProtocol.Breakpoint {
 	supportsLogPoints: boolean;
 	supportsFunctionBreakpoints: boolean;
 	supportsDataBreakpoints: boolean;
+	sessionId: string;
 }
 
 function toBreakpointSessionData(data: DebugProtocol.Breakpoint, capabilities: DebugProtocol.Capabilities): IBreakpointSessionData {
@@ -549,6 +574,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 		if (!data) {
 			this.sessionData.delete(sessionId);
 		} else {
+			data.sessionId = sessionId;
 			this.sessionData.set(sessionId, data);
 		}
 
@@ -596,7 +622,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	constructor(
-		public uri: uri,
+		private _uri: uri,
 		private _lineNumber: number,
 		private _column: number | undefined,
 		enabled: boolean,
@@ -616,10 +642,14 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	get verified(): boolean {
 		if (this.data) {
-			return this.data.verified && !this.textFileService.isDirty(this.uri);
+			return this.data.verified && !this.textFileService.isDirty(this._uri);
 		}
 
 		return true;
+	}
+
+	get uri(): uri {
+		return this.verified && this.data && this.data.source ? getUriFromSource(this.data.source, this.data.source.path, this.data.sessionId) : this._uri;
 	}
 
 	get column(): number | undefined {
@@ -813,7 +843,6 @@ export class ThreadAndSessionIds implements ITreeElement {
 export class DebugModel implements IDebugModel {
 
 	private sessions: IDebugSession[];
-	private toDispose: lifecycle.IDisposable[];
 	private schedulers = new Map<string, RunOnceScheduler>();
 	private breakpointsActivated = true;
 	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
@@ -829,7 +858,6 @@ export class DebugModel implements IDebugModel {
 		private textFileService: ITextFileService
 	) {
 		this.sessions = [];
-		this.toDispose = [];
 	}
 
 	getId(): string {
@@ -1220,11 +1248,5 @@ export class DebugModel implements IDebugModel {
 			}
 		});
 		this._onDidChangeCallStack.fire(undefined);
-	}
-
-	dispose(): void {
-		// Make sure to shutdown each session, such that no debugged process is left laying around
-		this.sessions.forEach(s => s.shutdown());
-		this.toDispose = lifecycle.dispose(this.toDispose);
 	}
 }

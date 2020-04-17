@@ -27,7 +27,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { IURITransformer } from 'vs/base/common/uriIpc';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokens';
+import { encodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
 import { Cache } from './cache';
@@ -183,8 +183,13 @@ class CodeLensAdapter {
 	}
 }
 
-function convertToLocationLinks(value: vscode.Definition): modes.LocationLink[] {
-	return value ? asArray(value).map(typeConvert.DefinitionLink.from) : [];
+function convertToLocationLinks(value: vscode.Location | vscode.Location[] | vscode.LocationLink[] | undefined | null): modes.LocationLink[] {
+	if (Array.isArray(value)) {
+		return (<any>value).map(typeConvert.DefinitionLink.from);
+	} else if (value) {
+		return [typeConvert.DefinitionLink.from(value)];
+	}
+	return [];
 }
 
 class DefinitionAdapter {
@@ -271,6 +276,27 @@ class HoverAdapter {
 	}
 }
 
+class EvaluatableExpressionAdapter {
+
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.EvaluatableExpressionProvider,
+	) { }
+
+	public provideEvaluatableExpression(resource: URI, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+
+		return asPromise(() => this._provider.provideEvaluatableExpression(doc, pos, token)).then(value => {
+			if (value) {
+				return typeConvert.EvaluatableExpression.from(value);
+			}
+			return undefined;
+		});
+	}
+}
+
 class DocumentHighlightAdapter {
 
 	constructor(
@@ -286,6 +312,26 @@ class DocumentHighlightAdapter {
 		return asPromise(() => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
 				return value.map(typeConvert.DocumentHighlight.from);
+			}
+			return undefined;
+		});
+	}
+}
+
+class OnTypeRenameAdapter {
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.OnTypeRenameProvider
+	) { }
+
+	provideOnTypeRenameRanges(resource: URI, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined> {
+
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+
+		return asPromise(() => this._provider.provideOnTypeRenameRanges(doc, pos, token)).then(value => {
+			if (Array.isArray(value)) {
+				return coalesce(value.map(typeConvert.Range.from));
 			}
 			return undefined;
 		});
@@ -910,7 +956,7 @@ class SuggestAdapter {
 			//
 			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
 			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
-			[extHostProtocol.ISuggestDataDtoField.kind]: typeConvert.CompletionItemKind.from(item.kind),
+			[extHostProtocol.ISuggestDataDtoField.kind]: item.kind ? typeConvert.CompletionItemKind.from(item.kind) : undefined,
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
 			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
@@ -948,7 +994,7 @@ class SuggestAdapter {
 			// "old" range
 			result[extHostProtocol.ISuggestDataDtoField.range] = typeConvert.Range.from(range);
 
-		} else if (range && !defaultInsertRange?.isEqual(range.inserting) && !defaultReplaceRange?.isEqual(range.replacing)) {
+		} else if (range && (!defaultInsertRange?.isEqual(range.inserting) || !defaultReplaceRange?.isEqual(range.replacing))) {
 			// ONLY send range when it's different from the default ranges (safe bandwidth)
 			result[extHostProtocol.ISuggestDataDtoField.range] = {
 				insert: typeConvert.Range.from(range.inserting),
@@ -1324,7 +1370,8 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| RangeFormattingAdapter | OnTypeFormattingAdapter | NavigateTypeAdapter | RenameAdapter
 	| SuggestAdapter | SignatureHelpAdapter | LinkProviderAdapter | ImplementationAdapter
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
-	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter;
+	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter | EvaluatableExpressionAdapter
+	| OnTypeRenameAdapter;
 
 class AdapterData {
 	constructor(
@@ -1544,6 +1591,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, HoverAdapter, adapter => adapter.provideHover(URI.revive(resource), position, token), undefined);
 	}
 
+	// --- debug hover
+
+	registerEvaluatableExpressionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.EvaluatableExpressionProvider, extensionId?: ExtensionIdentifier): vscode.Disposable {
+		const handle = this._addNewAdapter(new EvaluatableExpressionAdapter(this._documents, provider), extension);
+		this._proxy.$registerEvaluatableExpressionProvider(handle, this._transformDocumentSelector(selector));
+		return this._createDisposable(handle);
+	}
+
+	$provideEvaluatableExpression(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.EvaluatableExpression | undefined> {
+		return this._withAdapter(handle, EvaluatableExpressionAdapter, adapter => adapter.provideEvaluatableExpression(URI.revive(resource), position, token), undefined);
+	}
+
 	// --- occurrences
 
 	registerDocumentHighlightProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentHighlightProvider): vscode.Disposable {
@@ -1554,6 +1613,19 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$provideDocumentHighlights(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<modes.DocumentHighlight[] | undefined> {
 		return this._withAdapter(handle, DocumentHighlightAdapter, adapter => adapter.provideDocumentHighlights(URI.revive(resource), position, token), undefined);
+	}
+
+	// --- on type rename
+
+	registerOnTypeRenameProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.OnTypeRenameProvider, stopPattern?: RegExp): vscode.Disposable {
+		const handle = this._addNewAdapter(new OnTypeRenameAdapter(this._documents, provider), extension);
+		const serializedStopPattern = stopPattern ? ExtHostLanguageFeatures._serializeRegExp(stopPattern) : undefined;
+		this._proxy.$registerOnTypeRenameProvider(handle, this._transformDocumentSelector(selector), serializedStopPattern);
+		return this._createDisposable(handle);
+	}
+
+	$provideOnTypeRenameRanges(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<IRange[] | undefined> {
+		return this._withAdapter(handle, OnTypeRenameAdapter, adapter => adapter.provideOnTypeRenameRanges(URI.revive(resource), position, token), undefined);
 	}
 
 	// --- references
@@ -1571,9 +1643,17 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- quick fix
 
 	registerCodeActionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
+		const store = new DisposableStore();
 		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension, this._apiDeprecation), extension);
-		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), (metadata && metadata.providedCodeActionKinds) ? metadata.providedCodeActionKinds.map(kind => kind.value) : undefined);
-		return this._createDisposable(handle);
+		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector), {
+			providedKinds: metadata?.providedCodeActionKinds?.map(kind => kind.value),
+			documentation: metadata?.documentation?.map(x => ({
+				kind: x.kind.value,
+				command: this._commands.converter.toInternal(x.command, store),
+			}))
+		}, ExtHostLanguageFeatures._extLabel(extension));
+		store.add(this._createDisposable(handle));
+		return store;
 	}
 
 
@@ -1656,9 +1736,19 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	//#region semantic coloring
 
 	registerDocumentSemanticTokensProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSemanticTokensProvider, legend: vscode.SemanticTokensLegend): vscode.Disposable {
-		const handle = this._addNewAdapter(new DocumentSemanticTokensAdapter(this._documents, provider), extension);
-		this._proxy.$registerDocumentSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend);
-		return this._createDisposable(handle);
+		const handle = this._nextHandle();
+		const eventHandle = (typeof provider.onDidChangeSemanticTokens === 'function' ? this._nextHandle() : undefined);
+
+		this._adapter.set(handle, new AdapterData(new DocumentSemanticTokensAdapter(this._documents, provider), extension));
+		this._proxy.$registerDocumentSemanticTokensProvider(handle, this._transformDocumentSelector(selector), legend, eventHandle);
+		let result = this._createDisposable(handle);
+
+		if (eventHandle) {
+			const subscription = provider.onDidChangeSemanticTokens!(_ => this._proxy.$emitDocumentSemanticTokensEvent(eventHandle));
+			result = Disposable.from(result, subscription);
+		}
+
+		return result;
 	}
 
 	$provideDocumentSemanticTokens(handle: number, resource: UriComponents, previousResultId: number, token: CancellationToken): Promise<VSBuffer | null> {
@@ -1869,5 +1959,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		};
 		this._proxy.$setLanguageConfiguration(handle, languageId, serializedConfiguration);
 		return this._createDisposable(handle);
+	}
+
+	$setWordDefinitions(wordDefinitions: extHostProtocol.ILanguageWordDefinitionDto[]): void {
+		for (const wordDefinition of wordDefinitions) {
+			this._documents.setWordDefinitionFor(wordDefinition.languageId, new RegExp(wordDefinition.regexSource, wordDefinition.regexFlags));
+		}
 	}
 }

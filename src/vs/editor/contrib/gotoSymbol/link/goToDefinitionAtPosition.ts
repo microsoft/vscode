@@ -28,6 +28,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export class GotoDefinitionAtPositionEditorContribution implements IEditorContribution {
 
@@ -335,9 +338,16 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 
 	private gotoDefinition(position: Position, openToSide: boolean): Promise<any> {
 		this.editor.setPosition(position);
-		const openInPeek = this.editor.getOption(EditorOption.definitionLinkOpensInPeek);
-		const action = new DefinitionAction({ openToSide, openInPeek: openInPeek, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
-		return this.editor.invokeWithinContext(accessor => action.run(accessor, this.editor));
+		return this.editor.invokeWithinContext((accessor) => {
+			const canPeek = !openToSide && this.editor.getOption(EditorOption.definitionLinkOpensInPeek) && !this.isInPeekEditor(accessor);
+			const action = new DefinitionAction({ openToSide, openInPeek: canPeek, muteMessage: true }, { alias: '', label: '', id: '', precondition: undefined });
+			return action.run(accessor, this.editor);
+		});
+	}
+
+	private isInPeekEditor(accessor: ServicesAccessor): boolean | undefined {
+		const contextKeyService = accessor.get(IContextKeyService);
+		return PeekContext.inPeekEditor.getValue(contextKeyService);
 	}
 
 	public dispose(): void {

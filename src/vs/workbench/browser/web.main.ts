@@ -7,6 +7,7 @@ import { mark } from 'vs/base/common/performance';
 import { domContentLoaded, addDisposableListener, EventType, addClass, EventHelper } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogInAutomationService } from 'vs/platform/log/browser/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { BrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -32,15 +33,13 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { hash } from 'vs/base/common/hash';
-import { IWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
-import { InMemoryFileSystemProvider } from 'vs/workbench/services/userData/common/inMemoryUserDataProvider';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { FileLogService } from 'vs/platform/log/common/fileLogService';
@@ -49,6 +48,10 @@ import { IndexedDBLogProvider } from 'vs/workbench/services/log/browser/indexedD
 import { InMemoryLogProvider } from 'vs/workbench/services/log/common/inMemoryLogProvider';
 import { isWorkspaceToOpen, isFolderToOpen } from 'vs/platform/windows/common/windows';
 import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser/workspaces';
+import { coalesce } from 'vs/base/common/arrays';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
+import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 class BrowserMain extends Disposable {
 
@@ -59,7 +62,7 @@ class BrowserMain extends Disposable {
 		super();
 	}
 
-	async open(): Promise<void> {
+	async open(): Promise<IWorkbench> {
 		const services = await this.initServices();
 
 		await domContentLoaded();
@@ -84,27 +87,34 @@ class BrowserMain extends Disposable {
 		}
 
 		// Startup
-		workbench.startup();
+		const instantiationService = workbench.startup();
+
+		// Return API Facade
+		return instantiationService.invokeFunction(accessor => {
+			const commandService = accessor.get(ICommandService);
+
+			return {
+				commands: {
+					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
+				}
+			};
+		});
 	}
 
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
 
 		// Layout
 		const viewport = platform.isIOS && (<any>window).visualViewport ? (<any>window).visualViewport /** Visual viewport */ : window /** Layout viewport */;
-		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
-			workbench.layout();
-		}));
+		this._register(addDisposableListener(viewport, EventType.RESIZE, () => workbench.layout()));
 
 		// Prevent the back/forward gestures in macOS
-		this._register(addDisposableListener(this.domElement, EventType.WHEEL, (e) => {
-			e.preventDefault();
-		}, { passive: false }));
+		this._register(addDisposableListener(this.domElement, EventType.WHEEL, e => e.preventDefault(), { passive: false }));
 
 		// Prevent native context menus in web
-		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, (e) => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.domElement, EventType.CONTEXT_MENU, e => EventHelper.stop(e, true)));
 
 		// Prevent default navigation on drop
-		this._register(addDisposableListener(this.domElement, EventType.DROP, (e) => EventHelper.stop(e, true)));
+		this._register(addDisposableListener(this.domElement, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Workbench Lifecycle
 		this._register(workbench.onBeforeShutdown(event => {
@@ -132,7 +142,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private restoreBaseTheme(): void {
-		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(DARK));
+		addClass(this.domElement, window.localStorage.getItem('vscode.baseTheme') || getThemeTypeSelector(LIGHT) /* Fallback to a light theme by default on web */);
 	}
 
 	private saveBaseTheme(): void {
@@ -159,7 +169,11 @@ class BrowserMain extends Disposable {
 		const logService = new BufferLogService(this.configuration.logLevel);
 		serviceCollection.set(ILogService, logService);
 
-		const payload = this.resolveWorkspaceInitializationPayload();
+		// Resource Identity
+		const resourceIdentityService = this._register(new WebResourceIdentityService());
+		serviceCollection.set(IResourceIdentityService, resourceIdentityService);
+
+		const payload = await this.resolveWorkspaceInitializationPayload(resourceIdentityService);
 
 		// Environment
 		const environmentService = new BrowserWorkbenchEnvironmentService({ workspaceId: payload.id, logsPath, ...this.configuration });
@@ -177,7 +191,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService(environmentService.configuration.connectionToken);
+		const signService = new SignService(environmentService.options.connectionToken || this.getCookieValue('vscode-tkn'));
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
@@ -234,9 +248,12 @@ class BrowserMain extends Disposable {
 				}
 			}
 
-			const consoleLogService = new ConsoleLogService(logService.getLevel());
-			const fileLogService = new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService);
-			logService.logger = new MultiplexLogService([consoleLogService, fileLogService]);
+			logService.logger = new MultiplexLogService(coalesce([
+				new ConsoleLogService(logService.getLevel()),
+				new FileLogService('window', environmentService.logFile, logService.getLevel(), fileService),
+				// Extension development test CLI: forward everything to test runner
+				environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI ? new ConsoleLogInAutomationService(logService.getLevel()) : undefined
+			]));
 		})();
 
 		const connection = remoteAgentService.getConnection();
@@ -291,7 +308,7 @@ class BrowserMain extends Disposable {
 		}
 	}
 
-	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+	private async resolveWorkspaceInitializationPayload(resourceIdentityService: IResourceIdentityService): Promise<IWorkspaceInitializationPayload> {
 		let workspace: IWorkspace | undefined = undefined;
 		if (this.configuration.workspaceProvider) {
 			workspace = this.configuration.workspaceProvider.workspace;
@@ -304,7 +321,8 @@ class BrowserMain extends Disposable {
 
 		// Single-folder workspace
 		if (workspace && isFolderToOpen(workspace)) {
-			return { id: hash(workspace.folderUri.toString()).toString(16), folder: workspace.folderUri };
+			const id = await resourceIdentityService.resolveResourceIdentity(workspace.folderUri);
+			return { id, folder: workspace.folderUri };
 		}
 
 		return { id: 'empty-window' };
@@ -321,10 +339,16 @@ class BrowserMain extends Disposable {
 
 		return undefined;
 	}
+
+	private getCookieValue(name: string): string | undefined {
+		const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+		return match ? match.pop() : undefined;
+	}
 }
 
-export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	const renderer = new BrowserMain(domElement, options);
+export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+	const workbench = new BrowserMain(domElement, options);
 
-	return renderer.open();
+	return workbench.open();
 }

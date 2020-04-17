@@ -34,6 +34,7 @@ import 'vs/workbench/services/textfile/browser/browserTextFileService';
 import 'vs/workbench/services/keybinding/browser/keymapService';
 import 'vs/workbench/services/extensions/browser/extensionService';
 import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
+import 'vs/workbench/services/extensionManagement/common/extensionTipsService';
 import 'vs/workbench/services/telemetry/browser/telemetryService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import 'vs/workbench/services/credentials/browser/credentialsService';
@@ -49,6 +50,7 @@ import 'vs/workbench/services/request/browser/requestService';
 import 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import 'vs/workbench/services/clipboard/browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/browser/extensionResourceLoaderService';
+import 'vs/workbench/services/path/browser/pathService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -62,15 +64,18 @@ import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { TunnelService } from 'vs/workbench/services/remote/common/tunnelService';
 import { ILoggerService } from 'vs/platform/log/common/log';
 import { FileLoggerService } from 'vs/platform/log/common/fileLogService';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, ISettingsSyncService, IUserDataAuthTokenService, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataSyncLogService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
+import { StorageKeysSyncRegistryService, IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { AuthenticationService, IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
+import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
-import { UserDataAuthTokenService } from 'vs/platform/userDataSync/common/userDataAuthTokenService';
-import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
+import { IAuthenticationTokenService, AuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/browser/userDataAutoSyncService';
 import { AccessibilityService } from 'vs/platform/accessibility/common/accessibilityService';
+import { ITitleService } from 'vs/workbench/services/title/common/titleService';
+import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 
 registerSingleton(IExtensionManagementService, ExtensionManagementService);
 registerSingleton(IBackupFileService, BackupFileService);
@@ -81,10 +86,12 @@ registerSingleton(ILoggerService, FileLoggerService);
 registerSingleton(IAuthenticationService, AuthenticationService);
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService);
-registerSingleton(IUserDataAuthTokenService, UserDataAuthTokenService);
+registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService);
+registerSingleton(IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService);
+registerSingleton(IAuthenticationTokenService, AuthenticationTokenService);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
-registerSingleton(ISettingsSyncService, SettingsSynchroniser);
 registerSingleton(IUserDataSyncService, UserDataSyncService);
+registerSingleton(ITitleService, TitlebarPart);
 
 //#endregion
 
@@ -108,7 +115,6 @@ import 'vs/workbench/contrib/webview/browser/webviewService';
 import 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 // Terminal
-import 'vs/workbench/contrib/terminal/browser/terminalNativeService';
 import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks

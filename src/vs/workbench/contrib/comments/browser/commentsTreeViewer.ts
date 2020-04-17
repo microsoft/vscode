@@ -20,10 +20,11 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { WorkbenchAsyncDataTree, IListService } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
+import { IColorMapping } from 'vs/platform/theme/common/styler';
+import { basename } from 'vs/base/common/resources';
 
-export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
-export const COMMENTS_PANEL_TITLE = 'Comments';
+export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
+export const COMMENTS_VIEW_TITLE = 'Comments';
 
 export class CommentsAsyncDataSource implements IAsyncDataSource<any, any> {
 	hasChildren(element: any): boolean {
@@ -149,10 +150,15 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 }
 
+export interface ICommentsListOptions {
+	overrideStyles?: IColorMapping;
+}
+
 export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 	constructor(
 		labels: ResourceLabels,
 		container: HTMLElement,
+		options: ICommentsListOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
@@ -176,7 +182,28 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 			renderers,
 			dataSource,
 			{
-				ariaLabel: COMMENTS_PANEL_TITLE,
+				accessibilityProvider: {
+					getAriaLabel(element: any): string {
+						if (element instanceof CommentsModel) {
+							return nls.localize('rootCommentsLabel', "Comments for current workspace");
+						}
+						if (element instanceof ResourceWithCommentThreads) {
+							return nls.localize('resourceWithCommentThreadsLabel', "Comments in {0}, full path {1}", basename(element.resource), element.resource.fsPath);
+						}
+						if (element instanceof CommentNode) {
+							return nls.localize('resourceWithCommentLabel',
+								"Comment from ${0} at line {1} column {2} in {3}, source: {4}",
+								element.comment.userName,
+								element.range.startLineNumber,
+								element.range.startColumn,
+								basename(element.resource),
+								element.comment.body.value
+							);
+						}
+						return '';
+					}
+				},
+				ariaLabel: COMMENTS_VIEW_TITLE,
 				keyboardSupport: true,
 				identityProvider: {
 					getId: (element: any) => {
@@ -202,9 +229,7 @@ export class CommentsList extends WorkbenchAsyncDataTree<any, any> {
 				collapseByDefault: () => {
 					return false;
 				},
-				overrideStyles: {
-					listBackground: PANEL_BACKGROUND
-				}
+				overrideStyles: options.overrideStyles
 			},
 			contextKeyService,
 			listService,

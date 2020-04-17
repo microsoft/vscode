@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditor, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPane, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
@@ -30,6 +29,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
+	titleScrollbarSizing: 'default',
 	focusRecentEditorAfterClose: true,
 	showIcons: true,
 	enablePreview: true,
@@ -46,7 +46,7 @@ export function impactsEditorPartOptions(event: IConfigurationChangeEvent): bool
 }
 
 export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): IEditorPartOptions {
-	const options: IEditorPartOptions = assign(Object.create(null), DEFAULT_EDITOR_PART_OPTIONS);
+	const options = { ...DEFAULT_EDITOR_PART_OPTIONS };
 
 	if (!config || !config.workbench) {
 		return options;
@@ -57,13 +57,17 @@ export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): IEd
 	}
 
 	if (config.workbench.editor) {
-		assign(options, config.workbench.editor);
+		Object.assign(options, config.workbench.editor);
 	}
 
 	return options;
 }
 
 export interface IEditorOpeningEvent extends IEditorIdentifier {
+
+	/**
+	 * The options used when opening the editor.
+	 */
 	options?: IEditorOptions;
 
 	/**
@@ -73,7 +77,7 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 * to return a promise that resolves to `undefined` to prevent the opening
 	 * alltogether.
 	 */
-	prevent(callback: () => undefined | Promise<IEditor | undefined>): void;
+	prevent(callback: () => undefined | Promise<IEditorPane | undefined>): void;
 }
 
 export interface IEditorGroupsAccessor {
@@ -126,7 +130,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 }
 
 export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
-	const activeGroupCodeEditor = group.activeControl ? getCodeEditor(group.activeControl.getControl()) : undefined;
+	const activeGroupCodeEditor = group.activeEditorPane ? getCodeEditor(group.activeEditorPane.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
 			return TextEditorOptions.fromEditor(activeGroupCodeEditor, presetOptions);
@@ -156,4 +160,9 @@ export interface EditorServiceImpl extends IEditorService {
 	 * Emitted when the list of most recently active editors change.
 	 */
 	readonly onDidMostRecentlyActiveEditorsChange: Event<void>;
+
+	/**
+	 * Override to return a typed `EditorInput`.
+	 */
+	createEditorInput(input: IResourceEditorInputType): EditorInput;
 }
