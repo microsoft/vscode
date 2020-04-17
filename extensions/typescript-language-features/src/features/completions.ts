@@ -13,7 +13,6 @@ import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
 import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
-import { memoize } from '../utils/memoize';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -68,7 +67,9 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.preselect = tsEntry.isRecommended;
 		this.position = position;
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
+
 		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext, position);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
 		this.insertText = tsEntry.insertText;
 		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
@@ -268,14 +269,13 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 	}
 
-	@memoize
-	public get commitCharacters(): string[] | undefined {
-		if (this.completionContext.isNewIdentifierLocation || !this.completionContext.isInValidCommitCharacterContext) {
+	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
+		if (context.isNewIdentifierLocation || !context.isInValidCommitCharacterContext) {
 			return undefined;
 		}
 
 		const commitCharacters: string[] = [];
-		switch (this.tsEntry.kind) {
+		switch (entry.kind) {
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 			case PConst.Kind.constructSignature:
@@ -299,7 +299,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.keyword:
 			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');
-				if (this.completionContext.enableCallCompletions) {
+				if (context.enableCallCompletions) {
 					commitCharacters.push('(');
 				}
 				break;
@@ -535,9 +535,12 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
 		};
 
-		const items = entries
-			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
-			.map(entry => new MyCompletionItem(position, document, entry, completionContext, metadata));
+		const items: vscode.CompletionItem[] = [];
+		for (let entry of entries) {
+			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
+				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
+			}
+		}
 		return new vscode.CompletionList(items, isIncomplete);
 	}
 

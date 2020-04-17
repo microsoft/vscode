@@ -153,6 +153,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private hide(): void {
+		this.renderDisposeables.clear();
+
 		if (!this.visible) {
 			return;
 		}

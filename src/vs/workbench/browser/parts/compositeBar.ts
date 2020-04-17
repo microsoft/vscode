@@ -569,7 +569,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 
 		overflowingIds = overflowingIds.filter(compositeId => this.visibleComposites.indexOf(compositeId) === -1);
-		return this.model.visibleItems.filter(c => overflowingIds.indexOf(c.id) !== -1);
+		return this.model.visibleItems.filter(c => overflowingIds.indexOf(c.id) !== -1).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
 	}
 
 	private showContextMenu(e: MouseEvent): void {
@@ -585,7 +585,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		const actions: IAction[] = this.model.visibleItems
 			.map(({ id, name, activityAction }) => (<IAction>{
 				id,
-				label: name || id,
+				label: this.getAction(id).label || name || id,
 				checked: this.isPinned(id),
 				enabled: activityAction.enabled,
 				run: () => {

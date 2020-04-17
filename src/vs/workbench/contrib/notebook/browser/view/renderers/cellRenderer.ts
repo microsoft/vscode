@@ -282,6 +282,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		const foldingIndicator = DOM.append(container, DOM.$('.notebook-folding-indicator'));
+
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		return {
@@ -289,6 +291,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			cellContainer: innerContent,
 			editingContainer,
 			focusIndicator,
+			foldingIndicator,
 			disposables,
 			toolbar,
 			bottomCellContainer,

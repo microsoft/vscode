@@ -908,7 +908,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	getTitle(): string {
 		// use registered title if any of our panes are statically registered to this container
 		const allViewDescriptors = this.viewDescriptorService.getViewDescriptors(this.viewContainer).allViewDescriptors;
-		const containerTitle = allViewDescriptors.length === 0 || allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id) === this.viewContainer) ? this.viewContainer.name : allViewDescriptors[0].name;
+		const containerTitle = this.paneItems.length === 0 || allViewDescriptors.length === 0 || allViewDescriptors.some(v => this.viewDescriptorService.getDefaultContainer(v.id) === this.viewContainer) ? this.viewContainer.name : this.paneItems[0].pane.title;
 
 		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;
@@ -1426,6 +1426,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		assertIsDefined(this.paneview).movePane(from, to);
 
 		this.viewsModel.move(fromViewDescriptor.id, toViewDescriptor.id);
+
+		this.updateTitleArea();
 	}
 
 	resizePane(pane: ViewPane, size: number): void {

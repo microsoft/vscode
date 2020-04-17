@@ -404,13 +404,14 @@ export class OutlinePane extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this._tree.layout(height, width);
 	}
 
 	getActions(): IAction[] {
 		return [
 			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action codicon-collapse-all', true, () => {
-				return new CollapseAction(this._tree, true, undefined).run();
+				return new CollapseAction(() => this._tree, true, undefined).run();
 			})
 		];
 	}
@@ -476,7 +477,7 @@ export class OutlinePane extends ViewPane {
 
 		// persist state
 		if (oldModel) {
-			this._treeStates.set(oldModel.textModel.uri.toString(), this._tree.getViewState());
+			this._treeStates.set(oldModel.uri.toString(), this._tree.getViewState());
 		}
 
 		if (!editor || !editor.hasModel() || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
@@ -545,7 +546,7 @@ export class OutlinePane extends ViewPane {
 			this._tree.updateChildren();
 			newModel = oldModel;
 		} else {
-			let state = this._treeStates.get(newModel.textModel.uri.toString());
+			let state = this._treeStates.get(newModel.uri.toString());
 			this._tree.setInput(newModel, state);
 		}
 
@@ -583,12 +584,12 @@ export class OutlinePane extends ViewPane {
 
 		// feature: reveal editor selection in outline
 		this._revealEditorSelection(newModel, editor.getSelection());
-		const versionIdThen = newModel.textModel.getVersionId();
+		const versionIdThen = textModel.getVersionId();
 		this._editorDisposables.add(editor.onDidChangeCursorSelection(e => {
 			// first check if the document has changed and stop revealing the
 			// cursor position iff it has -> we will update/recompute the
 			// outline view then anyways
-			if (!newModel.textModel.isDisposed() && newModel.textModel.getVersionId() === versionIdThen) {
+			if (!textModel.isDisposed() && textModel.getVersionId() === versionIdThen) {
 				this._revealEditorSelection(newModel, e.selection);
 			}
 		}));
@@ -635,7 +636,7 @@ export class OutlinePane extends ViewPane {
 	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): Promise<void> {
 		await this._editorService.openCodeEditor(
 			{
-				resource: model.textModel.uri,
+				resource: model.uri,
 				options: {
 					preserveFocus: !focus,
 					selection: Range.collapseToStart(element.symbol.selectionRange),

@@ -28,13 +28,21 @@ import { readFileSync, statSync } from 'fs';
 import { detectEncodingByBOM } from 'vs/base/test/node/encoding/encoding.test';
 import { workbenchInstantiationService, TestNativeTextFileServiceWithEncodingOverrides } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 
-suite('Files - TextFileService i/o', () => {
+suite('Files - TextFileService i/o', function () {
 	const parentDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 
 	const disposables = new DisposableStore();
 
 	let service: ITextFileService;
 	let testDir: string;
+
+	// Given issues such as https://github.com/microsoft/vscode/issues/78602
+	// and https://github.com/microsoft/vscode/issues/92334 we see random test
+	// failures when accessing the native file system. To diagnose further, we
+	// retry node.js file access tests up to 3 times to rule out any random disk
+	// issue and increase the timeout.
+	this.retries(3);
+	this.timeout(1000 * 10);
 
 	setup(async () => {
 		const instantiationService = workbenchInstantiationService();

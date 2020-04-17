@@ -247,6 +247,7 @@ export class MainPane extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.list.layout(height, width);
 	}
 

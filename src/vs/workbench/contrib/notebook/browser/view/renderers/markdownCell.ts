@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
-import { INotebookEditor, MarkdownCellRenderTemplate, CellFocusMode, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { hide, IDimension, show } from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { renderCodicons } from 'vs/base/common/codicons';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
-import { IDimension, hide, show } from 'vs/base/browser/dom';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFocusMode, INotebookEditor, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
+import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 
 export class StatefullMarkdownCell extends Disposable {
 	private editor: CodeEditorWidget | null = null;
@@ -22,6 +24,7 @@ export class StatefullMarkdownCell extends Disposable {
 	private editingContainer: HTMLElement;
 
 	private localDisposables: DisposableStore;
+	private foldingState: CellFoldingState;
 
 	constructor(
 		private notebookEditor: INotebookEditor,
@@ -150,7 +153,36 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		}));
 
+		this.foldingState = viewCell.foldingState;
+		this.setFoldingIndicator();
+
+		this._register(viewCell.onDidChangeFoldingState(() => {
+			const foldingState = viewCell.foldingState;
+
+			if (foldingState !== this.foldingState) {
+				this.foldingState = foldingState;
+				this.setFoldingIndicator();
+			}
+		}));
+
 		viewUpdate();
+	}
+
+	setFoldingIndicator() {
+		switch (this.foldingState) {
+			case CellFoldingState.None:
+				this.templateData.foldingIndicator.innerHTML = '';
+				break;
+			case CellFoldingState.Collapsed:
+				this.templateData.foldingIndicator.innerHTML = renderCodicons('$(chevron-right)');
+				break;
+			case CellFoldingState.Expanded:
+				this.templateData.foldingIndicator.innerHTML = renderCodicons('$(chevron-down)');
+				break;
+
+			default:
+				break;
+		}
 	}
 
 	bindEditorListeners(model: ITextModel, dimension?: IDimension) {
