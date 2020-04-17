@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { GitErrorCodes, APIState as State } from './api/git';
+import { GitErrorCodes, APIState as State, RemoteSourceProvider } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -42,17 +42,6 @@ export interface OriginalResourceChangeEvent {
 
 interface OpenRepository extends Disposable {
 	repository: Repository;
-}
-
-export interface Remote {
-	readonly name: string;
-	readonly url: string;
-}
-
-export interface RemoteProvider {
-	readonly name: string;
-	readonly supportsQuery?: boolean;
-	getRemotes(query?: string): Remote[] | Promise<Remote[]>;
 }
 
 export class Model {
@@ -85,7 +74,7 @@ export class Model {
 		this._onDidChangeState.fire(state);
 	}
 
-	private remoteProviders = new Set<RemoteProvider>();
+	private remoteProviders = new Set<RemoteSourceProvider>();
 
 	private disposables: Disposable[] = [];
 
@@ -460,12 +449,12 @@ export class Model {
 		return undefined;
 	}
 
-	registerRemoteProvider(provider: RemoteProvider): Disposable {
+	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
 		this.remoteProviders.add(provider);
 		return toDisposable(() => this.remoteProviders.delete(provider));
 	}
 
-	getRemoteProviders(): RemoteProvider[] {
+	getRemoteProviders(): RemoteSourceProvider[] {
 		return [...this.remoteProviders.values()];
 	}
 

@@ -9,9 +9,9 @@ import * as path from 'path';
 import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, QuickPick } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
-import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions } from './api/git';
+import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider, RemoteSource } from './api/git';
 import { ForcePushMode, Git, Stash } from './git';
-import { Model, RemoteProvider, Remote } from './model';
+import { Model } from './model';
 import { Repository, Resource, ResourceGroupType } from './repository';
 import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri } from './uri';
@@ -245,11 +245,11 @@ async function getQuickPickResult<T extends QuickPickItem>(quickpick: QuickPick<
 	return result;
 }
 
-class RemoteProviderQuickPick {
+class RemoteSourceProviderQuickPick {
 
-	private quickpick: QuickPick<QuickPickItem & { remote?: Remote }>;
+	private quickpick: QuickPick<QuickPickItem & { remoteSource?: RemoteSource }>;
 
-	constructor(private provider: RemoteProvider) {
+	constructor(private provider: RemoteSourceProvider) {
 		this.quickpick = window.createQuickPick();
 		this.quickpick.ignoreFocusOut = true;
 
@@ -269,27 +269,27 @@ class RemoteProviderQuickPick {
 	@throttle
 	async query(): Promise<void> {
 		this.quickpick.busy = true;
-		const remotes = await this.provider.getRemotes(this.quickpick.value);
+		const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
 		this.quickpick.busy = false;
 
-		if (remotes.length === 0) {
+		if (remoteSources.length === 0) {
 			this.quickpick.items = [{
 				label: localize('none found', "No remote repositories found."),
 				alwaysShow: true
 			}];
 		} else {
-			this.quickpick.items = remotes.map(remote => ({
-				label: remote.name,
-				description: remote.url,
-				remote
+			this.quickpick.items = remoteSources.map(remoteSource => ({
+				label: remoteSource.name,
+				description: remoteSource.url,
+				remote: remoteSource
 			}));
 		}
 	}
 
-	async pick(): Promise<Remote | undefined> {
+	async pick(): Promise<RemoteSource | undefined> {
 		this.query();
 		const result = await getQuickPickResult(this.quickpick);
-		return result?.remote;
+		return result?.remoteSource;
 	}
 }
 
@@ -514,7 +514,7 @@ export class CommandCenter {
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
 		if (!url) {
-			const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteProvider })>();
+			const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider })>();
 			quickpick.ignoreFocusOut = true;
 
 			const providers = this.model.getRemoteProviders()
@@ -544,7 +544,7 @@ export class CommandCenter {
 
 			if (result) {
 				if (result.provider) {
-					const quickpick = new RemoteProviderQuickPick(result.provider);
+					const quickpick = new RemoteSourceProviderQuickPick(result.provider);
 					const remote = await quickpick.pick();
 					url = remote?.url;
 				} else {
