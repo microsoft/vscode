@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IFoldingRangeData, sanitizeRanges } from 'vs/editor/contrib/folding/syntaxRangeProvider';
@@ -17,6 +17,9 @@ export class FoldingModel extends Disposable {
 	get regions() {
 		return this._regions;
 	}
+
+	private _onDidFoldingRegionChanges = new Emitter<void>();
+	onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
 
 	constructor(
 		// private readonly _notebookEditor: INotebookEditor
@@ -89,6 +92,7 @@ export class FoldingModel extends Disposable {
 		});
 
 		this._regions = sanitizeRanges(rawFoldingRanges, 5000);
+		this._onDidFoldingRegionChanges.fire();
 	}
 }
 

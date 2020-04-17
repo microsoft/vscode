@@ -234,6 +234,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 		this._foldingModel = new FoldingModel();
 		this._foldingModel.attachViewModel(this);
+
+		this._register(this._foldingModel.onDidFoldingRegionChanged(() => {
+			this._updateFoldingRanges();
+		}));
 	}
 	getFoldingStartIndex(cell: CellViewModel): number {
 		const modelIndex = this.viewCells.indexOf(cell);
