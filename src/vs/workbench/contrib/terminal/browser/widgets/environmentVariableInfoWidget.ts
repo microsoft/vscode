@@ -5,11 +5,11 @@
 
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IHoverTarget, IHoverAnchor, HorizontalAlignment as HorizontalAnchorSide, VerticalAlignment as VerticalAnchorSide, HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { ITerminalWidget, IHoverTarget, IHoverAnchor, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 
 export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWidget {
 	readonly id = 'env-var-info';

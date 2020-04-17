@@ -12,37 +12,9 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 
 const $ = dom.$;
-
-export enum HorizontalAlignment {
-	Left,
-	Right
-}
-
-export enum VerticalAlignment {
-	Top,
-	Bottom
-}
-
-export interface IHoverAnchor {
-	x: number;
-	y: number;
-	horizontalAnchorSide: HorizontalAlignment;
-	verticalAnchorSide: VerticalAlignment;
-	/**
-	 * Fallback Y value to try with opposite VerticalAlignment if the hover does not fit vertically.
-	 */
-	fallbackY: number;
-}
-
-/**
- * A target for a hover which can know about domain-specific locations.
- */
-export interface IHoverTarget extends IDisposable {
-	readonly targetElements: readonly HTMLElement[];
-	readonly anchor: IHoverAnchor;
-}
 
 export class HoverWidget extends Widget {
 	private readonly _domNode: HTMLElement;
@@ -118,7 +90,7 @@ export class HoverWidget extends Widget {
 	public layout(): void {
 		const anchor = this._target.anchor;
 
-		if (anchor.horizontalAnchorSide === HorizontalAlignment.Left) {
+		if (anchor.horizontalAnchorSide === HorizontalAnchorSide.Left) {
 			if (anchor.x + this._domNode.clientWidth * 0.75 > document.documentElement.clientWidth) {
 				// Shift the hover to the left when > 25% would be cut off
 				const width = Math.round(this._domNode.clientWidth * 0.75);
@@ -134,7 +106,7 @@ export class HoverWidget extends Widget {
 			this._domNode.style.right = `${anchor.x}px`;
 		}
 		// Use fallback y value if there is not enough vertical space
-		if (anchor.verticalAnchorSide === VerticalAlignment.Bottom) {
+		if (anchor.verticalAnchorSide === VerticalAnchorSide.Bottom) {
 			if (anchor.y + this._domNode.clientHeight > document.documentElement.clientHeight) {
 				this._domNode.style.top = `${anchor.fallbackY}px`;
 			} else {

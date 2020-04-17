@@ -8,9 +8,9 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IViewportRange } from 'xterm';
 import { getDomNodePagePosition } from 'vs/base/browser/dom';
-import { HoverWidget, HorizontalAlignment, VerticalAlignment, IHoverAnchor, IHoverTarget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
-import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { ITerminalWidget, IHoverAnchor, IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 
 export class TerminalHover extends Disposable implements ITerminalWidget {
 	readonly id = 'hover';
@@ -109,9 +109,9 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		const firstPosition = getDomNodePagePosition(this.targetElements[0]);
 		return {
 			x: firstPosition.left,
-			horizontalAnchorSide: HorizontalAlignment.Left,
+			horizontalAnchorSide: HorizontalAnchorSide.Left,
 			y: document.documentElement.clientHeight - firstPosition.top - 1,
-			verticalAnchorSide: VerticalAlignment.Bottom,
+			verticalAnchorSide: VerticalAnchorSide.Bottom,
 			fallbackY: firstPosition.top + firstPosition.height - 1
 		};
 	}
