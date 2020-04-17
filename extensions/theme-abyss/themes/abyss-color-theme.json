@@ -408,6 +408,15 @@
 		"debugToolBar.background": "#051336",
 		"debugExceptionWidget.background": "#051336",
 		"debugExceptionWidget.border": "#AB395B",
+		"debugView.valueChangedHighlight": "#31958A99",
+		"debugView.stateLabelBackground": "#0063a5",
+		"debugView.exceptionLabelBackground": "#A22D44",
+		"debugTokenExpression.name": "#6688CC",
+		"debugTokenExpression.value": "#384887",
+		"debugTokenExpression.number": "#F280D0",
+		"debugTokenExpression.string": "#22AA44",
+		"debugTokenExpression.error": "#A22D44",
+		"debugTokenExpression.boolean": "#F280D0",
 
 		// Workbench: Quick Open
 		"pickerGroup.border": "#596F99",
