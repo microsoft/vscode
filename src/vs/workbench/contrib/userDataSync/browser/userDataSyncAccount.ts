@@ -51,6 +51,9 @@ export class UserDataSyncAccounts extends Disposable {
 	private readonly _onDidChangeStatus = this._register(new Emitter<AccountStatus>());
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
+	private readonly _onDidSignOut = this._register(new Emitter<void>());
+	readonly onDidSignOut = this._onDidSignOut.event;
+
 	private _all: IUserDataSyncAccount[] = [];
 	get all(): IUserDataSyncAccount[] { return this._all; }
 
@@ -136,8 +139,14 @@ export class UserDataSyncAccounts extends Disposable {
 		this._all = values(allAccounts);
 
 		if (this._status !== status) {
+			const previous = this._status;
+			this.logService.debug('Sync account status changed', previous, status);
+
+			if (previous === AccountStatus.Available && status === AccountStatus.Unavailable) {
+				this._onDidSignOut.fire();
+			}
+
 			this._status = status;
-			this.logService.debug('Sync account status changed', this._status, status);
 			this._onDidChangeStatus.fire(status);
 		}
 

@@ -21,11 +21,11 @@
 			]
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
 			"port": 9222,
-			"urlFilter": "*"
+			"urlFilter": "*sharedProcess.html*",
 		},
 		{
 			"type": "node",
@@ -158,7 +158,7 @@
 			"port": 9222
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "launch",
 			"name": "Launch VS Code",
 			"windows": {
@@ -188,6 +188,7 @@
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
+			"browserLaunchLocation": "workspace"
 		},
 		{
 			"type": "node",
@@ -358,14 +359,15 @@
 	],
 	"compounds": [
 		{
-			"name": "Debug VS Code Main, Renderer & Extension Host",
+			"name": "VS Code",
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Main Process",
-				"Attach to Extension Host"
+				"Attach to Extension Host",
+				"Attach to Shared Process",
 			],
 			"presentation": {
-				"group": "1_vscode",
+				"group": "0_vscode",
 				"order": 1
 			}
 		},
