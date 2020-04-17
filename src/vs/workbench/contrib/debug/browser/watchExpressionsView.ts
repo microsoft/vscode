@@ -154,7 +154,7 @@ export class WatchExpressionsView extends ViewPane {
 	getActions(): IAction[] {
 		return [
 			new AddWatchExpressionAction(AddWatchExpressionAction.ID, AddWatchExpressionAction.LABEL, this.debugService, this.keybindingService),
-			new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all'),
+			new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all'),
 			new RemoveAllWatchExpressionsAction(RemoveAllWatchExpressionsAction.ID, RemoveAllWatchExpressionsAction.LABEL, this.debugService, this.keybindingService)
 		];
 	}

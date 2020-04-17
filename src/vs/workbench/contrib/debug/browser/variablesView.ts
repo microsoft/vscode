@@ -152,7 +152,7 @@ export class VariablesView extends ViewPane {
 	}
 
 	getActions(): IAction[] {
-		return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
+		return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 	}
 
 	layoutBody(width: number, height: number): void {
