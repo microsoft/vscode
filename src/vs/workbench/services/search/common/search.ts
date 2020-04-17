@@ -345,6 +345,7 @@ export interface ISearchConfigurationProperties {
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
 	seedOnFocus: boolean;
+	seedWithNearestWord: boolean;
 	searchOnTypeDebouncePeriod: number;
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',

@@ -1070,7 +1070,7 @@ export class SearchView extends ViewPane {
 			return null;
 		}
 
-		if (range.isEmpty() && !this.searchWidget.searchInput.getValue() && allowUnselectedWord) {
+		if (range.isEmpty() && this.searchConfig.seedWithNearestWord && allowUnselectedWord) {
 			const wordAtPosition = activeTextEditorControl.getModel().getWordAtPosition(range.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;

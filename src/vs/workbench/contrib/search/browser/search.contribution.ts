@@ -789,6 +789,11 @@ configurationRegistry.registerConfiguration({
 			default: true,
 			description: nls.localize('search.searchOnType', "Search all files as you type.")
 		},
+		'search.seedWithNearestWord': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.seedWithNearestWord', "Enable seeding search from the word nearest the cursor when the active editor has no selection.")
+		},
 		'search.seedOnFocus': {
 			type: 'boolean',
 			default: false,
