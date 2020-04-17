@@ -12,7 +12,7 @@ import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContex
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import Severity from 'vs/base/common/severity';
-import { MenuRegistry, MenuId, IMenuItem } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -57,14 +57,11 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	private _sessionMenuItems = new Map<string, IDisposable[]>();
 	private _accounts = new Map<string, string[]>(); // Map account name to session ids
 	private _sessions = new Map<string, string>(); // Map account id to name
-	private _signInMenuItem: IMenuItem | undefined;
-	private _signInMenuDisposables: IDisposable[] = [];
 
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
 		public readonly id: string,
 		public readonly displayName: string,
-		private readonly supportsMultipleAccounts: boolean,
 		private readonly notificationService: INotificationService
 	) {
 		super();
@@ -248,27 +245,14 @@ export class MainThreadAuthenticationProvider extends Disposable {
 						this._sessionMenuItems.delete(accountName);
 					}
 					this._accounts.delete(accountName);
-
-					if (this._signInMenuItem) {
-						this._signInMenuItem.command.title = nls.localize('addAccount', "Sign in to {0}", this.displayName);
-					}
 				}
 			}
 		});
 
 		addedSessions.forEach(session => this.registerSession(session));
-
-		if (addedSessions.length && this._signInMenuItem) {
-			if (this.supportsMultipleAccounts) {
-				this._signInMenuItem.command.title = nls.localize('addAnotherAccount', "Sign in to another {0} account", this.displayName);
-			} else {
-				this._signInMenuDisposables.forEach(item => item.dispose());
-				this._signInMenuItem = undefined;
-			}
-		}
 	}
 
-	login(scopes?: string[]): Promise<modes.AuthenticationSession> {
+	login(scopes: string[]): Promise<modes.AuthenticationSession> {
 		return this._proxy.$login(this.id, scopes).then(session => {
 			return {
 				id: session.id,
@@ -287,7 +271,6 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		super.dispose();
 		this._sessionMenuItems.forEach(item => item.forEach(d => d.dispose()));
 		this._sessionMenuItems.clear();
-		this._signInMenuDisposables.forEach(item => item.dispose());
 	}
 }
 
@@ -306,8 +289,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
 	}
 
-	async $registerAuthenticationProvider(id: string, displayName: string, supportsMultipleAccounts: boolean): Promise<void> {
-		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, supportsMultipleAccounts, this.notificationService);
+	async $registerAuthenticationProvider(id: string, displayName: string): Promise<void> {
+		const provider = new MainThreadAuthenticationProvider(this._proxy, id, displayName, this.notificationService);
 		await provider.initialize();
 		this.authenticationService.registerAuthenticationProvider(id, provider);
 	}

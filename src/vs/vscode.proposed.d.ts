@@ -75,12 +75,6 @@ declare module 'vscode' {
 		readonly displayName: string;
 
 		/**
-		 * Whether the authentication provider supports the user being logged into
-		 * multiple different accounts at the same time.
-		 */
-		supportsMultipleAccounts: boolean;
-
-		/**
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
@@ -94,7 +88,7 @@ declare module 'vscode' {
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes?: string[]): Thenable<AuthenticationSession>;
+		login(scopes: string[]): Thenable<AuthenticationSession>;
 		logout(sessionId: string): Thenable<void>;
 	}
 
