@@ -14,6 +14,7 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"restart": true,
 			"name": "Attach to Extension Host",
 			"timeout": 30000,
 			"port": 5870,
@@ -168,6 +169,7 @@
 			"type": "pwa-chrome",
 			"request": "launch",
 			"name": "Launch VS Code",
+			"browserLaunchLocation": "workspace",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
