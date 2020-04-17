@@ -188,11 +188,12 @@ suite('Notebook Folding', () => {
 					{ start: 6, length: 2 }
 				]);
 
-				// viewModel.insertCell(1, new TestCell(viewModel.viewType, 8, ['var c = 9;'], 'markdown', CellKind.Code, []), true);
-				// assert.deepEqual(viewModel.getHiddenRanges(), [
-				// 	{ start: 1, length: 2 },
-				// 	{ start: 7, length: 2 }
-				// ]);
+				viewModel.insertCell(1, new TestCell(viewModel.viewType, 8, ['var c = 9;'], 'markdown', CellKind.Code, []), true);
+				assert.deepEqual(viewModel.getHiddenRanges(), [
+					// the first collapsed range is now expanded as we insert content into it.
+					// { start: 1, length: 2 },
+					{ start: 7, length: 2 }
+				]);
 			}
 		);
 	});
