@@ -12,14 +12,14 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IViewState, ViewDescriptorsModel, ContributableViewsModel } from 'vs/workbench/services/views/common/viewsModel';
+import { IViewState, ViewDescriptorsModel, ViewsModel } from 'vs/workbench/services/views/common/viewsModel';
 
 class ViewDescriptorSequence {
 
 	readonly elements: IViewDescriptor[];
 	private disposables: IDisposable[] = [];
 
-	constructor(model: ContributableViewsModel) {
+	constructor(model: ViewsModel) {
 		this.elements = [...model.visibleViewDescriptors];
 		model.onDidAdd(added => added.forEach(({ viewDescriptor, index }) => this.elements.splice(index, 0, viewDescriptor)), null, this.disposables);
 		model.onDidRemove(removed => removed.sort((a, b) => b.index - a.index).forEach(({ index }) => this.elements.splice(index, 1)), null, this.disposables);
@@ -43,13 +43,13 @@ suite('ContributableViewsModel', () => {
 
 	test('empty model', function () {
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel);
+		const model = new ViewsModel(viewsDescriptorsModel);
 		assert.equal(model.visibleViewDescriptors.length, 0);
 	});
 
 	test('register/unregister', () => {
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel);
+		const model = new ViewsModel(viewsDescriptorsModel);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -76,7 +76,7 @@ suite('ContributableViewsModel', () => {
 
 	test('when contexts', async function () {
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel);
+		const model = new ViewsModel(viewsDescriptorsModel);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -121,7 +121,7 @@ suite('ContributableViewsModel', () => {
 
 	test('when contexts - multiple', async function () {
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel);
+		const model = new ViewsModel(viewsDescriptorsModel);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
@@ -145,7 +145,7 @@ suite('ContributableViewsModel', () => {
 
 	test('when contexts - multiple 2', async function () {
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel);
+		const model = new ViewsModel(viewsDescriptorsModel);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
@@ -169,7 +169,7 @@ suite('ContributableViewsModel', () => {
 
 	test('setVisible', () => {
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel);
+		const model = new ViewsModel(viewsDescriptorsModel);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', canToggleVisibility: true };
@@ -215,7 +215,7 @@ suite('ContributableViewsModel', () => {
 
 	test('move', () => {
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel);
+		const model = new ViewsModel(viewsDescriptorsModel);
 		const seq = new ViewDescriptorSequence(model);
 
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
@@ -247,7 +247,7 @@ suite('ContributableViewsModel', () => {
 		const viewStates = new Map<string, IViewState>();
 		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel, viewStates);
+		const model = new ViewsModel(viewsDescriptorsModel, viewStates);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -268,7 +268,7 @@ suite('ContributableViewsModel', () => {
 		const viewStates = new Map<string, IViewState>();
 		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel, viewStates);
+		const model = new ViewsModel(viewsDescriptorsModel, viewStates);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -299,7 +299,7 @@ suite('ContributableViewsModel', () => {
 		const viewStates = new Map<string, IViewState>();
 		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel, viewStates);
+		const model = new ViewsModel(viewsDescriptorsModel, viewStates);
 		const seq = new ViewDescriptorSequence(model);
 
 		assert.equal(model.visibleViewDescriptors.length, 0);
@@ -344,7 +344,7 @@ suite('ContributableViewsModel', () => {
 
 	test('remove event is not triggered if view was hidden and removed', async function () {
 		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ContributableViewsModel(viewsDescriptorsModel);
+		const model = new ViewsModel(viewsDescriptorsModel);
 		const seq = new ViewDescriptorSequence(model);
 
 		const viewDescriptor: IViewDescriptor = {

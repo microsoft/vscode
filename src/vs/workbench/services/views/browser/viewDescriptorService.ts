@@ -17,12 +17,12 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { PersistentContributableViewsModel, ViewDescriptorsModel } from 'vs/workbench/services/views/common/viewsModel';
+import { PersistentViewsModel, ViewDescriptorsModel } from 'vs/workbench/services/views/common/viewsModel';
 
 class ViewDescriptorCollection extends Disposable implements IViewDescriptorCollection {
 
 	private readonly viewDescriptorsModel: ViewDescriptorsModel;
-	private readonly viewsModel: PersistentContributableViewsModel;
+	private readonly viewsModel: PersistentViewsModel;
 
 	constructor(
 		container: ViewContainer,
@@ -30,7 +30,7 @@ class ViewDescriptorCollection extends Disposable implements IViewDescriptorColl
 	) {
 		super();
 		this.viewDescriptorsModel = instantiationService.createInstance(ViewDescriptorsModel);
-		this.viewsModel = instantiationService.createInstance(PersistentContributableViewsModel, container.storageId || `${container.id}.state`, this.viewDescriptorsModel);
+		this.viewsModel = instantiationService.createInstance(PersistentViewsModel, container.storageId || `${container.id}.state`, this.viewDescriptorsModel);
 	}
 
 	get allViewDescriptors(): IViewDescriptor[] { return this.viewDescriptorsModel.allViewDescriptors; }

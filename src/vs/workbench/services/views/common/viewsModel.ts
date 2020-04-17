@@ -174,7 +174,7 @@ export interface IViewState {
 	size?: number;
 }
 
-export class ContributableViewsModel extends Disposable {
+export class ViewsModel extends Disposable {
 
 	private _viewDescriptors: IViewDescriptor[] = [];
 	get viewDescriptors(): ReadonlyArray<IViewDescriptor> {
@@ -440,7 +440,7 @@ interface IStoredGlobalViewState {
 	order?: number;
 }
 
-export class PersistentContributableViewsModel extends ContributableViewsModel {
+export class PersistentViewsModel extends ViewsModel {
 
 	private readonly workspaceViewsStateStorageId: string;
 	private readonly globalViewsStateStorageId: string;
@@ -455,7 +455,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	) {
 		const globalViewsStateStorageId = `${viewletStateStorageId}.hidden`;
 		storageKeysSyncRegistryService.registerStorageKey({ key: globalViewsStateStorageId, version: 1 });
-		const viewStates = PersistentContributableViewsModel.loadViewsStates(viewletStateStorageId, globalViewsStateStorageId, storageService);
+		const viewStates = PersistentViewsModel.loadViewsStates(viewletStateStorageId, globalViewsStateStorageId, storageService);
 
 		super(viewDescriptorCollection, viewStates);
 
@@ -478,7 +478,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		if (e.key === this.globalViewsStateStorageId && e.scope === StorageScope.GLOBAL
 			&& this.globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue() /* This checks if current window changed the value or not */) {
 			this._globalViewsStatesValue = undefined;
-			const storedViewsVisibilityStates = PersistentContributableViewsModel.loadGlobalViewsState(this.globalViewsStateStorageId, this.storageService, StorageScope.GLOBAL);
+			const storedViewsVisibilityStates = PersistentViewsModel.loadGlobalViewsState(this.globalViewsStateStorageId, this.storageService, StorageScope.GLOBAL);
 			const changedViews: { id: string, visible: boolean }[] = [];
 			for (const [id, state] of storedViewsVisibilityStates) {
 				const viewState = this.viewStates.get(id);
@@ -521,7 +521,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	}
 
 	private saveGlobalViewsStates(): void {
-		const storedViewsVisibilityStates = PersistentContributableViewsModel.loadGlobalViewsState(this.globalViewsStateStorageId, this.storageService, StorageScope.GLOBAL);
+		const storedViewsVisibilityStates = PersistentViewsModel.loadGlobalViewsState(this.globalViewsStateStorageId, this.storageService, StorageScope.GLOBAL);
 		for (const viewDescriptor of this.viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);
 			storedViewsVisibilityStates.set(viewDescriptor.id, {
