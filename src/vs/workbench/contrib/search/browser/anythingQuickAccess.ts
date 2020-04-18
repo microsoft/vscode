@@ -49,6 +49,7 @@ import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsSe
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { stripCodicons } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -868,14 +869,14 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				// Open to side / below
 				buttons.push({
-					iconClass: openSideBySideDirection === 'right' ? 'codicon-split-horizontal' : 'codicon-split-vertical',
+					iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
 					tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 				});
 
 				// Remove from History
 				if (isEditorHistoryEntry) {
 					buttons.push({
-						iconClass: isDirty ? 'dirty-anything codicon-circle-filled' : 'codicon-close',
+						iconClass: isDirty ? ('dirty-anything ' + Codicon.circleFilled.classNames) : Codicon.close.classNames,
 						tooltip: localize('closeEditor', "Remove from Recently Opened"),
 						alwaysVisible: isDirty
 					});

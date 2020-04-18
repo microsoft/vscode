@@ -321,7 +321,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
-			dom.addClass(this.label, this.activity.cssClass);
+			dom.addClasses(this.label, this.activity.cssClass);
 		}
 
 		if (this.options.icon && !this.activity.iconUrl) {

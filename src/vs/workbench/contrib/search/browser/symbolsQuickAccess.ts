@@ -23,6 +23,7 @@ import { getSelectionSearchString } from 'vs/editor/contrib/find/findController'
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
+import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
 
 interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	score?: number;
@@ -202,7 +203,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					strikethrough: deprecated,
 					buttons: [
 						{
-							iconClass: openSideBySideDirection === 'right' ? 'codicon-split-horizontal' : 'codicon-split-vertical',
+							iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
 							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 						}
 					],
