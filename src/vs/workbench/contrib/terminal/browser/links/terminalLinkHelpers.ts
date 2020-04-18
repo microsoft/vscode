@@ -7,8 +7,9 @@ import { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition
 import { IRange } from 'vs/editor/common/core/range';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
-export const TOOLTIP_HOVER_THRESHOLD = 500;
+export const TOOLTIP_HOVER_THRESHOLD = 300;
 
 export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: number, range: IRange, startLine: number) {
 	const bufferRange: IBufferRange = {
@@ -157,8 +158,9 @@ export function createLink(
 		hideDecorations,
 		activate: (event: MouseEvent, text: string) => activateCallback(event, text),
 		hover: (event: MouseEvent, text: string) => {
+			// TODO: Is this needed anymore? It's mouseover not mouseout?
 			documentMouseOutListener = dom.addDisposableListener(document, dom.EventType.MOUSE_OVER, () => clearTimer());
-			timeout = window.setTimeout(() => {
+			const waitScheduler = new RunOnceScheduler(() => {
 				tooltipCallback(
 					event,
 					text,
@@ -168,7 +170,19 @@ export function createLink(
 				);
 				dispose(disposables);
 				clearTimer();
+				// TODO: Use editor.hover.delay instead
 			}, TOOLTIP_HOVER_THRESHOLD);
+
+			disposables.push(waitScheduler);
+			const origin = { x: event.pageX, y: event.pageY };
+			dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
+				if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
+					// Reset the scheduler
+					origin.x = e.pageX;
+					origin.y = e.pageY;
+					waitScheduler.schedule();
+				}
+			});
 		},
 		leave: () => {
 			dispose(disposables);
