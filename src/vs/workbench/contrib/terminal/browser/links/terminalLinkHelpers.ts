@@ -134,6 +134,7 @@ export function createLink(
 	const disposables: IDisposable[] = [];
 	if (hideDecorations) {
 		disposables.push(dom.addDisposableListener(document, 'keydown', e => {
+			// TODO: Use ctrl/option or cmd
 			if (e.ctrlKey && link.hideDecorations) {
 				link.hideDecorations = false;
 			}
@@ -167,7 +168,11 @@ export function createLink(
 				// TODO: Use editor.hover.delay instead
 			}, TOOLTIP_HOVER_THRESHOLD);
 			disposables.push(scheduler);
+			scheduler.schedule();
+
 			const origin = { x: event.pageX, y: event.pageY };
+
+			// TODO: Also use mousemove to track ctrl state
 			disposables.push(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
 				if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
 					// Reset the scheduler
