@@ -7,10 +7,12 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { TypeScriptVersion, TypeScriptVersionProvider } from './versionProvider';
 import { Disposable } from './dispose';
+import { TypeScriptServiceConfiguration } from '../utils/configuration';
 
 const localize = nls.loadMessageBundle();
 
 const useWorkspaceTsdkStorageKey = 'typescript.useWorkspaceTsdk';
+const suppressPromptWorkspaceTsdkStorageKey = 'typescript.suppressPromptWorkspaceTsdk';
 
 interface QuickPickItem extends vscode.QuickPickItem {
 	run(): void;
@@ -21,6 +23,7 @@ export class TypeScriptVersionManager extends Disposable {
 	private _currentVersion: TypeScriptVersion;
 
 	public constructor(
+		private configuration: TypeScriptServiceConfiguration,
 		private readonly versionProvider: TypeScriptVersionProvider,
 		private readonly workspaceState: vscode.Memento
 	) {
@@ -34,10 +37,31 @@ export class TypeScriptVersionManager extends Disposable {
 				this._currentVersion = localVersion;
 			}
 		}
+
+		if (this.isInPromptWorkspaceTsdkState(configuration)) {
+			setImmediate(() => {
+				this._onEnteredPromptWorkspaceTsdkState.fire();
+			});
+		}
+
 	}
 
 	private readonly _onDidPickNewVersion = this._register(new vscode.EventEmitter<void>());
 	public readonly onDidPickNewVersion = this._onDidPickNewVersion.event;
+	public readonly _onEnteredPromptWorkspaceTsdkState = this._register(new vscode.EventEmitter<void>());;
+	public readonly onEnteredPromptWorkspaceTsdkState = this._onEnteredPromptWorkspaceTsdkState.event;
+
+	public updateConfiguration(nextConfiguration: TypeScriptServiceConfiguration) {
+		const lastConfiguration = this.configuration;
+		this.configuration = nextConfiguration;
+
+		if (
+			!this.isInPromptWorkspaceTsdkState(lastConfiguration)
+			&& this.isInPromptWorkspaceTsdkState(nextConfiguration)
+		) {
+			this._onEnteredPromptWorkspaceTsdkState.fire();
+		}
+	}
 
 	public get currentVersion(): TypeScriptVersion {
 		return this._currentVersion;
@@ -71,7 +95,7 @@ export class TypeScriptVersionManager extends Disposable {
 			detail: bundledVersion.pathLabel,
 			run: async () => {
 				await this.workspaceState.update(useWorkspaceTsdkStorageKey, false);
-				this.updateForPickedVersion(bundledVersion);
+				this.updateActiveVersion(bundledVersion);
 			},
 		};
 	}
@@ -88,13 +112,38 @@ export class TypeScriptVersionManager extends Disposable {
 					await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
 					const tsConfig = vscode.workspace.getConfiguration('typescript');
 					await tsConfig.update('tsdk', version.pathLabel, false);
-					this.updateForPickedVersion(version);
+					this.updateActiveVersion(version);
 				},
 			};
 		});
 	}
 
-	private updateForPickedVersion(pickedVersion: TypeScriptVersion) {
+	public async promptUseWorkspaceTsdk(): Promise<void> {
+		const workspaceVersion = this.versionProvider.localVersion;
+
+		if (workspaceVersion === undefined) {
+			throw new Error('Could not prompt to use workspace TypeScript version because no workspace version is specified');
+		}
+
+		const allowIt = localize('allow', 'Allow');
+		const dismissPrompt = localize('dismiss', 'Dismiss');
+		const suppressPrompt = localize('suppress prompt', 'Never in this Workspace');
+
+		const result = await vscode.window.showInformationMessage(localize('promptUseWorkspaceTsdk', 'This workspace contains a TypeScript version. Would you like to use the workspace TypeScript version for TypeScript and JavaScript language features?'),
+			allowIt,
+			dismissPrompt,
+			suppressPrompt
+		);
+
+		if (result === allowIt) {
+			await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
+			this.updateActiveVersion(workspaceVersion);
+		} else if (result === suppressPrompt) {
+			await this.workspaceState.update(suppressPromptWorkspaceTsdkStorageKey, true);
+		}
+	}
+
+	private updateActiveVersion(pickedVersion: TypeScriptVersion) {
 		const oldVersion = this.currentVersion;
 		this._currentVersion = pickedVersion;
 		if (!oldVersion.eq(pickedVersion)) {
@@ -104,6 +153,19 @@ export class TypeScriptVersionManager extends Disposable {
 
 	private get useWorkspaceTsdkSetting(): boolean {
 		return this.workspaceState.get<boolean>(useWorkspaceTsdkStorageKey, false);
+	}
+
+	private get suppressPromptWorkspaceTsdkSetting(): boolean {
+		return this.workspaceState.get<boolean>(suppressPromptWorkspaceTsdkStorageKey, false);
+	}
+
+	private isInPromptWorkspaceTsdkState(configuration: TypeScriptServiceConfiguration) {
+		return (
+			configuration.localTsdk !== null
+			&& configuration.enablePromptUseWorkspaceTsdk === true
+			&& this.suppressPromptWorkspaceTsdkSetting === false
+			&& this.useWorkspaceTsdkSetting === false
+		);
 	}
 }
 
