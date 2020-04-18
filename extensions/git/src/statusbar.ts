@@ -8,6 +8,7 @@ import { Repository, Operation } from './repository';
 import { anyEvent, dispose, filterEvent } from './util';
 import * as nls from 'vscode-nls';
 import { Branch } from './api/git';
+import { basename } from 'path';
 
 const localize = nls.loadMessageBundle();
 
@@ -150,26 +151,75 @@ class SyncStatusBar {
 	}
 }
 
+class RepoNameStatusBar {
+
+	private disposables: Disposable[] = [];
+	private _enabled: boolean = false;
+	private get enabled() { return this._enabled; }
+	private set enabled(enabled: boolean) {
+		this._enabled = enabled;
+		this._onDidChange.fire();
+	}
+	private _onDidChange = new EventEmitter<void>();
+	get onDidChange(): Event<void> { return this._onDidChange.event; }
+
+	constructor(private repository: Repository) {
+		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.showRepositoryInStatusBar'));
+		onEnablementChange(this.updateEnablement, this, this.disposables);
+		this.updateEnablement();
+	}
+
+	private updateEnablement(): void {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		this.enabled = config.get<boolean>('showRepositoryInStatusBar', false);
+	}
+
+	get command(): Command | undefined {
+		if (!this.enabled) {
+			return undefined;
+		}
+		return {
+			command: 'workbench.scm.focus',
+			title: `${basename(this.repository.root)}`,
+			tooltip: 'Current Repository'
+		};
+	}
+
+	dispose(): void {
+		this.disposables.forEach(d => d.dispose());
+	}
+
+}
+
 export class StatusBarCommands {
 
 	private syncStatusBar: SyncStatusBar;
 	private checkoutStatusBar: CheckoutStatusBar;
+	private repoNameStatusBar: RepoNameStatusBar;
 	private disposables: Disposable[] = [];
 
 	constructor(repository: Repository) {
 		this.syncStatusBar = new SyncStatusBar(repository);
 		this.checkoutStatusBar = new CheckoutStatusBar(repository);
+		this.repoNameStatusBar = new RepoNameStatusBar(repository);
 	}
 
 	get onDidChange(): Event<void> {
 		return anyEvent(
 			this.syncStatusBar.onDidChange,
-			this.checkoutStatusBar.onDidChange
+			this.checkoutStatusBar.onDidChange,
+			this.repoNameStatusBar.onDidChange
 		);
 	}
 
 	get commands(): Command[] {
 		const result: Command[] = [];
+
+		const repoName = this.repoNameStatusBar.command;
+
+		if (repoName) {
+			result.push(repoName);
+		}
 
 		const checkout = this.checkoutStatusBar.command;
 
@@ -189,6 +239,7 @@ export class StatusBarCommands {
 	dispose(): void {
 		this.syncStatusBar.dispose();
 		this.checkoutStatusBar.dispose();
+		this.repoNameStatusBar.dispose();
 		this.disposables = dispose(this.disposables);
 	}
 }
