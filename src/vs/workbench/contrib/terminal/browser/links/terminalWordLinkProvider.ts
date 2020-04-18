@@ -4,17 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink } from 'xterm';
-import { convertBufferRangeToViewport, TOOLTIP_HOVER_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import * as dom from 'vs/base/browser/dom';
 
 export class TerminalWordLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback: () => void, modifierUpCallback: () => void) => boolean | void,
+		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
@@ -63,61 +61,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 			text += char;
 		}
 
-		const range = { start, end };
-		let timeout: number | undefined;
-		let documentMouseOutListener: IDisposable | undefined;
-		const clearTimer = () => {
-			if (timeout !== undefined) {
-				window.clearTimeout(timeout);
-			}
-			documentMouseOutListener?.dispose();
-		};
-
-		// TODO: This could be handled better my sharing tooltip hover state between link providers
-		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
-		const disposables: IDisposable[] = [
-			dom.addDisposableListener(document, 'keydown', e => {
-				if (e.ctrlKey && link.hideDecorations) {
-					link.hideDecorations = false;
-				}
-			}),
-			dom.addDisposableListener(document, 'keyup', e => {
-				if (!e.ctrlKey) {
-					link.hideDecorations = true;
-				}
-			})
-		];
-		const link: ILink = {
-			text,
-			range,
-			hideDecorations: true,
-			activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
-			hover: (event: MouseEvent, text: string) => {
-				documentMouseOutListener = dom.addDisposableListener(document, dom.EventType.MOUSE_OVER, () => clearTimer());
-				timeout = window.setTimeout(() => {
-					this._tooltipCallback(
-						event,
-						text,
-						convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY),
-						() => {
-							console.log('down');
-							link.hideDecorations = false;
-						},
-						() => {
-							console.log('up');
-							link.hideDecorations = true;
-						}
-					);
-					dispose(disposables);
-					clearTimer();
-				}, TOOLTIP_HOVER_THRESHOLD);
-			},
-			leave: () => {
-				dispose(disposables);
-				clearTimer();
-			}
-		};
-
-		callback(link);
+		callback(createLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true));
 	}
 }

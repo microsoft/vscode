@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
-import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport, positionIsInRange, TOOLTIP_HOVER_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange, createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IDisposable } from 'vs/base/common/lifecycle';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -103,33 +101,14 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 			if (positionIsInRange(position, bufferRange)) {
 				this._validationCallback(link, (result) => {
 					if (result) {
-						let timeout: number | undefined;
-						let documentMouseOutListener: IDisposable | undefined;
-						const clearTimer = () => {
-							if (timeout !== undefined) {
-								window.clearTimeout(timeout);
+						const activateCallback = (event: MouseEvent, text: string) => {
+							if (result.isDirectory) {
+								this._activateDirectoryCallback(event, text, result.uri);
+							} else {
+								this._activateFileCallback(event, text);
 							}
-							documentMouseOutListener?.dispose();
 						};
-						callback({
-							text: link,
-							range: bufferRange,
-							activate: (event: MouseEvent, text: string) => {
-								if (result.isDirectory) {
-									this._activateDirectoryCallback(event, text, result.uri);
-								} else {
-									this._activateFileCallback(event, text);
-								}
-							},
-							hover: (event: MouseEvent, text: string) => {
-								documentMouseOutListener = addDisposableListener(document, EventType.MOUSE_OVER, () => clearTimer());
-								timeout = window.setTimeout(() => {
-									this._tooltipCallback(event, text, convertBufferRangeToViewport(bufferRange, this._xterm.buffer.active.viewportY));
-									clearTimer();
-								}, TOOLTIP_HOVER_THRESHOLD);
-							},
-							leave: () => clearTimer()
-						});
+						callback(createLink(bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false));
 					} else {
 						callback(undefined);
 					}

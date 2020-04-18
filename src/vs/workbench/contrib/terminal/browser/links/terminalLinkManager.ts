@@ -322,7 +322,7 @@ export class TerminalLinkManager extends DisposableStore {
 			// Fallback to searching quick access
 			this._quickInputService.quickAccess.show(link);
 		};
-		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange, modifierDownCallback: () => void, modifierUpCallback: () => void) => {
+		const tooltipWordCallback = (event: MouseEvent, link: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => {
 			this._tooltipCallback(link, location, wordHandler, modifierDownCallback, modifierUpCallback);
 		};
 		const wrappedWordActivateCallback = this._wrapLinkHandler(wordHandler);

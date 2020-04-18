@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
+import { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition, ILink } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import * as dom from 'vs/base/browser/dom';
 
 export const TOOLTIP_HOVER_THRESHOLD = 500;
 
@@ -114,4 +116,65 @@ export function positionIsInRange(position: IBufferCellPosition, range: IBufferR
 		return false;
 	}
 	return true;
+}
+
+export function createLink(
+	range: IBufferRange,
+	text: string,
+	viewportY: number,
+	activateCallback: (event: MouseEvent, uri: string) => void,
+	tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
+	hideDecorations: boolean
+): ILink {
+	let timeout: number | undefined;
+	let documentMouseOutListener: IDisposable | undefined;
+	const clearTimer = () => {
+		if (timeout !== undefined) {
+			window.clearTimeout(timeout);
+		}
+		documentMouseOutListener?.dispose();
+	};
+
+	// TODO: This could be handled better my sharing tooltip hover state between link providers
+	// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
+	const disposables: IDisposable[] = [];
+	if (hideDecorations) {
+		disposables.push(dom.addDisposableListener(document, 'keydown', e => {
+			if (e.ctrlKey && link.hideDecorations) {
+				link.hideDecorations = false;
+			}
+		}));
+		disposables.push(dom.addDisposableListener(document, 'keyup', e => {
+			if (!e.ctrlKey) {
+				link.hideDecorations = true;
+			}
+		}));
+	}
+
+	const link = {
+		text,
+		range,
+		hideDecorations,
+		activate: (event: MouseEvent, text: string) => activateCallback(event, text),
+		hover: (event: MouseEvent, text: string) => {
+			documentMouseOutListener = dom.addDisposableListener(document, dom.EventType.MOUSE_OVER, () => clearTimer());
+			timeout = window.setTimeout(() => {
+				tooltipCallback(
+					event,
+					text,
+					convertBufferRangeToViewport(range, viewportY),
+					hideDecorations ? () => link.hideDecorations = false : undefined,
+					hideDecorations ? () => link.hideDecorations = true : undefined
+				);
+				dispose(disposables);
+				clearTimer();
+			}, TOOLTIP_HOVER_THRESHOLD);
+		},
+		leave: () => {
+			dispose(disposables);
+			clearTimer();
+		}
+	};
+
+	return link;
 }
