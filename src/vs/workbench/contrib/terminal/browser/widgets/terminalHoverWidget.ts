@@ -6,21 +6,27 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IViewportRange } from 'xterm';
 import { ITerminalWidget, IHoverAnchor, IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import * as dom from 'vs/base/browser/dom';
+import { IViewportRange } from 'xterm';
 
 const $ = dom.$;
+
+export interface ILinkHoverTargetOptions {
+	readonly viewportRange: IViewportRange;
+	readonly cellDimensions: { width: number, height: number };
+	readonly terminalDimensions: { width: number, height: number };
+	readonly modifierDownCallback?: () => void;
+	readonly modifierUpCallback?: () => void;
+}
 
 export class TerminalHover extends Disposable implements ITerminalWidget {
 	readonly id = 'hover';
 
 	constructor(
-		private _viewportRange: IViewportRange,
-		private _cellDimensions: { width: number, height: number },
-		private _terminalDimensions: { width: number, height: number },
+		private _targetOptions: ILinkHoverTargetOptions,
 		private _text: IMarkdownString,
 		private _linkHandler: (url: string) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
@@ -29,7 +35,7 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 	}
 
 	attach(container: HTMLElement): void {
-		const target = new CellHoverTarget(container, this._viewportRange, this._cellDimensions, this._terminalDimensions);
+		const target = new CellHoverTarget(container, this._targetOptions);
 		this._register(this._instantiationService.createInstance(HoverWidget, container, target, this._text, this._linkHandler, []));
 	}
 }
@@ -42,32 +48,30 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 
 	constructor(
 		private readonly _container: HTMLElement,
-		viewportRange: IViewportRange,
-		cellDimensions: { width: number, height: number },
-		terminalDimensions: { width: number, height: number }
+		o: ILinkHoverTargetOptions
 	) {
 		super();
 
 		this._domNode = $('div.terminal-hover-targets');
 		const targets: HTMLElement[] = [];
-		const rowCount = viewportRange.end.y - viewportRange.start.y + 1;
+		const rowCount = o.viewportRange.end.y - o.viewportRange.start.y + 1;
 
 		// Add top target row
-		const width = (viewportRange.end.y > viewportRange.start.y ? terminalDimensions.width - viewportRange.start.x : viewportRange.end.x - viewportRange.start.x + 1) * cellDimensions.width;
+		const width = (o.viewportRange.end.y > o.viewportRange.start.y ? o.terminalDimensions.width - o.viewportRange.start.x : o.viewportRange.end.x - o.viewportRange.start.x + 1) * o.cellDimensions.width;
 		const topTarget = $('div.terminal-hover-target.hoverHighlight');
-		topTarget.style.left = `${(terminalDimensions.height - viewportRange.start.y - 1) * cellDimensions.height}px`;
-		topTarget.style.bottom = `${viewportRange.start.x * cellDimensions.width}px`;
+		topTarget.style.left = `${o.viewportRange.start.x * o.cellDimensions.width}px`;
+		topTarget.style.bottom = `${(o.terminalDimensions.height - o.viewportRange.start.y - 1) * o.cellDimensions.height}px`;
 		topTarget.style.width = `${width}px`;
-		topTarget.style.height = `${cellDimensions.height}px`;
+		topTarget.style.height = `${o.cellDimensions.height}px`;
 		targets.push(this._domNode.appendChild(topTarget));
 
 		// Add middle target rows
 		if (rowCount > 2) {
 			const middleTarget = $('div.terminal-hover-target.hoverHighlight');
 			middleTarget.style.left = `0px`;
-			middleTarget.style.bottom = `${(terminalDimensions.height - viewportRange.start.y - 1 - (rowCount - 2)) * cellDimensions.height}px`;
-			middleTarget.style.width = `${terminalDimensions.width * cellDimensions.width}px`;
-			middleTarget.style.height = `${(rowCount - 2) * cellDimensions.height}px`;
+			middleTarget.style.bottom = `${(o.terminalDimensions.height - o.viewportRange.start.y - 1 - (rowCount - 2)) * o.cellDimensions.height}px`;
+			middleTarget.style.width = `${o.terminalDimensions.width * o.cellDimensions.width}px`;
+			middleTarget.style.height = `${(rowCount - 2) * o.cellDimensions.height}px`;
 			targets.push(this._domNode.appendChild(middleTarget));
 		}
 
@@ -75,13 +79,29 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		if (rowCount > 1) {
 			const bottomTarget = $('div.terminal-hover-target.hoverHighlight');
 			bottomTarget.style.left = `0px`;
-			bottomTarget.style.bottom = `${(terminalDimensions.height - viewportRange.end.y - 1) * cellDimensions.height}px`;
-			bottomTarget.style.width = `${(viewportRange.end.x + 1) * cellDimensions.width}px`;
-			bottomTarget.style.height = `${cellDimensions.height}px`;
+			bottomTarget.style.bottom = `${(o.terminalDimensions.height - o.viewportRange.end.y - 1) * o.cellDimensions.height}px`;
+			bottomTarget.style.width = `${(o.viewportRange.end.x + 1) * o.cellDimensions.width}px`;
+			bottomTarget.style.height = `${o.cellDimensions.height}px`;
 			targets.push(this._domNode.appendChild(bottomTarget));
 		}
 
 		this.targetElements = targets;
+
+		if (o.modifierDownCallback && o.modifierUpCallback) {
+			let down = false;
+			this._register(dom.addDisposableListener(document, 'keydown', e => {
+				if (e.ctrlKey && !down) {
+					down = true;
+					o.modifierDownCallback!();
+				}
+			}));
+			this._register(dom.addDisposableListener(document, 'keyup', e => {
+				if (!e.ctrlKey) {
+					down = false;
+					o.modifierUpCallback!();
+				}
+			}));
+		}
 
 		this._container.appendChild(this._domNode);
 	}
