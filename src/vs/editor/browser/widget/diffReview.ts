@@ -31,6 +31,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/base/common/uint';
+import { registerIcon, Codicon } from 'vs/base/browser/ui/codicons/codicons';
 
 const DIFF_LINES_PADDING = 3;
 
@@ -72,6 +73,10 @@ class Diff {
 	}
 }
 
+const diffReviewInsertIcon = registerIcon('diff-review-insert', Codicon.add);
+const diffReviewRemoveIcon = registerIcon('diff-review-remove', Codicon.remove);
+const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close);
+
 export class DiffReview extends Disposable {
 
 	private readonly _diffEditor: DiffEditorWidget;
@@ -99,7 +104,7 @@ export class DiffReview extends Disposable {
 			this.actionBarContainer.domNode
 		));
 
-		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review codicon-close', true, () => {
+		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review ' + diffReviewCloseIcon.classNames, true, () => {
 			this.hide();
 			return Promise.resolve(null);
 		}), { label: false, icon: true });
@@ -639,17 +644,17 @@ export class DiffReview extends Disposable {
 		let rowClassName: string = 'diff-review-row';
 		let lineNumbersExtraClassName: string = '';
 		const spacerClassName: string = 'diff-review-spacer';
-		let spacerCodiconName: string | null = null;
+		let spacerIcon: Codicon | null = null;
 		switch (type) {
 			case DiffEntryType.Insert:
 				rowClassName = 'diff-review-row line-insert';
 				lineNumbersExtraClassName = ' char-insert';
-				spacerCodiconName = 'codicon codicon-add';
+				spacerIcon = diffReviewInsertIcon;
 				break;
 			case DiffEntryType.Delete:
 				rowClassName = 'diff-review-row line-delete';
 				lineNumbersExtraClassName = ' char-delete';
-				spacerCodiconName = 'codicon codicon-remove';
+				spacerIcon = diffReviewRemoveIcon;
 				break;
 		}
 
@@ -713,9 +718,9 @@ export class DiffReview extends Disposable {
 			const spacer = document.createElement('span');
 			spacer.className = spacerClassName;
 
-			if (spacerCodiconName) {
+			if (spacerIcon) {
 				const spacerCodicon = document.createElement('span');
-				spacerCodicon.className = spacerCodiconName;
+				spacerCodicon.className = spacerIcon.classNames;
 				spacerCodicon.innerHTML = '&#160;&#160;';
 				spacer.appendChild(spacerCodicon);
 			} else {
