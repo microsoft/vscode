@@ -12,6 +12,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
 import * as dom from 'vs/base/browser/dom';
 
+const $ = dom.$;
+
 export class TerminalHover extends Disposable implements ITerminalWidget {
 	readonly id = 'hover';
 
@@ -46,50 +48,37 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 	) {
 		super();
 
-		this._domNode = document.createElement('div');
-		this._domNode.classList.add('terminal-hover-targets');
-
+		this._domNode = $('div.terminal-hover-targets');
 		const targets: HTMLElement[] = [];
-
 		const rowCount = viewportRange.end.y - viewportRange.start.y + 1;
 
 		// Add top target row
-		const bottomLeft = {
-			x: viewportRange.start.x * cellDimensions.width,
-			y: (terminalDimensions.height - viewportRange.start.y - 1) * cellDimensions.height
-		};
 		const width = (viewportRange.end.y > viewportRange.start.y ? terminalDimensions.width - viewportRange.start.x : viewportRange.end.x - viewportRange.start.x + 1) * cellDimensions.width;
-		const topTarget = document.createElement('div');
-		topTarget.classList.add('terminal-hover-target', 'hoverHighlight');
-		topTarget.style.left = `${bottomLeft.x}px`;
-		topTarget.style.bottom = `${bottomLeft.y}px`;
+		const topTarget = $('div.terminal-hover-target.hoverHighlight');
+		topTarget.style.left = `${(terminalDimensions.height - viewportRange.start.y - 1) * cellDimensions.height}px`;
+		topTarget.style.bottom = `${viewportRange.start.x * cellDimensions.width}px`;
 		topTarget.style.width = `${width}px`;
 		topTarget.style.height = `${cellDimensions.height}px`;
-		targets.push(topTarget);
-		this._domNode.appendChild(topTarget);
+		targets.push(this._domNode.appendChild(topTarget));
 
 		// Add middle target rows
 		if (rowCount > 2) {
-			const middleTarget = document.createElement('div');
-			middleTarget.classList.add('terminal-hover-target', 'hoverHighlight');
+			const middleTarget = $('div.terminal-hover-target.hoverHighlight');
 			middleTarget.style.left = `0px`;
 			middleTarget.style.bottom = `${(terminalDimensions.height - viewportRange.start.y - 1 - (rowCount - 2)) * cellDimensions.height}px`;
 			middleTarget.style.width = `${terminalDimensions.width * cellDimensions.width}px`;
 			middleTarget.style.height = `${(rowCount - 2) * cellDimensions.height}px`;
-			targets.push(middleTarget);
-			this._domNode.appendChild(middleTarget);
+			targets.push(this._domNode.appendChild(middleTarget));
 		}
 
 		// Add bottom target row
 		if (rowCount > 1) {
-			const bottomTarget = document.createElement('div');
-			bottomTarget.classList.add('terminal-hover-target', 'hoverHighlight');
+			const bottomTarget = $('div.terminal-hover-target.hoverHighlight');
 			bottomTarget.style.left = `0px`;
 			bottomTarget.style.bottom = `${(terminalDimensions.height - viewportRange.end.y - 1) * cellDimensions.height}px`;
 			bottomTarget.style.width = `${(viewportRange.end.x + 1) * cellDimensions.width}px`;
 			bottomTarget.style.height = `${cellDimensions.height}px`;
-			targets.push(bottomTarget);
-			this._domNode.appendChild(bottomTarget);
+			targets.push(this._domNode.appendChild(bottomTarget));
 		}
 
 		this.targetElements = targets;
