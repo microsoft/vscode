@@ -7,6 +7,8 @@
 	position: absolute;
 	left: 0;
 	bottom: 0;
+	right: 0;
+	top: 0;
 	overflow: visible;
 }
 
@@ -31,7 +33,6 @@
 .monaco-workbench .terminal-overlay-widget {
 	position: absolute;
 	left: 0;
-	/* Align to bottom like the terminal's viewport */
 	bottom: 0;
 	color: #3794ff;
 }
@@ -43,13 +44,18 @@
 
 .monaco-workbench .terminal-env-var-info {
 	position: absolute;
-	right: 13px;
+	right: 2px;
 	top: 0;
 	width: 28px;
 	height: 28px;
 	text-align: center;
 	z-index: 25;
 	opacity: 0.5;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .monaco-split-view2.horizontal .split-view-view:last-child .terminal-env-var-info {
+	/* Adjust for reduced margin in splits */
+	right: -8px;
 }
 
 .monaco-workbench .terminal-env-var-info:hover {
