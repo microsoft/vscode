@@ -404,10 +404,10 @@ export function createMatches(score: undefined | FuzzyScore, offset = 0): IMatch
 	for (let pos = wordStart; pos < _maxLen; pos++) {
 		if (matches[matches.length - (pos + 1)] === '1') {
 			const last = res[res.length - 1];
-			if (last && last.end === pos) {
-				last.end = pos + 1;
+			if (last && last.end === pos + offset) {
+				last.end = pos + offset + 1;
 			} else {
-				res.push({ start: pos + offset, end: pos + 1 + offset });
+				res.push({ start: pos + offset, end: pos + offset + 1 });
 			}
 		}
 	}
