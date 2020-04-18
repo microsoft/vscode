@@ -11,8 +11,8 @@ import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
 
-export const scrollbarButtonUpIcon = registerIcon('scrollbar-button-up', Codicon.triangleUp);
-export const scrollbarButtonDownIcon = registerIcon('scrollbar-button-down', Codicon.triangleDown);
+const scrollbarButtonUpIcon = registerIcon('scrollbar-button-up', Codicon.triangleUp);
+const scrollbarButtonDownIcon = registerIcon('scrollbar-button-down', Codicon.triangleDown);
 
 export class VerticalScrollbar extends AbstractScrollbar {
 

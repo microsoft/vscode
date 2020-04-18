@@ -12,8 +12,8 @@ import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from
 import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
 
 
-export const scrollbarButtonLeftIcon = registerIcon('scrollbar-button-left', Codicon.triangleLeft);
-export const scrollbarButtonRightIcon = registerIcon('scrollbar-button-right', Codicon.triangleRight);
+const scrollbarButtonLeftIcon = registerIcon('scrollbar-button-left', Codicon.triangleLeft);
+const scrollbarButtonRightIcon = registerIcon('scrollbar-button-right', Codicon.triangleRight);
 
 export class HorizontalScrollbar extends AbstractScrollbar {
 
