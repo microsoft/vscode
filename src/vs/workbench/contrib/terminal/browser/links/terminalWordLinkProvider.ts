@@ -75,6 +75,7 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 		callback({
 			text,
 			range,
+			// hideDecorations: true,
 			activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
 			hover: (event: MouseEvent, text: string) => {
 				documentMouseOutListener = addDisposableListener(document, EventType.MOUSE_OVER, () => clearTimer());

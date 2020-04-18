@@ -587,7 +587,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._refreshSelectionContextKey();
 		}));
 
-		this._widgetManager.attachToElement(this._wrapperElement);
+		this._widgetManager.attachToElement(xterm.element);
 		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
 
 		const computedStyle = window.getComputedStyle(this._container);

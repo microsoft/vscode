@@ -7,10 +7,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IViewportRange } from 'xterm';
-import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { ITerminalWidget, IHoverAnchor, IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { HoverWidget } from 'vs/workbench/contrib/terminal/browser/widgets/hoverWidget';
+import * as dom from 'vs/base/browser/dom';
 
 export class TerminalHover extends Disposable implements ITerminalWidget {
 	readonly id = 'hover';
@@ -106,7 +106,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 	}
 
 	get anchor(): IHoverAnchor {
-		const firstPosition = getDomNodePagePosition(this.targetElements[0]);
+		const firstPosition = dom.getDomNodePagePosition(this.targetElements[0]);
 		return {
 			x: firstPosition.left,
 			horizontalAnchorSide: HorizontalAnchorSide.Left,
