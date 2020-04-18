@@ -39,7 +39,7 @@ export class HoverWidget extends Widget {
 	) {
 		super();
 		this._domNode = document.createElement('div');
-		this._domNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover');
+		this._domNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
@@ -114,7 +114,6 @@ export class HoverWidget extends Widget {
 			}
 		} else {
 			if (anchor.y + this._domNode.clientHeight > document.documentElement.clientHeight) {
-				console.log('fallback, set bottom to', `${anchor.fallbackY}px`);
 				this._domNode.style.bottom = `${anchor.fallbackY}px`;
 			} else {
 				this._domNode.style.top = `${anchor.y}px`;
