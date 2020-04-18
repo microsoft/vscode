@@ -127,14 +127,7 @@ export function createLink(
 	tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
 	hideDecorations: boolean
 ): ILink {
-	let timeout: number | undefined;
-	let documentMouseOutListener: IDisposable | undefined;
-	const clearTimer = () => {
-		if (timeout !== undefined) {
-			window.clearTimeout(timeout);
-		}
-		documentMouseOutListener?.dispose();
-	};
+	// let documentMouseOutListener: IDisposable | undefined;
 
 	// TODO: This could be handled better my sharing tooltip hover state between link providers
 	// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
@@ -152,6 +145,8 @@ export function createLink(
 		}));
 	}
 
+	let scheduler: RunOnceScheduler;
+
 	const link = {
 		text,
 		range,
@@ -159,8 +154,8 @@ export function createLink(
 		activate: (event: MouseEvent, text: string) => activateCallback(event, text),
 		hover: (event: MouseEvent, text: string) => {
 			// TODO: Is this needed anymore? It's mouseover not mouseout?
-			documentMouseOutListener = dom.addDisposableListener(document, dom.EventType.MOUSE_OVER, () => clearTimer());
-			const waitScheduler = new RunOnceScheduler(() => {
+			disposables.push(dom.addDisposableListener(document, dom.EventType.MOUSE_OUT, () => dispose(disposables)));
+			scheduler = new RunOnceScheduler(() => {
 				tooltipCallback(
 					event,
 					text,
@@ -169,25 +164,20 @@ export function createLink(
 					hideDecorations ? () => link.hideDecorations = true : undefined
 				);
 				dispose(disposables);
-				clearTimer();
 				// TODO: Use editor.hover.delay instead
 			}, TOOLTIP_HOVER_THRESHOLD);
-
-			disposables.push(waitScheduler);
+			disposables.push(scheduler);
 			const origin = { x: event.pageX, y: event.pageY };
-			dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
+			disposables.push(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
 				if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
 					// Reset the scheduler
 					origin.x = e.pageX;
 					origin.y = e.pageY;
-					waitScheduler.schedule();
+					scheduler.schedule();
 				}
-			});
+			}));
 		},
-		leave: () => {
-			dispose(disposables);
-			clearTimer();
-		}
+		leave: () => dispose(disposables)
 	};
 
 	return link;
