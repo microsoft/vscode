@@ -344,9 +344,9 @@ export class SnippetSession {
 				const lines = marker.value.split(/\r\n|\r|\n/);
 
 				if (adjustIndentation) {
+					lines[0] = model.normalizeWhitespace(lines[0]);
 					for (let i = 1; i < lines.length; i++) {
-						let templateLeadingWhitespace = getLeadingWhitespace(lines[i]);
-						lines[i] = model.normalizeIndentation(lineLeadingWhitespace + templateLeadingWhitespace) + lines[i].substr(templateLeadingWhitespace.length);
+						lines[i] = model.normalizeWhitespace(lineLeadingWhitespace + lines[i]);
 					}
 				}
 

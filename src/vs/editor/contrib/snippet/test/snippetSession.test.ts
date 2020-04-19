@@ -38,8 +38,8 @@ suite('SnippetSession', function () {
 		editor.dispose();
 	});
 
-	test('normalize whitespace', function () {
-
+	test('normalize whitespace -> spaces', function () {
+		let model = createTextModel('function foo() {\n    console.log(a);\n}');
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
 			const snippet = new SnippetParser().parse(input);
 			SnippetSession.adjustWhitespace(model, position, snippet, true, true);
@@ -53,8 +53,29 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar\nfoo', 'foo\n        bar\n    foo');
 
-		//Indentation issue with choice elements that span multiple lines #46266
+		// Indentation issue with choice elements that span multiple lines #46266
 		assertNormalized(new Position(2, 5), 'a\nb${1|foo,\nbar|}', 'a\n    b${1|foo,\nbar|}');
+
+		// Normalization of whitespace in the middle of snippets #5355
+		assertNormalized(new Position(2, 5), 'foo\r\tbar\t foo\nfoo', 'foo\n        bar     foo\n    foo');
+
+		model.dispose();
+	});
+
+	test('normalize whitespace -> tabs', function () {
+		let model = createTextModel('function foo() {\n    console.log(a);\n}', { insertSpaces: false });
+
+		function assertNormalized(position: IPosition, input: string, expected: string): void {
+			const snippet = new SnippetParser().parse(input);
+			SnippetSession.adjustWhitespace(model, position, snippet, true, true);
+			assert.equal(snippet.toTextmateString(), expected);
+		}
+
+		// Normalization of whitespace in the middle of snippets #5355
+		assertNormalized(new Position(2, 5), 'foo\r\tbar\t foo\nfoo', 'foo\n\t\tbar\t foo\n\tfoo');
+		assertNormalized(new Position(2, 5), 'foo\r\tbar\t    foo\nfoo', 'foo\n\t\tbar\t\tfoo\n\tfoo');
+
+		model.dispose();
 	});
 
 	test('adjust selection (overwrite[Before|After])', function () {

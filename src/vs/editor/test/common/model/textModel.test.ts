@@ -864,11 +864,7 @@ suite('Editor Model - TextModel', () => {
 	});
 
 	test('normalizeIndentation 1', () => {
-		let model = createTextModel('',
-			{
-				insertSpaces: false
-			}
-		);
+		let model = createTextModel('', { insertSpaces: false });
 
 		assert.equal(model.normalizeIndentation('\t'), '\t');
 		assert.equal(model.normalizeIndentation('    '), '\t');
@@ -908,6 +904,37 @@ suite('Editor Model - TextModel', () => {
 		assert.equal(model.normalizeIndentation(' \t  a'), '       a');
 		assert.equal(model.normalizeIndentation(' \t a'), '      a');
 		assert.equal(model.normalizeIndentation(' \ta'), '     a');
+
+		model.dispose();
+	});
+
+	test('normalizeWhitespace -> tabs', () => {
+		let model = createTextModel('', { insertSpaces: false });
+
+		assert.equal(model.normalizeWhitespace('\t'), '\t');
+		assert.equal(model.normalizeWhitespace(' '), ' ');
+		assert.equal(model.normalizeWhitespace('\t\t\t\t'), '\t\t\t\t');
+		assert.equal(model.normalizeWhitespace('    '), '\t');
+		assert.equal(model.normalizeWhitespace('   a    a'), '   a\ta');
+		assert.equal(model.normalizeWhitespace('   \ta'), '   \ta');
+		assert.equal(model.normalizeWhitespace('   a   '), '   a   ');
+		assert.equal(model.normalizeWhitespace('   a    '), '   a\t');
+		assert.equal(model.normalizeWhitespace('   \n    '), '   \n\t');
+		assert.equal(model.normalizeWhitespace('         '), '\t\t ');
+		assert.equal(model.normalizeWhitespace('\t    \t'), '\t\t\t');
+		assert.equal(model.normalizeWhitespace('   \n   '), '   \n   ');
+
+		model.dispose();
+	});
+
+	test('normalizeWhitespace -> spaces', () => {
+		let model = createTextModel('');
+
+		assert.equal(model.normalizeWhitespace('\t'), '    ');
+		assert.equal(model.normalizeWhitespace(' '), ' ');
+		assert.equal(model.normalizeWhitespace('\t   '), '       ');
+		assert.equal(model.normalizeWhitespace('\t\n\t'), '    \n    ');
+		assert.equal(model.normalizeWhitespace(' \t'), '     ');
 
 		model.dispose();
 	});

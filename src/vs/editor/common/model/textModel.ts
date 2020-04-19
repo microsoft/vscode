@@ -659,6 +659,37 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return result;
 	}
 
+	private static _normalizeWhitespace(str: string, indentSize: number, insertSpaces: boolean): string {
+		let result = '';
+
+		if (insertSpaces) {
+			const toReplace = ' '.repeat(indentSize);
+			for (let i = 0; i < str.length; i++) {
+				if (str.charAt(i) === '\t') {
+					result += toReplace;
+				} else {
+					result += str[i];
+				}
+			}
+		} else {
+			let lastSpaces = 0;
+			for (let i = 0; i < str.length; i++) {
+				if (str.charAt(i) === ' ') {
+					lastSpaces++;
+					if (lastSpaces === indentSize) {
+						result += '\t';
+						lastSpaces = 0;
+					}
+				} else {
+					result += ' '.repeat(lastSpaces) + str[i];
+					lastSpaces = 0;
+				}
+			}
+			result += ' '.repeat(lastSpaces);
+		}
+		return result;
+	}
+
 	public static normalizeIndentation(str: string, indentSize: number, insertSpaces: boolean): string {
 		let firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(str);
 		if (firstNonWhitespaceIndex === -1) {
@@ -671,6 +702,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._assertNotDisposed();
 		return TextModel.normalizeIndentation(str, this._options.indentSize, this._options.insertSpaces);
 	}
+
+	public normalizeWhitespace(str: string): string {
+		this._assertNotDisposed();
+		return TextModel._normalizeWhitespace(str, this._options.indentSize, this._options.insertSpaces);
+	}
+
 
 	//#endregion
 
