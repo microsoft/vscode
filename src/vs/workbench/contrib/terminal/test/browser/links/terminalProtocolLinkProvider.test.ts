@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TerminalWebLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWebLinkProvider';
+import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalProtocolLinkProvider';
 import { Terminal, ILink, IBufferRange, IBufferCellPosition } from 'xterm';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -20,7 +20,7 @@ suite('Workbench - TerminalWebLinkProvider', () => {
 
 	async function assertLink(text: string, expected: { text: string, range: [number, number][] }) {
 		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalWebLinkProvider, xterm, () => { }, () => { });
+		const provider = instantiationService.createInstance(TerminalProtocolLinkProvider, xterm, () => { }, () => { });
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));

@@ -9,7 +9,7 @@ import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class TerminalWebLinkProvider implements ILinkProvider {
+export class TerminalProtocolLinkProvider implements ILinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
 
 	constructor(

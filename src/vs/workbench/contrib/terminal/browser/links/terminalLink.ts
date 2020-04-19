@@ -36,7 +36,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 
 	hover(event: MouseEvent, text: string): void {
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
-		// if (this._isHighConfidenceLink) {
 		this.add(dom.addDisposableListener(document, 'keydown', e => {
 			if (this._isModifierDown(e)) {
 				this._enableDecorations();
@@ -47,7 +46,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 				this._disableDecorations();
 			}
 		}));
-		// }
 
 		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
 		const scheduler = new RunOnceScheduler(() => {
