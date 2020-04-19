@@ -130,6 +130,12 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 				}
 			});
 		});
+		test('Git diff links', async () => {
+			await assertLink(`diff --git a/foo/bar b/foo/bar`, OperatingSystem.Linux, { text: 'foo/bar', range: [[14, 1], [20, 1]] });
+			await assertLink(`diff --git a/foo/bar b/foo/bar`, OperatingSystem.Linux, { text: 'foo/bar', range: [[24, 1], [30, 1]] });
+			await assertLink(`--- a/foo/bar`, OperatingSystem.Linux, { text: 'foo/bar', range: [[7, 1], [13, 1]] });
+			await assertLink(`+++ b/foo/bar`, OperatingSystem.Linux, { text: 'foo/bar', range: [[7, 1], [13, 1]] });
+		});
 	});
 
 	suite('Windows', () => {
@@ -146,6 +152,12 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 					});
 				}
 			});
+		});
+		test('Git diff links', async () => {
+			await assertLink(`diff --git a/foo/bar b/foo/bar`, OperatingSystem.Linux, { text: 'foo/bar', range: [[14, 1], [20, 1]] });
+			await assertLink(`diff --git a/foo/bar b/foo/bar`, OperatingSystem.Linux, { text: 'foo/bar', range: [[24, 1], [30, 1]] });
+			await assertLink(`--- a/foo/bar`, OperatingSystem.Linux, { text: 'foo/bar', range: [[7, 1], [13, 1]] });
+			await assertLink(`+++ b/foo/bar`, OperatingSystem.Linux, { text: 'foo/bar', range: [[7, 1], [13, 1]] });
 		});
 	});
 });

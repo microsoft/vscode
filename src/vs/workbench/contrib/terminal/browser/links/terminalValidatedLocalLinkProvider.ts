@@ -48,7 +48,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 	) {
 	}
 
-	public provideLink(position: IBufferCellPosition, callback: (link: ILink | undefined) => void): void {
+	async provideLink(position: IBufferCellPosition, callback: (link: ILink | undefined) => void) {
 		let startLine = position.y - 1;
 		let endLine = startLine;
 
@@ -74,7 +74,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 		let stringIndex = -1;
 		while ((match = rex.exec(text)) !== null) {
 			// const link = match[typeof matcher.matchIndex !== 'number' ? 0 : matcher.matchIndex];
-			const link = match[0];
+			let link = match[0];
 			if (!link) {
 				// something matched but does not comply with the given matchIndex
 				// since this is most likely a bug the regex itself we simply do nothing here
@@ -93,6 +93,18 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 				break;
 			}
 
+			// Adjust the link range to exclude a/ and b/ if it looks like a git diff
+			if (
+				// --- a/foo/bar
+				// +++ b/foo/bar
+				((text.startsWith('--- a/') || text.startsWith('+++ b/')) && stringIndex === 4) ||
+				// diff --git a/foo/bar b/foo/bar
+				(text.startsWith('diff --git') && (link.startsWith('a/') || link.startsWith('b/')))
+			) {
+				link = link.substring(2);
+				stringIndex += 2;
+			}
+
 			// Convert the link text's string index into a wrapped buffer range
 			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
 				startColumn: stringIndex + 1,
@@ -102,24 +114,27 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 			}, startLine);
 
 			if (positionIsInRange(position, bufferRange)) {
-				this._validationCallback(link, (result) => {
-					if (result) {
-						const activateCallback = (event: MouseEvent, text: string) => {
-							if (result.isDirectory) {
-								this._activateDirectoryCallback(event, text, result.uri);
-							} else {
-								this._activateFileCallback(event, text);
-							}
-						};
-						callback(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true));
-					} else {
-						callback(undefined);
-					}
+				const validatedLink = await new Promise<ILink | undefined>(r => {
+					this._validationCallback(link, (result) => {
+						if (result) {
+							const activateCallback = (event: MouseEvent, text: string) => {
+								if (result.isDirectory) {
+									this._activateDirectoryCallback(event, text, result.uri);
+								} else {
+									this._activateFileCallback(event, text);
+								}
+							};
+							r(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true));
+						} else {
+							r(undefined);
+						}
+					});
 				});
-			} else {
-				callback(undefined);
+				if (validatedLink) {
+					callback(validatedLink);
+					return;
+				}
 			}
-			return;
 		}
 
 		callback(undefined);
