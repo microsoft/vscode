@@ -35,7 +35,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
 		if (this._shouldHideDecorations) {
 			this.add(dom.addDisposableListener(document, 'keydown', e => {
-				// TODO: Use ctrl/option or cmd
 				if (this._isModifierDown(e) && this.hideDecorations) {
 					this.hideDecorations = false;
 				}
