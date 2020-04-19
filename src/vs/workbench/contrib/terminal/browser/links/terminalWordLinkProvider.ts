@@ -61,6 +61,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 			text += char;
 		}
 
-		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true));
+		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, this._configurationService));
 	}
 }

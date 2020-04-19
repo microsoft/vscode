@@ -8,8 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-
-export const TOOLTIP_HOVER_THRESHOLD = 300;
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TerminalLink extends DisposableStore implements ILink {
 	private _viewportRange: IViewportRange;
@@ -23,6 +22,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
 		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
 		private readonly _shouldHideDecorations: boolean = false,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this.hideDecorations = this._shouldHideDecorations;
@@ -49,6 +49,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 			}));
 		}
 
+		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
 		const scheduler = new RunOnceScheduler(() => {
 			this._tooltipCallback(
 				event,
@@ -59,7 +60,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 			);
 			this.dispose();
 			// TODO: Use editor.hover.delay instead
-		}, TOOLTIP_HOVER_THRESHOLD);
+		}, timeout);
 		this.add(scheduler);
 		scheduler.schedule();
 

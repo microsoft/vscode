@@ -285,7 +285,7 @@ export class TerminalLinkManager extends DisposableStore {
 		};
 		const wrappedActivateCallback = this._wrapLinkHandler(this._handleProtocolLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			new TerminalWebLinkProvider(this._xterm, wrappedActivateCallback, tooltipWebCallback)
+			this._instantiationService.createInstance(TerminalWebLinkProvider, this._xterm, wrappedActivateCallback, tooltipWebCallback)
 		));
 
 		// Validated local links
@@ -295,7 +295,7 @@ export class TerminalLinkManager extends DisposableStore {
 		const wrappedTextLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
 		const wrappedDirectoryLinkActivateCallback = this._wrapLinkHandler2(this._handleLocalFolderLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			new TerminalValidatedLocalLinkProvider(
+			this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
 				this._xterm, this._processManager.os || OS,
 				wrappedTextLinkActivateCallback,
 				wrappedDirectoryLinkActivateCallback,

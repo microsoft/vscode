@@ -8,6 +8,7 @@ import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -42,7 +43,8 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 		private readonly _activateFileCallback: (event: MouseEvent, link: string) => void,
 		private readonly _activateDirectoryCallback: (event: MouseEvent, link: string, uri: URI) => void,
 		private readonly _tooltipCallback: (event: MouseEvent, link: string, location: IViewportRange) => boolean | void,
-		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void
+		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 	}
 
@@ -109,7 +111,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 								this._activateFileCallback(event, text);
 							}
 						};
-						callback(new TerminalLink(bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false));
+						callback(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false));
 					} else {
 						callback(undefined);
 					}
