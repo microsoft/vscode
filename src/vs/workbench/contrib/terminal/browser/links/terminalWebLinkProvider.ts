@@ -5,7 +5,8 @@
 
 import { Terminal, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
-import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange, createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 
 export class TerminalWebLinkProvider implements ILinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;

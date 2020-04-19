@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink } from 'xterm';
-import { createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 

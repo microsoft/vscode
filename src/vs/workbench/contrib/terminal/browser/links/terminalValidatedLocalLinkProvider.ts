@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
-import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange, createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
