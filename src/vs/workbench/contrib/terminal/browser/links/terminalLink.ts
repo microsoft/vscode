@@ -9,6 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class TerminalLink extends DisposableStore implements ILink {
 	private _viewportRange: IViewportRange;
@@ -38,12 +39,12 @@ export class TerminalLink extends DisposableStore implements ILink {
 		if (this._shouldHideDecorations) {
 			this.add(dom.addDisposableListener(document, 'keydown', e => {
 				// TODO: Use ctrl/option or cmd
-				if (e.ctrlKey && this._shouldHideDecorations) {
+				if (this._isModifierDown(e) && this.hideDecorations) {
 					this.hideDecorations = false;
 				}
 			}));
 			this.add(dom.addDisposableListener(document, 'keyup', e => {
-				if (!e.ctrlKey) {
+				if (!this._isModifierDown(e)) {
 					this.hideDecorations = true;
 				}
 			}));
@@ -68,7 +69,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		this.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
 			// Update decorations
 			if (this._shouldHideDecorations) {
-				this.hideDecorations = !e.ctrlKey;
+				this.hideDecorations = !this._isModifierDown(e);
 			}
 
 			// Reset the scheduler if the mouse moves too much
@@ -82,5 +83,13 @@ export class TerminalLink extends DisposableStore implements ILink {
 
 	leave(): void {
 		this.dispose();
+	}
+
+	private _isModifierDown(event: MouseEvent | KeyboardEvent): boolean {
+		const multiCursorModifier = this._configurationService.getValue<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
+		if (multiCursorModifier === 'ctrlCmd') {
+			return !!event.altKey;
+		}
+		return isMacintosh ? event.metaKey : event.ctrlKey;
 	}
 }
