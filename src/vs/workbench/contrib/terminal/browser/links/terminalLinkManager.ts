@@ -25,10 +25,6 @@ import { TerminalProtocolLinkProvider } from 'vs/workbench/contrib/terminal/brow
 import { TerminalValidatedLocalLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalValidatedLocalLinkProvider';
 import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
@@ -91,7 +87,6 @@ export class TerminalLinkManager extends DisposableStore {
 	private _webLinksAddon: ITerminalAddon | undefined;
 	private _linkProviders: IDisposable[] = [];
 	private _hasBeforeHandleLinkListeners = false;
-	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
 	protected static _LINK_INTERCEPT_THRESHOLD = LINK_INTERCEPT_THRESHOLD;
 	public static readonly LINK_INTERCEPT_THRESHOLD = TerminalLinkManager._LINK_INTERCEPT_THRESHOLD;
@@ -117,10 +112,7 @@ export class TerminalLinkManager extends DisposableStore {
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@ISearchService private readonly _searchService: ISearchService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -299,12 +291,12 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	public registerLinkProvider(): void {
-		// Web links
+		// Protocol links
 		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
 		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(protocolProvider));
 
-		// Validated local linksSECTION).enableFileLinks);
+		// Validated local links
 		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
 			const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
 			const validatedProvider = this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
@@ -318,26 +310,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}
 
 		// Word links
-		const wordHandler = async (link: string) => {
-			const results = await this._searchService.fileSearch(
-				this._fileQueryBuilder.file(this._workspaceContextService.getWorkspace().folders, {
-					filePattern: link,
-					maxResults: 2
-				})
-			);
-
-			// If there was exactly one match, open it
-			if (results.results.length === 1) {
-				const match = results.results[0];
-				await this._editorService.openEditor({ resource: match.resource, options: { pinned: true } });
-				return;
-			}
-
-			// Fallback to searching quick access
-			this._quickInputService.quickAccess.show(link);
-		};
-		const wrappedWordActivateCallback = this._wrapLinkHandler((_, link) => wordHandler(link));
-		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, this._tooltipCallback2.bind(this));
+		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, this._wrapLinkHandler.bind(this), this._tooltipCallback2.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(wordProvider));
 	}
 
