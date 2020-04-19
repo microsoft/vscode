@@ -12,14 +12,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { isMacintosh } from 'vs/base/common/platform';
 
 export class TerminalLink extends DisposableStore implements ILink {
-	private _viewportRange: IViewportRange;
-
 	hideDecorations: boolean;
 
 	constructor(
 		public readonly range: IBufferRange,
 		public readonly text: string,
-		viewportY: number,
+		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
 		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
 		private readonly _shouldHideDecorations: boolean = false,
@@ -27,7 +25,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 	) {
 		super();
 		this.hideDecorations = this._shouldHideDecorations;
-		this._viewportRange = convertBufferRangeToViewport(range, viewportY);
 	}
 
 	activate(event: MouseEvent, text: string): void {
@@ -55,12 +52,11 @@ export class TerminalLink extends DisposableStore implements ILink {
 			this._tooltipCallback(
 				event,
 				text,
-				this._viewportRange,
+				convertBufferRangeToViewport(this.range, this._viewportY),
 				this._shouldHideDecorations ? () => this.hideDecorations = false : undefined,
 				this._shouldHideDecorations ? () => this.hideDecorations = true : undefined
 			);
 			this.dispose();
-			// TODO: Use editor.hover.delay instead
 		}, timeout);
 		this.add(scheduler);
 		scheduler.schedule();
