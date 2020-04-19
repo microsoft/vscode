@@ -9,7 +9,7 @@ import { DisposableStore, IDisposable, dispose } from 'vs/base/common/lifecycle'
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ITerminalProcessManager, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, ITerminalConfigHelper, ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -301,21 +301,21 @@ export class TerminalLinkManager extends DisposableStore {
 	public registerLinkProvider(): void {
 		// Web links
 		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
-		this._linkProviders.push(this._xterm.registerLinkProvider(
-			this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this))
-		));
+		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this));
+		this._linkProviders.push(this._xterm.registerLinkProvider(protocolProvider));
 
-		// Validated local links
-		const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
-		this._linkProviders.push(this._xterm.registerLinkProvider(
-			this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
+		// Validated local linksSECTION).enableFileLinks);
+		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
+			const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
+			const validatedProvider = this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
 				this._xterm,
 				this._processManager.os || OS,
 				wrappedTextLinkActivateCallback,
 				this._wrapLinkHandler.bind(this),
 				this._tooltipCallback2.bind(this),
-				async (link, cb) => cb(await this._resolvePath(link)))
-		));
+				async (link, cb) => cb(await this._resolvePath(link)));
+			this._linkProviders.push(this._xterm.registerLinkProvider(validatedProvider));
+		}
 
 		// Word links
 		const wordHandler = async (link: string) => {
@@ -337,9 +337,8 @@ export class TerminalLinkManager extends DisposableStore {
 			this._quickInputService.quickAccess.show(link);
 		};
 		const wrappedWordActivateCallback = this._wrapLinkHandler((_, link) => wordHandler(link));
-		this._linkProviders.push(this._xterm.registerLinkProvider(
-			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, this._tooltipCallback2.bind(this))
-		));
+		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, this._tooltipCallback2.bind(this));
+		this._linkProviders.push(this._xterm.registerLinkProvider(wordProvider));
 	}
 
 	protected _wrapLinkHandler(handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler {
