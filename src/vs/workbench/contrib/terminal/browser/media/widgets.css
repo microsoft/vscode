@@ -22,10 +22,6 @@
 	overflow: hidden;
 }
 
-.monaco-editor-hover .hover-contents {
-	padding: 4px 8px;
-}
-
 .monaco-workbench .terminal-hover-widget a {
 	color: #3794ff;
 }

@@ -657,11 +657,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
-		return this._linkManager!.registerCustomLinkHandler(regex, handler, matchIndex, validationCallback);
+		return this._linkManager!.registerCustomLinkHandler(regex, (_, url) => handler(url), matchIndex, validationCallback);
 	}
 
 	public deregisterLinkMatcher(linkMatcherId: number): void {
-		// TODO: Move this into TerminalLinkHandler to avoid the promise check
 		this._xtermReadyPromise.then(xterm => xterm.deregisterLinkMatcher(linkMatcherId));
 	}
 

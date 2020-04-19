@@ -290,7 +290,7 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.wordSeparators': {
 			description: localize('terminal.integrated.wordSeparators', "A string containing all characters to be considered word separators by the double click to select word feature."),
 			type: 'string',
-			default: ' ()[]{}\',"`'
+			default: ' ()[]{}\',"`─'
 		},
 		'terminal.integrated.experimentalUseTitleEvent': {
 			description: localize('terminal.integrated.experimentalUseTitleEvent', "An experimental setting that will use the terminal title event for the dropdown title. This setting will only apply to new terminals."),
@@ -298,7 +298,7 @@ export const terminalConfiguration: IConfigurationNode = {
 			default: false
 		},
 		'terminal.integrated.enableFileLinks': {
-			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system."),
+			description: localize('terminal.integrated.enableFileLinks', "Whether to enable file links in the terminal. Links can be slow when working on a network drive in particular because each file link is verified against the file system. Changing this will take effect only in new terminals."),
 			type: 'boolean',
 			default: true
 		},

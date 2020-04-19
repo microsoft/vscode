@@ -8,7 +8,6 @@ import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/w
 
 export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
-	private _xtermViewport: HTMLElement | undefined;
 	private _attached: Map<string, ITerminalWidget> = new Map();
 
 	attachToElement(terminalWrapper: HTMLElement) {
@@ -16,7 +15,6 @@ export class TerminalWidgetManager implements IDisposable {
 			this._container = document.createElement('div');
 			this._container.classList.add('terminal-widget-container');
 			terminalWrapper.appendChild(this._container);
-			this._trackTerminalDimensions(terminalWrapper);
 		}
 	}
 
@@ -25,7 +23,6 @@ export class TerminalWidgetManager implements IDisposable {
 			this._container.parentElement.removeChild(this._container);
 			this._container = undefined;
 		}
-		this._xtermViewport = undefined;
 	}
 
 	attachWidget(widget: ITerminalWidget): IDisposable | undefined {
@@ -44,25 +41,5 @@ export class TerminalWidgetManager implements IDisposable {
 				}
 			}
 		};
-	}
-
-	private _trackTerminalDimensions(terminalWrapper: HTMLElement) {
-		// Watch the xterm.js viewport for style changes and do a layout if it changes
-		this._xtermViewport = <HTMLElement>terminalWrapper.querySelector('.xterm-viewport');
-		const xtermElement = <HTMLElement>terminalWrapper.querySelector('.xterm');
-		if (!this._xtermViewport || !xtermElement) {
-			return;
-		}
-		const mutationObserver = new MutationObserver(() => this._refreshDimensions());
-		mutationObserver.observe(xtermElement, { attributes: true, attributeFilter: ['style'] });
-		this._refreshDimensions();
-	}
-
-	private _refreshDimensions(): void {
-		if (!this._container || !this._xtermViewport) {
-			return;
-		}
-		const computed = window.getComputedStyle(this._xtermViewport);
-		this._container.style.width = computed.width;
 	}
 }
