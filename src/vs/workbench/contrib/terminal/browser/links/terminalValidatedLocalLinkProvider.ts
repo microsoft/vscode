@@ -13,6 +13,7 @@ import { isEqualOrParent } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { localize } from 'vs/nls';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -45,7 +46,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
 		private readonly _activateFileCallback: (event: MouseEvent, link: string) => void,
-		private readonly _tooltipCallback: (link: string, location: IViewportRange) => boolean | void,
+		private readonly _tooltipCallback: (link: string, location: IViewportRange, label: string | undefined) => boolean | void,
 		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -123,6 +124,9 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 				const validatedLink = await new Promise<ILink | undefined>(r => {
 					this._validationCallback(link, (result) => {
 						if (result) {
+							const label = result.isDirectory
+								? (this._isDirectoryInsideWorkspace(result.uri) ? localize('focusFolder', 'Focus folder in explorer') : localize('openFolder', 'Open folder in new window'))
+								: localize('openFile', 'Open file in editor');
 							const activateCallback = (event: MouseEvent, text: string) => {
 								if (result.isDirectory) {
 									this._handleLocalFolderLink(result.uri);
@@ -130,7 +134,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 									this._activateFileCallback(event, text);
 								}
 							};
-							r(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true));
+							r(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
 						} else {
 							r(undefined);
 						}
@@ -154,15 +158,22 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 
 	private async _handleLocalFolderLink(uri: URI): Promise<void> {
 		// If the folder is within one of the window's workspaces, focus it in the explorer
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (isEqualOrParent(uri, folders[0].uri)) {
-				await this._commandService.executeCommand('revealInExplorer', uri);
-				return;
-			}
+		if (this._isDirectoryInsideWorkspace(uri)) {
+			await this._commandService.executeCommand('revealInExplorer', uri);
+			return;
 		}
 
 		// Open a new window for the folder
 		this._hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
+	}
+
+	private async _isDirectoryInsideWorkspace(uri: URI) {
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		for (let i = 0; i < folders.length; i++) {
+			if (isEqualOrParent(uri, folders[0].uri)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

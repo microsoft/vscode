@@ -148,7 +148,7 @@ export class TerminalLinkManager extends DisposableStore {
 		});
 	}
 
-	private _tooltipCallback(linkText: string, viewportRange: IViewportRange, linkHandler: (url: string) => void, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
+	private _tooltipCallback(linkText: string, viewportRange: IViewportRange, linkHandler: (url: string) => void, label: string | undefined, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
 			return;
 		}
@@ -169,7 +169,7 @@ export class TerminalLinkManager extends DisposableStore {
 			terminalDimensions,
 			modifierDownCallback,
 			modifierUpCallback
-		}, this._getLinkHoverString(linkText), linkHandler);
+		}, this._getLinkHoverString(linkText, label), linkHandler);
 	}
 
 	private _showHover(
@@ -211,7 +211,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
 		const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, handler);
+			this._tooltipCallback(linkText, location, handler, undefined);
 		};
 		const options: ILinkMatcherOptions = {
 			matchIndex,
@@ -234,7 +234,7 @@ export class TerminalLinkManager extends DisposableStore {
 				this._handleHypertextLink(link);
 			});
 			const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-				this._tooltipCallback(linkText, location, this._handleHypertextLink.bind(this));
+				this._tooltipCallback(linkText, location, this._handleHypertextLink.bind(this), undefined);
 			};
 			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
 				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(callback),
@@ -250,7 +250,7 @@ export class TerminalLinkManager extends DisposableStore {
 			this._handleLocalLink(url);
 		});
 		const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this));
+			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this), undefined);
 		};
 		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
@@ -265,7 +265,7 @@ export class TerminalLinkManager extends DisposableStore {
 			this._handleLocalLink(url);
 		});
 		const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this));
+			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this), undefined);
 		};
 		const options = {
 			matchIndex: 1,
@@ -280,8 +280,8 @@ export class TerminalLinkManager extends DisposableStore {
 
 	public registerLinkProvider(): void {
 		// Web links
-		const tooltipWebCallback = (linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, this._handleProtocolLink.bind(this, linkText));
+		const tooltipWebCallback = (linkText: string, location: IViewportRange, label: string | undefined) => {
+			this._tooltipCallback(linkText, location, this._handleProtocolLink.bind(this, linkText), label);
 		};
 		const wrappedActivateCallback = this._wrapLinkHandler(this._handleProtocolLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
@@ -289,8 +289,8 @@ export class TerminalLinkManager extends DisposableStore {
 		));
 
 		// Validated local links
-		const tooltipValidatedLocalCallback = (linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this, linkText));
+		const tooltipValidatedLocalCallback = (linkText: string, location: IViewportRange, label: string | undefined) => {
+			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this, linkText), label);
 		};
 		const wrappedTextLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
@@ -321,8 +321,8 @@ export class TerminalLinkManager extends DisposableStore {
 			// Fallback to searching quick access
 			this._quickInputService.quickAccess.show(link);
 		};
-		const tooltipWordCallback = (linkText: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => {
-			this._tooltipCallback(linkText, location, wordHandler, modifierDownCallback, modifierUpCallback);
+		const tooltipWordCallback = (linkText: string, location: IViewportRange, label: string | undefined, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => {
+			this._tooltipCallback(linkText, location, wordHandler, label, modifierDownCallback, modifierUpCallback);
 		};
 		const wrappedWordActivateCallback = this._wrapLinkHandler(wordHandler);
 		this._linkProviders.push(this._xterm.registerLinkProvider(
@@ -460,25 +460,25 @@ export class TerminalLinkManager extends DisposableStore {
 		return isMacintosh ? event.metaKey : event.ctrlKey;
 	}
 
-	private _getLinkHoverString(uri: string): IMarkdownString {
+	private _getLinkHoverString(uri: string, label: string | undefined): IMarkdownString {
 		const editorConf = this._configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
 
-		let label = '';
+		let clickLabel = '';
 		if (editorConf.multiCursorModifier === 'ctrlCmd') {
 			if (isMacintosh) {
-				label = nls.localize('terminalLinkHandler.followLinkAlt.mac', "option + click");
+				clickLabel = nls.localize('terminalLinkHandler.followLinkAlt.mac', "option + click");
 			} else {
-				label = nls.localize('terminalLinkHandler.followLinkAlt', "alt + click");
+				clickLabel = nls.localize('terminalLinkHandler.followLinkAlt', "alt + click");
 			}
 		} else {
 			if (isMacintosh) {
-				label = nls.localize('terminalLinkHandler.followLinkCmd', "cmd + click");
+				clickLabel = nls.localize('terminalLinkHandler.followLinkCmd', "cmd + click");
 			} else {
-				label = nls.localize('terminalLinkHandler.followLinkCtrl', "ctrl + click");
+				clickLabel = nls.localize('terminalLinkHandler.followLinkCtrl', "ctrl + click");
 			}
 		}
 
-		return new MarkdownString(`[Follow Link](${uri}) (${label})`, true);
+		return new MarkdownString(`[${label || nls.localize('followLink', "Follow Link")}](${uri}) (${clickLabel})`, true);
 	}
 
 	private get osPath(): IPath {

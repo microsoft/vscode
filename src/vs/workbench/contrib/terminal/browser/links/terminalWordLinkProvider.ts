@@ -12,7 +12,7 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
+		private readonly _tooltipCallback: (uri: string, location: IViewportRange, label: string | undefined, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
@@ -61,6 +61,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 			text += char;
 		}
 
-		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false, this._configurationService));
+		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false, undefined, this._configurationService));
 	}
 }

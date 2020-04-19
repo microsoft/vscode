@@ -15,7 +15,7 @@ export class TerminalProtocolLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (uri: string, location: IViewportRange) => boolean | void,
+		private readonly _tooltipCallback: (uri: string, location: IViewportRange, label: string | undefined) => boolean | void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 	}
@@ -48,7 +48,7 @@ export class TerminalProtocolLinkProvider implements ILinkProvider {
 			// Check if the link if within the mouse position
 			if (positionIsInRange(position, range)) {
 				found = true;
-				callback(this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true));
+				callback(this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, undefined));
 			}
 		});
 

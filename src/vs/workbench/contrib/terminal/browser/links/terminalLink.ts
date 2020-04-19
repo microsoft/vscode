@@ -19,8 +19,9 @@ export class TerminalLink extends DisposableStore implements ILink {
 		public readonly text: string,
 		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
+		private readonly _tooltipCallback: (uri: string, location: IViewportRange, label: string | undefined, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
 		private readonly _isHighConfidenceLink: boolean,
+		private readonly _label: string | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
@@ -52,6 +53,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 			this._tooltipCallback(
 				text,
 				convertBufferRangeToViewport(this.range, this._viewportY),
+				this._label,
 				this._isHighConfidenceLink ? () => this._enableDecorations() : undefined,
 				this._isHighConfidenceLink ? () => this._disableDecorations() : undefined
 			);
