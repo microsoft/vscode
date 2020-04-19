@@ -7,6 +7,7 @@ import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink } f
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { localize } from 'vs/nls';
 
 export class TerminalWordLinkProvider implements ILinkProvider {
 	constructor(
@@ -61,6 +62,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 			text += char;
 		}
 
-		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false, undefined, this._configurationService));
+		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search for word'), this._configurationService));
 	}
 }

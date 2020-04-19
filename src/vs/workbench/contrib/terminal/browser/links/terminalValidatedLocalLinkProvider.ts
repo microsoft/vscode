@@ -131,6 +131,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 								if (result.isDirectory) {
 									this._handleLocalFolderLink(result.uri);
 								} else {
+									console.log('activate file callback', event, text);
 									this._activateFileCallback(event, text);
 								}
 							};

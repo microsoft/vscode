@@ -45,7 +45,8 @@ export class HoverWidget extends Widget {
 		const contentsElement = $('div.hover-contents');
 		const markdownElement = renderMarkdown(this._text, {
 			actionHandler: {
-				callback: (content, event) => this._linkHandler(event ? event.browserEvent : undefined, content),
+				// Don't pass mouse event as that would do the modifier check
+				callback: (content, event) => this._linkHandler(undefined, content),
 				disposeables: this._messageListeners
 			}
 		});
