@@ -14,8 +14,8 @@ export class TerminalProtocolLinkProvider implements ILinkProvider {
 
 	constructor(
 		private readonly _xterm: Terminal,
-		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (uri: string, location: IViewportRange, label: string | undefined) => boolean | void,
+		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
+		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 	}

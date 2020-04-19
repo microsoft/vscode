@@ -45,8 +45,8 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
-		private readonly _activateFileCallback: (event: MouseEvent, link: string) => void,
-		private readonly _tooltipCallback: (link: string, location: IViewportRange, label: string | undefined) => boolean | void,
+		private readonly _activateFileCallback: (event: MouseEvent | undefined, link: string) => void,
+		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -127,7 +127,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 							const label = result.isDirectory
 								? (this._isDirectoryInsideWorkspace(result.uri) ? localize('focusFolder', 'Focus folder in explorer') : localize('openFolder', 'Open folder in new window'))
 								: localize('openFile', 'Open file in editor');
-							const activateCallback = (event: MouseEvent, text: string) => {
+							const activateCallback = (event: MouseEvent | undefined, text: string) => {
 								if (result.isDirectory) {
 									this._handleLocalFolderLink(result.uri);
 								} else {

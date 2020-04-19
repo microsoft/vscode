@@ -18,10 +18,10 @@ export class TerminalLink extends DisposableStore implements ILink {
 		public readonly range: IBufferRange,
 		public readonly text: string,
 		private readonly _viewportY: number,
-		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (uri: string, location: IViewportRange, label: string | undefined, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
+		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
+		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _isHighConfidenceLink: boolean,
-		private readonly _label: string | undefined,
+		public readonly label: string | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
@@ -31,7 +31,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		};
 	}
 
-	activate(event: MouseEvent, text: string): void {
+	activate(event: MouseEvent | undefined, text: string): void {
 		this._activateCallback(event, text);
 	}
 
@@ -51,9 +51,8 @@ export class TerminalLink extends DisposableStore implements ILink {
 		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
 		const scheduler = new RunOnceScheduler(() => {
 			this._tooltipCallback(
-				text,
+				this,
 				convertBufferRangeToViewport(this.range, this._viewportY),
-				this._label,
 				this._isHighConfidenceLink ? () => this._enableDecorations() : undefined,
 				this._isHighConfidenceLink ? () => this._disableDecorations() : undefined
 			);

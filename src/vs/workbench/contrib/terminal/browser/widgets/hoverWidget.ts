@@ -33,7 +33,7 @@ export class HoverWidget extends Widget {
 		private _container: HTMLElement,
 		private _target: IHoverTarget,
 		private _text: IMarkdownString,
-		private _linkHandler: (url: string) => void,
+		private _linkHandler: (event: MouseEvent | undefined, url: string) => void,
 		private _actions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
@@ -45,7 +45,7 @@ export class HoverWidget extends Widget {
 		const contentsElement = $('div.hover-contents');
 		const markdownElement = renderMarkdown(this._text, {
 			actionHandler: {
-				callback: this._linkHandler,
+				callback: (content, event) => this._linkHandler(event ? event.browserEvent : undefined, content),
 				disposeables: this._messageListeners
 			}
 		});

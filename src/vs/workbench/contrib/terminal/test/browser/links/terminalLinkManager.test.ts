@@ -34,7 +34,7 @@ class TestTerminalLinkManager extends TerminalLinkManager {
 	}
 	public wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
 		TerminalLinkManager._LINK_INTERCEPT_THRESHOLD = 0;
-		return this._wrapLinkHandler(handler);
+		return this._wrapLinkHandler((_, link) => handler(link));
 	}
 }
 

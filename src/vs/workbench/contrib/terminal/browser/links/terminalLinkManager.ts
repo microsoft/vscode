@@ -31,6 +31,7 @@ import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TerminalHover, ILinkHoverTargetOptions } from 'vs/workbench/contrib/terminal/browser/widgets/terminalHoverWidget';
+import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -70,7 +71,7 @@ const CUSTOM_LINK_PRIORITY = -1;
 /** Lowest */
 const LOCAL_LINK_PRIORITY = -2;
 
-export type XtermLinkMatcherHandler = (event: MouseEvent, link: string) => Promise<void>;
+export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 export type XtermLinkMatcherValidationCallback = (uri: string, callback: (isValid: boolean) => void) => void;
 
 interface IPath {
@@ -148,7 +149,29 @@ export class TerminalLinkManager extends DisposableStore {
 		});
 	}
 
-	private _tooltipCallback(linkText: string, viewportRange: IViewportRange, linkHandler: (url: string) => void, label: string | undefined, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
+	private _tooltipCallback(linkText: string, viewportRange: IViewportRange, linkHandler: (event: MouseEvent | undefined, url: string) => void) {
+		if (!this._widgetManager) {
+			return;
+		}
+
+		const core = (this._xterm as any)._core as XTermCore;
+		const cellDimensions = {
+			width: core._renderService.dimensions.actualCellWidth,
+			height: core._renderService.dimensions.actualCellHeight
+		};
+		const terminalDimensions = {
+			width: this._xterm.cols,
+			height: this._xterm.rows
+		};
+
+		this._showHover({
+			viewportRange,
+			cellDimensions,
+			terminalDimensions
+		}, this._getLinkHoverString(linkText, undefined), linkHandler);
+	}
+
+	private _tooltipCallback2(link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) {
 		if (!this._widgetManager) {
 			return;
 		}
@@ -169,13 +192,13 @@ export class TerminalLinkManager extends DisposableStore {
 			terminalDimensions,
 			modifierDownCallback,
 			modifierUpCallback
-		}, this._getLinkHoverString(linkText, label), linkHandler);
+		}, this._getLinkHoverString(link.text, link.label), link.activate.bind(link));
 	}
 
 	private _showHover(
 		targetOptions: ILinkHoverTargetOptions,
 		text: IMarkdownString,
-		linkHandler: (url: string) => void
+		linkHandler: (event: MouseEvent | undefined, url: string) => void
 	) {
 		if (this._widgetManager) {
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, linkHandler);
@@ -209,9 +232,9 @@ export class TerminalLinkManager extends DisposableStore {
 		this._processCwd = processCwd;
 	}
 
-	public registerCustomLinkHandler(regex: RegExp, handler: (uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
-		const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, handler, undefined);
+	public registerCustomLinkHandler(regex: RegExp, handler: (event: MouseEvent | undefined, uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
+		const tooltipCallback = (_: MouseEvent, linkText: string, location: IViewportRange) => {
+			this._tooltipCallback(linkText, location, handler);
 		};
 		const options: ILinkMatcherOptions = {
 			matchIndex,
@@ -230,11 +253,9 @@ export class TerminalLinkManager extends DisposableStore {
 			if (!this._xterm) {
 				return;
 			}
-			const wrappedHandler = this._wrapLinkHandler(link => {
-				this._handleHypertextLink(link);
-			});
-			const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-				this._tooltipCallback(linkText, location, this._handleHypertextLink.bind(this), undefined);
+			const wrappedHandler = this._wrapLinkHandler((_, link) => this._handleHypertextLink(link));
+			const tooltipCallback = (_: MouseEvent, linkText: string, location: IViewportRange) => {
+				this._tooltipCallback(linkText, location, (_, link) => this._handleHypertextLink(link));
 			};
 			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
 				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(callback),
@@ -246,11 +267,9 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	public registerLocalLinkHandler(): void {
-		const wrappedHandler = this._wrapLinkHandler(url => {
-			this._handleLocalLink(url);
-		});
+		const wrappedHandler = this._wrapLinkHandler((_, url) => this._handleLocalLink(url));
 		const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this), undefined);
+			this._tooltipCallback(linkText, location, (_, link) => this._handleLocalLink(link));
 		};
 		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
@@ -261,11 +280,11 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	public registerGitDiffLinkHandlers(): void {
-		const wrappedHandler = this._wrapLinkHandler(url => {
+		const wrappedHandler = this._wrapLinkHandler((_, url) => {
 			this._handleLocalLink(url);
 		});
 		const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this), undefined);
+			this._tooltipCallback(linkText, location, (_, url) => this._handleLocalLink(url));
 		};
 		const options = {
 			matchIndex: 1,
@@ -280,25 +299,19 @@ export class TerminalLinkManager extends DisposableStore {
 
 	public registerLinkProvider(): void {
 		// Web links
-		const tooltipWebCallback = (linkText: string, location: IViewportRange, label: string | undefined) => {
-			this._tooltipCallback(linkText, location, this._handleProtocolLink.bind(this, linkText), label);
-		};
-		const wrappedActivateCallback = this._wrapLinkHandler(this._handleProtocolLink.bind(this));
+		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, tooltipWebCallback)
+			this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this))
 		));
 
 		// Validated local links
-		const tooltipValidatedLocalCallback = (linkText: string, location: IViewportRange, label: string | undefined) => {
-			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this, linkText), label);
-		};
-		const wrappedTextLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
+		const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
 			this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
 				this._xterm,
 				this._processManager.os || OS,
 				wrappedTextLinkActivateCallback,
-				tooltipValidatedLocalCallback,
+				this._tooltipCallback2.bind(this),
 				async (link, cb) => cb(await this._resolvePath(link)))
 		));
 
@@ -321,22 +334,19 @@ export class TerminalLinkManager extends DisposableStore {
 			// Fallback to searching quick access
 			this._quickInputService.quickAccess.show(link);
 		};
-		const tooltipWordCallback = (linkText: string, location: IViewportRange, label: string | undefined, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => {
-			this._tooltipCallback(linkText, location, wordHandler, label, modifierDownCallback, modifierUpCallback);
-		};
-		const wrappedWordActivateCallback = this._wrapLinkHandler(wordHandler);
+		const wrappedWordActivateCallback = this._wrapLinkHandler((_, link) => wordHandler(link));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
-			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, tooltipWordCallback)
+			this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, wrappedWordActivateCallback, this._tooltipCallback2.bind(this))
 		));
 	}
 
-	protected _wrapLinkHandler(handler: (link: string) => void): XtermLinkMatcherHandler {
-		return async (event: MouseEvent, link: string) => {
+	protected _wrapLinkHandler(handler: (event: MouseEvent | undefined, link: string) => void): XtermLinkMatcherHandler {
+		return async (event: MouseEvent | undefined, link: string) => {
 			// Prevent default electron link handling so Alt+Click mode works normally
-			event.preventDefault();
+			event?.preventDefault();
 
 			// Require correct modifier on click
-			if (!this._isLinkActivationModifierDown(event)) {
+			if (event && !this._isLinkActivationModifierDown(event)) {
 				return;
 			}
 
@@ -344,13 +354,13 @@ export class TerminalLinkManager extends DisposableStore {
 			if (this._hasBeforeHandleLinkListeners) {
 				const wasHandled = await this._triggerBeforeHandleLinkListeners(link);
 				if (!wasHandled) {
-					handler(link);
+					handler(event, link);
 				}
 				return;
 			}
 
 			// Just call the handler if there is no before listener
-			handler(link);
+			handler(event, link);
 		};
 	}
 

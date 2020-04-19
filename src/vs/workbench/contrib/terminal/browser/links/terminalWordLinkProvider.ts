@@ -11,8 +11,8 @@ import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/termin
 export class TerminalWordLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
-		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (uri: string, location: IViewportRange, label: string | undefined, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
+		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
+		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
