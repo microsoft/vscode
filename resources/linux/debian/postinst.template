@@ -18,6 +18,11 @@ if hash desktop-file-install 2>/dev/null; then
 	desktop-file-install /usr/share/applications/@@NAME@@-url-handler.desktop
 fi
 
+# Update mimetype database to pickup workspace mimetype
+if hash update-mime-database 2>/dev/null; then
+	update-mime-database /usr/share/mime
+fi
+
 if [ "@@NAME@@" != "code-oss" ]; then
 	# Remove the legacy bin command if this is the stable build
 	if [ "@@NAME@@" = "code" ]; then
