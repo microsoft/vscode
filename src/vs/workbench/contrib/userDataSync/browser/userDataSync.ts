@@ -145,7 +145,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		this.userDataSyncAccounts = instantiationService.createInstance(UserDataSyncAccounts);
 
-		if (this.userDataSyncAccounts.accountProviderId) {
+		if (this.userDataSyncAccounts.authenticationProviders.length) {
 			registerConfiguration();
 
 			this.onDidChangeSyncStatus(this.userDataSyncService.status);
@@ -425,13 +425,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.title = localize('Preferences Sync Title', "Preferences Sync");
 			quickPick.ok = false;
 			quickPick.customButton = true;
-			const requiresLogin = this.userDataSyncAccounts.all.length === 0;
-			if (requiresLogin) {
-				const displayName = this.authenticationService.getDisplayName(this.userDataSyncAccounts.accountProviderId!);
+			if (this.userDataSyncAccounts.all.length) {
+				quickPick.customLabel = localize('turn on', "Turn On");
+			} else {
+				const orTerm = localize({ key: 'or', comment: ['Here is the context where it is used - Sign in with your A or B or C account to synchronize your data across devices.'] }, "or");
+				const displayName = this.userDataSyncAccounts.authenticationProviders.length === 1
+					? this.authenticationService.getDisplayName(this.userDataSyncAccounts.authenticationProviders[0].id)
+					: this.userDataSyncAccounts.authenticationProviders.map(({ id }) => this.authenticationService.getDisplayName(id)).join(` ${orTerm} `);
 				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
-			} else {
-				quickPick.customLabel = localize('turn on', "Turn On");
 			}
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
 			quickPick.canSelectMany = true;
@@ -442,7 +444,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
 				if (quickPick.selectedItems.length) {
 					this.updateConfiguration(items, quickPick.selectedItems);
-					this.doTurnOn(requiresLogin).then(c, e);
+					this.doTurnOn().then(c, e);
 					quickPick.hide();
 				}
 			}));
@@ -451,11 +453,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private async doTurnOn(requiresLogin: boolean): Promise<void> {
-		if (requiresLogin) {
-			await this.userDataSyncAccounts.login();
-		} else {
-			await this.userDataSyncAccounts.select();
+	private async doTurnOn(): Promise<void> {
+		const picked = await this.userDataSyncAccounts.pick();
+		if (!picked) {
+			throw canceled();
 		}
 
 		// User did not pick an account or login failed
@@ -727,7 +728,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			async run(): Promise<any> {
 				try {
-					await that.userDataSyncAccounts.login();
+					await that.userDataSyncAccounts.pick();
 				} catch (e) {
 					that.notificationService.error(e);
 				}
