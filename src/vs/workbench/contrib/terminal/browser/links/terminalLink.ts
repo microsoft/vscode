@@ -19,7 +19,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		public readonly text: string,
 		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
+		private readonly _tooltipCallback: (uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
 		private readonly _isHighConfidenceLink: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
@@ -52,7 +52,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
 		const scheduler = new RunOnceScheduler(() => {
 			this._tooltipCallback(
-				event,
 				text,
 				convertBufferRangeToViewport(this.range, this._viewportY),
 				this._isHighConfidenceLink ? () => this._enableDecorations() : undefined,

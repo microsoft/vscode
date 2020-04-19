@@ -15,7 +15,7 @@ export class TerminalWebLinkProvider implements ILinkProvider {
 	constructor(
 		private readonly _xterm: Terminal,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void,
+		private readonly _tooltipCallback: (uri: string, location: IViewportRange) => boolean | void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 	}

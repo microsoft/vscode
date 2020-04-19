@@ -42,7 +42,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 		private readonly _processOperatingSystem: OperatingSystem,
 		private readonly _activateFileCallback: (event: MouseEvent, link: string) => void,
 		private readonly _activateDirectoryCallback: (event: MouseEvent, link: string, uri: URI) => void,
-		private readonly _tooltipCallback: (event: MouseEvent, link: string, location: IViewportRange) => boolean | void,
+		private readonly _tooltipCallback: (link: string, location: IViewportRange) => boolean | void,
 		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
