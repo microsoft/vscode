@@ -425,13 +425,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.title = localize('Preferences Sync Title', "Preferences Sync");
 			quickPick.ok = false;
 			quickPick.customButton = true;
-			const requiresLogin = this.userDataSyncAccounts.all.length === 0;
-			if (requiresLogin) {
+			if (this.userDataSyncAccounts.all.length) {
+				quickPick.customLabel = localize('turn on', "Turn On");
+			} else {
 				const displayName = this.authenticationService.getDisplayName(this.userDataSyncAccounts.accountProviderId!);
 				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
-			} else {
-				quickPick.customLabel = localize('turn on', "Turn On");
 			}
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
 			quickPick.canSelectMany = true;
@@ -442,7 +441,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
 				if (quickPick.selectedItems.length) {
 					this.updateConfiguration(items, quickPick.selectedItems);
-					this.doTurnOn(requiresLogin).then(c, e);
+					this.doTurnOn().then(c, e);
 					quickPick.hide();
 				}
 			}));
@@ -451,12 +450,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private async doTurnOn(requiresLogin: boolean): Promise<void> {
-		if (requiresLogin) {
-			await this.userDataSyncAccounts.login();
-		} else {
-			await this.userDataSyncAccounts.select();
-		}
+	private async doTurnOn(): Promise<void> {
+		await this.login();
 
 		// User did not pick an account or login failed
 		if (this.userDataSyncAccounts.status !== AccountStatus.Available) {
@@ -467,6 +462,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.userDataSyncEnablementService.setEnablement(true);
 		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
 		this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
+	}
+
+	private async login(): Promise<void> {
+		if (this.userDataSyncAccounts.all.length) {
+			await this.userDataSyncAccounts.select();
+		} else {
+			await this.userDataSyncAccounts.login();
+		}
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
@@ -727,7 +730,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			async run(): Promise<any> {
 				try {
-					await that.userDataSyncAccounts.login();
+					await that.login();
 				} catch (e) {
 					that.notificationService.error(e);
 				}
