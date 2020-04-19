@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink } from 'xterm';
-import { createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 
 export class TerminalWordLinkProvider implements ILinkProvider {
 	constructor(
@@ -61,6 +61,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 			text += char;
 		}
 
-		callback(createLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true));
+		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true));
 	}
 }

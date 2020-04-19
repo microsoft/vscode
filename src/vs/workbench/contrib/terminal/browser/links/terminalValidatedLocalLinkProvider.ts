@@ -7,7 +7,7 @@ import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink, IB
 import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -109,7 +109,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 								this._activateFileCallback(event, text);
 							}
 						};
-						callback(createLink(bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false));
+						callback(new TerminalLink(bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false));
 					} else {
 						callback(undefined);
 					}

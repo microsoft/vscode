@@ -6,7 +6,7 @@
 import { Terminal, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
 import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { createLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 
 export class TerminalWebLinkProvider implements ILinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
@@ -46,7 +46,7 @@ export class TerminalWebLinkProvider implements ILinkProvider {
 			// Check if the link if within the mouse position
 			if (positionIsInRange(position, range)) {
 				found = true;
-				callback(createLink(range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false));
+				callback(new TerminalLink(range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false));
 			}
 		});
 
