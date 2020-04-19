@@ -29,6 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isEqual } from 'vs/base/common/resources';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
 
 class MarkerModel {
 
@@ -191,6 +192,9 @@ class MarkerModel {
 	}
 }
 
+const markerNavigationNextIcon = registerIcon('marker-navigation-next', Codicon.chevronDown);
+const markerNavigationPreviousIcon = registerIcon('marker-navigation-previous', Codicon.chevronUp);
+
 export class MarkerController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.markerController';
@@ -243,8 +247,8 @@ export class MarkerController implements IEditorContribution {
 		const prevMarkerKeybinding = this._keybindingService.lookupKeybinding(PrevMarkerAction.ID);
 		const nextMarkerKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
 		const actions = [
-			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem codicon-chevron-down', this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } }),
-			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem codicon-chevron-up', this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } })
+			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem ' + markerNavigationNextIcon.classNames, this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } }),
+			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem ' + markerNavigationPreviousIcon.classNames, this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } })
 		];
 		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService, this._openerService);
 		this._widgetVisible.set(true);
