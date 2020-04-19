@@ -48,7 +48,7 @@ export class TerminalWebLinkProvider implements ILinkProvider {
 			// Check if the link if within the mouse position
 			if (positionIsInRange(position, range)) {
 				found = true;
-				callback(this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false));
+				callback(this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true));
 			}
 		});
 

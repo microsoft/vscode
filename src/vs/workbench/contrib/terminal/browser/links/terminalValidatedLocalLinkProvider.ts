@@ -111,7 +111,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 								this._activateFileCallback(event, text);
 							}
 						};
-						callback(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false));
+						callback(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true));
 					} else {
 						callback(undefined);
 					}

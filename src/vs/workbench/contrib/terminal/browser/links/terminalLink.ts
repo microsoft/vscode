@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewportRange, IBufferRange, ILink } from 'xterm';
+import { IViewportRange, IBufferRange, ILink, ILinkDecorations } from 'xterm';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as dom from 'vs/base/browser/dom';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -12,7 +12,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { isMacintosh } from 'vs/base/common/platform';
 
 export class TerminalLink extends DisposableStore implements ILink {
-	hideDecorations: boolean;
+	decorations: ILinkDecorations;
 
 	constructor(
 		public readonly range: IBufferRange,
@@ -20,11 +20,14 @@ export class TerminalLink extends DisposableStore implements ILink {
 		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
 		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
-		private readonly _shouldHideDecorations: boolean = false,
+		private readonly _isHighConfidenceLink: boolean,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
-		this.hideDecorations = this._shouldHideDecorations;
+		this.decorations = {
+			pointerCursor: false,
+			underline: this._isHighConfidenceLink
+		};
 	}
 
 	activate(event: MouseEvent, text: string): void {
@@ -33,18 +36,18 @@ export class TerminalLink extends DisposableStore implements ILink {
 
 	hover(event: MouseEvent, text: string): void {
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
-		if (this._shouldHideDecorations) {
-			this.add(dom.addDisposableListener(document, 'keydown', e => {
-				if (this._isModifierDown(e) && this.hideDecorations) {
-					this.hideDecorations = false;
-				}
-			}));
-			this.add(dom.addDisposableListener(document, 'keyup', e => {
-				if (!this._isModifierDown(e)) {
-					this.hideDecorations = true;
-				}
-			}));
-		}
+		// if (this._isHighConfidenceLink) {
+		this.add(dom.addDisposableListener(document, 'keydown', e => {
+			if (this._isModifierDown(e)) {
+				this._enableDecorations();
+			}
+		}));
+		this.add(dom.addDisposableListener(document, 'keyup', e => {
+			if (!this._isModifierDown(e)) {
+				this._disableDecorations();
+			}
+		}));
+		// }
 
 		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
 		const scheduler = new RunOnceScheduler(() => {
@@ -52,8 +55,8 @@ export class TerminalLink extends DisposableStore implements ILink {
 				event,
 				text,
 				convertBufferRangeToViewport(this.range, this._viewportY),
-				this._shouldHideDecorations ? () => this.hideDecorations = false : undefined,
-				this._shouldHideDecorations ? () => this.hideDecorations = true : undefined
+				this._isHighConfidenceLink ? () => this._enableDecorations() : undefined,
+				this._isHighConfidenceLink ? () => this._disableDecorations() : undefined
 			);
 			this.dispose();
 		}, timeout);
@@ -63,8 +66,10 @@ export class TerminalLink extends DisposableStore implements ILink {
 		const origin = { x: event.pageX, y: event.pageY };
 		this.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
 			// Update decorations
-			if (this._shouldHideDecorations) {
-				this.hideDecorations = !this._isModifierDown(e);
+			if (this._isModifierDown(e)) {
+				this._enableDecorations();
+			} else {
+				this._disableDecorations();
 			}
 
 			// Reset the scheduler if the mouse moves too much
@@ -78,6 +83,24 @@ export class TerminalLink extends DisposableStore implements ILink {
 
 	leave(): void {
 		this.dispose();
+	}
+
+	private _enableDecorations(): void {
+		if (!this.decorations.pointerCursor) {
+			this.decorations.pointerCursor = true;
+		}
+		if (!this.decorations.underline) {
+			this.decorations.underline = true;
+		}
+	}
+
+	private _disableDecorations(): void {
+		if (this.decorations.pointerCursor) {
+			this.decorations.pointerCursor = false;
+		}
+		if (this.decorations.underline !== this._isHighConfidenceLink) {
+			this.decorations.underline = this._isHighConfidenceLink;
+		}
 	}
 
 	private _isModifierDown(event: MouseEvent | KeyboardEvent): boolean {
