@@ -127,9 +127,6 @@ export function createLink(
 	tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => boolean | void,
 	hideDecorations: boolean
 ): ILink {
-	// let documentMouseOutListener: IDisposable | undefined;
-
-	// TODO: This could be handled better my sharing tooltip hover state between link providers
 	// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
 	const disposables: IDisposable[] = [];
 	if (hideDecorations) {
@@ -154,8 +151,6 @@ export function createLink(
 		hideDecorations,
 		activate: (event: MouseEvent, text: string) => activateCallback(event, text),
 		hover: (event: MouseEvent, text: string) => {
-			// TODO: Is this needed anymore? It's mouseover not mouseout?
-			disposables.push(dom.addDisposableListener(document, dom.EventType.MOUSE_OUT, () => dispose(disposables)));
 			scheduler = new RunOnceScheduler(() => {
 				tooltipCallback(
 					event,
@@ -171,11 +166,14 @@ export function createLink(
 			scheduler.schedule();
 
 			const origin = { x: event.pageX, y: event.pageY };
-
-			// TODO: Also use mousemove to track ctrl state
 			disposables.push(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
+				// Update decorations
+				if (hideDecorations) {
+					link.hideDecorations = !e.ctrlKey;
+				}
+
+				// Reset the scheduler if the mouse moves too much
 				if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
-					// Reset the scheduler
 					origin.x = e.pageX;
 					origin.y = e.pageY;
 					scheduler.schedule();
