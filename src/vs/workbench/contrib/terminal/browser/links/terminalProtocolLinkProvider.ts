@@ -6,8 +6,9 @@
 import { Terminal, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
 import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
-import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { TerminalLink, OPEN_FILE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 
 export class TerminalProtocolLinkProvider implements ILinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
@@ -48,7 +49,11 @@ export class TerminalProtocolLinkProvider implements ILinkProvider {
 			// Check if the link if within the mouse position
 			if (positionIsInRange(position, range)) {
 				found = true;
-				callback(this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, undefined));
+				const uri = link.url
+					? (typeof link.url === 'string' ? URI.parse(link.url) : link.url)
+					: undefined;
+				const label = (uri?.scheme === 'file') ? OPEN_FILE_LABEL : undefined;
+				callback(this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, label));
 			}
 		});
 

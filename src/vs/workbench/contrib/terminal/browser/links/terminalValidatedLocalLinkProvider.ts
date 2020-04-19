@@ -7,13 +7,13 @@ import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink, IB
 import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { TerminalLink, OPEN_FILE_LABEL, FOLDER_IN_WORKSPACE_LABEL, FOLDER_NOT_IN_WORKSPACE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { localize } from 'vs/nls';
+import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -46,6 +46,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
 		private readonly _activateFileCallback: (event: MouseEvent | undefined, link: string) => void,
+		private readonly _wrapLinkHandler: (handler: (event: MouseEvent | undefined, link: string) => void) => XtermLinkMatcherHandler,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -125,16 +126,15 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 					this._validationCallback(link, (result) => {
 						if (result) {
 							const label = result.isDirectory
-								? (this._isDirectoryInsideWorkspace(result.uri) ? localize('focusFolder', 'Focus folder in explorer') : localize('openFolder', 'Open folder in new window'))
-								: localize('openFile', 'Open file in editor');
-							const activateCallback = (event: MouseEvent | undefined, text: string) => {
+								? (this._isDirectoryInsideWorkspace(result.uri) ? FOLDER_IN_WORKSPACE_LABEL : FOLDER_NOT_IN_WORKSPACE_LABEL)
+								: OPEN_FILE_LABEL;
+							const activateCallback = this._wrapLinkHandler((event: MouseEvent | undefined, text: string) => {
 								if (result.isDirectory) {
 									this._handleLocalFolderLink(result.uri);
 								} else {
-									console.log('activate file callback', event, text);
 									this._activateFileCallback(event, text);
 								}
-							};
+							});
 							r(this._instantiationService.createInstance(TerminalLink, bufferRange, link, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, true, label));
 						} else {
 							r(undefined);

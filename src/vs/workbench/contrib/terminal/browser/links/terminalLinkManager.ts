@@ -149,7 +149,7 @@ export class TerminalLinkManager extends DisposableStore {
 		});
 	}
 
-	private _tooltipCallback(linkText: string, viewportRange: IViewportRange, linkHandler: (event: MouseEvent | undefined, url: string) => void) {
+	private _tooltipCallback(linkText: string, viewportRange: IViewportRange, linkHandler: (url: string) => void) {
 		if (!this._widgetManager) {
 			return;
 		}
@@ -186,19 +186,20 @@ export class TerminalLinkManager extends DisposableStore {
 			height: this._xterm.rows
 		};
 
+		// Don't pass the mouse event as this avoids the modifier check
 		this._showHover({
 			viewportRange,
 			cellDimensions,
 			terminalDimensions,
 			modifierDownCallback,
 			modifierUpCallback
-		}, this._getLinkHoverString(link.text, link.label), link.activate.bind(link));
+		}, this._getLinkHoverString(link.text, link.label), (text) => link.activate(undefined, text));
 	}
 
 	private _showHover(
 		targetOptions: ILinkHoverTargetOptions,
 		text: IMarkdownString,
-		linkHandler: (event: MouseEvent | undefined, url: string) => void
+		linkHandler: (url: string) => void
 	) {
 		if (this._widgetManager) {
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, linkHandler);
@@ -234,7 +235,7 @@ export class TerminalLinkManager extends DisposableStore {
 
 	public registerCustomLinkHandler(regex: RegExp, handler: (event: MouseEvent | undefined, uri: string) => void, matchIndex?: number, validationCallback?: XtermLinkMatcherValidationCallback): number {
 		const tooltipCallback = (_: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, handler);
+			this._tooltipCallback(linkText, location, text => handler(undefined, text));
 		};
 		const options: ILinkMatcherOptions = {
 			matchIndex,
@@ -255,7 +256,7 @@ export class TerminalLinkManager extends DisposableStore {
 			}
 			const wrappedHandler = this._wrapLinkHandler((_, link) => this._handleHypertextLink(link));
 			const tooltipCallback = (_: MouseEvent, linkText: string, location: IViewportRange) => {
-				this._tooltipCallback(linkText, location, (_, link) => this._handleHypertextLink(link));
+				this._tooltipCallback(linkText, location, this._handleHypertextLink.bind(this));
 			};
 			this._webLinksAddon = new WebLinksAddon(wrappedHandler, {
 				validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateWebLink(callback),
@@ -269,7 +270,7 @@ export class TerminalLinkManager extends DisposableStore {
 	public registerLocalLinkHandler(): void {
 		const wrappedHandler = this._wrapLinkHandler((_, url) => this._handleLocalLink(url));
 		const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, (_, link) => this._handleLocalLink(link));
+			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this));
 		};
 		this._linkMatchers.push(this._xterm.registerLinkMatcher(this._localLinkRegex, wrappedHandler, {
 			validationCallback: (uri: string, callback: (isValid: boolean) => void) => this._validateLocalLink(uri, callback),
@@ -284,7 +285,7 @@ export class TerminalLinkManager extends DisposableStore {
 			this._handleLocalLink(url);
 		});
 		const tooltipCallback = (event: MouseEvent, linkText: string, location: IViewportRange) => {
-			this._tooltipCallback(linkText, location, (_, url) => this._handleLocalLink(url));
+			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this));
 		};
 		const options = {
 			matchIndex: 1,
@@ -311,6 +312,7 @@ export class TerminalLinkManager extends DisposableStore {
 				this._xterm,
 				this._processManager.os || OS,
 				wrappedTextLinkActivateCallback,
+				this._wrapLinkHandler.bind(this),
 				this._tooltipCallback2.bind(this),
 				async (link, cb) => cb(await this._resolvePath(link)))
 		));
@@ -361,30 +363,6 @@ export class TerminalLinkManager extends DisposableStore {
 
 			// Just call the handler if there is no before listener
 			handler(event, link);
-		};
-	}
-
-	protected _wrapLinkHandler2(handler: (uri: URI) => void): (event: MouseEvent, link: string, uri: URI) => Promise<void> {
-		return async (event: MouseEvent, link: string, uri: URI) => {
-			// Prevent default electron link handling so Alt+Click mode works normally
-			event.preventDefault();
-
-			// Require correct modifier on click
-			if (!this._isLinkActivationModifierDown(event)) {
-				return;
-			}
-
-			// Allow the link to be intercepted if there are listeners
-			if (this._hasBeforeHandleLinkListeners) {
-				const wasHandled = await this._triggerBeforeHandleLinkListeners(link);
-				if (!wasHandled) {
-					handler(uri);
-				}
-				return;
-			}
-
-			// Just call the handler if there is no before listener
-			handler(uri);
 		};
 	}
 

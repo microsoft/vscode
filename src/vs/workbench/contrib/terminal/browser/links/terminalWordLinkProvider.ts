@@ -62,6 +62,6 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 			text += char;
 		}
 
-		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search for word'), this._configurationService));
+		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
 	}
 }
