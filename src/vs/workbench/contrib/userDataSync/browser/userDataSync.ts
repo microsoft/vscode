@@ -145,7 +145,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		this.userDataSyncAccounts = instantiationService.createInstance(UserDataSyncAccounts);
 
-		if (this.userDataSyncAccounts.accountProviderId) {
+		if (this.userDataSyncAccounts.authenticationProviders.length) {
 			registerConfiguration();
 
 			this.onDidChangeSyncStatus(this.userDataSyncService.status);
@@ -428,7 +428,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			if (this.userDataSyncAccounts.all.length) {
 				quickPick.customLabel = localize('turn on', "Turn On");
 			} else {
-				const displayName = this.authenticationService.getDisplayName(this.userDataSyncAccounts.accountProviderId!);
+				const orTerm = localize({ key: 'or', comment: ['Here is the context where it is used - Sign in with your A or B or C account to synchronize your data across devices.'] }, "or");
+				const displayName = this.userDataSyncAccounts.authenticationProviders.length === 1
+					? this.authenticationService.getDisplayName(this.userDataSyncAccounts.authenticationProviders[0].id)
+					: this.userDataSyncAccounts.authenticationProviders.map(({ id }) => this.authenticationService.getDisplayName(id)).join(` ${orTerm} `);
 				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
 			}
@@ -451,7 +454,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async doTurnOn(): Promise<void> {
-		await this.login();
+		const picked = await this.userDataSyncAccounts.pick();
+		if (!picked) {
+			throw canceled();
+		}
 
 		// User did not pick an account or login failed
 		if (this.userDataSyncAccounts.status !== AccountStatus.Available) {
@@ -462,14 +468,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.userDataSyncEnablementService.setEnablement(true);
 		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
 		this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
-	}
-
-	private async login(): Promise<void> {
-		if (this.userDataSyncAccounts.all.length) {
-			await this.userDataSyncAccounts.select();
-		} else {
-			await this.userDataSyncAccounts.login();
-		}
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
@@ -730,7 +728,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			async run(): Promise<any> {
 				try {
-					await that.login();
+					await that.userDataSyncAccounts.pick();
 				} catch (e) {
 					that.notificationService.error(e);
 				}
