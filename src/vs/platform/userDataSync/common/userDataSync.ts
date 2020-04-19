@@ -20,7 +20,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
 
@@ -135,7 +135,7 @@ export function isAuthenticationProvider(thing: any): thing is IAuthenticationPr
 }
 
 export function getUserDataSyncStore(productService: IProductService, configurationService: IConfigurationService): IUserDataSyncStore | undefined {
-	const value = configurationService.getValue<{ url: string, authenticationProviders: IStringDictionary<{ scopes: string[] }> }>(CONFIGURATION_SYNC_STORE_KEY) || productService[CONFIGURATION_SYNC_STORE_KEY];
+	const value = configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY) || productService[CONFIGURATION_SYNC_STORE_KEY];
 	if (value
 		&& isString(value.url)
 		&& isObject(value.authenticationProviders)
