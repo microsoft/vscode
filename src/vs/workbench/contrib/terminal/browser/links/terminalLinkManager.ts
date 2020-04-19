@@ -26,10 +26,7 @@ import { TerminalValidatedLocalLinkProvider } from 'vs/workbench/contrib/termina
 import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { isEqualOrParent } from 'vs/base/common/resources';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
@@ -121,9 +118,7 @@ export class TerminalLinkManager extends DisposableStore {
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
-		@IHostService private readonly _hostService: IHostService,
 		@ISearchService private readonly _searchService: ISearchService
 	) {
 		super();
@@ -298,13 +293,11 @@ export class TerminalLinkManager extends DisposableStore {
 			this._tooltipCallback(linkText, location, this._handleLocalLink.bind(this, linkText));
 		};
 		const wrappedTextLinkActivateCallback = this._wrapLinkHandler(this._handleLocalLink.bind(this));
-		const wrappedDirectoryLinkActivateCallback = this._wrapLinkHandler2(this._handleLocalFolderLink.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(
 			this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
 				this._xterm,
 				this._processManager.os || OS,
 				wrappedTextLinkActivateCallback,
-				wrappedDirectoryLinkActivateCallback,
 				tooltipValidatedLocalCallback,
 				async (link, cb) => cb(await this._resolvePath(link)))
 		));
@@ -432,20 +425,6 @@ export class TerminalLinkManager extends DisposableStore {
 			startColumn: lineColumnInfo.columnNumber
 		};
 		await this._editorService.openEditor({ resource: resolvedLink.uri, options: { pinned: true, selection } });
-	}
-
-	private async _handleLocalFolderLink(uri: URI): Promise<void> {
-		// If the folder is within one of the window's workspaces, focus it in the explorer
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (isEqualOrParent(uri, folders[0].uri)) {
-				await this._commandService.executeCommand('revealInExplorer', uri);
-				return;
-			}
-		}
-
-		// Open a new window for the folder
-		this._hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
 	}
 
 	private _validateLocalLink(link: string, callback: (isValid: boolean) => void): void {

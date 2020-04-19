@@ -9,6 +9,10 @@ import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isEqualOrParent } from 'vs/base/common/resources';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -41,10 +45,12 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 		private readonly _xterm: Terminal,
 		private readonly _processOperatingSystem: OperatingSystem,
 		private readonly _activateFileCallback: (event: MouseEvent, link: string) => void,
-		private readonly _activateDirectoryCallback: (event: MouseEvent, link: string, uri: URI) => void,
 		private readonly _tooltipCallback: (link: string, location: IViewportRange) => boolean | void,
 		private readonly _validationCallback: (link: string, callback: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => void,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 	}
 
@@ -119,7 +125,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 						if (result) {
 							const activateCallback = (event: MouseEvent, text: string) => {
 								if (result.isDirectory) {
-									this._activateDirectoryCallback(event, text, result.uri);
+									this._handleLocalFolderLink(result.uri);
 								} else {
 									this._activateFileCallback(event, text);
 								}
@@ -144,5 +150,19 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 		const baseLocalLinkClause = this._processOperatingSystem === OperatingSystem.Windows ? winLocalLinkClause : unixLocalLinkClause;
 		// Append line and column number regex
 		return new RegExp(`${baseLocalLinkClause}(${lineAndColumnClause})`);
+	}
+
+	private async _handleLocalFolderLink(uri: URI): Promise<void> {
+		// If the folder is within one of the window's workspaces, focus it in the explorer
+		const folders = this._workspaceContextService.getWorkspace().folders;
+		for (let i = 0; i < folders.length; i++) {
+			if (isEqualOrParent(uri, folders[0].uri)) {
+				await this._commandService.executeCommand('revealInExplorer', uri);
+				return;
+			}
+		}
+
+		// Open a new window for the folder
+		this._hostService.openWindow([{ folderUri: uri }], { forceNewWindow: true });
 	}
 }
