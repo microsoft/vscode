@@ -9,6 +9,9 @@ import { Terminal, ILink, IBufferRange, IBufferCellPosition } from 'xterm';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { format } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 const unixLinks = [
 	'/foo',
@@ -66,9 +69,16 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 ];
 
 suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
+	let instantiationService: TestInstantiationService;
+
+	setup(() => {
+		instantiationService = new TestInstantiationService();
+		instantiationService.stub(IConfigurationService, TestConfigurationService);
+	});
+
 	async function assertLink(text: string, os: OperatingSystem, expected: { text: string, range: [number, number][] }) {
 		const xterm = new Terminal();
-		const provider = new TerminalValidatedLocalLinkProvider(xterm, os, () => { }, () => { }, () => { }, (_, cb) => { cb({ uri: URI.file('/'), isDirectory: false }); });
+		const provider = instantiationService.createInstance(TerminalValidatedLocalLinkProvider, xterm, os, () => { }, () => { }, () => { }, (_: string, cb: (result: { uri: URI, isDirectory: boolean } | undefined) => void) => { cb({ uri: URI.file('/'), isDirectory: false }); });
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));
