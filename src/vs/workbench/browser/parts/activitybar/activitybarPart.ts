@@ -504,7 +504,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const activity: IActivity = {
 			id: viewlet.id,
 			name: shouldUseViewletIcon ? viewlet.name : viewDescriptor.name,
-			cssClass: shouldUseViewletIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : (viewDescriptor.containerIcon === undefined ? Codicon.window : undefined)),
+			cssClass: shouldUseViewletIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : (viewDescriptor.containerIcon === undefined ? Codicon.window.classNames : undefined)),
 			iconUrl: shouldUseViewletIcon ? viewlet.iconUrl : (viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined),
 			keybindingId: viewlet.keybindingId
 		};
