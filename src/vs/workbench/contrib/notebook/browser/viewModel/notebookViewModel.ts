@@ -539,7 +539,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	}
 
 	moveCellToIdx(index: number, newIdx: number, synchronous: boolean, pushedToUndoStack: boolean = true): boolean {
-		// TODO roblou - works differently if index > or < newIdx, fix, write tests
+		if (index < newIdx) {
+			// newIdx will be one less after index has been removed
+			newIdx--;
+		}
 
 		const viewCell = this.viewCells[index] as CellViewModel;
 		if (!viewCell) {

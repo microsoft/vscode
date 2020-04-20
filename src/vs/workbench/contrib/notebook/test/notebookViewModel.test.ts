@@ -57,6 +57,67 @@ suite('NotebookViewModel', () => {
 		);
 	});
 
+	test('move cells down', function () {
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['//a'], 'javascript', CellKind.Code, [], { editable: true }],
+				[['//b'], 'javascript', CellKind.Code, [], { editable: true }],
+				[['//c'], 'javascript', CellKind.Code, [], { editable: true }],
+			],
+			(editor, viewModel) => {
+				viewModel.moveCellToIdx(0, 0, false);
+				// no-op
+				assert.equal(viewModel.viewCells[0].getText(), '//a');
+				assert.equal(viewModel.viewCells[1].getText(), '//b');
+
+				viewModel.moveCellToIdx(0, 1, false);
+				// no-op (move to after this cell?)
+				assert.equal(viewModel.viewCells[0].getText(), '//a');
+				assert.equal(viewModel.viewCells[1].getText(), '//b');
+
+				viewModel.moveCellToIdx(0, 2, false);
+				// b, a, c
+				assert.equal(viewModel.viewCells[0].getText(), '//b');
+				assert.equal(viewModel.viewCells[1].getText(), '//a');
+				assert.equal(viewModel.viewCells[2].getText(), '//c');
+
+				viewModel.moveCellToIdx(0, 3, false);
+				// a, c, b
+				assert.equal(viewModel.viewCells[0].getText(), '//a');
+				assert.equal(viewModel.viewCells[1].getText(), '//c');
+				assert.equal(viewModel.viewCells[2].getText(), '//b');
+			}
+		);
+	});
+
+	test('move cells up', function () {
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['//a'], 'javascript', CellKind.Code, [], { editable: true }],
+				[['//b'], 'javascript', CellKind.Code, [], { editable: true }],
+				[['//c'], 'javascript', CellKind.Code, [], { editable: true }],
+			],
+			(editor, viewModel) => {
+				viewModel.moveCellToIdx(1, 0, false);
+				// b, a, c
+				assert.equal(viewModel.viewCells[0].getText(), '//b');
+				assert.equal(viewModel.viewCells[1].getText(), '//a');
+
+				viewModel.moveCellToIdx(2, 0, false);
+				// c, b, a
+				assert.equal(viewModel.viewCells[0].getText(), '//c');
+				assert.equal(viewModel.viewCells[1].getText(), '//b');
+				assert.equal(viewModel.viewCells[2].getText(), '//a');
+			}
+		);
+	});
+
 	test('index', function () {
 		withTestNotebook(
 			instantiationService,
