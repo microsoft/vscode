@@ -29,6 +29,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -344,10 +345,10 @@ export class HomeAction extends Action {
 	constructor(
 		private readonly command: string,
 		name: string,
-		icon: string,
+		icon: Codicon,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super('workbench.action.home', name, `codicon-${icon}`);
+		super('workbench.action.home', name, icon.classNames);
 	}
 
 	async run(): Promise<void> {

@@ -42,7 +42,7 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Before2D } from 'vs/workbench/browser/dnd';
-import { Codicon } from 'vs/base/common/codicons';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 
 interface IPlaceholderViewlet {
 	id: string;
@@ -327,7 +327,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Home action bar
 		const homeIndicator = this.environmentService.options?.homeIndicator;
 		if (homeIndicator) {
-			this.createHomeBar(homeIndicator.command, homeIndicator.title, homeIndicator.icon);
+			let codicon = iconRegistry.get(homeIndicator.icon);
+			if (!codicon) {
+				console.warn(`Unknown home indicator icon ${homeIndicator.icon}`);
+				codicon = Codicon.code;
+			}
+			this.createHomeBar(homeIndicator.command, homeIndicator.title, codicon);
 		}
 
 		// Install menubar if compact
@@ -348,7 +353,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this.content;
 	}
 
-	private createHomeBar(command: string, title: string, icon: string): void {
+	private createHomeBar(command: string, title: string, icon: Codicon): void {
 		const homeBarContainer = document.createElement('div');
 		homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
 		homeBarContainer.setAttribute('role', 'toolbar');
