@@ -556,16 +556,6 @@ registerAction2(class extends InsertCellCommand {
 				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/add' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.InsertCell,
-					alt: {
-						id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-						title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
-						icon: { id: 'codicon/add' },
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			},
 			CellKind.Code,

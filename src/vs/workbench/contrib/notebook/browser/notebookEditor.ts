@@ -647,14 +647,18 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	private async moveCellToIndex(index: number, newIdx: number): Promise<void> {
-		// console.log(`Move ${index} to ${newIdx}`);
+		if (index < newIdx) {
+			// newIdx will be one less after index has been removed
+			newIdx--;
+		}
+
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			return;
 		}
 
 		let r: () => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
-			this.list?.revealElementInCenterIfOutsideViewport(this.notebookViewModel!.viewCells[index + 1]);
+			this.list?.revealElementInView(this.notebookViewModel!.viewCells[newIdx]);
 			r();
 		});
 

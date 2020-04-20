@@ -78,6 +78,7 @@ export interface MarkdownCellLayoutChangeEvent {
 export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
+	dragging: boolean;
 	handle: number;
 	uri: URI;
 	cellKind: CellKind;

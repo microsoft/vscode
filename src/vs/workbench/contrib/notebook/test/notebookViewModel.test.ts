@@ -74,17 +74,12 @@ suite('NotebookViewModel', () => {
 				assert.equal(viewModel.viewCells[1].getText(), '//b');
 
 				viewModel.moveCellToIdx(0, 1, false);
-				// no-op (move to after this cell?)
-				assert.equal(viewModel.viewCells[0].getText(), '//a');
-				assert.equal(viewModel.viewCells[1].getText(), '//b');
-
-				viewModel.moveCellToIdx(0, 2, false);
 				// b, a, c
 				assert.equal(viewModel.viewCells[0].getText(), '//b');
 				assert.equal(viewModel.viewCells[1].getText(), '//a');
 				assert.equal(viewModel.viewCells[2].getText(), '//c');
 
-				viewModel.moveCellToIdx(0, 3, false);
+				viewModel.moveCellToIdx(0, 2, false);
 				// a, c, b
 				assert.equal(viewModel.viewCells[0].getText(), '//a');
 				assert.equal(viewModel.viewCells[1].getText(), '//c');
