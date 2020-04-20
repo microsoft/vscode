@@ -12,6 +12,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { CLEAR_NOTIFICATION, EXPAND_NOTIFICATION, COLLAPSE_NOTIFICATION, CLEAR_ALL_NOTIFICATIONS, HIDE_NOTIFICATIONS_CENTER } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class ClearNotificationAction extends Action {
 
@@ -23,7 +24,7 @@ export class ClearNotificationAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, Codicon.close.classNames);
 	}
 
 	async run(notification: INotificationViewItem): Promise<void> {
