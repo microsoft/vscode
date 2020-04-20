@@ -597,6 +597,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any> }>();
 	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
+
+	private readonly _onDidChangeNotebookDocument = new Emitter<{ document: ExtHostNotebookDocument, changes: NotebookCellsSplice2[] }>();
+	readonly onDidChangeNotebookDocument: Event<{ document: ExtHostNotebookDocument, changes: NotebookCellsSplice2[] }> = this._onDidChangeNotebookDocument.event;
+
 	private _outputDisplayOrder: INotebookDisplayOrder | undefined;
 
 	get outputDisplayOrder(): INotebookDisplayOrder | undefined {
@@ -786,6 +790,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		if (editor) {
 			editor.editor.document.accpetModelChanged(event);
+			this._onDidChangeNotebookDocument.fire({
+				document: editor.editor.document,
+				changes: event.changes
+			});
 		}
 
 	}

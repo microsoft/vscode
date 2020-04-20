@@ -6,36 +6,42 @@
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookDocument, ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { Range } from 'vs/workbench/api/common/extHostTypeConverters';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 //todo@jrieken ConcatDiagnosticsCollection...
 
-export interface INotebookConcatDocument {
-	readonly versionId: number;
-	readonly onDidChange: Event<void>;
-	dispose(): void;
-	getText(): string;
-	locationAt(position: types.Position): types.Location;
-	positionAt(location: types.Location): types.Position;
-}
+export class ExtHostNotebookConcatDocument {
 
-export async function createConcatDocument(document: ExtHostNotebookDocument, extHostDocument: ExtHostDocuments) {
+	private _disposables = new DisposableStore();
 
-	// const cells = new Map<string, ExtHostCell>();
+	private readonly _onDidChange = new Emitter<this>();
+	readonly onDidChange: Event<this> = this._onDidChange.event;
 
-	const _onDidChange = new Emitter<void>();
-	const listener = extHostDocument.onDidChangeDocument(e => {
-		const key = e.document.uri.toString();
-		const cell = document.cells.find(candidate => candidate.uri.toString() === key);
-		if (cell) {
+	private _delegate!: ExtHostDocumentData;
+	private _cellStarts!: PrefixSumComputer;
+	private _versionId = 0;
 
+	constructor(
+		private readonly _notebook: ExtHostNotebookDocument,
+		extHostNotebooks: ExtHostNotebookController,
+		extHostDocuments: ExtHostDocuments,
+	) {
+		this._init();
+
+		extHostDocuments.onDidChangeDocument(e => {
+			const cell = this._notebook.cells.find(candidate => candidate.uri.toString() === e.document.uri.toString());
+			if (!cell) {
+				return;
+			}
 			// todo@jrieken reuse raw event!
-			concatDocument.onEvents({
-				versionId: concatDocument.version + 1,
+			this._versionId += 1;
+			this._delegate.onEvents({
+				versionId: this._versionId,
 				eol: '\n',
 				changes: e.contentChanges.map(change => {
 					return {
@@ -46,62 +52,82 @@ export async function createConcatDocument(document: ExtHostNotebookDocument, ex
 					};
 				})
 			});
+			this._onDidChange.fire(this);
 
-			_onDidChange.fire();
-		}
-	});
+		}, undefined, this._disposables);
 
-	function dispose(): void {
-		listener.dispose();
-		concatDocument.dispose();
-	}
-
-	const lines: string[] = [];
-	const values = new Uint32Array(document.cells.length);
-	for (let i = 0; i < document.cells.length; i++) {
-
-		const cell = document.cells[i];
-
-		// update prefix sum
-		values[i] = cell.document.getText().length + 1; // 1 is newline
-
-		//todo@jrieken reuse lines!
-		for (let line = 0; line < cell.document.lineCount; line++) {
-			lines.push(cell.document.lineAt(line).text);
-		}
-	}
-
-	const cellStarts = new PrefixSumComputer(values);
-	const concatDocument = new ExtHostDocumentData(
-		null!,
-		document.uri.with({ scheme: 'vscode-concatdoc' }),
-		lines, '\n',
-		document.languages[0],
-		0, false
-	);
-
-	return {
-		get versionId() { return concatDocument.version; },
-		onDidChange: _onDidChange.event,
-		dispose,
-		getText() { return concatDocument.getText(); },
-		locationAt(position: types.Position): types.Location {
-			const offset = concatDocument.document.offsetAt(position);
-			const index = cellStarts.getIndexOf(offset);
-			const cell = document.cells[index.index];
-			const cellPosi = cell.document.positionAt(index.remainder);
-			return new types.Location(cell.uri, <any>cellPosi);
-		},
-		positionAt(location: types.Location): vscode.Position | undefined {
-			const idx = document.cells.findIndex(candidate => candidate.uri.toString() === location.uri.toString());
-			if (idx > 0) {
-				return undefined;
+		extHostNotebooks.onDidChangeNotebookDocument(e => {
+			if (e.document !== this._notebook) {
+				return;
 			}
-			const docOffset = document.cells[idx].document.offsetAt(location.range.start);
-			const cellOffset = cellStarts.getAccumulatedValue(idx);
-			return concatDocument.document.positionAt(docOffset + cellOffset);
+			//todo@jrieken update instead of flushing...
+			this._versionId += 1;
+			this._init();
+			this._onDidChange.fire(this);
+		}, undefined, this._disposables);
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
+		this._delegate.dispose();
+	}
+
+	private _init() {
+		const lines: string[] = [];
+		const values = new Uint32Array(this._notebook.cells.length);
+		for (let i = 0; i < this._notebook.cells.length; i++) {
+
+			const cell = this._notebook.cells[i];
+
+			// update prefix sum
+			values[i] = cell.document.getText().length + 1; // 1 is newline
+
+			//todo@jrieken reuse lines!
+			for (let line = 0; line < cell.document.lineCount; line++) {
+				lines.push(cell.document.lineAt(line).text);
+			}
 		}
-	};
+
+		this._cellStarts = new PrefixSumComputer(values);
+		this._delegate = new ExtHostDocumentData(
+			null!,
+			this._notebook.uri.with({ scheme: 'vscode-concatdoc' }),
+			lines, '\n',
+			this._notebook.languages[0],
+			0, false
+		);
+	}
+
+	get versionId() {
+		return this._versionId;
+	}
+
+	getText() {
+		return this._delegate.getText();
+	}
+
+	locationAt(position: vscode.Position): vscode.Location {
+		const offset = this._delegate.document.offsetAt(position);
+		const index = this._cellStarts.getIndexOf(offset);
+		const cell = this._notebook.cells[index.index];
+		if (!cell) {
+			// do better?
+			// return undefined;
+			return new types.Location(this._notebook.uri, new types.Position(0, 0));
+		}
+		const cellPos = cell.document.positionAt(index.remainder);
+		return new types.Location(cell.uri, <any>cellPos);
+	}
+
+	positionAt(location: vscode.Location): vscode.Position {
+		const idx = this._notebook.cells.findIndex(candidate => candidate.uri.toString() === location.uri.toString());
+		if (idx < 0) {
+			// do better?
+			// return undefined;
+			return new types.Position(0, 0);
+		}
+		const docOffset = this._notebook.cells[idx].document.offsetAt(location.range.start);
+		const cellOffset = this._cellStarts.getAccumulatedValue(idx - 1);
+		return this._delegate.document.positionAt(docOffset + cellOffset);
+	}
 }
-
-
