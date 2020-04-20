@@ -97,7 +97,7 @@ export class KeybindingsEditorModel extends EditorModel {
 	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
-		const sourceRegex = /(@user)|(@default)|(@extension:\s*"(.+?)"\s?)|(@extension:\s*([\S]+)\s?)|(@extension)/i;
+		const sourceRegex = /(@user)|(@default)|(@extensions:\s*"(.+?)"\s?)|(@extensions:\s*([\S]+)\s?)|(@extensions)/i;
 		if (sourceRegex.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
 			searchValue = searchValue.replace(sourceRegex, '');
@@ -119,21 +119,21 @@ export class KeybindingsEditorModel extends EditorModel {
 			return keybindingItems.filter(k => k.source === SOURCE_DEFAULT);
 		}
 
-		const quotesRegex = /@extension:\s*"(.+?)"\s?/i;
+		const quotesRegex = /@extensions:\s*"(.+?)"\s?/i;
 		if (quotesRegex.test(searchValue)) {
 			const match = searchValue.match(quotesRegex);
 			if (!match) { return keybindingItems; }
 			const extensionQuery = new RegExp(match[1], 'i');
 			return keybindingItems.filter(k => extensionQuery.test(k.source));
 		}
-		const withoutQuotesRegex = /@extension:\s*([\S]+)\s?/i;
+		const withoutQuotesRegex = /@extensions:\s*([\S]+)\s?/i;
 		if (withoutQuotesRegex.test(searchValue)) {
 			const match = searchValue.match(withoutQuotesRegex);
 			if (!match) { return keybindingItems; }
 			const extensionQuery = new RegExp(match[1], 'i');
 			return keybindingItems.filter(k => extensionQuery.test(k.source));
 		}
-		if (/@extension/i.test(searchValue)) {
+		if (/@extensions/i.test(searchValue)) {
 			return keybindingItems.filter(k => k.source !== SOURCE_USER && k.source !== SOURCE_DEFAULT);
 		}
 		return keybindingItems;
