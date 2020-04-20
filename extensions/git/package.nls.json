@@ -143,6 +143,7 @@
 	"config.untrackedChanges.mixed": "All changes, tracked and untracked, appear together and behave equally.",
 	"config.untrackedChanges.separate": "Untracked changes appear separately in the Source Control view. They are also excluded from several actions.",
 	"config.untrackedChanges.hidden": "Untracked changes are hidden and excluded from several actions.",
+	"config.showCommitInput": "Controls whether to show the commit input in the Git source control panel.",
 	"colors.added": "Color for added resources.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",
