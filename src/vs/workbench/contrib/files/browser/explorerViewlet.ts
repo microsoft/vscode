@@ -160,8 +160,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 
 export class ExplorerViewPaneContainer extends ViewPaneContainer {
 
-	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
-
 	private viewletVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
@@ -179,7 +177,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 
-		super(VIEWLET_ID, ExplorerViewPaneContainer.EXPLORER_VIEWS_STATE, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
 
@@ -262,6 +260,7 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 	id: VIEWLET_ID,
 	name: localize('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
+	storageId: 'workbench.explorer.views.state',
 	icon: 'codicon-files',
 	order: 0
 }, ViewContainerLocation.Sidebar);

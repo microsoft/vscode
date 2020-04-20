@@ -96,9 +96,9 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		const viewEntries: Array<IViewQuickPickItem> = [];
 
 		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): IViewQuickPickItem[] => {
-			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			const result: IViewQuickPickItem[] = [];
-			for (const view of viewDescriptors.allViewDescriptors) {
+			for (const view of viewContainerModel.allViewDescriptors) {
 				if (this.contextKeyService.contextMatchesRules(view.when)) {
 					result.push({
 						label: view.name,
@@ -176,7 +176,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 	private includeViewContainer(container: ViewletDescriptor | IPanelIdentifier): boolean {
 		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(container.id);
 		if (viewContainer?.hideIfEmpty) {
-			return this.viewDescriptorService.getViewDescriptors(viewContainer).activeViewDescriptors.length > 0;
+			return this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.length > 0;
 		}
 
 		return true;
