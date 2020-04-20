@@ -17,7 +17,7 @@ import { Action } from 'vs/base/common/actions';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { SimpleCheckbox, ISimpleCheckboxStyles } from 'vs/base/browser/ui/checkbox/checkbox';
-import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 export interface IDialogOptions {
 	cancelId?: number;

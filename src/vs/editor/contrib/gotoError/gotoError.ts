@@ -29,7 +29,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isEqual } from 'vs/base/common/resources';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
-import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 class MarkerModel {
 

@@ -48,7 +48,7 @@ import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
-import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];

@@ -48,8 +48,7 @@ import { once } from 'vs/base/common/functional';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { stripCodicons } from 'vs/base/common/codicons';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon, stripCodicons } from 'vs/base/common/codicons';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 

@@ -22,7 +22,7 @@ import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
 import { isMacintosh } from 'vs/base/common/platform';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 const $ = DOM.$;
 

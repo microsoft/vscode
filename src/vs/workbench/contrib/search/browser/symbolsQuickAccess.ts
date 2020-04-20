@@ -23,7 +23,7 @@ import { getSelectionSearchString } from 'vs/editor/contrib/find/findController'
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 
 interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	score?: number;

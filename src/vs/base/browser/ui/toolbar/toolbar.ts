@@ -12,7 +12,7 @@ import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 export const CONTEXT = 'context.toolbar';
 

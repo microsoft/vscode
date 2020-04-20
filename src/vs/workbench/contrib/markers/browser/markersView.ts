@@ -49,7 +49,7 @@ import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<TreeElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {

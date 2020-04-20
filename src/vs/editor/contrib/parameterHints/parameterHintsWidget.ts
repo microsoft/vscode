@@ -23,7 +23,7 @@ import { editorHoverBackground, editorHoverBorder, textCodeBlockBackground, text
 import { HIGH_CONTRAST, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ParameterHintsModel, TriggerContext } from 'vs/editor/contrib/parameterHints/parameterHintsModel';
 import { pad } from 'vs/base/common/strings';
-import { registerIcon, Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { registerIcon, Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 

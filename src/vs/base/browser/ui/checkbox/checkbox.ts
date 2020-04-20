@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;

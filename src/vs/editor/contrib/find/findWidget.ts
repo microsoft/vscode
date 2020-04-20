@@ -37,7 +37,7 @@ import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibi
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { Codicon, registerIcon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 const findSelectionIcon = registerIcon('find-selection', Codicon.selection);
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight);

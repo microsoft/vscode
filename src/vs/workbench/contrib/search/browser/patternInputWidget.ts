@@ -17,7 +17,7 @@ import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/co
 import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import type { IThemable } from 'vs/base/common/styler';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IOptions {
 	placeholder?: string;

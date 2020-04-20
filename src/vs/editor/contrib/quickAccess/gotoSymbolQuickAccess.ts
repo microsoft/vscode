@@ -17,6 +17,7 @@ import { trim, format } from 'vs/base/common/strings';
 import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,

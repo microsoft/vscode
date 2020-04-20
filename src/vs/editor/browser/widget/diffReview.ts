@@ -31,7 +31,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Constants } from 'vs/base/common/uint';
-import { registerIcon, Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { registerIcon, Codicon } from 'vs/base/common/codicons';
 
 const DIFF_LINES_PADDING = 3;
 

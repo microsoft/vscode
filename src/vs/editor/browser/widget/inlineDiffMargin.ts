@@ -13,7 +13,7 @@ import { IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrow
 import { Range } from 'vs/editor/common/core/range';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IDiffLinesChange {
 	readonly originalStartLineNumber: number;

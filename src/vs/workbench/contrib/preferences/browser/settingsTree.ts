@@ -51,7 +51,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IUserDataSyncEnablementService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 
 const $ = DOM.$;

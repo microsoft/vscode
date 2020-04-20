@@ -25,6 +25,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerColor, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');

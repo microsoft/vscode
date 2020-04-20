@@ -25,7 +25,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { URI } from 'vs/base/common/uri';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { Iterable } from 'vs/base/common/iterator';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 
 export type OutlineItem = OutlineGroup | OutlineElement;
 

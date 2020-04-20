@@ -26,7 +26,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IViewsService } from 'vs/workbench/common/views';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class ShowProblemsPanelAction extends Action {
 

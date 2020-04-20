@@ -7,7 +7,7 @@ import { GlobalMouseMoveMonitor, IStandardMouseMoveEventData, standardMouseMoveM
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { addClasses } from 'vs/base/browser/dom';
 
 /**

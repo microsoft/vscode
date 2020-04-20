@@ -19,7 +19,7 @@ import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Gesture } from 'vs/base/browser/touch';
 import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
-import { Codicon } from 'vs/base/browser/ui/codicons/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 
 namespace LightBulbState {
 
