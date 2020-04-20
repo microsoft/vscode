@@ -222,7 +222,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			index++;
 		}
 
-		for (let i = start; i < this._viewModel!.viewCells.length; i++) {
+		for (let i = start; i < this._viewModel!.length; i++) {
 			ret.push(1);
 		}
 
@@ -237,7 +237,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		// 	console.log(this.hiddenRangesPrefixSum.getAccumulatedValue(i));
 		// }
 
-		// for (let i = 0; i < this._viewModel!.viewCells.length; i++) {
+		// for (let i = 0; i < this._viewModel!.length; i++) {
 		// 	console.log(this.hiddenRangesPrefixSum.getIndexOf(i));
 		// }
 

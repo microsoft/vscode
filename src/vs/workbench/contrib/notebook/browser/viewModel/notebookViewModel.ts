@@ -128,6 +128,7 @@ let MODEL_ID = 0;
 export class NotebookViewModel extends Disposable implements FoldingRegionDelegate {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
+	private _handleToViewCellMapping = new Map<number, CellViewModel>();
 
 	private _currentTokenSource: CancellationTokenSource | undefined;
 
@@ -141,6 +142,14 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
+	}
+
+	set viewCells(_: ICellViewModel[]) {
+		throw new Error('NotebookViewModel.viewCells is readonly');
+	}
+
+	get length(): number {
+		return this._viewCells.length;
 	}
 
 	get notebookDocument() {
@@ -242,6 +251,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
 			return createCellViewModel(this.instantiationService, this, cell);
+		});
+
+		this._viewCells.forEach(cell => {
+			this._handleToViewCellMapping.set(cell.handle, cell);
 		});
 
 		this._foldingModel = new FoldingModel();
@@ -346,6 +359,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 	getCellIndex(cell: ICellViewModel) {
 		return this._viewCells.indexOf(cell as CellViewModel);
+	}
+
+	hasCell(cell: ICellViewModel) {
+		return this._handleToViewCellMapping.has(cell.handle);
 	}
 
 	getVersionId() {
@@ -463,13 +480,17 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 	private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
 		this._viewCells!.splice(insertIndex, 0, insertCell);
+		this._handleToViewCellMapping.set(insertCell.handle, insertCell);
 		this._model.insertCell(insertCell.model, insertIndex);
 		this._localStore.add(insertCell);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
 	}
 
 	private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
+		const deleteCell = this._viewCells[deleteIndex];
 		this._viewCells.splice(deleteIndex, 1);
+		this._handleToViewCellMapping.delete(deleteCell.handle);
+
 		this._model.deleteCell(deleteIndex);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
 	}
@@ -478,6 +499,7 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		const cell = this._model.notebook.createCellTextModel(source, language, type, [], undefined);
 		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
+		this._handleToViewCellMapping.set(newCell.handle, newCell);
 		this._model.insertCell(cell, index);
 		this._localStore.add(newCell);
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
@@ -493,6 +515,8 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean): CellViewModel {
 		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
+		this._handleToViewCellMapping.set(newCell.handle, newCell);
+
 		this._model.insertCell(newCell.model, index);
 		this._localStore.add(newCell);
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
@@ -508,6 +532,8 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	deleteCell(index: number, synchronous: boolean) {
 		let viewCell = this._viewCells[index];
 		this._viewCells.splice(index, 1);
+		this._handleToViewCellMapping.delete(viewCell.handle);
+
 		this._model.deleteCell(index);
 
 		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
