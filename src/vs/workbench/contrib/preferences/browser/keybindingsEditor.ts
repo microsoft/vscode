@@ -504,6 +504,9 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 			} else {
 				this.updateSearchOptions();
 			}
+
+			await this.keybindingsEditorModel.updateKeybindingSource();
+			this.renderKeybindingsEntries(false, preserveFocus);
 		}
 	}
 
@@ -991,7 +994,10 @@ class SourceColumn extends Column {
 
 	render(keybindingItemEntry: IKeybindingItemEntry): void {
 		DOM.clearNode(this.sourceColumn);
-		new HighlightedLabel(this.sourceColumn, false).set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
+		const sourceLabel = new HighlightedLabel(this.sourceColumn, false);
+		sourceLabel.set(keybindingItemEntry.keybindingItem.source, keybindingItemEntry.sourceMatches);
+		this.sourceColumn.title = keybindingItemEntry.keybindingItem.source;
+		sourceLabel.element.title = keybindingItemEntry.keybindingItem.source;
 	}
 }
 

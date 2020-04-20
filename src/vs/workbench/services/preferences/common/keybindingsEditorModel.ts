@@ -17,6 +17,8 @@ import { EditorModel } from 'vs/workbench/common/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export const KEYBINDING_ENTRY_TEMPLATE_ID = 'keybinding.entry.template';
 
@@ -74,10 +76,12 @@ export class KeybindingsEditorModel extends EditorModel {
 	private _keybindingItems: IKeybindingItem[];
 	private _keybindingItemsSortedByPrecedence: IKeybindingItem[];
 	private modifierLabels: ModifierLabels;
+	private os: OperatingSystem;
 
 	constructor(
 		os: OperatingSystem,
-		@IKeybindingService private readonly keybindingsService: IKeybindingService
+		@IKeybindingService private readonly keybindingsService: IKeybindingService,
+		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService
 	) {
 		super();
 		this._keybindingItems = [];
@@ -87,14 +91,16 @@ export class KeybindingsEditorModel extends EditorModel {
 			aria: AriaLabelProvider.modifierLabels[os],
 			user: UserSettingsLabelProvider.modifierLabels[os]
 		};
+		this.os = os;
 	}
 
 	fetch(searchValue: string, sortByPrecedence: boolean = false): IKeybindingItemEntry[] {
 		let keybindingItems = sortByPrecedence ? this._keybindingItemsSortedByPrecedence : this._keybindingItems;
 
-		if (/@source:\s*(user|default)/i.test(searchValue)) {
+		const sourceRegex = /(@user)|(@default)|(@extension)|(@source:\s*"(.+?)"\s?)|(@source:\s*([\S]+)\s?)/i;
+		if (sourceRegex.test(searchValue)) {
 			keybindingItems = this.filterBySource(keybindingItems, searchValue);
-			searchValue = searchValue.replace(/@source:\s*(user|default)/i, '');
+			searchValue = searchValue.replace(sourceRegex, '');
 		}
 
 		searchValue = searchValue.trim();
@@ -106,11 +112,29 @@ export class KeybindingsEditorModel extends EditorModel {
 	}
 
 	private filterBySource(keybindingItems: IKeybindingItem[], searchValue: string): IKeybindingItem[] {
-		if (/@source:\s*default/i.test(searchValue)) {
+		if (/@extension/i.test(searchValue)) {
+			return keybindingItems.filter(k => k.source !== SOURCE_USER && k.source !== SOURCE_DEFAULT);
+		}
+		if (/@user/i.test(searchValue)) {
+			return keybindingItems.filter(k => k.source === SOURCE_USER);
+		}
+		if (/@default/i.test(searchValue)) {
 			return keybindingItems.filter(k => k.source === SOURCE_DEFAULT);
 		}
-		if (/@source:\s*user/i.test(searchValue)) {
-			return keybindingItems.filter(k => k.source === SOURCE_USER);
+
+		const quotesRegex = /@source:\s*"(.+?)"\s?/i;
+		if (quotesRegex.test(searchValue)) {
+			const match = searchValue.match(quotesRegex);
+			if (!match) { return keybindingItems; }
+			const extensionQuery = new RegExp(match[1], 'i');
+			return keybindingItems.filter(k => extensionQuery.test(k.source));
+		}
+		const withoutQuotesRegex = /@source:\s*([\S]+)\s?/i;
+		if (withoutQuotesRegex.test(searchValue)) {
+			const match = searchValue.match(withoutQuotesRegex);
+			if (!match) { return keybindingItems; }
+			const extensionQuery = new RegExp(match[1], 'i');
+			return keybindingItems.filter(k => extensionQuery.test(k.source));
 		}
 		return keybindingItems;
 	}
@@ -181,6 +205,82 @@ export class KeybindingsEditorModel extends EditorModel {
 		}
 		this._keybindingItems = this._keybindingItemsSortedByPrecedence.slice(0).sort((a, b) => KeybindingsEditorModel.compareKeybindingData(a, b));
 		return Promise.resolve(this);
+	}
+
+	/**
+	 * Update keybinding source based on extension contributions.
+	 * When extension contributes a keybinding or a command without keybinding
+	 * the source column must be that extensions' title.
+	 */
+	async updateKeybindingSource() {
+		const extensions = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const contributedCommands: {
+			[commandId: string]: string
+		} = {};
+		const contributedKeybindings: {
+			[commandId: string]: {
+				extensionName: string,
+				keybinding: ResolvedKeybinding[]
+			}
+		} = {};
+		for (const extension of extensions) {
+			const { contributes } = extension.manifest;
+			if (!contributes) {
+				continue;
+			}
+			const extensionName = extension.manifest.displayName ? extension.manifest.displayName : extension.manifest.name;
+
+			if (Array.isArray(contributes.commands)) {
+				for (const command of contributes.commands) {
+					contributedCommands[command.command] = extensionName;
+				}
+			}
+			if (Array.isArray(contributes.keybindings)) {
+				for (const contributedKeybinding of contributes.keybindings) {
+					let osSpecificKey: string;
+					switch (this.os) {
+						case OperatingSystem.Windows: {
+							osSpecificKey = contributedKeybinding.win || contributedKeybinding.key;
+							break;
+						}
+						case OperatingSystem.Linux: {
+							osSpecificKey = contributedKeybinding.linux || contributedKeybinding.key;
+							break;
+						}
+						case OperatingSystem.Macintosh: {
+							osSpecificKey = contributedKeybinding.mac || contributedKeybinding.key;
+						}
+					}
+					contributedKeybindings[contributedKeybinding.command] = {
+						extensionName,
+						keybinding: this.keybindingsService.resolveUserBinding(osSpecificKey)
+					};
+				}
+			}
+		}
+		for (const keybinding of this._keybindingItems) {
+
+			if (keybinding.command in contributedCommands) {
+				if (keybinding.source === SOURCE_USER) {
+					continue;
+				}
+				keybinding.source = contributedCommands[keybinding.command];
+			}
+
+			if (keybinding.command in contributedKeybindings) {
+				if (keybinding.source === SOURCE_USER) {
+					continue;
+				}
+				const keybindingLabel = keybinding?.keybinding?.getLabel();
+				if (!keybindingLabel) {
+					continue;
+				}
+				const contributedKeybinding = contributedKeybindings[keybinding.command];
+				if (contributedKeybinding.keybinding[0]?.getLabel() === keybindingLabel) {
+					keybinding.source = contributedKeybinding.extensionName;
+				}
+			}
+		}
 	}
 
 	private static getId(keybindingItem: IKeybindingItem): string {
