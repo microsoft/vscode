@@ -738,16 +738,6 @@ registerAction2(class extends Action2 {
 				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-up' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.MoveCellUp,
-					alt: {
-						id: COPY_CELL_UP_COMMAND_ID,
-						title: localize('notebookActions.copyCellUp', "Copy Cell Up"),
-						icon: { id: 'codicon/arrow-up' }
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			});
 	}
@@ -772,16 +762,6 @@ registerAction2(class extends Action2 {
 				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-down' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.MoveCellDown,
-					alt: {
-						id: COPY_CELL_DOWN_COMMAND_ID,
-						title: localize('notebookActions.copyCellDown', "Copy Cell Down"),
-						icon: { id: 'codicon/arrow-down' }
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			});
 	}
