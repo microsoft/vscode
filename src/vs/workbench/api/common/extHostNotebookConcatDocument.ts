@@ -13,6 +13,7 @@ import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData
 import { Range } from 'vs/workbench/api/common/extHostTypeConverters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 
+
 //todo@jrieken ConcatDiagnosticsCollection...
 
 export class ExtHostNotebookConcatDocument {
@@ -109,17 +110,36 @@ export class ExtHostNotebookConcatDocument {
 	}
 
 
-	locationAt(position: vscode.Position): vscode.Location {
-		const offset = this._delegate.document.offsetAt(position);
-		const index = this._cellStarts.getIndexOf(offset);
-		const cell = this._notebook.cells[index.index];
-		if (!cell) {
+	locationAt(positionOrRange: vscode.Position | vscode.Range): vscode.Location {
+
+		if (!types.Range.isRange(positionOrRange)) {
+			positionOrRange = new types.Range(<types.Position>positionOrRange, <types.Position>positionOrRange);
+		}
+
+		const start = this._delegate.document.offsetAt(positionOrRange.start);
+		const startIndex = this._cellStarts.getIndexOf(start);
+		const startCell = this._notebook.cells[startIndex.index];
+		if (!startCell) {
 			// do better?
 			// return undefined;
 			return new types.Location(this._notebook.uri, new types.Position(0, 0));
 		}
-		const cellPos = cell.document.positionAt(index.remainder);
-		return new types.Location(cell.uri, <any>cellPos);
+
+		let endCell = startCell;
+		let endIndex = startIndex;
+		if (!positionOrRange.isEmpty) {
+			const end = this._delegate.document.offsetAt(positionOrRange.end);
+			endIndex = this._cellStarts.getIndexOf(end);
+			endCell = this._notebook.cells[endIndex.index];
+		}
+
+		const startPos = startCell.document.positionAt(startIndex.remainder);
+		let endPos = startPos;
+		if (endCell && endCell.handle === startCell.handle) {
+			endPos = endCell.document.positionAt(endIndex.remainder);
+		}
+
+		return new types.Location(startCell.uri, new types.Range(startPos.line, startPos.character, endPos.line, endPos.character));
 	}
 
 	positionAt(offset: number): vscode.Position;
