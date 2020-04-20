@@ -50,6 +50,17 @@ suite('NotebookConcatDocument', function () {
 			async resolveNotebook() { }
 		});
 		await extHostNotebooks.$resolveNotebook('test', notebookUri);
+		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			versionId: 0,
+			changes: [[0, 0, [{
+				handle: 0,
+				uri: CellUri.generate(notebookUri, 0),
+				source: ['### Heading'],
+				language: 'markdown',
+				cellKind: CellKind.Markdown,
+				outputs: [],
+			}]]]
+		});
 		await extHostNotebooks.$updateActiveEditor('test', notebookUri);
 
 		notebook = extHostNotebooks.activeNotebookDocument!;
@@ -60,9 +71,9 @@ suite('NotebookConcatDocument', function () {
 	});
 
 	test('empty', function () {
-		let doc = new ExtHostNotebookConcatDocument(notebook, extHostNotebooks, extHostDocuments);
+		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, undefined);
 		assert.equal(doc.getText(), '');
-		assert.equal(doc.versionId, 0);
+		assert.equal(doc.version, 0);
 
 		// assert.equal(doc.locationAt(new Position(0, 0)), undefined);
 		// assert.equal(doc.positionAt(SOME_FAKE_LOCATION?), undefined);
@@ -111,9 +122,9 @@ suite('NotebookConcatDocument', function () {
 		});
 
 
-		assert.equal(notebook.cells.length, 2);
+		assert.equal(notebook.cells.length, 1 + 2); // markdown and code
 
-		let doc = new ExtHostNotebookConcatDocument(notebook, extHostNotebooks, extHostDocuments);
+		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, undefined);
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
@@ -126,7 +137,7 @@ suite('NotebookConcatDocument', function () {
 
 	test('location, position mapping, cell changes', function () {
 
-		let doc = new ExtHostNotebookConcatDocument(notebook, extHostNotebooks, extHostDocuments);
+		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, undefined);
 
 		// UPDATE 1
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
@@ -140,8 +151,8 @@ suite('NotebookConcatDocument', function () {
 				outputs: [],
 			}]]]
 		});
-		assert.equal(notebook.cells.length, 1);
-		assert.equal(doc.versionId, 1);
+		assert.equal(notebook.cells.length, 1 + 1);
+		assert.equal(doc.version, 1);
 		assertLines(doc, 'Hello', 'World', 'Hello World!');
 
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
@@ -162,8 +173,8 @@ suite('NotebookConcatDocument', function () {
 			}]]]
 		});
 
-		assert.equal(notebook.cells.length, 2);
-		assert.equal(doc.versionId, 2);
+		assert.equal(notebook.cells.length, 1 + 2);
+		assert.equal(doc.version, 2);
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(4, 0), new Location(notebook.cells[1].uri, new Position(1, 0)));
@@ -176,8 +187,8 @@ suite('NotebookConcatDocument', function () {
 			versionId: notebook.versionId + 1,
 			changes: [[1, 1, []]]
 		});
-		assert.equal(notebook.cells.length, 1);
-		assert.equal(doc.versionId, 3);
+		assert.equal(notebook.cells.length, 1 + 1);
+		assert.equal(doc.version, 3);
 		assertLines(doc, 'Hello', 'World', 'Hello World!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(2, 2), new Location(notebook.cells[0].uri, new Position(2, 2)));
@@ -186,7 +197,7 @@ suite('NotebookConcatDocument', function () {
 
 	test('location, position mapping, cell-document changes', function () {
 
-		let doc = new ExtHostNotebookConcatDocument(notebook, extHostNotebooks, extHostDocuments);
+		let doc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, undefined);
 
 		// UPDATE 1
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
@@ -207,8 +218,8 @@ suite('NotebookConcatDocument', function () {
 				outputs: [],
 			}]]]
 		});
-		assert.equal(notebook.cells.length, 2);
-		assert.equal(doc.versionId, 1);
+		assert.equal(notebook.cells.length, 1 + 2);
+		assert.equal(doc.version, 1);
 
 		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
@@ -247,5 +258,51 @@ suite('NotebookConcatDocument', function () {
 
 		assert.equal(doc.positionAt(cell1End).isEqual(new Position(3, 2)), true);
 
+	});
+
+	test('selector', function () {
+
+		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			versionId: notebook.versionId + 1,
+			changes: [[0, 0, [{
+				handle: 1,
+				uri: CellUri.generate(notebook.uri, 1),
+				source: ['fooLang-document'],
+				language: 'fooLang',
+				cellKind: CellKind.Code,
+				outputs: [],
+			}, {
+				handle: 2,
+				uri: CellUri.generate(notebook.uri, 2),
+				source: ['barLang-document'],
+				language: 'barLang',
+				cellKind: CellKind.Code,
+				outputs: [],
+			}]]]
+		});
+
+		const mixedDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, undefined);
+		const fooLangDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, 'fooLang');
+		const barLangDoc = new ExtHostNotebookConcatDocument(extHostNotebooks, extHostDocuments, notebook, 'barLang');
+
+		assertLines(mixedDoc, 'fooLang-document', 'barLang-document');
+		assertLines(fooLangDoc, 'fooLang-document');
+		assertLines(barLangDoc, 'barLang-document');
+
+		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			versionId: notebook.versionId + 1,
+			changes: [[2, 0, [{
+				handle: 3,
+				uri: CellUri.generate(notebook.uri, 3),
+				source: ['barLang-document2'],
+				language: 'barLang',
+				cellKind: CellKind.Code,
+				outputs: [],
+			}]]]
+		});
+
+		assertLines(mixedDoc, 'fooLang-document', 'barLang-document', 'barLang-document2');
+		assertLines(fooLangDoc, 'fooLang-document');
+		assertLines(barLangDoc, 'barLang-document', 'barLang-document2');
 	});
 });

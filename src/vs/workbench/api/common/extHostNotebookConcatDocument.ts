@@ -6,36 +6,42 @@
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostNotebookDocument, ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookDocument, ExtHostNotebookController, ExtHostCell } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
-import { Range } from 'vs/workbench/api/common/extHostTypeConverters';
+import { Range, LanguageSelector } from 'vs/workbench/api/common/extHostTypeConverters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { score } from 'vs/editor/common/modes/languageSelector';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotImplementedProxy } from 'vs/base/common/types';
+import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 
 
 //todo@jrieken ConcatDiagnosticsCollection...
 
-export class ExtHostNotebookConcatDocument {
+export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextDocument {
 
 	private _disposables = new DisposableStore();
 
 	private readonly _onDidChange = new Emitter<this>();
 	readonly onDidChange: Event<this> = this._onDidChange.event;
 
-	private _delegate!: ExtHostDocumentData;
-	private _cellStarts!: PrefixSumComputer;
 	private _versionId = 0;
+	private _delegate!: ExtHostDocumentData;
+	private _selectedCells!: ExtHostCell[];
+	private _cellStarts!: PrefixSumComputer;
 
 	constructor(
-		private readonly _notebook: ExtHostNotebookDocument,
 		extHostNotebooks: ExtHostNotebookController,
 		extHostDocuments: ExtHostDocuments,
+		private readonly _notebook: ExtHostNotebookDocument,
+		private readonly _selector: vscode.DocumentSelector | undefined,
 	) {
 		this._init();
 
 		extHostDocuments.onDidChangeDocument(e => {
-			const cellIdx = this._notebook.cells.findIndex(candidate => candidate.uri.toString() === e.document.uri.toString());
+			const cellIdx = this._selectedCells.findIndex(candidate => candidate.uri.toString() === e.document.uri.toString());
 			if (cellIdx < 0) {
 				return;
 			}
@@ -76,37 +82,42 @@ export class ExtHostNotebookConcatDocument {
 	}
 
 	private _init() {
+
+		// only allow Code-cells and those that are selected by the language selector
+		this._selectedCells = this._notebook.cells
+			.filter(cell => cell.cellKind === CellKind.Code && (!this._selector || score(LanguageSelector.from(this._selector), cell.uri, cell.language, true)));
+
 		const lines: string[] = [];
-		const values = new Uint32Array(this._notebook.cells.length);
-		for (let i = 0; i < this._notebook.cells.length; i++) {
+		const cellLengths = new Uint32Array(this._selectedCells.length);
 
-			const cell = this._notebook.cells[i];
-
+		for (let i = 0; i < this._selectedCells.length; i++) {
+			const cell = this._selectedCells[i];
 			// update prefix sum
-			values[i] = cell.document.getText().length + 1; // 1 is newline
-
+			cellLengths[i] = cell.document.getText().length + 1; // 1 is newline
 			//todo@jrieken reuse lines!
 			for (let line = 0; line < cell.document.lineCount; line++) {
 				lines.push(cell.document.lineAt(line).text);
 			}
 		}
 
-		this._cellStarts = new PrefixSumComputer(values);
+		this._cellStarts = new PrefixSumComputer(cellLengths);
 		this._delegate = new ExtHostDocumentData(
-			null!,
+			new class extends NotImplementedProxy<MainThreadDocumentsShape>('MainThreadDocumentsShape') { },
 			this._notebook.uri.with({ scheme: 'vscode-concatdoc' }),
-			lines, '\n',
+			lines,
+			'\n',
 			this._notebook.languages[0],
-			0, false
+			this._versionId,
+			false
 		);
 	}
 
-	get versionId() {
+	get version() {
 		return this._versionId;
 	}
 
-	getText() {
-		return this._delegate.getText();
+	getText(range?: vscode.Range) {
+		return this._delegate.document.getText(range);
 	}
 
 	locationAt(positionOrRange: vscode.Position | vscode.Range): vscode.Location {
@@ -117,10 +128,9 @@ export class ExtHostNotebookConcatDocument {
 
 		const start = this._delegate.document.offsetAt(positionOrRange.start);
 		const startIndex = this._cellStarts.getIndexOf(start);
-		const startCell = this._notebook.cells[startIndex.index];
+		const startCell = this._selectedCells[startIndex.index];
 		if (!startCell) {
-			// do better?
-			// return undefined;
+			// do better? throw an error insead? return undefined?
 			return new types.Location(this._notebook.uri, new types.Position(0, 0));
 		}
 
@@ -129,7 +139,7 @@ export class ExtHostNotebookConcatDocument {
 		if (!positionOrRange.isEmpty) {
 			const end = this._delegate.document.offsetAt(positionOrRange.end);
 			endIndex = this._cellStarts.getIndexOf(end);
-			endCell = this._notebook.cells[endIndex.index];
+			endCell = this._selectedCells[endIndex.index];
 		}
 
 		const startPos = startCell.document.positionAt(startIndex.remainder);
@@ -145,13 +155,13 @@ export class ExtHostNotebookConcatDocument {
 		if (typeof offsetOrLocation === 'number') {
 			return this._delegate.document.positionAt(offsetOrLocation);
 		}
-		const idx = this._notebook.cells.findIndex(candidate => candidate.uri.toString() === offsetOrLocation.uri.toString());
+		const idx = this._selectedCells.findIndex(candidate => candidate.uri.toString() === offsetOrLocation.uri.toString());
 		if (idx < 0) {
 			// do better?
 			// return undefined;
 			return new types.Position(0, 0);
 		}
-		const docOffset = this._notebook.cells[idx].document.offsetAt(offsetOrLocation.range.start);
+		const docOffset = this._selectedCells[idx].document.offsetAt(offsetOrLocation.range.start);
 		const cellOffset = this._cellStarts.getAccumulatedValue(idx - 1);
 		return this._delegate.document.positionAt(docOffset + cellOffset);
 	}

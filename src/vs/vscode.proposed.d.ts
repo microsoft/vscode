@@ -1600,6 +1600,17 @@ declare module 'vscode' {
 		languages: string[];
 		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
+
+	}
+
+	export interface NotebookConcatTextDocument {
+		version: number;
+		getText(): string;
+		getText(range: Range): string;
+		offsetAt(position: Position): number;
+		positionAt(offset: number): Position;
+		locationAt(positionOrRange: Position | Range): Location;
+		positionAt(location: Location): Position;
 	}
 
 	export interface NotebookEditorCellEdit {
