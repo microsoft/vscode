@@ -34,6 +34,7 @@ import { debounce } from 'vs/base/common/decorators';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { addClass } from 'vs/base/browser/dom';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface ISpliceEvent<T> {
 	index: number;
@@ -69,7 +70,7 @@ export class EmptyPane extends ViewPane {
 export class EmptyPaneDescriptor implements IViewDescriptor {
 	readonly id = EmptyPane.ID;
 	readonly name = EmptyPane.TITLE;
-	readonly containerIcon = 'codicon-source-control';
+	readonly containerIcon = Codicon.sourceControl.classNames;
 	readonly ctorDescriptor = new SyncDescriptor(EmptyPane);
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;

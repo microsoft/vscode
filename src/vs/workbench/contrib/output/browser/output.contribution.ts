@@ -32,6 +32,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
+import { Codicon } from 'vs/base/common/codicons';
 
 // Register Service
 registerSingleton(IOutputService, OutputService);
@@ -70,7 +71,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
 	name: nls.localize('output', "Output"),
-	containerIcon: 'codicon-output',
+	containerIcon: Codicon.output.classNames,
 	canMoveView: true,
 	canToggleVisibility: false,
 	ctorDescriptor: new SyncDescriptor(OutputViewPane),
