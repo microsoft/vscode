@@ -28,7 +28,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
-import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/notebookFindWidget';
 import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -37,7 +37,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebook
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
-import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CodeCellRenderer, MarkdownCellRenderer, NotebookCellListDelegate, CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -183,9 +183,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private createCellList(): void {
 		DOM.addClass(this.body, 'cell-list-container');
 
+		const dndController = new CellDragAndDropController(this);
 		const renders = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this.contextKeyService, this.renderedEditors),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this),
+			this.instantiationService.createInstance(CodeCellRenderer, this, this.contextKeyService, this.renderedEditors, dndController),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this, dndController),
 		];
 
 		this.list = this.instantiationService.createInstance(
@@ -633,7 +634,20 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return this.moveCellToIndex(index, newIdx);
 	}
 
+	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void> {
+		if (cell === relativeToCell) {
+			return;
+		}
+
+		const originalIdx = this.notebookViewModel!.getCellIndex(cell);
+		const relativeToIndex = this.notebookViewModel!.getCellIndex(relativeToCell);
+
+		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+		return this.moveCellToIndex(originalIdx, newIdx);
+	}
+
 	private async moveCellToIndex(index: number, newIdx: number): Promise<void> {
+		// console.log(`Move ${index} to ${newIdx}`);
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			return;
 		}
@@ -853,6 +867,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .monaco-editor-background,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell .margin-view-overlays,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-statusbar-container { background: ${color}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-drag-image .cell-editor-container > div { background: ${color} !important; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
@@ -890,12 +905,7 @@ registerThemingParticipant((theme, collector) => {
 	if (editorBackgroundColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container { border-top: solid 1px ${editorBackgroundColor}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > .monaco-toolbar { background-color: ${editorBackgroundColor}; }`);
-	}
-
-	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
-	if (focusedCellIndicatorColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.selected .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.cell-drag-image { background-color: ${editorBackgroundColor}; }`);
 	}
 
 	const cellToolbarSeperator = theme.getColor(CELL_TOOLBAR_SEPERATOR);
@@ -903,6 +913,14 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator { background-color: ${cellToolbarSeperator} }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator-short { background-color: ${cellToolbarSeperator} }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .notebook-cell-focus-indicator { border-color: ${cellToolbarSeperator}; }`);
+	}
+
+	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
+	if (focusedCellIndicatorColor) {
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .notebook-cell-insertion-indicator-top { background-color: ${focusedCellIndicatorColor}; }`);
 	}
 
 	// Cell Margin
@@ -911,8 +929,9 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-container { width: calc(100% - ${CELL_RUN_GUTTER}px); }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .markdown-editor-container { margin-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-insertion-indicator-top { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
 });

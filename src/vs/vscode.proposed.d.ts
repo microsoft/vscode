@@ -714,7 +714,39 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region deprecated debug API
+	//#region debug: https://github.com/microsoft/vscode/issues/88230
+
+
+	/**
+	 * VS Code can call the `provideDebugConfigurations` method of a `DebugConfigurationProvider` in two situations (aka 'scopes'):
+	 * to provide the initial debug configurations for a newly create launch.json or to provide debug configurations dynamically based on context.
+	 * A scope value is used when registering a `DebugConfigurationProvider` with #debug.registerDebugConfigurationProvider.
+	 */
+	export enum DebugConfigurationProviderScope {
+		/**
+		 * The 'initial' scope denotes a context where all debug configurations for a newly created launch.json are needed.
+		 */
+		Initial = 1,
+		/**
+		 * The 'dynamic' scope denotes a context where all debug configurations for the current context are needed.
+		 */
+		Dynamic = 2
+	}
+
+	export namespace debug {
+		/**
+		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specific debug type.
+		 * More than one provider can be registered for the same type.
+		 *
+		 * @param type The debug type for which the provider is registered.
+		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
+		 * @param scope The [scope](#DebugConfigurationProviderScope) for which the 'provideDebugConfiguration' method of the provider is registered. An error is thrown if the provider has no 'provideDebugConfiguration' method or if it has one of the 'resolveDebugConfiguration' methods.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, scope?: DebugConfigurationProviderScope): Disposable;
+	}
+
+	// deprecated debug API
 
 	export interface DebugConfigurationProvider {
 		/**

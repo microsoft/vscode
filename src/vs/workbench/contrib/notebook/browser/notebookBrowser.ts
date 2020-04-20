@@ -146,6 +146,11 @@ export interface INotebookEditor {
 	moveCellDown(cell: ICellViewModel): void;
 
 	/**
+	 * Move a cell above or below another cell
+	 */
+	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void>;
+
+	/**
 	 * Switch the cell into editing mode.
 	 *
 	 * For code cell, the monaco editor will be focused.
@@ -340,10 +345,13 @@ export interface INotebookCellList {
 export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
+	dragHandle: HTMLElement;
 	toolbar: ToolBar;
 	focusIndicator: HTMLElement;
+	insertionIndicatorTop: HTMLElement;
 	disposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
+	currentRenderedCell?: ICellViewModel;
 	toJSON: () => any;
 }
 
