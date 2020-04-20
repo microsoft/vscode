@@ -84,6 +84,11 @@ suite('NotebookConcatDocument', function () {
 		}
 	}
 
+	function assertLines(doc: ExtHostNotebookConcatDocument, ...lines: string[]) {
+		let actual = doc.getText().split(/\r\n|\n|\r/);
+		assert.deepStrictEqual(actual, lines);
+	}
+
 	test('location, position mapping', function () {
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
@@ -109,7 +114,7 @@ suite('NotebookConcatDocument', function () {
 		assert.equal(notebook.cells.length, 2);
 
 		let doc = new ExtHostNotebookConcatDocument(notebook, extHostNotebooks, extHostDocuments);
-		assert.equal(doc.getText(), ['Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!'].join('\n'));
+		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(4, 0), new Location(notebook.cells[1].uri, new Position(1, 0)));
@@ -137,7 +142,8 @@ suite('NotebookConcatDocument', function () {
 		});
 		assert.equal(notebook.cells.length, 1);
 		assert.equal(doc.versionId, 1);
-		assert.equal(doc.getText(), ['Hello', 'World', 'Hello World!'].join('\n'));
+		assertLines(doc, 'Hello', 'World', 'Hello World!');
+
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(2, 2), new Location(notebook.cells[0].uri, new Position(2, 2)));
 		assertLocation(doc, new Position(4, 0), new Location(notebook.cells[0].uri, new Position(2, 12)), false); // clamped
@@ -158,7 +164,7 @@ suite('NotebookConcatDocument', function () {
 
 		assert.equal(notebook.cells.length, 2);
 		assert.equal(doc.versionId, 2);
-		assert.equal(doc.getText(), ['Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!'].join('\n'));
+		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(4, 0), new Location(notebook.cells[1].uri, new Position(1, 0)));
 		assertLocation(doc, new Position(4, 3), new Location(notebook.cells[1].uri, new Position(1, 3)));
@@ -172,7 +178,7 @@ suite('NotebookConcatDocument', function () {
 		});
 		assert.equal(notebook.cells.length, 1);
 		assert.equal(doc.versionId, 3);
-		assert.equal(doc.getText(), ['Hello', 'World', 'Hello World!'].join('\n'));
+		assertLines(doc, 'Hello', 'World', 'Hello World!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(2, 2), new Location(notebook.cells[0].uri, new Position(2, 2)));
 		assertLocation(doc, new Position(4, 0), new Location(notebook.cells[0].uri, new Position(2, 12)), false); // clamped
@@ -204,7 +210,7 @@ suite('NotebookConcatDocument', function () {
 		assert.equal(notebook.cells.length, 2);
 		assert.equal(doc.versionId, 1);
 
-		assert.equal(doc.getText(), ['Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!'].join('\n'));
+		assertLines(doc, 'Hello', 'World', 'Hello World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(0, 0), new Location(notebook.cells[0].uri, new Position(0, 0)));
 		assertLocation(doc, new Position(2, 2), new Location(notebook.cells[0].uri, new Position(2, 2)));
 		assertLocation(doc, new Position(2, 12), new Location(notebook.cells[0].uri, new Position(2, 12)));
@@ -236,7 +242,7 @@ suite('NotebookConcatDocument', function () {
 				text: 'Hi'
 			}]
 		}, false);
-		assert.equal(doc.getText(), ['Hello', 'World', 'Hi World!', 'Hallo', 'Welt', 'Hallo Welt!'].join('\n'));
+		assertLines(doc, 'Hello', 'World', 'Hi World!', 'Hallo', 'Welt', 'Hallo Welt!');
 		assertLocation(doc, new Position(2, 12), new Location(notebook.cells[0].uri, new Position(2, 9)), false);
 
 		assert.equal(doc.positionAt(cell1End).isEqual(new Position(3, 2)), true);
