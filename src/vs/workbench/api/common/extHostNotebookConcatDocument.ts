@@ -109,7 +109,6 @@ export class ExtHostNotebookConcatDocument {
 		return this._delegate.getText();
 	}
 
-
 	locationAt(positionOrRange: vscode.Position | vscode.Range): vscode.Location {
 
 		if (!types.Range.isRange(positionOrRange)) {
@@ -142,8 +141,6 @@ export class ExtHostNotebookConcatDocument {
 		return new types.Location(startCell.uri, new types.Range(startPos.line, startPos.character, endPos.line, endPos.character));
 	}
 
-	positionAt(offset: number): vscode.Position;
-	positionAt(location: vscode.Location): vscode.Position;
 	positionAt(offsetOrLocation: number | vscode.Location): vscode.Position {
 		if (typeof offsetOrLocation === 'number') {
 			return this._delegate.document.positionAt(offsetOrLocation);
