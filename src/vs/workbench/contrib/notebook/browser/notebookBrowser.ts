@@ -5,7 +5,7 @@
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -341,6 +341,11 @@ export interface INotebookCellList {
 	updateOptions(options: IListOptions<ICellViewModel>): void;
 	layout(height?: number, width?: number): void;
 	dispose(): void;
+
+	// TODO resolve differences between List<CellViewModel> and INotebookCellList<ICellViewModel>
+	getFocus(): number[];
+	setFocus(indexes: number[]): void;
+	setSelection(indexes: number[]): void;
 }
 
 export interface BaseCellRenderTemplate {

@@ -312,6 +312,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	focus() {
 		super.focus();
 		this.editorFocus?.set(true);
+		this.list?.domFocus();
 	}
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
@@ -431,12 +432,22 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.list!.layout();
 
+		this.restoreTextEditorViewState(viewState);
+	}
+
+	private restoreTextEditorViewState(viewState: INotebookEditorViewState | undefined): void {
 		if (viewState?.scrollPosition !== undefined) {
 			this.list!.scrollTop = viewState!.scrollPosition.top;
 			this.list!.scrollLeft = viewState!.scrollPosition.left;
 		} else {
 			this.list!.scrollTop = 0;
 			this.list!.scrollLeft = 0;
+		}
+
+		if (typeof viewState?.focus === 'number') {
+			this.list!.setFocus([viewState.focus]);
+		} else {
+			this.list!.setFocus([0]);
 		}
 	}
 
@@ -456,6 +467,11 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				}
 
 				state.cellTotalHeights = cellHeights;
+
+				const focus = this.list.getFocus()[0];
+				if (focus) {
+					state.focus = focus;
+				}
 			}
 
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
