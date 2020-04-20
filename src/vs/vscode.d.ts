@@ -10109,13 +10109,29 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A debug configuration provider allows to add the initial debug configurations to a newly created launch.json
-	 * and to resolve a launch configuration before it is used to start a new debug session.
+	 * VS Code can call the `provideDebugConfigurations` method of a `DebugConfigurationProvider` in two situations (aka 'scopes'):
+	 * to provide the initial debug configurations for a newly create launch.json or to provide debug configurations dynamically based on context.
+	 * A scope value is used when registering a `DebugConfigurationProvider` with #debug.registerDebugConfigurationProvider.
+	 */
+	export enum DebugConfigurationProviderScope {
+		/**
+		 * The 'initial' scope denotes a context where all debug configurations for a newly created launch.json are needed.
+		 */
+		Initial = 1,
+		/**
+		 * The 'dynamic' scope denotes a context where all debug configurations for the current context are needed.
+		 */
+		Dynamic = 2
+	}
+
+	/**
+	 * A debug configuration provider allows to add debug configurations to the debug service
+	 * and to resolve launch configurations before they are used to start a debug session.
 	 * A debug configuration provider is registered via #debug.registerDebugConfigurationProvider.
 	 */
 	export interface DebugConfigurationProvider {
 		/**
-		 * Provides initial [debug configuration](#DebugConfiguration). If more than one debug configuration provider is
+		 * Provides [debug configuration](#DebugConfiguration) to the debug service. If more than one debug configuration provider is
 		 * registered for the same type, debug configurations are concatenated in arbitrary order.
 		 *
 		 * @param folder The workspace folder for which the configurations are used or `undefined` for a folderless setup.
@@ -10526,9 +10542,10 @@ declare module 'vscode' {
 		 *
 		 * @param type The debug type for which the provider is registered.
 		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
+		 * @param scope The [scope](#DebugConfigurationProviderScope) for which the 'provideDebugConfiguration' method of the provider is registered. An error is thrown if the provider has no 'provideDebugConfiguration' method or if it has one of the 'resolveDebugConfiguration' methods.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
+		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, scope?: DebugConfigurationProviderScope): Disposable;
 
 		/**
 		 * Register a [debug adapter descriptor factory](#DebugAdapterDescriptorFactory) for a specific debug type.

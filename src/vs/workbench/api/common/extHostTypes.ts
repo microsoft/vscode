@@ -2652,6 +2652,22 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
+/**
+ * VS Code can call the `provideDebugConfigurations` method of a `DebugConfigurationProvider` in two situations (aka 'scopes'):
+ * to provide the initial debug configurations for a newly create launch.json or to provide debug configurations dynamically based on context.
+ * A scope value is used when registering a `DebugConfigurationProvider` with `debug.registerDebugConfigurationProvider`.
+ */
+export enum DebugConfigurationProviderScope {
+	/**
+	 * The 'initial' scope denotes a context where all debug configurations for a newly created launch.json are needed.
+	 */
+	Initial = 1,
+	/**
+	 * The 'dynamic' scope denotes a context where all debug configurations for the current context are needed.
+	 */
+	Dynamic = 2
+}
+
 //#endregion
 
 @es5ClassCompat
