@@ -45,8 +45,11 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction } from 'vs/base/common/actions';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 const expandSuggestionDocsByDefault = false;
+
+const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight);
 
 interface ISuggestionTemplateData {
 	root: HTMLElement;
@@ -155,7 +158,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
 		data.detailsLabel = append(data.right, $('span.details-label'));
 
-		data.readMore = append(data.right, $('span.readMore.codicon.codicon-info'));
+		data.readMore = append(data.right, $('span.readMore' + suggestMoreInfoIcon.cssSelector));
 		data.readMore.title = nls.localize('readMore', "Read More...{0}", this.triggerKeybindingLabel);
 
 		const configureFont = () => {
@@ -229,7 +232,7 @@ class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateD
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			addClasses(data.iconContainer, `suggest-icon codicon codicon-${completionKindToCssClass(suggestion.kind)}`);
+			addClasses(data.iconContainer, `suggest-icon ${completionKindToCssClass(suggestion.kind)}`);
 		}
 
 		if (suggestion.tags && suggestion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {
@@ -317,7 +320,7 @@ class SuggestionDetails {
 		this.disposables.add(this.scrollbar);
 
 		this.header = append(this.body, $('.header'));
-		this.close = append(this.header, $('span.codicon.codicon-close'));
+		this.close = append(this.header, $('span' + Codicon.close.cssSelector));
 		this.close.title = nls.localize('readLess', "Read less...{0}", this.kbToggleDetails);
 		this.type = append(this.header, $('p.type'));
 

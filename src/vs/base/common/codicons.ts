@@ -9,6 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 export interface IIconRegistry {
 	readonly all: IterableIterator<Codicon>;
 	readonly onDidRegister: Event<Codicon>;
+	get(id: string): Codicon | undefined;
 }
 
 class Registry implements IIconRegistry {
@@ -23,6 +24,10 @@ class Registry implements IIconRegistry {
 		} else {
 			console.error(`Duplicate registration of codicon ${icon.id}`);
 		}
+	}
+
+	public get(id: string): Codicon | undefined {
+		return this._icons.get(id);
 	}
 
 	public get all(): IterableIterator<Codicon> {
