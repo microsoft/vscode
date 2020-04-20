@@ -40,6 +40,12 @@ export class HoverWidget extends Widget {
 		super();
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
+		this._domNode.tabIndex = 0;
+		this._domNode.setAttribute('role', 'tooltip');
+
+		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
+		// not be selected.
+		this.onmousedown(this._domNode, e => e.stopPropagation());
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
