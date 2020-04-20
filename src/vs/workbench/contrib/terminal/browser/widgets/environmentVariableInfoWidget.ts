@@ -40,6 +40,11 @@ export class EnvironmentVariableInfoWidget extends Widget implements ITerminalWi
 		this._domNode?.parentElement?.removeChild(this._domNode);
 	}
 
+	focus() {
+		this._showHover();
+		this._hoverWidget?.focus();
+	}
+
 	private _showHover() {
 		if (!this._domNode || !this._container || this._hoverWidget) {
 			return;

@@ -319,6 +319,11 @@ export interface ITerminalInstance {
 	readonly navigationMode: INavigationMode | undefined;
 
 	/**
+	 * Shows the environment information hover if the widget exists.
+	 */
+	showEnvironmentInfoHover(): void;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
 	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used

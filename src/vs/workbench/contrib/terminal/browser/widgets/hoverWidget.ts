@@ -79,6 +79,8 @@ export class HoverWidget extends Widget {
 	private _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
 		const actionContainer = dom.append(parent, $('div.action-container'));
 		const action = dom.append(actionContainer, $('a.action'));
+		action.tabIndex = 0;
+		action.setAttribute('role', 'button');
 		if (actionOptions.iconClass) {
 			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
 		}
@@ -125,6 +127,10 @@ export class HoverWidget extends Widget {
 				this._domNode.style.top = `${anchor.y}px`;
 			}
 		}
+	}
+
+	public focus() {
+		this._domNode.focus();
 	}
 
 	public dispose(): void {
