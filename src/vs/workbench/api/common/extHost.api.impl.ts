@@ -847,7 +847,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
 			},
 			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, scope?: vscode.DebugConfigurationProviderScope) {
-				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider, scope || 1);
+				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider, scope || extHostTypes.DebugConfigurationProviderScope.Initial);
 			},
 			registerDebugAdapterDescriptorFactory(debugType: string, factory: vscode.DebugAdapterDescriptorFactory) {
 				return extHostDebugService.registerDebugAdapterDescriptorFactory(extension, debugType, factory);
