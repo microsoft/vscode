@@ -69,6 +69,7 @@ export class ActivityAction extends Action {
 	}
 
 	set activity(activity: IActivity) {
+		this._label = activity.name;
 		this._activity = activity;
 		this._onDidChangeActivity.fire(this);
 	}

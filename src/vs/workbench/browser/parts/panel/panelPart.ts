@@ -216,8 +216,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 			const disposables = new DisposableStore();
 			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(panel, viewContainerModel, viewContainer.hideIfEmpty)));
-			disposables.add(viewContainerModel.onDidChangeAllViewDescriptors(() => this.onDidUpdateViews(panel, viewContainerModel)));
-			disposables.add(viewContainerModel.onDidMoveVisibleViewDescriptors(() => this.onDidUpdateViews(panel, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.onDidUpdateViews(panel, viewContainerModel)));
 
 			this.panelDisposables.set(panel.id, disposables);
 		}
