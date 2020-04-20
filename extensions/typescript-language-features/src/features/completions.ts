@@ -13,7 +13,6 @@ import { nulToken } from '../utils/cancellation';
 import { applyCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
 import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
-import { memoize } from '../utils/memoize';
 import * as Previewer from '../utils/previewer';
 import { snippetForFunctionCall } from '../utils/snippetForFunctionCall';
 import { TelemetryReporter } from '../utils/telemetry';
@@ -32,20 +31,27 @@ interface CompletionContext {
 	readonly isNewIdentifierLocation: boolean;
 	readonly isMemberCompletion: boolean;
 	readonly isInValidCommitCharacterContext: boolean;
-	readonly enableCallCompletions: boolean;
+
 	readonly dotAccessorContext?: DotAccessorContext;
+
+	readonly enableCallCompletions: boolean;
+	readonly useCodeSnippetsOnMethodSuggest: boolean,
+
+	readonly wordRange: vscode.Range | undefined;
+	readonly line: string;
+
+	readonly useFuzzyWordRangeLogic: boolean,
 }
 
 class MyCompletionItem extends vscode.CompletionItem {
+
 	public readonly useCodeSnippet: boolean;
 
 	constructor(
 		public readonly position: vscode.Position,
 		public readonly document: vscode.TextDocument,
-		line: string,
 		public readonly tsEntry: Proto.CompletionEntry,
-		useCodeSnippetsOnMethodSuggest: boolean,
-		public readonly completionContext: CompletionContext,
+		private readonly completionContext: CompletionContext,
 		public readonly metadata: any | undefined,
 	) {
 		super(tsEntry.name, MyCompletionItem.convertKind(tsEntry.kind));
@@ -58,32 +64,19 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.sortText = tsEntry.sortText;
 		}
 
-		if (tsEntry.isRecommended) {
-			this.preselect = true;
-		}
-
+		this.preselect = tsEntry.isRecommended;
 		this.position = position;
-		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
+		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
 
-		if (tsEntry.replacementSpan) {
-			let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
-			// Make sure we only replace a single line at most
-			if (!replaceRange.isSingleLine) {
-				replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, line.length);
-			}
-			this.range = {
-				inserting: new vscode.Range(replaceRange.start, position),
-				replacing: replaceRange,
-			};
-		}
-
+		this.range = this.getRangeFromReplacementSpan(tsEntry, completionContext, position);
+		this.commitCharacters = MyCompletionItem.getCommitCharacters(completionContext, tsEntry);
 		this.insertText = tsEntry.insertText;
-		this.filterText = this.getFilterText(line, tsEntry.insertText);
+		this.filterText = this.getFilterText(completionContext.line, tsEntry.insertText);
 
 		if (completionContext.isMemberCompletion && completionContext.dotAccessorContext) {
 			this.filterText = completionContext.dotAccessorContext.text + (this.insertText || this.label);
 			if (!this.range) {
-				const replacementRange = this.getReplaceRange(line);
+				const replacementRange = this.getFuzzyWordRange();
 				if (replacementRange) {
 					this.range = {
 						inserting: completionContext.dotAccessorContext.range,
@@ -97,8 +90,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 
 		if (tsEntry.kindModifiers) {
-			const kindModifiers = new Set(tsEntry.kindModifiers.split(/,|\s+/g));
-			if (kindModifiers.has(PConst.KindModifiers.optional)) {
+			const kindModifiers = tsEntry.kindModifiers.split(/,|\s+/g);
+			if (kindModifiers.includes(PConst.KindModifiers.optional)) {
 				if (!this.insertText) {
 					this.insertText = this.label;
 				}
@@ -109,13 +102,13 @@ class MyCompletionItem extends vscode.CompletionItem {
 				this.label += '?';
 			}
 
-			if (kindModifiers.has(PConst.KindModifiers.color)) {
+			if (kindModifiers.includes(PConst.KindModifiers.color)) {
 				this.kind = vscode.CompletionItemKind.Color;
 			}
 
 			if (tsEntry.kind === PConst.Kind.script) {
 				for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
-					if (kindModifiers.has(extModifier)) {
+					if (kindModifiers.includes(extModifier)) {
 						if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
 							this.detail = tsEntry.name;
 						} else {
@@ -126,13 +119,30 @@ class MyCompletionItem extends vscode.CompletionItem {
 				}
 			}
 		}
-		this.resolveRange(line);
+
+		this.resolveRange();
+	}
+
+	private getRangeFromReplacementSpan(tsEntry: Proto.CompletionEntry, completionContext: CompletionContext, position: vscode.Position) {
+		if (!tsEntry.replacementSpan) {
+			return;
+		}
+
+		let replaceRange = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
+		// Make sure we only replace a single line at most
+		if (!replaceRange.isSingleLine) {
+			replaceRange = new vscode.Range(replaceRange.start.line, replaceRange.start.character, replaceRange.start.line, completionContext.line.length);
+		}
+		return {
+			inserting: new vscode.Range(replaceRange.start, position),
+			replacing: replaceRange,
+		};
 	}
 
 	private getFilterText(line: string, insertText: string | undefined): string | undefined {
 		// Handle private field completions
 		if (this.tsEntry.name.startsWith('#')) {
-			const wordRange = this.document.getWordRangeAtPosition(this.position);
+			const wordRange = this.completionContext.wordRange;
 			const wordStart = wordRange ? line.charAt(wordRange.start.character) : undefined;
 			if (insertText) {
 				if (insertText.startsWith('this.#')) {
@@ -149,6 +159,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		if (insertText?.startsWith('this.')) {
 			return undefined;
 		}
+
 		// Handle the case:
 		// ```
 		// const xyz = { 'ab c': 1 };
@@ -164,12 +175,12 @@ class MyCompletionItem extends vscode.CompletionItem {
 		return insertText;
 	}
 
-	private resolveRange(line: string): void {
+	private resolveRange(): void {
 		if (this.range) {
 			return;
 		}
 
-		const replaceRange = this.getReplaceRange(line);
+		const replaceRange = this.getFuzzyWordRange();
 		if (replaceRange) {
 			this.range = {
 				inserting: new vscode.Range(replaceRange.start, this.position),
@@ -178,23 +189,21 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 	}
 
-	private getReplaceRange(line: string) {
-		const wordRange = this.document.getWordRangeAtPosition(this.position);
-		let replaceRange = wordRange;
-
-		// Try getting longer, prefix based range for completions that span words
-		const text = line.slice(Math.max(0, this.position.character - this.label.length), this.position.character).toLowerCase();
-		const entryName = this.label.toLowerCase();
-		for (let i = entryName.length; i >= 0; --i) {
-			if (text.endsWith(entryName.substr(0, i)) && (!wordRange || wordRange.start.character > this.position.character - i)) {
-				replaceRange = new vscode.Range(
-					new vscode.Position(this.position.line, Math.max(0, this.position.character - i)),
-					this.position);
-				break;
+	private getFuzzyWordRange() {
+		if (this.completionContext.useFuzzyWordRangeLogic) {
+			// Try getting longer, prefix based range for completions that span words
+			const text = this.completionContext.line.slice(Math.max(0, this.position.character - this.label.length), this.position.character).toLowerCase();
+			const entryName = this.label.toLowerCase();
+			for (let i = entryName.length; i >= 0; --i) {
+				if (text.endsWith(entryName.substr(0, i)) && (!this.completionContext.wordRange || this.completionContext.wordRange.start.character > this.position.character - i)) {
+					return new vscode.Range(
+						new vscode.Position(this.position.line, Math.max(0, this.position.character - i)),
+						this.position);
+				}
 			}
 		}
 
-		return replaceRange;
+		return this.completionContext.wordRange;
 	}
 
 	private static convertKind(kind: string): vscode.CompletionItemKind {
@@ -202,6 +211,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.primitiveType:
 			case PConst.Kind.keyword:
 				return vscode.CompletionItemKind.Keyword;
+
 			case PConst.Kind.const:
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
@@ -209,50 +219,63 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.alias:
 			case PConst.Kind.parameter:
 				return vscode.CompletionItemKind.Variable;
+
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 				return vscode.CompletionItemKind.Field;
+
 			case PConst.Kind.function:
 			case PConst.Kind.localFunction:
 				return vscode.CompletionItemKind.Function;
+
 			case PConst.Kind.method:
 			case PConst.Kind.constructSignature:
 			case PConst.Kind.callSignature:
 			case PConst.Kind.indexSignature:
 				return vscode.CompletionItemKind.Method;
+
 			case PConst.Kind.enum:
 				return vscode.CompletionItemKind.Enum;
+
 			case PConst.Kind.enumMember:
 				return vscode.CompletionItemKind.EnumMember;
+
 			case PConst.Kind.module:
 			case PConst.Kind.externalModuleName:
 				return vscode.CompletionItemKind.Module;
+
 			case PConst.Kind.class:
 			case PConst.Kind.type:
 				return vscode.CompletionItemKind.Class;
+
 			case PConst.Kind.interface:
 				return vscode.CompletionItemKind.Interface;
+
 			case PConst.Kind.warning:
 				return vscode.CompletionItemKind.Text;
+
 			case PConst.Kind.script:
 				return vscode.CompletionItemKind.File;
+
 			case PConst.Kind.directory:
 				return vscode.CompletionItemKind.Folder;
+
 			case PConst.Kind.string:
 				return vscode.CompletionItemKind.Constant;
+
+			default:
+				return vscode.CompletionItemKind.Property;
 		}
-		return vscode.CompletionItemKind.Property;
 	}
 
-	@memoize
-	public get commitCharacters(): string[] | undefined {
-		if (this.completionContext.isNewIdentifierLocation || !this.completionContext.isInValidCommitCharacterContext) {
+	private static getCommitCharacters(context: CompletionContext, entry: Proto.CompletionEntry): string[] | undefined {
+		if (context.isNewIdentifierLocation || !context.isInValidCommitCharacterContext) {
 			return undefined;
 		}
 
 		const commitCharacters: string[] = [];
-		switch (this.tsEntry.kind) {
+		switch (entry.kind) {
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
 			case PConst.Kind.constructSignature:
@@ -276,7 +299,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.keyword:
 			case PConst.Kind.parameter:
 				commitCharacters.push('.', ',', ';');
-				if (this.completionContext.enableCallCompletions) {
+				if (context.enableCallCompletions) {
 					commitCharacters.push('(');
 				}
 				break;
@@ -429,6 +452,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return null;
 		}
 
+		const wordRange = document.getWordRangeAtPosition(position);
+
 		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
 		const args: Proto.CompletionsRequestArgs & { includeAutomaticOptionalChainCompletions?: boolean } = {
@@ -498,16 +523,24 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			metadata = response.metadata;
 		}
 
-		const isInValidCommitCharacterContext = this.isInValidCommitCharacterContext(document, position);
-		const items = entries
-			.filter(entry => !shouldExcludeCompletionEntry(entry, completionConfiguration))
-			.map(entry => new MyCompletionItem(position, document, line.text, entry, completionConfiguration.useCodeSnippetsOnMethodSuggest, {
-				isNewIdentifierLocation,
-				isMemberCompletion,
-				dotAccessorContext,
-				isInValidCommitCharacterContext,
-				enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest
-			}, metadata));
+		const completionContext = {
+			isNewIdentifierLocation,
+			isMemberCompletion,
+			dotAccessorContext,
+			isInValidCommitCharacterContext: this.isInValidCommitCharacterContext(document, position),
+			enableCallCompletions: !completionConfiguration.useCodeSnippetsOnMethodSuggest,
+			wordRange,
+			line: line.text,
+			useCodeSnippetsOnMethodSuggest: completionConfiguration.useCodeSnippetsOnMethodSuggest,
+			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
+		};
+
+		const items: vscode.CompletionItem[] = [];
+		for (let entry of entries) {
+			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
+				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
+			}
+		}
 		return new vscode.CompletionList(items, isIncomplete);
 	}
 

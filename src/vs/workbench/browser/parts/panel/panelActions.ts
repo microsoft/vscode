@@ -201,10 +201,6 @@ export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinne
 	constructor(id: string, compositeBar: ICompositeBar) {
 		super({ id, name: id, cssClass: undefined }, compositeBar);
 	}
-
-	setActivity(activity: IActivity): void {
-		this.label = activity.name;
-	}
 }
 
 

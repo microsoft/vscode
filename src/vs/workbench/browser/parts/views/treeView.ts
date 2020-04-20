@@ -89,6 +89,7 @@ export class TreeViewPane extends ViewPane {
 	}
 
 	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.treeView.layout(height, width);
 	}
 

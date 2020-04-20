@@ -2,8 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import * as nls from 'vs/nls';
+
 import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -271,10 +270,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
-		instance.addDisposable(instance.onFocused(instance => {
-			aria.alert(nls.localize('terminalFocus', "Terminal {0}", this._terminalService.activeTabIndex + 1));
-			this._setActiveInstance(instance);
-		}));
+		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
 	}
 
 	private _onInstanceDisposed(instance: ITerminalInstance): void {

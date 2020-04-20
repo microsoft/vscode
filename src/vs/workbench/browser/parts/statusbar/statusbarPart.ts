@@ -449,6 +449,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.leftItemsContainer = document.createElement('div');
 		addClasses(this.leftItemsContainer, 'left-items', 'items-container');
 		this.element.appendChild(this.leftItemsContainer);
+		this.element.tabIndex = -1;
 
 		// Right items container
 		this.rightItemsContainer = document.createElement('div');
@@ -624,6 +625,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return itemContainer;
 	}
 
+	focus(): void {
+		this.getContainer();
+	}
+
 	layout(width: number, height: number): void {
 		super.layout(width, height);
 		super.layoutContents(width, height);
@@ -690,7 +695,7 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
-			this.container.setAttribute('aria-label', entry.ariaLabel);
+			this.labelContainer.setAttribute('aria-label', entry.ariaLabel);
 		}
 
 		// Update: Tooltip (on the container, because label can be disabled)

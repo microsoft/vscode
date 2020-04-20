@@ -43,10 +43,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		const label = localize('cannotRunGotoSymbolWithoutEditor', "To go to a symbol, first open a text editor with symbol information.");
-
-		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
-		picker.ariaLabel = label;
+		this.provideLabelPick(picker, localize('cannotRunGotoSymbolWithoutEditor', "To go to a symbol, first open a text editor with symbol information."));
 
 		return Disposable.None;
 	}
@@ -72,9 +69,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const disposables = new DisposableStore();
 
 		// Generic pick for not having any symbol information
-		const label = localize('cannotRunGotoSymbolWithoutSymbolProvider', "The active text editor does not provide symbol information.");
-		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
-		picker.ariaLabel = label;
+		this.provideLabelPick(picker, localize('cannotRunGotoSymbolWithoutSymbolProvider', "The active text editor does not provide symbol information."));
 
 		// Wait for changes to the registry and see if eventually
 		// we do get symbols. This can happen if the picker is opened
@@ -91,6 +86,11 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		})();
 
 		return disposables;
+	}
+
+	private provideLabelPick(picker: IQuickPick<IGotoSymbolQuickPickItem>, label: string): void {
+		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
+		picker.ariaLabel = label;
 	}
 
 	protected async waitForLanguageSymbolRegistry(model: ITextModel, disposables: DisposableStore): Promise<boolean> {
@@ -158,12 +158,21 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			// Collect symbol picks
 			picker.busy = true;
 			try {
-				const items = await this.doGetSymbolPicks(symbolsPromise, prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim()), undefined, picksCts.token);
+				const query = prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim());
+				const items = await this.doGetSymbolPicks(symbolsPromise, query, undefined, picksCts.token);
 				if (token.isCancellationRequested) {
 					return;
 				}
 
-				picker.items = items;
+				if (items.length > 0) {
+					picker.items = items;
+				} else {
+					if (query.original.length > 0) {
+						this.provideLabelPick(picker, localize('noMatchingSymbolResults', "No matching editor symbols"));
+					} else {
+						this.provideLabelPick(picker, localize('noSymbolResults', "No editor symbols"));
+					}
+				}
 			} finally {
 				if (!token.isCancellationRequested) {
 					picker.busy = false;
@@ -360,7 +369,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 			// Update last separator with number of symbols we found for kind
 			updateLastSeparatorLabel();
-		} else {
+		} else if (sortedFilteredSymbolPicks.length > 0) {
 			symbolPicks = [
 				{ label: localize('symbols', "symbols ({0})", filteredSymbolPicks.length), type: 'separator' },
 				...sortedFilteredSymbolPicks

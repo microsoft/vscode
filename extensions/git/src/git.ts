@@ -435,14 +435,13 @@ export class Git {
 					const [, letter] = match;
 
 					try {
-						let networkPath = await new Promise<string>(resolve =>
+						const networkPath = await new Promise<string>(resolve =>
 							realpath.native(`${letter}:`, { encoding: 'utf8' }, (err, resolvedPath) =>
 								// eslint-disable-next-line eqeqeq
 								resolve(err != null ? undefined : resolvedPath),
 							),
 						);
 						if (networkPath !== undefined) {
-							networkPath = `${networkPath}\\`;
 							return path.normalize(
 								repoUri.fsPath.replace(
 									networkPath,
@@ -541,7 +540,8 @@ export class Git {
 		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
 			LC_ALL: 'en_US.UTF-8',
-			LANG: 'en_US.UTF-8'
+			LANG: 'en_US.UTF-8',
+			GIT_PAGER: 'cat'
 		});
 
 		if (options.cwd) {

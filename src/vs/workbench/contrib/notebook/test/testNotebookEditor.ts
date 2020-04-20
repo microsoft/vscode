@@ -9,7 +9,7 @@ import { CellKind, IOutput, CellUri, NotebookCellMetadata } from 'vs/workbench/c
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookEditor, NotebookLayoutInfo, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -20,6 +20,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -49,6 +50,17 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	onMouseUp(listener: (e: INotebookEditorMouseEvent) => void): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+	onMouseDown(listener: (e: INotebookEditorMouseEvent) => void): IDisposable {
+		throw new Error('Method not implemented.');
+	}
+
+	setHiddenAreas(_ranges: ICellRange[]): boolean {
+		throw new Error('Method not implemented.');
+	}
+
 	getInnerWebview(): Webview | undefined {
 		throw new Error('Method not implemented.');
 	}
@@ -88,6 +100,10 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	moveCellUp(cell: CellViewModel): void {
+		throw new Error('Method not implemented.');
+	}
+
+	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 

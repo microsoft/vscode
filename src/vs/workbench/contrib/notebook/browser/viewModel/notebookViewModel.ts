@@ -3,26 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellFindMatch, CellEditState, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, ICellRange, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CellFoldingState, FoldingModel, FoldingRegionDelegate } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
+import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -59,7 +63,69 @@ export interface INotebookViewCellsUpdateEvent {
 	splices: NotebookViewCellsSplice[];
 }
 
-export class NotebookViewModel extends Disposable {
+
+class DecorationsTree {
+	private readonly _decorationsTree: IntervalTree;
+
+	constructor() {
+		this._decorationsTree = new IntervalTree();
+	}
+
+	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
+		const r1 = this._decorationsTree.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
+		return r1;
+	}
+
+	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
+		return this._decorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId);
+
+	}
+
+	public collectNodesFromOwner(ownerId: number): IntervalNode[] {
+		const r1 = this._decorationsTree.collectNodesFromOwner(ownerId);
+		return r1;
+	}
+
+	public collectNodesPostOrder(): IntervalNode[] {
+		const r1 = this._decorationsTree.collectNodesPostOrder();
+		return r1;
+	}
+
+	public insert(node: IntervalNode): void {
+		this._decorationsTree.insert(node);
+	}
+
+	public delete(node: IntervalNode): void {
+		this._decorationsTree.delete(node);
+	}
+
+	public resolveNode(node: IntervalNode, cachedVersionId: number): void {
+		this._decorationsTree.resolveNode(node, cachedVersionId);
+	}
+
+	public acceptReplace(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
+		this._decorationsTree.acceptReplace(offset, length, textLength, forceMoveMarkers);
+	}
+}
+
+const TRACKED_RANGE_OPTIONS = [
+	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
+	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
+];
+
+function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOptions {
+	if (options instanceof ModelDecorationOptions) {
+		return options;
+	}
+	return ModelDecorationOptions.createDynamic(options);
+}
+
+let MODEL_ID = 0;
+
+
+export class NotebookViewModel extends Disposable implements FoldingRegionDelegate {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
 
@@ -117,6 +183,17 @@ export class NotebookViewModel extends Disposable {
 		return this._layoutInfo;
 	}
 
+	private _decorationsTree = new DecorationsTree();
+	private _decorations: { [decorationId: string]: IntervalNode; } = Object.create(null);
+	private _lastDecorationId: number = 0;
+	private readonly _instanceId: string;
+	public readonly id: string;
+
+	private _foldingModel: FoldingModel;
+	private _onDidFoldingRegionChanges = new Emitter<void>();
+	onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
+	private _hiddenRanges: ICellRange[] = [];
+
 	constructor(
 		public viewType: string,
 		private _model: NotebookEditorModel,
@@ -127,6 +204,10 @@ export class NotebookViewModel extends Disposable {
 		@IUndoRedoService private readonly undoService: IUndoRedoService
 	) {
 		super();
+
+		MODEL_ID++;
+		this.id = '$notebookViewModel' + MODEL_ID;
+		this._instanceId = strings.singleLetterHash(MODEL_ID);
 
 		// this._register(this._model.onDidChangeCells(e => {
 		// 	this._onDidChangeViewCells.fire({
@@ -145,11 +226,123 @@ export class NotebookViewModel extends Disposable {
 
 		this._register(this.eventDispatcher.onDidChangeLayout((e) => {
 			this._layoutInfo = e.value;
+
+			this._viewCells.forEach(cell => {
+				if (cell.cellKind === CellKind.Markdown) {
+					if (e.source.width || e.source.fontInfo) {
+						cell.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
+					}
+				} else {
+					if (e.source.width !== undefined) {
+						cell.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
+					}
+				}
+			});
 		}));
 
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
 			return createCellViewModel(this.instantiationService, this, cell);
 		});
+
+		this._foldingModel = new FoldingModel();
+		this._foldingModel.attachViewModel(this);
+
+		this._register(this._foldingModel.onDidFoldingRegionChanged(() => {
+			this._updateFoldingRanges();
+		}));
+	}
+	getFoldingStartIndex(cell: CellViewModel): number {
+		const modelIndex = this.viewCells.indexOf(cell);
+		if (modelIndex < 0) {
+			return -1;
+		}
+
+		const range = this._foldingModel.regions.findRange(modelIndex + 1);
+		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
+		return startIndex;
+	}
+
+	getFoldingState(cell: CellViewModel): CellFoldingState {
+		const modelIndex = this.viewCells.indexOf(cell);
+		if (modelIndex < 0) {
+			return -1;
+		}
+
+		const range = this._foldingModel.regions.findRange(modelIndex + 1);
+		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
+
+		if (startIndex !== modelIndex) {
+			return CellFoldingState.None;
+		}
+
+		return this._foldingModel.regions.isCollapsed(range) ? CellFoldingState.Collapsed : CellFoldingState.Expanded;
+	}
+
+	setFoldingState(cell: CellViewModel, state: CellFoldingState): void {
+		const modelIndex = this.viewCells.indexOf(cell);
+		if (modelIndex < 0) {
+			return;
+		}
+
+		const range = this._foldingModel.regions.findRange(modelIndex + 1);
+		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
+
+		if (startIndex !== modelIndex) {
+			return;
+		}
+
+		this._foldingModel.setCollapsed(range, state === CellFoldingState.Collapsed);
+		this._updateFoldingRanges();
+	}
+
+	private _updateFoldingRanges() {
+		let updateHiddenAreas = false;
+		let newHiddenAreas: ICellRange[] = [];
+
+		let ranges = this._foldingModel.regions;
+		let i = 0; // index into hidden
+		let k = 0;
+
+		let lastCollapsedStart = Number.MAX_VALUE;
+		let lastCollapsedEnd = -1;
+
+		for (; i < ranges.length; i++) {
+			if (!ranges.isCollapsed(i)) {
+				continue;
+			}
+
+			let startLineNumber = ranges.getStartLineNumber(i) + 1; // the first line is not hidden
+			let endLineNumber = ranges.getEndLineNumber(i);
+			if (lastCollapsedStart <= startLineNumber && endLineNumber <= lastCollapsedEnd) {
+				// ignore ranges contained in collapsed regions
+				continue;
+			}
+
+			if (!updateHiddenAreas && k < this._hiddenRanges.length && this._hiddenRanges[k].start + 1 === startLineNumber && (this._hiddenRanges[k].start + this._hiddenRanges[k].length) === endLineNumber) {
+				// reuse the old ranges
+				newHiddenAreas.push(this._hiddenRanges[k]);
+				k++;
+			} else {
+				updateHiddenAreas = true;
+				newHiddenAreas.push({ start: startLineNumber - 1, length: endLineNumber - startLineNumber + 1 });
+			}
+			lastCollapsedStart = startLineNumber;
+			lastCollapsedEnd = endLineNumber;
+		}
+
+		if (updateHiddenAreas || k < this._hiddenRanges.length) {
+			this._hiddenRanges = newHiddenAreas;
+			this._onDidFoldingRegionChanges.fire();
+			this._viewCells.forEach(cell => {
+				if (cell.cellKind === CellKind.Markdown) {
+					cell.triggerfoldingStateChange();
+				}
+			});
+		}
+	}
+
+	getHiddenRanges() {
+		return this._hiddenRanges;
 	}
 
 	isDirty() {
@@ -164,8 +357,121 @@ export class NotebookViewModel extends Disposable {
 		});
 	}
 
-	getViewCellIndex(cell: ICellViewModel) {
+	getCellIndex(cell: ICellViewModel) {
 		return this._viewCells.indexOf(cell as CellViewModel);
+	}
+
+	getVersionId() {
+		return this._model.notebook.versionId;
+	}
+
+	getTrackedRange(id: string): ICellRange | null {
+		return this._getDecorationRange(id);
+	}
+
+	private _getDecorationRange(decorationId: string): ICellRange | null {
+		const node = this._decorations[decorationId];
+		if (!node) {
+			return null;
+		}
+		const versionId = this.getVersionId();
+		if (node.cachedVersionId !== versionId) {
+			this._decorationsTree.resolveNode(node, versionId);
+		}
+		if (node.range === null) {
+			return { start: node.cachedAbsoluteStart - 1, length: node.cachedAbsoluteEnd - node.cachedAbsoluteStart + 1 };
+		}
+
+		return { start: node.range.startLineNumber - 1, length: node.range.endLineNumber - node.range.startLineNumber + 1 };
+	}
+
+	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null {
+		const node = (id ? this._decorations[id] : null);
+
+		if (!node) {
+			if (!newRange) {
+				return null;
+			}
+
+			return this._deltaCellDecorationsImpl(0, [], [{ range: new Range(newRange.start + 1, 1, newRange.start + newRange.length, 1), options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
+		}
+
+		if (!newRange) {
+			// node exists, the request is to delete => delete node
+			this._decorationsTree.delete(node);
+			delete this._decorations[node.id];
+			return null;
+		}
+
+		this._decorationsTree.delete(node);
+		node.reset(this.getVersionId(), newRange.start, newRange.start + newRange.length, new Range(newRange.start + 1, 1, newRange.start + newRange.length, 1));
+		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
+		this._decorationsTree.insert(node);
+		return node.id;
+	}
+
+	private _deltaCellDecorationsImpl(ownerId: number, oldDecorationsIds: string[], newDecorations: IModelDeltaDecoration[]): string[] {
+		const versionId = this.getVersionId();
+
+		const oldDecorationsLen = oldDecorationsIds.length;
+		let oldDecorationIndex = 0;
+
+		const newDecorationsLen = newDecorations.length;
+		let newDecorationIndex = 0;
+
+		let result = new Array<string>(newDecorationsLen);
+		while (oldDecorationIndex < oldDecorationsLen || newDecorationIndex < newDecorationsLen) {
+
+			let node: IntervalNode | null = null;
+
+			if (oldDecorationIndex < oldDecorationsLen) {
+				// (1) get ourselves an old node
+				do {
+					node = this._decorations[oldDecorationsIds[oldDecorationIndex++]];
+				} while (!node && oldDecorationIndex < oldDecorationsLen);
+
+				// (2) remove the node from the tree (if it exists)
+				if (node) {
+					this._decorationsTree.delete(node);
+					// this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+				}
+			}
+
+			if (newDecorationIndex < newDecorationsLen) {
+				// (3) create a new node if necessary
+				if (!node) {
+					const internalDecorationId = (++this._lastDecorationId);
+					const decorationId = `${this._instanceId};${internalDecorationId}`;
+					node = new IntervalNode(decorationId, 0, 0);
+					this._decorations[decorationId] = node;
+				}
+
+				// (4) initialize node
+				const newDecoration = newDecorations[newDecorationIndex];
+				// const range = this._validateRangeRelaxedNoAllocations(newDecoration.range);
+				const range = newDecoration.range;
+				const options = _normalizeOptions(newDecoration.options);
+				// const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
+				// const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
+
+				node.ownerId = ownerId;
+				node.reset(versionId, range.startLineNumber, range.endLineNumber, Range.lift(range));
+				node.setOptions(options);
+				// this._onDidChangeDecorations.checkAffectedAndFire(options);
+
+				this._decorationsTree.insert(node);
+
+				result[newDecorationIndex] = node.id;
+
+				newDecorationIndex++;
+			} else {
+				if (node) {
+					delete this._decorations[node.id];
+				}
+			}
+		}
+
+		return result;
 	}
 
 	private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
@@ -192,6 +498,7 @@ export class NotebookViewModel extends Disposable {
 			deleteCell: this._deleteCellDelegate.bind(this)
 		}));
 
+		this._decorationsTree.acceptReplace(index, 0, 1, true);
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
 		return newCell;
 	}
@@ -206,6 +513,7 @@ export class NotebookViewModel extends Disposable {
 			deleteCell: this._deleteCellDelegate.bind(this)
 		}));
 
+		this._decorationsTree.acceptReplace(index, 0, 1, true);
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
 		return newCell;
 	}
@@ -222,6 +530,9 @@ export class NotebookViewModel extends Disposable {
 				return createCellViewModel(this.instantiationService, this, cell);
 			}
 		}));
+
+
+		this._decorationsTree.acceptReplace(index, 1, 0, true);
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 		viewCell.dispose();
@@ -436,8 +747,8 @@ export type CellViewModel = CodeCellViewModel | MarkdownCellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: NotebookCellTextModel) {
 	if (cell.cellKind === CellKind.Code) {
-		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher, notebookViewModel.layoutInfo);
+		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.layoutInfo);
 	} else {
-		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher, notebookViewModel.layoutInfo);
+		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.layoutInfo, notebookViewModel);
 	}
 }

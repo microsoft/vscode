@@ -167,6 +167,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	}
 
 	public layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		const wasSmallLayout = this.smallLayout;
 		this.smallLayout = width < 600 && height > 100;
 		if (this.smallLayout !== wasSmallLayout) {
@@ -302,6 +303,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
 							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+							this.tree.rerender(updated);
 						}
 					}
 				}

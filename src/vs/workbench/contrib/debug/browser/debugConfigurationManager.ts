@@ -38,6 +38,7 @@ import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { first } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
+import { DebugConfigurationProviderScope } from 'vs/workbench/api/common/extHostTypes';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -193,9 +194,15 @@ export class ConfigurationManager implements IConfigurationManager {
 		}
 	}
 
-	hasDebugConfigurationProvider(debugType: string): boolean {
+	/**
+	 * if scope is not specified,a value of DebugConfigurationProviderScope.Initialization is assumed.
+	 */
+	hasDebugConfigurationProvider(debugType: string, scope?: DebugConfigurationProviderScope): boolean {
+		if (scope === undefined) {
+			scope = DebugConfigurationProviderScope.Initial;
+		}
 		// check if there are providers for the given type that contribute a provideDebugConfigurations method
-		const providers = this.configProviders.filter(p => p.provideDebugConfigurations && (p.type === debugType));
+		const providers = this.configProviders.filter(p => p.provideDebugConfigurations && (p.type === debugType) && (p.scope === scope));
 		return providers.length > 0;
 	}
 
@@ -234,7 +241,14 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	async provideDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
 		await this.activateDebuggers('onDebugInitialConfigurations');
-		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
+		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.scope === DebugConfigurationProviderScope.Initial && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
+
+		return results.reduce((first, second) => first.concat(second), []);
+	}
+
+	async provideDynamicDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
+		await this.activateDebuggers('onDebugDynamicConfigurations');
+		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.scope === DebugConfigurationProviderScope.Dynamic && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
 
 		return results.reduce((first, second) => first.concat(second), []);
 	}

@@ -5,16 +5,19 @@
 
 import { Terminal, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
-import { getXtermLineContent, convertLinkRangeToBuffer, convertBufferRangeToViewport, positionIsInRange, TOOLTIP_HOVER_THRESHOLD } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { TerminalLink, OPEN_FILE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { URI } from 'vs/base/common/uri';
 
-export class TerminalWebLinkProvider implements ILinkProvider {
+export class TerminalProtocolLinkProvider implements ILinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
 
 	constructor(
 		private readonly _xterm: Terminal,
-		private readonly _activateCallback: (event: MouseEvent, uri: string) => void,
-		private readonly _tooltipCallback: (event: MouseEvent, uri: string, location: IViewportRange) => boolean | void,
-		private readonly _leaveCallback: () => void
+		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
+		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 	}
 
@@ -46,24 +49,11 @@ export class TerminalWebLinkProvider implements ILinkProvider {
 			// Check if the link if within the mouse position
 			if (positionIsInRange(position, range)) {
 				found = true;
-
-				let timeout: number | undefined;
-				callback({
-					text: link.url?.toString() || '',
-					range,
-					activate: (event: MouseEvent, text: string) => this._activateCallback(event, text),
-					hover: (event: MouseEvent, text: string) => {
-						timeout = window.setTimeout(() => {
-							this._tooltipCallback(event, text, convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY));
-						}, TOOLTIP_HOVER_THRESHOLD);
-					},
-					leave: () => {
-						if (timeout !== undefined) {
-							window.clearTimeout(timeout);
-						}
-						this._leaveCallback();
-					}
-				});
+				const uri = link.url
+					? (typeof link.url === 'string' ? URI.parse(link.url) : link.url)
+					: undefined;
+				const label = (uri?.scheme === 'file') ? OPEN_FILE_LABEL : undefined;
+				callback(this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, label));
 			}
 		});
 

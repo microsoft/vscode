@@ -33,7 +33,7 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 
 	getKeyboardNavigationLabel(element: OutlineItem): { toString(): string; } {
 		if (element instanceof OutlineGroup) {
-			return element.provider.displayName || element.id;
+			return element.label;
 		} else {
 			return element.symbol.name;
 		}
@@ -44,7 +44,7 @@ export class OutlineAccessibilityProvider implements IListAccessibilityProvider<
 
 	getAriaLabel(element: OutlineItem): string | null {
 		if (element instanceof OutlineGroup) {
-			return element.provider.displayName || element.id;
+			return element.label;
 		} else {
 			return element.symbol.name;
 		}
@@ -103,7 +103,7 @@ export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzySc
 
 	renderElement(node: ITreeNode<OutlineGroup, FuzzyScore>, index: number, template: OutlineGroupTemplate): void {
 		template.label.set(
-			node.element.provider.displayName || localize('provider', "Outline Provider"),
+			node.element.label,
 			createMatches(node.filterData)
 		);
 	}
@@ -302,7 +302,7 @@ export class OutlineFilter implements ITreeFilter<OutlineItem> {
 		let uri: URI | undefined;
 
 		if (outline) {
-			uri = outline.textModel.uri;
+			uri = outline.uri;
 		}
 
 		if (!(element instanceof OutlineElement)) {
@@ -325,7 +325,7 @@ export class OutlineItemComparator implements ITreeSorter<OutlineItem> {
 
 	compare(a: OutlineItem, b: OutlineItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
-			return a.providerIndex - b.providerIndex;
+			return a.order - b.order;
 
 		} else if (a instanceof OutlineElement && b instanceof OutlineElement) {
 			if (this.type === OutlineSortOrder.ByKind) {

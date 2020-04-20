@@ -9,7 +9,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { GLOBAL_ACTIVITY_ID, IActivity } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem, HomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
@@ -38,7 +38,6 @@ import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menuba
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -86,19 +85,19 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	//#endregion
 
+	private content: HTMLElement | undefined;
+
+	private menuBar: CustomMenubarControl | undefined;
+	private menuBarContainer: HTMLElement | undefined;
+
+	private compositeBar: CompositeBar;
+
 	private globalActivityAction: ActivityAction | undefined;
 	private globalActivityActionBar: ActionBar | undefined;
 	private readonly globalActivity: ICompositeActivity[] = [];
 
-	private customMenubar: CustomMenubarControl | undefined;
-	private menubar: HTMLElement | undefined;
-	private content: HTMLElement | undefined;
-
 	private readonly cachedViewlets: ICachedViewlet[] = [];
-
-	private compositeBar: CompositeBar;
 	private readonly compositeActions = new Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
-
 	private readonly viewletDisposables = new Map<string, IDisposable>();
 
 	constructor(
@@ -111,8 +110,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IProductService private readonly productService: IProductService
 	) {
@@ -123,7 +121,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.cachedViewlets = this.getCachedViewlets();
 		for (const cachedViewlet of this.cachedViewlets) {
-			if (workbenchEnvironmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
+			if (environmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
 				|| this.shouldBeHidden(cachedViewlet.id, cachedViewlet)
 			) {
 				cachedViewlet.visible = false;
@@ -298,25 +296,25 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private uninstallMenubar() {
-		if (this.customMenubar) {
-			this.customMenubar.dispose();
+		if (this.menuBar) {
+			this.menuBar.dispose();
 		}
 
-		if (this.menubar) {
-			removeNode(this.menubar);
+		if (this.menuBarContainer) {
+			removeNode(this.menuBarContainer);
 		}
 	}
 
 	private installMenubar() {
-		this.menubar = document.createElement('div');
-		addClass(this.menubar, 'menubar');
+		this.menuBarContainer = document.createElement('div');
+		addClass(this.menuBarContainer, 'menubar');
 
 		const content = assertIsDefined(this.content);
-		content.prepend(this.menubar);
+		content.prepend(this.menuBarContainer);
 
 		// Menubar: install a custom menu bar depending on configuration
-		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-		this.customMenubar.create(this.menubar);
+		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.menuBar.create(this.menuBarContainer);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -325,6 +323,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.content = document.createElement('div');
 		addClass(this.content, 'content');
 		parent.appendChild(this.content);
+
+		// Home action bar
+		const homeIndicator = this.environmentService.options?.homeIndicator;
+		if (homeIndicator) {
+			this.createHomeBar(homeIndicator.command, homeIndicator.title, homeIndicator.icon);
+		}
 
 		// Install menubar if compact
 		if (getMenuBarVisibility(this.configurationService, this.environmentService) === 'compact') {
@@ -344,10 +348,26 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this.content;
 	}
 
+	private createHomeBar(command: string, title: string, icon: string): void {
+		const homeBarContainer = document.createElement('div');
+		homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
+		homeBarContainer.setAttribute('role', 'toolbar');
+		addClass(homeBarContainer, 'home-bar');
+
+		const homeActionBar = this._register(new ActionBar(homeBarContainer, {
+			orientation: ActionsOrientation.VERTICAL,
+			animated: false
+		}));
+
+		homeActionBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
+
+		const content = assertIsDefined(this.content);
+		content.prepend(homeBarContainer);
+	}
+
 	updateStyles(): void {
 		super.updateStyles();
 
-		// Part container
 		const container = assertIsDefined(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND) || '';
 		container.style.backgroundColor = background;
@@ -361,7 +381,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : '';
-		// container.style.outlineColor = this.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 	}
 
 	private getActivitybarItemColors(theme: IColorTheme): ICompositeBarColors {
@@ -571,8 +590,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.globalActivityActionBar) {
 			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
-		if (this.menubar) {
-			availableHeight -= this.menubar.clientHeight;
+		if (this.menuBarContainer) {
+			availableHeight -= this.menuBarContainer.clientHeight;
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}

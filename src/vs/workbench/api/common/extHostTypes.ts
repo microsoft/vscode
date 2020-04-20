@@ -1291,6 +1291,7 @@ export class SignatureInformation {
 	label: string;
 	documentation?: string | MarkdownString;
 	parameters: ParameterInformation[];
+	activeParameter?: number;
 
 	constructor(label: string, documentation?: string | MarkdownString) {
 		this.label = label;
@@ -2651,6 +2652,22 @@ export enum DebugConsoleMode {
 	MergeWithParent = 1
 }
 
+/**
+ * VS Code can call the `provideDebugConfigurations` method of a `DebugConfigurationProvider` in two situations (aka 'scopes'):
+ * to provide the initial debug configurations for a newly create launch.json or to provide debug configurations dynamically based on context.
+ * A scope value is used when registering a `DebugConfigurationProvider` with `debug.registerDebugConfigurationProvider`.
+ */
+export enum DebugConfigurationProviderScope {
+	/**
+	 * The 'initial' scope denotes a context where all debug configurations for a newly created launch.json are needed.
+	 */
+	Initial = 1,
+	/**
+	 * The 'dynamic' scope denotes a context where all debug configurations for the current context are needed.
+	 */
+	Dynamic = 2
+}
+
 //#endregion
 
 @es5ClassCompat
@@ -2711,6 +2728,13 @@ export enum CellOutputKind {
 	Text = 1,
 	Error = 2,
 	Rich = 3
+}
+
+export enum NotebookCellRunState {
+	Running = 1,
+	Idle = 2,
+	Success = 3,
+	Error = 4
 }
 
 //#endregion

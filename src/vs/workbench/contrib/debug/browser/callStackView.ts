@@ -158,7 +158,7 @@ export class CallStackView extends ViewPane {
 
 	getActions(): IAction[] {
 		if (this.pauseMessage.hidden) {
-			return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
+			return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 		}
 
 		return [];
@@ -309,6 +309,7 @@ export class CallStackView extends ViewPane {
 	}
 
 	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 

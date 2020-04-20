@@ -6,13 +6,13 @@
 import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { GitErrorCodes, APIState as State } from './api/git';
+import { GitErrorCodes, APIState as State, RemoteSourceProvider } from './api/git';
 
 const localize = nls.loadMessageBundle();
 
@@ -73,6 +73,8 @@ export class Model {
 		this._state = state;
 		this._onDidChangeState.fire(state);
 	}
+
+	private remoteProviders = new Set<RemoteSourceProvider>();
 
 	private disposables: Disposable[] = [];
 
@@ -445,6 +447,15 @@ export class Model {
 		}
 
 		return undefined;
+	}
+
+	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
+		this.remoteProviders.add(provider);
+		return toDisposable(() => this.remoteProviders.delete(provider));
+	}
+
+	getRemoteProviders(): RemoteSourceProvider[] {
+		return [...this.remoteProviders.values()];
 	}
 
 	dispose(): void {

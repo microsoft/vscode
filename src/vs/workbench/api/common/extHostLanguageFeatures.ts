@@ -834,7 +834,7 @@ class SuggestAdapter {
 		private readonly _extension: IExtensionDescription,
 	) { }
 
-	provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
+	async provideCompletionItems(resource: URI, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<extHostProtocol.ISuggestResultDto | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
@@ -845,48 +845,47 @@ class SuggestAdapter {
 		const replaceRange = doc.getWordRangeAtPosition(pos) || new Range(pos, pos);
 		const insertRange = replaceRange.with({ end: pos });
 
-		return asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context))).then(value => {
+		const itemsOrList = await asPromise(() => this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.to(context)));
 
-			if (!value) {
-				// undefined and null are valid results
-				return undefined;
+		if (!itemsOrList) {
+			// undefined and null are valid results
+			return undefined;
+		}
+
+		if (token.isCancellationRequested) {
+			// cancelled -> return without further ado, esp no caching
+			// of results as they will leak
+			return undefined;
+		}
+
+		const list = Array.isArray(itemsOrList) ? new CompletionList(itemsOrList) : itemsOrList;
+
+		// keep result for providers that support resolving
+		const pid: number = SuggestAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
+		const disposables = new DisposableStore();
+		this._disposables.set(pid, disposables);
+
+		const completions: extHostProtocol.ISuggestDataDto[] = [];
+		const result: extHostProtocol.ISuggestResultDto = {
+			x: pid,
+			[extHostProtocol.ISuggestResultDtoField.completions]: completions,
+			[extHostProtocol.ISuggestResultDtoField.defaultRanges]: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
+			[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined
+		};
+
+		for (let i = 0; i < list.items.length; i++) {
+			const item = list.items[i];
+			// check for bad completion item first
+			if (this._validateCompletionItem(item, pos)) {
+				const dto = this._convertCompletionItem(item, [pid, i], insertRange, replaceRange);
+				completions.push(dto);
 			}
+		}
 
-			if (token.isCancellationRequested) {
-				// cancelled -> return without further ado, esp no caching
-				// of results as they will leak
-				return undefined;
-			}
-
-			const list = Array.isArray(value) ? new CompletionList(value) : value;
-
-			// keep result for providers that support resolving
-			const pid: number = SuggestAdapter.supportsResolving(this._provider) ? this._cache.add(list.items) : this._cache.add([]);
-			const disposables = new DisposableStore();
-			this._disposables.set(pid, disposables);
-
-			const completions: extHostProtocol.ISuggestDataDto[] = [];
-			const result: extHostProtocol.ISuggestResultDto = {
-				x: pid,
-				[extHostProtocol.ISuggestResultDtoField.completions]: completions,
-				[extHostProtocol.ISuggestResultDtoField.defaultRanges]: { replace: typeConvert.Range.from(replaceRange), insert: typeConvert.Range.from(insertRange) },
-				[extHostProtocol.ISuggestResultDtoField.isIncomplete]: list.isIncomplete || undefined
-			};
-
-			for (let i = 0; i < list.items.length; i++) {
-				const item = list.items[i];
-				// check for bad completion item first
-				if (this._validateCompletionItem(item, pos)) {
-					const dto = this._convertCompletionItem(item, [pid, i], insertRange, replaceRange);
-					completions.push(dto);
-				}
-			}
-
-			return result;
-		});
+		return result;
 	}
 
-	resolveCompletionItem(_resource: URI, position: IPosition, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ISuggestDataDto | undefined> {
+	async resolveCompletionItem(_resource: URI, position: IPosition, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ISuggestDataDto | undefined> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
 			return Promise.resolve(undefined);
@@ -901,40 +900,39 @@ class SuggestAdapter {
 		const _mustNotChange = SuggestAdapter._mustNotChangeHash(item);
 		const _mayNotChange = SuggestAdapter._mayNotChangeHash(item);
 
-		return asPromise(() => this._provider.resolveCompletionItem!(item, token)).then(resolvedItem => {
+		const resolvedItem = await asPromise(() => this._provider.resolveCompletionItem!(item, token));
 
-			if (!resolvedItem || !this._validateCompletionItem(resolvedItem, pos)) {
-				return undefined;
-			}
+		if (!resolvedItem || !this._validateCompletionItem(resolvedItem, pos)) {
+			return undefined;
+		}
 
-			type BlameExtension = {
-				extensionId: string;
-				kind: string;
-				index: string;
-			};
+		type BlameExtension = {
+			extensionId: string;
+			kind: string;
+			index: string;
+		};
 
-			type BlameExtensionMeta = {
-				extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-				index: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
-			};
+		type BlameExtensionMeta = {
+			extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			kind: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+			index: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+		};
 
-			let _mustNotChangeIndex = !this._didWarnMust && SuggestAdapter._mustNotChangeDiff(_mustNotChange, resolvedItem);
-			if (typeof _mustNotChangeIndex === 'string') {
-				this._logService.warn(`[${this._extension.identifier.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('badresolvecompletion', { extensionId: this._extension.identifier.value, kind: 'must', index: _mustNotChangeIndex });
-				this._didWarnMust = true;
-			}
+		let _mustNotChangeIndex = !this._didWarnMust && SuggestAdapter._mustNotChangeDiff(_mustNotChange, resolvedItem);
+		if (typeof _mustNotChangeIndex === 'string') {
+			this._logService.warn(`[${this._extension.identifier.value}] INVALID result from 'resolveCompletionItem', extension MUST NOT change any of: label, sortText, filterText, insertText, or textEdit`);
+			this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('badresolvecompletion', { extensionId: this._extension.identifier.value, kind: 'must', index: _mustNotChangeIndex });
+			this._didWarnMust = true;
+		}
 
-			let _mayNotChangeIndex = !this._didWarnShould && SuggestAdapter._mayNotChangeDiff(_mayNotChange, resolvedItem);
-			if (typeof _mayNotChangeIndex === 'string') {
-				this._logService.info(`[${this._extension.identifier.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
-				this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('badresolvecompletion', { extensionId: this._extension.identifier.value, kind: 'should', index: _mayNotChangeIndex });
-				this._didWarnShould = true;
-			}
+		let _mayNotChangeIndex = !this._didWarnShould && SuggestAdapter._mayNotChangeDiff(_mayNotChange, resolvedItem);
+		if (typeof _mayNotChangeIndex === 'string') {
+			this._logService.info(`[${this._extension.identifier.value}] UNSAVE result from 'resolveCompletionItem', extension SHOULD NOT change any of: additionalTextEdits, or command`);
+			this._telemetry.$publicLog2<BlameExtension, BlameExtensionMeta>('badresolvecompletion', { extensionId: this._extension.identifier.value, kind: 'should', index: _mayNotChangeIndex });
+			this._didWarnShould = true;
+		}
 
-			return this._convertCompletionItem(resolvedItem, id);
-		});
+		return this._convertCompletionItem(resolvedItem, id);
 	}
 
 	releaseCompletionItems(id: number): any {
@@ -956,7 +954,7 @@ class SuggestAdapter {
 			//
 			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
 			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
-			[extHostProtocol.ISuggestDataDtoField.kind]: typeConvert.CompletionItemKind.from(item.kind),
+			[extHostProtocol.ISuggestDataDtoField.kind]: item.kind ? typeConvert.CompletionItemKind.from(item.kind) : undefined,
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
 			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
