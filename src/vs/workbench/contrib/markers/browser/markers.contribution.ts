@@ -32,6 +32,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleViewAction } from 'vs/workbench/browser/actions/layoutActions';
+import { Codicon } from 'vs/base/common/codicons';
 
 registerSingleton(IMarkersWorkbenchService, MarkersWorkbenchService, false);
 
@@ -124,7 +125,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: Constants.MARKERS_VIEW_ID,
-	containerIcon: 'codicon-warning',
+	containerIcon: Codicon.warning.classNames,
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	canToggleVisibility: false,
 	canMoveView: true,
