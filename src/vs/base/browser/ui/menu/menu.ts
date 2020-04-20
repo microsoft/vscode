@@ -426,7 +426,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		this.check = append(this.item, $(menuSelectionIcon.cssSelector));
+		this.check = append(this.item, $('span.menu-item-check.' + menuSelectionIcon.cssSelector));
 		this.check.setAttribute('role', 'none');
 
 		this.label = append(this.item, $('span.action-label'));
