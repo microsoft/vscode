@@ -43,6 +43,7 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Before2D } from 'vs/workbench/browser/dnd';
+import { Codicon } from 'vs/base/common/codicons';
 
 interface IPlaceholderViewlet {
 	id: string;
@@ -397,14 +398,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.globalActivityAction = new ActivityAction({
 			id: 'workbench.actions.manage',
 			name: nls.localize('manage', "Manage"),
-			cssClass: 'codicon-settings-gear'
+			cssClass: Codicon.gear.classNames
 		});
 
 		if (getUserDataSyncStore(this.productService, this.configurationService)) {
 			const profileAction = new ActivityAction({
 				id: 'workbench.actions.accounts',
 				name: nls.localize('accounts', "Accounts"),
-				cssClass: 'codicon-account'
+				cssClass: Codicon.account.classNames
 			});
 
 			this.globalActivityActionBar.push(profileAction);
@@ -484,7 +485,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		const activity: IActivity = {
 			id: viewlet.id,
 			name: shouldUseViewletIcon ? viewlet.name : viewDescriptor.name,
-			cssClass: shouldUseViewletIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : (viewDescriptor.containerIcon === undefined ? 'codicon-window' : undefined)),
+			cssClass: shouldUseViewletIcon ? viewlet.cssClass : (isString(viewDescriptor.containerIcon) ? viewDescriptor.containerIcon : (viewDescriptor.containerIcon === undefined ? Codicon.window : undefined)),
 			iconUrl: shouldUseViewletIcon ? viewlet.iconUrl : (viewDescriptor.containerIcon instanceof URI ? viewDescriptor.containerIcon : undefined),
 			keybindingId: viewlet.keybindingId
 		};

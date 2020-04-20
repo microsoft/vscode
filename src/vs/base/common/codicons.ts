@@ -456,9 +456,17 @@ export namespace Codicon {
 	export const feedback = new Codicon('feedback', { character: '\\eb96' });
 	export const groupByRefType = new Codicon('group-by-ref-type', { character: '\\eb97' });
 	export const ungroupByRefType = new Codicon('ungroup-by-ref-type', { character: '\\eb98' });
-	export const bellDot = new Codicon('bell-dot', { character: '\\f101' });
-	export const debugAlt2 = new Codicon('debug-alt-2', { character: '\\f102' });
-	export const debugAlt = new Codicon('debug-alt', { character: '\\f103' });
+	export const account = new Codicon('account', { character: '\\eb99' });
+	export const bellDot = new Codicon('bell-dot', { character: '\\eb9a' });
+	export const debugConsole = new Codicon('debug-console', { character: '\\eb9b' });
+	export const library = new Codicon('library', { character: '\\eb9c' });
+	export const output = new Codicon('output', { character: '\\eb9d' });
+	export const runAll = new Codicon('run-all', { character: '\\eb9e' });
+	export const syncIgnored = new Codicon('sync-ignored', { character: '\\eb9f' });
+	export const pinned = new Codicon('pinned', { character: '\\eba0' });
+	export const githubInverted = new Codicon('github-inverted', { character: '\\eba1' });
+	export const debugAlt2 = new Codicon('debug-alt-2', { character: '\\f101' });
+	export const debugAlt = new Codicon('debug-alt', { character: '\\f102' });
 }
 
 
