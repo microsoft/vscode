@@ -109,15 +109,15 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
 		this.registerViewletOrPanel(viewContainer, viewContainerLocation);
-		const viewDescriptorCollection = this.viewDescriptorService.getViewDescriptors(viewContainer);
-		this.onViewDescriptorsAdded(viewDescriptorCollection.allViewDescriptors, viewContainer);
-		this._register(viewDescriptorCollection.onDidChangeViews(({ added, removed }) => {
+		const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+		this.onViewDescriptorsAdded(viewContainerModel.allViewDescriptors, viewContainer);
+		this._register(viewContainerModel.onDidChangeAllViewDescriptors(({ added, removed }) => {
 			this.onViewDescriptorsAdded(added, viewContainer);
 			this.onViewDescriptorsRemoved(removed);
 		}));
 	}
 
-	private onViewDescriptorsAdded(views: IViewDescriptor[], container: ViewContainer): void {
+	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
 		const location = this.viewContainersRegistry.getViewContainerLocation(container);
 		if (location === undefined) {
 			return;
@@ -181,7 +181,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		}
 	}
 
-	private onViewDescriptorsRemoved(views: IViewDescriptor[]): void {
+	private onViewDescriptorsRemoved(views: ReadonlyArray<IViewDescriptor>): void {
 		for (const view of views) {
 			const disposable = this.viewDisposable.get(view);
 			if (disposable) {

@@ -219,18 +219,22 @@ export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
 	size?: number;
 }
 
-export interface IViewDescriptorCollection extends IDisposable {
+export interface IViewContainerModel {
 
-	readonly allViewDescriptors: IViewDescriptor[];
-	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
+	readonly title: string;
+	readonly icon: string | URI | undefined;
+	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean }>;
 
-	readonly activeViewDescriptors: IViewDescriptor[];
-	readonly onDidChangeActiveViews: Event<ReadonlyArray<IViewDescriptor>>;
+	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
+	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
 
-	readonly visibleViewDescriptors: IViewDescriptor[];
-	readonly onDidAdd: Event<IAddedViewDescriptorRef[]>;
-	readonly onDidRemove: Event<IViewDescriptorRef[]>
-	readonly onDidMove: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }>
+	readonly activeViewDescriptors: ReadonlyArray<IViewDescriptor>;
+	readonly onDidChangeActiveViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
+
+	readonly visibleViewDescriptors: ReadonlyArray<IViewDescriptor>;
+	readonly onDidAddVisibleViewDescriptors: Event<IAddedViewDescriptorRef[]>;
+	readonly onDidRemoveVisibleViewDescriptors: Event<IViewDescriptorRef[]>
+	readonly onDidMoveVisibleViewDescriptors: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }>
 
 	isVisible(id: string): boolean;
 	setVisible(id: string, visible: boolean, size?: number): void;
@@ -240,9 +244,6 @@ export interface IViewDescriptorCollection extends IDisposable {
 
 	getSize(id: string): number | undefined;
 	setSize(id: string, size: number): void
-
-	getTitle(): string;
-	getIcon(): URI | string | undefined;
 
 	move(from: string, to: string): void;
 }
@@ -484,7 +485,7 @@ export interface IViewDescriptorService {
 
 	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
+	getViewContainerModel(container: ViewContainer): IViewContainerModel;
 
 	getViewDescriptor(viewId: string): IViewDescriptor | null;
 

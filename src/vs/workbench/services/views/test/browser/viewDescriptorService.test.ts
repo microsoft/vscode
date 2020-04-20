@@ -11,6 +11,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
 import { assertIsDefined } from 'vs/base/common/types';
+import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const sidebarContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({ id: 'testSidebar', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
@@ -22,6 +24,7 @@ suite('ViewDescriptorService', () => {
 
 	setup(() => {
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
+		instantiationService.stub(IContextKeyService, instantiationService.createInstance(ContextKeyService));
 		viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
 	});
 
@@ -31,8 +34,8 @@ suite('ViewDescriptorService', () => {
 	});
 
 	test('Empty Containers', function () {
-		const sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
-		const panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+		const sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
+		const panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
 		assert.equal(sidebarViews.allViewDescriptors.length, 0, 'The sidebar container should have no views yet.');
 		assert.equal(panelViews.allViewDescriptors.length, 0, 'The panel container should have no views yet.');
 	});
@@ -64,8 +67,8 @@ suite('ViewDescriptorService', () => {
 		ViewsRegistry.registerViews(viewDescriptors.slice(2), panelContainer);
 
 
-		let sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
-		let panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+		let sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
+		let panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
 
 		assert.equal(sidebarViews.activeViewDescriptors.length, 2, 'Sidebar should have 2 views');
 		assert.equal(panelViews.activeViewDescriptors.length, 1, 'Panel should have 1 view');
@@ -74,8 +77,8 @@ suite('ViewDescriptorService', () => {
 		ViewsRegistry.deregisterViews(viewDescriptors.slice(2), panelContainer);
 
 
-		sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
-		panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+		sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
+		panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
 
 		assert.equal(sidebarViews.activeViewDescriptors.length, 0, 'Sidebar should have no views');
 		assert.equal(panelViews.activeViewDescriptors.length, 0, 'Panel should have no views');
@@ -109,8 +112,8 @@ suite('ViewDescriptorService', () => {
 		viewDescriptorService.moveViewsToContainer(viewDescriptors.slice(2), sidebarContainer);
 		viewDescriptorService.moveViewsToContainer(viewDescriptors.slice(0, 2), panelContainer);
 
-		let sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
-		let panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+		let sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
+		let panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
 
 		assert.equal(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar should have 2 views');
 		assert.equal(panelViews.activeViewDescriptors.length, 2, 'Panel should have 1 view');
@@ -148,8 +151,8 @@ suite('ViewDescriptorService', () => {
 		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Panel);
 		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Sidebar);
 
-		let sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
-		let panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+		let sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
+		let panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
 
 		assert.equal(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar container should have 1 view');
 		assert.equal(panelViews.activeViewDescriptors.length, 0, 'Panel container should have no views');
@@ -169,8 +172,8 @@ suite('ViewDescriptorService', () => {
 		viewDescriptorService.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Sidebar);
 		viewDescriptorService.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Panel);
 
-		sidebarViews = viewDescriptorService.getViewDescriptors(sidebarContainer);
-		panelViews = viewDescriptorService.getViewDescriptors(panelContainer);
+		sidebarViews = viewDescriptorService.getViewContainerModel(sidebarContainer);
+		panelViews = viewDescriptorService.getViewContainerModel(panelContainer);
 
 		assert.equal(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar should have 2 views');
 		assert.equal(panelViews.activeViewDescriptors.length, 0, 'Panel should have 1 view');

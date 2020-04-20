@@ -5,25 +5,31 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { IViewDescriptor } from 'vs/workbench/common/views';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
+import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IViewState, ViewDescriptorsModel, ViewsModel } from 'vs/workbench/services/views/common/viewsModel';
+import { ViewDescriptorService } from 'vs/workbench/services/views/browser/viewDescriptorService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+
+const ViewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 
 class ViewDescriptorSequence {
 
 	readonly elements: IViewDescriptor[];
 	private disposables: IDisposable[] = [];
 
-	constructor(model: ViewsModel) {
+	constructor(model: IViewContainerModel) {
 		this.elements = [...model.visibleViewDescriptors];
-		model.onDidAdd(added => added.forEach(({ viewDescriptor, index }) => this.elements.splice(index, 0, viewDescriptor)), null, this.disposables);
-		model.onDidRemove(removed => removed.sort((a, b) => b.index - a.index).forEach(({ index }) => this.elements.splice(index, 1)), null, this.disposables);
-		model.onDidMove(({ from, to }) => move(this.elements, from.index, to.index), null, this.disposables);
+		model.onDidAddVisibleViewDescriptors(added => added.forEach(({ viewDescriptor, index }) => this.elements.splice(index, 0, viewDescriptor)), null, this.disposables);
+		model.onDidRemoveVisibleViewDescriptors(removed => removed.sort((a, b) => b.index - a.index).forEach(({ index }) => this.elements.splice(index, 1)), null, this.disposables);
+		model.onDidMoveVisibleViewDescriptors(({ from, to }) => move(this.elements, from.index, to.index), null, this.disposables);
 	}
 
 	dispose() {
@@ -31,29 +37,42 @@ class ViewDescriptorSequence {
 	}
 }
 
-suite('ContributableViewsModel', () => {
+suite('ViewContainerModel', () => {
 
+	let container: ViewContainer;
+	let disposableStore: DisposableStore;
 	let contextKeyService: IContextKeyService;
+	let viewDescriptorService: IViewDescriptorService;
+	let storageService: IStorageService;
 
 	setup(() => {
+		disposableStore = new DisposableStore();
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService();
 		contextKeyService = instantiationService.createInstance(ContextKeyService);
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		storageService = instantiationService.get(IStorageService);
+		viewDescriptorService = instantiationService.createInstance(ViewDescriptorService);
+	});
+
+	teardown(() => {
+		disposableStore.dispose();
+		ViewsRegistry.deregisterViews(ViewsRegistry.getViews(container), container);
+		ViewContainerRegistry.deregisterViewContainer(container);
 	});
 
 	test('empty model', function () {
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel);
-		assert.equal(model.visibleViewDescriptors.length, 0);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
 	});
 
 	test('register/unregister', () => {
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel);
-		const seq = new ViewDescriptorSequence(model);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
-		assert.equal(model.visibleViewDescriptors.length, 0);
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
@@ -61,26 +80,25 @@ suite('ContributableViewsModel', () => {
 			name: 'Test View 1'
 		};
 
-		viewsDescriptorsModel.addViews([viewDescriptor]);
+		ViewsRegistry.registerViews([viewDescriptor], container);
 
-		assert.equal(model.visibleViewDescriptors.length, 1);
-		assert.equal(seq.elements.length, 1);
-		assert.deepEqual(model.visibleViewDescriptors[0], viewDescriptor);
-		assert.deepEqual(seq.elements[0], viewDescriptor);
+		assert.equal(testObject.visibleViewDescriptors.length, 1);
+		assert.equal(target.elements.length, 1);
+		assert.deepEqual(testObject.visibleViewDescriptors[0], viewDescriptor);
+		assert.deepEqual(target.elements[0], viewDescriptor);
 
-		viewsDescriptorsModel.removeViews([viewDescriptor]);
+		ViewsRegistry.deregisterViews([viewDescriptor], container);
 
-		assert.equal(model.visibleViewDescriptors.length, 0);
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
 	});
 
 	test('when contexts', async function () {
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel);
-		const seq = new ViewDescriptorSequence(model);
-
-		assert.equal(model.visibleViewDescriptors.length, 0);
-		assert.equal(seq.elements.length, 0);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
@@ -89,169 +107,164 @@ suite('ContributableViewsModel', () => {
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
-		viewsDescriptorsModel.addViews([viewDescriptor]);
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
-		assert.equal(seq.elements.length, 0);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
+		assert.equal(target.elements.length, 0);
 
 		const key = contextKeyService.createKey('showview1', false);
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
+		assert.equal(target.elements.length, 0);
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(model.visibleViewDescriptors.length, 1, 'view should appear');
-		assert.equal(seq.elements.length, 1);
-		assert.deepEqual(model.visibleViewDescriptors[0], viewDescriptor);
-		assert.equal(seq.elements[0], viewDescriptor);
+		assert.equal(testObject.visibleViewDescriptors.length, 1, 'view should appear');
+		assert.equal(target.elements.length, 1);
+		assert.deepEqual(testObject.visibleViewDescriptors[0], viewDescriptor);
+		assert.equal(target.elements[0], viewDescriptor);
 
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should disappear');
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should disappear');
+		assert.equal(target.elements.length, 0);
 
-		viewsDescriptorsModel.removeViews([viewDescriptor]);
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should not be there anymore');
-		assert.equal(seq.elements.length, 0);
+		ViewsRegistry.deregisterViews([viewDescriptor], container);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not be there anymore');
+		assert.equal(target.elements.length, 0);
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should not be there anymore');
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not be there anymore');
+		assert.equal(target.elements.length, 0);
 	});
 
 	test('when contexts - multiple', async function () {
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel);
-		const seq = new ViewDescriptorSequence(model);
-
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
 		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2', when: ContextKeyExpr.equals('showview2', true) };
 
-		viewsDescriptorsModel.addViews([view1, view2]);
-		assert.deepEqual(model.visibleViewDescriptors, [view1], 'only view1 should be visible');
-		assert.deepEqual(seq.elements, [view1], 'only view1 should be visible');
+		ViewsRegistry.registerViews([view1, view2], container);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1], 'only view1 should be visible');
+		assert.deepEqual(target.elements, [view1], 'only view1 should be visible');
 
 		const key = contextKeyService.createKey('showview2', false);
-		assert.deepEqual(model.visibleViewDescriptors, [view1], 'still only view1 should be visible');
-		assert.deepEqual(seq.elements, [view1], 'still only view1 should be visible');
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1], 'still only view1 should be visible');
+		assert.deepEqual(target.elements, [view1], 'still only view1 should be visible');
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view2], 'both views should be visible');
-		assert.deepEqual(seq.elements, [view1, view2], 'both views should be visible');
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view2], 'both views should be visible');
+		assert.deepEqual(target.elements, [view1, view2], 'both views should be visible');
 
-		viewsDescriptorsModel.removeViews([view1, view2]);
+		ViewsRegistry.deregisterViews([view1, view2], container);
 	});
 
 	test('when contexts - multiple 2', async function () {
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel);
-		const seq = new ViewDescriptorSequence(model);
-
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
 		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2' };
 
-		viewsDescriptorsModel.addViews([view1, view2]);
-		assert.deepEqual(model.visibleViewDescriptors, [view2], 'only view2 should be visible');
-		assert.deepEqual(seq.elements, [view2], 'only view2 should be visible');
+		ViewsRegistry.registerViews([view1, view2], container);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view2], 'only view2 should be visible');
+		assert.deepEqual(target.elements, [view2], 'only view2 should be visible');
 
 		const key = contextKeyService.createKey('showview1', false);
-		assert.deepEqual(model.visibleViewDescriptors, [view2], 'still only view2 should be visible');
-		assert.deepEqual(seq.elements, [view2], 'still only view2 should be visible');
+		assert.deepEqual(testObject.visibleViewDescriptors, [view2], 'still only view2 should be visible');
+		assert.deepEqual(target.elements, [view2], 'still only view2 should be visible');
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view2], 'both views should be visible');
-		assert.deepEqual(seq.elements, [view1, view2], 'both views should be visible');
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view2], 'both views should be visible');
+		assert.deepEqual(target.elements, [view1, view2], 'both views should be visible');
 
-		viewsDescriptorsModel.removeViews([view1, view2]);
+		ViewsRegistry.deregisterViews([view1, view2], container);
 	});
 
 	test('setVisible', () => {
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel);
-		const seq = new ViewDescriptorSequence(model);
-
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', canToggleVisibility: true };
 		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2', canToggleVisibility: true };
 		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: 'Test View 3', canToggleVisibility: true };
 
-		viewsDescriptorsModel.addViews([view1, view2, view3]);
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3]);
-		assert.deepEqual(seq.elements, [view1, view2, view3]);
+		ViewsRegistry.registerViews([view1, view2, view3], container);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view2, view3]);
+		assert.deepEqual(target.elements, [view1, view2, view3]);
 
-		model.setVisible('view2', true);
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3], 'nothing should happen');
-		assert.deepEqual(seq.elements, [view1, view2, view3]);
+		testObject.setVisible('view2', true);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'nothing should happen');
+		assert.deepEqual(target.elements, [view1, view2, view3]);
 
-		model.setVisible('view2', false);
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view3], 'view2 should hide');
-		assert.deepEqual(seq.elements, [view1, view3]);
+		testObject.setVisible('view2', false);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view3], 'view2 should hide');
+		assert.deepEqual(target.elements, [view1, view3]);
 
-		model.setVisible('view1', false);
-		assert.deepEqual(model.visibleViewDescriptors, [view3], 'view1 should hide');
-		assert.deepEqual(seq.elements, [view3]);
+		testObject.setVisible('view1', false);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view3], 'view1 should hide');
+		assert.deepEqual(target.elements, [view3]);
 
-		model.setVisible('view3', false);
-		assert.deepEqual(model.visibleViewDescriptors, [], 'view3 shoud hide');
-		assert.deepEqual(seq.elements, []);
+		testObject.setVisible('view3', false);
+		assert.deepEqual(testObject.visibleViewDescriptors, [], 'view3 shoud hide');
+		assert.deepEqual(target.elements, []);
 
-		model.setVisible('view1', true);
-		assert.deepEqual(model.visibleViewDescriptors, [view1], 'view1 should show');
-		assert.deepEqual(seq.elements, [view1]);
+		testObject.setVisible('view1', true);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1], 'view1 should show');
+		assert.deepEqual(target.elements, [view1]);
 
-		model.setVisible('view3', true);
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view3], 'view3 should show');
-		assert.deepEqual(seq.elements, [view1, view3]);
+		testObject.setVisible('view3', true);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view3], 'view3 should show');
+		assert.deepEqual(target.elements, [view1, view3]);
 
-		model.setVisible('view2', true);
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3], 'view2 should show');
-		assert.deepEqual(seq.elements, [view1, view2, view3]);
+		testObject.setVisible('view2', true);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'view2 should show');
+		assert.deepEqual(target.elements, [view1, view2, view3]);
 
-		viewsDescriptorsModel.removeViews([view1, view2, view3]);
-		assert.deepEqual(model.visibleViewDescriptors, []);
-		assert.deepEqual(seq.elements, []);
+		ViewsRegistry.deregisterViews([view1, view2, view3], container);
+		assert.deepEqual(testObject.visibleViewDescriptors, []);
+		assert.deepEqual(target.elements, []);
 	});
 
 	test('move', () => {
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel);
-		const seq = new ViewDescriptorSequence(model);
-
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
 		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2' };
 		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: 'Test View 3' };
 
-		viewsDescriptorsModel.addViews([view1, view2, view3]);
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3], 'model views should be OK');
-		assert.deepEqual(seq.elements, [view1, view2, view3], 'sql views should be OK');
+		ViewsRegistry.registerViews([view1, view2, view3], container);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'model views should be OK');
+		assert.deepEqual(target.elements, [view1, view2, view3], 'sql views should be OK');
 
-		model.move('view3', 'view1');
-		assert.deepEqual(model.visibleViewDescriptors, [view3, view1, view2], 'view3 should go to the front');
-		assert.deepEqual(seq.elements, [view3, view1, view2]);
+		testObject.move('view3', 'view1');
+		assert.deepEqual(testObject.visibleViewDescriptors, [view3, view1, view2], 'view3 should go to the front');
+		assert.deepEqual(target.elements, [view3, view1, view2]);
 
-		model.move('view1', 'view2');
-		assert.deepEqual(model.visibleViewDescriptors, [view3, view2, view1], 'view1 should go to the end');
-		assert.deepEqual(seq.elements, [view3, view2, view1]);
+		testObject.move('view1', 'view2');
+		assert.deepEqual(testObject.visibleViewDescriptors, [view3, view2, view1], 'view1 should go to the end');
+		assert.deepEqual(target.elements, [view3, view2, view1]);
 
-		model.move('view1', 'view3');
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view3, view2], 'view1 should go to the front');
-		assert.deepEqual(seq.elements, [view1, view3, view2]);
+		testObject.move('view1', 'view3');
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view3, view2], 'view1 should go to the front');
+		assert.deepEqual(target.elements, [view1, view3, view2]);
 
-		model.move('view2', 'view3');
-		assert.deepEqual(model.visibleViewDescriptors, [view1, view2, view3], 'view2 should go to the middle');
-		assert.deepEqual(seq.elements, [view1, view2, view3]);
+		testObject.move('view2', 'view3');
+		assert.deepEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'view2 should go to the middle');
+		assert.deepEqual(target.elements, [view1, view2, view3]);
 	});
 
 	test('view states', async function () {
-		const viewStates = new Map<string, IViewState>();
-		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel, viewStates);
-		const seq = new ViewDescriptorSequence(model);
+		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
-		assert.equal(model.visibleViewDescriptors.length, 0);
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
@@ -259,20 +272,19 @@ suite('ContributableViewsModel', () => {
 			name: 'Test View 1'
 		};
 
-		viewsDescriptorsModel.addViews([viewDescriptor]);
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should not appear since it was set not visible in view state');
-		assert.equal(seq.elements.length, 0);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not appear since it was set not visible in view state');
+		assert.equal(target.elements.length, 0);
 	});
 
 	test('view states and when contexts', async function () {
-		const viewStates = new Map<string, IViewState>();
-		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel, viewStates);
-		const seq = new ViewDescriptorSequence(model);
+		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
-		assert.equal(model.visibleViewDescriptors.length, 0);
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
 
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
@@ -281,29 +293,28 @@ suite('ContributableViewsModel', () => {
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
-		viewsDescriptorsModel.addViews([viewDescriptor]);
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
-		assert.equal(seq.elements.length, 0);
+		ViewsRegistry.registerViews([viewDescriptor], container);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should not appear since context isnt in');
+		assert.equal(target.elements.length, 0);
 
 		const key = contextKeyService.createKey('showview1', false);
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since showview1 isnt true');
+		assert.equal(target.elements.length, 0);
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should still not appear since it was set not visible in view state');
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should still not appear since it was set not visible in view state');
+		assert.equal(target.elements.length, 0);
 	});
 
 	test('view states and when contexts multiple views', async function () {
-		const viewStates = new Map<string, IViewState>();
-		viewStates.set('view1', { visibleGlobal: false, collapsed: false, visibleWorkspace: undefined });
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel, viewStates);
-		const seq = new ViewDescriptorSequence(model);
+		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.GLOBAL);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
-		assert.equal(model.visibleViewDescriptors.length, 0);
-		assert.equal(seq.elements.length, 0);
+		assert.equal(testObject.visibleViewDescriptors.length, 0);
+		assert.equal(target.elements.length, 0);
 
 		const view1: IViewDescriptor = {
 			id: 'view1',
@@ -323,30 +334,29 @@ suite('ContributableViewsModel', () => {
 			when: ContextKeyExpr.equals('showview', true)
 		};
 
-		viewsDescriptorsModel.addViews([view1, view2, view3]);
-		assert.deepEqual(model.visibleViewDescriptors, [view2], 'Only view2 should be visible');
-		assert.deepEqual(seq.elements, [view2]);
+		ViewsRegistry.registerViews([view1, view2, view3], container);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view2], 'Only view2 should be visible');
+		assert.deepEqual(target.elements, [view2]);
 
 		const key = contextKeyService.createKey('showview', false);
-		assert.deepEqual(model.visibleViewDescriptors, [view2], 'Only view2 should be visible');
-		assert.deepEqual(seq.elements, [view2]);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view2], 'Only view2 should be visible');
+		assert.deepEqual(target.elements, [view2]);
 
 		key.set(true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.deepEqual(model.visibleViewDescriptors, [view2, view3], 'view3 should be visible');
-		assert.deepEqual(seq.elements, [view2, view3]);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view2, view3], 'view3 should be visible');
+		assert.deepEqual(target.elements, [view2, view3]);
 
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
-		assert.deepEqual(model.visibleViewDescriptors, [view2], 'Only view2 should be visible');
-		assert.deepEqual(seq.elements, [view2]);
+		assert.deepEqual(testObject.visibleViewDescriptors, [view2], 'Only view2 should be visible');
+		assert.deepEqual(target.elements, [view2]);
 	});
 
 	test('remove event is not triggered if view was hidden and removed', async function () {
-		const viewsDescriptorsModel = new ViewDescriptorsModel(contextKeyService);
-		const model = new ViewsModel(viewsDescriptorsModel);
-		const seq = new ViewDescriptorSequence(model);
-
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', name: 'test', ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const testObject = viewDescriptorService.getViewContainerModel(container);
+		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
@@ -355,21 +365,21 @@ suite('ContributableViewsModel', () => {
 			canToggleVisibility: true
 		};
 
-		viewsDescriptorsModel.addViews([viewDescriptor]);
+		ViewsRegistry.registerViews([viewDescriptor], container);
 
 		const key = contextKeyService.createKey('showview1', true);
 		await new Promise(c => setTimeout(c, 30));
-		assert.equal(model.visibleViewDescriptors.length, 1, 'view should appear after context is set');
-		assert.equal(seq.elements.length, 1);
+		assert.equal(testObject.visibleViewDescriptors.length, 1, 'view should appear after context is set');
+		assert.equal(target.elements.length, 1);
 
-		model.setVisible('view1', false);
-		assert.equal(model.visibleViewDescriptors.length, 0, 'view should disappear after setting visibility to false');
-		assert.equal(seq.elements.length, 0);
+		testObject.setVisible('view1', false);
+		assert.equal(testObject.visibleViewDescriptors.length, 0, 'view should disappear after setting visibility to false');
+		assert.equal(target.elements.length, 0);
 
-		const target = sinon.spy(model.onDidRemove);
+		const targetEvent = sinon.spy(testObject.onDidRemoveVisibleViewDescriptors);
 		key.set(false);
 		await new Promise(c => setTimeout(c, 30));
-		assert.ok(!target.called, 'remove event should not be called since it is already hidden');
+		assert.ok(!targetEvent.called, 'remove event should not be called since it is already hidden');
 	});
 
 });

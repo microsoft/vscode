@@ -33,7 +33,7 @@ import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/con
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
@@ -178,9 +178,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const result: IAction[] = [];
 		const container = this.getViewContainer(compositeId);
 		if (container) {
-			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(container);
-			if (viewDescriptors.allViewDescriptors.length === 1) {
-				const viewMenuActions = this.instantiationService.createInstance(ViewMenuActions, viewDescriptors.allViewDescriptors[0].id, MenuId.ViewTitle, MenuId.ViewTitleContext);
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
+			if (viewContainerModel.allViewDescriptors.length === 1) {
+				const viewMenuActions = this.instantiationService.createInstance(ViewMenuActions, viewContainerModel.allViewDescriptors[0].id, MenuId.ViewTitle, MenuId.ViewTitleContext);
 				result.push(...viewMenuActions.getContextMenuActions());
 				viewMenuActions.dispose();
 			}
@@ -211,13 +211,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		for (const panel of panels) {
 			this.enableCompositeActions(panel);
 			const viewContainer = this.getViewContainer(panel.id)!;
-			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-			this.onDidChangeActiveViews(panel, viewDescriptors, viewContainer.hideIfEmpty);
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			this.onDidChangeActiveViews(panel, viewContainerModel, viewContainer.hideIfEmpty);
 
 			const disposables = new DisposableStore();
-			disposables.add(viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors, viewContainer.hideIfEmpty)));
-			disposables.add(viewDescriptors.onDidChangeViews(() => this.onDidUpdateViews(panel, viewDescriptors)));
-			disposables.add(viewDescriptors.onDidMove(() => this.onDidUpdateViews(panel, viewDescriptors)));
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(panel, viewContainerModel, viewContainer.hideIfEmpty)));
+			disposables.add(viewContainerModel.onDidChangeAllViewDescriptors(() => this.onDidUpdateViews(panel, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidMoveVisibleViewDescriptors(() => this.onDidUpdateViews(panel, viewContainerModel)));
 
 			this.panelDisposables.set(panel.id, disposables);
 		}
@@ -242,10 +242,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	private updateActivity(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+	private updateActivity(panel: PanelDescriptor, viewContainerModel: IViewContainerModel): void {
 		const activity: IActivity = {
 			id: panel.id,
-			name: viewDescriptors.getTitle(),
+			name: viewContainerModel.title,
 			keybindingId: panel.keybindingId
 		};
 
@@ -257,11 +257,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	private onDidUpdateViews(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection): void {
+	private onDidUpdateViews(panel: PanelDescriptor, viewDescriptors: IViewContainerModel): void {
 		this.updateActivity(panel, viewDescriptors);
 	}
 
-	private onDidChangeActiveViews(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection, hideIfEmpty?: boolean): void {
+	private onDidChangeActiveViews(panel: PanelDescriptor, viewDescriptors: IViewContainerModel, hideIfEmpty?: boolean): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
 			this.updateActivity(panel, viewDescriptors);
 			this.compositeBar.addComposite(panel);
@@ -343,8 +343,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				if (viewDescriptors.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
 					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
 				}
 			}
@@ -610,10 +610,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 		for (const compositeItem of compositeItems) {
-			const viewContainer = this.getViewContainer(compositeItem.id)!;
-			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-
-			state.push({ id: compositeItem.id, name: viewDescriptors.getTitle(), pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+			const viewContainer = this.getViewContainer(compositeItem.id);
+			if (viewContainer) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+			}
 		}
 
 		this.cachedPanelsValue = JSON.stringify(state);

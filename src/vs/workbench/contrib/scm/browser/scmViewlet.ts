@@ -101,7 +101,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 	}
 
 	get onDidChangeVisibleRepositories(): Event<ISCMRepository[]> {
-		const modificationEvent = Event.debounce(Event.any(this.viewsDescriptors.onDidAdd, this.viewsDescriptors.onDidRemove), () => null, 0);
+		const modificationEvent = Event.debounce(Event.any(this.viewContainerModel.onDidAddVisibleViewDescriptors, this.viewContainerModel.onDidRemoveVisibleViewDescriptors), () => null, 0);
 		return Event.map(modificationEvent, () => this.visibleRepositories);
 	}
 
@@ -140,14 +140,14 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('scm.alwaysShowProviders') && configurationService.getValue<boolean>('scm.alwaysShowProviders')) {
-				this.viewsDescriptors.setVisible(MainPane.ID, true);
+				this.viewContainerModel.setVisible(MainPane.ID, true);
 			}
 		}));
 
 		this.repositoryCountKey = contextKeyService.createKey('scm.providerCount', 0);
 
-		this._register(this.viewsDescriptors.onDidAdd(this.onDidShowView, this));
-		this._register(this.viewsDescriptors.onDidRemove(this.onDidHideView, this));
+		this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(this.onDidShowView, this));
+		this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(this.onDidHideView, this));
 	}
 
 	create(parent: HTMLElement): void {
@@ -214,8 +214,8 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 
 	@debounce(0)
 	private afterOnDidHideView(): void {
-		if (this.repositoryCountKey.get()! > 0 && this.viewDescriptors.every(d => !this.viewsDescriptors.isVisible(d.id))) {
-			this.viewsDescriptors.setVisible(this.viewDescriptors[0].id, true);
+		if (this.repositoryCountKey.get()! > 0 && this.viewDescriptors.every(d => !this.viewContainerModel.isVisible(d.id))) {
+			this.viewContainerModel.setVisible(this.viewDescriptors[0].id, true);
 		}
 	}
 
@@ -282,9 +282,9 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 	}
 
 	setVisibleRepositories(repositories: ISCMRepository[]): void {
-		const visibleViewDescriptors = this.viewsDescriptors.visibleViewDescriptors;
+		const visibleViewDescriptors = this.viewContainerModel.visibleViewDescriptors;
 
-		const toSetVisible = this.viewsDescriptors.activeViewDescriptors
+		const toSetVisible = this.viewContainerModel.activeViewDescriptors
 			.filter((d): d is RepositoryViewDescriptor => d instanceof RepositoryViewDescriptor && repositories.indexOf(d.repository) > -1 && visibleViewDescriptors.indexOf(d) === -1);
 
 		const toSetInvisible = visibleViewDescriptors
@@ -302,11 +302,11 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 				}
 			}
 
-			this.viewsDescriptors.setVisible(viewDescriptor.id, false);
+			this.viewContainerModel.setVisible(viewDescriptor.id, false);
 		}
 
 		for (const viewDescriptor of toSetVisible) {
-			this.viewsDescriptors.setVisible(viewDescriptor.id, true, size);
+			this.viewContainerModel.setVisible(viewDescriptor.id, true, size);
 		}
 	}
 }

@@ -26,7 +26,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull, assertIsDefined, isString } from 'vs/base/common/types';
@@ -218,8 +218,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (viewletDescriptor) {
 			const viewContainer = this.getViewContainer(viewletDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				if (viewDescriptors.activeViewDescriptors.length === 0) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (viewContainerModel.activeViewDescriptors.length === 0) {
 					this.hideComposite(viewletDescriptor.id); // Update the composite bar by hiding
 				}
 			}
@@ -490,13 +490,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		for (const viewlet of viewlets) {
 			this.enableCompositeActions(viewlet);
 			const viewContainer = this.getViewContainer(viewlet.id)!;
-			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-			this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty);
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			this.onDidChangeActiveViews(viewlet, viewContainerModel, viewContainer.hideIfEmpty);
 
 			const disposables = new DisposableStore();
-			disposables.add(viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors, viewContainer.hideIfEmpty)));
-			disposables.add(viewDescriptors.onDidChangeViews(() => this.onDidUpdateViews(viewlet, viewDescriptors)));
-			disposables.add(viewDescriptors.onDidMove(() => this.onDidUpdateViews(viewlet, viewDescriptors)));
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewlet, viewContainerModel, viewContainer.hideIfEmpty)));
+			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewlet, viewContainerModel)));
 
 			this.viewletDisposables.set(viewlet.id, disposables);
 		}
@@ -512,12 +511,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.hideComposite(viewletId);
 	}
 
-	private updateActivity(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
-		const icon = viewDescriptors.getIcon();
+	private updateActivity(viewlet: ViewletDescriptor, viewContainerModel: IViewContainerModel): void {
+		const icon = viewContainerModel.icon;
 
 		const activity: IActivity = {
 			id: viewlet.id,
-			name: viewDescriptors.getTitle(),
+			name: viewContainerModel.title,
 			cssClass: isString(icon) ? icon : undefined,
 			iconUrl: icon instanceof URI ? icon : undefined,
 			keybindingId: viewlet.keybindingId
@@ -531,11 +530,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	private onDidUpdateViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
-		this.updateActivity(viewlet, viewDescriptors);
-	}
-
-	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection, hideIfEmpty?: boolean): void {
+	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewContainerModel, hideIfEmpty?: boolean): void {
 		if (viewDescriptors.activeViewDescriptors.length) {
 			this.updateActivity(viewlet, viewDescriptors);
 			this.compositeBar.addComposite(viewlet);
@@ -663,8 +658,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			if (viewlet) {
 				const views: { when: string | undefined }[] = [];
 				if (viewContainer) {
-					const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-					for (const { when } of viewDescriptors.allViewDescriptors) {
+					const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+					for (const { when } of viewContainerModel.allViewDescriptors) {
 						views.push({ when: when ? when.serialize() : undefined });
 					}
 				}

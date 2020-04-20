@@ -46,8 +46,8 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			this.onFilterChanged(newFilterValue);
 		}));
 
-		this._register(this.viewsDescriptors.onDidChangeActiveViews((viewDescriptors) => {
-			this.updateAllViews(viewDescriptors);
+		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => {
+			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}));
 	}
 
@@ -62,7 +62,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			}
 			this.allViews.get(filterOnValue)!.set(descriptor.id, descriptor);
 			if (this.filterValue && !this.filterValue.includes(filterOnValue)) {
-				this.viewsDescriptors.setVisible(descriptor.id, false);
+				this.viewContainerModel.setVisible(descriptor.id, false);
 			}
 		});
 	}
@@ -75,17 +75,17 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 
 	private onFilterChanged(newFilterValue: string[]) {
 		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewsDescriptors.activeViewDescriptors);
+			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}
-		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewsDescriptors.setVisible(item.id, false));
-		this.getViewsForTarget(newFilterValue).forEach(item => this.viewsDescriptors.setVisible(item.id, true));
+		this.getViewsNotForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, false));
+		this.getViewsForTarget(newFilterValue).forEach(item => this.viewContainerModel.setVisible(item.id, true));
 	}
 
 	getContextMenuActions(): IAction[] {
 		const result: IAction[] = Array.from(this.constantViewDescriptors.values()).map(viewDescriptor => (<IAction>{
 			id: `${viewDescriptor.id}.toggleVisibility`,
 			label: viewDescriptor.name,
-			checked: this.viewsDescriptors.isVisible(viewDescriptor.id),
+			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
 			enabled: viewDescriptor.canToggleVisibility,
 			run: () => this.toggleViewVisibility(viewDescriptor.id)
 		}));
@@ -133,7 +133,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		}
 		// Check that allViews is ready
 		if (this.allViews.size === 0) {
-			this.updateAllViews(this.viewsDescriptors.activeViewDescriptors);
+			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}
 		return panes;
 	}
