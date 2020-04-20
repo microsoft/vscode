@@ -45,13 +45,14 @@ export class FoldingController extends Disposable {
 			// folding icon
 
 			const cellViewModel = e.target;
-			const state = viewModel.getFoldingState(cellViewModel);
+			const modelIndex = viewModel.getCellIndex(cellViewModel);
+			const state = viewModel.getFoldingState(modelIndex);
 
 			if (state === CellFoldingState.None) {
 				return;
 			}
 
-			viewModel.setFoldingState(cellViewModel, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed);
+			viewModel.setFoldingState(modelIndex, state === CellFoldingState.Collapsed ? CellFoldingState.Expanded : CellFoldingState.Collapsed);
 		}
 
 		return;
