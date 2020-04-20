@@ -377,6 +377,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
 		}
 
+		await this.webview.waitForInitialization();
+
 		this.eventDispatcher = new NotebookEventDispatcher();
 		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher, this.getLayoutInfo());
 		this.editorEditable?.set(!!this.notebookViewModel.metadata?.editable);
