@@ -1669,6 +1669,12 @@
           "default": false,
           "description": "%config.showRepositoryInStatusBar%",
           "scope": "resource"
+        },
+        "git.showCommitInput": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.showCommitInput%"
         }
       }
     },

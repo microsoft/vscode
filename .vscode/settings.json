@@ -72,5 +72,6 @@
 	"files.insertFinalNewline": true,
   "[typescript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features"
-	}
+	},
+	"typescript.tsc.autoDetect": "off"
 }

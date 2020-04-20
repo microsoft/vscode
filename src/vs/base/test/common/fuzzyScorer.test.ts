@@ -82,10 +82,10 @@ function _doScore(target: string, query: string, fuzzy: boolean): scorer.FuzzySc
 	return scorer.scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
 }
 
-function _doScore2(target: string, query: string): scorer.FuzzyScore2 {
+function _doScore2(target: string, query: string, matchOffset: number = 0): scorer.FuzzyScore2 {
 	const preparedQuery = scorer.prepareQuery(query);
 
-	return scorer.scoreFuzzy2(target, preparedQuery);
+	return scorer.scoreFuzzy2(target, preparedQuery, 0, matchOffset);
 }
 
 function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>): scorer.IItemScore {
@@ -970,6 +970,28 @@ suite('Fuzzy Scorer', () => {
 			assert.equal(scorer.prepareQuery('\\some\\path').pathNormalized, '/some/path');
 			assert.equal(scorer.prepareQuery('\\some\\path').normalized, '/some/path');
 			assert.equal(scorer.prepareQuery('\\some\\path').containsPathSeparator, true);
+		}
+	});
+
+	test('fuzzyScore2 (matching)', function () {
+		const target = 'HeLlo-World';
+
+		for (const offset of [0, 3]) {
+			let [score, matches] = _doScore2(target, 'HeLlo-World', offset);
+
+			assert.ok(score);
+			assert.equal(matches.length, 1);
+			assert.equal(matches[0].start, 0 + offset);
+			assert.equal(matches[0].end, target.length + offset);
+
+			[score, matches] = _doScore2(target, 'HW', offset);
+
+			assert.ok(score);
+			assert.equal(matches.length, 2);
+			assert.equal(matches[0].start, 0 + offset);
+			assert.equal(matches[0].end, 1 + offset);
+			assert.equal(matches[1].start, 6 + offset);
+			assert.equal(matches[1].end, 7 + offset);
 		}
 	});
 

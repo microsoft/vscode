@@ -11,7 +11,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER, CELL_STATUSBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
@@ -34,9 +33,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	get outputs() {
 		return this.model.outputs;
 	}
-
-	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
@@ -62,7 +58,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly viewType: string,
 		readonly notebookHandle: number,
 		readonly model: NotebookCellTextModel,
-		readonly eventDispatcher: NotebookEventDispatcher,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
@@ -71,10 +66,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._outputCollection = new Array(this.model.outputs.length);
 			this._outputsTop = null;
 			this._onDidChangeOutputs.fire(splices);
-		}));
-
-		this._register(this.model.onDidChangeMetadata(() => {
-			this._onDidChangeMetadata.fire();
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
@@ -90,18 +81,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			indicatorHeight: 0,
 			bottomToolbarOffset: 0
 		};
-
-		this._register(eventDispatcher.onDidChangeLayout((e) => {
-			if (e.source.width !== undefined) {
-				this.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
-			}
-		}));
-
-		this._register(this.onDidChangeLanguage((e) => {
-			if (this._textModel && !this._textModel.isDisposed()) {
-
-			}
-		}));
 	}
 
 	layoutChange(state: CodeCellLayoutChangeEvent) {
@@ -191,7 +170,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
 				this.model.contentChange();
-				this._onDidChangeContent.fire();
+				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}
 

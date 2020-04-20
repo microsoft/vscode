@@ -12,7 +12,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, ICellViewModel, CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
@@ -22,22 +22,12 @@ export const NotebookCellMetadataDefaults = {
 };
 
 export abstract class BaseCellViewModel extends Disposable implements ICellViewModel {
-	protected readonly _onDidDispose = new Emitter<void>();
-	readonly onDidDispose = this._onDidDispose.event;
-	protected readonly _onDidChangeCellEditState = new Emitter<void>();
-	readonly onDidChangeCellEditState = this._onDidChangeCellEditState.event;
-	protected readonly _onDidChangeCellRunState = new Emitter<void>();
-	readonly onDidChangeCellRunState = this._onDidChangeCellRunState.event;
-	protected readonly _onDidChangeFocusMode = new Emitter<void>();
-	readonly onDidChangeFocusMode = this._onDidChangeFocusMode.event;
-	protected readonly _onDidChangeEditorAttachState = new Emitter<boolean>();
+	protected readonly _onDidChangeEditorAttachState = new Emitter<void>();
+	// Do not merge this event with `onDidChangeState` as we are using `Event.once(onDidChangeEditorAttachState)` elsewhere.
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
-	protected readonly _onDidChangeCursorSelection: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeCursorSelection: Event<void> = this._onDidChangeCursorSelection.event;
-	protected readonly _onDidChangeMetadata: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
-	protected readonly _onDidChangeLanguage: Emitter<string> = this._register(new Emitter<string>());
-	public readonly onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
+	protected readonly _onDidChangeState: Emitter<CellViewModelStateChangeEvent> = this._register(new Emitter<CellViewModelStateChangeEvent>());
+	public readonly onDidChangeState: Event<CellViewModelStateChangeEvent> = this._onDidChangeState.event;
+
 	get handle() {
 		return this.model.handle;
 	}
@@ -49,6 +39,9 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	}
 	get metadata() {
 		return this.model.metadata;
+	}
+	get language() {
+		return this.model.language;
 	}
 
 	abstract cellKind: CellKind;
@@ -65,14 +58,14 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		}
 
 		this._editState = newState;
-		this._onDidChangeCellEditState.fire();
+		this._onDidChangeState.fire({ editStateChanged: true });
 	}
 
 	// TODO - move any "run"/"status" concept to Code-specific places
 	private _currentTokenSource: CancellationTokenSource | undefined;
 	public set currentTokenSource(v: CancellationTokenSource | undefined) {
 		this._currentTokenSource = v;
-		this._onDidChangeCellRunState.fire();
+		this._onDidChangeState.fire({ runStateChanged: true });
 	}
 
 	public get currentTokenSource(): CancellationTokenSource | undefined {
@@ -89,7 +82,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	}
 	set focusMode(newMode: CellFocusMode) {
 		this._focusMode = newMode;
-		this._onDidChangeFocusMode.fire();
+		this._onDidChangeState.fire({ focusModeChanged: true });
 	}
 
 	protected _textEditor?: ICodeEditor;
@@ -108,12 +101,12 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	constructor(readonly viewType: string, readonly notebookHandle: number, readonly model: NotebookCellTextModel, public id: string) {
 		super();
 
-		this._register(model.onDidChangeLanguage((e) => {
-			this._onDidChangeLanguage.fire(e);
+		this._register(model.onDidChangeLanguage(() => {
+			this._onDidChangeState.fire({ languageChanged: true });
 		}));
 
 		this._register(model.onDidChangeMetadata(() => {
-			this._onDidChangeMetadata.fire();
+			this._onDidChangeState.fire({ metadataChanged: true });
 		}));
 	}
 
@@ -136,8 +129,8 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 
 		if (this._textEditor === editor) {
 			if (this._cursorChangeListener === null) {
-				this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => this._onDidChangeCursorSelection.fire());
-				this._onDidChangeCursorSelection.fire();
+				this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); });
+				this._onDidChangeState.fire({ selectionChanged: true });
 			}
 			return;
 		}
@@ -160,9 +153,9 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 			}
 		});
 
-		this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => this._onDidChangeCursorSelection.fire());
-		this._onDidChangeCursorSelection.fire();
-		this._onDidChangeEditorAttachState.fire(true);
+		this._cursorChangeListener = this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); });
+		this._onDidChangeState.fire({ selectionChanged: true });
+		this._onDidChangeEditorAttachState.fire();
 	}
 
 	detachTextEditor() {
@@ -179,7 +172,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		this._textEditor = undefined;
 		this._cursorChangeListener?.dispose();
 		this._cursorChangeListener = null;
-		this._onDidChangeEditorAttachState.fire(false);
+		this._onDidChangeEditorAttachState.fire();
 	}
 
 	getText(): string {

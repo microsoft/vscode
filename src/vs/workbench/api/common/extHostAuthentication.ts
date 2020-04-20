@@ -114,7 +114,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			this._onDidChangeSessions.fire({ [provider.id]: e });
 		});
 
-		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName, provider.supportsMultipleAccounts);
+		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName);
 		this._onDidChangeAuthenticationProviders.fire({ added: [provider.id], removed: [] });
 
 		return new Disposable(() => {
@@ -125,7 +125,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$login(providerId: string, scopes: string[] | undefined): Promise<modes.AuthenticationSession> {
+	$login(providerId: string, scopes: string[]): Promise<modes.AuthenticationSession> {
 		const authProvider = this._authenticationProviders.get(providerId);
 		if (authProvider) {
 			return Promise.resolve(authProvider.login(scopes));

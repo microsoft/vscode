@@ -23,14 +23,12 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider({
 		id: 'microsoft',
 		displayName: 'Microsoft',
-		supportsMultipleAccounts: true,
 		onDidChangeSessions: onDidChangeSessions.event,
 		getSessions: () => Promise.resolve(loginService.sessions),
-		login: async (scopes: string[] | undefined) => {
+		login: async (scopes: string[]) => {
 			try {
 				telemetryReporter.sendTelemetryEvent('login');
-				const loginScopes = scopes ? scopes.sort().join(' ') : 'https://management.core.windows.net/.default offline_access';
-				await loginService.login(loginScopes);
+				await loginService.login(scopes.sort().join(' '));
 				const session = loginService.sessions[loginService.sessions.length - 1];
 				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
 				return loginService.sessions[0]!;

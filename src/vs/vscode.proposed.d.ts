@@ -75,12 +75,6 @@ declare module 'vscode' {
 		readonly displayName: string;
 
 		/**
-		 * Whether the authentication provider supports the user being logged into
-		 * multiple different accounts at the same time.
-		 */
-		supportsMultipleAccounts: boolean;
-
-		/**
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
@@ -94,7 +88,7 @@ declare module 'vscode' {
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes?: string[]): Thenable<AuthenticationSession>;
+		login(scopes: string[]): Thenable<AuthenticationSession>;
 		logout(sessionId: string): Thenable<void>;
 	}
 
@@ -886,6 +880,37 @@ declare module 'vscode' {
 
 	//#endregion
 
+
+
+	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
+
+	export namespace window {
+		/**
+		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
+		 * handle links that are activated within terminals.
+		 * @param handler The link handler being registered.
+		 * @return A disposable that unregisters the link handler.
+		 */
+		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
+	}
+
+	/**
+	 * Describes how to handle terminal links.
+	 */
+	export interface TerminalLinkHandler {
+		/**
+		 * Handles a link that is activated within the terminal.
+		 *
+		 * @param terminal The terminal the link was activated on.
+		 * @param link The text of the link activated.
+		 * @return Whether the link was handled, if the link was handled this link will not be
+		 * considered by any other extension or by the default built-in link handler.
+		 */
+		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+	}
+
+	//#endregion
+
 	//#region Contribute to terminal environment https://github.com/microsoft/vscode/issues/46696
 
 	export enum EnvironmentVariableMutatorType {
@@ -1176,6 +1201,8 @@ declare module 'vscode' {
 
 	/**
 	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`EditableCustomDocument`](#EditableCustomDocument).
+	 *
+	 * @see [`EditableCustomDocument.onDidChange`](#EditableCustomDocument.onDidChange).
 	 */
 	interface CustomDocumentEditEvent {
 		/**
@@ -1198,6 +1225,16 @@ declare module 'vscode' {
 		 * This is shown in the UI to users.
 		 */
 		readonly label?: string;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that the content of a [`EditableCustomDocument`](#EditableCustomDocument)
+	 * has changed.
+	 *
+	 * @see [`EditableCustomDocument.onDidChange`](#EditableCustomDocument.onDidChange).
+	 */
+	interface CustomDocumentContentChangeEvent {
+		// marker interface
 	}
 
 	/**
@@ -1265,10 +1302,20 @@ declare module 'vscode' {
 		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
 		 * define what an edit is and what data is stored on each edit.
 		 *
-		 * Firing this will cause VS Code to mark the editors as being dirty. This also allows the user to then undo and
-		 * redo the edit in the custom editor.
+		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
+		 * saves or reverts the file.
+		 *
+		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
+		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
+		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
+		 *
+		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
+		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
+		 * `save` or `revert` the file.
+		 *
+		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
 		 */
-		readonly onDidEdit: Event<CustomDocumentEditEvent>;
+		readonly onDidChange: Event<CustomDocumentEditEvent> | Event<CustomDocumentContentChangeEvent>;
 
 		/**
 		 * Revert a custom editor to its last saved state.
@@ -1379,6 +1426,19 @@ declare module 'vscode' {
 			provider: CustomEditorProvider,
 			options?: {
 				readonly webviewOptions?: WebviewPanelOptions;
+
+				/**
+				 * Indicates that the provider allows multiple editor instances to be open at the same time for
+				 * the same resource.
+				 *
+				 * If not set, VS Code only allows one editor instance to be open at a time for each resource. If the
+				 * user tries to open a second editor instance for the resource, the first one is instead moved to where
+				 * the second one was to be opened.
+				 *
+				 * When set, users can split and create copies of the custom editor. The custom editor must make sure it
+				 * can properly synchronize the states of all editor instances for a resource so that they are consistent.
+				 */
+				readonly supportsMultipleEditorsPerResource?: boolean;
 			}
 		): Disposable;
 	}

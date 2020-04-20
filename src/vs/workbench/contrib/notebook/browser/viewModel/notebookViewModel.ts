@@ -226,6 +226,18 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 		this._register(this.eventDispatcher.onDidChangeLayout((e) => {
 			this._layoutInfo = e.value;
+
+			this._viewCells.forEach(cell => {
+				if (cell.cellKind === CellKind.Markdown) {
+					if (e.source.width || e.source.fontInfo) {
+						cell.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
+					}
+				} else {
+					if (e.source.width !== undefined) {
+						cell.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
+					}
+				}
+			});
 		}));
 
 		this._viewCells = this._model!.notebook!.cells.map(cell => {
@@ -234,6 +246,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 		this._foldingModel = new FoldingModel();
 		this._foldingModel.attachViewModel(this);
+
+		this._register(this._foldingModel.onDidFoldingRegionChanged(() => {
+			this._updateFoldingRanges();
+		}));
 	}
 	getFoldingStartIndex(cell: CellViewModel): number {
 		const modelIndex = this.viewCells.indexOf(cell);
@@ -275,7 +291,7 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			return;
 		}
 
-		this._foldingModel.regions.setCollapsed(range, state === CellFoldingState.Collapsed);
+		this._foldingModel.setCollapsed(range, state === CellFoldingState.Collapsed);
 		this._updateFoldingRanges();
 	}
 
@@ -317,6 +333,11 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		if (updateHiddenAreas || k < this._hiddenRanges.length) {
 			this._hiddenRanges = newHiddenAreas;
 			this._onDidFoldingRegionChanges.fire();
+			this._viewCells.forEach(cell => {
+				if (cell.cellKind === CellKind.Markdown) {
+					cell.triggerfoldingStateChange();
+				}
+			});
 		}
 	}
 
@@ -345,10 +366,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	}
 
 	getTrackedRange(id: string): ICellRange | null {
-		return this.getDecorationRange(id);
+		return this._getDecorationRange(id);
 	}
 
-	getDecorationRange(decorationId: string): ICellRange | null {
+	private _getDecorationRange(decorationId: string): ICellRange | null {
 		const node = this._decorations[decorationId];
 		if (!node) {
 			return null;
@@ -726,8 +747,8 @@ export type CellViewModel = CodeCellViewModel | MarkdownCellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: NotebookCellTextModel) {
 	if (cell.cellKind === CellKind.Code) {
-		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher, notebookViewModel.layoutInfo);
+		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.layoutInfo);
 	} else {
-		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.eventDispatcher, notebookViewModel.layoutInfo, notebookViewModel);
+		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, notebookViewModel.handle, cell, notebookViewModel.layoutInfo, notebookViewModel);
 	}
 }

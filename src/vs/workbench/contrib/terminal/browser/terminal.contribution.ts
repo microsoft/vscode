@@ -33,8 +33,9 @@ import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
-import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalsQuickAccess';
+import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { terminalConfiguration, getTerminalShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -150,13 +151,26 @@ if (BrowserFeatures.clipboard.readText) {
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }
 	}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Paste into Active Terminal', category);
 	// An extra Windows-only ctrl+v keybinding is used for pwsh that sends ctrl+v directly to the
-	// shell, this gets handled by PSReadLine which properly handles multi-line pastes
+	// shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is
+	// disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
+	// reader.
 	if (platform.isWindows) {
 		registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - 64), { // ctrl+v
-			when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell)),
+			when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, ContextKeyExpr.equals(KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE_KEY, WindowsShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V
 		});
 	}
+}
+
+if (platform.isWeb) {
+	// Register standard external terminal keybinding as integrated terminal when in web as the
+	// external terminal is not available
+	KeybindingsRegistry.registerKeybindingRule({
+		id: TERMINAL_COMMAND_ID.NEW,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: undefined,
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
+	});
 }
 
 // Delete word left: ctrl+w

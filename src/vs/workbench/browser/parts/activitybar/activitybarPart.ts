@@ -9,7 +9,7 @@ import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/acti
 import { GLOBAL_ACTIVITY_ID, IActivity } from 'vs/workbench/common/activity';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem, HomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
@@ -20,7 +20,7 @@ import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeServic
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_ACTIVE_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { Dimension, addClass, removeNode, addClasses } from 'vs/base/browser/dom';
+import { Dimension, addClass, removeNode } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -86,10 +86,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private content: HTMLElement | undefined;
 
-	private homeIndicatorActionLabel: HTMLAnchorElement | undefined = undefined;
-
-	private menubar: CustomMenubarControl | undefined;
-	private menubarContainer: HTMLElement | undefined;
+	private menuBar: CustomMenubarControl | undefined;
+	private menuBarContainer: HTMLElement | undefined;
 
 	private compositeBar: CompositeBar;
 
@@ -297,25 +295,25 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private uninstallMenubar() {
-		if (this.menubar) {
-			this.menubar.dispose();
+		if (this.menuBar) {
+			this.menuBar.dispose();
 		}
 
-		if (this.menubarContainer) {
-			removeNode(this.menubarContainer);
+		if (this.menuBarContainer) {
+			removeNode(this.menuBarContainer);
 		}
 	}
 
 	private installMenubar() {
-		this.menubarContainer = document.createElement('div');
-		addClass(this.menubarContainer, 'menubar');
+		this.menuBarContainer = document.createElement('div');
+		addClass(this.menuBarContainer, 'menubar');
 
 		const content = assertIsDefined(this.content);
-		content.prepend(this.menubarContainer);
+		content.prepend(this.menuBarContainer);
 
 		// Menubar: install a custom menu bar depending on configuration
-		this.menubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-		this.menubar.create(this.menubarContainer);
+		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.menuBar.create(this.menuBarContainer);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -328,7 +326,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		// Home action bar
 		const homeIndicator = this.environmentService.options?.homeIndicator;
 		if (homeIndicator) {
-			this.createHomeBar(homeIndicator.href, homeIndicator.title, homeIndicator.icon);
+			this.createHomeBar(homeIndicator.command, homeIndicator.title, homeIndicator.icon);
 		}
 
 		// Install menubar if compact
@@ -349,33 +347,28 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this.content;
 	}
 
-	private createHomeBar(href: string, title: string, icon: string): void {
+	private createHomeBar(command: string, title: string, icon: string): void {
 		const homeBarContainer = document.createElement('div');
 		homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
 		homeBarContainer.setAttribute('role', 'toolbar');
 		addClass(homeBarContainer, 'home-bar');
 
+		const homeActionBar = this._register(new ActionBar(homeBarContainer, {
+			orientation: ActionsOrientation.VERTICAL,
+			animated: false
+		}));
+
+		homeActionBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
+
 		const content = assertIsDefined(this.content);
 		content.prepend(homeBarContainer);
-
-		this.homeIndicatorActionLabel = document.createElement('a');
-		this.homeIndicatorActionLabel.tabIndex = 0;
-		this.homeIndicatorActionLabel.title = title;
-		this.homeIndicatorActionLabel.setAttribute('aria-label', title);
-		this.homeIndicatorActionLabel.setAttribute('role', 'button');
-		this.homeIndicatorActionLabel.href = href;
-		addClasses(this.homeIndicatorActionLabel, 'action-label', 'codicon', `codicon-${icon}`);
-
-		homeBarContainer.appendChild(this.homeIndicatorActionLabel);
 	}
 
 	updateStyles(): void {
 		super.updateStyles();
 
-		// Part container
 		const container = assertIsDefined(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND) || '';
-		const forground = this.getColor(ACTIVITY_BAR_FOREGROUND) || '';
 		container.style.backgroundColor = background;
 
 		const borderColor = this.getColor(ACTIVITY_BAR_BORDER) || this.getColor(contrastBorder) || '';
@@ -387,11 +380,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : '';
-
-		// Home action label
-		if (this.homeIndicatorActionLabel) {
-			this.homeIndicatorActionLabel.style.color = forground;
-		}
 	}
 
 	private getActivitybarItemColors(theme: IColorTheme): ICompositeBarColors {
@@ -601,8 +589,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.globalActivityActionBar) {
 			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
-		if (this.menubarContainer) {
-			availableHeight -= this.menubarContainer.clientHeight;
+		if (this.menuBarContainer) {
+			availableHeight -= this.menuBarContainer.clientHeight;
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}

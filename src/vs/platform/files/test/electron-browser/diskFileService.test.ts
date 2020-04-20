@@ -1501,10 +1501,10 @@ suite('Disk File Service', function () {
 
 		// Also test when the stat size is wrong
 		fileProvider.setSmallStatSize(true);
-		return doTestFileExceedsMemoryLimit(false);
+		return doTestFileExceedsMemoryLimit();
 	}
 
-	async function doTestFileExceedsMemoryLimit(testTotalBytesRead = true) {
+	async function doTestFileExceedsMemoryLimit() {
 		const resource = URI.file(join(testDir, 'index.html'));
 
 		let error: FileOperationError | undefined = undefined;
@@ -1516,10 +1516,6 @@ suite('Disk File Service', function () {
 
 		assert.ok(error);
 		assert.equal(error!.fileOperationResult, FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT);
-
-		if (testTotalBytesRead) {
-			assert.equal(fileProvider.totalBytesRead, 0);
-		}
 	}
 
 	test('readFile - FILE_TOO_LARGE - default', async () => {
@@ -1538,14 +1534,14 @@ suite('Disk File Service', function () {
 		return testFileTooLarge();
 	});
 
-	(isWindows /* not reliable on windows */ ? test.skip : test)('readFile - FILE_TOO_LARGE - streamed', async () => {
+	test('readFile - FILE_TOO_LARGE - streamed', async () => {
 		setCapabilities(fileProvider, FileSystemProviderCapabilities.FileReadStream);
 
 		return testFileTooLarge();
 	});
 
 	async function testFileTooLarge() {
-		await doTestFileExceedsMemoryLimit();
+		await doTestFileTooLarge();
 
 		// Also test when the stat size is wrong
 		fileProvider.setSmallStatSize(true);

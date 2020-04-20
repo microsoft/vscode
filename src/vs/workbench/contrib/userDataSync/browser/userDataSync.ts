@@ -89,7 +89,7 @@ const getIdentityTitle = (label: string, userDataSyncAccountService: UserDataSyn
 	const account = userDataSyncAccountService.current;
 	return account ? `${label} (${authenticationService.getDisplayName(account.providerId)}:${account.accountName})` : label;
 };
-const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn on...") };
+const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
 const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) { return getIdentityTitle(localize('stop sync', "Preferences Sync: Turn Off"), userDataSyncAccountService, authenticationService); } };
 const resolveSettingsConflictsCommand = { id: 'workbench.userData.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
@@ -145,7 +145,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 		this.userDataSyncAccounts = instantiationService.createInstance(UserDataSyncAccounts);
 
-		if (this.userDataSyncAccounts.accountProviderId) {
+		if (this.userDataSyncAccounts.authenticationProviders.length) {
 			registerConfiguration();
 
 			this.onDidChangeSyncStatus(this.userDataSyncService.status);
@@ -159,6 +159,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this._register(this.userDataSyncEnablementService.onDidChangeEnablement(enabled => this.onDidChangeEnablement(enabled)));
 			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
 			this._register(this.userDataSyncAccounts.onDidChangeStatus(status => this.onDidChangeAccountStatus(status)));
+			this._register(this.userDataSyncAccounts.onDidSignOut(() => this.doTurnOff(false)));
 			this.registerActions();
 
 			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
@@ -172,9 +173,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onDidChangeAccountStatus(status: AccountStatus): void {
 		this.accountStatusContext.set(status);
-		if (status === AccountStatus.Unavailable) {
-			this.doTurnOff(false);
-		}
+		this.updateBadge();
 	}
 
 	private onDidChangeSyncStatus(status: SyncStatus) {
@@ -301,9 +300,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case UserDataSyncErrorCode.SessionExpired:
 				this.notificationService.notify({
 					severity: Severity.Info,
-					message: localize('turned off', "Sync was turned off from another device."),
+					message: localize('turned off', "Preferences sync was turned off from another device."),
 					actions: {
-						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Sync"), undefined, true, () => this.turnOn())]
+						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
 					}
 				});
 				return;
@@ -388,7 +387,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		let clazz: string | undefined;
 		let priority: number | undefined = undefined;
 
-		if (this.userDataSyncService.conflicts.length) {
+		if (this.userDataSyncService.status !== SyncStatus.Uninitialized && this.userDataSyncEnablementService.isEnabled() && this.userDataSyncAccounts.status === AccountStatus.Unavailable) {
+			badge = new NumberBadge(1, () => localize('sign in to sync preferences', "Sign in to Sync Preferences"));
+		} else if (this.userDataSyncService.conflicts.length) {
 			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, syncResourceConflict) => { return result + syncResourceConflict.conflicts.length; }, 0), () => localize('has conflicts', "Preferences Sync: Conflicts Detected"));
 		}
 
@@ -404,7 +405,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
 				[
 					localize('open doc', "Open Documentation"),
-					localize('turn on sync', "Turn on Sync"),
+					localize('turn on', "Turn On"),
 					localize('cancel', "Cancel"),
 				],
 				{
@@ -421,16 +422,18 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
 			disposables.add(quickPick);
-			quickPick.title = localize('turn on title', "Preferences Sync: Turn On");
+			quickPick.title = localize('Preferences Sync Title', "Preferences Sync");
 			quickPick.ok = false;
 			quickPick.customButton = true;
-			const requiresLogin = this.userDataSyncAccounts.all.length === 0;
-			if (requiresLogin) {
-				const displayName = this.authenticationService.getDisplayName(this.userDataSyncAccounts.accountProviderId!);
+			if (this.userDataSyncAccounts.all.length) {
+				quickPick.customLabel = localize('turn on', "Turn On");
+			} else {
+				const orTerm = localize({ key: 'or', comment: ['Here is the context where it is used - Sign in with your A or B or C account to synchronize your data across devices.'] }, "or");
+				const displayName = this.userDataSyncAccounts.authenticationProviders.length === 1
+					? this.authenticationService.getDisplayName(this.userDataSyncAccounts.authenticationProviders[0].id)
+					: this.userDataSyncAccounts.authenticationProviders.map(({ id }) => this.authenticationService.getDisplayName(id)).join(` ${orTerm} `);
 				quickPick.description = localize('sign in and turn on sync detail', "Sign in with your {0} account to synchronize your data across devices.", displayName);
 				quickPick.customLabel = localize('sign in and turn on sync', "Sign in & Turn on");
-			} else {
-				quickPick.customLabel = localize('turn on', "Turn On");
 			}
 			quickPick.placeholder = localize('configure sync placeholder', "Choose what to sync");
 			quickPick.canSelectMany = true;
@@ -441,7 +444,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
 				if (quickPick.selectedItems.length) {
 					this.updateConfiguration(items, quickPick.selectedItems);
-					this.doTurnOn(requiresLogin).then(c, e);
+					this.doTurnOn().then(c, e);
 					quickPick.hide();
 				}
 			}));
@@ -450,11 +453,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		});
 	}
 
-	private async doTurnOn(requiresLogin: boolean): Promise<void> {
-		if (requiresLogin) {
-			await this.userDataSyncAccounts.login();
-		} else {
-			await this.userDataSyncAccounts.select();
+	private async doTurnOn(): Promise<void> {
+		const picked = await this.userDataSyncAccounts.pick();
+		if (!picked) {
+			throw canceled();
 		}
 
 		// User did not pick an account or login failed
@@ -575,6 +577,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return;
 		}
+		if (!this.userDataSyncEnablementService.canToggleEnablement()) {
+			return;
+		}
 		if (turnOffEveryWhere) {
 			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 			await this.userDataSyncService.reset();
@@ -597,8 +602,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 		}
 	}
-
-
 
 	private getConflictsEditorInputs(syncResource: SyncResource): DiffEditorInput[] {
 		return this.editorService.editors.filter(input => {
@@ -649,13 +652,16 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private registerActions(): void {
-		this.registerTurnOnSyncAction();
+		if (this.userDataSyncEnablementService.canToggleEnablement()) {
+			this.registerTurnOnSyncAction();
+			this.registerTurnOffSyncAction();
+		}
+		this.registerSignInAction(); // When Sync is turned on from CLI
 		this.registerShowSettingsConflictsAction();
 		this.registerShowKeybindingsConflictsAction();
 		this.registerShowSnippetsConflictsAction();
 		this.registerSyncStatusAction();
 
-		this.registerTurnOffSyncAction();
 		this.registerConfigureSyncAction();
 		this.registerShowActivityAction();
 		this.registerShowSettingsAction();
@@ -699,8 +705,43 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				id: turnOnSyncCommand.id,
 				title: localize('global activity turn on sync', "Turn on Preferences Sync...")
 			},
-			when: turnOnSyncWhenContext,
+			when: turnOnSyncWhenContext
 		});
+	}
+
+	private registerSignInAction(): void {
+		const that = this;
+		const id = 'workbench.userData.actions.signin';
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT, CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Unavailable));
+		this._register(registerAction2(class StopSyncAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.userData.actions.signin',
+					title: localize('sign in global', "Sign in to Sync Preferences(1)"),
+					menu: {
+						group: '5_sync',
+						id: MenuId.GlobalActivity,
+						when,
+						order: 2
+					}
+				});
+			}
+			async run(): Promise<any> {
+				try {
+					await that.userDataSyncAccounts.pick();
+				} catch (e) {
+					that.notificationService.error(e);
+				}
+			}
+		}));
+		this._register(MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+			group: '1_sync',
+			command: {
+				id,
+				title: localize('sign in accounts', "Sign in to Sync Preferences"),
+			},
+			when
+		}));
 	}
 
 	private registerShowSettingsConflictsAction(): void {
@@ -844,7 +885,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
 					items.push({ id: showSyncActivityCommand.id, label: showSyncActivityCommand.title(that.userDataSyncService) });
 					items.push({ type: 'separator' });
-					items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title(that.userDataSyncAccounts, that.authenticationService) });
+					if (that.userDataSyncEnablementService.canToggleEnablement()) {
+						items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title(that.userDataSyncAccounts, that.authenticationService) });
+					}
 					quickPick.items = items;
 					disposables.add(quickPick.onDidAccept(() => {
 						if (quickPick.selectedItems[0] && quickPick.selectedItems[0].id) {
@@ -1019,7 +1062,6 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 
 		return false;
 	}
-
 
 	private createAcceptChangesWidgetRenderer(): void {
 		if (!this.acceptChangesButton) {

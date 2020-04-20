@@ -126,7 +126,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
 		this.findWidget = this.instantiationService.createInstance(NotebookFindWidget, this);
-		this._register(this.instantiationService.createInstance(FoldingController, this));
 		this.findWidget.updateTheme(this.themeService.getColorTheme());
 	}
 
@@ -387,6 +386,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
 			this.editorEditable?.set(e.source.editable);
 		}));
+
+		this.localStore.add(this.instantiationService.createInstance(FoldingController, this));
 
 		this.webview?.updateRendererPreloads(this.notebookViewModel.renderers);
 
