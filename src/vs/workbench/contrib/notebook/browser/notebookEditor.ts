@@ -28,7 +28,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
-import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/notebookFindWidget';
 import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -45,8 +45,6 @@ import { CellKind, CellUri, IOutput } from 'vs/workbench/contrib/notebook/common
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { domEvent } from 'vs/base/browser/event';
-import { throttle } from 'vs/base/common/decorators';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -150,11 +148,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return true;
 	}
 
-	@throttle(500, (_, r) => r)
-	private log(msg: string) {
-		console.log(msg);
-	}
-
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = DOM.append(parent, $('.notebook-editor'));
 		this.createBody(this.rootElement);
@@ -237,14 +230,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			},
 		);
 
-		domEvent(this.body, 'dragover')(e => {
-			// this.log('list dragover');
-		});
-
-		domEvent(this.body, 'mousemove')(e => {
-			// this.log('list mousemove');
-		});
-
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this);
 		this._register(this.webview.onMessage(message => {
@@ -253,22 +238,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		}));
 		this.list.rowsContainer.appendChild(this.webview.element);
-		// document.body.querySelector('.monaco-workbench')!.appendChild(this.webview!.element);
 
 		this._register(this.list);
 
 		// transparent cover
 		this.webviewTransparentCover = DOM.append(this.list.rowsContainer, $('.webview-cover'));
-		domEvent(this.webviewTransparentCover, 'dragover')(e => {
-			this.log(`cover dragover`);
-		});
-		domEvent(this.webviewTransparentCover, 'dragover')(e => {
-			this.log(`cover dragover`);
-		});
-		domEvent(this.webviewTransparentCover, 'mousemove')(e => {
-			// this.log(`cover mousemove`);
-		});
-		// this.webviewTransparentCover.style.display = 'none';
+		this.webviewTransparentCover.style.display = 'none';
 
 		this._register(DOM.addStandardDisposableGenericMouseDownListner(this.rootElement, (e: StandardMouseEvent) => {
 			if (DOM.hasClass(e.target, 'slider') && this.webviewTransparentCover) {
@@ -279,7 +254,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this._register(DOM.addStandardDisposableGenericMouseUpListner(this.rootElement, (e: StandardMouseEvent) => {
 			if (this.webviewTransparentCover) {
 				// no matter when
-				// this.webviewTransparentCover.style.display = 'none';
+				this.webviewTransparentCover.style.display = 'none';
 			}
 		}));
 
@@ -672,7 +647,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	private async moveCellToIndex(index: number, newIdx: number): Promise<void> {
-		console.log(`Move ${index} to ${newIdx}`);
+		// console.log(`Move ${index} to ${newIdx}`);
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			return;
 		}
@@ -892,6 +867,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .monaco-editor-background,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell .margin-view-overlays,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-statusbar-container { background: ${color}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-drag-image .cell-editor-container > div { background: ${color} !important; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
@@ -943,7 +919,7 @@ registerThemingParticipant((theme, collector) => {
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
 	if (focusedCellIndicatorColor) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.selected .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .notebook-cell-insertion-indicator-top { background-color: ${focusedCellIndicatorColor}; }`);
 	}
 
@@ -953,9 +929,9 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-editor-container { width: calc(100% - ${CELL_RUN_GUTTER}px); }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .markdown-editor-container { margin-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-insertion-indicator-top { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
 });

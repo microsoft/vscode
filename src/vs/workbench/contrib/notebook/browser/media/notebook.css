@@ -35,11 +35,6 @@
 	top: 0;
 }
 
-/* .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-dragover,
-.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-dragover .cell-bottom-toolbar-container {
-	background-color: green;
-} */
-
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
 	cursor: default;
 	overflow: visible !important;
@@ -49,6 +44,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-drag-handle {
 	position: absolute;
 	visibility: hidden;
+	left: 1px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.markdown-cell-row .cell-drag-handle {
@@ -59,15 +55,28 @@
 	top: 21px;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected .cell-drag-handle,
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .cell-drag-handle,
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell-drag-handle {
 	visibility: visible;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-drag-image {
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image {
 	position: absolute;
+	top: -500px;
 	z-index: 1000;
+	padding-bottom: 16px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image > .monaco-toolbar {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-statusbar-container {
+	display: none;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-editor-part {
+	width: 100%;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell {
@@ -291,13 +300,16 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row:hover .notebook-cell-focus-indicator,
-.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.selected .notebook-cell-focus-indicator,
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.focused .notebook-cell-focus-indicator {
 	visibility: visible;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.cell-dragover .notebook-cell-insertion-indicator-top {
 	opacity: 1;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.cell-dragging {
+	opacity: 0.5;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-insertion-indicator-top {
@@ -314,6 +326,10 @@
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
 	cursor: auto;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-bottom-toolbar-container {
+	display: none;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container:focus-within,

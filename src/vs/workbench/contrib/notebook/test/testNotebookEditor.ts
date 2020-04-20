@@ -103,6 +103,10 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
+	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	setSelection(cell: CellViewModel, selection: Range): void {
 		throw new Error('Method not implemented.');
 	}

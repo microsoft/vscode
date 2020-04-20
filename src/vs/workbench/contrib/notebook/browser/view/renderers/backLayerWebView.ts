@@ -108,14 +108,6 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.position = 'absolute';
 		this.element.style.margin = `0px 0 0px ${CELL_MARGIN}px`;
 
-		DOM.addDisposableListener(this.element, DOM.EventType.DRAG_ENTER, e => {
-			console.log('webview dragenter');
-		});
-
-		DOM.addDisposableListener(this.element, DOM.EventType.DRAG_OVER, e => {
-			console.log('webview dragover');
-		});
-
 		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
 		const loader = URI.file(pathsPath).with({ scheme: WebviewResourceScheme });
 
