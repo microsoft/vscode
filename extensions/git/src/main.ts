@@ -36,9 +36,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 
-	let env: any = {
-		GIT_PAGER: ''
-	};
+	let env: any = {};
 	let ipc: IIPCServer | undefined;
 
 	try {
