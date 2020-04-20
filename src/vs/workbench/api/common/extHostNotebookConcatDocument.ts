@@ -34,8 +34,8 @@ export class ExtHostNotebookConcatDocument {
 		this._init();
 
 		extHostDocuments.onDidChangeDocument(e => {
-			const cell = this._notebook.cells.find(candidate => candidate.uri.toString() === e.document.uri.toString());
-			if (!cell) {
+			const cellIdx = this._notebook.cells.findIndex(candidate => candidate.uri.toString() === e.document.uri.toString());
+			if (cellIdx < 0) {
 				return;
 			}
 			// todo@jrieken reuse raw event!
@@ -52,6 +52,8 @@ export class ExtHostNotebookConcatDocument {
 					};
 				})
 			});
+			this._cellStarts.changeValue(cellIdx, e.document.getText().length + 1);
+
 			this._onDidChange.fire(this);
 
 		}, undefined, this._disposables);
@@ -106,6 +108,7 @@ export class ExtHostNotebookConcatDocument {
 		return this._delegate.getText();
 	}
 
+
 	locationAt(position: vscode.Position): vscode.Location {
 		const offset = this._delegate.document.offsetAt(position);
 		const index = this._cellStarts.getIndexOf(offset);
@@ -119,15 +122,24 @@ export class ExtHostNotebookConcatDocument {
 		return new types.Location(cell.uri, <any>cellPos);
 	}
 
-	positionAt(location: vscode.Location): vscode.Position {
-		const idx = this._notebook.cells.findIndex(candidate => candidate.uri.toString() === location.uri.toString());
+	positionAt(offset: number): vscode.Position;
+	positionAt(location: vscode.Location): vscode.Position;
+	positionAt(offsetOrLocation: number | vscode.Location): vscode.Position {
+		if (typeof offsetOrLocation === 'number') {
+			return this._delegate.document.positionAt(offsetOrLocation);
+		}
+		const idx = this._notebook.cells.findIndex(candidate => candidate.uri.toString() === offsetOrLocation.uri.toString());
 		if (idx < 0) {
 			// do better?
 			// return undefined;
 			return new types.Position(0, 0);
 		}
-		const docOffset = this._notebook.cells[idx].document.offsetAt(location.range.start);
+		const docOffset = this._notebook.cells[idx].document.offsetAt(offsetOrLocation.range.start);
 		const cellOffset = this._cellStarts.getAccumulatedValue(idx - 1);
 		return this._delegate.document.positionAt(docOffset + cellOffset);
+	}
+
+	offsetAt(position: vscode.Position): number {
+		return this._delegate.document.offsetAt(position);
 	}
 }
