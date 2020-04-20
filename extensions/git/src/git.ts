@@ -541,7 +541,7 @@ export class Git {
 			VSCODE_GIT_COMMAND: args[0],
 			LC_ALL: 'en_US.UTF-8',
 			LANG: 'en_US.UTF-8',
-			GIT_PAGER: ''
+			GIT_PAGER: 'cat'
 		});
 
 		if (options.cwd) {
