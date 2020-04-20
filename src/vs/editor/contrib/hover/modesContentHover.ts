@@ -633,6 +633,8 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
 		const actionContainer = dom.append(parent, $('div.action-container'));
 		const action = dom.append(actionContainer, $('a.action'));
+		action.tabIndex = 0;
+		action.setAttribute('role', 'button');
 		if (actionOptions.iconClass) {
 			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
 		}
