@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles, IStyleController, MouseController } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -19,9 +19,9 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, IOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, IOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -120,6 +120,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	}
 
+	protected createMouseController(): MouseController<CellViewModel> {
+		return new NotebookMouseController(this);
+	}
+
 	detachViewModel() {
 		this._viewModelStore.clear();
 		this._viewModel = null;
@@ -185,7 +189,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		if (newRanges.length === oldRanges.length) {
 			let hasDifference = false;
 			for (let i = 0; i < newRanges.length; i++) {
-				if (!(newRanges[i].start === oldRanges[i].start && newRanges[i].length === oldRanges[i].length)) {
+				if (!(newRanges[i].start === oldRanges[i].start && newRanges[i].end === oldRanges[i].end)) {
 					hasDifference = true;
 					break;
 				}
@@ -213,8 +217,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				ret.push(1);
 			}
 
-			ret.push(newRanges[index].length + 1);
-			start = newRanges[index].start + newRanges[index].length;
+			ret.push(newRanges[index].end - newRanges[index].start + 1 + 1);
+			start = newRanges[index].end + 1;
 			index++;
 		}
 
@@ -760,4 +764,14 @@ function getEditorAttachedPromise(element: CellViewModel) {
 
 function isContextMenuFocused() {
 	return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
+}
+
+
+class NotebookMouseController extends MouseController<CellViewModel> {
+	protected onDoubleClick(): void {
+		const focus = this.list.getFocusedElements()[0];
+		if (focus && focus.cellKind === CellKind.Markdown) {
+			focus.editState = CellEditState.Editing;
+		}
+	}
 }

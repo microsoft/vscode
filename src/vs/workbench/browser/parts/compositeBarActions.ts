@@ -69,6 +69,7 @@ export class ActivityAction extends Action {
 	}
 
 	set activity(activity: IActivity) {
+		this._label = activity.name;
 		this._activity = activity;
 		this._onDidChangeActivity.fire(this);
 	}
@@ -161,9 +162,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 				if (this.activity.iconUrl) {
 					// Apply background color to activity bar item provided with iconUrls
 					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+					this.label.style.color = '';
 				} else {
 					// Apply foreground color to activity bar items provided with codicons
 					this.label.style.color = foreground ? foreground.toString() : '';
+					this.label.style.backgroundColor = '';
 				}
 
 				const dragColor = colors.activeBackgroundColor || colors.activeForegroundColor;
@@ -690,10 +693,5 @@ export class ToggleCompositePinnedAction extends Action {
 		} else {
 			this.compositeBar.pin(id);
 		}
-	}
-
-	setActivity(activity: IActivity): void {
-		this.activity = activity;
-		this.label = activity.name;
 	}
 }

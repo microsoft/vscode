@@ -78,6 +78,7 @@ export interface MarkdownCellLayoutChangeEvent {
 export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
+	dragging: boolean;
 	handle: number;
 	uri: URI;
 	cellKind: CellKind;
@@ -441,17 +442,18 @@ export interface CellViewModelStateChangeEvent {
 }
 
 /**
- * [start, start + length - 1]
+ * [start, end]
  */
 export interface ICellRange {
 	/**
 	 * zero based index
 	 */
 	start: number;
+
 	/**
-	 * One based, includes `start`
+	 * zero based index
 	 */
-	length: number;
+	end: number;
 }
 
 
@@ -466,21 +468,21 @@ export function reduceCellRanges(_ranges: ICellRange[]): ICellRange[] {
 	let ranges = _ranges.sort((a, b) => a.start - b.start);
 	let result: ICellRange[] = [];
 	let currentRangeStart = ranges[0].start;
-	let currentRangeEnd = ranges[0].start + ranges[0].length;
+	let currentRangeEnd = ranges[0].end + 1;
 
 	for (let i = 0, len = ranges.length; i < len; i++) {
 		let range = ranges[i];
 
 		if (range.start > currentRangeEnd) {
-			result.push({ start: currentRangeStart, length: currentRangeEnd - currentRangeStart });
+			result.push({ start: currentRangeStart, end: currentRangeEnd - 1 });
 			currentRangeStart = range.start;
-			currentRangeEnd = range.start + range.length;
-		} else if (range.start + range.length > currentRangeEnd) {
-			currentRangeEnd = range.start + range.length;
+			currentRangeEnd = range.end + 1;
+		} else if (range.end + 1 > currentRangeEnd) {
+			currentRangeEnd = range.end + 1;
 		}
 	}
 
-	result.push({ start: currentRangeStart, length: currentRangeEnd - currentRangeStart });
+	result.push({ start: currentRangeStart, end: currentRangeEnd - 1 });
 	return result;
 }
 
@@ -498,7 +500,7 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
 		}
 
-		start = hiddenRanges[hiddenRangeIndex].start + hiddenRanges[hiddenRangeIndex].length;
+		start = hiddenRanges[hiddenRangeIndex].end + 1;
 		hiddenRangeIndex++;
 	}
 

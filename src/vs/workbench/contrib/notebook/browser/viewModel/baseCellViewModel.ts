@@ -98,6 +98,15 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	private _lastDecorationId: number = 0;
 	protected _textModel?: model.ITextModel;
 
+	private _dragging: boolean = false;
+	get dragging(): boolean {
+		return this._dragging;
+	}
+
+	set dragging(v: boolean) {
+		this._dragging = v;
+	}
+
 	constructor(readonly viewType: string, readonly notebookHandle: number, readonly model: NotebookCellTextModel, public id: string) {
 		super();
 

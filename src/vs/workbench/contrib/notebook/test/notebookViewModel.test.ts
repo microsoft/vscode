@@ -74,17 +74,12 @@ suite('NotebookViewModel', () => {
 				assert.equal(viewModel.viewCells[1].getText(), '//b');
 
 				viewModel.moveCellToIdx(0, 1, false);
-				// no-op (move to after this cell?)
-				assert.equal(viewModel.viewCells[0].getText(), '//a');
-				assert.equal(viewModel.viewCells[1].getText(), '//b');
-
-				viewModel.moveCellToIdx(0, 2, false);
 				// b, a, c
 				assert.equal(viewModel.viewCells[0].getText(), '//b');
 				assert.equal(viewModel.viewCells[1].getText(), '//a');
 				assert.equal(viewModel.viewCells[2].getText(), '//c');
 
-				viewModel.moveCellToIdx(0, 3, false);
+				viewModel.moveCellToIdx(0, 2, false);
 				// a, c, b
 				assert.equal(viewModel.viewCells[0].getText(), '//a');
 				assert.equal(viewModel.viewCells[1].getText(), '//c');
@@ -256,7 +251,7 @@ function getVisibleCells(cells: any[], hiddenRanges: ICellRange[]) {
 			result.push(...cells.slice(start, hiddenRanges[hiddenRangeIndex].start));
 		}
 
-		start = hiddenRanges[hiddenRangeIndex].start + hiddenRanges[hiddenRangeIndex].length;
+		start = hiddenRanges[hiddenRangeIndex].end + 1;
 		hiddenRangeIndex++;
 	}
 
@@ -286,40 +281,46 @@ suite('NotebookViewModel Decorations', () => {
 				[['var e = 5;'], 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
 			],
 			(editor, viewModel) => {
-				const trackedId = viewModel.setTrackedRange('test', { start: 1, length: 2 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 2 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
-					length: 2
+
+					end: 2,
 				});
 
 				viewModel.insertCell(0, new TestCell(viewModel.viewType, 5, ['var d = 6;'], 'javascript', CellKind.Code, []), true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 2,
-					length: 2
+
+					end: 3
 				});
 
 				viewModel.deleteCell(0, true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
-					length: 2
+
+					end: 2
 				});
 
 				viewModel.insertCell(3, new TestCell(viewModel.viewType, 6, ['var d = 7;'], 'javascript', CellKind.Code, []), true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
-					length: 3
+
+					end: 3
 				});
 
 				viewModel.deleteCell(3, true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
-					length: 2
+
+					end: 2
 				});
 
 				viewModel.deleteCell(1, true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 0,
-					length: 2
+
+					end: 1
 				});
 			}
 		);
@@ -340,22 +341,25 @@ suite('NotebookViewModel Decorations', () => {
 				[['var e = 7;'], 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
 			],
 			(editor, viewModel) => {
-				const trackedId = viewModel.setTrackedRange('test', { start: 1, length: 3 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+				const trackedId = viewModel.setTrackedRange('test', { start: 1, end: 3 }, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
-					length: 3
+
+					end: 3
 				});
 
 				viewModel.insertCell(5, new TestCell(viewModel.viewType, 8, ['var d = 9;'], 'javascript', CellKind.Code, []), true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
-					length: 3
+
+					end: 3
 				});
 
 				viewModel.insertCell(4, new TestCell(viewModel.viewType, 9, ['var d = 10;'], 'javascript', CellKind.Code, []), true);
 				assert.deepEqual(viewModel.getTrackedRange(trackedId!), {
 					start: 1,
-					length: 4
+
+					end: 4
 				});
 			}
 		);
@@ -363,20 +367,20 @@ suite('NotebookViewModel Decorations', () => {
 
 	test('reduce range', function () {
 		assert.deepEqual(reduceCellRanges([
-			{ start: 0, length: 2 },
-			{ start: 1, length: 2 },
-			{ start: 4, length: 2 }
+			{ start: 0, end: 1 },
+			{ start: 1, end: 2 },
+			{ start: 4, end: 6 }
 		]), [
-			{ start: 0, length: 3 },
-			{ start: 4, length: 2 }
+			{ start: 0, end: 2 },
+			{ start: 4, end: 6 }
 		]);
 
 		assert.deepEqual(reduceCellRanges([
-			{ start: 0, length: 2 },
-			{ start: 1, length: 2 },
-			{ start: 3, length: 2 }
+			{ start: 0, end: 1 },
+			{ start: 1, end: 2 },
+			{ start: 3, end: 4 }
 		]), [
-			{ start: 0, length: 5 }
+			{ start: 0, end: 4 }
 		]);
 	});
 
@@ -386,7 +390,7 @@ suite('NotebookViewModel Decorations', () => {
 		assert.deepEqual(
 			getVisibleCells(
 				[1, 2, 3, 4, 5],
-				[{ start: 1, length: 2 }]
+				[{ start: 1, end: 2 }]
 			),
 			[1, 4, 5]
 		);
@@ -395,8 +399,8 @@ suite('NotebookViewModel Decorations', () => {
 			getVisibleCells(
 				[1, 2, 3, 4, 5, 6, 7, 8, 9],
 				[
-					{ start: 1, length: 2 },
-					{ start: 4, length: 2 }
+					{ start: 1, end: 2 },
+					{ start: 4, end: 5 }
 				]
 			),
 			[1, 4, 7, 8, 9]
@@ -405,15 +409,15 @@ suite('NotebookViewModel Decorations', () => {
 		const original = getVisibleCells(
 			[1, 2, 3, 4, 5, 6, 7, 8, 9],
 			[
-				{ start: 1, length: 2 },
-				{ start: 4, length: 2 }
+				{ start: 1, end: 2 },
+				{ start: 4, end: 5 }
 			]
 		);
 
 		const modified = getVisibleCells(
 			[1, 2, 3, 4, 5, 6, 7, 8, 9],
 			[
-				{ start: 2, length: 3 }
+				{ start: 2, end: 4 }
 			]
 		);
 

@@ -47,6 +47,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { domEvent } from 'vs/base/browser/event';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ITextModel } from 'vs/editor/common/model';
+import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 
 const $ = DOM.$;
 
@@ -207,7 +208,6 @@ abstract class AbstractCellRenderer {
 			container.style.position = 'static';
 			container.style.height = '22px';
 		}
-
 	}
 
 	protected createToolbar(container: HTMLElement): ToolBar {
@@ -256,6 +256,14 @@ abstract class AbstractCellRenderer {
 		disposables.add(menu.onDidChange(() => {
 			updateActions();
 		}));
+	}
+
+	protected commonRenderElement(element: BaseCellViewModel, index: number, templateData: BaseCellRenderTemplate): void {
+		if (element.dragging) {
+			templateData.container.classList.add(DRAGGING_CLASS);
+		} else {
+			templateData.container.classList.remove(DRAGGING_CLASS);
+		}
 	}
 }
 
@@ -326,6 +334,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 
 	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
+		this.commonRenderElement(element, index, templateData);
+
 		templateData.currentRenderedCell = element;
 		templateData.editingContainer!.style.display = 'none';
 		templateData.cellContainer.innerHTML = '';
@@ -393,6 +403,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 }
 
+const DRAGGING_CLASS = 'cell-dragging';
+const DRAGOVER_CLASS = 'cell-dragover';
+
 type DragImageProvider = () => HTMLElement;
 
 export class CellDragAndDropController {
@@ -408,9 +421,20 @@ export class CellDragAndDropController {
 		const container = templateData.container;
 		const dragHandle = templateData.dragHandle;
 
+		const dragCleanup = () => {
+			if (this.currentDraggedCell) {
+				this.currentDraggedCell.dragging = false;
+				this.currentDraggedCell = undefined;
+			}
+		};
+
 		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
 			// TODO
 			(this.notebookEditor.getInnerWebview() as any)!.element.style['pointer-events'] = '';
+
+			// Note, templateData may have a different element rendered into it by now
+			container.classList.remove(DRAGGING_CLASS);
+			dragCleanup();
 		}));
 
 		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_START)(event => {
@@ -420,19 +444,15 @@ export class CellDragAndDropController {
 				return;
 			}
 
-			this.currentDraggedCell = templateData.currentRenderedCell;
+			this.currentDraggedCell = templateData.currentRenderedCell!;
+			this.currentDraggedCell.dragging = true;
 
 			const dragImage = dragImageProvider();
 			container.parentElement!.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, 0, 0);
 			setTimeout(() => container.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
 
-			container.classList.add('cell-dragover');
-			container.classList.add('cell-dragging');
-		}));
-
-		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(event => {
-			container.classList.remove('cell-dragging');
+			container.classList.add(DRAGGING_CLASS);
 		}));
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_OVER)(event => {
@@ -442,18 +462,20 @@ export class CellDragAndDropController {
 		templateData.disposables.add(domEvent(container, DOM.EventType.DROP)(event => {
 			event.preventDefault();
 
-			this.notebookEditor.moveCell(this.currentDraggedCell!, templateData.currentRenderedCell!, 'above');
-			container.classList.remove('cell-dragover');
+			const draggedCell = this.currentDraggedCell!;
+			dragCleanup();
+			this.notebookEditor.moveCell(draggedCell, templateData.currentRenderedCell!, 'above');
+			container.classList.remove(DRAGOVER_CLASS);
 		}));
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_ENTER)(event => {
 			event.preventDefault();
-			container.classList.add('cell-dragover');
+			container.classList.add(DRAGOVER_CLASS);
 		}));
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_LEAVE)(event => {
 			if (!event.relatedTarget || !DOM.isAncestor(event.relatedTarget as HTMLElement, container)) {
-				container.classList.remove('cell-dragover');
+				container.classList.remove(DRAGOVER_CLASS);
 			}
 		}));
 	}
@@ -702,6 +724,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
+		this.commonRenderElement(element, index, templateData);
+
 		templateData.currentRenderedCell = element;
 
 		if (height === undefined) {

@@ -43,14 +43,13 @@ export class StatefullMarkdownCell extends Disposable {
 		const viewUpdate = () => {
 			if (viewCell.editState === CellEditState.Editing) {
 				// switch to editing mode
-				const width = viewCell.layoutInfo.editorWidth;
-				const lineNum = viewCell.lineCount;
-				const lineHeight = viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-				const totalHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
+				let totalHeight: number;
 
 				show(this.editingContainer);
 				hide(this.markdownContainer);
 				if (this.editor) {
+					totalHeight = this.editor!.getContentHeight();
+
 					// not first time, we don't need to create editor or bind listeners
 					viewCell.attachTextEditor(this.editor);
 					if (notebookEditor.getActiveCell() === viewCell) {
@@ -59,6 +58,11 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.bindEditorListeners(this.editor.getModel()!);
 				} else {
+					const width = viewCell.layoutInfo.editorWidth;
+					const lineNum = viewCell.lineCount;
+					const lineHeight = viewCell.layoutInfo.fontInfo?.lineHeight || 17;
+					totalHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
+
 					this.editingContainer.innerHTML = '';
 					this.editor = instantiationService.createInstance(CodeEditorWidget, this.editingContainer, {
 						...editorOptions,

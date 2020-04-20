@@ -556,16 +556,6 @@ registerAction2(class extends InsertCellCommand {
 				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/add' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.InsertCell,
-					alt: {
-						id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-						title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
-						icon: { id: 'codicon/add' },
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			},
 			CellKind.Code,
@@ -738,16 +728,6 @@ registerAction2(class extends Action2 {
 				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-up' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.MoveCellUp,
-					alt: {
-						id: COPY_CELL_UP_COMMAND_ID,
-						title: localize('notebookActions.copyCellUp', "Copy Cell Up"),
-						icon: { id: 'codicon/arrow-up' }
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			});
 	}
@@ -772,16 +752,6 @@ registerAction2(class extends Action2 {
 				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-down' },
-				menu: {
-					id: MenuId.NotebookCellTitle,
-					order: CellToolbarOrder.MoveCellDown,
-					alt: {
-						id: COPY_CELL_DOWN_COMMAND_ID,
-						title: localize('notebookActions.copyCellDown', "Copy Cell Down"),
-						icon: { id: 'codicon/arrow-down' }
-					},
-					when: ContextKeyExpr.equals(NOTEBOOK_EDITABLE_CONTEXT_KEY, true)
-				},
 				f1: true
 			});
 	}
@@ -1204,7 +1174,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		editor.setHiddenAreas([{ start: 1, length: 3 }]);
+		editor.setHiddenAreas([{ start: 1, end: 3 }]);
 	}
 });
 
@@ -1235,7 +1205,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		editor.setHiddenAreas([{ start: 3, length: 2 }]);
+		editor.setHiddenAreas([{ start: 3, end: 4 }]);
 	}
 });
 
