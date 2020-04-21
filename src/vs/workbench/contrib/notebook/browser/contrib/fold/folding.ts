@@ -7,6 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { INotebookEditor, INotebookEditorMouseEvent, ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as DOM from 'vs/base/browser/dom';
 import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class FoldingController extends Disposable {
 	private _foldingModel: FoldingModel;
@@ -17,6 +18,12 @@ export class FoldingController extends Disposable {
 		super();
 
 		this._register(this._notebookEditor.onMouseUp(e => { this.onMouseUp(e); }));
+		this._register(this._notebookEditor.viewModel!.eventDispatcher.onDidChangeCellState(e => {
+			if (e.source.editStateChanged && e.cell.cellKind === CellKind.Markdown) {
+				this._foldingModel.recompute();
+				// this._updateEditorFoldingRanges();
+			}
+		}));
 
 		this._foldingModel = new FoldingModel();
 		this._foldingModel.attachViewModel(this._notebookEditor.viewModel!);

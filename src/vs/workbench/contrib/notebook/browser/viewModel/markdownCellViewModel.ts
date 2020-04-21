@@ -16,6 +16,7 @@ import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEventDispatcher, NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Markdown = CellKind.Markdown;
@@ -48,6 +49,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly foldingDelegate: EditorFoldingStateDelegate,
+		readonly eventDispatcher: NotebookEventDispatcher,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _modelService: ITextModelService) {
 		super(viewType, notebookHandle, model, UUID.generateUuid());
@@ -58,6 +60,10 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
 			totalHeight: 0
 		};
+
+		this._register(this.onDidChangeState(e => {
+			eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this)]);
+		}));
 	}
 
 	triggerfoldingStateChange() {

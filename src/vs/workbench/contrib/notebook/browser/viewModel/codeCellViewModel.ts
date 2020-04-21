@@ -14,6 +14,7 @@ import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayout
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -59,6 +60,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly notebookHandle: number,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
+		readonly eventDispatcher: NotebookEventDispatcher,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
 		super(viewType, notebookHandle, model, UUID.generateUuid());
