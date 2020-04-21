@@ -3124,6 +3124,10 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		definitionLinkOpensInPeek?: boolean;
+		/**
+		 * Controls whether clicking on editor gutter opens dirty diff widget.
+		 */
+		showDirtyDiffWidget?: boolean;
 	}
 
 	export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3915,31 +3919,32 @@ declare namespace monaco.editor {
 		selectionClipboard = 88,
 		selectionHighlight = 89,
 		selectOnLineNumbers = 90,
-		showFoldingControls = 91,
-		showUnused = 92,
-		snippetSuggestions = 93,
-		smoothScrolling = 94,
-		stopRenderingLineAfter = 95,
-		suggest = 96,
-		suggestFontSize = 97,
-		suggestLineHeight = 98,
-		suggestOnTriggerCharacters = 99,
-		suggestSelection = 100,
-		tabCompletion = 101,
-		useTabStops = 102,
-		wordSeparators = 103,
-		wordWrap = 104,
-		wordWrapBreakAfterCharacters = 105,
-		wordWrapBreakBeforeCharacters = 106,
-		wordWrapColumn = 107,
-		wordWrapMinified = 108,
-		wrappingIndent = 109,
-		wrappingStrategy = 110,
-		editorClassName = 111,
-		pixelRatio = 112,
-		tabFocusMode = 113,
-		layoutInfo = 114,
-		wrappingInfo = 115
+		showDirtyDiffWidget = 91,
+		showFoldingControls = 92,
+		showUnused = 93,
+		snippetSuggestions = 94,
+		smoothScrolling = 95,
+		stopRenderingLineAfter = 96,
+		suggest = 97,
+		suggestFontSize = 98,
+		suggestLineHeight = 99,
+		suggestOnTriggerCharacters = 100,
+		suggestSelection = 101,
+		tabCompletion = 102,
+		useTabStops = 103,
+		wordSeparators = 104,
+		wordWrap = 105,
+		wordWrapBreakAfterCharacters = 106,
+		wordWrapBreakBeforeCharacters = 107,
+		wordWrapColumn = 108,
+		wordWrapMinified = 109,
+		wrappingIndent = 110,
+		wrappingStrategy = 111,
+		editorClassName = 112,
+		pixelRatio = 113,
+		tabFocusMode = 114,
+		layoutInfo = 115,
+		wrappingInfo = 116
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4033,6 +4038,7 @@ declare namespace monaco.editor {
 		selectionClipboard: IEditorOption<EditorOption.selectionClipboard, boolean>;
 		selectionHighlight: IEditorOption<EditorOption.selectionHighlight, boolean>;
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
+		showDirtyDiffWidget: IEditorOption<EditorOption.showDirtyDiffWidget, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'top' | 'bottom' | 'inline'>;

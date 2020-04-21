@@ -589,6 +589,10 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	definitionLinkOpensInPeek?: boolean;
+	/**
+	 * Controls whether clicking on editor gutter opens dirty diff widget.
+	 */
+	showDirtyDiffWidget?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3425,6 +3429,7 @@ export const enum EditorOption {
 	selectionClipboard,
 	selectionHighlight,
 	selectOnLineNumbers,
+	showDirtyDiffWidget,
 	showFoldingControls,
 	showUnused,
 	snippetSuggestions,
@@ -3914,6 +3919,10 @@ export const EditorOptions = {
 	)),
 	selectOnLineNumbers: register(new EditorBooleanOption(
 		EditorOption.selectOnLineNumbers, 'selectOnLineNumbers', true,
+	)),
+	showDirtyDiffWidget: register(new EditorBooleanOption(
+		EditorOption.showDirtyDiffWidget, 'showDirtyDiffWidget', true,
+		{ description: nls.localize('showDirtyDiffWidget', "Controls whether clicking on editor gutter opens dirty diff widget.") }
 	)),
 	showFoldingControls: register(new EditorStringEnumOption(
 		EditorOption.showFoldingControls, 'showFoldingControls',

@@ -573,6 +573,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 
 	constructor(
 		private editor: ICodeEditor,
+		@IConfigurationService configService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
@@ -584,6 +585,10 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 			this._register(editor.onMouseDown(e => this.onEditorMouseDown(e)));
 			this._register(editor.onMouseUp(e => this.onEditorMouseUp(e)));
 			this._register(editor.onDidChangeModel(() => this.close()));
+			this._register(Event.filter(configService.onDidChangeConfiguration, e => e.affectsConfiguration('editor.showDirtyDiffWidget'))(() => {
+				this.enabled = configService.getValue<boolean>('editor.showDirtyDiffWidget');
+			}));
+			this.enabled = configService.getValue<boolean>('editor.showDirtyDiffWidget');
 		}
 	}
 
