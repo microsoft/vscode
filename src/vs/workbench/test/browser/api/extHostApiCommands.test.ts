@@ -585,6 +585,33 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.equal(b.commitCharacters, undefined);
 	});
 
+	test('vscode.executeCompletionItemProvider returns the wrong CompletionItemKinds in insiders #95715', async function () {
+		disposables.push(extHost.registerCompletionItemProvider(nullExtensionDescription, defaultSelector, <vscode.CompletionItemProvider>{
+			provideCompletionItems(): any {
+				return [
+					new types.CompletionItem('My Method', types.CompletionItemKind.Method),
+					new types.CompletionItem('My Property', types.CompletionItemKind.Property),
+				];
+			}
+		}, []));
+
+		await rpcProtocol.sync();
+
+		let list = await commands.executeCommand<vscode.CompletionList>(
+			'vscode.executeCompletionItemProvider',
+			model.uri,
+			new types.Position(0, 4),
+			undefined
+		);
+
+		assert.ok(list instanceof types.CompletionList);
+		assert.equal(list.items.length, 2);
+
+		const [a, b] = list.items;
+		assert.equal(a.kind, types.CompletionItemKind.Method);
+		assert.equal(b.kind, types.CompletionItemKind.Property);
+	});
+
 	// --- signatureHelp
 
 	test('Parameter Hints, back and forth', async () => {
