@@ -13,12 +13,12 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IExplorerService, IFilesConfiguration, DEFAULT_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IQuickInputService, ItemActivation, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -34,7 +34,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, getFileNamesMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/base/common/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
@@ -49,9 +49,8 @@ import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/commo
 import { once } from 'vs/base/common/functional';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { Codicon } from 'vs/base/common/codicons';
-import { CustomEditorsAssociations, customEditorsAssociationsSettingId, CustomEditorAssociation } from 'vs/workbench/services/editor/browser/editorAssociationsSetting';
+import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -521,7 +520,6 @@ export class GlobalCompareResourcesAction extends Action {
 	}
 }
 
-const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
 export class ReopenResourcesAction extends Action {
 
 	static readonly ID = 'workbench.files.action.reopenWithEditor';
@@ -550,98 +548,7 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		const activeResource = activeInput.resource;
-		if (!activeResource) {
-			return;
-		}
-
-		const resourceExt = extname(activeResource.path);
-
-		const overrides = this.editorService.getEditorOverrides(activeInput, options, group);
-		const items: (IQuickPickItem & { handler?: IOpenEditorOverrideHandler })[] = overrides.map((override) => {
-			return {
-				handler: override[0],
-				id: override[1].id,
-				label: override[1].label,
-				description: override[1].active ? 'Currently Active' : undefined,
-				detail: override[1].detail,
-				buttons: resourceExt ? [{
-					iconClass: 'codicon-settings-gear',
-					tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
-				}] : undefined
-			};
-		});
-
-		if (!items.length) {
-			return;
-		}
-
-		if (!items.find(item => item.id === DEFAULT_EDITOR_ID)) {
-			items.unshift({
-				id: DEFAULT_EDITOR_ID,
-				label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-				description: activeInput instanceof FileEditorInput ? 'Currently Active' : undefined,
-				detail: builtinProviderDisplayName,
-				buttons: resourceExt ? [{
-					iconClass: 'codicon-settings-gear',
-					tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
-				}] : undefined
-			});
-		}
-
-		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler })>();
-		picker.items = items;
-		picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", resources.basename(activeResource));
-
-		const pickedItem = await new Promise<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler }) | undefined>(resolve => {
-			picker.onDidAccept(() => {
-				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0] : undefined);
-				picker.dispose();
-			});
-
-			picker.onDidTriggerItemButton(e => {
-				const pick = e.item;
-				const id = pick.id;
-				resolve(pick); // open the view
-				picker.dispose();
-
-				// And persist the setting
-				if (pick && id) {
-					const newAssociation: CustomEditorAssociation = { viewType: id, filenamePattern: '*' + resourceExt };
-					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)];
-
-					// First try updating existing association
-					for (let i = 0; i < currentAssociations.length; ++i) {
-						const existing = currentAssociations[i];
-						if (existing.filenamePattern === newAssociation.filenamePattern) {
-							currentAssociations.splice(i, 1, newAssociation);
-							this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
-							return;
-						}
-					}
-
-					// Otherwise, create a new one
-					currentAssociations.unshift(newAssociation);
-					this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
-				}
-			});
-
-			picker.show();
-		});
-
-		if (!pickedItem) {
-			return;
-		}
-
-		if (pickedItem.id === DEFAULT_EDITOR_ID) {
-			const fileEditorInput = this.editorService.createEditorInput({ resource: activeResource!, forceFile: true });
-			const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
-
-			await this.editorService.openEditor(fileEditorInput, textOptions, group);
-			return;
-		}
-
-		await pickedItem.handler!.open(activeInput!, options, group, pickedItem.id);
+		return openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
 	}
 }
 
