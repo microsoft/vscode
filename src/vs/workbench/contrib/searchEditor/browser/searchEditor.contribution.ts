@@ -31,6 +31,7 @@ import { getOrMakeSearchEditorInput, SearchEditorInput, SearchConfiguration } fr
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { parseSavedSearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { Range } from 'vs/editor/common/core/range';
+import { searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 
 //#region Editor Descriptior
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -220,7 +221,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: RerunSearchEditorSearchAction.ID,
 		title: RerunSearchEditorSearchAction.LABEL,
-		icon: { id: 'codicon/refresh' },
+		icon: searchRefreshIcon,
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID))

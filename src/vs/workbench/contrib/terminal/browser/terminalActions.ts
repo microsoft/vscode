@@ -1280,4 +1280,17 @@ export function registerTerminalActions() {
 			accessor.get(ITerminalService).getActiveInstance()?.relaunch();
 		}
 	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TERMINAL_COMMAND_ID.SHOW_ENVIRONMENT_INFORMATION,
+				title: localize('workbench.action.terminal.showEnvironmentInformation', "Show Environment Information"),
+				f1: true,
+				category
+			});
+		}
+		run(accessor: ServicesAccessor) {
+			accessor.get(ITerminalService).getActiveInstance()?.showEnvironmentInfoHover();
+		}
+	});
 }

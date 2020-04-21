@@ -32,7 +32,7 @@ import { launchSchema, debuggersExtPoint, breakpointsExtPoint } from 'vs/workben
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -163,8 +163,8 @@ export class ConfigurationManager implements IConfigurationManager {
 		return Promise.resolve(undefined);
 	}
 
-	getDebuggerLabel(session: IDebugSession): string | undefined {
-		const dbgr = this.getDebugger(session.configuration.type);
+	getDebuggerLabel(type: string): string | undefined {
+		const dbgr = this.getDebugger(type);
 		if (dbgr) {
 			return dbgr.label;
 		}
@@ -246,11 +246,36 @@ export class ConfigurationManager implements IConfigurationManager {
 		return results.reduce((first, second) => first.concat(second), []);
 	}
 
-	async provideDynamicDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
+	async getDynamicProviders(): Promise<{ label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
 		await this.activateDebuggers('onDebugDynamicConfigurations');
-		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.scope === DebugConfigurationProviderScope.Dynamic && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
+		const dynamicProviders = this.configProviders.filter(p => p.scope === DebugConfigurationProviderScope.Dynamic && p.provideDebugConfigurations);
+		return dynamicProviders.map(provider => {
+			return {
+				label: this.getDebuggerLabel(provider.type)!,
+				pick: async () => {
+					const token = new CancellationTokenSource();
+					const picks: Promise<{ label: string, launch: ILaunch, config: IConfig }[]>[] = [];
+					this.getLaunches().forEach(launch => {
+						if (launch.workspace) {
+							picks.push(provider.provideDebugConfigurations!(launch.workspace.uri, token.token).then(configurations => configurations.map(config => ({
+								label: config.name,
+								config,
+								launch
+							}))));
+						}
+					});
+					const promiseOfPicks = Promise.all(picks).then(result => result.reduce((first, second) => first.concat(second), []));
 
-		return results.reduce((first, second) => first.concat(second), []);
+					const result = await this.quickInputService.pick<{ label: string, launch: ILaunch, config: IConfig }>(promiseOfPicks, { placeHolder: nls.localize('selectConfiguration', "Select Debug Configuration") });
+					if (!result) {
+						// User canceled quick input we should notify the provider to cancel computing configurations
+						token.cancel();
+					}
+
+					return result;
+				}
+			};
+		});
 	}
 
 	getAllConfigurations(): { launch: ILaunch; name: string; presentation?: IConfigPresentation }[] {

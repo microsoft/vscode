@@ -1020,7 +1020,7 @@ suite('Fuzzy Scorer', () => {
 		}
 
 		function assertNoScore() {
-			assert.equal(multiScore, 0);
+			assert.equal(multiScore, undefined);
 			assert.equal(multiMatches.length, 0);
 		}
 
@@ -1037,5 +1037,14 @@ suite('Fuzzy Scorer', () => {
 
 		[multiScore, multiMatches] = _doScore2(target, 'More Nothing');
 		assertNoScore();
+	});
+
+	test('fuzzyScore2 (#95716)', function () {
+		const target = '# ❌ Wow';
+
+		const score = _doScore2(target, '❌');
+		assert.ok(score);
+		assert.ok(typeof score[0] === 'number');
+		assert.ok(score[1].length > 0);
 	});
 });

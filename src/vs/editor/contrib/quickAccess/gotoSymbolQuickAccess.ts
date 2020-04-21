@@ -17,6 +17,7 @@ import { trim, format } from 'vs/base/common/strings';
 import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
@@ -257,15 +258,15 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				let skipContainerQuery = false;
 				if (symbolQuery !== query) {
 					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, { ...query, values: undefined /* disable multi-query support */ }, filterPos, symbolLabelIconOffset);
-					if (symbolScore) {
+					if (typeof symbolScore === 'number') {
 						skipContainerQuery = true; // since we consumed the query, skip any container matching
 					}
 				}
 
 				// Otherwise: score on the symbol query and match on the container later
-				if (!symbolScore) {
+				if (typeof symbolScore !== 'number') {
 					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, filterPos, symbolLabelIconOffset);
-					if (!symbolScore) {
+					if (typeof symbolScore !== 'number') {
 						continue;
 					}
 				}
@@ -276,11 +277,11 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
 
-					if (!containerScore) {
+					if (typeof containerScore !== 'number') {
 						continue;
 					}
 
-					if (symbolScore) {
+					if (typeof symbolScore === 'number') {
 						symbolScore += containerScore; // boost symbolScore by containerScore
 					}
 				}
@@ -312,7 +313,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 					return [
 						{
-							iconClass: openSideBySideDirection === 'right' ? 'codicon-split-horizontal' : 'codicon-split-vertical',
+							iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
 							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 						}
 					];
@@ -379,13 +380,13 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	}
 
 	private compareByScore(symbolA: IGotoSymbolQuickPickItem, symbolB: IGotoSymbolQuickPickItem): number {
-		if (!symbolA.score && symbolB.score) {
+		if (typeof symbolA.score !== 'number' && typeof symbolB.score === 'number') {
 			return 1;
-		} else if (symbolA.score && !symbolB.score) {
+		} else if (typeof symbolA.score === 'number' && typeof symbolB.score !== 'number') {
 			return -1;
 		}
 
-		if (symbolA.score && symbolB.score) {
+		if (typeof symbolA.score === 'number' && typeof symbolB.score === 'number') {
 			if (symbolA.score > symbolB.score) {
 				return -1;
 			} else if (symbolA.score < symbolB.score) {

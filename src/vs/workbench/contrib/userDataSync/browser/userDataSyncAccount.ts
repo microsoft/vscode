@@ -157,7 +157,7 @@ export class UserDataSyncAccounts extends Disposable {
 		if (currentSession) {
 			try {
 				const token = await currentSession.getAccessToken();
-				await this.authenticationTokenService.setToken(token);
+				await this.authenticationTokenService.setToken({ token, authenticationProviderId });
 			} catch (e) {
 				this.logService.error(e);
 			}

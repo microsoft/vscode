@@ -20,6 +20,7 @@ import { IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/di
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class ExecuteCommandAction extends Action {
 
@@ -395,7 +396,7 @@ export class CloseEditorAction extends Action {
 		label: string,
 		@ICommandService private readonly commandService: ICommandService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, Codicon.close.classNames);
 	}
 
 	run(context?: IEditorCommandsContext): Promise<void> {
@@ -413,7 +414,7 @@ export class CloseOneEditorAction extends Action {
 		label: string,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'codicon-close');
+		super(id, label, Codicon.close.classNames);
 	}
 
 	async run(context?: IEditorCommandsContext): Promise<void> {
@@ -609,7 +610,7 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(id, label, 'codicon-close-all', workingCopyService, fileDialogService, editorGroupService, editorService);
+		super(id, label, Codicon.closeAll.classNames, workingCopyService, fileDialogService, editorGroupService, editorService);
 	}
 
 	protected async doCloseAll(): Promise<void> {

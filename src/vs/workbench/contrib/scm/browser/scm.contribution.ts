@@ -27,6 +27,7 @@ import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewConta
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
@@ -52,7 +53,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
-	icon: 'codicon-source-control',
+	icon: Codicon.sourceControl.classNames,
 	order: 2
 }, ViewContainerLocation.Sidebar);
 

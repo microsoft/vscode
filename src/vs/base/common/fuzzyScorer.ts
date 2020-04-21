@@ -277,9 +277,9 @@ function scoreSeparatorAtPos(charCode: number): number {
 
 //#region Alternate fuzzy scorer implementation that is e.g. used for symbols
 
-export type FuzzyScore2 = [number /* score*/, IMatch[]];
+export type FuzzyScore2 = [number | undefined /* score */, IMatch[]];
 
-const NO_SCORE2: FuzzyScore2 = [NO_MATCH, []];
+const NO_SCORE2: FuzzyScore2 = [undefined, []];
 
 export function scoreFuzzy2(target: string, query: IPreparedQuery | IPreparedQueryPiece, patternStart = 0, matchOffset = 0): FuzzyScore2 {
 
@@ -299,7 +299,7 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 
 	for (const queryPiece of query) {
 		const [score, matches] = doScoreFuzzy2Single(target, queryPiece, patternStart, matchOffset);
-		if (!score) {
+		if (typeof score !== 'number') {
 			// if a single query value does not match, return with
 			// no score entirely, we require all queries to match
 			return NO_SCORE2;
