@@ -97,7 +97,7 @@ export class FoldingModel extends Disposable {
 				end: endIndex + 1,
 				rank: 1
 			};
-		});
+		}).filter(range => range.start !== range.end);
 
 		const newRegions = sanitizeRanges(rawFoldingRanges, 5000);
 
