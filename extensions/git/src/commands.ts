@@ -520,7 +520,7 @@ export class CommandCenter {
 	@command('git.clone')
 	async clone(url?: string, parentPath?: string): Promise<void> {
 		if (!url) {
-			const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider })>();
+			const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
 			quickpick.ignoreFocusOut = true;
 
 			const providers = this.model.getRemoteProviders()
@@ -535,7 +535,8 @@ export class CommandCenter {
 					quickpick.items = [{
 						label: localize('repourl', "Clone from URL"),
 						description: value,
-						alwaysShow: true
+						alwaysShow: true,
+						url: value
 					},
 					...providers];
 				} else {
@@ -549,7 +550,9 @@ export class CommandCenter {
 			const result = await getQuickPickResult(quickpick);
 
 			if (result) {
-				if (result.provider) {
+				if (result.url) {
+					url = result.url;
+				} else if (result.provider) {
 					const quickpick = new RemoteSourceProviderQuickPick(result.provider);
 					const remote = await quickpick.pick();
 
@@ -560,8 +563,6 @@ export class CommandCenter {
 							url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
 						}
 					}
-				} else {
-					url = result.label;
 				}
 			}
 		}
