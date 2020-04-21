@@ -399,7 +399,12 @@ export {
 	commands,
 
 	// Home Indicator
-	IHomeIndicator
+	IHomeIndicator,
+
+	// Default layout
+	IDefaultLayout,
+	IDefaultPanelLayout,
+	IDefaultSideBarLayout,
 };
 
 //#endregion
