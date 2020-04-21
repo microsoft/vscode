@@ -280,7 +280,11 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return this.webview?.webview;
 	}
 
-	onHide() {
+	onWillHide() {
+		if (this.input && this.input instanceof NotebookEditorInput && !this.input.isDisposed()) {
+			this.saveTextEditorViewState(this.input);
+		}
+
 		this.editorFocus?.set(false);
 		if (this.webview) {
 			this.localStore.clear();
@@ -354,10 +358,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	clearInput(): void {
-		if (this.input && this.input instanceof NotebookEditorInput && !this.input.isDisposed()) {
-			this.saveTextEditorViewState(this.input);
-		}
-
 		super.clearInput();
 	}
 
@@ -444,10 +444,16 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.list!.scrollLeft = 0;
 		}
 
-		if (typeof viewState?.focus === 'number') {
-			this.list!.setFocus([viewState.focus]);
-		} else {
-			this.list!.setFocus([0]);
+		const focusIdx = typeof viewState?.focus === 'number' ? viewState.focus : 0;
+		this.list!.setFocus([focusIdx]);
+		this.list!.setSelection([focusIdx]);
+
+		if (viewState?.editorFocused) {
+			this.list?.focusView();
+			const cell = this.notebookViewModel?.viewCells[focusIdx];
+			if (cell) {
+				cell.focusMode = CellFocusMode.Editor;
+			}
 		}
 	}
 
@@ -470,6 +476,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 				const focus = this.list.getFocus()[0];
 				if (focus) {
+					const element = this.notebookViewModel!.viewCells[focus];
+					const itemDOM = this.list?.domElementOfElement(element!);
+					let editorFocused = false;
+					if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
+						editorFocused = true;
+					}
+
+					state.editorFocused = editorFocused;
 					state.focus = focus;
 				}
 			}

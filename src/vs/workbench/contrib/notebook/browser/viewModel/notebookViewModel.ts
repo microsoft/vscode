@@ -34,6 +34,7 @@ export interface INotebookEditorViewState {
 	cellTotalHeights?: { [key: number]: number };
 	scrollPosition?: { left: number; top: number; };
 	focus?: number;
+	editorFocused?: boolean;
 }
 
 export interface ICellModelDecorations {

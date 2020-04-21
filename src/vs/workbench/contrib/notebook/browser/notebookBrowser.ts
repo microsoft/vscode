@@ -5,7 +5,7 @@
 
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListEvent, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { IListOptions, IListStyles, List } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
