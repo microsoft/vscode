@@ -99,7 +99,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
-	private _environmentVariableWidgetDisposable: IDisposable | undefined;
+	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
@@ -1359,12 +1359,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
 	}
 
+	public showEnvironmentInfoHover(): void {
+		if (this._environmentInfo) {
+			this._environmentInfo.widget.focus();
+		}
+	}
+
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
+		if (info.requiresAction) {
+			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Variable Information' command for more information", this._id));
+		}
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}
 
 	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
-		this._environmentVariableWidgetDisposable?.dispose();
+		this._environmentInfo?.disposable.dispose();
 
 		// Check if the widget should not exist
 		if (!info ||
@@ -1375,7 +1384,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// (Re-)create the widget
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
-		this._environmentVariableWidgetDisposable = this._widgetManager.attachWidget(widget);
+		const disposable = this._widgetManager.attachWidget(widget);
+		if (disposable) {
+			this._environmentInfo = { widget, disposable };
+		}
 	}
 
 	private _getXtermTheme(theme?: IColorTheme): any {
