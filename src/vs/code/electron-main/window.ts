@@ -409,7 +409,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				return callback({ cancel: true });
 			}
 
-			return callback({ cancel: false, responseHeaders });
+			return callback({ cancel: false });
 		});
 
 		// Remember that we loaded
