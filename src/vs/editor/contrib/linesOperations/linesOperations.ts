@@ -24,6 +24,7 @@ import { SortLinesCommand } from 'vs/editor/contrib/linesOperations/sortLinesCom
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { CursorConfiguration, ICursorSimpleModel, isQuote } from 'vs/editor/common/controller/cursorCommon';
 
 // copy lines
 
@@ -636,6 +637,8 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 			return [];
 		}
 
+		const cursors = editor._getCursors();
+		const config = cursors.context.config;
 		rangesToDelete.sort(Range.compareRangesUsingStarts);
 		rangesToDelete = rangesToDelete.map(selection => {
 			if (selection.isEmpty()) {
@@ -644,7 +647,8 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
 					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
 				} else {
-					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+					let extraIdx = this._getAutoEnclosingPairDeleteIdx(config, model, <Selection>selection);
+					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn + extraIdx);
 				}
 			} else {
 				return new Range(selection.startLineNumber, 1, selection.endLineNumber, selection.endColumn);
@@ -652,6 +656,50 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 		});
 
 		return rangesToDelete;
+	}
+
+	_getAutoEnclosingPairDeleteIdx(config: CursorConfiguration, model: ICursorSimpleModel, selection: Selection): number {
+		if (config.autoClosingBrackets === 'never' && config.autoClosingQuotes === 'never') {
+			return 0;
+		}
+
+		if (!selection.isEmpty()) {
+			return 0;
+		}
+
+		const position = selection.getPosition();
+		const lineText = model.getLineContent(position.lineNumber);
+		let extraIdx = 0;
+		for (let i = 0; ; i++) {
+			const character = lineText[position.column - i - 2];
+			const autoClosingPairCandidates = config.autoClosingPairsOpen2.get(character);
+			if (!autoClosingPairCandidates) {
+				return extraIdx;
+			}
+			if (isQuote(character)) {
+				if (config.autoClosingQuotes === 'never') {
+					return extraIdx;
+				}
+			} else {
+				if (config.autoClosingBrackets === 'never') {
+					return extraIdx;
+				}
+			}
+
+			const afterCharacter = lineText[position.column + i - 1];
+
+			let foundAutoClosingPair = false;
+			for (const autoClosingPairCandidate of autoClosingPairCandidates) {
+				if (autoClosingPairCandidate.open === character && autoClosingPairCandidate.close === afterCharacter) {
+					foundAutoClosingPair = true;
+				}
+			}
+			if (!foundAutoClosingPair) {
+				return extraIdx;
+			}
+
+			extraIdx++;
+		}
 	}
 }
 
