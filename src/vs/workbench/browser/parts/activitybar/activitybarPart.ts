@@ -478,11 +478,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		for (const viewlet of viewlets) {
 			const viewContainer = this.getViewContainer(viewlet.id)!;
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			this.updateActivity(viewlet, viewContainerModel);
+			this.updateActivity(viewContainer, viewContainerModel);
 			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
 
 			const disposables = new DisposableStore();
-			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewlet, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
 			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
 
 			this.viewletDisposables.set(viewlet.id, disposables);
@@ -499,17 +499,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.hideComposite(viewletId);
 	}
 
-	private updateActivity(viewlet: ViewletDescriptor, viewContainerModel: IViewContainerModel): void {
+	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
 
 		const activity: IActivity = {
-			id: viewlet.id,
+			id: viewContainer.id,
 			name: viewContainerModel.title,
 			iconUrl: URI.isUri(viewContainerModel.icon) ? viewContainerModel.icon : undefined,
 			cssClass: isString(viewContainerModel.icon) ? viewContainerModel.icon : undefined,
-			keybindingId: viewlet.keybindingId
+			keybindingId: viewContainer.focusCommand?.id || viewContainer.id
 		};
 
-		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
 		activityAction.setActivity(activity);
 
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {

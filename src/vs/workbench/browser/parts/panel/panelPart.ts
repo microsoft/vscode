@@ -209,14 +209,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		for (const panel of panels) {
-			this.enableCompositeActions(panel);
 			const viewContainer = this.getViewContainer(panel.id)!;
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			this.onDidChangeActiveViews(panel, viewContainerModel, viewContainer.hideIfEmpty);
+			this.updateActivity(viewContainer, viewContainerModel);
+			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
 
 			const disposables = new DisposableStore();
-			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(panel, viewContainerModel, viewContainer.hideIfEmpty)));
-			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.onDidUpdateViews(panel, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
 
 			this.panelDisposables.set(panel.id, disposables);
 		}
@@ -232,40 +232,28 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.hideComposite(panelId);
 	}
 
-	private enableCompositeActions(panel: PanelDescriptor): void {
-		const { activityAction, pinnedAction } = this.getCompositeActions(panel.id);
-		activityAction.setActivity(panel);
-
-		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
-			pinnedAction.setActivity(panel);
-		}
-	}
-
-	private updateActivity(panel: PanelDescriptor, viewContainerModel: IViewContainerModel): void {
+	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
 		const activity: IActivity = {
-			id: panel.id,
+			id: viewContainer.id,
 			name: viewContainerModel.title,
-			keybindingId: panel.keybindingId
+			keybindingId: viewContainer.focusCommand?.id
 		};
 
-		const { activityAction, pinnedAction } = this.getCompositeActions(panel.id);
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
 		activityAction.setActivity(activity);
 
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
 			pinnedAction.setActivity(activity);
 		}
+
+		this.saveCachedPanels();
 	}
 
-	private onDidUpdateViews(panel: PanelDescriptor, viewDescriptors: IViewContainerModel): void {
-		this.updateActivity(panel, viewDescriptors);
-	}
-
-	private onDidChangeActiveViews(panel: PanelDescriptor, viewDescriptors: IViewContainerModel, hideIfEmpty?: boolean): void {
-		if (viewDescriptors.activeViewDescriptors.length) {
-			this.updateActivity(panel, viewDescriptors);
-			this.compositeBar.addComposite(panel);
-		} else if (hideIfEmpty) {
-			this.hideComposite(panel.id);
+	private onDidChangeActiveViews(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		if (viewContainerModel.activeViewDescriptors.length) {
+			this.compositeBar.addComposite(viewContainer);
+		} else if (viewContainer.hideIfEmpty) {
+			this.hideComposite(viewContainer.id);
 		}
 	}
 
