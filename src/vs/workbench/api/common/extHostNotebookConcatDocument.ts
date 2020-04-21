@@ -23,8 +23,8 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	private _cellLines!: PrefixSumComputer;
 	private _versionId = 0;
 
-	private readonly _onDidChange = new Emitter<this>();
-	readonly onDidChange: Event<this> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	constructor(
 		extHostNotebooks: ExtHostNotebookController,
@@ -40,14 +40,14 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 				this._cellLengths.changeValue(cellIdx, this._cells[cellIdx].document.getText().length + 1);
 				this._cellLines.changeValue(cellIdx, this._cells[cellIdx].document.lineCount);
 				this._versionId += 1;
-				this._onDidChange.fire(this);
+				this._onDidChange.fire(undefined);
 			}
 		}));
 		this._disposables.add(extHostNotebooks.onDidChangeNotebookDocument(e => {
 			if (e.document === this._notebook) {
 				this._init();
 				this._versionId += 1;
-				this._onDidChange.fire(this);
+				this._onDidChange.fire(undefined);
 			}
 		}));
 	}

@@ -1671,6 +1671,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookConcatTextDocument {
+		onDidChange: Event<void>;
 		version: number;
 		getText(): string;
 		getText(range: Range): string;
