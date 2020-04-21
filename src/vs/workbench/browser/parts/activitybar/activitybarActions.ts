@@ -29,6 +29,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { isString } from 'vs/base/common/types';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -250,13 +251,17 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
 		id: string,
-		name: string,
-		iconUrl: URI | undefined,
+		icon: URI | string | undefined,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super({ id, name: id, iconUrl }, viewletService, layoutService, telemetryService);
+		super({
+			id,
+			name: id,
+			iconUrl: URI.isUri(icon) ? icon : undefined,
+			cssClass: isString(icon) ? icon : undefined
+		}, viewletService, layoutService, telemetryService);
 	}
 }
 

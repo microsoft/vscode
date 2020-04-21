@@ -47,6 +47,7 @@ interface IPlaceholderViewlet {
 	id: string;
 	name?: string;
 	iconUrl?: UriComponents;
+	iconCSS?: string;
 	views?: { when?: string }[];
 }
 
@@ -60,7 +61,7 @@ interface IPinnedViewlet {
 interface ICachedViewlet {
 	id: string;
 	name?: string;
-	iconUrl?: UriComponents;
+	icon?: URI | string;
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
@@ -444,7 +445,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			} else {
 				const cachedComposite = this.cachedViewlets.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite?.name || compositeId, cachedComposite?.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite?.icon),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -637,21 +638,25 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private saveCachedViewlets(): void {
 		const state: ICachedViewlet[] = [];
-		const allViewlets = this.viewletService.getViewlets();
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 		for (const compositeItem of compositeItems) {
 			const viewContainer = this.getViewContainer(compositeItem.id);
-			const viewlet = allViewlets.filter(({ id }) => id === compositeItem.id)[0];
-			if (viewlet) {
+			if (viewContainer) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				const views: { when: string | undefined }[] = [];
-				if (viewContainer) {
-					const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-					for (const { when } of viewContainerModel.allViewDescriptors) {
-						views.push({ when: when ? when.serialize() : undefined });
-					}
+				for (const { when } of viewContainerModel.allViewDescriptors) {
+					views.push({ when: when ? when.serialize() : undefined });
 				}
-				state.push({ id: compositeItem.id, name: viewlet.name, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({
+					id: compositeItem.id,
+					name: viewContainerModel.title,
+					icon: URI.isUri(viewContainerModel.icon) && viewContainerModel.icon.scheme === Schemas.file ? viewContainerModel.icon : viewContainerModel.icon,
+					views,
+					pinned: compositeItem.pinned,
+					order: compositeItem.order,
+					visible: compositeItem.visible
+				});
 			} else {
 				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false });
 			}
@@ -661,12 +666,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getCachedViewlets(): ICachedViewlet[] {
-		const cachedViewlets: Array<ICachedViewlet> = JSON.parse(this.pinnedViewletsValue);
-		for (const placeholderViewlet of JSON.parse(this.placeholderViewletsValue)) {
+		const cachedViewlets: ICachedViewlet[] = this.getPinnedViewlets();
+		for (const placeholderViewlet of this.getPlaceholderViewlets()) {
 			const cachedViewlet = cachedViewlets.filter(cached => cached.id === placeholderViewlet.id)[0];
 			if (cachedViewlet) {
 				cachedViewlet.name = placeholderViewlet.name;
-				cachedViewlet.iconUrl = placeholderViewlet.iconUrl;
+				cachedViewlet.icon = placeholderViewlet.iconCSS ? placeholderViewlet.iconCSS :
+					placeholderViewlet.iconUrl ? URI.revive(placeholderViewlet.iconUrl) : undefined;
 				cachedViewlet.views = placeholderViewlet.views;
 			}
 		}
@@ -675,8 +681,27 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private storeCachedViewletsState(cachedViewlets: ICachedViewlet[]): void {
-		this.pinnedViewletsValue = JSON.stringify(cachedViewlets.map(({ id, pinned, visible, order }) => (<IPinnedViewlet>{ id, pinned, visible, order })));
-		this.placeholderViewletsValue = JSON.stringify(cachedViewlets.map(({ id, iconUrl, name, views }) => (<IPlaceholderViewlet>{ id, iconUrl, name, views })));
+		this.setPinnedViewlets(cachedViewlets.map(({ id, pinned, visible, order }) => (<IPinnedViewlet>{
+			id,
+			pinned,
+			visible,
+			order
+		})));
+		this.setPlaceholderViewlets(cachedViewlets.map(({ id, icon, name, views }) => (<IPlaceholderViewlet>{
+			id,
+			iconUrl: URI.isUri(icon) ? icon : undefined,
+			iconCSS: isString(icon) ? icon : undefined,
+			name,
+			views
+		})));
+	}
+
+	private getPinnedViewlets(): IPinnedViewlet[] {
+		return JSON.parse(this.pinnedViewletsValue);
+	}
+
+	private setPinnedViewlets(pinnedViewlets: IPinnedViewlet[]): void {
+		this.pinnedViewletsValue = JSON.stringify(pinnedViewlets);
 	}
 
 	private _pinnedViewletsValue: string | undefined;
@@ -701,6 +726,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private setStoredPinnedViewletsValue(value: string): void {
 		this.storageService.store(ActivitybarPart.PINNED_VIEWLETS, value, StorageScope.GLOBAL);
+	}
+
+	private getPlaceholderViewlets(): IPlaceholderViewlet[] {
+		return JSON.parse(this.placeholderViewletsValue);
+	}
+
+	private setPlaceholderViewlets(placeholderViewlets: IPlaceholderViewlet[]): void {
+		this.placeholderViewletsValue = JSON.stringify(placeholderViewlets);
 	}
 
 	private _placeholderViewletsValue: string | undefined;
@@ -732,7 +765,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (value !== undefined) {
 			const storedStates: Array<string | ICachedViewlet> = JSON.parse(value);
 			const cachedViewlets = storedStates.map(c => {
-				const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, name: undefined, iconUrl: undefined, views: undefined } : c;
+				const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, name: undefined, icon: undefined, views: undefined } : c;
 				serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
 				return serialized;
 			});
