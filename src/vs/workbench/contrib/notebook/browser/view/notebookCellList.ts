@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { IListRenderer, IListVirtualDelegate, ListError } from 'vs/base/browser/ui/list/list';
-import { IListStyles, IStyleController, MouseController } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles, IStyleController, MouseController, IListOptions } from 'vs/base/browser/ui/list/listWidget';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -122,7 +122,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	}
 
-	protected createMouseController(): MouseController<CellViewModel> {
+	protected createMouseController(_options: IListOptions<CellViewModel>): MouseController<CellViewModel> {
 		return new NotebookMouseController(this);
 	}
 

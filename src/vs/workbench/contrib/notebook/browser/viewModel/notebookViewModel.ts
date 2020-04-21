@@ -33,6 +33,8 @@ export interface INotebookEditorViewState {
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
 	cellTotalHeights?: { [key: number]: number };
 	scrollPosition?: { left: number; top: number; };
+	focus?: number;
+	editorFocused?: boolean;
 }
 
 export interface ICellModelDecorations {
@@ -578,8 +580,8 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	}
 
 	saveEditorViewState(): INotebookEditorViewState {
-		const state: { [key: number]: boolean } = {};
-		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach(cell => state[cell.model.handle] = true);
+		const editingCells: { [key: number]: boolean } = {};
+		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach(cell => editingCells[cell.model.handle] = true);
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
 			if (viewState.state) {
@@ -588,8 +590,8 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		});
 
 		return {
-			editingCells: state,
-			editorViewStates: editorViewStates
+			editingCells,
+			editorViewStates
 		};
 	}
 
