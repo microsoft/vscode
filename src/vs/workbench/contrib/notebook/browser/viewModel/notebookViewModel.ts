@@ -285,7 +285,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	updateFoldingRanges(ranges: FoldingRegions) {
-		const foldingRangeChanged = this._foldingRanges ? !this._foldingRanges.equals(ranges) : true;
 		this._foldingRanges = ranges;
 		let updateHiddenAreas = false;
 		let newHiddenAreas: ICellRange[] = [];
