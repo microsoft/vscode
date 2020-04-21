@@ -6,7 +6,7 @@
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostNotebookDocument, ExtHostNotebookController, ExtHostCell } from 'vs/workbench/api/common/extHostNotebook';
+import { ExtHostNotebookController, ExtHostCell } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { PrefixSumComputer } from 'vs/editor/common/viewModel/prefixSumComputer';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -17,6 +17,7 @@ import { isEqual } from 'vs/base/common/resources';
 export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextDocument {
 
 	private _disposables = new DisposableStore();
+	private _isClosed = false;
 
 	private _cells!: ExtHostCell[];
 	private _cellLengths!: PrefixSumComputer;
@@ -29,7 +30,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 	constructor(
 		extHostNotebooks: ExtHostNotebookController,
 		extHostDocuments: ExtHostDocuments,
-		private readonly _notebook: ExtHostNotebookDocument,
+		private readonly _notebook: vscode.NotebookDocument,
 		private readonly _selector: vscode.DocumentSelector | undefined,
 	) {
 		this._init();
@@ -54,6 +55,11 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 
 	dispose(): void {
 		this._disposables.dispose();
+		this._isClosed = true;
+	}
+
+	get isClosed() {
+		return this._isClosed;
 	}
 
 	private _init() {
@@ -62,7 +68,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 		const cellLineCounts: number[] = [];
 		for (let cell of this._notebook.cells) {
 			if (cell.cellKind === CellKind.Code && (!this._selector || score(this._selector, cell.uri, cell.language, true))) {
-				this._cells.push(cell);
+				this._cells.push(<ExtHostCell>cell);
 				cellLengths.push(cell.document.getText().length + 1);
 				cellLineCounts.push(cell.document.lineCount);
 			}

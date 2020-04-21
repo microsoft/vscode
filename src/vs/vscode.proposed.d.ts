@@ -1667,10 +1667,11 @@ declare module 'vscode' {
 		languages: string[];
 		displayOrder?: GlobPattern[];
 		metadata: NotebookDocumentMetadata;
-
 	}
 
 	export interface NotebookConcatTextDocument {
+		isClosed: boolean;
+		dispose(): void;
 		onDidChange: Event<void>;
 		version: number;
 		getText(): string;
@@ -1750,6 +1751,13 @@ declare module 'vscode' {
 		export let activeNotebookDocument: NotebookDocument | undefined;
 
 		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+
+		/**
+		 *
+		 * @param notebook
+		 * @param selector
+		 */
+		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 	}
 
 	//#endregion
