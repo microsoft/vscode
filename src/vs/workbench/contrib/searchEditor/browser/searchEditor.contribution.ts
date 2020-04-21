@@ -194,24 +194,24 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 const category = localize('search', "Search Editor");
 
 registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenResultsInEditorAction, OpenResultsInEditorAction.ID, OpenResultsInEditorAction.LABEL,
+	SyncActionDescriptor.from(OpenResultsInEditorAction,
 		{ mac: { primary: KeyMod.CtrlCmd | KeyCode.Enter } },
 		ContextKeyExpr.and(SearchConstants.HasSearchResults, SearchConstants.SearchViewFocusedKey)),
 	'Search Editor: Open Results in Editor', category);
 
 registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenSearchEditorAction, OpenSearchEditorAction.ID, OpenSearchEditorAction.LABEL),
+	SyncActionDescriptor.from(OpenSearchEditorAction),
 	'Search Editor: Open New Search Editor', category);
 
 registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenSearchEditorToSideAction, OpenSearchEditorToSideAction.ID, OpenSearchEditorToSideAction.LABEL),
+	SyncActionDescriptor.from(OpenSearchEditorToSideAction),
 	'Search Editor: Open New Search Editor to Side', category);
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(RerunSearchEditorSearchAction, RerunSearchEditorSearchAction.ID, RerunSearchEditorSearchAction.LABEL,
+registry.registerWorkbenchAction(SyncActionDescriptor.from(RerunSearchEditorSearchAction,
 	{ mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R } }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
 	'Search Editor: Search Again', category);
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusQueryEditorWidgetAction, FocusQueryEditorWidgetAction.ID, FocusQueryEditorWidgetAction.LABEL,
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusQueryEditorWidgetAction,
 	{ primary: KeyCode.Escape }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
 	'Search Editor: Focus Query Editor Widget', category);
 //#endregion

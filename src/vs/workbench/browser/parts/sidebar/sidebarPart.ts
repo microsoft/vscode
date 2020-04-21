@@ -331,7 +331,7 @@ class FocusSideBarAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusSideBarAction, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
 }), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));
 
