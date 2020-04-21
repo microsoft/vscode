@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hide, IDimension, show } from 'vs/base/browser/dom';
+import { hide, IDimension, show, toggleClass } from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { renderCodicons } from 'vs/base/common/codicons';
@@ -165,6 +165,8 @@ export class StatefullMarkdownCell extends Disposable {
 			if (viewCell.focusMode === CellFocusMode.Editor) {
 				this.editor?.focus();
 			}
+
+			toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
 		}));
 
 		this.foldingState = viewCell.foldingState;
@@ -277,6 +279,17 @@ export class StatefullMarkdownCell extends Disposable {
 				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			}));
 		}
+
+		const updateFocusMode = () => this.viewCell.focusMode = this.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
+		this.localDisposables.add(this.editor!.onDidFocusEditorWidget(() => {
+			updateFocusMode();
+		}));
+
+		this.localDisposables.add(this.editor!.onDidBlurEditorWidget(() => {
+			updateFocusMode();
+		}));
+
+		updateFocusMode();
 	}
 
 	dispose() {

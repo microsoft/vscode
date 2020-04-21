@@ -59,6 +59,9 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 
 		this._editState = newState;
 		this._onDidChangeState.fire({ editStateChanged: true });
+		if (this._editState === CellEditState.Preview) {
+			this.focusMode = CellFocusMode.Container;
+		}
 	}
 
 	// TODO - move any "run"/"status" concept to Code-specific places
@@ -81,8 +84,12 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		return this._focusMode;
 	}
 	set focusMode(newMode: CellFocusMode) {
+		const changed = this._focusMode !== newMode;
 		this._focusMode = newMode;
-		this._onDidChangeState.fire({ focusModeChanged: true });
+
+		if (changed) {
+			this._onDidChangeState.fire({ focusModeChanged: true });
+		}
 	}
 
 	protected _textEditor?: ICodeEditor;

@@ -803,7 +803,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 
 			cell.editState = CellEditState.Preview;
-			cell.focusMode = CellFocusMode.Editor;
+			cell.focusMode = CellFocusMode.Container;
 
 			this.selectElement(cell);
 			this.revealInCenterIfOutsideViewport(cell);
@@ -957,6 +957,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .notebook-cell-insertion-indicator-top { background-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.cell-editor-focus .cell-editor-part { outline: solid 1px ${focusedCellIndicatorColor}; }`);
 	}
 
 	// Cell Margin
@@ -965,7 +966,7 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .markdown-editor-container { margin-left: ${CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .markdown-cell-row .cell .cell-editor-part { margin-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-insertion-indicator-top { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
