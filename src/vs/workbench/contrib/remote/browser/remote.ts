@@ -19,7 +19,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { VIEWLET_ID } from 'vs/workbench/contrib/remote/common/remote.contribution';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsRegistry, Extensions, ViewContainerLocation, IViewContainersRegistry, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -46,7 +46,6 @@ import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remo
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { startsWith } from 'vs/base/common/strings';
 import { TunnelPanelDescriptor, TunnelViewModel, forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
-import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';

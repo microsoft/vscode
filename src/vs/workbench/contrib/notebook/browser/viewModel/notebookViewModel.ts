@@ -33,6 +33,8 @@ export interface INotebookEditorViewState {
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
 	cellTotalHeights?: { [key: number]: number };
 	scrollPosition?: { left: number; top: number; };
+	focus?: number;
+	editorFocused?: boolean;
 }
 
 export interface ICellModelDecorations {
@@ -128,6 +130,7 @@ let MODEL_ID = 0;
 export class NotebookViewModel extends Disposable implements FoldingRegionDelegate {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
+	private _handleToViewCellMapping = new Map<number, CellViewModel>();
 
 	private _currentTokenSource: CancellationTokenSource | undefined;
 
@@ -141,6 +144,14 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
+	}
+
+	set viewCells(_: ICellViewModel[]) {
+		throw new Error('NotebookViewModel.viewCells is readonly');
+	}
+
+	get length(): number {
+		return this._viewCells.length;
 	}
 
 	get notebookDocument() {
@@ -244,6 +255,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			return createCellViewModel(this.instantiationService, this, cell);
 		});
 
+		this._viewCells.forEach(cell => {
+			this._handleToViewCellMapping.set(cell.handle, cell);
+		});
+
 		this._foldingModel = new FoldingModel();
 		this._foldingModel.attachViewModel(this);
 
@@ -251,43 +266,30 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			this._updateFoldingRanges();
 		}));
 	}
-	getFoldingStartIndex(cell: CellViewModel): number {
-		const modelIndex = this.viewCells.indexOf(cell);
-		if (modelIndex < 0) {
-			return -1;
-		}
 
-		const range = this._foldingModel.regions.findRange(modelIndex + 1);
+	getFoldingStartIndex(index: number): number {
+		const range = this._foldingModel.regions.findRange(index + 1);
 		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
 		return startIndex;
 	}
 
-	getFoldingState(cell: CellViewModel): CellFoldingState {
-		const modelIndex = this.viewCells.indexOf(cell);
-		if (modelIndex < 0) {
-			return -1;
-		}
-
-		const range = this._foldingModel.regions.findRange(modelIndex + 1);
+	getFoldingState(index: number): CellFoldingState {
+		const range = this._foldingModel.regions.findRange(index + 1);
 		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
 
-		if (startIndex !== modelIndex) {
+		if (startIndex !== index) {
 			return CellFoldingState.None;
 		}
 
 		return this._foldingModel.regions.isCollapsed(range) ? CellFoldingState.Collapsed : CellFoldingState.Expanded;
 	}
 
-	setFoldingState(cell: CellViewModel, state: CellFoldingState): void {
-		const modelIndex = this.viewCells.indexOf(cell);
-		if (modelIndex < 0) {
-			return;
-		}
+	setFoldingState(index: number, state: CellFoldingState): void {
 
-		const range = this._foldingModel.regions.findRange(modelIndex + 1);
+		const range = this._foldingModel.regions.findRange(index + 1);
 		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
 
-		if (startIndex !== modelIndex) {
+		if (startIndex !== index) {
 			return;
 		}
 
@@ -318,13 +320,13 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 				continue;
 			}
 
-			if (!updateHiddenAreas && k < this._hiddenRanges.length && this._hiddenRanges[k].start + 1 === startLineNumber && (this._hiddenRanges[k].start + this._hiddenRanges[k].length) === endLineNumber) {
+			if (!updateHiddenAreas && k < this._hiddenRanges.length && this._hiddenRanges[k].start + 1 === startLineNumber && (this._hiddenRanges[k].end + 1) === endLineNumber) {
 				// reuse the old ranges
 				newHiddenAreas.push(this._hiddenRanges[k]);
 				k++;
 			} else {
 				updateHiddenAreas = true;
-				newHiddenAreas.push({ start: startLineNumber - 1, length: endLineNumber - startLineNumber + 1 });
+				newHiddenAreas.push({ start: startLineNumber - 1, end: endLineNumber - 1 });
 			}
 			lastCollapsedStart = startLineNumber;
 			lastCollapsedEnd = endLineNumber;
@@ -361,6 +363,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		return this._viewCells.indexOf(cell as CellViewModel);
 	}
 
+	hasCell(cell: ICellViewModel) {
+		return this._handleToViewCellMapping.has(cell.handle);
+	}
+
 	getVersionId() {
 		return this._model.notebook.versionId;
 	}
@@ -379,10 +385,10 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			this._decorationsTree.resolveNode(node, versionId);
 		}
 		if (node.range === null) {
-			return { start: node.cachedAbsoluteStart - 1, length: node.cachedAbsoluteEnd - node.cachedAbsoluteStart + 1 };
+			return { start: node.cachedAbsoluteStart - 1, end: node.cachedAbsoluteEnd - 1 };
 		}
 
-		return { start: node.range.startLineNumber - 1, length: node.range.endLineNumber - node.range.startLineNumber + 1 };
+		return { start: node.range.startLineNumber - 1, end: node.range.endLineNumber - 1 };
 	}
 
 	setTrackedRange(id: string | null, newRange: ICellRange | null, newStickiness: TrackedRangeStickiness): string | null {
@@ -393,7 +399,7 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 				return null;
 			}
 
-			return this._deltaCellDecorationsImpl(0, [], [{ range: new Range(newRange.start + 1, 1, newRange.start + newRange.length, 1), options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
+			return this._deltaCellDecorationsImpl(0, [], [{ range: new Range(newRange.start + 1, 1, newRange.end + 1, 1), options: TRACKED_RANGE_OPTIONS[newStickiness] }])[0];
 		}
 
 		if (!newRange) {
@@ -404,7 +410,7 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		}
 
 		this._decorationsTree.delete(node);
-		node.reset(this.getVersionId(), newRange.start, newRange.start + newRange.length, new Range(newRange.start + 1, 1, newRange.start + newRange.length, 1));
+		node.reset(this.getVersionId(), newRange.start, newRange.end + 1, new Range(newRange.start + 1, 1, newRange.end + 1, 1));
 		node.setOptions(TRACKED_RANGE_OPTIONS[newStickiness]);
 		this._decorationsTree.insert(node);
 		return node.id;
@@ -476,13 +482,17 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 	private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
 		this._viewCells!.splice(insertIndex, 0, insertCell);
+		this._handleToViewCellMapping.set(insertCell.handle, insertCell);
 		this._model.insertCell(insertCell.model, insertIndex);
 		this._localStore.add(insertCell);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
 	}
 
 	private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
+		const deleteCell = this._viewCells[deleteIndex];
 		this._viewCells.splice(deleteIndex, 1);
+		this._handleToViewCellMapping.delete(deleteCell.handle);
+
 		this._model.deleteCell(deleteIndex);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
 	}
@@ -491,6 +501,7 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		const cell = this._model.notebook.createCellTextModel(source, language, type, [], undefined);
 		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
+		this._handleToViewCellMapping.set(newCell.handle, newCell);
 		this._model.insertCell(cell, index);
 		this._localStore.add(newCell);
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
@@ -506,6 +517,8 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	insertCell(index: number, cell: NotebookCellTextModel, synchronous: boolean): CellViewModel {
 		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
+		this._handleToViewCellMapping.set(newCell.handle, newCell);
+
 		this._model.insertCell(newCell.model, index);
 		this._localStore.add(newCell);
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
@@ -521,6 +534,8 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	deleteCell(index: number, synchronous: boolean) {
 		let viewCell = this._viewCells[index];
 		this._viewCells.splice(index, 1);
+		this._handleToViewCellMapping.delete(viewCell.handle);
+
 		this._model.deleteCell(index);
 
 		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
@@ -565,8 +580,8 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	}
 
 	saveEditorViewState(): INotebookEditorViewState {
-		const state: { [key: number]: boolean } = {};
-		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach(cell => state[cell.model.handle] = true);
+		const editingCells: { [key: number]: boolean } = {};
+		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach(cell => editingCells[cell.model.handle] = true);
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
 		this._viewCells.map(cell => ({ handle: cell.model.handle, state: cell.saveEditorViewState() })).forEach(viewState => {
 			if (viewState.state) {
@@ -575,8 +590,8 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		});
 
 		return {
-			editingCells: state,
-			editorViewStates: editorViewStates
+			editingCells,
+			editorViewStates
 		};
 	}
 

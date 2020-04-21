@@ -505,7 +505,7 @@ class ShowAllSymbolsAction extends Action {
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: nls.localize('name', "Search"),
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	hideIfEmpty: true,
 	icon: searchViewIcon.classNames,
 	order: 1

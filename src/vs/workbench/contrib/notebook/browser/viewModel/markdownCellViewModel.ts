@@ -39,7 +39,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	get foldingState() {
-		return this.foldingDelegate.getFoldingState(this);
+		return this.foldingDelegate.getFoldingState(this.foldingDelegate.getCellIndex(this));
 	}
 
 	constructor(

@@ -100,7 +100,7 @@ class WebviewSession extends Disposable {
 						return;
 					}
 				}
-				callback({ cancel: false, responseHeaders: details.responseHeaders });
+				callback({ cancel: false });
 			});
 		}));
 	}

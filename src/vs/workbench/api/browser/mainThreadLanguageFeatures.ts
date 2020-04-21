@@ -405,8 +405,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 	private static _inflateSuggestDto(defaultRange: IRange | { insert: IRange, replace: IRange }, data: ISuggestDataDto): modes.CompletionItem {
 
 		return {
-			label: data[ISuggestDataDtoField.label2] || data[ISuggestDataDtoField.label],
-			kind: data[ISuggestDataDtoField.kind] || modes.CompletionItemKind.Property,
+			label: data[ISuggestDataDtoField.label2] ?? data[ISuggestDataDtoField.label],
+			kind: data[ISuggestDataDtoField.kind] ?? modes.CompletionItemKind.Property,
 			tags: data[ISuggestDataDtoField.kindModifier],
 			detail: data[ISuggestDataDtoField.detail],
 			documentation: data[ISuggestDataDtoField.documentation],
@@ -414,7 +414,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 			filterText: data[ISuggestDataDtoField.filterText],
 			preselect: data[ISuggestDataDtoField.preselect],
 			insertText: typeof data.h === 'undefined' ? data[ISuggestDataDtoField.label] : data.h,
-			range: data[ISuggestDataDtoField.range] || defaultRange,
+			range: data[ISuggestDataDtoField.range] ?? defaultRange,
 			insertTextRules: data[ISuggestDataDtoField.insertTextRules],
 			commitCharacters: data[ISuggestDataDtoField.commitCharacters],
 			additionalTextEdits: data[ISuggestDataDtoField.additionalTextEdits],

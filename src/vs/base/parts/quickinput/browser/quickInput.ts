@@ -673,7 +673,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
 						if (this.ui.list.getFocusedElements().length) {
@@ -684,21 +684,21 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.PageDown:
 						this.ui.list.focus(QuickInputListFocus.NextPage);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.PageUp:
 						this.ui.list.focus(QuickInputListFocus.PreviousPage);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.RightArrow:
 						if (!this._canAcceptInBackground) {
@@ -719,13 +719,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					case KeyCode.Home:
 						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
 							this.ui.list.focus(QuickInputListFocus.First);
-							event.preventDefault();
+							dom.EventHelper.stop(event, true);
 						}
 						break;
 					case KeyCode.End:
 						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
 							this.ui.list.focus(QuickInputListFocus.Last);
-							event.preventDefault();
+							dom.EventHelper.stop(event, true);
 						}
 						break;
 				}

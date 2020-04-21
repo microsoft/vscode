@@ -704,7 +704,7 @@ export class TerminalService implements ITerminalService {
 		const location = this._viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID);
 		if (location === ViewContainerLocation.Panel) {
 			const panel = this._viewDescriptorService.getViewContainer(TERMINAL_VIEW_ID);
-			if (panel && this._viewDescriptorService.getViewDescriptors(panel).activeViewDescriptors.length === 1) {
+			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
 				this._layoutService.setPanelHidden(true);
 			}
 		}

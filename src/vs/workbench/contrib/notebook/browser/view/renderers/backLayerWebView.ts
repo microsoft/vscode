@@ -18,6 +18,7 @@ import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/brow
 import { Emitter, Event } from 'vs/base/common/event';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { isWeb } from 'vs/base/common/platform';
 
 export interface IDimentionMessage {
 	__vscode_notebook_message: boolean;
@@ -84,7 +85,7 @@ type IMessage = IDimentionMessage | IScrollAckMessage | IWheelMessage;
 let version = 0;
 export class BackLayerWebView extends Disposable {
 	element: HTMLElement;
-	webview: WebviewElement;
+	webview!: WebviewElement;
 	insetMapping: Map<IOutput, { outputId: string, cell: CodeCellViewModel, cacheOffset: number | undefined }> = new Map();
 	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
@@ -92,12 +93,13 @@ export class BackLayerWebView extends Disposable {
 	rendererRootsCache: URI[] = [];
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
+	private _initalized: Promise<void>;
 
 
 	constructor(
 		public notebookEditor: INotebookEditor,
-		@IWebviewService webviewService: IWebviewService,
-		@IOpenerService openerService: IOpenerService,
+		@IWebviewService readonly webviewService: IWebviewService,
+		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
 	) {
 		super();
@@ -111,8 +113,40 @@ export class BackLayerWebView extends Disposable {
 		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
 		const loader = URI.file(pathsPath).with({ scheme: WebviewResourceScheme });
 
-		const outputNodePadding = 8;
-		let content = /* html */`
+		let coreDependencies = '';
+		let resolveFunc: () => void;
+
+		this._initalized = new Promise<void>((resolve, reject) => {
+			resolveFunc = resolve;
+		});
+
+		if (!isWeb) {
+			coreDependencies = `<script src="${loader}"></script>`;
+			const htmlContent = this.generateContent(8, coreDependencies);
+			this.initialize(htmlContent);
+			resolveFunc!();
+		} else {
+			fetch(pathsPath).then(async response => {
+				if (response.status !== 200) {
+					throw new Error(response.statusText);
+				}
+
+				const loaderJs = await response.text();
+
+				coreDependencies = `
+<script>
+${loaderJs}
+</script>
+`;
+				const htmlContent = this.generateContent(8, coreDependencies);
+				this.initialize(htmlContent);
+				resolveFunc!();
+			});
+		}
+	}
+
+	generateContent(outputNodePadding: number, coreDependencies: string) {
+		return /* html */`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
@@ -134,7 +168,7 @@ export class BackLayerWebView extends Disposable {
 				<script>
 					self.require = {};
 				</script>
-				<script src="${loader}"></script>
+				${coreDependencies}
 				<div id="__vscode_preloads"></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 <script>
@@ -312,12 +346,14 @@ export class BackLayerWebView extends Disposable {
 </script>
 </body>
 `;
+	}
 
-		this.webview = this._createInset(webviewService, content);
+	initialize(content: string) {
+		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
 
 		this._register(this.webview.onDidClickLink(link => {
-			openerService.open(link, { fromUserGesture: true });
+			this.openerService.open(link, { fromUserGesture: true });
 		}));
 
 		this._register(this.webview.onMessage((data: IMessage) => {
@@ -354,6 +390,10 @@ export class BackLayerWebView extends Disposable {
 
 			this._onMessage.fire(data);
 		}));
+	}
+
+	async waitForInitialization() {
+		await this._initalized;
 	}
 
 	private _createInset(webviewService: IWebviewService, content: string) {

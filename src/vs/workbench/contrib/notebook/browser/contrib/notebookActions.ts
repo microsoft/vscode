@@ -1174,7 +1174,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		editor.setHiddenAreas([{ start: 1, length: 3 }]);
+		editor.setHiddenAreas([{ start: 1, end: 3 }]);
 	}
 });
 
@@ -1205,7 +1205,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		editor.setHiddenAreas([{ start: 3, length: 2 }]);
+		editor.setHiddenAreas([{ start: 3, end: 4 }]);
 	}
 });
 

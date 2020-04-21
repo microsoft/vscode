@@ -33,12 +33,13 @@ import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/con
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { Before2D } from 'vs/workbench/browser/dnd';
+import { IActivity } from 'vs/workbench/common/activity';
 
 interface ICachedPanel {
 	id: string;
@@ -177,9 +178,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const result: IAction[] = [];
 		const container = this.getViewContainer(compositeId);
 		if (container) {
-			const viewDescriptors = this.viewDescriptorService.getViewDescriptors(container);
-			if (viewDescriptors.allViewDescriptors.length === 1) {
-				const viewMenuActions = this.instantiationService.createInstance(ViewMenuActions, viewDescriptors.allViewDescriptors[0].id, MenuId.ViewTitle, MenuId.ViewTitleContext);
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
+			if (viewContainerModel.allViewDescriptors.length === 1) {
+				const viewMenuActions = this.instantiationService.createInstance(ViewMenuActions, viewContainerModel.allViewDescriptors[0].id, MenuId.ViewTitle, MenuId.ViewTitleContext);
 				result.push(...viewMenuActions.getContextMenuActions());
 				viewMenuActions.dispose();
 			}
@@ -208,13 +209,16 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 
 		for (const panel of panels) {
-			this.enableCompositeActions(panel);
-			const viewContainer = this.getViewContainer(panel.id);
-			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				this.onDidChangeActiveViews(panel, viewDescriptors);
-				this.panelDisposables.set(panel.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(panel, viewDescriptors)));
-			}
+			const viewContainer = this.getViewContainer(panel.id)!;
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			this.updateActivity(viewContainer, viewContainerModel);
+			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
+
+			const disposables = new DisposableStore();
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
+
+			this.panelDisposables.set(panel.id, disposables);
 		}
 	}
 
@@ -228,22 +232,28 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.hideComposite(panelId);
 	}
 
-	private enableCompositeActions(panel: PanelDescriptor): void {
-		const { activityAction, pinnedAction } = this.getCompositeActions(panel.id);
-		if (activityAction instanceof PlaceHolderPanelActivityAction) {
-			activityAction.setActivity(panel);
-		}
+	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		const activity: IActivity = {
+			id: viewContainer.id,
+			name: viewContainerModel.title,
+			keybindingId: viewContainer.focusCommand?.id
+		};
+
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
+		activityAction.setActivity(activity);
 
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
-			pinnedAction.setActivity(panel);
+			pinnedAction.setActivity(activity);
 		}
+
+		this.saveCachedPanels();
 	}
 
-	private onDidChangeActiveViews(panel: PanelDescriptor, viewDescriptors: IViewDescriptorCollection): void {
-		if (viewDescriptors.activeViewDescriptors.length) {
-			this.compositeBar.addComposite(panel);
-		} else {
-			this.hideComposite(panel.id);
+	private onDidChangeActiveViews(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		if (viewContainerModel.activeViewDescriptors.length) {
+			this.compositeBar.addComposite(viewContainer);
+		} else if (viewContainer.hideIfEmpty) {
+			this.hideComposite(viewContainer.id);
 		}
 	}
 
@@ -320,8 +330,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				if (viewDescriptors.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
 					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
 				}
 			}
@@ -540,28 +550,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return false;
 	}
 
-	protected onTitleAreaUpdate(compositeId: string): void {
-		super.onTitleAreaUpdate(compositeId);
-
-		const activePanel = this.getActivePanel();
-		const panel = this.createComposite(compositeId, activePanel?.getId() === compositeId);
-
-		if (panel) {
-			const compositeActions = this.compositeActions.get(compositeId);
-			if (compositeActions) {
-				compositeActions.activityAction.setActivity({
-					id: compositeActions.activityAction.id,
-					name: panel.getTitle() || compositeActions.activityAction.label
-				});
-
-				compositeActions.pinnedAction.setActivity({
-					id: compositeActions.activityAction.id,
-					name: panel.getTitle() || compositeActions.activityAction.label
-				});
-			}
-		}
-	}
-
 	private getToolbarWidth(): number {
 		const activePanel = this.getActivePanel();
 		if (!activePanel || !this.toolBar) {
@@ -609,8 +597,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 		for (const compositeItem of compositeItems) {
-			const activityAction = this.getCompositeActions(compositeItem.id).activityAction;
-			state.push({ id: compositeItem.id, name: activityAction.label, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+			const viewContainer = this.getViewContainer(compositeItem.id);
+			if (viewContainer) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+			}
 		}
 
 		this.cachedPanelsValue = JSON.stringify(state);

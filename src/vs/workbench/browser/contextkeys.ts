@@ -206,12 +206,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		if (activeEditorPane) {
 			this.activeEditorContext.set(activeEditorPane.getId());
-			try {
-				this.activeEditorIsReadonly.set(activeEditorPane.input.isReadonly());
-			} catch (error) {
-				// TODO@ben for https://github.com/microsoft/vscode/issues/93224
-				throw new Error(`${error.message}: editor id ${activeEditorPane.getId()}`);
-			}
+			this.activeEditorIsReadonly.set(activeEditorPane.input.isReadonly());
 		} else {
 			this.activeEditorContext.reset();
 			this.activeEditorIsReadonly.reset();

@@ -269,20 +269,26 @@ class RemoteSourceProviderQuickPick {
 	@throttle
 	async query(): Promise<void> {
 		this.quickpick.busy = true;
-		const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
-		this.quickpick.busy = false;
 
-		if (remoteSources.length === 0) {
-			this.quickpick.items = [{
-				label: localize('none found', "No remote repositories found."),
-				alwaysShow: true
-			}];
-		} else {
-			this.quickpick.items = remoteSources.map(remoteSource => ({
-				label: remoteSource.name,
-				description: remoteSource.url,
-				remote: remoteSource
-			}));
+		try {
+			const remoteSources = await this.provider.getRemoteSources(this.quickpick.value) || [];
+
+			if (remoteSources.length === 0) {
+				this.quickpick.items = [{
+					label: localize('none found', "No remote repositories found."),
+					alwaysShow: true
+				}];
+			} else {
+				this.quickpick.items = remoteSources.map(remoteSource => ({
+					label: remoteSource.name,
+					description: remoteSource.url,
+					remote: remoteSource
+				}));
+			}
+		} catch (err) {
+			this.quickpick.items = [{ label: localize('error', "$(error) Error: {0}", err.message), alwaysShow: true }];
+		} finally {
+			this.quickpick.busy = false;
 		}
 	}
 
