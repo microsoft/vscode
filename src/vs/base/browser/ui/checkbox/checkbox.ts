@@ -101,7 +101,7 @@ export class Checkbox extends Widget {
 		if (this._opts.icon) {
 			classes.push(this._opts.icon.classNames);
 		} else {
-			classes.push('codicon'); // todo: remove once codicon fully adopted
+			classes.push('codicon'); // todo@aeschli: remove once codicon fully adopted
 		}
 		if (this._opts.actionClassName) {
 			classes.push(this._opts.actionClassName);
