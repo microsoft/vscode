@@ -1753,6 +1753,8 @@ declare module 'vscode' {
 		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
 
 		/**
+		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
+		 * but a selector can be provided to narrow to down the set of cells.
 		 *
 		 * @param notebook
 		 * @param selector
