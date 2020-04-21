@@ -348,7 +348,7 @@ export class SyncActionDescriptor {
 		},
 		keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	): SyncActionDescriptor {
-		return new SyncActionDescriptor(ctor as unknown as IConstructorSignature2<string, string | undefined, Action>, ctor.ID, ctor.LABEL, keybindings, keybindingContext, keybindingWeight);
+		return SyncActionDescriptor.create(ctor, ctor.ID, ctor.LABEL, keybindings, keybindingContext, keybindingWeight);
 	}
 
 	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,
