@@ -157,17 +157,21 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		}));
 
-		this._register(viewCell.onDidChangeState((e) => {
-			if (!e.focusModeChanged) {
-				return;
-			}
-
+		const updateForFocusMode = () => {
 			if (viewCell.focusMode === CellFocusMode.Editor) {
 				this.editor?.focus();
 			}
 
 			toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+		};
+		this._register(viewCell.onDidChangeState((e) => {
+			if (!e.focusModeChanged) {
+				return;
+			}
+
+			updateForFocusMode();
 		}));
+		updateForFocusMode();
 
 		this.foldingState = viewCell.foldingState;
 		this.setFoldingIndicator();

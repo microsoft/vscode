@@ -69,17 +69,21 @@ export class CodeCell extends Disposable {
 			}
 		});
 
-		this._register(viewCell.onDidChangeState((e) => {
-			if (!e.focusModeChanged) {
-				return;
-			}
-
+		const updateForFocusMode = () => {
 			if (viewCell.focusMode === CellFocusMode.Editor) {
 				templateData.editor?.focus();
 			}
 
 			DOM.toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+		};
+		this._register(viewCell.onDidChangeState((e) => {
+			if (!e.focusModeChanged) {
+				return;
+			}
+
+			updateForFocusMode();
 		}));
+		updateForFocusMode();
 
 		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
 		this._register(viewCell.onDidChangeState((e) => {
