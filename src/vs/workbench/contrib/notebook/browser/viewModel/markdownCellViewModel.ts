@@ -54,7 +54,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
-			editorWidth: initialNotebookLayoutInfo?.width || 0,
+			editorWidth: initialNotebookLayoutInfo?.width ? this.computeEditorWidth(initialNotebookLayoutInfo.width) : 0,
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
 			totalHeight: 0
 		};
@@ -64,9 +64,13 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._onDidChangeState.fire({ foldingStateChanged: true });
 	}
 
+	private computeEditorWidth(outerWidth: number) {
+		return outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER;
+	}
+
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
-		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : this._layoutInfo.editorWidth;
+		const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
 
 		this._layoutInfo = {
 			fontInfo: state.font || this._layoutInfo.fontInfo,
