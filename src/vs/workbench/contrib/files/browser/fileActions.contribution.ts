@@ -26,7 +26,7 @@ import { WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ActiveEditorIsReadonlyContext, DirtyWorkingCopiesContext, ActiveEditorContext } from 'vs/workbench/common/editor';
+import { ActiveEditorIsReadonlyContext, DirtyWorkingCopiesContext, ActiveEditorContext, ActiveEditorAvailableEditorsContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -181,6 +181,19 @@ export function appendEditorTitleContextMenuItem(id: string, title: string, when
 		group: group || '2_files'
 	});
 }
+
+// Reopen with editor title
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: ReopenResourcesAction.ID,
+		title: ReopenResourcesAction.LABEL,
+		category: fileCategory,
+	},
+	group: '6_reopen',
+	order: 20,
+	when: ActiveEditorAvailableEditorsContext,
+});
 
 // Editor Title Menu for Conflict Resolution
 appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite file contents"), { id: 'codicon/check' }, -10, acceptLocalChangesCommand);
