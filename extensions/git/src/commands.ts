@@ -281,8 +281,8 @@ class RemoteSourceProviderQuickPick {
 			} else {
 				this.quickpick.items = remoteSources.map(remoteSource => ({
 					label: remoteSource.name,
-					description: remoteSource.url,
-					remote: remoteSource
+					description: typeof remoteSource.url === 'string' ? remoteSource.url : '',
+					remoteSource
 				}));
 			}
 		} catch (err) {
@@ -552,7 +552,14 @@ export class CommandCenter {
 				if (result.provider) {
 					const quickpick = new RemoteSourceProviderQuickPick(result.provider);
 					const remote = await quickpick.pick();
-					url = remote?.url;
+
+					if (remote) {
+						if (typeof remote.url === 'string') {
+							url = remote.url;
+						} else if (remote.url.length > 0) {
+							url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
+						}
+					}
 				} else {
 					url = result.label;
 				}

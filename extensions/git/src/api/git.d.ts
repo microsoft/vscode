@@ -192,7 +192,7 @@ export interface Repository {
 
 export interface RemoteSource {
 	readonly name: string;
-	readonly url: string;
+	readonly url: string | string[];
 }
 
 export interface RemoteSourceProvider {
