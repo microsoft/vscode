@@ -714,11 +714,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	private async moveCellToIndex(index: number, newIdx: number): Promise<void> {
-		if (index < newIdx) {
-			// newIdx will be one less after index has been removed
-			newIdx--;
-		}
-
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			return;
 		}
