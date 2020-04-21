@@ -312,11 +312,13 @@ export interface INotebookCellList {
 	length: number;
 	rowsContainer: HTMLElement;
 	readonly onDidRemoveOutput: Event<IOutput>;
+	readonly onDidHideOutput: Event<IOutput>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	detachViewModel(): void;
 	attachViewModel(viewModel: NotebookViewModel): void;
 	clear(): void;
+	getViewIndex(cell: ICellViewModel): number | undefined;
 	focusElement(element: ICellViewModel): void;
 	selectElement(element: ICellViewModel): void;
 	getFocusedElements(): ICellViewModel[];

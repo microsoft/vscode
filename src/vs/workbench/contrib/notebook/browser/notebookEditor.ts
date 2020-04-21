@@ -400,33 +400,44 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}));
 
 		this.localStore.add(this.list!.onDidChangeContentHeight(() => {
-			const scrollTop = this.list?.scrollTop || 0;
-			const scrollHeight = this.list?.scrollHeight || 0;
-			this.webview!.element.style.height = `${scrollHeight}px`;
-			let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
+			DOM.scheduleAtNextAnimationFrame(() => {
+				const scrollTop = this.list?.scrollTop || 0;
+				const scrollHeight = this.list?.scrollHeight || 0;
+				this.webview!.element.style.height = `${scrollHeight}px`;
+				let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
 
-			if (this.webview?.insetMapping) {
-				this.webview?.insetMapping.forEach((value, key) => {
-					const cell = value.cell;
-					const cellTop = this.list?.getAbsoluteTopOfElement(cell) || 0;
-					if (this.webview!.shouldUpdateInset(cell, key, cellTop)) {
-						updateItems.push({
-							cell: cell,
-							output: key,
-							cellTop: cellTop
-						});
+				if (this.webview?.insetMapping) {
+					this.webview?.insetMapping.forEach((value, key) => {
+						const cell = value.cell;
+						const viewIndex = this.list?.getViewIndex(cell);
+
+						if (viewIndex === undefined) {
+							return;
+						}
+
+						const cellTop = this.list?.getAbsoluteTopOfElement(cell) || 0;
+						if (this.webview!.shouldUpdateInset(cell, key, cellTop)) {
+							updateItems.push({
+								cell: cell,
+								output: key,
+								cellTop: cellTop
+							});
+						}
+					});
+
+					if (updateItems.length) {
+						this.webview?.updateViewScrollTop(-scrollTop, updateItems);
 					}
-				});
-
-				if (updateItems.length) {
-					this.webview?.updateViewScrollTop(-scrollTop, updateItems);
 				}
-			}
+			});
 		}));
 
 		this.list!.attachViewModel(this.notebookViewModel);
 		this.localStore.add(this.list!.onDidRemoveOutput(output => {
 			this.removeInset(output);
+		}));
+		this.localStore.add(this.list!.onDidHideOutput(output => {
+			this.hideInset(output);
 		}));
 
 		this.list!.layout();
@@ -576,6 +587,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	//#region Cell operations
 	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
+		const viewIndex = this.list!.getViewIndex(cell);
+		if (viewIndex === undefined) {
+			// the cell is hidden
+			return;
+		}
+
 		let relayout = (cell: ICellViewModel, height: number) => {
 			this.list?.updateElementHeight2(cell, height);
 		};
@@ -825,6 +842,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		this.webview!.removeInset(output);
+	}
+
+	hideInset(output: IOutput) {
+		if (!this.webview) {
+			return;
+		}
+
+		this.webview!.hideInset(output);
 	}
 
 	getOutputRenderer(): OutputRenderer {
