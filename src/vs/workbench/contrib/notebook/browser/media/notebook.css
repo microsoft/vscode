@@ -253,7 +253,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .execution-count-label {
 	position: absolute;
 	top: 2px;
-	font-size: 12px;
+	font-size: 10px;
 	visibility: visible;
 	white-space: pre;
 	width: 100%;
