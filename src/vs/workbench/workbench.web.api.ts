@@ -105,6 +105,52 @@ interface IHomeIndicator {
 	title: string;
 }
 
+interface IDefaultSideBarLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active: true;
+		order?: number;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	} | {
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active?: false | undefined;
+		order?: number;
+		visible?: boolean;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	})[];
+}
+
+interface IDefaultPanelLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active: true;
+	} | {
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active?: false | undefined;
+		visible?: boolean;
+	})[];
+}
+
+interface IDefaultLayout {
+	sidebar?: IDefaultSideBarLayout;
+	panel?: IDefaultPanelLayout;
+	// editors?: IDefaultWorkspaceEditorsLayout
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -221,6 +267,8 @@ interface IWorkbenchConstructionOptions {
 	readonly driver?: boolean;
 
 	//#endregion
+
+	defaultLayout?: IDefaultLayout;
 }
 
 interface IWorkbench {
