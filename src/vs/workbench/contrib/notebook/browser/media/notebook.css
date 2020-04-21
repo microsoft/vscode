@@ -410,12 +410,21 @@
 	line-height: 1.2;
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+.vs .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h1 {
+	border-color: rgba(0, 0, 0, 0.18);
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h1,
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h2,
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown h3 {
 	font-weight: normal;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div {
+	width: 100%;
 }
 
 /* Removes margin of first item in markdown cell */
