@@ -54,6 +54,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
 	storageId: 'workbench.scm.views.state',
 	icon: Codicon.sourceControl.classNames,
+	alwaysUseContainerInfo: true,
 	order: 2
 }, ViewContainerLocation.Sidebar);
 

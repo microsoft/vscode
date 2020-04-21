@@ -47,6 +47,8 @@ export interface IViewContainerDescriptor {
 
 	readonly icon?: string | URI;
 
+	readonly alwaysUseContainerInfo?: boolean;
+
 	readonly order?: number;
 
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };

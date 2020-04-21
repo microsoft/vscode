@@ -85,6 +85,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 		icon: 'codicon-extensions',
 		order: 4,
 		rejectAddedViews: true,
+		alwaysUseContainerInfo: true
 	}, ViewContainerLocation.Sidebar);
 
 
