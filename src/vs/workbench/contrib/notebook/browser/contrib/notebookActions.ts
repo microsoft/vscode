@@ -697,7 +697,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
 		if (!isCellActionContext(context)) {
 			context = getActiveCellContext(accessor);
 			if (!context) {
@@ -705,14 +705,28 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		return context.notebookEditor.deleteNotebookCell(context.cell);
+		const index = context.notebookEditor.viewModel!.getCellIndex(context.cell);
+		const result = await context.notebookEditor.deleteNotebookCell(context.cell);
+
+		if (result) {
+			// deletion succeeds, move focus to the next cell
+
+			if (index < context.notebookEditor.viewModel!.length) {
+				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[index], false);
+			}
+		}
 	}
 });
 
 async function moveCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
-	direction === 'up' ?
+	const result = direction === 'up' ?
 		context.notebookEditor.moveCellUp(context.cell) :
 		context.notebookEditor.moveCellDown(context.cell);
+
+	if (result) {
+		// move cell command only works when the cell container has focus
+		context.notebookEditor.focusNotebookCell(context.cell, false);
+	}
 }
 
 async function copyCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {

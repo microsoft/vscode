@@ -134,22 +134,22 @@ export interface INotebookEditor {
 	/**
 	 * Delete a cell from the notebook
 	 */
-	deleteNotebookCell(cell: ICellViewModel): void;
+	deleteNotebookCell(cell: ICellViewModel): Promise<boolean>;
 
 	/**
 	 * Move a cell up one spot
 	 */
-	moveCellUp(cell: ICellViewModel): void;
+	moveCellUp(cell: ICellViewModel): Promise<boolean>;
 
 	/**
 	 * Move a cell down one spot
 	 */
-	moveCellDown(cell: ICellViewModel): void;
+	moveCellDown(cell: ICellViewModel): Promise<boolean>;
 
 	/**
 	 * Move a cell above or below another cell
 	 */
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void>;
+	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean>;
 
 	/**
 	 * Switch the cell into editing mode.

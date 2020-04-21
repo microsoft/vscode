@@ -675,35 +675,36 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	async deleteNotebookCell(cell: ICellViewModel): Promise<void> {
+	async deleteNotebookCell(cell: ICellViewModel): Promise<boolean> {
 		(cell as CellViewModel).save();
 		const index = this.notebookViewModel!.getCellIndex(cell);
 		this.notebookViewModel!.deleteCell(index, true);
+		return true;
 	}
 
-	async moveCellDown(cell: ICellViewModel): Promise<void> {
+	async moveCellDown(cell: ICellViewModel): Promise<boolean> {
 		const index = this.notebookViewModel!.getCellIndex(cell);
 		if (index === this.notebookViewModel!.length - 1) {
-			return;
+			return false;
 		}
 
 		const newIdx = index + 1;
 		return this.moveCellToIndex(index, newIdx);
 	}
 
-	async moveCellUp(cell: ICellViewModel): Promise<void> {
+	async moveCellUp(cell: ICellViewModel): Promise<boolean> {
 		const index = this.notebookViewModel!.getCellIndex(cell);
 		if (index === 0) {
-			return;
+			return false;
 		}
 
 		const newIdx = index - 1;
 		return this.moveCellToIndex(index, newIdx);
 	}
 
-	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void> {
+	async moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean> {
 		if (cell === relativeToCell) {
-			return;
+			return false;
 		}
 
 		const originalIdx = this.notebookViewModel!.getCellIndex(cell);
@@ -713,15 +714,15 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return this.moveCellToIndex(originalIdx, newIdx);
 	}
 
-	private async moveCellToIndex(index: number, newIdx: number): Promise<void> {
+	private async moveCellToIndex(index: number, newIdx: number): Promise<boolean> {
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
-			return;
+			throw new Error('Notebook Editor move cell, index out of range');
 		}
 
-		let r: () => void;
+		let r: (val: boolean) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.list?.revealElementInView(this.notebookViewModel!.viewCells[newIdx]);
-			r();
+			r(true);
 		});
 
 		return new Promise(resolve => { r = resolve; });

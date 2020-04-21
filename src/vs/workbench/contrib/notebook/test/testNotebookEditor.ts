@@ -95,15 +95,15 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCellDown(cell: CellViewModel): void {
+	moveCellDown(cell: CellViewModel): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCellUp(cell: CellViewModel): void {
+	moveCellUp(cell: CellViewModel): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void> {
+	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -153,8 +153,8 @@ export class TestNotebookEditor implements INotebookEditor {
 	async insertNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<CellViewModel> {
 		throw new Error('Method not implemented.');
 	}
-	deleteNotebookCell(cell: CellViewModel): void {
-		// throw new Error('Method not implemented.');
+	deleteNotebookCell(cell: CellViewModel): Promise<boolean> {
+		throw new Error('Method not implemented.');
 	}
 	editNotebookCell(cell: CellViewModel): void {
 		// throw new Error('Method not implemented.');
