@@ -36,7 +36,7 @@ const category = { value: nls.localize('filesCategory', "File"), original: 'File
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(SaveAllAction, { primary: undefined, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_S }, win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S) } }), 'File: Save All', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(GlobalCompareResourcesAction), 'File: Compare Active File With...', category.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenResourcesAction), 'File: Reopen With...', category.value);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenResourcesAction), 'File: Reopen With...', category.value, ActiveEditorAvailableEditorsContext);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusFilesExplorer), 'File: Focus on Files Explorer', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowActiveFileInExplorer), 'File: Reveal Active File in Side Bar', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(CollapseExplorerView), 'File: Collapse Folders in Explorer', category.value);
