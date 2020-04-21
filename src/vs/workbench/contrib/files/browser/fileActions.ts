@@ -13,7 +13,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IExplorerService, IFilesConfiguration, DEFAULT_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
@@ -576,9 +576,9 @@ export class ReopenResourcesAction extends Action {
 			return;
 		}
 
-		if (!items.find(item => item.id === 'default')) {
+		if (!items.find(item => item.id === DEFAULT_EDITOR_ID)) {
 			items.unshift({
-				id: 'default',
+				id: DEFAULT_EDITOR_ID,
 				label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
 				description: activeInput instanceof FileEditorInput ? 'Currently Active' : undefined,
 				detail: builtinProviderDisplayName,
@@ -633,7 +633,7 @@ export class ReopenResourcesAction extends Action {
 			return;
 		}
 
-		if (pickedItem.id === 'default') {
+		if (pickedItem.id === DEFAULT_EDITOR_ID) {
 			const fileEditorInput = this.editorService.createEditorInput({ resource: activeResource!, forceFile: true });
 			const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
 
