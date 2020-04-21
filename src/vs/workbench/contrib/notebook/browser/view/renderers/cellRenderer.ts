@@ -357,7 +357,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
 			contextKeyService.createKey(NOTEBOOK_VIEW_TYPE, element.viewType);
 
-			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
+			const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
+			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!metadata.editable);
 			const updateForMetadata = () => {
 				const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
 				cellEditableKey.set(!!metadata.editable);
@@ -761,7 +762,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
 		contextKeyService.createKey(NOTEBOOK_VIEW_TYPE, element.viewType);
-		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!(element.metadata?.editable));
+		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
+		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!metadata.editable);
 		this.updateForMetadata(element, templateData, cellEditableKey);
 		elementDisposable.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged) {
