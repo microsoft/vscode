@@ -186,6 +186,7 @@ export class GitHubServer {
 						Logger.info('Revoked token!');
 						resolve();
 					} else {
+						Logger.info(`Revoking token failed: ${result.statusMessage}`);
 						reject(new Error(result.statusMessage));
 					}
 				});

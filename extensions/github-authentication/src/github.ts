@@ -137,7 +137,7 @@ export class GitHubAuthenticationProvider {
 			this._sessions.push(session);
 		}
 
-		this.storeSessions();
+		await this.storeSessions();
 	}
 
 	public async logout(id: string) {
@@ -145,9 +145,13 @@ export class GitHubAuthenticationProvider {
 		if (sessionIndex > -1) {
 			const session = this._sessions.splice(sessionIndex, 1)[0];
 			const token = await session.getAccessToken();
-			await this._githubServer.revokeToken(token);
+			try {
+				await this._githubServer.revokeToken(token);
+			} catch (_) {
+				// ignore, should still remove from keychain
+			}
 		}
 
-		this.storeSessions();
+		await this.storeSessions();
 	}
 }
