@@ -216,6 +216,10 @@ export class CodeApplication extends Disposable {
 			session.defaultSession.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
 				return callback(false);
 			});
+
+			session.defaultSession.setPermissionCheckHandler((webContents, permission /* 'media' */) => {
+				return false;
+			});
 		});
 
 		//#endregion
