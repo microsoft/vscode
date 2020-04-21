@@ -145,15 +145,15 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					// case we want to skip the container query altogether.
 					if (symbolQuery !== query) {
 						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, { ...query, values: undefined /* disable multi-query support */ }, 0, symbolLabelIconOffset);
-						if (symbolScore) {
+						if (typeof symbolScore === 'number') {
 							skipContainerQuery = true; // since we consumed the query, skip any container matching
 						}
 					}
 
 					// Otherwise: score on the symbol query and match on the container later
-					if (!symbolScore) {
+					if (typeof symbolScore !== 'number') {
 						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, 0, symbolLabelIconOffset);
-						if (!symbolScore) {
+						if (typeof symbolScore !== 'number') {
 							continue;
 						}
 					}
@@ -178,11 +178,11 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
 
-					if (!containerScore) {
+					if (typeof containerScore !== 'number') {
 						continue;
 					}
 
-					if (symbolScore) {
+					if (typeof symbolScore === 'number') {
 						symbolScore += containerScore; // boost symbolScore by containerScore
 					}
 				}
@@ -258,7 +258,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 	private compareSymbols(symbolA: ISymbolQuickPickItem, symbolB: ISymbolQuickPickItem): number {
 
 		// By score
-		if (symbolA.score && symbolB.score) {
+		if (typeof symbolA.score === 'number' && typeof symbolB.score === 'number') {
 			if (symbolA.score > symbolB.score) {
 				return -1;
 			}
