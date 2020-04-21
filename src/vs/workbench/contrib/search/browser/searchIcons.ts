@@ -5,7 +5,7 @@
 
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
-export const searchDetails = registerIcon('search-details', Codicon.ellipsis);
+export const searchDetailsIcon = registerIcon('search-details', Codicon.ellipsis);
 
 export const searchShowContextIcon = registerIcon('search-show-context', Codicon.listSelection);
 export const searchHideReplaceIcon = registerIcon('search-hide-replace', Codicon.chevronRight);
@@ -21,4 +21,7 @@ export const searchClearIcon = registerIcon('search-clear-results', Codicon.expa
 export const searchStopIcon = Codicon.searchStop;
 
 export const searchViewIcon = Codicon.search;
+
+export const searchNewEditorIcon = registerIcon('search-new-editor', Codicon.newFile);
+export const searchGotoFileIcon = registerIcon('search-goto-file', Codicon.goToFile);
 
