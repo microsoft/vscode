@@ -647,7 +647,7 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
 					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
 				} else {
-					let extraIdx = this._getAutoEnclosingPairDeleteIdx(config, model, <Selection> selection);
+					let extraIdx = this._getAutoEnclosingPairDeleteIdx(config, model, <Selection>selection);
 					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn + extraIdx);
 				}
 			} else {
