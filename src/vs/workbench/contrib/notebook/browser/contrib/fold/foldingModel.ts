@@ -211,9 +211,7 @@ export enum CellFoldingState {
 	Collapsed
 }
 
-export interface FoldingRegionDelegate {
-	onDidFoldingRegionChanged: Event<void>;
+export interface EditorFoldingStateDelegate {
 	getCellIndex(cell: CellViewModel): number;
-	getFoldingStartIndex(index: number): number;
 	getFoldingState(index: number): CellFoldingState;
 }

@@ -17,22 +17,18 @@ export class FoldingController extends Disposable {
 		super();
 
 		this._register(this._notebookEditor.onMouseUp(e => { this.onMouseUp(e); }));
-		this._register(this._notebookEditor.viewModel!.onDidFoldingRegionChanged(() => {
-			const hiddenRanges = this._notebookEditor.viewModel!.getHiddenRanges();
-			this._notebookEditor.setHiddenAreas(hiddenRanges);
-		}));
 
 		this._foldingModel = new FoldingModel();
 		this._foldingModel.attachViewModel(this._notebookEditor.viewModel!);
 
 		this._register(this._foldingModel.onDidFoldingRegionChanged(() => {
-			this._notebookEditor.viewModel!.updateFoldingRanges(this._foldingModel.regions);
+			this._updateEditorFoldingRanges();
 		}));
 	}
 
 	applyMemento(state: ICellRange[]) {
 		this._foldingModel.applyMemento(state);
-		this._notebookEditor.viewModel!.updateFoldingRanges(this._foldingModel.regions);
+		this._updateEditorFoldingRanges();
 	}
 
 	getMemento(): ICellRange[] {
@@ -48,8 +44,13 @@ export class FoldingController extends Disposable {
 		}
 
 		this._foldingModel.setCollapsed(range, state === CellFoldingState.Collapsed);
-		this._notebookEditor.viewModel!.updateFoldingRanges(this._foldingModel.regions);
+		this._updateEditorFoldingRanges();
+	}
 
+	private _updateEditorFoldingRanges() {
+		this._notebookEditor.viewModel!.updateFoldingRanges(this._foldingModel.regions);
+		const hiddenRanges = this._notebookEditor.viewModel!.getHiddenRanges();
+		this._notebookEditor.setHiddenAreas(hiddenRanges);
 	}
 
 	onMouseUp(e: INotebookEditorMouseEvent) {

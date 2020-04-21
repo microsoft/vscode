@@ -23,7 +23,7 @@ import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/noteb
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { CellFoldingState, FoldingRegionDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -129,7 +129,7 @@ function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOpt
 let MODEL_ID = 0;
 
 
-export class NotebookViewModel extends Disposable implements FoldingRegionDelegate {
+export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _viewCells: CellViewModel[] = [];
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
@@ -202,8 +202,6 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	private readonly _instanceId: string;
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
-	private _onDidFoldingRegionChanges = new Emitter<void>();
-	onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
 	private _hiddenRanges: ICellRange[] = [];
 
 	constructor(
@@ -323,7 +321,6 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 
 		if (updateHiddenAreas || k < this._hiddenRanges.length) {
 			this._hiddenRanges = newHiddenAreas;
-			this._onDidFoldingRegionChanges.fire();
 			this._viewCells.forEach(cell => {
 				if (cell.cellKind === CellKind.Markdown) {
 					cell.triggerfoldingStateChange();
