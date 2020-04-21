@@ -74,12 +74,12 @@ export class Search extends Viewlet {
 
 		await retry(
 			() => this.code.waitAndClick(fileMatch),
-			() => this.code.waitForElement(`${fileMatch} .action-label.codicon.search-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
+			() => this.code.waitForElement(`${fileMatch} .action-label.codicon-search-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
 		);
 
 		// ¯\_(ツ)_/¯
 		await new Promise(c => setTimeout(c, 500));
-		await this.code.waitAndClick(`${fileMatch} .action-label.codicon.search-remove`);
+		await this.code.waitAndClick(`${fileMatch} .action-label.codicon-search-remove`);
 		await this.code.waitForElement(fileMatch, el => !el);
 	}
 
