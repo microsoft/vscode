@@ -135,8 +135,6 @@ export class WebWorkerExtensionHostStarter implements IExtensionHostStarter {
 			parentPid: -1,
 			environment: {
 				isExtensionDevelopmentDebug: false,
-				appRoot: this._environmentService.appRoot ? URI.file(this._environmentService.appRoot) : undefined,
-				appSettingsHome: this._environmentService.appSettingsHome ? this._environmentService.appSettingsHome : undefined,
 				appName: this._productService.nameLong,
 				appUriScheme: this._productService.urlProtocol,
 				appLanguage: platform.language,

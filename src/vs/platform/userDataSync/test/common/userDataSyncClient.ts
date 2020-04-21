@@ -55,8 +55,7 @@ export class UserDataSyncClient extends Disposable {
 			settingsResource: joinPath(userDataDirectory, 'settings.json'),
 			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
 			snippetsHome: joinPath(userDataDirectory, 'snippets'),
-			argvResource: joinPath(userDataDirectory, 'argv.json'),
-			args: {}
+			argvResource: joinPath(userDataDirectory, 'argv.json')
 		});
 
 		const logService = new NullLogService();
@@ -66,7 +65,7 @@ export class UserDataSyncClient extends Disposable {
 			_serviceBrand: undefined, ...product, ...{
 				'configurationSync.store': {
 					url: this.testServer.url,
-					authenticationProviderId: 'test'
+					authenticationProviders: { 'test': { scopes: [] } }
 				}
 			}
 		});

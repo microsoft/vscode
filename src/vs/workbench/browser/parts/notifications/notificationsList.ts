@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notificationsList';
+import { localize } from 'vs/nls';
 import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -87,6 +88,15 @@ export class NotificationsList extends Themable {
 				horizontalScrolling: false,
 				overrideStyles: {
 					listBackground: NOTIFICATIONS_BACKGROUND
+				},
+				accessibilityProvider: {
+					getAriaLabel(element: INotificationViewItem): string {
+						if (!element.source) {
+							return localize('notificationAriaLabel', "{0}, notification", element.message.raw);
+						}
+
+						return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
+					}
 				}
 			}
 		));

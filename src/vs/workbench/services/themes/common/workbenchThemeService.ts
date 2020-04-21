@@ -9,6 +9,7 @@ import { Color } from 'vs/base/common/color';
 import { IColorTheme, IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
+import { isBoolean, isString } from 'vs/base/common/types';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -117,6 +118,18 @@ export interface ExtensionData {
 	extensionName: string;
 	extensionIsBuiltin: boolean;
 	extensionLocation: URI;
+}
+
+export namespace ExtensionData {
+	export function toJSONObject(d: ExtensionData | undefined): any {
+		return d && { _extensionId: d.extensionId, _extensionIsBuiltin: d.extensionIsBuiltin, _extensionLocation: d.extensionLocation.toJSON(), _extensionName: d.extensionName, _extensionPublisher: d.extensionPublisher };
+	}
+	export function fromJSONObject(o: any): ExtensionData | undefined {
+		if (o && isString(o._extensionId) && isBoolean(o._extensionIsBuiltin) && isString(o._extensionLocation) && isString(o._extensionName) && isString(o._extensionPublisher)) {
+			return { extensionId: o._extensionId, extensionIsBuiltin: o._extensionIsBuiltin, extensionLocation: URI.revive(o._extensionLocation), extensionName: o._extensionName, extensionPublisher: o._extensionPublisher };
+		}
+		return undefined;
+	}
 }
 
 export interface IThemeExtensionPoint {

@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import * as extpath from 'vs/base/common/extpath';
 import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 export function validatePaths(args: ParsedArgs): ParsedArgs {
 

@@ -11,7 +11,7 @@ import { parse, ParseError, getNodeType } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
 import product from 'vs/platform/product/common/product';
 import { repeat, pad } from 'vs/base/common/strings';
-import { isWindows } from 'vs/base/common/platform';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
@@ -336,9 +336,17 @@ export class DiagnosticsService implements IDiagnosticsService {
 			remoteData
 		};
 
-
 		if (!isWindows) {
 			systemInfo.load = `${osLib.loadavg().map(l => Math.round(l)).join(', ')}`;
+		}
+
+		if (isLinux) {
+			systemInfo.linuxEnv = {
+				desktopSession: process.env.DESKTOP_SESSION,
+				xdgSessionDesktop: process.env.XDG_SESSION_DESKTOP,
+				xdgCurrentDesktop: process.env.XDG_CURRENT_DESKTOP,
+				xdgSessionType: process.env.XDG_SESSION_TYPE
+			};
 		}
 
 		return Promise.resolve(systemInfo);

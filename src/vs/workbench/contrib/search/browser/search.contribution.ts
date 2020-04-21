@@ -332,21 +332,37 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: Constants.RevealInSideBarForSearchResults,
-	handler: (accessor, fileMatch: FileMatch) => {
+	handler: (accessor, args: any) => {
 		const viewletService = accessor.get(IViewletService);
 		const explorerService = accessor.get(IExplorerService);
 		const contextService = accessor.get(IWorkspaceContextService);
-		const uri = fileMatch.resource;
+
+		const searchView = getSearchView(accessor.get(IViewsService));
+		if (!searchView) {
+			return;
+		}
+
+		let fileMatch: FileMatch;
+		if (!(args instanceof FileMatch)) {
+			args = searchView.getControl().getFocus()[0];
+		}
+		if (args instanceof FileMatch) {
+			fileMatch = args;
+		} else {
+			return;
+		}
 
 		viewletService.openViewlet(VIEWLET_ID_FILES, false).then((viewlet) => {
-			const explorerViewContainer = viewlet?.getViewPaneContainer() as ExplorerViewPaneContainer;
+			if (!viewlet) {
+				return;
+			}
 
+			const explorerViewContainer = viewlet.getViewPaneContainer() as ExplorerViewPaneContainer;
+			const uri = fileMatch.resource;
 			if (uri && contextService.isInsideWorkspace(uri)) {
-				const explorerView = explorerViewContainer?.getExplorerView();
-				if (explorerView) {
-					explorerView.setExpanded(true);
-					explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
-				}
+				const explorerView = explorerViewContainer.getExplorerView();
+				explorerView.setExpanded(true);
+				explorerService.select(uri, true).then(() => explorerView.focus(), onUnexpectedError);
 			}
 		});
 	}
@@ -488,7 +504,7 @@ class ShowAllSymbolsAction extends Action {
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: nls.localize('name', "Search"),
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, `${VIEWLET_ID}.state`, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	hideIfEmpty: true,
 	icon: 'codicon-search',
 	order: 1
@@ -772,6 +788,16 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: nls.localize('search.searchOnType', "Search all files as you type.")
+		},
+		'search.seedWithNearestWord': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.seedWithNearestWord', "Enable seeding search from the word nearest the cursor when the active editor has no selection.")
+		},
+		'search.seedOnFocus': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('search.seedOnFocus', "Update workspace seach query to the editor's selected text when focusing the search view. This happens either on click or when triggering the `workbench.views.search.focus` command.")
 		},
 		'search.searchOnTypeDebouncePeriod': {
 			type: 'number',

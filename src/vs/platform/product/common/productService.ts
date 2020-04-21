@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IProductService = createDecorator<IProductService>('productService');
 
@@ -13,6 +14,15 @@ export interface IProductService extends Readonly<IProductConfiguration> {
 	_serviceBrand: undefined;
 
 }
+
+export interface IBuiltInExtension {
+	readonly name: string;
+	readonly version: string;
+	readonly repo: string;
+	readonly metadata: any;
+}
+
+export type ConfigurationSyncStore = { url: string, authenticationProviders: IStringDictionary<{ scopes: string[] }> };
 
 export interface IProductConfiguration {
 	readonly version: string;
@@ -29,6 +39,8 @@ export interface IProductConfiguration {
 
 	readonly urlProtocol: string;
 	readonly dataFolderName: string;
+
+	readonly builtInExtensions?: IBuiltInExtension[];
 
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
@@ -104,7 +116,7 @@ export interface IProductConfiguration {
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
-	readonly 'configurationSync.store'?: { url: string, authenticationProviderId: string };
+	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 }
 
 export interface IExeBasedExtensionTip {

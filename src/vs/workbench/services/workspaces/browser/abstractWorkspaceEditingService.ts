@@ -23,6 +23,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { Schemas } from 'vs/base/common/network';
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -127,13 +128,10 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
-		if (this.environmentService.configuration.remoteAuthority) {
-
-			// Do not allow workspace folders with scheme different than the current remote scheme
-			const schemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
-			if (schemas.length && foldersToAdd.some(f => schemas.indexOf(f.uri.scheme) === -1)) {
-				throw new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace."));
-			}
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		if (remoteAuthority) {
+			// https://github.com/microsoft/vscode/issues/94191
+			foldersToAdd = foldersToAdd.filter(f => f.uri.scheme !== Schemas.file && (f.uri.scheme !== Schemas.vscodeRemote || f.uri.authority === remoteAuthority));
 		}
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to

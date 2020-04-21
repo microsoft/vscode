@@ -14,18 +14,26 @@
 		{
 			"type": "node",
 			"request": "attach",
+			"restart": true,
 			"name": "Attach to Extension Host",
+			"timeout": 30000,
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			]
+			],
+			"presentation": {
+				"hidden": true
+			}
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to Shared Process",
 			"port": 9222,
-			"urlFilter": "*"
+			"urlFilter": "*sharedProcess.html*",
+			"presentation": {
+				"hidden": true
+			}
 		},
 		{
 			"type": "node",
@@ -158,9 +166,10 @@
 			"port": 9222
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "launch",
 			"name": "Launch VS Code",
+			"browserLaunchLocation": "workspace",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -188,47 +197,29 @@
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
+			"browserLaunchLocation": "workspace"
 		},
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "Launch VS Code (Main Process)",
-			"runtimeExecutable": "${workspaceFolder}/scripts/code.sh",
-			"windows": {
-				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat",
-			},
-			"runtimeArgs": [
-				"--no-cached-data"
-			],
-			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"group": "2_launch",
-				"order": 1
-			}
-		},
-		{
-			"type": "node",
-			"request": "launch",
-			"name": "Launch VS Code (Web)",
+			"name": "VS Code (Web)",
 			"runtimeExecutable": "yarn",
 			"runtimeArgs": [
 				"web"
 			],
 			"presentation": {
-				"group": "2_launch",
+				"group": "0_vscode",
 				"order": 2
 			}
 		},
 		{
 			"type": "chrome",
 			"request": "launch",
-			"name": "Launch VS Code (Web, Chrome)",
+			"name": "VS Code (Web, Chrome)",
 			"url": "http://localhost:8080",
 			"preLaunchTask": "Run web",
 			"presentation": {
-				"group": "2_launch",
+				"group": "0_vscode",
 				"order": 3
 			}
 		},
@@ -358,14 +349,15 @@
 	],
 	"compounds": [
 		{
-			"name": "Debug VS Code Main, Renderer & Extension Host",
+			"name": "VS Code",
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Main Process",
-				"Attach to Extension Host"
+				"Attach to Extension Host",
+				"Attach to Shared Process",
 			],
 			"presentation": {
-				"group": "1_vscode",
+				"group": "0_vscode",
 				"order": 1
 			}
 		},

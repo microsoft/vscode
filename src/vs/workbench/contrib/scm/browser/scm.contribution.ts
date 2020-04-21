@@ -26,6 +26,7 @@ import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
@@ -37,6 +38,12 @@ class OpenSCMViewletAction extends ShowViewletAction {
 	}
 }
 
+ModesRegistry.registerLanguage({
+	id: 'scminput',
+	extensions: [],
+	mimetypes: ['text/x-scm-input']
+});
+
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
 
@@ -44,6 +51,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	id: VIEWLET_ID,
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
+	storageId: 'workbench.scm.views.state',
 	icon: 'codicon-source-control',
 	order: 2
 }, ViewContainerLocation.Sidebar);

@@ -153,6 +153,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private hide(): void {
+		this.renderDisposeables.clear();
+
 		if (!this.visible) {
 			return;
 		}
@@ -177,6 +179,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private render(hints: modes.SignatureHelp): void {
+		this.renderDisposeables.clear();
+
 		if (!this.domNodes) {
 			return;
 		}
@@ -194,43 +198,40 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		}
 
 		const code = dom.append(this.domNodes.signature, $('.code'));
-		const hasParameters = signature.parameters.length > 0;
-
 		const fontInfo = this.editor.getOption(EditorOption.fontInfo);
 		code.style.fontSize = `${fontInfo.fontSize}px`;
 		code.style.fontFamily = fontInfo.fontFamily;
+
+		const hasParameters = signature.parameters.length > 0;
+		const activeParameterIndex = signature.activeParameter ?? hints.activeParameter;
 
 		if (!hasParameters) {
 			const label = dom.append(code, $('span'));
 			label.textContent = signature.label;
 		} else {
-			this.renderParameters(code, signature, hints.activeParameter);
+			this.renderParameters(code, signature, activeParameterIndex);
 		}
 
-		this.renderDisposeables.clear();
-
-		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[hints.activeParameter];
-
-		if (activeParameter && activeParameter.documentation) {
+		const activeParameter: modes.ParameterInformation | undefined = signature.parameters[activeParameterIndex];
+		if (activeParameter?.documentation) {
 			const documentation = $('span.documentation');
 			if (typeof activeParameter.documentation === 'string') {
 				documentation.textContent = activeParameter.documentation;
 			} else {
-				const renderedContents = this.markdownRenderer.render(activeParameter.documentation);
+				const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(activeParameter.documentation));
 				dom.addClass(renderedContents.element, 'markdown-docs');
-				this.renderDisposeables.add(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.domNodes.docs, $('p', {}, documentation));
 		}
 
-		if (signature.documentation === undefined) { /** no op */ }
-		else if (typeof signature.documentation === 'string') {
+		if (signature.documentation === undefined) {
+			/** no op */
+		} else if (typeof signature.documentation === 'string') {
 			dom.append(this.domNodes.docs, $('p', {}, signature.documentation));
 		} else {
-			const renderedContents = this.markdownRenderer.render(signature.documentation);
+			const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(signature.documentation));
 			dom.addClass(renderedContents.element, 'markdown-docs');
-			this.renderDisposeables.add(renderedContents);
 			dom.append(this.domNodes.docs, renderedContents.element);
 		}
 
@@ -243,7 +244,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 			pad(hints.activeSignature + 1, hints.signatures.length.toString().length) + '/' + hints.signatures.length;
 
 		if (activeParameter) {
-			const labelToAnnounce = this.getParameterLabel(signature, hints.activeParameter);
+			const labelToAnnounce = this.getParameterLabel(signature, activeParameterIndex);
 			// Select method gets called on every user type while parameter hints are visible.
 			// We do not want to spam the user with same announcements, so we only announce if the current parameter changed.
 
@@ -273,8 +274,8 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		return false;
 	}
 
-	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, currentParameter: number): void {
-		const [start, end] = this.getParameterLabelOffsets(signature, currentParameter);
+	private renderParameters(parent: HTMLElement, signature: modes.SignatureInformation, activeParameterIndex: number): void {
+		const [start, end] = this.getParameterLabelOffsets(signature, activeParameterIndex);
 
 		const beforeSpan = document.createElement('span');
 		beforeSpan.textContent = signature.label.substring(0, start);

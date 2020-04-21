@@ -89,18 +89,11 @@
 	white-space: pre;
 }
 
-.monaco-editor.vs-dark .review-widget .body .comment-body h4 {
-	margin: 0;
-}
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .author {
 	line-height: 22px;
 }
 
-.monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .author {
-	color: #fff;
-	font-weight: 600;
-}
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .isPending {
 	margin: 0 5px 0 5px;
@@ -108,7 +101,7 @@
 	font-style: italic;
 }
 
-.monaco-editor.vs-dark .review-widget .body .review-comment .review-comment-contents .comment-body {
+.monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-body {
 	padding-top: 4px;
 }
 
@@ -181,10 +174,6 @@
 
 .monaco-editor .review-widget .body .review-comment .review-comment-contents .comment-reactions .action-item a.action-label.disabled {
 	opacity: 0.6;
-}
-
-.monaco-editor.vs-dark .review-widget .body span.created_at {
-	color: #e0e0e0;
 }
 
 .monaco-editor .review-widget .body .comment-body p,

@@ -114,7 +114,8 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	name: Messages.MARKERS_PANEL_TITLE_PROBLEMS,
 	hideIfEmpty: true,
 	order: 0,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, Constants.MARKERS_VIEW_STORAGE_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	storageId: Constants.MARKERS_VIEW_STORAGE_ID,
 	focusCommand: {
 		id: ToggleMarkersPanelAction.ID, keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_M
@@ -361,9 +362,11 @@ class MarkersStatusBarContributions extends Disposable implements IWorkbenchCont
 
 	private getMarkersItem(): IStatusbarEntry {
 		const markersStatistics = this.markerService.getStatistics();
+		const tooltip = this.getMarkersTooltip(markersStatistics);
 		return {
 			text: this.getMarkersText(markersStatistics),
-			tooltip: this.getMarkersTooltip(markersStatistics),
+			ariaLabel: tooltip,
+			tooltip,
 			command: 'workbench.actions.view.toggleProblems'
 		};
 	}

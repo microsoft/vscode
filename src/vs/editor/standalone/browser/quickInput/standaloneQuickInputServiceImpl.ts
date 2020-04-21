@@ -90,11 +90,11 @@ export class StandaloneQuickInputServiceImpl implements IQuickInputService {
 	) {
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<O extends { canPickMany: true } ? T[] : T> {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
 		return (this.activeService as unknown as QuickInputController /* TS fail */).pick(picks, options, token);
 	}
 
-	input(options?: IInputOptions | undefined, token?: CancellationToken | undefined): Promise<string> {
+	input(options?: IInputOptions | undefined, token?: CancellationToken | undefined): Promise<string | undefined> {
 		return this.activeService.input(options, token);
 	}
 

@@ -504,34 +504,33 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		messageElement.innerText = message;
 
 		if (source || code) {
-			if (typeof code === 'string') {
+			// Code has link
+			if (code && typeof code !== 'string') {
+				const sourceAndCodeElement = $('span');
+				if (source) {
+					const sourceElement = dom.append(sourceAndCodeElement, $('span'));
+					sourceElement.innerText = source;
+				}
+				this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
+				this._codeLink.setAttribute('href', code.target.toString());
+
+				this._codeLink.onclick = (e) => {
+					this._openerService.open(code.target);
+					e.preventDefault();
+					e.stopPropagation();
+				};
+
+				const codeElement = dom.append(this._codeLink, $('span'));
+				codeElement.innerText = code.value;
+
+				const detailsElement = dom.append(markerElement, sourceAndCodeElement);
+				detailsElement.style.opacity = '0.6';
+				detailsElement.style.paddingLeft = '6px';
+			} else {
 				const detailsElement = dom.append(markerElement, $('span'));
 				detailsElement.style.opacity = '0.6';
 				detailsElement.style.paddingLeft = '6px';
 				detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
-			} else {
-				if (code) {
-					const sourceAndCodeElement = $('span');
-					if (source) {
-						const sourceElement = dom.append(sourceAndCodeElement, $('span'));
-						sourceElement.innerText = source;
-					}
-					this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-					this._codeLink.setAttribute('href', code.target.toString());
-
-					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.target);
-						e.preventDefault();
-						e.stopPropagation();
-					};
-
-					const codeElement = dom.append(this._codeLink, $('span'));
-					codeElement.innerText = code.value;
-
-					const detailsElement = dom.append(markerElement, sourceAndCodeElement);
-					detailsElement.style.opacity = '0.6';
-					detailsElement.style.paddingLeft = '6px';
-				}
 			}
 		}
 

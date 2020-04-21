@@ -161,7 +161,7 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: string, target: string, targetLower: string, targetIndex: number, matchesSequenceLength: number): number {
 	let score = 0;
 
-	if (queryLowerCharAtIndex !== targetLower[targetIndex]) {
+	if (!considerAsEqual(queryLowerCharAtIndex, targetLower[targetIndex])) {
 		return score; // no match of characters
 	}
 
@@ -228,6 +228,19 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	return score;
 }
 
+function considerAsEqual(a: string, b: string): boolean {
+	if (a === b) {
+		return true;
+	}
+
+	// Special case path spearators: ignore platform differences
+	if (a === '/' || a === '\\') {
+		return b === '/' || b === '\\';
+	}
+
+	return false;
+}
+
 function scoreSeparatorAtPos(charCode: number): number {
 	switch (charCode) {
 		case CharCode.Slash:
@@ -268,11 +281,12 @@ export type FuzzyScore2 = [number /* score*/, IMatch[]];
 
 const NO_SCORE2: FuzzyScore2 = [NO_MATCH, []];
 
-export function scoreFuzzy2(target: string, query: IPreparedQuery, patternStart = 0, matchOffset = 0): FuzzyScore2 {
+export function scoreFuzzy2(target: string, query: IPreparedQuery | IPreparedQueryPiece, patternStart = 0, matchOffset = 0): FuzzyScore2 {
 
 	// Score: multiple inputs
-	if (query.values && query.values.length > 1) {
-		return doScoreFuzzy2Multiple(target, query.values, patternStart, matchOffset);
+	const preparedQuery = query as IPreparedQuery;
+	if (preparedQuery.values && preparedQuery.values.length > 1) {
+		return doScoreFuzzy2Multiple(target, preparedQuery.values, patternStart, matchOffset);
 	}
 
 	// Score: single input
@@ -526,15 +540,45 @@ function createMatches(offsets: number[] | undefined): IMatch[] {
 }
 
 function normalizeMatches(matches: IMatch[]): IMatch[] {
-	const positions = new Set<number>();
 
-	for (const match of matches) {
-		for (let i = match.start; i < match.end; i++) {
-			positions.add(i);
+	// sort matches by start to be able to normalize
+	const sortedMatches = matches.sort((matchA, matchB) => {
+		return matchA.start - matchB.start;
+	});
+
+	// merge matches that overlap
+	const normalizedMatches: IMatch[] = [];
+	let currentMatch: IMatch | undefined = undefined;
+	for (const match of sortedMatches) {
+
+		// if we have no current match or the matches
+		// do not overlap, we take it as is and remember
+		// it for future merging
+		if (!currentMatch || !matchOverlaps(currentMatch, match)) {
+			currentMatch = match;
+			normalizedMatches.push(match);
+		}
+
+		// otherwise we merge the matches
+		else {
+			currentMatch.start = Math.min(currentMatch.start, match.start);
+			currentMatch.end = Math.max(currentMatch.end, match.end);
 		}
 	}
 
-	return createMatches(Array.from(positions.values()).sort((a, b) => a - b));
+	return normalizedMatches;
+}
+
+function matchOverlaps(matchA: IMatch, matchB: IMatch): boolean {
+	if (matchA.end < matchB.start) {
+		return false;	// A ends before B starts
+	}
+
+	if (matchB.end < matchA.start) {
+		return false; // B ends before A starts
+	}
+
+	return true;
 }
 
 //#endregion
@@ -766,9 +810,14 @@ export interface IPreparedQueryPiece {
 
 export interface IPreparedQuery extends IPreparedQueryPiece {
 
-	// Split by spaces
+	/**
+	 * Query split by spaces into pieces.
+	 */
 	values: IPreparedQueryPiece[] | undefined;
 
+	/**
+	 * Wether the query contains path separator(s) or not.
+	 */
 	containsPathSeparator: boolean;
 }
 

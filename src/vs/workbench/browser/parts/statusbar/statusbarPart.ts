@@ -32,7 +32,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { assertIsDefined } from 'vs/base/common/types';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
@@ -65,7 +65,7 @@ class StatusbarViewModel extends Disposable {
 	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
 
-	constructor(private storageService: IStorageService) {
+	constructor(private readonly storageService: IStorageService) {
 		super();
 
 		this.restoreState();
@@ -341,18 +341,18 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	private pendingEntries: IPendingStatusbarEntry[] = [];
 
-	private readonly viewModel: StatusbarViewModel;
+	private readonly viewModel = this._register(new StatusbarViewModel(this.storageService));
+
+	readonly onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
 
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
-
-	readonly onDidChangeEntryVisibility: Event<{ id: string, visible: boolean }>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
@@ -360,8 +360,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		storageKeysSyncRegistryService.registerStorageKey({ key: StatusbarViewModel.HIDDEN_ENTRIES_KEY, version: 1 });
-		this.viewModel = this._register(new StatusbarViewModel(storageService));
-		this.onDidChangeEntryVisibility = this.viewModel.onDidChangeEntryVisibility;
 
 		this.registerListeners();
 	}
@@ -451,6 +449,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.leftItemsContainer = document.createElement('div');
 		addClasses(this.leftItemsContainer, 'left-items', 'items-container');
 		this.element.appendChild(this.leftItemsContainer);
+		this.element.tabIndex = -1;
 
 		// Right items container
 		this.rightItemsContainer = document.createElement('div');
@@ -626,6 +625,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return itemContainer;
 	}
 
+	focus(): void {
+		this.getContainer();
+	}
+
 	layout(width: number, height: number): void {
 		super.layout(width, height);
 		super.layoutContents(width, height);
@@ -639,6 +642,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 }
 
 class StatusbarEntryItem extends Disposable {
+
 	private entry!: IStatusbarEntry;
 
 	private labelContainer!: HTMLElement;
@@ -688,6 +692,10 @@ class StatusbarEntryItem extends Disposable {
 			} else {
 				hide(this.labelContainer);
 			}
+		}
+
+		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
+			this.labelContainer.setAttribute('aria-label', entry.ariaLabel);
 		}
 
 		// Update: Tooltip (on the container, because label can be disabled)

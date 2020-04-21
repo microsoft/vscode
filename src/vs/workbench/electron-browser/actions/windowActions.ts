@@ -168,12 +168,12 @@ export abstract class BaseSwitchWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private environmentService: INativeWorkbenchEnvironmentService,
-		private quickInputService: IQuickInputService,
-		private keybindingService: IKeybindingService,
-		private modelService: IModelService,
-		private modeService: IModeService,
-		private electronService: IElectronService
+		private readonly environmentService: INativeWorkbenchEnvironmentService,
+		private readonly quickInputService: IQuickInputService,
+		private readonly keybindingService: IKeybindingService,
+		private readonly modelService: IModelService,
+		private readonly modeService: IModeService,
+		private readonly electronService: IElectronService
 	) {
 		super(id, label);
 	}

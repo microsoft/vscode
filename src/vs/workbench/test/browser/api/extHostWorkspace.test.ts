@@ -20,6 +20,7 @@ import { ExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IPatternInfo } from 'vs/workbench/services/search/common/search';
+import { isWindows } from 'vs/base/common/platform';
 
 function createExtHostWorkspace(mainContext: IMainContext, data: IWorkspaceData, logService: ILogService): ExtHostWorkspace {
 	const result = new ExtHostWorkspace(
@@ -552,14 +553,17 @@ suite('ExtHostWorkspace', function () {
 	});
 
 	test('`vscode.workspace.getWorkspaceFolder(file)` don\'t return workspace folder when file open from command line. #36221', function () {
-		let ws = createExtHostWorkspace(new TestRPCProtocol(), {
-			id: 'foo', name: 'Test', folders: [
-				aWorkspaceFolderData(URI.file('c:/Users/marek/Desktop/vsc_test/'), 0)
-			]
-		}, new NullLogService());
+		if (isWindows) {
 
-		assert.ok(ws.getWorkspaceFolder(URI.file('c:/Users/marek/Desktop/vsc_test/a.txt')));
-		assert.ok(ws.getWorkspaceFolder(URI.file('C:/Users/marek/Desktop/vsc_test/b.txt')));
+			let ws = createExtHostWorkspace(new TestRPCProtocol(), {
+				id: 'foo', name: 'Test', folders: [
+					aWorkspaceFolderData(URI.file('c:/Users/marek/Desktop/vsc_test/'), 0)
+				]
+			}, new NullLogService());
+
+			assert.ok(ws.getWorkspaceFolder(URI.file('c:/Users/marek/Desktop/vsc_test/a.txt')));
+			assert.ok(ws.getWorkspaceFolder(URI.file('C:/Users/marek/Desktop/vsc_test/b.txt')));
+		}
 	});
 
 	function aWorkspaceFolderData(uri: URI, index: number, name: string = ''): IWorkspaceFolderData {

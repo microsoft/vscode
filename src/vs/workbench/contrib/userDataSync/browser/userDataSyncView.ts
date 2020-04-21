@@ -39,7 +39,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				name: localize('sync preferences', "Preferences Sync"),
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					['workbench.view.sync', `workbench.view.sync.state`, { mergeViewWithContainerWhenSingleView: true }]
+					['workbench.view.sync', { mergeViewWithContainerWhenSingleView: true }]
 				),
 				icon: 'codicon-sync',
 				hideIfEmpty: true,
