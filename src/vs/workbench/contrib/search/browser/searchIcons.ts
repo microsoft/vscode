@@ -11,7 +11,7 @@ export const searchShowContextIcon = registerIcon('search-show-context', Codicon
 export const searchHideReplaceIcon = registerIcon('search-hide-replace', Codicon.chevronRight);
 export const searchShowReplaceIcon = registerIcon('search-show-replace', Codicon.chevronDown);
 export const searchReplaceAllIcon = registerIcon('search-replace-all', Codicon.replaceAll);
-export const searchReplaceIcon = registerIcon('search-replace-all', Codicon.replace);
+export const searchReplaceIcon = registerIcon('search-replace', Codicon.replace);
 export const searchRemoveIcon = registerIcon('search-remove', Codicon.close);
 
 export const searchRefreshIcon = registerIcon('search-refresh', Codicon.refresh);
