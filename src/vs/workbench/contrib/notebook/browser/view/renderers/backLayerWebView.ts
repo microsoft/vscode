@@ -525,7 +525,6 @@ ${loaderJs}
 		}
 
 		let id = outputCache.outputId;
-		console.log('hide inset', id);
 		this.hiddenInsetMapping.add(output);
 
 		this.webview.sendMessage({

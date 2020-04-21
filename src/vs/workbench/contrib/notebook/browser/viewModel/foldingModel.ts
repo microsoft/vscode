@@ -174,31 +174,31 @@ export class FoldingModel extends Disposable {
 	}
 
 	public applyMemento(state: ICellRange[]): boolean {
-		let k = 0;
 		let i = 0;
+		let k = 0;
 
-		while (i < state.length && k < this._regions.length) {
+		while (k < state.length && i < this._regions.length) {
 			// get the latest range
 			let decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[i]);
 			if (decRange) {
-				let collasedStartIndex = decRange.start;
+				let collasedStartIndex = state[k].start;
 
-				while (k < this._regions.length) {
-					let startIndex = this._regions.getStartLineNumber(k) - 1;
+				while (i < this._regions.length) {
+					let startIndex = this._regions.getStartLineNumber(i) - 1;
 					if (collasedStartIndex >= startIndex) {
-						this._regions.setCollapsed(k, collasedStartIndex === startIndex);
-						k++;
+						this._regions.setCollapsed(i, collasedStartIndex === startIndex);
+						i++;
 					} else {
 						break;
 					}
 				}
 			}
-			i++;
+			k++;
 		}
 
-		while (k < this._regions.length) {
-			this._regions.setCollapsed(k, false);
-			k++;
+		while (i < this._regions.length) {
+			this._regions.setCollapsed(i, false);
+			i++;
 		}
 
 		return true;

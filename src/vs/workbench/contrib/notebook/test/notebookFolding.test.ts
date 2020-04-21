@@ -193,4 +193,112 @@ suite('Notebook Folding', () => {
 			}
 		);
 	});
+
+	test('Folding Memento', function () {
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
+				[['body'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+			],
+			(editor, viewModel) => {
+				viewModel.restoreEditorViewState({
+					editingCells: {},
+					editorViewStates: {},
+					hiddenFoldingRanges: [
+						{ start: 2, end: 6 }
+					]
+				});
+
+				// Note that hidden ranges !== folding ranges
+				assert.deepEqual(viewModel.getHiddenRanges(), [
+					{ start: 3, end: 6 }
+				]);
+			}
+		);
+
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
+				[['body'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+			],
+			(editor, viewModel) => {
+				viewModel.restoreEditorViewState({
+					editingCells: {},
+					editorViewStates: {},
+					hiddenFoldingRanges: [
+						{ start: 5, end: 6 },
+						{ start: 10, end: 11 },
+					]
+				});
+
+				// Note that hidden ranges !== folding ranges
+				assert.deepEqual(viewModel.getHiddenRanges(), [
+					{ start: 6, end: 6 },
+					{ start: 11, end: 11 }
+				]);
+			}
+		);
+
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
+				[['body'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+			],
+			(editor, viewModel) => {
+				viewModel.restoreEditorViewState({
+					editingCells: {},
+					editorViewStates: {},
+					hiddenFoldingRanges: [
+						{ start: 5, end: 6 },
+						{ start: 7, end: 11 },
+					]
+				});
+
+				// Note that hidden ranges !== folding ranges
+				assert.deepEqual(viewModel.getHiddenRanges(), [
+					{ start: 6, end: 6 },
+					{ start: 8, end: 11 }
+				]);
+			}
+		);
+	});
 });
