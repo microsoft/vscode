@@ -44,8 +44,8 @@ export class EditorScrollbar extends ViewPart {
 
 			vertical: scrollbar.vertical,
 			horizontal: scrollbar.horizontal,
-			verticalHasArrows: scrollbar.verticalHasArrows,
-			horizontalHasArrows: scrollbar.horizontalHasArrows,
+			verticalHasArrows: true, //scrollbar.verticalHasArrows,
+			horizontalHasArrows: true, //scrollbar.horizontalHasArrows,
 			verticalScrollbarSize: scrollbar.verticalScrollbarSize,
 			verticalSliderSize: scrollbar.verticalSliderSize,
 			horizontalScrollbarSize: scrollbar.horizontalScrollbarSize,

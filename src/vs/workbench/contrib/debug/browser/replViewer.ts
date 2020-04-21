@@ -23,6 +23,7 @@ import { IReplElementSource, IDebugService, IExpression, IReplElement, IDebugCon
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -128,7 +129,7 @@ export class ReplEvaluationResultsRenderer implements ITreeRenderer<ReplEvaluati
 			linkDetector: this.linkDetector
 		});
 		if (expression.hasChildren) {
-			templateData.annotation.className = 'annotation codicon codicon-info';
+			templateData.annotation.className = 'annotation ' + Codicon.info.classNames;
 			templateData.annotation.title = localize('stateCapture', "Object state is captured from first evaluation");
 		}
 	}
@@ -262,7 +263,7 @@ export class ReplRawObjectsRenderer implements ITreeRenderer<RawObjectReplElemen
 
 		// annotation if any
 		if (element.annotation) {
-			templateData.annotation.className = 'annotation codicon codicon-info';
+			templateData.annotation.className = 'annotation ' + Codicon.info.classNames;
 			templateData.annotation.title = element.annotation;
 		} else {
 			templateData.annotation.className = '';
