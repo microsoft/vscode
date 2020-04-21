@@ -155,6 +155,54 @@ export class FoldingModel extends Disposable {
 		this._regions = newRegions;
 		this._onDidFoldingRegionChanges.fire();
 	}
+
+	getMemento(): ICellRange[] {
+		const collapsedRanges: ICellRange[] = [];
+		let i = 0;
+		while (i < this._regions.length) {
+			let isCollapsed = this._regions.isCollapsed(i);
+
+			if (isCollapsed) {
+				const region = this._regions.toRegion(i);
+				collapsedRanges.push({ start: region.startLineNumber - 1, end: region.endLineNumber - 1 });
+			}
+
+			i++;
+		}
+
+		return collapsedRanges;
+	}
+
+	public applyMemento(state: ICellRange[]): boolean {
+		let k = 0;
+		let i = 0;
+
+		while (i < state.length && k < this._regions.length) {
+			// get the latest range
+			let decRange = this._viewModel!.getTrackedRange(this._foldingRangeDecorationIds[i]);
+			if (decRange) {
+				let collasedStartIndex = decRange.start;
+
+				while (k < this._regions.length) {
+					let startIndex = this._regions.getStartLineNumber(k) - 1;
+					if (collasedStartIndex >= startIndex) {
+						this._regions.setCollapsed(k, collasedStartIndex === startIndex);
+						k++;
+					} else {
+						break;
+					}
+				}
+			}
+			i++;
+		}
+
+		while (k < this._regions.length) {
+			this._regions.setCollapsed(k, false);
+			k++;
+		}
+
+		return true;
+	}
 }
 
 export enum CellFoldingState {

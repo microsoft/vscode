@@ -31,6 +31,7 @@ import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCo
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
+	hiddenFoldingRanges: ICellRange[];
 	cellTotalHeights?: { [key: number]: number };
 	scrollPosition?: { left: number; top: number; };
 	focus?: number;
@@ -589,9 +590,12 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			}
 		});
 
+		const hiddenFoldingRanges = this._foldingModel.getMemento();
+
 		return {
 			editingCells,
-			editorViewStates
+			editorViewStates,
+			hiddenFoldingRanges
 		};
 	}
 
@@ -608,6 +612,9 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			const cellHeight = viewState.cellTotalHeights ? viewState.cellTotalHeights[index] : undefined;
 			cell.restoreEditorViewState(editorViewState, cellHeight);
 		});
+
+		this._foldingModel.applyMemento(viewState.hiddenFoldingRanges || []);
+		this._updateFoldingRanges();
 	}
 
 	/**

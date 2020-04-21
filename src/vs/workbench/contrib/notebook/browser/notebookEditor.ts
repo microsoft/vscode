@@ -384,14 +384,15 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher, this.getLayoutInfo());
 		this.editorEditable?.set(!!this.notebookViewModel.metadata?.editable);
 		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
-		const viewState = this.loadTextEditorViewState(input);
-		this.notebookViewModel.restoreEditorViewState(viewState);
 
 		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
 			this.editorEditable?.set(e.source.editable);
 		}));
 
 		this.localStore.add(this.instantiationService.createInstance(FoldingController, this));
+
+		const viewState = this.loadTextEditorViewState(input);
+		this.notebookViewModel.restoreEditorViewState(viewState);
 
 		this.webview?.updateRendererPreloads(this.notebookViewModel.renderers);
 
@@ -588,7 +589,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	setHiddenAreas(_ranges: ICellRange[]): boolean {
-		return this.list!.setHiddenAreas(_ranges);
+		return this.list!.setHiddenAreas(_ranges, true);
 	}
 
 	//#endregion

@@ -192,14 +192,26 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		}));
 
-		this.splice2(0, 0, model.viewCells as CellViewModel[]);
+		const hiddenRanges = model.getHiddenRanges();
+		this.setHiddenAreas(hiddenRanges, false);
+		const newRanges = reduceCellRanges(hiddenRanges);
+		const viewCells = model.viewCells.slice(0) as CellViewModel[];
+		newRanges.reverse().forEach(range => {
+			viewCells.splice(range.start, range.end - range.start + 1);
+		});
+
+		this.splice2(0, 0, viewCells);
 	}
 
 	clear() {
 		super.splice(0, this.length);
 	}
 
-	setHiddenAreas(_ranges: ICellRange[]): boolean {
+	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean {
+		if (!this._viewModel) {
+			return false;
+		}
+
 		const newRanges = reduceCellRanges(_ranges);
 		// delete old tracking ranges
 		const oldRanges = this._hiddenRangeIds.map(id => this._viewModel!.getTrackedRange(id)).filter(range => range !== null) as ICellRange[];
@@ -221,8 +233,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const hiddenAreaIds = newRanges.map(range => this._viewModel!.setTrackedRange(null, range, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter)).filter(id => id !== null) as string[];
 
 		this._hiddenRangeIds = hiddenAreaIds;
-
-		this.updateHiddenAreasInView(oldRanges, newRanges);
 
 		// set hidden ranges prefix sum
 		let start = 0;
@@ -249,14 +259,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		this.hiddenRangesPrefixSum = new PrefixSumComputer(values);
-		// console.log(ret);
-		// for (let i = 0; i < this.hiddenRangesPrefixSum.getCount(); i++) {
-		// 	console.log(this.hiddenRangesPrefixSum.getAccumulatedValue(i));
-		// }
 
-		// for (let i = 0; i < this._viewModel!.length; i++) {
-		// 	console.log(this.hiddenRangesPrefixSum.getIndexOf(i));
-		// }
+		if (triggerViewUpdate) {
+			this.updateHiddenAreasInView(oldRanges, newRanges);
+		}
 
 		return true;
 	}

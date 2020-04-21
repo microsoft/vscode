@@ -331,7 +331,7 @@ export interface INotebookCellList {
 	revealElementRangeInView(element: ICellViewModel, range: Range): void;
 	revealElementRangeInCenter(element: ICellViewModel, range: Range): void;
 	revealElementRangeInCenterIfOutsideViewport(element: ICellViewModel, range: Range): void;
-	setHiddenAreas(_ranges: ICellRange[]): boolean;
+	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
 	getAbsoluteTopOfElement(element: ICellViewModel): number;
