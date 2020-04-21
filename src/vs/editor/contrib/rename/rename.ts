@@ -180,6 +180,9 @@ class RenameController implements IEditorContribution {
 		}
 
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
+
+		// Special cancellation handling here (allows the user to move the cursor but only within loc.range):
+		this._cts.dispose(false);
 		const inputFieldResult = await this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview);
 
 		// no result, only hint to focus the editor or not
@@ -189,6 +192,8 @@ class RenameController implements IEditorContribution {
 			}
 			return undefined;
 		}
+
+		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value);
 
 		this.editor.focus();
 
