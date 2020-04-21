@@ -654,7 +654,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	async insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<void> {
+	async insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<CellViewModel> {
 		const newLanguages = this.notebookViewModel!.languages;
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
 		const index = this.notebookViewModel!.getCellIndex(cell);
@@ -666,10 +666,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			newCell.editState = CellEditState.Editing;
 		}
 
-		let r: () => void;
+		let r: (cell: CellViewModel) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
 			this.list?.revealElementInCenterIfOutsideViewport(cell);
-			r();
+			r(newCell);
 		});
 
 		return new Promise(resolve => { r = resolve; });

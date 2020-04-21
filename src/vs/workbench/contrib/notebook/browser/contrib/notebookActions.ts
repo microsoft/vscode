@@ -513,7 +513,8 @@ abstract class InsertCellCommand extends Action2 {
 			}
 		}
 
-		await context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
+		const newCell = await context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
+		await context.notebookEditor.focusNotebookCell(newCell, true);
 	}
 }
 
