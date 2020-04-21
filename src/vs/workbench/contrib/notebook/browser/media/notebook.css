@@ -48,7 +48,7 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.markdown-cell-row .cell-drag-handle {
-	top: 31px;
+	top: 20px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.code-cell-row .cell-drag-handle {
@@ -414,6 +414,11 @@
 	font-weight: normal;
 }
 
+/* Removes margin of first item in markdown cell */
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div *:first-child {
+	margin-top: 0;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table {
 	border-collapse: collapse;
 	border-spacing: 0;
@@ -490,7 +495,7 @@
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container .notebook-folding-indicator {
 	position: absolute;
-	top: 32px;
+	top: 20px;
 	left: 26px;
 	cursor: pointer;
 }
