@@ -654,7 +654,7 @@ registerAction2(class extends Action2 {
 						ContextKeyExpr.equals(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, true)),
 					order: CellToolbarOrder.SaveCell
 				},
-				icon: { id: 'codicon/save' }
+				icon: { id: 'codicon/check' }
 			});
 	}
 
