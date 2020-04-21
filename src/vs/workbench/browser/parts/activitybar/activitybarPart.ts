@@ -199,7 +199,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private onDidRegisterExtensions(): void {
 		this.removeNotExistingComposites();
-
 		this.saveCachedViewlets();
 	}
 
@@ -477,14 +476,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		for (const viewlet of viewlets) {
-			this.enableCompositeActions(viewlet);
 			const viewContainer = this.getViewContainer(viewlet.id)!;
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-			this.onDidChangeActiveViews(viewlet, viewContainerModel, viewContainer.hideIfEmpty);
+			this.updateActivity(viewlet, viewContainerModel);
+			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
 
 			const disposables = new DisposableStore();
-			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewlet, viewContainerModel, viewContainer.hideIfEmpty)));
 			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewlet, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
 
 			this.viewletDisposables.set(viewlet.id, disposables);
 		}
@@ -501,13 +500,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private updateActivity(viewlet: ViewletDescriptor, viewContainerModel: IViewContainerModel): void {
-		const icon = viewContainerModel.icon;
 
 		const activity: IActivity = {
 			id: viewlet.id,
 			name: viewContainerModel.title,
-			cssClass: isString(icon) ? icon : undefined,
-			iconUrl: icon instanceof URI ? icon : undefined,
+			iconUrl: URI.isUri(viewContainerModel.icon) ? viewContainerModel.icon : undefined,
+			cssClass: isString(viewContainerModel.icon) ? viewContainerModel.icon : undefined,
 			keybindingId: viewlet.keybindingId
 		};
 
@@ -517,14 +515,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
 			pinnedAction.setActivity(activity);
 		}
+
+		this.saveCachedViewlets();
 	}
 
-	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewContainerModel, hideIfEmpty?: boolean): void {
-		if (viewDescriptors.activeViewDescriptors.length) {
-			this.updateActivity(viewlet, viewDescriptors);
-			this.compositeBar.addComposite(viewlet);
-		} else if (hideIfEmpty) {
-			this.hideComposite(viewlet.id);
+	private onDidChangeActiveViews(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		if (viewContainerModel.activeViewDescriptors.length) {
+			this.compositeBar.addComposite(viewContainer);
+		} else if (viewContainer.hideIfEmpty) {
+			this.hideComposite(viewContainer.id);
 		}
 	}
 
@@ -556,17 +555,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			compositeActions.activityAction.dispose();
 			compositeActions.pinnedAction.dispose();
 			this.compositeActions.delete(compositeId);
-		}
-	}
-
-	private enableCompositeActions(viewlet: ViewletDescriptor): void {
-		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
-		if (activityAction instanceof PlaceHolderViewletActivityAction) {
-			activityAction.setActivity(viewlet);
-		}
-
-		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
-			pinnedAction.setActivity(viewlet);
 		}
 	}
 
