@@ -144,9 +144,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._register(this._versionManager.onDidPickNewVersion(() => {
 			this.restartTsServer();
 		}));
-		this._register(this._versionManager.onEnteredPromptWorkspaceTsdkState(() => {
-			this._versionManager.promptUseWorkspaceTsdk();
-		}));
 
 		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds);
 		this.onReady(() => { this.bufferSyncSupport.listen(); });

@@ -40,7 +40,7 @@ export class TypeScriptVersionManager extends Disposable {
 
 		if (this.isInPromptWorkspaceTsdkState(configuration)) {
 			setImmediate(() => {
-				this._onEnteredPromptWorkspaceTsdkState.fire();
+				this.promptUseWorkspaceTsdk();
 			});
 		}
 
@@ -48,8 +48,6 @@ export class TypeScriptVersionManager extends Disposable {
 
 	private readonly _onDidPickNewVersion = this._register(new vscode.EventEmitter<void>());
 	public readonly onDidPickNewVersion = this._onDidPickNewVersion.event;
-	public readonly _onEnteredPromptWorkspaceTsdkState = this._register(new vscode.EventEmitter<void>());;
-	public readonly onEnteredPromptWorkspaceTsdkState = this._onEnteredPromptWorkspaceTsdkState.event;
 
 	public updateConfiguration(nextConfiguration: TypeScriptServiceConfiguration) {
 		const lastConfiguration = this.configuration;
@@ -59,7 +57,7 @@ export class TypeScriptVersionManager extends Disposable {
 			!this.isInPromptWorkspaceTsdkState(lastConfiguration)
 			&& this.isInPromptWorkspaceTsdkState(nextConfiguration)
 		) {
-			this._onEnteredPromptWorkspaceTsdkState.fire();
+			this.promptUseWorkspaceTsdk();
 		}
 	}
 
@@ -118,7 +116,7 @@ export class TypeScriptVersionManager extends Disposable {
 		});
 	}
 
-	public async promptUseWorkspaceTsdk(): Promise<void> {
+	private async promptUseWorkspaceTsdk(): Promise<void> {
 		const workspaceVersion = this.versionProvider.localVersion;
 
 		if (workspaceVersion === undefined) {
