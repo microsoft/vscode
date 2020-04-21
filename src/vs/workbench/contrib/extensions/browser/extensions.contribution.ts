@@ -104,13 +104,13 @@ actionRegistry.registerWorkbenchAction(listOutdatedActionDescriptor, 'Extensions
 const recommendationsActionDescriptor = SyncActionDescriptor.from(ShowRecommendedExtensionsAction);
 actionRegistry.registerWorkbenchAction(recommendationsActionDescriptor, 'Extensions: Show Recommended Extensions', ExtensionsLabel);
 
-const keymapRecommendationsActionDescriptor = SyncActionDescriptor.create(ShowRecommendedKeymapExtensionsAction, ShowRecommendedKeymapExtensionsAction.ID, ShowRecommendedKeymapExtensionsAction.SHORT_LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_M) });
+const keymapRecommendationsActionDescriptor = SyncActionDescriptor.from(ShowRecommendedKeymapExtensionsAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_M) });
 actionRegistry.registerWorkbenchAction(keymapRecommendationsActionDescriptor, 'Preferences: Keymaps', PreferencesLabel);
 
-const languageExtensionsActionDescriptor = SyncActionDescriptor.create(ShowLanguageExtensionsAction, ShowLanguageExtensionsAction.ID, ShowLanguageExtensionsAction.SHORT_LABEL);
+const languageExtensionsActionDescriptor = SyncActionDescriptor.from(ShowLanguageExtensionsAction);
 actionRegistry.registerWorkbenchAction(languageExtensionsActionDescriptor, 'Preferences: Language Extensions', PreferencesLabel);
 
-const azureExtensionsActionDescriptor = SyncActionDescriptor.create(ShowAzureExtensionsAction, ShowAzureExtensionsAction.ID, ShowAzureExtensionsAction.SHORT_LABEL);
+const azureExtensionsActionDescriptor = SyncActionDescriptor.from(ShowAzureExtensionsAction);
 actionRegistry.registerWorkbenchAction(azureExtensionsActionDescriptor, 'Preferences: Azure Extensions', PreferencesLabel);
 
 const popularActionDescriptor = SyncActionDescriptor.from(ShowPopularExtensionsAction);

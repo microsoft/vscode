@@ -22,7 +22,7 @@ import { IReplaceService } from 'vs/workbench/contrib/search/common/replace';
 import { FolderMatch, FileMatch, FolderMatchWithResource, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ISearchConfiguration, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { ISearchConfiguration, VIEW_ID, VIEWLET_ID } from 'vs/workbench/services/search/common/search';
 import { ISearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { ITreeNavigator } from 'vs/base/browser/ui/tree/tree';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -182,6 +182,7 @@ export const FindInFilesCommand: ICommandHandler = (accessor, args: IFindInFiles
 
 export class OpenSearchViewletAction extends FindOrReplaceInFilesAction {
 
+	static readonly ID = VIEWLET_ID;
 	static readonly LABEL = nls.localize('showSearch', "Show Search");
 
 	constructor(id: string, label: string,
