@@ -23,15 +23,16 @@ import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/noteb
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { CellFoldingState, FoldingModel, FoldingRegionDelegate } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
+import { CellFoldingState, FoldingRegionDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
 	editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState | null };
-	hiddenFoldingRanges: ICellRange[];
+	hiddenFoldingRanges?: ICellRange[];
 	cellTotalHeights?: { [key: number]: number };
 	scrollPosition?: { left: number; top: number; };
 	focus?: number;
@@ -200,8 +201,7 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 	private _lastDecorationId: number = 0;
 	private readonly _instanceId: string;
 	public readonly id: string;
-
-	private _foldingModel: FoldingModel;
+	private _foldingRanges: FoldingRegions | null = null;
 	private _onDidFoldingRegionChanges = new Emitter<void>();
 	onDidFoldingRegionChanged: Event<void> = this._onDidFoldingRegionChanges.event;
 	private _hiddenRanges: ICellRange[] = [];
@@ -259,50 +259,38 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);
 		});
-
-		this._foldingModel = new FoldingModel();
-		this._foldingModel.attachViewModel(this);
-
-		this._register(this._foldingModel.onDidFoldingRegionChanged(() => {
-			this._updateFoldingRanges();
-		}));
 	}
 
 	getFoldingStartIndex(index: number): number {
-		const range = this._foldingModel.regions.findRange(index + 1);
-		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
+		if (!this._foldingRanges) {
+			return -1;
+		}
+
+		const range = this._foldingRanges.findRange(index + 1);
+		const startIndex = this._foldingRanges.getStartLineNumber(range) - 1;
 		return startIndex;
 	}
 
 	getFoldingState(index: number): CellFoldingState {
-		const range = this._foldingModel.regions.findRange(index + 1);
-		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
+		if (!this._foldingRanges) {
+			return CellFoldingState.None;
+		}
+
+		const range = this._foldingRanges.findRange(index + 1);
+		const startIndex = this._foldingRanges.getStartLineNumber(range) - 1;
 
 		if (startIndex !== index) {
 			return CellFoldingState.None;
 		}
 
-		return this._foldingModel.regions.isCollapsed(range) ? CellFoldingState.Collapsed : CellFoldingState.Expanded;
+		return this._foldingRanges.isCollapsed(range) ? CellFoldingState.Collapsed : CellFoldingState.Expanded;
 	}
 
-	setFoldingState(index: number, state: CellFoldingState): void {
-
-		const range = this._foldingModel.regions.findRange(index + 1);
-		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
-
-		if (startIndex !== index) {
-			return;
-		}
-
-		this._foldingModel.setCollapsed(range, state === CellFoldingState.Collapsed);
-		this._updateFoldingRanges();
-	}
-
-	private _updateFoldingRanges() {
+	updateFoldingRanges(ranges: FoldingRegions) {
+		this._foldingRanges = ranges;
 		let updateHiddenAreas = false;
 		let newHiddenAreas: ICellRange[] = [];
 
-		let ranges = this._foldingModel.regions;
 		let i = 0; // index into hidden
 		let k = 0;
 
@@ -580,7 +568,7 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 		return true;
 	}
 
-	saveEditorViewState(): INotebookEditorViewState {
+	geteEditorViewState(): INotebookEditorViewState {
 		const editingCells: { [key: number]: boolean } = {};
 		this._viewCells.filter(cell => cell.editState === CellEditState.Editing).forEach(cell => editingCells[cell.model.handle] = true);
 		const editorViewStates: { [key: number]: editorCommon.ICodeEditorViewState } = {};
@@ -590,12 +578,9 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			}
 		});
 
-		const hiddenFoldingRanges = this._foldingModel.getMemento();
-
 		return {
 			editingCells,
 			editorViewStates,
-			hiddenFoldingRanges
 		};
 	}
 
@@ -612,9 +597,6 @@ export class NotebookViewModel extends Disposable implements FoldingRegionDelega
 			const cellHeight = viewState.cellTotalHeights ? viewState.cellTotalHeights[index] : undefined;
 			cell.restoreEditorViewState(editorViewState, cellHeight);
 		});
-
-		this._foldingModel.applyMemento(viewState.hiddenFoldingRanges || []);
-		this._updateFoldingRanges();
 	}
 
 	/**

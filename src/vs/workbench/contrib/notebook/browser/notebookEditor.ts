@@ -109,6 +109,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private editorExecutingNotebook: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
 	private findWidget: NotebookFindWidget;
+	private folding: FoldingController | null = null;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -282,7 +283,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	onWillHide() {
 		if (this.input && this.input instanceof NotebookEditorInput && !this.input.isDisposed()) {
-			this.saveTextEditorViewState(this.input);
+			this.saveEditorViewState(this.input);
 		}
 
 		this.editorFocus?.set(false);
@@ -309,7 +310,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		if (editor === this.input) {
-			this.saveTextEditorViewState(editor);
+			this.saveEditorViewState(editor);
 		}
 	}
 
@@ -321,7 +322,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input instanceof NotebookEditorInput) {
-			this.saveTextEditorViewState(this.input);
+			this.saveEditorViewState(this.input);
 		}
 
 		await super.setInput(input, options, token);
@@ -389,10 +390,19 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this.editorEditable?.set(e.source.editable);
 		}));
 
-		this.localStore.add(this.instantiationService.createInstance(FoldingController, this));
+		// load contributions
+		this.folding = this.localStore.add(this.instantiationService.createInstance(FoldingController, this));
 
+		// restore view states, including contributions
 		const viewState = this.loadTextEditorViewState(input);
-		this.notebookViewModel.restoreEditorViewState(viewState);
+
+		{
+			// restore view state
+			this.notebookViewModel.restoreEditorViewState(viewState);
+
+			// contribution state restore
+			this.folding?.applyMemento(viewState?.hiddenFoldingRanges || []);
+		}
 
 		this.webview?.updateRendererPreloads(this.notebookViewModel.renderers);
 
@@ -444,6 +454,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.list!.layout();
 
+		// restore list state at last, it must be after list layout
 		this.restoreTextEditorViewState(viewState);
 	}
 
@@ -469,9 +480,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	private saveTextEditorViewState(input: NotebookEditorInput): void {
+	private saveEditorViewState(input: NotebookEditorInput): void {
 		if (this.group && this.notebookViewModel) {
-			const state = this.notebookViewModel.saveEditorViewState();
+			const state = this.notebookViewModel.geteEditorViewState();
 			if (this.list) {
 				state.scrollPosition = { left: this.list.scrollLeft, top: this.list.scrollTop };
 				let cellHeights: { [key: number]: number } = {};
@@ -498,6 +509,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					state.editorFocused = editorFocused;
 					state.focus = focus;
 				}
+			}
+
+			// Save contribution view states
+			if (this.folding) {
+				const foldingState = this.folding.getMemento();
+				state.hiddenFoldingRanges = foldingState;
 			}
 
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
@@ -530,7 +547,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	protected saveState(): void {
 		if (this.input instanceof NotebookEditorInput) {
-			this.saveTextEditorViewState(this.input);
+			this.saveEditorViewState(this.input);
 		}
 
 		super.saveState();
