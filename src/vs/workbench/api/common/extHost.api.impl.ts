@@ -904,12 +904,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: notebook
 		const notebook: typeof vscode.notebook = {
 			registerNotebookProvider: (viewType: string, provider: vscode.NotebookProvider) => {
+				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookProvider(extension, viewType, provider);
 			},
 			registerNotebookOutputRenderer: (type: string, outputFilter: vscode.NotebookOutputSelector, renderer: vscode.NotebookOutputRenderer) => {
+				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookOutputRenderer(type, extension, outputFilter, renderer);
 			},
 			get activeNotebookDocument(): vscode.NotebookDocument | undefined {
+				checkProposedApiEnabled(extension);
 				return extHostNotebook.activeNotebookDocument;
 			},
 			createConcatTextDocument(notebook, selector) {

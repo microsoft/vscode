@@ -109,6 +109,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private editorExecutingNotebook: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
 	private findWidget: NotebookFindWidget;
+	private folding: FoldingController | null = null;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -282,7 +283,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	onWillHide() {
 		if (this.input && this.input instanceof NotebookEditorInput && !this.input.isDisposed()) {
-			this.saveTextEditorViewState(this.input);
+			this.saveEditorViewState(this.input);
 		}
 
 		this.editorFocus?.set(false);
@@ -309,7 +310,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		if (editor === this.input) {
-			this.saveTextEditorViewState(editor);
+			this.saveEditorViewState(editor);
 		}
 	}
 
@@ -321,7 +322,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input instanceof NotebookEditorInput) {
-			this.saveTextEditorViewState(this.input);
+			this.saveEditorViewState(this.input);
 		}
 
 		await super.setInput(input, options, token);
@@ -384,14 +385,24 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.notebookViewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher, this.getLayoutInfo());
 		this.editorEditable?.set(!!this.notebookViewModel.metadata?.editable);
 		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
-		const viewState = this.loadTextEditorViewState(input);
-		this.notebookViewModel.restoreEditorViewState(viewState);
 
 		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
 			this.editorEditable?.set(e.source.editable);
 		}));
 
-		this.localStore.add(this.instantiationService.createInstance(FoldingController, this));
+		// load contributions
+		this.folding = this.localStore.add(this.instantiationService.createInstance(FoldingController, this));
+
+		// restore view states, including contributions
+		const viewState = this.loadTextEditorViewState(input);
+
+		{
+			// restore view state
+			this.notebookViewModel.restoreEditorViewState(viewState);
+
+			// contribution state restore
+			this.folding?.applyMemento(viewState?.hiddenFoldingRanges || []);
+		}
 
 		this.webview?.updateRendererPreloads(this.notebookViewModel.renderers);
 
@@ -401,37 +412,49 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}));
 
 		this.localStore.add(this.list!.onDidChangeContentHeight(() => {
-			const scrollTop = this.list?.scrollTop || 0;
-			const scrollHeight = this.list?.scrollHeight || 0;
-			this.webview!.element.style.height = `${scrollHeight}px`;
-			let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
+			DOM.scheduleAtNextAnimationFrame(() => {
+				const scrollTop = this.list?.scrollTop || 0;
+				const scrollHeight = this.list?.scrollHeight || 0;
+				this.webview!.element.style.height = `${scrollHeight}px`;
+				let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
 
-			if (this.webview?.insetMapping) {
-				this.webview?.insetMapping.forEach((value, key) => {
-					const cell = value.cell;
-					const cellTop = this.list?.getAbsoluteTopOfElement(cell) || 0;
-					if (this.webview!.shouldUpdateInset(cell, key, cellTop)) {
-						updateItems.push({
-							cell: cell,
-							output: key,
-							cellTop: cellTop
-						});
+				if (this.webview?.insetMapping) {
+					this.webview?.insetMapping.forEach((value, key) => {
+						const cell = value.cell;
+						const viewIndex = this.list?.getViewIndex(cell);
+
+						if (viewIndex === undefined) {
+							return;
+						}
+
+						const cellTop = this.list?.getAbsoluteTopOfElement(cell) || 0;
+						if (this.webview!.shouldUpdateInset(cell, key, cellTop)) {
+							updateItems.push({
+								cell: cell,
+								output: key,
+								cellTop: cellTop
+							});
+						}
+					});
+
+					if (updateItems.length) {
+						this.webview?.updateViewScrollTop(-scrollTop, updateItems);
 					}
-				});
-
-				if (updateItems.length) {
-					this.webview?.updateViewScrollTop(-scrollTop, updateItems);
 				}
-			}
+			});
 		}));
 
 		this.list!.attachViewModel(this.notebookViewModel);
 		this.localStore.add(this.list!.onDidRemoveOutput(output => {
 			this.removeInset(output);
 		}));
+		this.localStore.add(this.list!.onDidHideOutput(output => {
+			this.hideInset(output);
+		}));
 
 		this.list!.layout();
 
+		// restore list state at last, it must be after list layout
 		this.restoreTextEditorViewState(viewState);
 	}
 
@@ -457,9 +480,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	private saveTextEditorViewState(input: NotebookEditorInput): void {
+	private saveEditorViewState(input: NotebookEditorInput): void {
 		if (this.group && this.notebookViewModel) {
-			const state = this.notebookViewModel.saveEditorViewState();
+			const state = this.notebookViewModel.geteEditorViewState();
 			if (this.list) {
 				state.scrollPosition = { left: this.list.scrollLeft, top: this.list.scrollTop };
 				let cellHeights: { [key: number]: number } = {};
@@ -486,6 +509,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					state.editorFocused = editorFocused;
 					state.focus = focus;
 				}
+			}
+
+			// Save contribution view states
+			if (this.folding) {
+				const foldingState = this.folding.getMemento();
+				state.hiddenFoldingRanges = foldingState;
 			}
 
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
@@ -518,7 +547,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	protected saveState(): void {
 		if (this.input instanceof NotebookEditorInput) {
-			this.saveTextEditorViewState(this.input);
+			this.saveEditorViewState(this.input);
 		}
 
 		super.saveState();
@@ -577,7 +606,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	setHiddenAreas(_ranges: ICellRange[]): boolean {
-		return this.list!.setHiddenAreas(_ranges);
+		return this.list!.setHiddenAreas(_ranges, true);
 	}
 
 	//#endregion
@@ -606,6 +635,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	//#region Cell operations
 	async layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void> {
+		const viewIndex = this.list!.getViewIndex(cell);
+		if (viewIndex === undefined) {
+			// the cell is hidden
+			return;
+		}
+
 		let relayout = (cell: ICellViewModel, height: number) => {
 			this.list?.updateElementHeight2(cell, height);
 		};
@@ -855,6 +890,14 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		this.webview!.removeInset(output);
+	}
+
+	hideInset(output: IOutput) {
+		if (!this.webview) {
+			return;
+		}
+
+		this.webview!.hideInset(output);
 	}
 
 	getOutputRenderer(): OutputRenderer {
