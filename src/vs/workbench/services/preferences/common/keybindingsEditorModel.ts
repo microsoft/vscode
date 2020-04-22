@@ -249,6 +249,7 @@ export class KeybindingsEditorModel extends EditorModel {
 						}
 						case OperatingSystem.Macintosh: {
 							osSpecificKey = contributedKeybinding.mac || contributedKeybinding.key;
+							break;
 						}
 					}
 					contributedKeybindings[contributedKeybinding.command] = {
