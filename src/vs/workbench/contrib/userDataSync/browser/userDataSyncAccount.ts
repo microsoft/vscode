@@ -202,7 +202,7 @@ export class UserDataSyncAccounts extends Disposable {
 			const quickPick = this.quickInputService.createQuickPick<AccountQuickPickItem>();
 			disposables.add(quickPick);
 
-			quickPick.title = localize('pick an account', "Preferences Sync: Pick an account");
+			quickPick.title = localize('pick an account', "Preferences Sync");
 			quickPick.ok = false;
 			quickPick.placeholder = localize('choose account placeholder', "Select an account");
 			quickPick.ignoreFocusOut = true;
@@ -225,20 +225,24 @@ export class UserDataSyncAccounts extends Disposable {
 		const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.providerId ? -1 : 1);
 		for (const authenticationProvider of authenticationProviders) {
 			const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
-			quickPickItems.push({ type: 'separator', label: providerName });
-			const accounts = this._all.get(authenticationProvider.id) || [];
-			for (const account of accounts) {
+			if (this.all.length) {
+				quickPickItems.push({ type: 'separator', label: providerName });
+				const accounts = this._all.get(authenticationProvider.id) || [];
+				for (const account of accounts) {
+					quickPickItems.push({
+						label: account.accountName,
+						detail: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used") : undefined,
+						account,
+						authenticationProvider,
+					});
+				}
 				quickPickItems.push({
-					label: account.accountName,
-					detail: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used") : undefined,
-					account,
+					label: accounts.length ? localize('use another', "Use another {0} Account", providerName) : localize('use provider account', "Use {0} Account", providerName),
 					authenticationProvider,
 				});
+			} else {
+				quickPickItems.push({ label: providerName, authenticationProvider });
 			}
-			quickPickItems.push({
-				label: accounts.length ? localize('choose another', "Use another {0} Account", providerName) : localize('choose', "Use {0} Account", providerName),
-				authenticationProvider,
-			});
 		}
 		return quickPickItems;
 	}
