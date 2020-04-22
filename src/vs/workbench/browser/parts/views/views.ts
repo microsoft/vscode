@@ -66,7 +66,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.viewDisposable.clear();
 		}));
 
-		this.viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewContainersRegistry.getViewContainerLocation(viewContainer)));
+		this.viewDescriptorService.getViewContainers().forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewDescriptorService.getViewContainerLocation(viewContainer)!));
 		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => this.onDidRegisterViewContainer(viewContainer, viewContainerLocation)));
 
 		this._register(this.viewContainersRegistry.onDidDeregister(e => this.viewPaneContainers.delete(e.viewContainer.id)));
@@ -118,8 +118,8 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
-		const location = this.viewContainersRegistry.getViewContainerLocation(container);
-		if (location === undefined) {
+		const location = this.viewDescriptorService.getViewContainerLocation(container);
+		if (location === null) {
 			return;
 		}
 
@@ -172,7 +172,7 @@ export class ViewsService extends Disposable implements IViewsService {
 				}
 				run(accessor: ServicesAccessor): void {
 					const viewDescriptorService = accessor.get(IViewDescriptorService);
-					viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainer(viewDescriptor.id)!);
+					viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!);
 					accessor.get(IViewsService).openView(viewDescriptor.id, true);
 				}
 			}));
@@ -216,7 +216,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	getActiveViewWithId<T extends IView>(id: string): T | null {
-		const viewContainer = this.viewDescriptorService.getViewContainer(id);
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (viewContainer) {
 			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
 			if (activeViewPaneContainer) {
@@ -227,9 +227,9 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	async openView<T extends IView>(id: string, focus: boolean): Promise<T | null> {
-		const viewContainer = this.viewDescriptorService.getViewContainer(id);
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (viewContainer) {
-			const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 			const compositeDescriptor = this.getComposite(viewContainer.id, location!);
 			if (compositeDescriptor) {
 				const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
@@ -245,14 +245,14 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	closeView(id: string): void {
-		const viewContainer = this.viewDescriptorService.getViewContainer(id);
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (viewContainer) {
 			const activeViewPaneContainer = this.getActiveViewPaneContainer(viewContainer);
 			if (activeViewPaneContainer) {
 				const view = activeViewPaneContainer.getView(id);
 				if (view) {
 					if (activeViewPaneContainer.views.length === 1) {
-						const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+						const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 						if (location === ViewContainerLocation.Sidebar) {
 							this.layoutService.setSideBarHidden(true);
 						} else if (location === ViewContainerLocation.Panel) {
@@ -267,7 +267,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private getActiveViewPaneContainer(viewContainer: ViewContainer): IViewPaneContainer | null {
-		const location = this.viewContainersRegistry.getViewContainerLocation(viewContainer);
+		const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
 
 		if (location === ViewContainerLocation.Sidebar) {
 			const activeViewlet = this.viewletService.getActiveViewlet();
@@ -285,7 +285,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	getProgressIndicator(id: string): IProgressIndicator | undefined {
-		const viewContainer = this.viewDescriptorService.getViewContainer(id);
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
 		if (viewContainer === null) {
 			return undefined;
 		}

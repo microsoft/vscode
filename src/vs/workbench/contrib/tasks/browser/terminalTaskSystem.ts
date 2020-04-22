@@ -299,7 +299,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		const isTerminalInPanel: boolean = this.viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID) === ViewContainerLocation.Panel;
+		const isTerminalInPanel: boolean = this.viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID) === ViewContainerLocation.Panel;
 		if (isTerminalInPanel && this.isTaskVisible(task)) {
 			if (this.previousPanelId) {
 				if (this.previousTerminalInstance) {

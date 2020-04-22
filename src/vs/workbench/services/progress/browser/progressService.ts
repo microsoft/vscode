@@ -420,12 +420,12 @@ export class ProgressService extends Disposable implements IProgressService {
 		// show in viewlet
 		const promise = this.withCompositeProgress(this.viewsService.getProgressIndicator(viewId), task, options);
 
-		const location = this.viewDescriptorService.getViewLocation(viewId);
+		const location = this.viewDescriptorService.getViewLocationById(viewId);
 		if (location !== ViewContainerLocation.Sidebar) {
 			return promise;
 		}
 
-		const viewletId = this.viewDescriptorService.getViewContainer(viewId)?.id;
+		const viewletId = this.viewDescriptorService.getViewContainerByViewId(viewId)?.id;
 		if (viewletId === undefined) {
 			return promise;
 		}
