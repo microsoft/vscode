@@ -74,7 +74,6 @@
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-statusbar-container {
 	display: none;
-	box-sizing: border-box;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-editor-part {
@@ -209,6 +208,7 @@
 	font-size: 12px;
 	display: flex;
 	position: relative;
+	box-sizing: border-box;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-message {
