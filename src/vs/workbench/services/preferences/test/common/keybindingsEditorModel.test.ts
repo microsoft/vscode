@@ -242,23 +242,23 @@ suite('KeybindingsEditorModel test', () => {
 		assert.ok(actual);
 	});
 
-	test('filter by default source with "@source: " prefix', async () => {
+	test('filter by default source with "@default"', async () => {
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: true });
 		prepareKeybindingService(expected);
 
 		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('@source: default').filter(element => element.keybindingItem.command === command)[0];
+		const actual = testObject.fetch('@default').filter(element => element.keybindingItem.command === command)[0];
 		assert.ok(actual);
 	});
 
-	test('filter by user source with "@source: " prefix', async () => {
+	test('filter by user source with "@user"', async () => {
 		const command = 'a' + uuid.generateUuid();
 		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, when: 'context1 && context2', isDefault: false });
 		prepareKeybindingService(expected);
 
 		await testObject.resolve(new Map<string, string>());
-		const actual = testObject.fetch('@source: user').filter(element => element.keybindingItem.command === command)[0];
+		const actual = testObject.fetch('@user').filter(element => element.keybindingItem.command === command)[0];
 		assert.ok(actual);
 	});
 
