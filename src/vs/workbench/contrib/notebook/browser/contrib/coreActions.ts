@@ -673,10 +673,13 @@ registerAction2(class extends Action2 {
 
 		if (result) {
 			// deletion succeeds, move focus to the next cell
-
 			const nextCellIdx = index < context.notebookEditor.viewModel!.length ? index : context.notebookEditor.viewModel!.length - 1;
 			if (nextCellIdx >= 0) {
 				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[nextCellIdx], false);
+			} else {
+				// No cells left, insert a new empty one
+				const newCell = context.notebookEditor.insertNotebookCell(undefined, context.cell.cellKind);
+				context.notebookEditor.focusNotebookCell(newCell, true);
 			}
 		}
 	}
