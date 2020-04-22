@@ -401,15 +401,21 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 	}
 
 	private renderTwistie(node: ITreeNode<T, TFilterData>, templateData: ITreeListTemplateData<TTemplateData>) {
+		removeClasses(templateData.twistie, treeItemExpandedIcon.classNames);
+
+		let twistieRendered = false;
 		if (this.renderer.renderTwistie) {
-			this.renderer.renderTwistie(node.element, templateData.twistie);
+			twistieRendered = this.renderer.renderTwistie(node.element, templateData.twistie);
 		}
 
 		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
-			addClasses(templateData.twistie, treeItemExpandedIcon.classNames, 'collapsible');
+			if (!twistieRendered) {
+				addClasses(templateData.twistie, treeItemExpandedIcon.classNames);
+			}
+			addClasses(templateData.twistie, 'collapsible');
 			toggleClass(templateData.twistie, 'collapsed', node.collapsed);
 		} else {
-			removeClasses(templateData.twistie, treeItemExpandedIcon.classNames, 'collapsible', 'collapsed');
+			removeClasses(templateData.twistie, 'collapsible', 'collapsed');
 		}
 
 		if (node.collapsible) {
