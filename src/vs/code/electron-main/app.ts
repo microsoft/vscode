@@ -82,11 +82,11 @@ import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 
-export class CodeApplication extends Disposable {
-	private windowsMainService: IWindowsMainService | undefined;
-	private dialogMainService: IDialogMainService | undefined;
+// export class CodeApplication extends Disposable {
+//	private windowsMainService: IWindowsMainService | undefined;
+//	private dialogMainService: IDialogMainService | undefined;
 
-	constructor(
+//	constructor(
 		private readonly mainIpcServer: Server,
 		private readonly userEnv: IProcessEnvironment,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
