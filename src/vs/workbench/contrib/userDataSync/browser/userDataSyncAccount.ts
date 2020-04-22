@@ -129,6 +129,10 @@ export class UserDataSyncAccounts extends Disposable {
 		this._all = allAccounts;
 		const status = this.current ? AccountStatus.Available : AccountStatus.Unavailable;
 
+		if (this._status === AccountStatus.Unavailable) {
+			await this.authenticationTokenService.setToken(undefined);
+		}
+
 		if (this._status !== status) {
 			const previous = this._status;
 			this.logService.debug('Sync account status changed', previous, status);
