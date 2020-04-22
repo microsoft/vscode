@@ -84,10 +84,15 @@ export class UserDataSyncAccounts extends Disposable {
 		this.defaultUserDataSyncAccount = environmentService.options?.loggedInAccount;
 		if (this.authenticationProviders.length) {
 			extensionService.whenInstalledExtensionsRegistered().then(() => {
-				if (this.authenticationProviders.some(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
+				if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
 					this.initialize();
 				} else {
-					this._register(Event.once(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, authenticationProviderId => this.isSupportedAuthenticationProviderId(authenticationProviderId)))(() => this.initialize()));
+					const disposable = this.authenticationService.onDidRegisterAuthenticationProvider(() => {
+						if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
+							disposable.dispose();
+							this.initialize();
+						}
+					});
 				}
 			});
 		}
