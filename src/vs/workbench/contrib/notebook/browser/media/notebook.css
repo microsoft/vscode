@@ -466,7 +466,8 @@
 }
 
 /* Removes margin when only one item exists in markdown cell */
-.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div *:only-child {
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div *:only-child,
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div *:last-child {
 	margin-bottom: 0;
 }
 
