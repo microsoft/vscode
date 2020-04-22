@@ -619,16 +619,16 @@ export class CommandCenter {
 			);
 
 			let config = workspace.getConfiguration('git');
-			let promptToOpenClonedRepository = config.get<'currentWindow' | 'newWindow' | 'noFolderOpened' | 'showPrompt'>('promptToOpenClonedRepository');
+			let openAfterClone = config.get<'currentWindow' | 'newWindow' | 'noFolderOpened' | 'showPrompt'>('openAfterClone');
 
 			const uri = Uri.file(repositoryPath);
 
-			if (promptToOpenClonedRepository === 'currentWindow') {
+			if (openAfterClone === 'currentWindow') {
 				commands.executeCommand('vscode.openFolder', uri);
-			} else if (promptToOpenClonedRepository === 'newWindow') {
+			} else if (openAfterClone === 'newWindow') {
 				commands.executeCommand('vscode.openFolder', uri, true);
 			} else {
-				if (promptToOpenClonedRepository === 'noFolderOpened') {
+				if (openAfterClone === 'noFolderOpened') {
 					if (!workspace.workspaceFolders) {
 						commands.executeCommand('vscode.openFolder', uri);
 					}

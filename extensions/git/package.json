@@ -1507,7 +1507,7 @@
           "scope": "resource",
           "default": "none"
         },
-        "git.promptToOpenClonedRepository": {
+        "git.openAfterClone": {
           "type": "string",
           "enum": [
             "currentWindow",
@@ -1516,13 +1516,13 @@
             "showPrompt"
           ],
           "enumDescriptions": [
-            "%config.promptToOpenClonedRepository.currentWindow%",
-            "%config.promptToOpenClonedRepository.newWindow%",
-            "%config.promptToOpenClonedRepository.noFolderOpened%",
-            "%config.promptToOpenClonedRepository.showPrompt%"
+            "%config.openAfterClone.currentWindow%",
+            "%config.openAfterClone.newWindow%",
+            "%config.openAfterClone.noFolderOpened%",
+            "%config.openAfterClone.showPrompt%"
           ],
           "default": "showPrompt",
-          "description": "%config.promptToOpenClonedRepository%"
+          "description": "%config.openAfterClone%"
         },
         "git.showInlineOpenFileAction": {
           "type": "boolean",
