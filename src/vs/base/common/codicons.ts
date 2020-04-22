@@ -53,7 +53,6 @@ export class Codicon {
 	}
 	public get classNames() { return 'codicon codicon-' + this.id; }
 	public get cssSelector() { return '.codicon.codicon-' + this.id; }
-	public get iconClassName() { return 'codicon-' + this.id; }
 }
 
 interface IconDefinition {
