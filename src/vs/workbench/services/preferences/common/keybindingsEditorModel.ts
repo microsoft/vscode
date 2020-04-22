@@ -259,18 +259,15 @@ export class KeybindingsEditorModel extends EditorModel {
 			}
 		}
 		for (const keybinding of this._keybindingItems) {
+			if (keybinding.source === SOURCE_USER) {
+				continue;
+			}
 
 			if (keybinding.command in contributedCommands) {
-				if (keybinding.source === SOURCE_USER) {
-					continue;
-				}
 				keybinding.source = contributedCommands[keybinding.command];
 			}
 
 			if (keybinding.command in contributedKeybindings) {
-				if (keybinding.source === SOURCE_USER) {
-					continue;
-				}
 				const keybindingLabel = keybinding?.keybinding?.getLabel();
 				if (!keybindingLabel) {
 					continue;
