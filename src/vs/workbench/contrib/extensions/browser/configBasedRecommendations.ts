@@ -124,7 +124,7 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 			source: 'config',
 			reason: {
 				reasonId: ExtensionRecommendationReason.WorkspaceConfig,
-				reasonText: localize('exeBasedRecommendation', "This extension is recommended because the workspace is configured with.", tip.configName)
+				reasonText: localize('exeBasedRecommendation', "This extension is recommended because of the current workspace configuration")
 			}
 		};
 	}
