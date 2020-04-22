@@ -97,6 +97,11 @@ export class UserDataSyncAccounts extends Disposable {
 	}
 
 	private async initialize(): Promise<void> {
+		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && this.environmentService.options?.sessionId) {
+			this.currentSessionId = this.environmentService.options.sessionId;
+			this.useWorkbenchSessionId = false;
+		}
+
 		await this.update();
 
 		this._register(
@@ -179,13 +184,7 @@ export class UserDataSyncAccounts extends Disposable {
 	}
 
 	private isCurrentAccount(account: IUserDataSyncAccount): boolean {
-		if (account.sessionId === this.currentSessionId) {
-			return true;
-		}
-		if (this.useWorkbenchSessionId && account.sessionId === this.environmentService.options?.sessionId) {
-			return true;
-		}
-		return false;
+		return account.sessionId === this.currentSessionId;
 	}
 
 	async pick(): Promise<boolean> {
@@ -303,7 +302,6 @@ export class UserDataSyncAccounts extends Disposable {
 	}
 
 	private set currentSessionId(cachedSessionId: string | undefined) {
-		this.useWorkbenchSessionId = false;
 		if (this._cachedCurrentSessionId !== cachedSessionId) {
 			this._cachedCurrentSessionId = cachedSessionId;
 			if (cachedSessionId === undefined) {
