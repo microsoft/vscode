@@ -198,6 +198,7 @@ export interface RemoteSource {
 
 export interface RemoteSourceProvider {
 	readonly name: string;
+	readonly icon?: string; // codicon name
 	readonly supportsQuery?: boolean;
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
 }
