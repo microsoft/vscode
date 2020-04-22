@@ -9,7 +9,7 @@ import { CellKind, IOutput, CellUri, NotebookCellMetadata } from 'vs/workbench/c
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -21,6 +21,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -50,6 +51,12 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+
+	private _onDidChangeModel = new Emitter<void>();
+	onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+	getContribution<T extends INotebookEditorContribution>(id: string): T {
+		throw new Error('Method not implemented.');
+	}
 	onMouseUp(listener: (e: INotebookEditorMouseEvent) => void): IDisposable {
 		throw new Error('Method not implemented.');
 	}

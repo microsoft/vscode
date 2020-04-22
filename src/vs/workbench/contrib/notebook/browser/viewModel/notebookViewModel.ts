@@ -37,6 +37,7 @@ export interface INotebookEditorViewState {
 	scrollPosition?: { left: number; top: number; };
 	focus?: number;
 	editorFocused?: boolean;
+	contributionsState?: { [id: string]: any };
 }
 
 export interface ICellModelDecorations {

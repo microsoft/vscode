@@ -30,6 +30,10 @@ import { parse } from 'vs/base/common/marshalling';
 import { CellUri, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ResourceMap } from 'vs/base/common/map';
 
+// Editor Contribution
+
+import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
+
 // Output renderers registration
 
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';

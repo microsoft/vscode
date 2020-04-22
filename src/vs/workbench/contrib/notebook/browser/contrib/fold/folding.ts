@@ -3,14 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorMouseEvent, ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { INotebookEditor, INotebookEditorMouseEvent, ICellRange, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as DOM from 'vs/base/browser/dom';
 import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
+import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
 
-export class FoldingController extends Disposable {
-	private _foldingModel: FoldingModel;
+export class FoldingController extends Disposable implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.findController';
+
+	private _foldingModel: FoldingModel | null = null;
+	private _localStore: DisposableStore = new DisposableStore();
 	constructor(
 		private readonly _notebookEditor: INotebookEditor
 
@@ -18,31 +30,45 @@ export class FoldingController extends Disposable {
 		super();
 
 		this._register(this._notebookEditor.onMouseUp(e => { this.onMouseUp(e); }));
-		this._register(this._notebookEditor.viewModel!.eventDispatcher.onDidChangeCellState(e => {
-			if (e.source.editStateChanged && e.cell.cellKind === CellKind.Markdown) {
-				this._foldingModel.recompute();
-				// this._updateEditorFoldingRanges();
+
+		this._register(this._notebookEditor.onDidChangeModel(() => {
+			this._localStore.clear();
+
+			if (!this._notebookEditor.viewModel) {
+				return;
 			}
-		}));
 
-		this._foldingModel = new FoldingModel();
-		this._foldingModel.attachViewModel(this._notebookEditor.viewModel!);
+			this._localStore.add(this._notebookEditor.viewModel!.eventDispatcher.onDidChangeCellState(e => {
+				if (e.source.editStateChanged && e.cell.cellKind === CellKind.Markdown) {
+					this._foldingModel?.recompute();
+					// this._updateEditorFoldingRanges();
+				}
+			}));
 
-		this._register(this._foldingModel.onDidFoldingRegionChanged(() => {
-			this._updateEditorFoldingRanges();
+			this._foldingModel = new FoldingModel();
+			this._localStore.add(this._foldingModel);
+			this._foldingModel.attachViewModel(this._notebookEditor.viewModel!);
+
+			this._localStore.add(this._foldingModel.onDidFoldingRegionChanged(() => {
+				this._updateEditorFoldingRanges();
+			}));
 		}));
 	}
 
-	applyMemento(state: ICellRange[]) {
-		this._foldingModel.applyMemento(state);
+	saveViewState(): any {
+		return this._foldingModel?.getMemento() || [];
+	}
+
+	restoreViewState(state: ICellRange[] | undefined) {
+		this._foldingModel?.applyMemento(state || []);
 		this._updateEditorFoldingRanges();
 	}
 
-	getMemento(): ICellRange[] {
-		return this._foldingModel.getMemento();
-	}
-
 	setFoldingState(index: number, state: CellFoldingState) {
+		if (!this._foldingModel) {
+			return;
+		}
+
 		const range = this._foldingModel.regions.findRange(index + 1);
 		const startIndex = this._foldingModel.regions.getStartLineNumber(range) - 1;
 
@@ -55,6 +81,10 @@ export class FoldingController extends Disposable {
 	}
 
 	private _updateEditorFoldingRanges() {
+		if (!this._foldingModel) {
+			return;
+		}
+
 		this._notebookEditor.viewModel!.updateFoldingRanges(this._foldingModel.regions);
 		const hiddenRanges = this._notebookEditor.viewModel!.getHiddenRanges();
 		this._notebookEditor.setHiddenAreas(hiddenRanges);
@@ -96,3 +126,77 @@ export class FoldingController extends Disposable {
 		return;
 	}
 }
+
+registerNotebookContribution(FoldingController.id, FoldingController);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.fold',
+			title: 'Notebook Fold Cell',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyCode.LeftArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		const activeCell = editor.getActiveCell();
+		if (!activeCell) {
+			return;
+		}
+
+		const controller = editor.getContribution<FoldingController>(FoldingController.id);
+
+		const index = editor.viewModel?.viewCells.indexOf(activeCell);
+
+		if (index !== undefined) {
+			controller.setFoldingState(index, CellFoldingState.Collapsed);
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.unfold',
+			title: 'Notebook Unfold Cell',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyCode.RightArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		const activeCell = editor.getActiveCell();
+		if (!activeCell) {
+			return;
+		}
+
+		const controller = editor.getContribution<FoldingController>(FoldingController.id);
+
+		const index = editor.viewModel?.viewCells.indexOf(activeCell);
+
+		if (index !== undefined) {
+			controller.setFoldingState(index, CellFoldingState.Expanded);
+		}
+	}
+});
