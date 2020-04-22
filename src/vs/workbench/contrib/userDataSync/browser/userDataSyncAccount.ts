@@ -45,13 +45,12 @@ export const enum AccountStatus {
 
 export class UserDataSyncAccounts extends Disposable {
 
-	private static DONOT_USE_DEFAULT_ACCOUNT = 'userDataSyncAccount.donotUseDefaultAccount';
+	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
 	private static CACHED_SESSION_STORAGE_KEY = 'userDataSyncAccountPreference';
 
 	_serviceBrand: any;
 
 	readonly authenticationProviders: IAuthenticationProvider[];
-	private readonly defaultUserDataSyncAccount: Omit<IUserDataSyncAccount, 'sessionId'> | undefined;
 
 	private _status: AccountStatus = AccountStatus.Uninitialized;
 	get status(): AccountStatus { return this._status; }
@@ -77,11 +76,10 @@ export class UserDataSyncAccounts extends Disposable {
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.authenticationProviders = getUserDataSyncStore(productService, configurationService)?.authenticationProviders || [];
-		this.defaultUserDataSyncAccount = environmentService.options?.loggedInAccount;
 		if (this.authenticationProviders.length) {
 			extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
@@ -181,15 +179,7 @@ export class UserDataSyncAccounts extends Disposable {
 	}
 
 	private isCurrentAccount(account: IUserDataSyncAccount): boolean {
-		if (account.sessionId === this.currentSessionId) {
-			return true;
-		}
-		if (this.defaultUserDataSyncAccount && this.useDefaultUserDataSyncAccount
-			&& this.defaultUserDataSyncAccount.authenticationProviderId === account.authenticationProviderId
-			&& this.defaultUserDataSyncAccount.accountName === account.accountName) {
-			return true;
-		}
-		return false;
+		return account.sessionId === this.currentSessionId;
 	}
 
 	async pick(): Promise<boolean> {
@@ -302,17 +292,20 @@ export class UserDataSyncAccounts extends Disposable {
 	private get currentSessionId(): string | undefined {
 		if (this._cachedCurrentSessionId === null) {
 			this._cachedCurrentSessionId = this.getStoredCachedSessionId();
+			if (this._cachedCurrentSessionId === undefined && this.useWorkbenchSessionId) {
+				this._cachedCurrentSessionId = this.environmentService.options?.sessionId;
+			}
 		}
 		return this._cachedCurrentSessionId;
 	}
 
 	private set currentSessionId(cachedSessionId: string | undefined) {
-		if (this.currentSessionId !== cachedSessionId) {
+		if (this._cachedCurrentSessionId !== cachedSessionId) {
 			this._cachedCurrentSessionId = cachedSessionId;
 			if (cachedSessionId === undefined) {
 				this.storageService.remove(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 			} else {
-				this.useDefaultUserDataSyncAccount = false;
+				this.useWorkbenchSessionId = false;
 				this.storageService.store(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL);
 			}
 		}
@@ -322,11 +315,11 @@ export class UserDataSyncAccounts extends Disposable {
 		return this.storageService.get(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 	}
 
-	private get useDefaultUserDataSyncAccount(): boolean {
-		return !this.storageService.getBoolean(UserDataSyncAccounts.DONOT_USE_DEFAULT_ACCOUNT, StorageScope.GLOBAL, false);
+	private get useWorkbenchSessionId(): boolean {
+		return !this.storageService.getBoolean(UserDataSyncAccounts.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, StorageScope.GLOBAL, false);
 	}
 
-	private set useDefaultUserDataSyncAccount(useDefaultAccount: boolean) {
-		this.storageService.store(UserDataSyncAccounts.DONOT_USE_DEFAULT_ACCOUNT, !useDefaultAccount, StorageScope.GLOBAL);
+	private set useWorkbenchSessionId(useWorkbenchSession: boolean) {
+		this.storageService.store(UserDataSyncAccounts.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, !useWorkbenchSession, StorageScope.GLOBAL);
 	}
 }
