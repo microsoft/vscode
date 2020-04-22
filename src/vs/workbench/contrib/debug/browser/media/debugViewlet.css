@@ -48,6 +48,7 @@
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
+	outline-offset: 2px;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
