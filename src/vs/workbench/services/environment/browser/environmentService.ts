@@ -120,9 +120,11 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
 
+	@memoize
 	get sync(): 'on' | 'off' | undefined { return undefined; }
 
-	get defaultUserDataSyncAccount() { return this.options.defaultUserDataSyncAccount; }
+	@memoize
+	get enableSyncByDefault(): boolean { return !!this.options.enableSyncByDefault; }
 
 	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }

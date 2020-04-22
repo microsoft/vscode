@@ -19,7 +19,7 @@ import { values } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { flatten } from 'vs/base/common/arrays';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -77,11 +77,11 @@ export class UserDataSyncAccounts extends Disposable {
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.authenticationProviders = getUserDataSyncStore(productService, configurationService)?.authenticationProviders || [];
-		this.defaultUserDataSyncAccount = environmentService.defaultUserDataSyncAccount;
+		this.defaultUserDataSyncAccount = environmentService.options?.loggedInAccount;
 		if (this.authenticationProviders.length) {
 			extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this.authenticationProviders.some(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {

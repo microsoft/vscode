@@ -44,7 +44,7 @@ export interface IEnvironmentService {
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
 	sync: 'on' | 'off' | undefined;
-	defaultUserDataSyncAccount: { authenticationProviderId: string, accountName: string } | undefined;
+	enableSyncByDefault: boolean;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;

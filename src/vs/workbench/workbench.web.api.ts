@@ -214,9 +214,14 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
-	 * When provided user data is synced to this account by default unless user has chosen another account or disable sync.
+	 * Logged in user account information.
 	 */
-	readonly defaultUserDataSyncAccount?: { authenticationProviderId: string, accountName: string };
+	readonly loggedInAccount?: { authenticationProviderId: string, accountName: string };
+
+	/**
+	 * Enables user data sync by default and syncs into the [loggedInAccount}(#loggedInAccount) if provided.
+	 */
+	readonly enableSyncByDefault?: boolean;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.

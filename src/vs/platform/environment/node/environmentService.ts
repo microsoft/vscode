@@ -94,7 +94,8 @@ export class EnvironmentService implements INativeEnvironmentService {
 	@memoize
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
-	get defaultUserDataSyncAccount() { return undefined; }
+	@memoize
+	get enableSyncByDefault(): boolean { return false; }
 
 	@memoize
 	get machineSettingsResource(): URI { return resources.joinPath(URI.file(path.join(this.userDataPath, 'Machine')), 'settings.json'); }
