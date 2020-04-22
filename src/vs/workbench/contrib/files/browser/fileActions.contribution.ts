@@ -15,7 +15,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isMacintosh } from 'vs/base/common/platform';
-import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, IExplorerService, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext, ExplorerResourceAvailableEditorsContext } from 'vs/workbench/contrib/files/common/files';
+import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext, ExplorerResourceCut, IExplorerService, ExplorerResourceMoveableToTrash, ExplorerViewletVisibleContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { AutoSaveAfterShortDelayContext } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
@@ -26,7 +26,7 @@ import { WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFileFolderAction, OpenFileAction, OpenFolderAction, OpenWorkspaceAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { ActiveEditorIsReadonlyContext, DirtyWorkingCopiesContext, ActiveEditorContext, ActiveEditorAvailableEditorsContext } from 'vs/workbench/common/editor';
+import { ActiveEditorIsReadonlyContext, DirtyWorkingCopiesContext, ActiveEditorContext, ActiveEditorAvailableEditorIdsContext } from 'vs/workbench/common/editor';
 import { SidebarFocusContext } from 'vs/workbench/common/viewlet';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
@@ -36,7 +36,7 @@ const category = { value: nls.localize('filesCategory', "File"), original: 'File
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(SaveAllAction, { primary: undefined, mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_S }, win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_S) } }), 'File: Save All', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(GlobalCompareResourcesAction), 'File: Compare Active File With...', category.value);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenResourcesAction), 'File: Reopen With...', category.value, ActiveEditorAvailableEditorsContext);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ReopenResourcesAction), 'File: Reopen With...', category.value, ActiveEditorAvailableEditorIdsContext);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusFilesExplorer), 'File: Focus on Files Explorer', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(ShowActiveFileInExplorer), 'File: Reveal Active File in Side Bar', category.value);
 registry.registerWorkbenchAction(SyncActionDescriptor.from(CollapseExplorerView), 'File: Collapse Folders in Explorer', category.value);
@@ -192,7 +192,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: '6_reopen',
 	order: 20,
-	when: ActiveEditorAvailableEditorsContext,
+	when: ActiveEditorAvailableEditorIdsContext,
 });
 
 // Editor Title Menu for Conflict Resolution
@@ -442,7 +442,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 		id: OPEN_WITH_EXPLORER_COMMAND_ID,
 		title: nls.localize('explorerOpenWith', "Open With..."),
 	},
-	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceAvailableEditorsContext),
+	when: ContextKeyExpr.and(ExplorerRootContext.toNegated(), ExplorerResourceAvailableEditorIdsContext),
 });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
