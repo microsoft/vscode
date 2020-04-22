@@ -51,6 +51,9 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getDomNode(): HTMLElement {
+		throw new Error('Method not implemented.');
+	}
 
 	private _onDidChangeModel = new Emitter<void>();
 	onDidChangeModel: Event<void> = this._onDidChangeModel.event;

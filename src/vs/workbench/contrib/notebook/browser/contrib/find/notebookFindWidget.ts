@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, INotebookEditor, CellFindMatch, CellEditState, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindDecorations } from 'vs/editor/contrib/find/findDecorations';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -15,8 +15,17 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/codeEditor/browser/find/simpleFindReplaceWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import * as DOM from 'vs/base/browser/dom';
+import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
+import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { localize } from 'vs/nls';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
 
-export class NotebookFindWidget extends SimpleFindReplaceWidget {
+export class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.find';
 	protected _findWidgetFocused: IContextKey<boolean>;
 	private _findMatches: CellFindMatch[] = [];
 	protected _findMatchesStarts: PrefixSumComputer | null = null;
@@ -32,8 +41,11 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 
 	) {
 		super(contextViewService, contextKeyService, themeService);
+		DOM.append(this._notebookEditor.getDomNode(), this.getDomNode());
+
 		this._findWidgetFocused = KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		this.updateTheme(themeService.getColorTheme());
 	}
 
 	private _onFindInputKeyDown(e: IKeyboardEvent): void {
@@ -236,3 +248,58 @@ export class NotebookFindWidget extends SimpleFindReplaceWidget {
 		this._findMatches = [];
 	}
 }
+
+registerNotebookContribution(NotebookFindWidget.id, NotebookFindWidget);
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.hideFind',
+			title: localize('notebookActions.hideFind', "Hide Find in Notebook"),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
+				primary: KeyCode.Escape,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		let editorService = accessor.get(IEditorService);
+		let editor = getActiveNotebookEditor(editorService);
+
+		if (!editor) {
+			return;
+		}
+
+		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+		controller.hide();
+		editor.focus();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.find',
+			title: localize('notebookActions.findInNotebook', "Find in Notebook"),
+			keybinding: {
+				when: NOTEBOOK_EDITOR_FOCUSED,
+				primary: KeyCode.KEY_F | KeyMod.CtrlCmd,
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		let editorService = accessor.get(IEditorService);
+		let editor = getActiveNotebookEditor(editorService);
+
+		if (!editor) {
+			return;
+		}
+
+		const controller = editor.getContribution<NotebookFindWidget>(NotebookFindWidget.id);
+		controller.show();
+	}
+});

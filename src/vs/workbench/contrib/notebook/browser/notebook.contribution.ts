@@ -33,6 +33,7 @@ import { ResourceMap } from 'vs/base/common/map';
 // Editor Contribution
 
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
+import 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 
 // Output renderers registration
 

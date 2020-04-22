@@ -125,6 +125,7 @@ export interface INotebookEditor {
 	readonly onDidChangeModel: Event<void>;
 	isNotebookEditor: boolean;
 
+	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 
 	/**
@@ -296,18 +297,6 @@ export interface INotebookEditor {
 	 * The notebook is virtualized and this method should be called to create/delete editor decorations safely.
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
-
-	/**
-	 * Show Find Widget.
-	 *
-	 * Currently Find is still part of the NotebookEditor core
-	 */
-	showFind(): void;
-
-	/**
-	 * Hide Find Widget
-	 */
-	hideFind(): void;
 
 	/**
 	 * An event emitted on a "mouseup".

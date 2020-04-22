@@ -29,7 +29,6 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { NotebookFindWidget } from 'vs/workbench/contrib/notebook/browser/contrib/notebookFindWidget';
 import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
@@ -91,7 +90,7 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 
 export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
-	private rootElement!: HTMLElement;
+	private _rootElement!: HTMLElement;
 	private body!: HTMLElement;
 	private webview: BackLayerWebView | null = null;
 	private webviewTransparentCover: HTMLElement | null = null;
@@ -109,8 +108,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private editorEditable: IContextKey<boolean> | null = null;
 	private editorExecutingNotebook: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
-	private findWidget: NotebookFindWidget;
-	// private folding: FoldingController | null = null;
 	protected readonly _contributions: { [key: string]: INotebookEditorContribution; };
 
 	constructor(
@@ -121,27 +118,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		@INotebookService private notebookService: INotebookService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		// @IEditorProgressService private readonly progressService: IEditorProgressService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
-		this.findWidget = this.instantiationService.createInstance(NotebookFindWidget, this);
-		this.findWidget.updateTheme(this.themeService.getColorTheme());
-
 		this._contributions = {};
-		const contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
-
-		for (const desc of contributions) {
-			try {
-				const contribution = this.instantiationService.createInstance(desc.ctor, this);
-				this._contributions[desc.id] = contribution;
-			} catch (err) {
-				onUnexpectedError(err);
-			}
-		}
 	}
 
 	private readonly _onDidChangeModel = new Emitter<void>();
@@ -173,8 +156,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this.rootElement = DOM.append(parent, $('.notebook-editor'));
-		this.createBody(this.rootElement);
+		this._rootElement = DOM.append(parent, $('.notebook-editor'));
+		this.createBody(this._rootElement);
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 		this.editorFocus.set(true);
@@ -189,6 +172,17 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
 		this.editorExecutingNotebook = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(this.contextKeyService);
+
+		const contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
+
+		for (const desc of contributions) {
+			try {
+				const contribution = this.instantiationService.createInstance(desc.ctor, this);
+				this._contributions[desc.id] = contribution;
+			} catch (err) {
+				onUnexpectedError(err);
+			}
+		}
 	}
 
 	private generateFontInfo(): void {
@@ -201,7 +195,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.addClass(this.body, 'cell-list-container');
 		this.createCellList();
 		DOM.append(parent, this.body);
-		DOM.append(parent, this.findWidget.getDomNode());
 	}
 
 	private createCellList(): void {
@@ -269,13 +262,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.webviewTransparentCover = DOM.append(this.list.rowsContainer, $('.webview-cover'));
 		this.webviewTransparentCover.style.display = 'none';
 
-		this._register(DOM.addStandardDisposableGenericMouseDownListner(this.rootElement, (e: StandardMouseEvent) => {
+		this._register(DOM.addStandardDisposableGenericMouseDownListner(this._rootElement, (e: StandardMouseEvent) => {
 			if (DOM.hasClass(e.target, 'slider') && this.webviewTransparentCover) {
 				this.webviewTransparentCover.style.display = 'block';
 			}
 		}));
 
-		this._register(DOM.addStandardDisposableGenericMouseUpListner(this.rootElement, (e: StandardMouseEvent) => {
+		this._register(DOM.addStandardDisposableGenericMouseUpListner(this._rootElement, (e: StandardMouseEvent) => {
 			if (this.webviewTransparentCover) {
 				// no matter when
 				this.webviewTransparentCover.style.display = 'none';
@@ -294,6 +287,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			}
 		}));
 
+	}
+
+	getDomNode() {
+		return this._rootElement;
 	}
 
 	getControl() {
@@ -393,7 +390,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.notebookViewModel = undefined;
 		this.webview?.clearInsets();
 		this.webview?.clearPreloadsCache();
-		this.findWidget.clear();
 		this.list?.clear();
 	}
 
@@ -567,8 +563,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	layout(dimension: DOM.Dimension): void {
 		this.dimension = new DOM.Dimension(dimension.width, dimension.height);
-		DOM.toggleClass(this.rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
-		DOM.toggleClass(this.rootElement, 'narrow-width', dimension.width < 600);
+		DOM.toggleClass(this._rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
+		DOM.toggleClass(this._rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
 		this.list?.updateOptions({ additionalScrollHeight: dimension.height });
 		this.list?.layout(dimension.height, dimension.width);
@@ -643,19 +639,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	setHiddenAreas(_ranges: ICellRange[]): boolean {
 		return this.list!.setHiddenAreas(_ranges, true);
-	}
-
-	//#endregion
-
-	//#region Find Delegate
-
-	public showFind() {
-		this.findWidget.reveal();
-	}
-
-	public hideFind() {
-		this.findWidget.hide();
-		this.focus();
 	}
 
 	//#endregion
@@ -948,6 +931,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	//#endregion
+
 	dispose() {
 		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
