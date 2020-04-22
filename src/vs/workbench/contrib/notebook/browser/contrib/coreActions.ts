@@ -484,6 +484,7 @@ registerAction2(class extends InsertCellCommand {
 			{
 				id: INSERT_CODE_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
 				f1: true
 			},
 			CellKind.Code,
@@ -499,8 +500,7 @@ export class InsertCodeCellAction extends MenuItemAction {
 		super(
 			{
 				id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
-				// icon: { id: 'codicon/add' },
+				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below")
 			},
 			undefined,
 			{ shouldForwardArgs: true },
@@ -530,6 +530,7 @@ registerAction2(class extends InsertCellCommand {
 			{
 				id: INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.insertMarkdownCellAbove', "Insert Markdown Cell Above"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
 				f1: true
 			},
 			CellKind.Markdown,
@@ -559,7 +560,9 @@ registerAction2(class extends InsertCellCommand {
 		super(
 			{
 				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
-				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below")
+				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true
 			},
 			CellKind.Markdown,
 			'below');
