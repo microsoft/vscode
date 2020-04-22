@@ -20,13 +20,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellEditState, CellFindMatch, ICellRange, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
+import { DeleteCellEdit, InsertCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 
 export interface INotebookEditorViewState {
@@ -227,6 +227,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				})] as [number, number, CellViewModel[]];
 			});
 
+			const undoDiff = diffs.map(diff => {
+				const deletedCells = this.viewCells.slice(diff[0], diff[0] + diff[1]);
+
+				return [diff[0], deletedCells, diff[2]] as [number, CellViewModel[], CellViewModel[]];
+			});
+
 			diffs.reverse().forEach(diff => {
 				this._viewCells.splice(diff[0], diff[1], ...diff[2]);
 				diff[2].forEach(cell => {
@@ -239,6 +245,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				synchronous: true,
 				splices: diffs
 			});
+
+			this.undoService.pushElement(new SpliceCellsEdit(this.uri, undoDiff, {
+				insertCell: this._insertCellDelegate.bind(this),
+				deleteCell: this._deleteCellDelegate.bind(this)
+			}));
 		}));
 
 		this._register(this._model.notebook.onDidChangeMetadata(e => {
@@ -486,7 +497,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
 	}
 
-	private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
+	private _deleteCellDelegate(deleteIndex: number) {
 		const deleteCell = this._viewCells[deleteIndex];
 		this._viewCells.splice(deleteIndex, 1);
 		this._handleToViewCellMapping.delete(deleteCell.handle);

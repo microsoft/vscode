@@ -7,13 +7,14 @@ import { ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 
 /**
  * It should not modify Undo/Redo stack
  */
 export interface ICellEditingDelegate {
 	insertCell?(index: number, viewCell: BaseCellViewModel): void;
-	deleteCell?(index: number, cell: ICell): void;
+	deleteCell?(index: number): void;
 	moveCell?(fromIndex: number, toIndex: number): void;
 	createCellViewModel?(cell: ICell): BaseCellViewModel;
 }
@@ -34,7 +35,7 @@ export class InsertCellEdit implements IResourceUndoRedoElement {
 			throw new Error('Notebook Delete Cell not implemented for Undo/Redo');
 		}
 
-		this.editingDelegate.deleteCell(this.insertIndex, this.cell.model);
+		this.editingDelegate.deleteCell(this.insertIndex);
 	}
 	redo(): void | Promise<void> {
 		if (!this.editingDelegate.insertCell) {
@@ -76,7 +77,7 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 			throw new Error('Notebook Delete Cell not implemented for Undo/Redo');
 		}
 
-		this.editingDelegate.deleteCell(this.insertIndex, this._rawCell);
+		this.editingDelegate.deleteCell(this.insertIndex);
 	}
 }
 
@@ -106,5 +107,49 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 		}
 
 		this.editingDelegate.moveCell(this.fromIndex, this.toIndex);
+	}
+}
+
+export class SpliceCellsEdit implements IResourceUndoRedoElement {
+	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
+	label: string = 'Insert Cell';
+	constructor(
+		public resource: URI,
+		private diffs: [number, CellViewModel[], CellViewModel[]][],
+		private editingDelegate: ICellEditingDelegate
+	) {
+	}
+
+	undo(): void | Promise<void> {
+		if (!this.editingDelegate.deleteCell || !this.editingDelegate.insertCell) {
+			throw new Error('Notebook Insert/Delete Cell not implemented for Undo/Redo');
+		}
+
+		this.diffs.forEach(diff => {
+			for (let i = 0; i < diff[2].length; i++) {
+				this.editingDelegate.deleteCell!(diff[0]);
+			}
+
+			diff[1].reverse().forEach(cell => {
+				this.editingDelegate.insertCell!(diff[0], cell);
+			});
+		});
+	}
+
+	redo(): void | Promise<void> {
+		if (!this.editingDelegate.deleteCell || !this.editingDelegate.insertCell) {
+			throw new Error('Notebook Insert/Delete Cell not implemented for Undo/Redo');
+		}
+
+		this.diffs.reverse().forEach(diff => {
+			for (let i = 0; i < diff[1].length; i++) {
+				this.editingDelegate.deleteCell!(diff[0]);
+			}
+
+			diff[2].reverse().forEach(cell => {
+				this.editingDelegate.insertCell!(diff[0], cell);
+			});
+		});
+
 	}
 }

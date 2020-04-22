@@ -7,15 +7,15 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 	private static _cellhandlePool: number = 0;
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
-	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
-	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
+	private readonly _onDidChangeCells = new Emitter<NotebookCellTextModelSplice[]>();
+	get onDidChangeCells(): Event<NotebookCellTextModelSplice[]> { return this._onDidChangeCells.event; }
 	private _onDidModelChangeProxy = new Emitter<NotebookCellsChangedEvent>();
 	get onDidModelChange(): Event<NotebookCellsChangedEvent> { return this._onDidModelChangeProxy.event; }
 	private _onDidChangeContent = new Emitter<void>();
@@ -61,6 +61,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return false;
 		}
 
+		const oldViewCells = this.cells.slice(0);
+		const oldMap = new Map(this._mapping);
+		edits = edits.reverse();
+
 		for (let i = 0; i < edits.length; i++) {
 			switch (edits[i].editType) {
 				case CellEditType.Insert:
@@ -70,14 +74,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						const cellUri = CellUri.generate(this.uri, cellHandle);
 						return new NotebookCellTextModel(URI.revive(cellUri), cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 					});
-					this.insertNewCell(insertEdit.index, mainCells, true);
+					this.insertNewCell(insertEdit.index, mainCells);
 					break;
 				case CellEditType.Delete:
-					this.removeCell(edits[i].index, true);
+					this.removeCell(edits[i].index);
 					break;
 			}
 		}
 
+		const diffs = diff(oldViewCells, this.cells, cell => {
+			return oldMap.has(cell.handle);
+		}).map(diff => {
+			return [diff.start, diff.deleteCount, diff.toInsert] as [number, number, NotebookCellTextModel[]];
+		});
+
+		this._onDidChangeCells.fire(diffs);
 		return true;
 	}
 
@@ -147,12 +158,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				]
 			]
 		});
-		this._onDidChangeCells.fire([[0, 0, [cell]]]);
 
 		return;
 	}
 
-	insertNewCell(index: number, cells: NotebookCellTextModel[], emitModelChangeToView: boolean = false): void {
+	insertNewCell(index: number, cells: NotebookCellTextModel[]): void {
 		this._isUntitled = false;
 
 		for (let i = 0; i < cells.length; i++) {
@@ -185,14 +195,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			]
 		});
 
-		if (emitModelChangeToView) {
-			this._onDidChangeCells.fire([[index, 0, cells]]);
-		}
-
 		return;
 	}
 
-	removeCell(index: number, emitModelChangeToView: boolean = false) {
+	removeCell(index: number) {
 		this._isUntitled = false;
 
 		let cell = this.cells[index];
@@ -203,9 +209,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({ versionId: this._versionId, changes: [[index, 1, []]] });
-		if (emitModelChangeToView) {
-			this._onDidChangeCells.fire([[index, 1, []]]);
-		}
 	}
 
 	// TODO@rebornix should this trigger content change event?

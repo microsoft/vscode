@@ -177,7 +177,7 @@ export interface INotebookTextModel {
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<number>;
-	onDidChangeCells?: Event<NotebookCellsSplice[]>;
+	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
 	onDidChangeContent: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
@@ -187,9 +187,9 @@ export interface IRenderOutput {
 	hasDynamicHeight: boolean;
 }
 
-export type NotebookCellsSplice = [
+export type NotebookCellTextModelSplice = [
 	number /* start */,
-	number /* delete count */,
+	number,
 	ICell[]
 ];
 
