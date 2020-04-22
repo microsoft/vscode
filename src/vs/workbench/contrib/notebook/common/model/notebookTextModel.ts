@@ -16,8 +16,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 	private readonly _onDidChangeCells = new Emitter<NotebookCellsSplice[]>();
 	get onDidChangeCells(): Event<NotebookCellsSplice[]> { return this._onDidChangeCells.event; }
-	private _onDidModelChange = new Emitter<NotebookCellsChangedEvent>();
-	get onDidModelChange(): Event<NotebookCellsChangedEvent> { return this._onDidModelChange.event; }
+	private _onDidModelChangeProxy = new Emitter<NotebookCellsChangedEvent>();
+	get onDidModelChange(): Event<NotebookCellsChangedEvent> { return this._onDidModelChangeProxy.event; }
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private _onDidChangeMetadata = new Emitter<NotebookDocumentMetadata>();
@@ -70,10 +70,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						const cellUri = CellUri.generate(this.uri, cellHandle);
 						return new NotebookCellTextModel(URI.revive(cellUri), cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 					});
-					this.insertNewCell(insertEdit.index, mainCells);
+					this.insertNewCell(insertEdit.index, mainCells, true);
 					break;
 				case CellEditType.Delete:
-					this.removeCell(edits[i].index);
+					this.removeCell(edits[i].index, true);
 					break;
 			}
 		}
@@ -130,7 +130,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._cellListeners.set(cell.handle, dirtyStateListener);
 		this._onDidChangeContent.fire();
 
-		this._onDidModelChange.fire({
+		this._onDidModelChangeProxy.fire({
 			versionId: this._versionId, changes: [
 				[
 					0,
@@ -152,7 +152,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	insertNewCell(index: number, cells: NotebookCellTextModel[]): void {
+	insertNewCell(index: number, cells: NotebookCellTextModel[], emitModelChangeToView: boolean = false): void {
 		this._isUntitled = false;
 
 		for (let i = 0; i < cells.length; i++) {
@@ -167,7 +167,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.cells.splice(index, 0, ...cells);
 		this._onDidChangeContent.fire();
 		this._increaseVersionId();
-		this._onDidModelChange.fire({
+		this._onDidModelChangeProxy.fire({
 			versionId: this._versionId, changes: [
 				[
 					index,
@@ -184,12 +184,15 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				]
 			]
 		});
-		this._onDidChangeCells.fire([[index, 0, cells]]);
+
+		if (emitModelChangeToView) {
+			this._onDidChangeCells.fire([[index, 0, cells]]);
+		}
 
 		return;
 	}
 
-	removeCell(index: number) {
+	removeCell(index: number, emitModelChangeToView: boolean = false) {
 		this._isUntitled = false;
 
 		let cell = this.cells[index];
@@ -199,8 +202,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-		this._onDidModelChange.fire({ versionId: this._versionId, changes: [[index, 1, []]] });
-		this._onDidChangeCells.fire([[index, 1, []]]);
+		this._onDidModelChangeProxy.fire({ versionId: this._versionId, changes: [[index, 1, []]] });
+		if (emitModelChangeToView) {
+			this._onDidChangeCells.fire([[index, 1, []]]);
+		}
 	}
 
 	// TODO@rebornix should this trigger content change event?
