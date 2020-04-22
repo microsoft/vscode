@@ -230,7 +230,11 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-run-status .codicon-check {
-	color: #73C991;
+	color: #89D185;
+}
+
+.vs .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-run-status .codicon-check {
+	color: #388A34;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-status-placeholder {
@@ -241,6 +245,10 @@
 	align-items: center;
 	bottom: 0px;
 	top: 0px;
+}
+
+.vs .monaco-workbench .part.editor > .content .notebook-editor .cell-status-placeholder {
+	color: #616161e6;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container {
