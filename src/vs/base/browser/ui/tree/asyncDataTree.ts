@@ -242,6 +242,9 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element as T);
 			},
+			getWidgetAriaLabel() {
+				return options.accessibilityProvider!.getWidgetAriaLabel();
+			},
 			getAriaLevel: options.accessibilityProvider!.getAriaLevel && (node => {
 				return options.accessibilityProvider!.getAriaLevel!(node.element as T);
 			}),
@@ -440,6 +443,14 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	get lastVisibleElement(): T {
 		return this.tree.lastVisibleElement!.element as T;
+	}
+
+	get ariaLabel(): string {
+		return this.tree.ariaLabel;
+	}
+
+	set ariaLabel(value: string) {
+		this.tree.ariaLabel = value;
 	}
 
 	domFocus(): void {

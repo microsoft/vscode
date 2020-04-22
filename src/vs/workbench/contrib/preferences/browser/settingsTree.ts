@@ -1559,7 +1559,6 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			{
 				supportDynamicHeights: true,
 				ariaRole: 'form',
-				ariaLabel: localize('treeAriaLabel', "Settings"),
 				identityProvider: {
 					getId(e) {
 						return e.id;

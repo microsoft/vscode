@@ -623,7 +623,8 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					} else {
 						return textLabel;
 					}
-				}
+				},
+				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest")
 			}
 		});
 

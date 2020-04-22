@@ -189,6 +189,9 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
+			getWidgetAriaLabel() {
+				return options.accessibilityProvider!.getWidgetAriaLabel();
+			},
 			getAriaLevel(node) {
 				return node.depth;
 			},
@@ -1452,6 +1455,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const index = this.view.lastVisibleIndex;
 		const node = this.view.element(index);
 		return node.element;
+	}
+
+	get ariaLabel(): string {
+		return this.view.ariaLabel;
+	}
+
+	set ariaLabel(value: string) {
+		this.view.ariaLabel = value;
 	}
 
 	domFocus(): void {

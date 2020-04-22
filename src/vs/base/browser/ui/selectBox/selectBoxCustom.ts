@@ -720,12 +720,14 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		this.listRenderer = new SelectListRenderer();
 
 		this.selectList = new List('SelectBoxCustom', this.selectDropDownListContainer, this, [this.listRenderer], {
-			ariaLabel: this.selectBoxOptions.ariaLabel,
 			useShadows: false,
 			verticalScrollMode: ScrollbarVisibility.Visible,
 			keyboardSupport: false,
 			mouseSupport: false
 		});
+		if (this.selectBoxOptions.ariaLabel) {
+			this.selectList.ariaLabel = this.selectBoxOptions.ariaLabel;
+		}
 
 		// SetUp list keyboard controller - control navigation, disabled items, focus
 		const onSelectDropDownKeyDown = Event.chain(domEvent(this.selectDropDownListContainer, 'keydown'))
