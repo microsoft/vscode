@@ -358,6 +358,7 @@ export interface BaseCellRenderTemplate {
 	focusIndicator: HTMLElement;
 	insertionIndicatorTop: HTMLElement;
 	disposables: DisposableStore;
+	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
 	toJSON: () => any;
