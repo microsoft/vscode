@@ -606,9 +606,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy) {
 			this.currentHttpProxy = newHttpProxy;
 			this.currentNoProxy = newNoProxy;
+			const proxyRules = newHttpProxy || '';
+			const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
+			this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
 			this._win.webContents.session.setProxy({
-				proxyRules: newHttpProxy || '',
-				proxyBypassRules: newNoProxy ? `${newNoProxy},<local>` : '<local>',
+				proxyRules,
+				proxyBypassRules,
 				pacScript: '',
 			});
 		}
