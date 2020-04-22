@@ -340,7 +340,7 @@ export class OutlinePane extends ViewPane {
 				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				accessibilityProvider: new OutlineAccessibilityProvider(),
+				accessibilityProvider: new OutlineAccessibilityProvider(localize('outline', "Outline")),
 				hideTwistiesOfChildlessElements: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()

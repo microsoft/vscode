@@ -367,6 +367,11 @@ export class ReplDataSource implements IAsyncDataSource<IDebugSession, IReplElem
 }
 
 export class ReplAccessibilityProvider implements IListAccessibilityProvider<IReplElement> {
+
+	getWidgetAriaLabel(): string {
+		return localize('debugConsole', "Debug Console");
+	}
+
 	getAriaLabel(element: IReplElement): string {
 		if (element instanceof Variable) {
 			return localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", element.name, element.value);

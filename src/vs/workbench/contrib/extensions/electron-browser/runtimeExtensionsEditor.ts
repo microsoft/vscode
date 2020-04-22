@@ -698,6 +698,10 @@ export class SaveExtensionHostProfileAction extends Action {
 }
 
 class RuntimeExtensionsEditorAccessibilityProvider implements IListAccessibilityProvider<IRuntimeExtension> {
+	getWidgetAriaLabel(): string {
+		return nls.localize('runtimeExtensions', "Runtime Extensions");
+	}
+
 	getAriaLabel(element: IRuntimeExtension): string | null {
 		return element.description.name;
 	}

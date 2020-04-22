@@ -881,9 +881,11 @@ export class TimelinePane extends ViewPane {
 						return element.ariaLabel;
 					}
 					return element.ariaLabel ?? localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+				},
+				getWidgetAriaLabel(): string {
+					return localize('timeline', "Timeline");
 				}
 			},
-			ariaLabel: this.title,
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
 			overrideStyles: {
 				listBackground: this.getBackgroundColor(),

@@ -318,6 +318,7 @@
 	outline-offset: -1px;
 	display: block;
 	position: absolute;
+	pointer-events: none;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row.cell-dragover .notebook-cell-insertion-indicator-top {

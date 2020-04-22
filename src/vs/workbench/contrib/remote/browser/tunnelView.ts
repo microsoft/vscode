@@ -519,7 +519,8 @@ export class TunnelPanel extends ViewPane {
 						} else {
 							return item.label;
 						}
-					}
+					},
+					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
 				}
 			}
 		);

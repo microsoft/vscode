@@ -604,11 +604,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostQuickOpen.createInputBox(extension.identifier);
 			},
 			get activeColorTheme(): vscode.ColorTheme {
-				checkProposedApiEnabled(extension);
 				return extHostTheming.activeColorTheme;
 			},
 			onDidChangeActiveColorTheme(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension);
 				return extHostTheming.onDidChangeActiveColorTheme(listener, thisArg, disposables);
 			}
 		};
@@ -914,6 +912,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get activeNotebookDocument(): vscode.NotebookDocument | undefined {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.activeNotebookDocument;
+			},
+			get activeNotebookEditor(): vscode.NotebookEditor | undefined {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.activeNotebookEditor;
 			},
 			createConcatTextDocument(notebook, selector) {
 				checkProposedApiEnabled(extension);

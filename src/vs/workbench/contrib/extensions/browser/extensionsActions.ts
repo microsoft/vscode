@@ -2734,8 +2734,8 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
 					this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
 					this.tooltip = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
-						? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it also there.", this.extensionManagementServerService.remoteExtensionManagementServer.label)
-						: localize('Install language pack also locally', "Install the language pack extension locally to enable it also there.");
+						? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it there also.", this.extensionManagementServerService.remoteExtensionManagementServer.label)
+						: localize('Install language pack also locally', "Install the language pack extension locally to enable it there also.");
 				}
 				return;
 			}

@@ -212,6 +212,9 @@ export class MainPane extends ViewPane {
 			accessibilityProvider: {
 				getAriaLabel(r: ISCMRepository) {
 					return r.provider.label;
+				},
+				getWidgetAriaLabel() {
+					return MainPane.TITLE;
 				}
 			}
 		}) as WorkbenchList<ISCMRepository>;

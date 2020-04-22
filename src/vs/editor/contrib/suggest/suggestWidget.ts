@@ -607,7 +607,6 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 			useShadows: false,
 			openController: { shouldOpen: () => false },
 			mouseSupport: false,
-			ariaRole: 'listbox',
 			accessibilityProvider: {
 				getRole: () => 'option',
 				getAriaLabel: (item: CompletionItem) => {
@@ -623,7 +622,9 @@ export class SuggestWidget implements IContentWidget, IListVirtualDelegate<Compl
 					} else {
 						return textLabel;
 					}
-				}
+				},
+				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
+				getWidgetRole: () => 'listbox'
 			}
 		});
 

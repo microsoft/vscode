@@ -138,7 +138,8 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyCode.LeftArrow,
 				weight: KeybindingWeight.WorkbenchContrib
-			}
+			},
+			f1: true
 		});
 	}
 
@@ -174,7 +175,8 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyCode.RightArrow,
 				weight: KeybindingWeight.WorkbenchContrib
-			}
+			},
+			f1: true
 		});
 	}
 

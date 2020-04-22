@@ -220,16 +220,26 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
 
-		// this._register(this._model.onDidChangeCells(e => {
-		// 	this._onDidChangeViewCells.fire({
-		// 		synchronous: true,
-		// 		splices: e.map(splice => {
-		// 			return [splice[0], splice[1], splice[2].map(cell => {
-		// 				return createCellViewModel(this.instantiationService, this, cell as NotebookCellTextModel);
-		// 			})];
-		// 		})
-		// 	});
-		// }));
+		this._register(this._model.onDidChangeCells(e => {
+			const diffs = e.map(splice => {
+				return [splice[0], splice[1], splice[2].map(cell => {
+					return createCellViewModel(this.instantiationService, this, cell as NotebookCellTextModel);
+				})] as [number, number, CellViewModel[]];
+			});
+
+			diffs.reverse().forEach(diff => {
+				this._viewCells.splice(diff[0], diff[1], ...diff[2]);
+				diff[2].forEach(cell => {
+					this._handleToViewCellMapping.set(cell.handle, cell);
+					this._localStore.add(cell);
+				});
+			});
+
+			this._onDidChangeViewCells.fire({
+				synchronous: true,
+				splices: diffs
+			});
+		}));
 
 		this._register(this._model.notebook.onDidChangeMetadata(e => {
 			this.eventDispatcher.emit([new NotebookMetadataChangedEvent(e)]);

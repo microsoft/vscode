@@ -150,7 +150,7 @@ export interface INotebookEditor {
 	/**
 	 * Insert a new cell around `cell`
 	 */
-	insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText?: string): CellViewModel;
+	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string): CellViewModel;
 
 	/**
 	 * Delete a cell from the notebook
