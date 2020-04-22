@@ -11,8 +11,8 @@ perf.mark('renderer/started');
 
 const bootstrapWindow = require('../../../../bootstrap-window');
 
-// Setup shell environment
-process['lazyEnv'] = getLazyEnv();
+let resolveLazyEnv;
+process['lazyEnv'] = new Promise(resolve => resolveLazyEnv = resolve);
 
 // Load workbench main JS, CSS and NLS all in parallel. This is an
 // optimization to prevent a waterfall of loading to happen, because
@@ -26,13 +26,14 @@ bootstrapWindow.load([
 	function (workbench, configuration) {
 		perf.mark('didLoadWorkbenchMain');
 
-		return process['lazyEnv'].then(function (lazyEnv) {
+		return getShellEnv().then(function (shellEnv) {
 			perf.mark('main/startup');
 
 			// Assign the shell environment if not launched from cli
 			if (configuration.userEnv['VSCODE_CLI'] !== '1' || configuration.userEnv['VSCODE_FORCE_USER_ENV'] === '1') {
-				bootstrapWindow.assign(process.env, lazyEnv);
+				bootstrapWindow.assign(process.env, shellEnv);
 			}
+			resolveLazyEnv(process.env);
 
 			// @ts-ignore
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
@@ -135,21 +136,20 @@ function showPartsSplash(configuration) {
 }
 
 /**
- * @returns {Promise<void>}
+ * @returns {Promise<typeof process.env>}
  */
-function getLazyEnv() {
+function getShellEnv() {
 	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	return new Promise(function (resolve) {
 		const handle = setTimeout(function () {
 			resolve();
-			console.warn('renderer did not receive lazyEnv in time');
+			console.warn('renderer did not receive shellEnv in time');
 		}, 10000);
 
 		ipc.once('vscode:acceptShellEnv', function (event, shellEnv) {
 			clearTimeout(handle);
-			// @ts-ignore
 			resolve(shellEnv);
 		});
 
