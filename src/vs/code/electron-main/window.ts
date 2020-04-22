@@ -603,7 +603,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			|| (env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY || '').trim() // Not standardized.
 			|| undefined;
 		const newNoProxy = (env.no_proxy || env.NO_PROXY || '').trim() || undefined; // Not standardized.
-		if (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy) {
+		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 			this.currentHttpProxy = newHttpProxy;
 			this.currentNoProxy = newNoProxy;
 			const proxyRules = newHttpProxy || '';
