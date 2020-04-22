@@ -600,9 +600,9 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		} else {
 			this.messageBoxContainer.style.display = 'none';
 			if (filtered === total) {
-				this.ariaLabelElement.setAttribute('aria-label', localize('No problems filtered', "Showing {0} problems", total));
+				this.setAriaLabel(localize('No problems filtered', "Showing {0} problems", total));
 			} else {
-				this.ariaLabelElement.setAttribute('aria-label', localize('problems filtered', "Showing {0} of {1} problems", filtered, total));
+				this.setAriaLabel(localize('problems filtered', "Showing {0} of {1} problems", filtered, total));
 			}
 			this.messageBoxContainer.removeAttribute('tabIndex');
 		}
@@ -631,19 +631,26 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 				e.stopPropagation();
 			}
 		});
-		this.ariaLabelElement!.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
+		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
 	}
 
 	private renderNoProblemsMessageForActiveFile(container: HTMLElement) {
 		const span = dom.append(container, dom.$('span'));
 		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT;
-		this.ariaLabelElement!.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT);
+		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT);
 	}
 
 	private renderNoProblemsMessage(container: HTMLElement) {
 		const span = dom.append(container, dom.$('span'));
 		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
-		this.ariaLabelElement!.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
+		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
+	}
+
+	private setAriaLabel(label: string): void {
+		if (this.tree) {
+			this.tree.ariaLabel = label;
+		}
+		this.ariaLabelElement!.setAttribute('aria-label', label);
 	}
 
 	private clearFilters(): void {

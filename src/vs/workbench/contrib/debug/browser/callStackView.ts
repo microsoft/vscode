@@ -180,7 +180,6 @@ export class CallStackView extends ViewPane {
 			new ShowMoreRenderer(this.themeService)
 		], this.dataSource, {
 			accessibilityProvider: new CallStackAccessibilityProvider(),
-			ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
 			identityProvider: {
 				getId: (element: CallStackItem) => {
 					if (typeof element === 'string') {
@@ -813,6 +812,11 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 }
 
 class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallStackItem> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack");
+	}
+
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);

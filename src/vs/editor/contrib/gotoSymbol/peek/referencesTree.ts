@@ -215,6 +215,10 @@ export class OneReferenceRenderer implements ITreeRenderer<OneReference, FuzzySc
 
 export class AccessibilityProvider implements IListAccessibilityProvider<FileReferences | OneReference> {
 
+	getWidgetAriaLabel(): string {
+		return localize('treeAriaLabel', "References");
+	}
+
 	getAriaLabel(element: FileReferences | OneReference): string | null {
 		return element.ariaMessage;
 	}

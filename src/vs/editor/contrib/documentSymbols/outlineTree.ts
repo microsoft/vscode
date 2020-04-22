@@ -42,6 +42,12 @@ export class OutlineNavigationLabelProvider implements IKeyboardNavigationLabelP
 
 export class OutlineAccessibilityProvider implements IListAccessibilityProvider<OutlineItem> {
 
+	constructor(private readonly ariaLabel: string) { }
+
+	getWidgetAriaLabel(): string {
+		return this.ariaLabel;
+	}
+
 	getAriaLabel(element: OutlineItem): string | null {
 		if (element instanceof OutlineGroup) {
 			return element.label;

@@ -374,7 +374,6 @@ export class ExplorerView extends ViewPane {
 			this.instantiationService.createInstance(ExplorerDataSource), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
-			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 			identityProvider: {
 				getId: (stat: ExplorerItem) => {
 					if (stat instanceof NewExplorerItem) {

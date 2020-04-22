@@ -308,6 +308,10 @@ export class SearchAccessibilityProvider implements IListAccessibilityProvider<R
 	) {
 	}
 
+	getWidgetAriaLabel(): string {
+		return nls.localize('search', "Search");
+	}
+
 	getAriaLabel(element: RenderableMatch): string | null {
 		if (element instanceof FolderMatch) {
 			return element.resource ?

@@ -31,6 +31,7 @@ import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvid
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { localize } from 'vs/nls';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	return element instanceof FileElement
@@ -276,6 +277,10 @@ class FileNavigationLabelProvider implements IKeyboardNavigationLabelProvider<IW
 
 class FileAccessibilityProvider implements IListAccessibilityProvider<IWorkspaceFolder | IFileStat> {
 
+	getWidgetAriaLabel(): string {
+		return localize('breadcrumbs', "Breadcrumbs");
+	}
+
 	getAriaLabel(element: IWorkspaceFolder | IFileStat): string | null {
 		return element.name;
 	}
@@ -475,7 +480,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				sorter: this._outlineComparator,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
-				accessibilityProvider: new OutlineAccessibilityProvider(),
+				accessibilityProvider: new OutlineAccessibilityProvider(localize('breadcrumbs', "Breadcrumbs")),
 				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
 			}
 		);
