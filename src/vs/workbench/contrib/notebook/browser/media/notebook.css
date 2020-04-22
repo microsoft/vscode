@@ -201,7 +201,8 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container {
-	height: 28px;
+	height: 22px;
+	font-size: 12px;
 	display: flex;
 	position: relative;
 }
@@ -209,7 +210,6 @@
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-message {
 	display: flex;
 	align-items: center;
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-run-status {
@@ -221,6 +221,10 @@
 	margin-right: 2px;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .codicon {
+	font-size: 14px;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-run-status .codicon-check {
 	color: #73C991;
 }
@@ -228,8 +232,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor .cell-status-placeholder {
 	position: absolute;
 	left: 18px;
-	opacity: 0.7;
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	color: #ccc9;
 	display: flex;
 	align-items: center;
 	bottom: 0px;
@@ -276,7 +279,7 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell .monaco-progress-container {
-	top: 0px;
+	top: -5px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused .monaco-toolbar,
