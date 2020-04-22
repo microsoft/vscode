@@ -38,6 +38,9 @@ export interface IDialogStyles extends IButtonStyles, ISimpleCheckboxStyles {
 	dialogBackground?: Color;
 	dialogShadow?: Color;
 	dialogBorder?: Color;
+	errorIconForeground?: Color;
+	warningIconForeground?: Color;
+	infoIconForeground?: Color;
 }
 
 interface ButtonMapEntry {
@@ -208,7 +211,7 @@ export class Dialog extends Disposable {
 				}
 			}));
 
-			removeClasses(this.iconElement, dialogErrorIcon.classNames, dialogWarningIcon.classNames, dialogInfoIcon.classNames);
+			removeClasses(this.iconElement, dialogErrorIcon.classNames, dialogWarningIcon.classNames, dialogInfoIcon.classNames, Codicon.loading.classNames);
 
 			switch (this.options.type) {
 				case 'error':
@@ -218,7 +221,7 @@ export class Dialog extends Disposable {
 					addClasses(this.iconElement, dialogWarningIcon.classNames);
 					break;
 				case 'pending':
-					addClasses(this.iconElement, 'codicon-loading', 'codicon-animation-spin');
+					addClasses(this.iconElement, Codicon.loading.classNames, 'codicon-animation-spin');
 					break;
 				case 'none':
 				case 'info':
@@ -273,9 +276,27 @@ export class Dialog extends Disposable {
 					this.checkbox.style(style);
 				}
 
-				if (this.messageDetailElement) {
+				if (this.messageDetailElement && fgColor && bgColor) {
 					const messageDetailColor = Color.fromHex(fgColor).transparent(.9);
 					this.messageDetailElement.style.color = messageDetailColor.makeOpaque(Color.fromHex(bgColor)).toString();
+				}
+
+				if (this.iconElement) {
+					let color;
+					switch (this.options.type) {
+						case 'error':
+							color = style.errorIconForeground;
+							break;
+						case 'warning':
+							color = style.warningIconForeground;
+							break;
+						default:
+							color = style.infoIconForeground;
+							break;
+					}
+					if (color) {
+						this.iconElement.style.color = color.toString();
+					}
 				}
 			}
 
