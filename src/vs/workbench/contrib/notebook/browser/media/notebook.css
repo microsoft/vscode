@@ -309,7 +309,7 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.cell-editor-focus .cell-editor-part:before {
-	z-index: 100;
+	z-index: 5;
 	content: "";
 	right: 0px;
 	left: 0px;
