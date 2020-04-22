@@ -393,6 +393,12 @@
 	word-break: keep-all;
 }
 
+.extension-editor > .body > .content table td > div,
+.extension-editor > .body > .content table td > div > p {
+	padding: 0px;
+	margin: 0px;
+}
+
 .extension-editor > .body > .content table code:not(:empty) {
 	font-family: var(--monaco-monospace-font);
 	font-size: 90%;
