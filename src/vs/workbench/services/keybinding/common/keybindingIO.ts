@@ -35,7 +35,11 @@ export class KeybindingIO {
 		} else {
 			out.write(`${quotedSerializeCommand} `);
 		}
-		// out.write(String(item.weight1 + '-' + item.weight2));
+		if (item.commandArgs) {
+			out.write(',');
+			out.writeLine();
+			out.write(`                                     "args": ${JSON.stringify(item.commandArgs)} `);
+		}
 		out.write('}');
 	}
 
