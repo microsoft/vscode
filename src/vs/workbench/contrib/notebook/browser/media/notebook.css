@@ -181,7 +181,7 @@
 	position: absolute;
 	height: 26px;
 	right: 32px;
-	top: -4px;
+	top: 0px;
 	z-index: 10;
 	box-shadow: 0 0 8px 4px rgba(0, 0, 0, 0.2);
 }
@@ -362,7 +362,7 @@
 	opacity: 0;
 	transition: opacity 0.2s ease-in-out;
 	cursor: auto;
-	padding-top: 4px
+	padding: 2px 0;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .cell-bottom-toolbar-container {
@@ -463,6 +463,11 @@
 /* Removes margin of first item in markdown cell */
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div *:first-child {
 	margin-top: 0;
+}
+
+/* Removes margin when only one item exists in markdown cell */
+.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div *:only-child {
+	margin-bottom: 0;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown table {
