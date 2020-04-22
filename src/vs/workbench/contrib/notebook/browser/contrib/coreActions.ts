@@ -1090,3 +1090,67 @@ registerAction2(class extends Action2 {
 		viewModel.redo();
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.focusTop',
+			title: 'Notebook Focus First Cell',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyMod.CtrlCmd | KeyCode.Home,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		if (!editor.viewModel || !editor.viewModel.length) {
+			return;
+		}
+
+		const firstCell = editor.viewModel.viewCells[0];
+		editor.focusNotebookCell(firstCell, false);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.notebook.focusBottom',
+			title: 'Notebook Focus Last Cell',
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+				primary: KeyMod.CtrlCmd | KeyCode.End,
+				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
+				weight: KeybindingWeight.WorkbenchContrib
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		if (!editor.viewModel || !editor.viewModel.length) {
+			return;
+		}
+
+		const firstCell = editor.viewModel.viewCells[editor.viewModel.length - 1];
+		editor.focusNotebookCell(firstCell, false);
+	}
+});
