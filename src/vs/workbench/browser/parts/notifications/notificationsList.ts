@@ -100,6 +100,9 @@ export class NotificationsList extends Themable {
 					},
 					getWidgetAriaLabel(): string {
 						return localize('notificationsList', "Notifications List");
+					},
+					getWidgetRole(): string {
+						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
 					}
 				}
 			}

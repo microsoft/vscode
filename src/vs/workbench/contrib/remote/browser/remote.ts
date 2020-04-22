@@ -405,7 +405,8 @@ class HelpPanel extends ViewPane {
 				accessibilityProvider: {
 					getAriaLabel: (item: HelpItemBase) => {
 						return item.label;
-					}
+					},
+					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
 				}
 			}
 		);
@@ -817,4 +818,3 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
-

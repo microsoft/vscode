@@ -169,7 +169,6 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		// Create toast with item and show
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
-			ariaRole: 'dialog', // https://github.com/microsoft/vscode/issues/82728
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
 		itemDisposables.add(notificationList);
