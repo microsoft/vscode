@@ -1022,7 +1022,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator { background-color: ${cellToolbarSeperator} }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator-short { background-color: ${cellToolbarSeperator} }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .notebook-cell-focus-indicator { border-color: ${cellToolbarSeperator}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .notebook-cell-focus-indicator,
+			.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator { border-color: ${cellToolbarSeperator}; }`);
 	}
 
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);

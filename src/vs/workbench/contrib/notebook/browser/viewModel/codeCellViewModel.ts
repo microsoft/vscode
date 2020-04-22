@@ -49,6 +49,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._editorHeight;
 	}
 
+	private _hoveringOutput: boolean = false;
+	public get outputIsHovered(): boolean {
+		return this._hoveringOutput;
+	}
+
+	public set outputIsHovered(v: boolean) {
+		this._hoveringOutput = v;
+		this._onDidChangeState.fire({ outputIsHoveredChanged: true });
+	}
+
 	private _layoutInfo: CodeCellLayoutInfo;
 
 	get layoutInfo() {

@@ -722,6 +722,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 	}
 
+	private updateForHover(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
+		DOM.toggleClass(templateData.container, 'cell-output-hover', element.outputIsHovered);
+	}
+
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
 		this.commonRenderElement(element, index, templateData);
 
@@ -761,6 +765,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged) {
 				this.updateForMetadata(element, templateData, cellEditableKey);
+			}
+
+			if (e.outputIsHoveredChanged) {
+				this.updateForHover(element, templateData);
 			}
 		}));
 

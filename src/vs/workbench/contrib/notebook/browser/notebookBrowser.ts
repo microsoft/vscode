@@ -463,6 +463,7 @@ export interface CellViewModelStateChangeEvent {
 	languageChanged?: boolean;
 	foldingStateChanged?: boolean;
 	contentChanged?: boolean;
+	outputIsHoveredChanged?: boolean;
 }
 
 /**

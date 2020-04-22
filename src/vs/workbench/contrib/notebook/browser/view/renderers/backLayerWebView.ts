@@ -20,11 +20,23 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isWeb } from 'vs/base/common/platform';
 
-export interface IDimentionMessage {
+export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
 	type: 'dimension';
 	id: string;
 	data: DOM.Dimension;
+}
+
+export interface IMouseEnterMessage {
+	__vscode_notebook_message: boolean;
+	type: 'mouseenter';
+	id: string;
+}
+
+export interface IMouseLeaveMessage {
+	__vscode_notebook_message: boolean;
+	type: 'mouseleave';
+	id: string;
 }
 
 export interface IWheelMessage {
@@ -80,7 +92,7 @@ export interface IUpdatePreloadResourceMessage {
 	resources: string[];
 }
 
-type IMessage = IDimentionMessage | IScrollAckMessage | IWheelMessage;
+type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
@@ -279,6 +291,23 @@ ${loaderJs}
 						newElement.id = id;
 						document.getElementById('container').appendChild(newElement);
 						cellOutputContainer = newElement;
+
+						cellOutputContainer.addEventListener('mouseenter', () => {
+							vscode.postMessage({
+								__vscode_notebook_message: true,
+								type: 'mouseenter',
+								id: outputId,
+								data: { }
+							});
+						});
+						cellOutputContainer.addEventListener('mouseleave', () => {
+							vscode.postMessage({
+								__vscode_notebook_message: true,
+								type: 'mouseleave',
+								id: outputId,
+								data: { }
+							});
+						});
 					}
 
 					let outputNode = document.createElement('div');
@@ -362,6 +391,15 @@ ${loaderJs}
 `;
 	}
 
+	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IOutput } | undefined {
+		const output = this.reversedInsetMapping.get(id);
+		if (!output) {
+			return;
+		}
+
+		return { cell: this.insetMapping.get(output)!.cell, output };
+	}
+
 	initialize(content: string) {
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
@@ -373,20 +411,27 @@ ${loaderJs}
 		this._register(this.webview.onMessage((data: IMessage) => {
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
-					let output = this.reversedInsetMapping.get(data.id);
-
-					if (!output) {
-						return;
-					}
-
-					let cell = this.insetMapping.get(output)!.cell;
 					let height = data.data.height;
 					let outputHeight = height;
 
-					if (cell) {
+					const info = this.resolveOutputId(data.id);
+					if (info) {
+						const { cell, output } = info;
 						let outputIndex = cell.outputs.indexOf(output);
 						cell.updateOutputHeight(outputIndex, outputHeight);
 						this.notebookEditor.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
+					}
+				} else if (data.type === 'mouseenter') {
+					const info = this.resolveOutputId(data.id);
+					if (info) {
+						const { cell } = info;
+						cell.outputIsHovered = true;
+					}
+				} else if (data.type === 'mouseleave') {
+					const info = this.resolveOutputId(data.id);
+					if (info) {
+						const { cell } = info;
+						cell.outputIsHovered = false;
 					}
 				} else if (data.type === 'scroll-ack') {
 					// const date = new Date();
