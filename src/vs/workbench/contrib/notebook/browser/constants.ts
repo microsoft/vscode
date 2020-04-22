@@ -9,7 +9,7 @@ export const CELL_RUN_GUTTER = 32; // TODO should be dynamic based on execution 
 
 export const EDITOR_TOOLBAR_HEIGHT = 0;
 export const BOTTOM_CELL_TOOLBAR_HEIGHT = 32;
-export const CELL_STATUSBAR_HEIGHT = 28;
+export const CELL_STATUSBAR_HEIGHT = 22;
 
 // Top margin of editor
 export const EDITOR_TOP_MARGIN = 16;
