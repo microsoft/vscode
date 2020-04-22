@@ -697,7 +697,7 @@ async function copyCell(context: INotebookCellActionContext, direction: 'up' | '
 	const text = context.cell.getText();
 	const newCellDirection = direction === 'up' ? 'above' : 'below';
 	const newCell = context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
-	context.notebookEditor.focusNotebookCell(newCell, true);
+	context.notebookEditor.focusNotebookCell(newCell, false);
 }
 
 registerAction2(class extends Action2 {
