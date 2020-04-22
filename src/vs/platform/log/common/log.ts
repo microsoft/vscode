@@ -418,8 +418,8 @@ export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
 	if (environmentService.verbose) {
 		return LogLevel.Trace;
 	}
-	if (typeof environmentService.args.log === 'string') {
-		const logLevel = environmentService.args.log.toLowerCase();
+	if (typeof environmentService.logLevel === 'string') {
+		const logLevel = environmentService.logLevel.toLowerCase();
 		switch (logLevel) {
 			case 'trace':
 				return LogLevel.Trace;

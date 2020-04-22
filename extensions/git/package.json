@@ -411,6 +411,26 @@
         "category": "Git"
       }
     ],
+    "keybindings": [
+      {
+        "command": "git.stageSelectedRanges",
+        "key": "ctrl+k ctrl+alt+s",
+        "mac": "cmd+k cmd+alt+s",
+        "when": "isInDiffEditor"
+      },
+      {
+        "command": "git.unstageSelectedRanges",
+        "key": "ctrl+k ctrl+u",
+        "mac": "cmd+k cmd+u",
+        "when": "isInDiffEditor"
+      },
+      {
+        "command": "git.revertSelectedRanges",
+        "key": "ctrl+k ctrl+r",
+        "mac": "cmd+k cmd+r",
+        "when": "isInDiffEditor"
+      }
+    ],
     "menus": {
       "commandPalette": [
         {
@@ -1001,6 +1021,31 @@
           "command": "git.ignore",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification@3"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.stage",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification"
+        },
+        {
+          "command": "git.clean",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "inline"
+        },
+        {
+          "command": "git.ignore",
+          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "group": "1_modification@3"
         }
       ],
       "scm/resourceState/context": [
@@ -1237,17 +1282,17 @@
       "timeline/item/context": [
         {
           "command": "git.timeline.openDiff",
-          "group": "1_timeline",
+          "group": "1_actions",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/"
         },
         {
           "command": "git.timeline.copyCommitId",
-          "group": "2_timeline@1",
+          "group": "5_copy@1",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
         },
         {
           "command": "git.timeline.copyCommitMessage",
-          "group": "2_timeline@2",
+          "group": "5_copy@2",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
         }
       ]
@@ -1635,6 +1680,12 @@
           "default": "mixed",
           "description": "%config.untrackedChanges%",
           "scope": "resource"
+        },
+        "git.showCommitInput": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.showCommitInput%"
         }
       }
     },

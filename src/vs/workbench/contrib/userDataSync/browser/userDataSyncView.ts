@@ -19,6 +19,7 @@ import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
 import { pad, uppercaseFirstLetter } from 'vs/base/common/strings';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class UserDataSyncViewContribution implements IWorkbenchContribution {
 
@@ -39,9 +40,9 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				name: localize('sync preferences', "Preferences Sync"),
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					['workbench.view.sync', `workbench.view.sync.state`, { mergeViewWithContainerWhenSingleView: true }]
+					['workbench.view.sync', { mergeViewWithContainerWhenSingleView: true }]
 				),
-				icon: 'codicon-sync',
+				icon: Codicon.sync.classNames,
 				hideIfEmpty: true,
 			}, ViewContainerLocation.Sidebar);
 	}

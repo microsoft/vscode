@@ -13,7 +13,7 @@ import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Barrier, timeout } from 'vs/base/common/async';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -141,7 +141,28 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private static readonly QUIT_FROM_RESTART_MARKER = 'quit.from.restart'; // use a marker to find out if the session was restarted
 
-	private windowToCloseRequest: Set<number> = new Set();
+	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
+	readonly onBeforeShutdown = this._onBeforeShutdown.event;
+
+	private readonly _onWillShutdown = this._register(new Emitter<ShutdownEvent>());
+	readonly onWillShutdown = this._onWillShutdown.event;
+
+	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
+	readonly onBeforeWindowClose = this._onBeforeWindowClose.event;
+
+	private readonly _onBeforeWindowUnload = this._register(new Emitter<IWindowUnloadEvent>());
+	readonly onBeforeWindowUnload = this._onBeforeWindowUnload.event;
+
+	private _quitRequested = false;
+	get quitRequested(): boolean { return this._quitRequested; }
+
+	private _wasRestarted: boolean = false;
+	get wasRestarted(): boolean { return this._wasRestarted; }
+
+	private _phase = LifecycleMainPhase.Starting;
+	get phase(): LifecycleMainPhase { return this._phase; }
+
+	private readonly windowToCloseRequest = new Set<number>();
 	private oneTimeListenerTokenGenerator = 0;
 	private windowCounter = 0;
 
@@ -150,28 +171,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 	private pendingWillShutdownPromise: Promise<void> | null = null;
 
-	private _quitRequested = false;
-	get quitRequested(): boolean { return this._quitRequested; }
-
-	private _wasRestarted: boolean = false;
-	get wasRestarted(): boolean { return this._wasRestarted; }
-
-	private readonly _onBeforeShutdown = this._register(new Emitter<void>());
-	readonly onBeforeShutdown: Event<void> = this._onBeforeShutdown.event;
-
-	private readonly _onWillShutdown = this._register(new Emitter<ShutdownEvent>());
-	readonly onWillShutdown: Event<ShutdownEvent> = this._onWillShutdown.event;
-
-	private readonly _onBeforeWindowClose = this._register(new Emitter<ICodeWindow>());
-	readonly onBeforeWindowClose: Event<ICodeWindow> = this._onBeforeWindowClose.event;
-
-	private readonly _onBeforeWindowUnload = this._register(new Emitter<IWindowUnloadEvent>());
-	readonly onBeforeWindowUnload: Event<IWindowUnloadEvent> = this._onBeforeWindowUnload.event;
-
-	private _phase: LifecycleMainPhase = LifecycleMainPhase.Starting;
-	get phase(): LifecycleMainPhase { return this._phase; }
-
-	private phaseWhen = new Map<LifecycleMainPhase, Barrier>();
+	private readonly phaseWhen = new Map<LifecycleMainPhase, Barrier>();
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

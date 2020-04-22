@@ -11,12 +11,14 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { MainThreadAuthenticationProvider } from 'vs/workbench/api/browser/mainThreadAuthentication';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
 export interface IAuthenticationService {
 	_serviceBrand: undefined;
 
+	isAuthenticationProviderRegistered(id: string): boolean;
 	registerAuthenticationProvider(id: string, provider: MainThreadAuthenticationProvider): void;
 	unregisterAuthenticationProvider(id: string): void;
 	sessionsUpdate(providerId: string, event: AuthenticationSessionsChangeEvent): void;
@@ -34,6 +36,7 @@ export interface IAuthenticationService {
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	_serviceBrand: undefined;
 	private _placeholderMenuItem: IDisposable | undefined;
+	private _noAccountsMenuItem: IDisposable | undefined;
 
 	private _authenticationProviders: Map<string, MainThreadAuthenticationProvider> = new Map<string, MainThreadAuthenticationProvider>();
 
@@ -51,19 +54,49 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			command: {
 				id: 'noAuthenticationProviders',
-				title: nls.localize('loading', "Loading...")
+				title: nls.localize('loading', "Loading..."),
+				precondition: ContextKeyExpr.false()
 			},
 		});
+	}
+
+	isAuthenticationProviderRegistered(id: string): boolean {
+		return this._authenticationProviders.has(id);
+	}
+
+	private updateAccountsMenuItem(): void {
+		let hasSession = false;
+		this._authenticationProviders.forEach(async provider => {
+			hasSession = hasSession || provider.hasSessions();
+		});
+
+		if (hasSession && this._noAccountsMenuItem) {
+			this._noAccountsMenuItem.dispose();
+			this._noAccountsMenuItem = undefined;
+		}
+
+		if (!hasSession && !this._noAccountsMenuItem) {
+			this._noAccountsMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
+				group: '0_accounts',
+				command: {
+					id: 'noAccounts',
+					title: nls.localize('noAccounts', "You are not signed in to any accounts"),
+					precondition: ContextKeyExpr.false()
+				},
+			});
+		}
 	}
 
 	registerAuthenticationProvider(id: string, authenticationProvider: MainThreadAuthenticationProvider): void {
 		this._authenticationProviders.set(id, authenticationProvider);
 		this._onDidRegisterAuthenticationProvider.fire(id);
 
-		if (authenticationProvider.dependents.length && this._placeholderMenuItem) {
+		if (this._placeholderMenuItem) {
 			this._placeholderMenuItem.dispose();
 			this._placeholderMenuItem = undefined;
 		}
+
+		this.updateAccountsMenuItem();
 	}
 
 	unregisterAuthenticationProvider(id: string): void {
@@ -72,23 +105,26 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			provider.dispose();
 			this._authenticationProviders.delete(id);
 			this._onDidUnregisterAuthenticationProvider.fire(id);
+			this.updateAccountsMenuItem();
 		}
 
 		if (!this._authenticationProviders.size) {
 			this._placeholderMenuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 				command: {
 					id: 'noAuthenticationProviders',
-					title: nls.localize('loading', "Loading...")
+					title: nls.localize('loading', "Loading..."),
+					precondition: ContextKeyExpr.false()
 				},
 			});
 		}
 	}
 
-	sessionsUpdate(id: string, event: AuthenticationSessionsChangeEvent): void {
+	async sessionsUpdate(id: string, event: AuthenticationSessionsChangeEvent): Promise<void> {
 		this._onDidChangeSessions.fire({ providerId: id, event: event });
 		const provider = this._authenticationProviders.get(id);
 		if (provider) {
-			provider.updateSessionItems(event);
+			await provider.updateSessionItems(event);
+			this.updateAccountsMenuItem();
 		}
 	}
 

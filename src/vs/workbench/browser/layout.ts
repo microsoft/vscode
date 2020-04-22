@@ -10,7 +10,7 @@ import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative } from 'vs/base/common/platform';
-import { pathsToEditors } from 'vs/workbench/common/editor';
+import { pathsToEditors, SideBySideEditorInput } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { PanelRegistry, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
@@ -266,6 +266,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Restore editor part on any editor change
 		this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
 		this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+
+		// Revalidate center layout when active editor changes: diff editor quits centered mode.
+		this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.state.editor.centered)));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
@@ -612,6 +615,32 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return !!container && isAncestor(activeElement, container);
 	}
 
+	focusPart(part: Parts): void {
+		switch (part) {
+			case Parts.EDITOR_PART:
+				this.editorGroupService.activeGroup.focus();
+				break;
+			case Parts.PANEL_PART:
+				const activePanel = this.panelService.getActivePanel();
+				if (activePanel) {
+					activePanel.focus();
+				}
+				break;
+			case Parts.SIDEBAR_PART:
+				const activeViewlet = this.viewletService.getActiveViewlet();
+				if (activeViewlet) {
+					activeViewlet.focus();
+				}
+				break;
+			default:
+				// Status Bar, Activity Bar and Title Bar simply pass focus to container
+				const container = this.getContainer(part);
+				if (container) {
+					container.focus();
+				}
+		}
+	}
+
 	getContainer(part: Parts): HTMLElement | undefined {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
@@ -890,6 +919,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		);
 
 		this.container.prepend(workbenchGrid.element);
+		this.container.setAttribute('role', 'application');
 		this.workbenchGrid = workbenchGrid;
 
 		[titleBar, editorPart, activityBar, panelPart, sideBar, statusBar].forEach((part: Part) => {
@@ -956,7 +986,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.storageService.store(Storage.CENTERED_LAYOUT_ENABLED, active, StorageScope.WORKSPACE);
 
 		let smartActive = active;
-		if (this.editorGroupService.groups.length > 1 && this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')) {
+		const activeEditor = this.editorService.activeEditor;
+		if (this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')
+			&& (this.editorGroupService.groups.length > 1 || (activeEditor && activeEditor instanceof SideBySideEditorInput))) {
 			smartActive = false; // Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
 		}
 

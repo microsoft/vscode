@@ -24,7 +24,7 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 }
 
 export function isSessionAttach(session: IDebugSession): boolean {
-	return !session.parentSession && session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
+	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
 }
 
 /**

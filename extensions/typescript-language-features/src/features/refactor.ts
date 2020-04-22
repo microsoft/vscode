@@ -20,6 +20,23 @@ import FormattingOptionsManager from './fileConfigurationManager';
 const localize = nls.loadMessageBundle();
 
 
+namespace Experimental {
+	export interface RefactorActionInfo extends Proto.RefactorActionInfo {
+		readonly error?: string
+	}
+
+	export type RefactorTriggerReason = RefactorInvokedReason;
+
+	export interface RefactorInvokedReason {
+		readonly kind: 'invoked';
+	}
+
+	export interface GetApplicableRefactorsRequestArgs extends Proto.FileRangeRequestArgs {
+		readonly triggerReason?: RefactorTriggerReason;
+	}
+}
+
+
 class ApplyRefactoringCommand implements Command {
 	public static readonly ID = '_typescript.applyRefactoring';
 	public readonly id = ApplyRefactoringCommand.ID;
@@ -241,7 +258,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
+			const args: Experimental.GetApplicableRefactorsRequestArgs = {
+				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
+				triggerReason: this.toTsTriggerReason(context),
+			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
 		if (response?.type !== 'response' || !response.body) {
@@ -255,6 +275,12 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		return this.appendInvalidActions(actions);
 	}
 
+	private toTsTriggerReason(context: vscode.CodeActionContext): Experimental.RefactorInvokedReason | undefined {
+		if (!context.only) {
+			return;
+		}
+		return { kind: 'invoked' };
+	}
 
 	private convertApplicableRefactors(
 		body: Proto.ApplicableRefactorInfo[],
@@ -273,7 +299,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 				actions.push(codeAction);
 			} else {
 				for (const action of info.actions) {
-					actions.push(this.refactorActionToCodeAction(action, document, info, rangeOrSelection));
+					actions.push(this.refactorActionToCodeAction(action, document, info, rangeOrSelection, info.actions));
 				}
 			}
 		}
@@ -281,18 +307,26 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private refactorActionToCodeAction(
-		action: Proto.RefactorActionInfo,
+		action: Experimental.RefactorActionInfo,
 		document: vscode.TextDocument,
 		info: Proto.ApplicableRefactorInfo,
-		rangeOrSelection: vscode.Range | vscode.Selection
+		rangeOrSelection: vscode.Range | vscode.Selection,
+		allActions: readonly Proto.RefactorActionInfo[],
 	) {
 		const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
+
+		// https://github.com/microsoft/TypeScript/pull/37871
+		if (action.error) {
+			codeAction.disabled = { reason: action.error };
+			return codeAction;
+		}
+
 		codeAction.command = {
 			title: action.description,
 			command: ApplyRefactoringCommand.ID,
 			arguments: [document, info.name, action.name, rangeOrSelection],
 		};
-		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action);
+		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
 		return codeAction;
 	}
 
@@ -310,10 +344,26 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private static isPreferred(
-		action: Proto.RefactorActionInfo
+		action: Proto.RefactorActionInfo,
+		allActions: readonly Proto.RefactorActionInfo[],
 	): boolean {
 		if (Extract_Constant.matches(action)) {
-			return action.name.endsWith('scope_0');
+			// Only mark the action with the lowest scope as preferred
+			const getScope = (name: string) => {
+				const scope = name.match(/scope_(\d)/)?.[1];
+				return scope ? +scope : undefined;
+			};
+			const scope = getScope(action.name);
+			if (typeof scope !== 'number') {
+				return false;
+			}
+
+			return allActions
+				.filter(otherAtion => otherAtion !== action && Extract_Constant.matches(otherAtion))
+				.every(otherAction => {
+					const otherScope = getScope(otherAction.name);
+					return typeof otherScope === 'number' ? scope < otherScope : true;
+				});
 		}
 		if (Extract_Type.matches(action) || Extract_Interface.matches(action)) {
 			return true;

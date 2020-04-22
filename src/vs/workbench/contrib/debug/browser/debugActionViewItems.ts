@@ -20,6 +20,8 @@ import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 
 const $ = dom.$;
 
@@ -153,7 +155,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.toDispose = dispose(this.toDispose);
 	}
 
-	private updateOptions(): void {
+	private async updateOptions(): Promise<void> {
 		this.selected = 0;
 		this.options = [];
 		const manager = this.debugService.getConfigurationManager();
@@ -173,7 +175,13 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			}
 
 			const label = inWorkspace ? `${name} (${launch.name})` : name;
-			this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
+			this.options.push({
+				label, handler: () => {
+					StartAction.GET_CONFIG_AND_LAUNCH = undefined;
+					manager.selectConfiguration(launch, name);
+					return true;
+				}
+			});
 		});
 
 		if (this.options.length === 0) {
@@ -183,11 +191,26 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			disabledIdxs.push(this.options.length - 1);
 		}
 
+		const providers = await manager.getDynamicProviders();
+		providers.forEach(p => {
+			this.options.push({
+				label: `${p.label}...`, handler: () => {
+					StartAction.GET_CONFIG_AND_LAUNCH = p.pick;
+					return true;
+				}
+			});
+		});
+
+		if (providers.length > 0) {
+			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+			disabledIdxs.push(this.options.length - 1);
+		}
+
 		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
-					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString());
+					this.commandService.executeCommand(ADD_CONFIGURATION_ID, l.uri.toString());
 					return false;
 				}
 			});

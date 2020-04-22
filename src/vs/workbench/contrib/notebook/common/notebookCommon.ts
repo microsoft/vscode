@@ -50,10 +50,19 @@ export interface NotebookDocumentMetadata {
 	hasExecutionOrder: boolean;
 }
 
+export enum NotebookCellRunState {
+	Running = 1,
+	Idle = 2,
+	Success = 3,
+	Error = 4
+}
+
 export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
 	executionOrder?: number;
+	statusMessage?: string;
+	runState?: NotebookCellRunState;
 }
 
 export interface INotebookDisplayOrder {
@@ -164,6 +173,7 @@ export interface INotebookTextModel {
 	viewType: string;
 	// metadata: IMetadata;
 	readonly uri: URI;
+	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<number>;
@@ -249,7 +259,7 @@ export namespace CellUri {
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
-			path: `${notebook.path}#cell-${handle}`,
+			path: `${notebook.path}, cell ${handle + 1}`,
 			query: JSON.stringify({ cell: handle, notebook: notebook.toString() }),
 			scheme,
 		});
@@ -268,6 +278,10 @@ export namespace CellUri {
 		} catch {
 			return undefined;
 		}
+	}
+
+	export function equal(a: URI, b: URI): boolean {
+		return a.path === b.path && a.query === b.query && a.scheme === b.scheme;
 	}
 }
 

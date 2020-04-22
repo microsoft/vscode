@@ -33,12 +33,12 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { IWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
@@ -51,6 +51,24 @@ import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { firstSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+
+interface PanelActivityState {
+	id: string;
+	name?: string;
+	pinned: boolean;
+	order: number;
+	visible: boolean;
+}
+
+interface SideBarActivityState {
+	id: string;
+	pinned: boolean;
+	order: number;
+	visible: boolean;
+}
+
 
 class BrowserMain extends Disposable {
 
@@ -61,7 +79,7 @@ class BrowserMain extends Disposable {
 		super();
 	}
 
-	async open(): Promise<void> {
+	async open(): Promise<IWorkbench> {
 		const services = await this.initServices();
 
 		await domContentLoaded();
@@ -80,13 +98,196 @@ class BrowserMain extends Disposable {
 		// Listeners
 		this.registerListeners(workbench, services.storageService);
 
+		this.applyDefaultLayout(services.storageService);
+
 		// Driver
 		if (this.configuration.driver) {
 			(async () => this._register(await registerWindowDriver()))();
 		}
 
 		// Startup
-		workbench.startup();
+		const instantiationService = workbench.startup();
+
+		// Return API Facade
+		return instantiationService.invokeFunction(accessor => {
+			const commandService = accessor.get(ICommandService);
+
+			return {
+				commands: {
+					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
+				}
+			};
+		});
+	}
+
+	private applyDefaultLayout(storageService: BrowserStorageService) {
+		const { defaultLayout } = this.configuration;
+		if (!defaultLayout) {
+			return;
+		}
+
+		const firstRun = storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL);
+		if (firstRun !== undefined) {
+			return;
+		}
+
+		const { sidebar } = defaultLayout;
+		if (sidebar) {
+			if (sidebar.visible !== undefined) {
+				if (sidebar.visible) {
+					storageService.remove('workbench.sidebar.hidden', StorageScope.WORKSPACE);
+				} else {
+					storageService.store('workbench.sidebar.hidden', true, StorageScope.WORKSPACE);
+				}
+			}
+
+			if (sidebar.containers !== undefined) {
+				const sidebarState: SideBarActivityState[] = [];
+
+				let order = -1;
+				for (const container of sidebar.containers.sort((a, b) => (a.order ?? 1) - (b.order ?? 1))) {
+					let viewletId;
+					switch (container.id) {
+						case 'explorer':
+							viewletId = 'workbench.view.explorer';
+							break;
+						case 'run':
+							viewletId = 'workbench.view.debug';
+							break;
+						case 'scm':
+							viewletId = 'workbench.view.scm';
+							break;
+						case 'search':
+							viewletId = 'workbench.view.search';
+							break;
+						case 'extensions':
+							viewletId = 'workbench.view.extensions';
+							break;
+						case 'remote':
+							viewletId = 'workbench.view.remote';
+							break;
+						default:
+							viewletId = `workbench.view.extension.${container.id}`;
+					}
+
+					order = container.order ?? (order + 1);
+					const state: SideBarActivityState = {
+						id: viewletId,
+						order: order,
+						pinned: true,
+						visible: true
+					};
+
+					if (container.active) {
+						storageService.store('workbench.sidebar.activeviewletid', viewletId, StorageScope.WORKSPACE);
+					} else {
+						if (container.visible !== undefined) {
+							state.pinned = container.visible;
+							state.visible = container.visible;
+						}
+					}
+
+					sidebarState.push(state);
+
+					if (container.views !== undefined) {
+						const viewsState: { id: string, isHidden?: boolean, order?: number }[] = [];
+						const viewsWorkspaceState: { [id: string]: { collapsed: boolean, isHidden?: boolean, size?: number } } = {};
+
+						for (const view of container.views) {
+							if (view.order !== undefined || view.visible !== undefined) {
+								viewsState.push({
+									id: view.id,
+									isHidden: view.visible === undefined ? undefined : !view.visible,
+									order: view.order === undefined ? undefined : view.order
+								});
+							}
+
+							if (view.collapsed !== undefined) {
+								viewsWorkspaceState[view.id] = {
+									collapsed: view.collapsed,
+									isHidden: view.visible === undefined ? undefined : !view.visible,
+								};
+							}
+						}
+
+						storageService.store(`${viewletId}.state.hidden`, JSON.stringify(viewsState), StorageScope.GLOBAL);
+						storageService.store(`${viewletId}.state`, JSON.stringify(viewsWorkspaceState), StorageScope.WORKSPACE);
+					}
+				}
+
+				storageService.store('workbench.activity.pinnedViewlets2', JSON.stringify(sidebarState), StorageScope.GLOBAL);
+			}
+		}
+
+		const { panel } = defaultLayout;
+		if (panel) {
+			if (panel.visible !== undefined) {
+				if (panel.visible) {
+					storageService.store('workbench.panel.hidden', false, StorageScope.WORKSPACE);
+				} else {
+					storageService.remove('workbench.panel.hidden', StorageScope.WORKSPACE);
+				}
+			}
+
+			if (panel.containers !== undefined) {
+				const panelState: PanelActivityState[] = [];
+
+				let order = -1;
+				for (const container of panel.containers.sort((a, b) => (a.order ?? 1) - (b.order ?? 1))) {
+					let name;
+					let panelId = container.id;
+					switch (panelId) {
+						case 'terminal':
+							name = 'Terminal';
+							panelId = 'workbench.panel.terminal';
+							break;
+						case 'debug':
+							name = 'Debug Console';
+							panelId = 'workbench.panel.repl';
+							break;
+						case 'problems':
+							name = 'Problems';
+							panelId = 'workbench.panel.markers';
+							break;
+						case 'output':
+							name = 'Output';
+							panelId = 'workbench.panel.output';
+							break;
+						case 'comments':
+							name = 'Comments';
+							panelId = 'workbench.panel.comments';
+							break;
+						case 'refactor':
+							name = 'Refactor Preview';
+							panelId = 'refactorPreview';
+						default:
+							continue;
+					}
+
+					order = container.order ?? (order + 1);
+					const state: PanelActivityState = {
+						id: panelId,
+						name: name,
+						order: order,
+						pinned: true,
+						visible: true
+					};
+
+					if (container.active) {
+						storageService.store('workbench.panelpart.activepanelid', panelId, StorageScope.WORKSPACE);
+					} else {
+						if (container.visible !== undefined) {
+							state.pinned = container.visible;
+							state.visible = container.visible;
+						}
+					}
+
+					panelState.push(state);
+				}
+
+				storageService.store('workbench.panel.pinnedPanels', JSON.stringify(panelState), StorageScope.GLOBAL);
+			}
+		}
 	}
 
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
@@ -179,7 +380,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IRemoteAuthorityResolverService, remoteAuthorityResolverService);
 
 		// Signing
-		const signService = new SignService(environmentService.configuration.connectionToken);
+		const signService = new SignService(environmentService.options.connectionToken || this.getCookieValue('vscode-tkn'));
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
@@ -327,10 +528,16 @@ class BrowserMain extends Disposable {
 
 		return undefined;
 	}
+
+	private getCookieValue(name: string): string | undefined {
+		const match = document.cookie.match('(^|[^;]+)\\s*' + name + '\\s*=\\s*([^;]+)'); // See https://stackoverflow.com/a/25490531
+
+		return match ? match.pop() : undefined;
+	}
 }
 
-export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	const renderer = new BrowserMain(domElement, options);
+export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+	const workbench = new BrowserMain(domElement, options);
 
-	return renderer.open();
+	return workbench.open();
 }

@@ -114,6 +114,10 @@
 		height: 10px;
 	}
 
+	::-webkit-scrollbar-corner {
+		background-color: var(--vscode-editor-background);
+	}
+
 	::-webkit-scrollbar-thumb {
 		background-color: var(--vscode-scrollbarSlider-background);
 	}

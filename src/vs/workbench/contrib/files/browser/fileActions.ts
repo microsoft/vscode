@@ -13,12 +13,12 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IExplorerService, IFilesConfiguration, DEFAULT_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
-import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, ItemActivation, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -34,7 +34,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, getFileNamesMessage, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/base/common/uint';
 import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { coalesce } from 'vs/base/common/arrays';
@@ -47,6 +47,11 @@ import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/working
 import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { Codicon } from 'vs/base/common/codicons';
+import { CustomEditorsAssociations, customEditorsAssociationsSettingId, CustomEditorAssociation } from 'vs/workbench/services/editor/browser/editorAssociationsSetting';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -93,7 +98,7 @@ export class NewFileAction extends Action {
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFile', NEW_FILE_LABEL);
-		this.class = 'explorer-action codicon-new-file';
+		this.class = 'explorer-action ' + Codicon.newFile.classNames;
 		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
@@ -115,7 +120,7 @@ export class NewFolderAction extends Action {
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFolder', NEW_FOLDER_LABEL);
-		this.class = 'explorer-action codicon-new-folder';
+		this.class = 'explorer-action ' + Codicon.newFolder.classNames;
 		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
@@ -480,23 +485,27 @@ export class GlobalCompareResourcesAction extends Action {
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor(editor => {
+			const toDispose = this.editorService.overrideOpenEditor({
+				getEditorOverrides: (editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+					return [];
+				},
+				open: editor => {
+					// Only once!
+					toDispose.dispose();
 
-				// Only once!
-				toDispose.dispose();
+					// Open editor as diff
+					const resource = editor.resource;
+					if (resource) {
+						return {
+							override: this.editorService.openEditor({
+								leftResource: activeResource,
+								rightResource: resource
+							})
+						};
+					}
 
-				// Open editor as diff
-				const resource = editor.resource;
-				if (resource) {
-					return {
-						override: this.editorService.openEditor({
-							leftResource: activeResource,
-							rightResource: resource
-						})
-					};
+					return undefined;
 				}
-
-				return undefined;
 			});
 
 			once(this.quickInputService.onHide)((async () => {
@@ -509,6 +518,130 @@ export class GlobalCompareResourcesAction extends Action {
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
+	}
+}
+
+const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
+export class ReopenResourcesAction extends Action {
+
+	static readonly ID = 'workbench.files.action.reopenWithEditor';
+	static readonly LABEL = nls.localize('workbench.files.action.reopenWithEditor', "Reopen With...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const activeInput = this.editorService.activeEditor;
+		if (!activeInput) {
+			return;
+		}
+
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+		const activeResource = activeInput.resource;
+		if (!activeResource) {
+			return;
+		}
+
+		const resourceExt = extname(activeResource.path);
+
+		const overrides = this.editorService.getEditorOverrides(activeInput, options, group);
+		const items: (IQuickPickItem & { handler?: IOpenEditorOverrideHandler })[] = overrides.map((override) => {
+			return {
+				handler: override[0],
+				id: override[1].id,
+				label: override[1].label,
+				description: override[1].active ? 'Currently Active' : undefined,
+				detail: override[1].detail,
+				buttons: resourceExt ? [{
+					iconClass: 'codicon-settings-gear',
+					tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
+				}] : undefined
+			};
+		});
+
+		if (!items.length) {
+			return;
+		}
+
+		if (!items.find(item => item.id === DEFAULT_EDITOR_ID)) {
+			items.unshift({
+				id: DEFAULT_EDITOR_ID,
+				label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+				description: activeInput instanceof FileEditorInput ? 'Currently Active' : undefined,
+				detail: builtinProviderDisplayName,
+				buttons: resourceExt ? [{
+					iconClass: 'codicon-settings-gear',
+					tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
+				}] : undefined
+			});
+		}
+
+		const picker = this.quickInputService.createQuickPick<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler })>();
+		picker.items = items;
+		picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor to use for '{0}'...", resources.basename(activeResource));
+
+		const pickedItem = await new Promise<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler }) | undefined>(resolve => {
+			picker.onDidAccept(() => {
+				resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0] : undefined);
+				picker.dispose();
+			});
+
+			picker.onDidTriggerItemButton(e => {
+				const pick = e.item;
+				const id = pick.id;
+				resolve(pick); // open the view
+				picker.dispose();
+
+				// And persist the setting
+				if (pick && id) {
+					const newAssociation: CustomEditorAssociation = { viewType: id, filenamePattern: '*' + resourceExt };
+					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)] || [];
+
+					// First try updating existing association
+					for (let i = 0; i < currentAssociations.length; ++i) {
+						const existing = currentAssociations[i];
+						if (existing.filenamePattern === newAssociation.filenamePattern) {
+							currentAssociations.splice(i, 1, newAssociation);
+							this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+							return;
+						}
+					}
+
+					// Otherwise, create a new one
+					currentAssociations.unshift(newAssociation);
+					this.configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+				}
+			});
+
+			picker.show();
+		});
+
+		if (!pickedItem) {
+			return;
+		}
+
+		if (pickedItem.id === DEFAULT_EDITOR_ID) {
+			const fileEditorInput = this.editorService.createEditorInput({ resource: activeResource!, forceFile: true });
+			const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+
+			await this.editorService.openEditor(fileEditorInput, textOptions, group);
+			return;
+		}
+
+		await pickedItem.handler!.open(activeInput!, options, group, pickedItem.id);
 	}
 }
 
@@ -578,7 +711,7 @@ export class SaveAllAction extends BaseSaveAllAction {
 	static readonly LABEL = SAVE_ALL_LABEL;
 
 	get class(): string {
-		return 'explorer-action codicon-save-all';
+		return 'explorer-action ' + Codicon.saveAll.classNames;
 	}
 
 	protected doRun(): Promise<void> {
@@ -592,7 +725,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	get class(): string {
-		return 'explorer-action codicon-save-all';
+		return 'explorer-action ' + Codicon.saveAll.classNames;
 	}
 
 	protected doRun(context: unknown): Promise<void> {
@@ -606,7 +739,7 @@ export class CloseGroupAction extends Action {
 	static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
 	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
-		super(id, label, 'codicon-close-all');
+		super(id, label, Codicon.closeAll.classNames);
 	}
 
 	run(context?: unknown): Promise<void> {
@@ -667,7 +800,7 @@ export class CollapseExplorerView extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExplorerService readonly explorerService: IExplorerService
 	) {
-		super(id, label, 'explorer-action codicon-collapse-all');
+		super(id, label, 'explorer-action ' + Codicon.collapseAll.classNames);
 		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
@@ -694,7 +827,7 @@ export class RefreshExplorerView extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
-		super(id, label, 'explorer-action codicon-refresh');
+		super(id, label, 'explorer-action ' + Codicon.refresh.classNames);
 		this._register(explorerService.onDidChangeEditable(e => {
 			const elementIsBeingEdited = explorerService.isEditable(e);
 			this.enabled = !elementIsBeingEdited;
@@ -819,9 +952,8 @@ export class CompareWithClipboardAction extends Action {
 	static readonly ID = 'workbench.files.action.compareWithClipboard';
 	static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
 
-	private static readonly SCHEME = 'clipboardCompare';
-
 	private registrationDisposal: IDisposable | undefined;
+	private static SCHEME_COUNTER = 0;
 
 	constructor(
 		id: string,
@@ -838,16 +970,17 @@ export class CompareWithClipboardAction extends Action {
 
 	async run(): Promise<void> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
-				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
+				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(scheme, provider);
 			}
 
 			const name = resources.basename(resource);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			await this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }).finally(() => {
+			await this.editorService.openEditor({ leftResource: resource.with({ scheme }), rightResource: resource, label: editorLabel }).finally(() => {
 				dispose(this.registrationDisposal);
 				this.registrationDisposal = undefined;
 			});
@@ -870,7 +1003,8 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel> {
-		const model = this.modelService.createModel(await this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource), resource);
+		const text = await this.clipboardService.readText();
+		const model = this.modelService.createModel(text, this.modeService.createByFilepathOrFirstLine(resource), resource);
 
 		return model;
 	}

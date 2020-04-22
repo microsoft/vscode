@@ -44,6 +44,9 @@ export class NotificationsAlerts extends Disposable {
 	}
 
 	private triggerAriaAlert(notifiation: INotificationViewItem): void {
+		if (notifiation.silent) {
+			return;
+		}
 
 		// Trigger the alert again whenever the message changes
 		const listener = notifiation.onDidChangeContent(e => {

@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { assign } from 'vs/base/common/objects';
 import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -33,6 +32,7 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 export const DirtyWorkingCopiesContext = new RawContextKey<boolean>('dirtyWorkingCopies', false);
 export const ActiveEditorContext = new RawContextKey<string | null>('activeEditor', null);
 export const ActiveEditorIsReadonlyContext = new RawContextKey<boolean>('activeEditorIsReadonly', false);
+export const ActiveEditorAvailableEditorsContext = new RawContextKey<string>('availableEditors', '');
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
@@ -69,6 +69,11 @@ export interface IEditorPane extends IComposite {
 	 * The assigned input of this editor.
 	 */
 	readonly input: IEditorInput | undefined;
+
+	/**
+	 * The assigned options of the editor.
+	 */
+	readonly options: EditorOptions | undefined;
 
 	/**
 	 * The assigned group this editor is showing in.
@@ -890,7 +895,7 @@ export class SideBySideEditorInput extends EditorInput {
 	getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = this.master.getTelemetryDescriptor();
 
-		return assign(descriptor, super.getTelemetryDescriptor());
+		return Object.assign(descriptor, super.getTelemetryDescriptor());
 	}
 
 	private registerListeners(): void {
@@ -1299,6 +1304,7 @@ export interface IWorkbenchEditorConfiguration {
 
 interface IEditorPartConfiguration {
 	showTabs?: boolean;
+	scrollToSwitchTabs?: 'off' | 'natural' | 'reverse';
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';

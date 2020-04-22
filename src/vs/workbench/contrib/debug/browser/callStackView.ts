@@ -20,11 +20,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
-import { ResourceNavigator, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
@@ -158,7 +158,7 @@ export class CallStackView extends ViewPane {
 
 	getActions(): IAction[] {
 		if (this.pauseMessage.hidden) {
-			return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
+			return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 		}
 
 		return [];
@@ -219,7 +219,7 @@ export class CallStackView extends ViewPane {
 
 		this.tree.setInput(this.debugService.getModel());
 
-		const callstackNavigator = ResourceNavigator.createTreeResourceNavigator(this.tree);
+		const callstackNavigator = new TreeResourceNavigator(this.tree);
 		this._register(callstackNavigator);
 		this._register(callstackNavigator.onDidOpenResource(e => {
 			if (this.ignoreSelectionChangedEvent) {
@@ -309,6 +309,7 @@ export class CallStackView extends ViewPane {
 	}
 
 	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
@@ -811,7 +812,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	}
 }
 
-class CallStackAccessibilityProvider implements IAccessibilityProvider<CallStackItem> {
+class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallStackItem> {
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);

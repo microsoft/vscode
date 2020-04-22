@@ -18,7 +18,7 @@ import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -152,10 +152,11 @@ export class VariablesView extends ViewPane {
 	}
 
 	getActions(): IAction[] {
-		return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
+		return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 	}
 
 	layoutBody(width: number, height: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
 
@@ -348,7 +349,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 }
 
-class VariablesAccessibilityProvider implements IAccessibilityProvider<IExpression | IScope> {
+class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpression | IScope> {
 	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
 			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);

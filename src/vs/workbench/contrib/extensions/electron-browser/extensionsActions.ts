@@ -7,7 +7,8 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { Schemas } from 'vs/base/common/network';
 
@@ -21,7 +22,7 @@ export class OpenExtensionsFolderAction extends Action {
 		label: string,
 		@IElectronService private readonly electronService: IElectronService,
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(id, label, undefined, true);
 	}

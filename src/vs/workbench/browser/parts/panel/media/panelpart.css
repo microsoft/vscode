@@ -170,14 +170,14 @@
 
 /* Rotate icons when panel is on right */
 .monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal,
-.monaco-workbench .part.panel.right .title-actions .codicon-chevron-up,
-.monaco-workbench .part.panel.right .title-actions .codicon-chevron-down {
+.monaco-workbench .part.panel.right .title-actions .codicon-panel-maximize,
+.monaco-workbench .part.panel.right .title-actions .codicon-panel-restore {
 	transform: rotate(-90deg);
 }
 
 /* Rotate icons when panel is on left */
 .monaco-workbench .part.panel.left .title-actions .codicon-split-horizontal,
-.monaco-workbench .part.panel.left .title-actions .codicon-chevron-up,
-.monaco-workbench .part.panel.left .title-actions .codicon-chevron-down {
+.monaco-workbench .part.panel.left .title-actions .codicon-panel-maximize,
+.monaco-workbench .part.panel.left .title-actions .codicon-panel-restore {
 	transform: rotate(90deg);
 }
