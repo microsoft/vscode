@@ -242,7 +242,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 					listInactiveFocusOutline: editorBackground,
 				},
 				accessibilityProvider: {
-					getAriaLabel() { return null; }
+					getAriaLabel() { return null; },
+					getWidgetAriaLabel() {
+						return nls.localize('notebookTreeAriaLabel', "Notebook");
+					}
 				}
 			},
 		);
