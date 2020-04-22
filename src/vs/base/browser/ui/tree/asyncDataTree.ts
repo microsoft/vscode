@@ -245,6 +245,7 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 			getWidgetAriaLabel() {
 				return options.accessibilityProvider!.getWidgetAriaLabel();
 			},
+			getWidgetRole: options.accessibilityProvider!.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
 			getAriaLevel: options.accessibilityProvider!.getAriaLevel && (node => {
 				return options.accessibilityProvider!.getAriaLevel!(node.element as T);
 			}),
@@ -269,7 +270,6 @@ function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOpt
 				e => (options.expandOnlyOnTwistieClick as ((e: T) => boolean))(e.element as T)
 			)
 		),
-		ariaRole: 'tree',
 		additionalScrollHeight: options.additionalScrollHeight
 	};
 }

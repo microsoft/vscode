@@ -1558,10 +1558,21 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 			renderers,
 			{
 				supportDynamicHeights: true,
-				ariaRole: 'form',
 				identityProvider: {
 					getId(e) {
 						return e.id;
+					}
+				},
+				accessibilityProvider: {
+					getWidgetRole() {
+						return 'form';
+					},
+					getAriaLabel() {
+						// TODO@roblourens https://github.com/microsoft/vscode/issues/95862
+						return '';
+					},
+					getWidgetAriaLabel() {
+						return localize('settings', "Settings");
 					}
 				},
 				styleController: id => new DefaultStyleController(DOM.createStyleSheet(container), id),

@@ -822,7 +822,6 @@ export interface IListOptions<T> {
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly keyboardNavigationLabelProvider?: IKeyboardNavigationLabelProvider<T>;
 	readonly keyboardNavigationDelegate?: IKeyboardNavigationDelegate;
-	readonly ariaRole?: string;
 	readonly keyboardSupport?: boolean;
 	readonly multipleSelectionSupport?: boolean;
 	readonly multipleSelectionController?: IMultipleSelectionController<T>;
@@ -1186,7 +1185,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		renderers: IListRenderer<any /* TODO@joao */, any>[],
 		private _options: IListOptions<T> = DefaultOptions
 	) {
-		this.selection = new SelectionTrait(this._options.ariaRole !== 'listbox');
+		const role = this._options.accessibilityProvider && this._options.accessibilityProvider.getWidgetRole ? this._options.accessibilityProvider?.getWidgetRole() : 'list';
+		this.selection = new SelectionTrait(role !== 'listbox');
 		this.focus = new Trait('focused');
 
 		mixin(_options, defaultStyles, false);
@@ -1211,7 +1211,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		};
 
 		this.view = new ListView(container, virtualDelegate, renderers, viewOptions);
-		this.view.domNode.setAttribute('role', _options.ariaRole ?? 'list');
+		this.view.domNode.setAttribute('role', role);
 
 		if (_options.styleController) {
 			this.styleController = _options.styleController(this.view.domId);

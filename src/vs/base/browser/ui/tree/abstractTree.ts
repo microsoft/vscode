@@ -192,6 +192,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			getWidgetAriaLabel() {
 				return options.accessibilityProvider!.getWidgetAriaLabel();
 			},
+			getWidgetRole: options.accessibilityProvider && options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
 			getAriaLevel(node) {
 				return node.depth;
 			},
@@ -205,8 +206,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
 			}
 		},
-		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		ariaRole: 'tree'
+		enableKeyboardNavigation: options.simpleKeyboardNavigation
 	};
 }
 

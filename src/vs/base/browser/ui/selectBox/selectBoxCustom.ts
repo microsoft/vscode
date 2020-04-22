@@ -20,6 +20,7 @@ import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxSty
 import { isMacintosh } from 'vs/base/common/platform';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -723,7 +724,13 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			useShadows: false,
 			verticalScrollMode: ScrollbarVisibility.Visible,
 			keyboardSupport: false,
-			mouseSupport: false
+			mouseSupport: false,
+			accessibilityProvider: {
+				getAriaLabel: (element) => element.text,
+				getWidgetAriaLabel: () => localize('selectBox', "Select Box"),
+				getRole: () => 'option',
+				getWidgetRole: () => 'listbox'
+			}
 		});
 		if (this.selectBoxOptions.ariaLabel) {
 			this.selectList.ariaLabel = this.selectBoxOptions.ariaLabel;

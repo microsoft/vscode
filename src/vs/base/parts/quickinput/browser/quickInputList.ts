@@ -287,8 +287,7 @@ export class QuickInputList {
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
-			accessibilityProvider,
-			ariaRole: 'listbox'
+			accessibilityProvider
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
@@ -721,6 +720,10 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 
 	getAriaLabel(element: ListElement): string | null {
 		return element.saneAriaLabel;
+	}
+
+	getWidgetRole() {
+		return 'listbox';
 	}
 
 	getRole() {
