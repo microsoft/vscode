@@ -299,7 +299,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		if (newState.type === ServerState.Type.Running) {
 			return newState;
 		}
-		throw new Error('Could not create TS service');
+		throw new Error(`Could not create TS service. Service state:${JSON.stringify(newState)}`);
 	}
 
 	public ensureServiceStarted() {
@@ -310,7 +310,15 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 
 	private token: number = 0;
 	private startService(resendModels: boolean = false): ServerState.State {
-		if (this.isDisposed || this.hasServerFatallyCrashedTooManyTimes) {
+		this.info(`Starting TS Server `);
+
+		if (this.isDisposed) {
+			this.info(`Not starting server. Disposed `);
+			return ServerState.None;
+		}
+
+		if (this.hasServerFatallyCrashedTooManyTimes) {
+			this.info(`Not starting server. Too many crashes.`);
 			return ServerState.None;
 		}
 
