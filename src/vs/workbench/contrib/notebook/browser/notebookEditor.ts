@@ -109,6 +109,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private editorExecutingNotebook: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
 	protected readonly _contributions: { [key: string]: INotebookEditorContribution; };
+	private scrollBeyondLastLine: boolean;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -125,6 +126,16 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
 		this._contributions = {};
+		this.scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
+
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.scrollBeyondLastLine')) {
+				this.scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
+				if (this.dimension) {
+					this.layout(this.dimension);
+				}
+			}
+		});
 	}
 
 	private readonly _onDidChangeModel = new Emitter<void>();
@@ -569,7 +580,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.toggleClass(this._rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this._rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
-		this.list?.updateOptions({ additionalScrollHeight: dimension.height });
+		this.list?.updateOptions({ additionalScrollHeight: this.scrollBeyondLastLine ? dimension.height : 0 });
 		this.list?.layout(dimension.height, dimension.width);
 
 		if (this.webviewTransparentCover) {
