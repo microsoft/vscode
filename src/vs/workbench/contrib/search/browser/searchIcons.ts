@@ -17,7 +17,7 @@ export const searchRemoveIcon = registerIcon('search-remove', Codicon.close);
 export const searchRefreshIcon = registerIcon('search-refresh', Codicon.refresh);
 export const searchCollapseAllIcon = registerIcon('search-collapse-results', Codicon.collapseAll);
 export const searchExpandAllIcon = registerIcon('search-expand-results', Codicon.expandAll);
-export const searchClearIcon = registerIcon('search-clear-results', Codicon.expandAll);
+export const searchClearIcon = registerIcon('search-clear-results', Codicon.clearAll);
 export const searchStopIcon = Codicon.searchStop;
 
 export const searchViewIcon = Codicon.search;
