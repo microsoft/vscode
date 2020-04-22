@@ -183,8 +183,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const renderedMarkdown = marked.parse(
 		markdown.supportThemeIcons
-			? markdownEscapeEscapedCodicons(markdown.value)
-			: markdown.value,
+			? markdownEscapeEscapedCodicons(markdown.value || '')
+			: (markdown.value || ''),
 		markedOptions
 	);
 
