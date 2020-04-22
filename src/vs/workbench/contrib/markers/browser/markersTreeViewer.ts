@@ -75,6 +75,10 @@ export class MarkersTreeAccessibilityProvider implements IListAccessibilityProvi
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
+	getWidgetAriaLabel(): string {
+		return localize('problemsView', "Problems View");
+	}
+
 	public getAriaLabel(element: TreeElement): string | null {
 		if (element instanceof ResourceMarkers) {
 			const path = this.labelService.getUriLabel(element.resource, { relative: true }) || element.resource.fsPath;

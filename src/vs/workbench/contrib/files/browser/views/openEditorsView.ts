@@ -693,6 +693,11 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 }
 
 class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<OpenEditor | IEditorGroup> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('openEditors', "Open Editors");
+	}
+
 	getAriaLabel(element: OpenEditor | IEditorGroup): string | null {
 		if (element instanceof OpenEditor) {
 			return `${element.editor.getName()} ${element.editor.getDescription()}`;

@@ -395,6 +395,10 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 
 	constructor(@ILabelService private readonly labelService: ILabelService) { }
 
+	getWidgetAriaLabel(): string {
+		return localize('scm', "Source Control Management");
+	}
+
 	getAriaLabel(element: TreeElement): string {
 		if (ResourceTree.isResourceNode(element)) {
 			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;

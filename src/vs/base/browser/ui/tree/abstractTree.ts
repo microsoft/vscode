@@ -189,6 +189,10 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
+			getWidgetAriaLabel() {
+				return options.accessibilityProvider!.getWidgetAriaLabel();
+			},
+			getWidgetRole: options.accessibilityProvider && options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
 			getAriaLevel(node) {
 				return node.depth;
 			},
@@ -202,8 +206,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
 			}
 		},
-		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		ariaRole: 'tree'
+		enableKeyboardNavigation: options.simpleKeyboardNavigation
 	};
 }
 
@@ -1452,6 +1455,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const index = this.view.lastVisibleIndex;
 		const node = this.view.element(index);
 		return node.element;
+	}
+
+	get ariaLabel(): string {
+		return this.view.ariaLabel;
+	}
+
+	set ariaLabel(value: string) {
+		this.view.ariaLabel = value;
 	}
 
 	domFocus(): void {
