@@ -179,7 +179,13 @@ export class UserDataSyncAccounts extends Disposable {
 	}
 
 	private isCurrentAccount(account: IUserDataSyncAccount): boolean {
-		return account.sessionId === this.currentSessionId;
+		if (account.sessionId === this.currentSessionId) {
+			return true;
+		}
+		if (this.useWorkbenchSessionId && account.sessionId === this.environmentService.options?.sessionId) {
+			return true;
+		}
+		return false;
 	}
 
 	async pick(): Promise<boolean> {
@@ -292,20 +298,17 @@ export class UserDataSyncAccounts extends Disposable {
 	private get currentSessionId(): string | undefined {
 		if (this._cachedCurrentSessionId === null) {
 			this._cachedCurrentSessionId = this.getStoredCachedSessionId();
-			if (this._cachedCurrentSessionId === undefined && this.useWorkbenchSessionId) {
-				this._cachedCurrentSessionId = this.environmentService.options?.sessionId;
-			}
 		}
 		return this._cachedCurrentSessionId;
 	}
 
 	private set currentSessionId(cachedSessionId: string | undefined) {
+		this.useWorkbenchSessionId = false;
 		if (this._cachedCurrentSessionId !== cachedSessionId) {
 			this._cachedCurrentSessionId = cachedSessionId;
 			if (cachedSessionId === undefined) {
 				this.storageService.remove(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 			} else {
-				this.useWorkbenchSessionId = false;
 				this.storageService.store(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL);
 			}
 		}
