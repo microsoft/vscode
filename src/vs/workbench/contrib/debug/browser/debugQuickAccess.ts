@@ -86,13 +86,14 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 
 		dynamicProviders.forEach(provider => {
 			picks.push({
-				label: provider.label,
+				label: `$(folder) ${provider.label}...`,
+				ariaLabel: localize('providerAriaLabel', "{0} contributed configurations", provider.label),
 				accept: async () => {
 					const pick = await provider.pick();
 					if (pick) {
 						this.debugService.startDebugging(pick.launch, pick.config);
 					}
-				},
+				}
 			});
 		});
 
