@@ -344,6 +344,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this.setFocus([index]);
 		}
 	}
+
 	selectElement(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
@@ -351,6 +352,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this.setSelection([index]);
 			this.setFocus([index]);
 		}
+	}
+
+	setFocus(indexes: number[], browserEvent?: UIEvent): void {
+		if (this._viewModel) {
+			this._viewModel.selections = indexes.map(index => this.element(index)).map(cell => cell.handle);
+		}
+
+		super.setFocus(indexes, browserEvent);
 	}
 
 	revealElementInView(cell: ICellViewModel) {

@@ -197,6 +197,17 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._layoutInfo;
 	}
 
+	private _selections: number[] = [];
+
+	get selections() {
+		return this._selections;
+	}
+
+	set selections(selections: number[]) {
+		this._selections = selections;
+		this._model.notebook.selections = selections;
+	}
+
 	private _decorationsTree = new DecorationsTree();
 	private _decorations: { [decorationId: string]: IntervalNode; } = Object.create(null);
 	private _lastDecorationId: number = 0;

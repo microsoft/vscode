@@ -1688,7 +1688,15 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookEditor {
+		/**
+		 * The document associated with this notebook editor.
+		 */
 		readonly document: NotebookDocument;
+
+		/**
+		 * The primary selected cell on this notebook editor.
+		 */
+		readonly selection?: NotebookCell;
 		viewColumn?: ViewColumn;
 		/**
 		 * Fired when the output hosting webview posts a message.

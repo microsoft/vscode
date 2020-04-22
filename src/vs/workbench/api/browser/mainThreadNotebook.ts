@@ -33,6 +33,10 @@ export class MainThreadNotebookDocument extends Disposable {
 		this._register(this._textModel.onDidModelChange(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
 		}));
+		this._register(this._textModel.onDidSelectionChange(e => {
+			const selectionsChange = e ? { selections: e } : null;
+			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange });
+		}));
 	}
 
 	applyEdit(modelVersionId: number, edits: ICellEditOperation[]): boolean {
