@@ -163,8 +163,9 @@ abstract class AbstractCellRenderer {
 		addCodeCell.tabIndex = 0;
 		const insertCellBelow = this.instantiationService.createInstance(InsertCodeCellAction);
 
-		disposables.add(DOM.addDisposableListener(addCodeCell, DOM.EventType.CLICK, () => {
+		disposables.add(DOM.addDisposableListener(addCodeCell, DOM.EventType.CLICK, e => {
 			this.actionRunner.run(insertCellBelow, context);
+			e.stopPropagation();
 		}));
 
 		disposables.add((DOM.addDisposableListener(addCodeCell, DOM.EventType.KEY_DOWN, async e => {
@@ -181,8 +182,9 @@ abstract class AbstractCellRenderer {
 		addMarkdownCell.innerHTML = renderCodicons(escape('$(add) Markdown '));
 		addMarkdownCell.tabIndex = 0;
 		const insertMarkdownBelow = this.instantiationService.createInstance(InsertMarkdownCellAction);
-		disposables.add(DOM.addDisposableListener(addMarkdownCell, DOM.EventType.CLICK, () => {
+		disposables.add(DOM.addDisposableListener(addMarkdownCell, DOM.EventType.CLICK, e => {
 			this.actionRunner.run(insertMarkdownBelow, context);
+			e.stopPropagation();
 		}));
 
 		disposables.add((DOM.addDisposableListener(addMarkdownCell, DOM.EventType.KEY_DOWN, async e => {
