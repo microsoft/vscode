@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache } from 'vs/base/common/map';
+import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache, UriIterator } from 'vs/base/common/map';
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { IteratorResult } from 'vs/base/common/iterator';
 
 suite('Map', () => {
 
@@ -16,6 +15,8 @@ suite('Map', () => {
 		map.set('bk', 'bv');
 		assert.deepStrictEqual(map.keys(), ['ak', 'bk']);
 		assert.deepStrictEqual(map.values(), ['av', 'bv']);
+		assert.equal(map.first, 'av');
+		assert.equal(map.last, 'bv');
 	});
 
 	test('LinkedMap - Touch Old one', () => {
@@ -140,7 +141,7 @@ suite('Map', () => {
 		assert.strictEqual(cache.size, 5);
 		assert.deepStrictEqual(cache.keys(), [3, 4, 5, 6, 7]);
 		let values: number[] = [];
-		[3, 4, 5, 6, 7].forEach(key => values.push(cache.get(key)));
+		[3, 4, 5, 6, 7].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [3, 4, 5, 6, 7]);
 	});
 
@@ -155,7 +156,7 @@ suite('Map', () => {
 		cache.peek(4);
 		assert.deepStrictEqual(cache.keys(), [1, 2, 4, 5, 3]);
 		let values: number[] = [];
-		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)));
+		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [1, 2, 3, 4, 5]);
 	});
 
@@ -177,7 +178,7 @@ suite('Map', () => {
 		assert.deepEqual(cache.size, 15);
 		let values: number[] = [];
 		for (let i = 6; i <= 20; i++) {
-			values.push(cache.get(i));
+			values.push(cache.get(i)!);
 			assert.strictEqual(cache.get(i), i);
 		}
 		assert.deepStrictEqual(cache.values(), values);
@@ -194,7 +195,7 @@ suite('Map', () => {
 		assert.strictEqual(cache.size, 5);
 		assert.deepStrictEqual(cache.keys(), [7, 8, 9, 10, 11]);
 		let values: number[] = [];
-		cache.keys().forEach(key => values.push(cache.get(key)));
+		cache.keys().forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [7, 8, 9, 10, 11]);
 		assert.deepStrictEqual(cache.values(), values);
 	});
@@ -225,6 +226,50 @@ suite('Map', () => {
 			i++;
 		});
 	});
+
+	test('LinkedMap - delete Head and Tail', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		assert.equal(map.size, 1);
+		map.delete('1');
+		assert.equal(map.get('1'), undefined);
+		assert.equal(map.size, 0);
+		assert.equal(map.keys().length, 0);
+	});
+
+	test('LinkedMap - delete Head', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		map.set('2', 2);
+		assert.equal(map.size, 2);
+		map.delete('1');
+		assert.equal(map.get('2'), 2);
+		assert.equal(map.size, 1);
+		assert.equal(map.keys().length, 1);
+		assert.equal(map.keys()[0], 2);
+	});
+
+	test('LinkedMap - delete Tail', function () {
+		const map = new LinkedMap<string, number>();
+
+		assert.equal(map.size, 0);
+
+		map.set('1', 1);
+		map.set('2', 2);
+		assert.equal(map.size, 2);
+		map.delete('2');
+		assert.equal(map.get('1'), 1);
+		assert.equal(map.size, 1);
+		assert.equal(map.keys().length, 1);
+		assert.equal(map.keys()[0], 1);
+	});
+
 
 	test('PathIterator', () => {
 		const iter = new PathIterator();
@@ -267,7 +312,64 @@ suite('Map', () => {
 		assert.equal(iter.hasNext(), false);
 	});
 
-	function assertTernarySearchTree<E>(trie: TernarySearchTree<E>, ...elements: [string, E][]) {
+	test('URIIterator', function () {
+		const iter = new UriIterator();
+		iter.reset(URI.parse('file:///usr/bin/file.txt'));
+
+		assert.equal(iter.value(), 'file');
+		assert.equal(iter.cmp('FILE'), 0);
+		assert.equal(iter.hasNext(), true);
+		iter.next();
+
+		assert.equal(iter.value(), 'usr');
+		assert.equal(iter.hasNext(), true);
+		iter.next();
+
+		assert.equal(iter.value(), 'bin');
+		assert.equal(iter.hasNext(), true);
+		iter.next();
+
+		assert.equal(iter.value(), 'file.txt');
+		assert.equal(iter.hasNext(), false);
+
+
+		iter.reset(URI.parse('file://share/usr/bin/file.txt?foo'));
+
+		// scheme
+		assert.equal(iter.value(), 'file');
+		assert.equal(iter.cmp('FILE'), 0);
+		assert.equal(iter.hasNext(), true);
+		iter.next();
+
+		// authority
+		assert.equal(iter.value(), 'share');
+		assert.equal(iter.cmp('SHARe'), 0);
+		assert.equal(iter.hasNext(), true);
+		iter.next();
+
+		// path
+		assert.equal(iter.value(), 'usr');
+		assert.equal(iter.hasNext(), true);
+		iter.next();
+
+		// path
+		assert.equal(iter.value(), 'bin');
+		assert.equal(iter.hasNext(), true);
+		iter.next();
+
+		// path
+		assert.equal(iter.value(), 'file.txt');
+		assert.equal(iter.hasNext(), true);
+		iter.next();
+
+		// query
+		assert.equal(iter.value(), 'foo');
+		assert.equal(iter.cmp('z') > 0, true);
+		assert.equal(iter.cmp('a') < 0, true);
+		assert.equal(iter.hasNext(), false);
+	});
+
+	function assertTernarySearchTree<E>(trie: TernarySearchTree<string, E>, ...elements: [string, E][]) {
 		const map = new Map<string, E>();
 		for (const [key, value] of elements) {
 			map.set(key, value);
@@ -333,7 +435,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree - basics', function () {
-		let trie = new TernarySearchTree<number>(new StringIterator());
+		let trie = new TernarySearchTree<string, number>(new StringIterator());
 
 		trie.set('foo', 1);
 		trie.set('bar', 2);
@@ -363,7 +465,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree - delete & cleanup', function () {
-		let trie = new TernarySearchTree<number>(new StringIterator());
+		let trie = new TernarySearchTree<string, number>(new StringIterator());
 		trie.set('foo', 1);
 		trie.set('foobar', 2);
 		trie.set('bar', 3);
@@ -373,7 +475,7 @@ suite('Map', () => {
 	});
 
 	test('TernarySearchTree (PathSegments) - basics', function () {
-		let trie = new TernarySearchTree<number>(new PathIterator());
+		let trie = new TernarySearchTree<string, number>(new PathIterator());
 
 		trie.set('/user/foo/bar', 1);
 		trie.set('/user/foo', 2);
@@ -397,7 +499,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree (PathSegments) - lookup', function () {
 
-		const map = new TernarySearchTree<number>(new PathIterator());
+		const map = new TernarySearchTree<string, number>(new PathIterator());
 		map.set('/user/foo/bar', 1);
 		map.set('/user/foo', 2);
 		map.set('/user/foo/flip/flop', 3);
@@ -411,7 +513,7 @@ suite('Map', () => {
 
 	test('TernarySearchTree (PathSegments) - superstr', function () {
 
-		const map = new TernarySearchTree<number>(new PathIterator());
+		const map = new TernarySearchTree<string, number>(new PathIterator());
 		map.set('/user/foo/bar', 1);
 		map.set('/user/foo', 2);
 		map.set('/user/foo/flip/flop', 3);
@@ -419,6 +521,82 @@ suite('Map', () => {
 
 		let item: IteratorResult<number>;
 		let iter = map.findSuperstr('/user');
+
+		item = iter!.next();
+		assert.equal(item.value, 2);
+		assert.equal(item.done, false);
+		item = iter!.next();
+		assert.equal(item.value, 1);
+		assert.equal(item.done, false);
+		item = iter!.next();
+		assert.equal(item.value, 3);
+		assert.equal(item.done, false);
+		item = iter!.next();
+		assert.equal(item.value, undefined);
+		assert.equal(item.done, true);
+
+		iter = map.findSuperstr('/usr');
+		item = iter!.next();
+		assert.equal(item.value, 4);
+		assert.equal(item.done, false);
+
+		item = iter!.next();
+		assert.equal(item.value, undefined);
+		assert.equal(item.done, true);
+
+		assert.equal(map.findSuperstr('/not'), undefined);
+		assert.equal(map.findSuperstr('/us'), undefined);
+		assert.equal(map.findSuperstr('/usrr'), undefined);
+		assert.equal(map.findSuperstr('/userr'), undefined);
+	});
+
+
+	test('TernarySearchTree (URI) - basics', function () {
+		let trie = new TernarySearchTree<URI, number>(new UriIterator());
+
+		trie.set(URI.file('/user/foo/bar'), 1);
+		trie.set(URI.file('/user/foo'), 2);
+		trie.set(URI.file('/user/foo/flip/flop'), 3);
+
+		assert.equal(trie.get(URI.file('/user/foo/bar')), 1);
+		assert.equal(trie.get(URI.file('/user/foo')), 2);
+		assert.equal(trie.get(URI.file('/user/foo/flip/flop')), 3);
+
+		assert.equal(trie.findSubstr(URI.file('/user/bar')), undefined);
+		assert.equal(trie.findSubstr(URI.file('/user/foo')), 2);
+		assert.equal(trie.findSubstr(URI.file('/user/foo/ba')), 2);
+		assert.equal(trie.findSubstr(URI.file('/user/foo/far/boo')), 2);
+		assert.equal(trie.findSubstr(URI.file('/user/foo/bar')), 1);
+		assert.equal(trie.findSubstr(URI.file('/user/foo/bar/far/boo')), 1);
+	});
+
+	test('TernarySearchTree (URI) - lookup', function () {
+
+		const map = new TernarySearchTree<URI, number>(new UriIterator());
+		map.set(URI.parse('http://foo.bar/user/foo/bar'), 1);
+		map.set(URI.parse('http://foo.bar/user/foo?query'), 2);
+		map.set(URI.parse('http://foo.bar/user/foo?QUERY'), 3);
+		map.set(URI.parse('http://foo.bar/user/foo/flip/flop'), 3);
+
+		assert.equal(map.get(URI.parse('http://foo.bar/foo')), undefined);
+		assert.equal(map.get(URI.parse('http://foo.bar/user')), undefined);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo/bar')), 1);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo?query')), 2);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo?Query')), undefined);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo?QUERY')), 3);
+		assert.equal(map.get(URI.parse('http://foo.bar/user/foo/bar/boo')), undefined);
+	});
+
+	test('TernarySearchTree (PathSegments) - superstr', function () {
+
+		const map = new TernarySearchTree<URI, number>(new UriIterator());
+		map.set(URI.file('/user/foo/bar'), 1);
+		map.set(URI.file('/user/foo'), 2);
+		map.set(URI.file('/user/foo/flip/flop'), 3);
+		map.set(URI.file('/usr/foo'), 4);
+
+		let item: IteratorResult<number>;
+		let iter = map.findSuperstr(URI.file('/user'))!;
 
 		item = iter.next();
 		assert.equal(item.value, 2);
@@ -433,7 +611,7 @@ suite('Map', () => {
 		assert.equal(item.value, undefined);
 		assert.equal(item.done, true);
 
-		iter = map.findSuperstr('/usr');
+		iter = map.findSuperstr(URI.file('/usr'))!;
 		item = iter.next();
 		assert.equal(item.value, 4);
 		assert.equal(item.done, false);
@@ -442,11 +620,29 @@ suite('Map', () => {
 		assert.equal(item.value, undefined);
 		assert.equal(item.done, true);
 
-		assert.equal(map.findSuperstr('/not'), undefined);
-		assert.equal(map.findSuperstr('/us'), undefined);
-		assert.equal(map.findSuperstr('/usrr'), undefined);
-		assert.equal(map.findSuperstr('/userr'), undefined);
+		iter = map.findSuperstr(URI.file('/'))!;
+		item = iter.next();
+		assert.equal(item.value, 2);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 1);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 3);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 4);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, undefined);
+		assert.equal(item.done, true);
+
+		assert.equal(map.findSuperstr(URI.file('/not')), undefined);
+		assert.equal(map.findSuperstr(URI.file('/us')), undefined);
+		assert.equal(map.findSuperstr(URI.file('/usrr')), undefined);
+		assert.equal(map.findSuperstr(URI.file('/userr')), undefined);
 	});
+
 
 	test('ResourceMap - basics', function () {
 		const map = new ResourceMap<any>();

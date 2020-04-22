@@ -12,7 +12,7 @@ import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/moveCaretCom
 
 class MoveCaretAction extends EditorAction {
 
-	private left: boolean;
+	private readonly left: boolean;
 
 	constructor(left: boolean, opts: IActionOptions) {
 		super(opts);
@@ -28,8 +28,8 @@ class MoveCaretAction extends EditorAction {
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
 
-		for (let i = 0; i < selections.length; i++) {
-			commands.push(new MoveCaretCommand(selections[i], this.left));
+		for (const selection of selections) {
+			commands.push(new MoveCaretCommand(selection, this.left));
 		}
 
 		editor.pushUndoStop();
@@ -42,8 +42,8 @@ class MoveCaretLeftAction extends MoveCaretAction {
 	constructor() {
 		super(true, {
 			id: 'editor.action.moveCarretLeftAction',
-			label: nls.localize('caret.moveLeft', "Move Caret Left"),
-			alias: 'Move Caret Left',
+			label: nls.localize('caret.moveLeft', "Move Selected Text Left"),
+			alias: 'Move Selected Text Left',
 			precondition: EditorContextKeys.writable
 		});
 	}
@@ -53,8 +53,8 @@ class MoveCaretRightAction extends MoveCaretAction {
 	constructor() {
 		super(false, {
 			id: 'editor.action.moveCarretRightAction',
-			label: nls.localize('caret.moveRight', "Move Caret Right"),
-			alias: 'Move Caret Right',
+			label: nls.localize('caret.moveRight', "Move Selected Text Right"),
+			alias: 'Move Selected Text Right',
 			precondition: EditorContextKeys.writable
 		});
 	}

@@ -1,9 +1,11 @@
 {
+  "enableProposedApi": true,
   "name": "html-language-features",
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.0",
   "publisher": "vscode",
+  "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "engines": {
     "vscode": "0.10.x"
@@ -11,13 +13,12 @@
   "icon": "icons/html.png",
   "activationEvents": [
     "onLanguage:html",
-    "onLanguage:handlebars",
-    "onLanguage:razor"
+    "onLanguage:handlebars"
   ],
   "main": "./client/out/htmlMain",
   "scripts": {
-    "compile": "gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
-    "watch": "gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
+    "compile": "npx gulp compile-extension:html-language-features-client compile-extension:html-language-features-server",
+    "watch": "npx gulp watch-extension:html-language-features-client watch-extension:html-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
@@ -31,6 +32,15 @@
       "type": "object",
       "title": "HTML",
       "properties": {
+        "html.customData": {
+          "type": "array",
+          "markdownDescription": "%html.customData.desc%",
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
+        },
         "html.format.enable": {
           "type": "boolean",
           "scope": "window",
@@ -112,28 +122,20 @@
             "force",
             "force-aligned",
             "force-expand-multiline",
-            "aligned-multiple"
+            "aligned-multiple",
+            "preserve",
+            "preserve-aligned"
           ],
           "enumDescriptions": [
             "%html.format.wrapAttributes.auto%",
             "%html.format.wrapAttributes.force%",
             "%html.format.wrapAttributes.forcealign%",
             "%html.format.wrapAttributes.forcemultiline%",
-            "%html.format.wrapAttributes.alignedmultiple%"
+            "%html.format.wrapAttributes.alignedmultiple%",
+            "%html.format.wrapAttributes.preserve%",
+            "%html.format.wrapAttributes.preservealigned%"
           ],
           "description": "%html.format.wrapAttributes.desc%"
-        },
-        "html.suggest.angular1": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.angular1.desc%"
-        },
-        "html.suggest.ionic": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": false,
-          "description": "%html.suggest.ionic.desc%"
         },
         "html.suggest.html5": {
           "type": "boolean",
@@ -159,6 +161,13 @@
           "default": true,
           "description": "%html.autoClosingTags%"
         },
+        "html.mirrorCursorOnMatchingTag": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": false,
+          "description": "%html.mirrorCursorOnMatchingTag%",
+          "deprecationMessage": "%html.mirrorCursorOnMatchingTagDeprecationMessage%"
+        },
         "html.trace.server": {
           "type": "string",
           "scope": "window",
@@ -171,14 +180,32 @@
           "description": "%html.trace.server.desc%"
         }
       }
-    }
+    },
+    "configurationDefaults": {
+      "[html]": {
+        "editor.suggest.insertMode": "replace"
+      },
+      "[handlebars]": {
+        "editor.suggest.insertMode": "replace"
+      }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "*.html-data.json",
+        "url": "https://raw.githubusercontent.com/Microsoft/vscode-html-languageservice/master/docs/customData.schema.json"
+      },
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
+      }
+    ]
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.0",
-    "vscode-languageclient": "^5.1.0",
-    "vscode-nls": "^4.0.0"
+    "vscode-extension-telemetry": "0.1.1",
+    "vscode-languageclient": "^6.1.1",
+    "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^8.10.25"
+    "@types/node": "^12.11.7"
   }
 }

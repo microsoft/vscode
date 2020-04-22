@@ -81,6 +81,27 @@ suite('Strings', () => {
 		assertCompareIgnoreCase('O', '/');
 	});
 
+	test('compareIgnoreCase (substring)', () => {
+
+		function assertCompareIgnoreCase(a: string, b: string, aStart: number, aEnd: number, bStart: number, bEnd: number, recurse = true): void {
+			let actual = strings.compareSubstringIgnoreCase(a, b, aStart, aEnd, bStart, bEnd);
+			actual = actual > 0 ? 1 : actual < 0 ? -1 : actual;
+
+			let expected = strings.compare(a.toLowerCase().substring(aStart, aEnd), b.toLowerCase().substring(bStart, bEnd));
+			expected = expected > 0 ? 1 : expected < 0 ? -1 : expected;
+			assert.equal(actual, expected, `${a} <> ${b}`);
+
+			if (recurse) {
+				assertCompareIgnoreCase(b, a, bStart, bEnd, aStart, aEnd, false);
+			}
+		}
+
+		assertCompareIgnoreCase('', '', 0, 0, 0, 0);
+		assertCompareIgnoreCase('abc', 'ABC', 0, 1, 0, 1);
+		assertCompareIgnoreCase('abc', 'Aabc', 0, 3, 1, 4);
+		assertCompareIgnoreCase('abcABc', 'ABcd', 3, 6, 0, 4);
+	});
+
 	test('format', () => {
 		assert.strictEqual(strings.format('Foo Bar'), 'Foo Bar');
 		assert.strictEqual(strings.format('Foo {0} Bar'), 'Foo {0} Bar');
@@ -92,15 +113,6 @@ suite('Strings', () => {
 		assert.strictEqual(strings.format('Foo {0} Bar. {1}', '(foo)', '.test'), 'Foo (foo) Bar. .test');
 	});
 
-	test('overlap', () => {
-		assert.equal(strings.overlap('foobar', 'arr, I am a priate'), 2);
-		assert.equal(strings.overlap('no', 'overlap'), 1);
-		assert.equal(strings.overlap('no', '0verlap'), 0);
-		assert.equal(strings.overlap('nothing', ''), 0);
-		assert.equal(strings.overlap('', 'nothing'), 0);
-		assert.equal(strings.overlap('full', 'full'), 4);
-		assert.equal(strings.overlap('full', 'fulloverlap'), 4);
-	});
 	test('lcut', () => {
 		assert.strictEqual(strings.lcut('foo bar', 0), '');
 		assert.strictEqual(strings.lcut('foo bar', 1), 'bar');
@@ -320,7 +332,7 @@ suite('Strings', () => {
 	});
 
 	test('fuzzyContains', () => {
-		assert.ok(!strings.fuzzyContains(void 0, null));
+		assert.ok(!strings.fuzzyContains((undefined)!, null!));
 		assert.ok(strings.fuzzyContains('hello world', 'h'));
 		assert.ok(!strings.fuzzyContains('hello world', 'q'));
 		assert.ok(strings.fuzzyContains('hello world', 'hw'));
@@ -402,5 +414,43 @@ suite('Strings', () => {
 		assert.equal(strings.getNLines('foo\nbar'), 'foo');
 		assert.equal(strings.getNLines('foo\nbar\nsomething', 2), 'foo\nbar');
 		assert.equal(strings.getNLines('foo', 0), '');
+	});
+
+	test('encodeUTF8', function () {
+		function assertEncodeUTF8(str: string, expected: number[]): void {
+			const actual = strings.encodeUTF8(str);
+			const actualArr: number[] = [];
+			for (let offset = 0; offset < actual.byteLength; offset++) {
+				actualArr[offset] = actual[offset];
+			}
+			assert.deepEqual(actualArr, expected);
+		}
+
+		function assertDecodeUTF8(data: number[], expected: string): void {
+			const actual = strings.decodeUTF8(new Uint8Array(data));
+			assert.deepEqual(actual, expected);
+		}
+
+		function assertEncodeDecodeUTF8(str: string, buff: number[]): void {
+			assertEncodeUTF8(str, buff);
+			assertDecodeUTF8(buff, str);
+		}
+
+		assertEncodeDecodeUTF8('\u0000', [0]);
+		assertEncodeDecodeUTF8('!', [33]);
+		assertEncodeDecodeUTF8('\u007F', [127]);
+		assertEncodeDecodeUTF8('\u0080', [194, 128]);
+		assertEncodeDecodeUTF8('Ɲ', [198, 157]);
+		assertEncodeDecodeUTF8('\u07FF', [223, 191]);
+		assertEncodeDecodeUTF8('\u0800', [224, 160, 128]);
+		assertEncodeDecodeUTF8('ஂ', [224, 174, 130]);
+		assertEncodeDecodeUTF8('\uffff', [239, 191, 191]);
+		assertEncodeDecodeUTF8('\u10000', [225, 128, 128, 48]);
+		assertEncodeDecodeUTF8('🧝', [240, 159, 167, 157]);
+
+	});
+
+	test('getGraphemeBreakType', () => {
+		assert.equal(strings.getGraphemeBreakType(0xBC1), strings.GraphemeBreakType.SpacingMark);
 	});
 });

@@ -13,5 +13,6 @@ server/build/**
 server/yarn.lock
 server/.npmignore
 yarn.lock
+CONTRIBUTING.md
 server/extension.webpack.config.js
 extension.webpack.config.js

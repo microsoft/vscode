@@ -15,7 +15,7 @@ import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 import TypeScriptServiceClient from './typescriptServiceClient';
-import API from './utils/api';
+import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
@@ -29,6 +29,7 @@ import VersionStatus from './utils/versionStatus';
 const styleCheckDiagnostics = [
 	6133, 	// variable is declared but never used
 	6138, 	// property is declared but its value is never read
+	6192, 	// All imports are unused
 	7027,	// unreachable code detected
 	7028,	// unused label
 	7029,	// fall through case in switch
@@ -36,11 +37,14 @@ const styleCheckDiagnostics = [
 ];
 
 export default class TypeScriptServiceClientHost extends Disposable {
-	private readonly typingsStatus: TypingsStatus;
+
 	private readonly client: TypeScriptServiceClient;
 	private readonly languages: LanguageProvider[] = [];
 	private readonly languagePerId = new Map<string, LanguageProvider>();
+
+	private readonly typingsStatus: TypingsStatus;
 	private readonly versionStatus: VersionStatus;
+
 	private readonly fileConfigurationManager: FileConfigurationManager;
 
 	private reportStyleCheckAsWarnings: boolean = true;
@@ -54,21 +58,8 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
-		const handleProjectCreateOrDelete = () => {
-			this.client.executeWithoutWaitingForResponse('reloadProjects', null);
-			this.triggerAllDiagnostics();
-		};
-		const handleProjectChange = () => {
-			setTimeout(() => {
-				this.triggerAllDiagnostics();
-			}, 1500);
-		};
-		const configFileWatcher = this._register(vscode.workspace.createFileSystemWatcher('**/[tj]sconfig.json'));
-		configFileWatcher.onDidCreate(handleProjectCreateOrDelete, this, this._disposables);
-		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this._disposables);
-		configFileWatcher.onDidChange(handleProjectChange, this, this._disposables);
 
-		const allModeIds = this.getAllModeIds(descriptions);
+		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
 			workspaceState,
 			version => this.versionStatus.onDidChangeTypeScriptVersion(version),
@@ -83,7 +74,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this.versionStatus = this._register(new VersionStatus(resource => this.client.toPath(resource)));
+		this.versionStatus = this._register(new VersionStatus(this.client, commandManager));
 
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
@@ -104,10 +95,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
-			if (this.client.apiVersion.lt(API.v230)) {
-				return;
-			}
-
 			const languages = new Set<string>();
 			for (const plugin of pluginManager.plugins) {
 				for (const language of plugin.languages) {
@@ -138,11 +125,11 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.configurationChanged();
 	}
 
-	private getAllModeIds(descriptions: LanguageDescription[]) {
-		const allModeIds: string[] = [];
-		for (const description of descriptions) {
-			allModeIds.push(...description.modeIds);
-		}
+	private getAllModeIds(descriptions: LanguageDescription[], pluginManager: PluginManager) {
+		const allModeIds = flatten([
+			...descriptions.map(x => x.modeIds),
+			...pluginManager.plugins.map(x => x.languages)
+		]);
 		return allModeIds;
 	}
 
@@ -186,8 +173,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 	private populateService(): void {
 		this.fileConfigurationManager.reset();
-		this.client.bufferSyncSupport.reOpenDocuments();
-		this.client.bufferSyncSupport.requestAllDiagnostics();
 
 		// See https://github.com/Microsoft/TypeScript/issues/5530
 		vscode.workspace.saveAll(false).then(() => {
@@ -218,47 +203,17 @@ export default class TypeScriptServiceClientHost extends Disposable {
 			return;
 		}
 
-		(this.findLanguage(this.client.toResource(body.configFile))).then(language => {
+		this.findLanguage(this.client.toResource(body.configFile)).then(language => {
 			if (!language) {
 				return;
 			}
-			if (body.diagnostics.length === 0) {
-				language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), []);
-			} else if (body.diagnostics.length >= 1) {
-				vscode.workspace.openTextDocument(vscode.Uri.file(body.configFile)).then((document) => {
-					let curly: [number, number, number] | undefined = undefined;
-					let nonCurly: [number, number, number] | undefined = undefined;
-					let diagnostic: vscode.Diagnostic;
-					for (let index = 0; index < document.lineCount; index++) {
-						const line = document.lineAt(index);
-						const text = line.text;
-						const firstNonWhitespaceCharacterIndex = line.firstNonWhitespaceCharacterIndex;
-						if (firstNonWhitespaceCharacterIndex < text.length) {
-							if (text.charAt(firstNonWhitespaceCharacterIndex) === '{') {
-								curly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + 1];
-								break;
-							} else {
-								const matches = /\s*([^\s]*)(?:\s*|$)/.exec(text.substr(firstNonWhitespaceCharacterIndex));
-								if (matches && matches.length >= 1) {
-									nonCurly = [index, firstNonWhitespaceCharacterIndex, firstNonWhitespaceCharacterIndex + matches[1].length];
-								}
-							}
-						}
-					}
-					const match = curly || nonCurly;
-					if (match) {
-						diagnostic = new vscode.Diagnostic(new vscode.Range(match[0], match[1], match[0], match[2]), body.diagnostics[0].text);
-					} else {
-						diagnostic = new vscode.Diagnostic(new vscode.Range(0, 0, 0, 0), body.diagnostics[0].text);
-					}
-					if (diagnostic) {
-						diagnostic.source = language.diagnosticSource;
-						language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), [diagnostic]);
-					}
-				}, _error => {
-					language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), [new vscode.Diagnostic(new vscode.Range(0, 0, 0, 0), body.diagnostics[0].text)]);
-				});
-			}
+
+			language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), body.diagnostics.map(tsDiag => {
+				const range = tsDiag.start && tsDiag.end ? typeConverters.Range.fromTextSpan(tsDiag) : new vscode.Range(0, 0, 0, 1);
+				const diagnostic = new vscode.Diagnostic(range, body.diagnostics[0].text, this.getDiagnosticSeverity(tsDiag));
+				diagnostic.source = language.diagnosticSource;
+				return diagnostic;
+			}));
 		});
 	}
 
@@ -272,21 +227,20 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private tsDiagnosticToVsDiagnostic(diagnostic: Proto.Diagnostic, source: string): vscode.Diagnostic & { reportUnnecessary: any } {
 		const { start, end, text } = diagnostic;
 		const range = new vscode.Range(typeConverters.Position.fromLocation(start), typeConverters.Position.fromLocation(end));
-		const converted = new vscode.Diagnostic(range, text);
-		converted.severity = this.getDiagnosticSeverity(diagnostic);
+		const converted = new vscode.Diagnostic(range, text, this.getDiagnosticSeverity(diagnostic));
 		converted.source = diagnostic.source || source;
 		if (diagnostic.code) {
 			converted.code = diagnostic.code;
 		}
 		const relatedInformation = diagnostic.relatedInformation;
 		if (relatedInformation) {
-			converted.relatedInformation = relatedInformation.map((info: any) => {
-				let span = info.span;
+			converted.relatedInformation = coalesce(relatedInformation.map((info: any) => {
+				const span = info.span;
 				if (!span) {
 					return undefined;
 				}
 				return new vscode.DiagnosticRelatedInformation(typeConverters.Location.fromTextSpan(this.client.toResource(span.file), span), info.message);
-			}).filter((x: any) => !!x) as vscode.DiagnosticRelatedInformation[];
+			}));
 		}
 		if (diagnostic.reportsUnnecessary) {
 			converted.tags = [vscode.DiagnosticTag.Unnecessary];

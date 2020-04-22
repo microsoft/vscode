@@ -5,11 +5,8 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
-import Uri from 'vscode-uri';
-import { TextDocument, CompletionList, CompletionItemKind } from 'vscode-languageserver-types';
-import { getLanguageModes } from '../modes/languageModes';
-import { WorkspaceFolder } from 'vscode-languageserver';
-
+import { URI } from 'vscode-uri';
+import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities} from '../modes/languageModes';
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
@@ -58,8 +55,8 @@ export function testCompletionFor(value: string, expected: { count?: number, ite
 	let document = TextDocument.create(uri, 'html', 0, value);
 	let position = document.positionAt(offset);
 
-	var languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
-	var mode = languageModes.getModeAtPosition(document, position)!;
+	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+	const mode = languageModes.getModeAtPosition(document, position)!;
 
 	let list = mode.doComplete!(document, position);
 
@@ -95,9 +92,9 @@ suite('HTML Path Completion', () => {
 	};
 
 	const fixtureRoot = path.resolve(__dirname, '../../src/test/pathCompletionFixtures');
-	const fixtureWorkspace = { name: 'fixture', uri: Uri.file(fixtureRoot).toString() };
-	const indexHtmlUri = Uri.file(path.resolve(fixtureRoot, 'index.html')).toString();
-	const aboutHtmlUri = Uri.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
+	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
+	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
+	const aboutHtmlUri = URI.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
 
 	test('Basics - Correct label/kind/result/command', () => {
 		testCompletionFor('<script src="./|">', {

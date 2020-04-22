@@ -18,7 +18,7 @@ else
 fi
 
 # Get electron
-node build/lib/electron.js || ./node_modules/.bin/gulp electron
+yarn electron
 
 popd
 

@@ -4,9 +4,11 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.1",
+  "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
   },
+  "enableProposedApi": true,
   "icon": "images/npm_icon.png",
   "categories": [
     "Other"
@@ -16,19 +18,21 @@
     "watch": "gulp watch-extension:npm"
   },
   "dependencies": {
-    "jsonc-parser": "^2.0.2",
+    "jsonc-parser": "^2.2.1",
     "minimatch": "^3.0.4",
-    "request-light": "^0.2.4",
-    "vscode-nls": "^4.0.0"
+    "request-light": "^0.2.5",
+    "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^8.10.25"
+    "@types/node": "^12.11.7"
   },
   "main": "./out/main",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
+    "onCommand:npm.runScriptFromFolder",
     "onLanguage:json",
+    "workspaceContains:package.json",
     "onView:npm"
   ],
   "contributes": {
@@ -38,6 +42,12 @@
         "filenames": [
           ".npmignore"
         ]
+      },
+      {
+        "id": "properties",
+        "filenames": [
+          ".npmrc"
+        ]
       }
     ],
     "views": {
@@ -45,7 +55,7 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "config.npm.enableScriptExplorer"
+          "when": "npm:showScriptExplorer || config.npm.enableScriptExplorer"
         }
       ]
     },
@@ -53,18 +63,12 @@
       {
         "command": "npm.runScript",
         "title": "%command.run%",
-        "icon": {
-          "light": "resources/light/continue.svg",
-          "dark": "resources/dark/continue.svg"
-        }
+        "icon": "$(run)"
       },
       {
         "command": "npm.debugScript",
         "title": "%command.debug%",
-        "icon": {
-          "light": "resources/light/debug.svg",
-          "dark": "resources/dark/debug.svg"
-        }
+        "icon": "$(debug)"
       },
       {
         "command": "npm.openScript",
@@ -77,14 +81,15 @@
       {
         "command": "npm.refresh",
         "title": "%command.refresh%",
-        "icon": {
-          "light": "resources/light/refresh.svg",
-          "dark": "resources/dark/refresh.svg"
-        }
+        "icon": "$(refresh)"
       },
       {
         "command": "npm.runSelectedScript",
         "title": "%command.runSelectedScript%"
+      },
+      {
+        "command": "npm.runScriptFromFolder",
+        "title": "%command.runScriptFromFolder%"
       }
     ],
     "menus": {
@@ -111,6 +116,10 @@
         },
         {
           "command": "npm.runSelectedScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.runScriptFromFolder",
           "when": "false"
         }
       ],
@@ -169,7 +178,14 @@
           "when": "view == npm && viewItem == script",
           "group": "navigation@3"
         }
-      ]
+      ],
+      "explorer/context": [
+				{
+					"when": "config.npm.enableRunFromFolder && explorerViewletVisible && explorerResourceIsFolder",
+          "command": "npm.runScriptFromFolder",
+					"group": "2_workspace"
+				}
+			]
     },
     "configuration": {
       "id": "npm",
@@ -218,6 +234,12 @@
           "default": false,
           "scope": "resource",
           "description": "%config.npm.enableScriptExplorer%"
+        },
+        "npm.enableRunFromFolder": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.npm.enableRunFromFolder%"
         },
         "npm.scriptExplorerAction": {
           "type": "string",

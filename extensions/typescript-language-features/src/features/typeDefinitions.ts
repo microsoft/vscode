@@ -5,8 +5,6 @@
 
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import DefinitionProviderBase from './definitionProviderBase';
 
 export default class TypeScriptTypeDefinitionProvider extends DefinitionProviderBase implements vscode.TypeDefinitionProvider {
@@ -19,8 +17,6 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, API.v213, () => {
-		return vscode.languages.registerTypeDefinitionProvider(selector,
-			new TypeScriptTypeDefinitionProvider(client));
-	});
+	return vscode.languages.registerTypeDefinitionProvider(selector,
+		new TypeScriptTypeDefinitionProvider(client));
 }

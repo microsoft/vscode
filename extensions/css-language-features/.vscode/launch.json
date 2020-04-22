@@ -23,8 +23,7 @@
 			"outFiles": [
 				"${workspaceFolder}/client/out/**/*.js"
 			],
-			"smartStep": true,
-			"preLaunchTask": "npm: compile"
+			"smartStep": true
 		},
 		{
 			"name": "Launch Tests",
@@ -39,8 +38,7 @@
 			"sourceMaps": true,
 			"outFiles": [
 				"${workspaceFolder}/client/out/test/**/*.js"
-			],
-			"preLaunchTask": "npm: compile"
+			]
 		},
 		{
 			"name": "Attach Language Server",

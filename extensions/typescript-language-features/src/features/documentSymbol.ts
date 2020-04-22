@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+import { CachedResponse } from '../tsServer/cachedResponse';
 
 const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
@@ -15,7 +16,7 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 		case PConst.Kind.class: return vscode.SymbolKind.Class;
 		case PConst.Kind.enum: return vscode.SymbolKind.Enum;
 		case PConst.Kind.interface: return vscode.SymbolKind.Interface;
-		case PConst.Kind.memberFunction: return vscode.SymbolKind.Method;
+		case PConst.Kind.method: return vscode.SymbolKind.Method;
 		case PConst.Kind.memberVariable: return vscode.SymbolKind.Property;
 		case PConst.Kind.memberGetAccessor: return vscode.SymbolKind.Property;
 		case PConst.Kind.memberSetAccessor: return vscode.SymbolKind.Property;
@@ -24,50 +25,59 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 		case PConst.Kind.localVariable: return vscode.SymbolKind.Variable;
 		case PConst.Kind.function: return vscode.SymbolKind.Function;
 		case PConst.Kind.localFunction: return vscode.SymbolKind.Function;
+		case PConst.Kind.constructSignature: return vscode.SymbolKind.Constructor;
+		case PConst.Kind.constructorImplementation: return vscode.SymbolKind.Constructor;
 	}
 	return vscode.SymbolKind.Variable;
 };
 
 class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
+
 	public constructor(
-		private readonly client: ITypeScriptServiceClient
+		private readonly client: ITypeScriptServiceClient,
+		private cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 	) { }
 
-	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | undefined> {
-		const file = this.client.toPath(resource.uri);
+	public async provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | undefined> {
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return undefined;
 		}
 
 		const args: Proto.FileRequestArgs = { file };
-		const response = await this.client.execute('navtree', args, token);
-		if (response.type !== 'response' || !response.body) {
+		const response = await this.cachedResponse.execute(document, () => this.client.execute('navtree', args, token));
+		if (response.type !== 'response' || !response.body?.childItems) {
 			return undefined;
 		}
 
-		let tree = response.body;
-		if (tree && tree.childItems) {
-			// The root represents the file. Ignore this when showing in the UI
-			const result: vscode.DocumentSymbol[] = [];
-			tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
-			return result;
+		// The root represents the file. Ignore this when showing in the UI
+		const result: vscode.DocumentSymbol[] = [];
+		for (const item of response.body.childItems) {
+			TypeScriptDocumentSymbolProvider.convertNavTree(document.uri, result, item);
 		}
-
-		return undefined;
+		return result;
 	}
 
-	private static convertNavTree(resource: vscode.Uri, bucket: vscode.DocumentSymbol[], item: Proto.NavigationTree): boolean {
+	private static convertNavTree(
+		resource: vscode.Uri,
+		output: vscode.DocumentSymbol[],
+		item: Proto.NavigationTree,
+	): boolean {
 		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);
+		if (!shouldInclude && !item.childItems?.length) {
+			return false;
+		}
 
 		const children = new Set(item.childItems || []);
 		for (const span of item.spans) {
 			const range = typeConverters.Range.fromTextSpan(span);
+			const selectionRange = item.nameSpan ? typeConverters.Range.fromTextSpan(item.nameSpan) : range;
 			const symbolInfo = new vscode.DocumentSymbol(
 				item.text,
 				'',
 				getSymbolKind(item.kind),
 				range,
-				range);
+				range.contains(selectionRange) ? selectionRange : range);
 
 			for (const child of children) {
 				if (child.spans.some(span => !!range.intersection(typeConverters.Range.fromTextSpan(span)))) {
@@ -78,7 +88,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 			}
 
 			if (shouldInclude) {
-				bucket.push(symbolInfo);
+				output.push(symbolInfo);
 			}
 		}
 
@@ -93,11 +103,11 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	}
 }
 
-
 export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
+	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
 	return vscode.languages.registerDocumentSymbolProvider(selector,
-		new TypeScriptDocumentSymbolProvider(client), { label: 'TypeScript' });
+		new TypeScriptDocumentSymbolProvider(client, cachedResponse), { label: 'TypeScript' });
 }

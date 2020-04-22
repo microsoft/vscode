@@ -17,7 +17,12 @@ declare const enum LoaderEventType {
 	NodeEndEvaluatingScript = 32,
 
 	NodeBeginNativeRequire = 33,
-	NodeEndNativeRequire = 34
+	NodeEndNativeRequire = 34,
+
+	CachedDataFound = 60,
+	CachedDataMissed = 61,
+	CachedDataRejected = 62,
+	CachedDataCreated = 63,
 }
 
 declare class LoaderEvent {
@@ -26,7 +31,7 @@ declare class LoaderEvent {
 	readonly detail: string;
 }
 
-declare var define: {
+declare const define: {
 	(moduleName: string, dependencies: string[], callback: (...args: any[]) => any): any;
 	(moduleName: string, dependencies: string[], definition: any): any;
 	(moduleName: string, callback: (...args: any[]) => any): any;
@@ -41,5 +46,7 @@ interface NodeRequire {
 	config(data: any): any;
 	onError: Function;
 	__$__nodeRequire<T>(moduleName: string): T;
-	getStats(): ReadonlyArray<LoaderEvent>
+	getStats(): ReadonlyArray<LoaderEvent>;
 }
+
+declare var require: NodeRequire;

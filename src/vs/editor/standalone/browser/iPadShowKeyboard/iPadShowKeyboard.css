@@ -13,12 +13,12 @@
 	position: absolute;
 	resize: none;
 	overflow: hidden;
-	background: url('keyboard.svg') center center no-repeat;
+	background: url('keyboard-light.svg') center center no-repeat;
 	border: 4px solid #F6F6F6;
 	border-radius: 4px;
 }
 
 .monaco-editor.vs-dark .iPadShowKeyboard {
-	background: url('keyboard-inverse.svg') center center no-repeat;
+	background: url('keyboard-dark.svg') center center no-repeat;
 	border: 4px solid #252526;
 }

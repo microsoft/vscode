@@ -1,0 +1,260 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Splitview</title>
+	<style>
+		#container {
+			width: 800px;
+			height: 600px;
+			border: 1px solid black;
+		}
+
+		.view {
+			width: 100%;
+			height: 100%;
+			text-align: center;
+			vertical-align: middle;
+			color: white;
+			font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+			font-weight: bold;
+			font-size: 20px;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="buttons"></div>
+	<div id="container"></div>
+
+	<script src="/static/vs/loader.js"></script>
+	<script>
+		require.config({ baseUrl: '/static' });
+
+		const params = location.search.split(/[?&]/);
+		const testGrid = params.findIndex(p => p === 'grid') >= 0;
+		const testDeserialization = params.findIndex(p => p === 'deserialize') >= 0;
+
+		if (testGrid) {
+			require(['vs/base/browser/ui/grid/grid', 'vs/base/common/event'], ({ Grid, Sizing, Direction, SerializableGrid }, { Event }) => {
+				const buttons = document.getElementById('buttons');
+
+				let grid;
+
+				class View {
+					static ID = 0;
+
+					constructor(label, minimumWidth, maximumWidth, minimumHeight, maximumHeight, snap) {
+						this.id = View.ID++;
+						this.label = label;
+						this.minimumWidth = minimumWidth;
+						this.maximumWidth = maximumWidth;
+						this.minimumHeight = minimumHeight;
+						this.maximumHeight = maximumHeight;
+						this.snap = snap;
+						this.onDidChange = Event.None;
+
+						this.element = document.createElement('div');
+						this.element.className = 'view';
+						this.element.style.backgroundColor = `hsl(${(this.id * 41) % 360}, 50%, 70%)`;
+						this.element.textContent = this.label;
+
+						this.button = document.createElement('button');
+						this.button.onclick = () => grid.setViewVisible(this, !grid.isViewVisible(this));
+						buttons.appendChild(this.button);
+						this.setVisible(true);
+					}
+
+					layout(width, height, top, left) {
+						this.element.innerHTML = `(${top}, ${left})<br />(${width}, ${height})`;
+					}
+
+					setVisible(visible) {
+						this.button.textContent = visible ? `hide ${this.label}` : `show ${this.label}`;
+					}
+				}
+
+				const editor = new View('editor', 200, Number.POSITIVE_INFINITY, 200, Number.POSITIVE_INFINITY);
+				const statusbar = new View('status', 0, Number.POSITIVE_INFINITY, 20, 20);
+				const activitybar = new View('activity', 50, 50, 0, Number.POSITIVE_INFINITY);
+				const sidebar = new View('sidebar', 200, Number.POSITIVE_INFINITY, 0, Number.POSITIVE_INFINITY, true);
+				const panel = new View('panel', 0, Number.POSITIVE_INFINITY, 200, Number.POSITIVE_INFINITY, true);
+
+				if (testDeserialization) {
+					const viewMap = {
+						['activitybar']: activitybar,
+						['editor']: editor,
+						['panel']: panel,
+						['sidebar']: sidebar,
+						['statusbar']: statusbar
+					};
+
+					const gridViewDescriptor = {
+						root: {
+							type: 'branch',
+							size: 800,
+							data: [
+								{
+									type: 'branch',
+									size: 580,
+									data: [
+										{
+											type: 'leaf',
+											size: activitybar.maximumWidth,
+											data: { type: 'activitybar' },
+											visible: true
+										},
+										{
+											type: 'leaf',
+											size: 200,
+											data: { type: 'sidebar' },
+											visible: true
+										},
+										{
+											type: 'branch',
+											size: 550,
+											data: [
+												{
+													type: 'leaf',
+													size: 380,
+													data: { type: 'editor' },
+													visible: true
+												},
+												{
+													type: 'leaf',
+													size: 200,
+													data: { type: 'panel' },
+													visible: true
+												}
+											]
+										}
+									]
+								},
+								{
+									type: 'leaf',
+									size: statusbar.maximumHeight,
+									data: { type: "statusbar" },
+									visible: true
+								}
+							]
+						},
+						orientation: 0,
+						width: 800,
+						height: 600
+					};
+
+
+					const fromJSON = ({ type }) => viewMap[type];
+					grid = SerializableGrid.deserialize(
+						gridViewDescriptor,
+						{ fromJSON },
+						{ proportionalLayout: false }
+					);
+
+					container.appendChild(grid.element);
+					grid.layout(800, 600);
+				} else {
+					grid = new Grid(editor, {});
+					const container = document.getElementById('container');
+					container.appendChild(grid.element);
+					grid.layout(800, 600);
+
+					grid.addView(statusbar, Sizing.Distribute, editor, Direction.Down);
+					grid.addView(activitybar, Sizing.Distribute, editor, Direction.Left);
+					grid.addView(sidebar, 250, editor, Direction.Left);
+					grid.addView(panel, 200, editor, Direction.Down);
+				}
+			});
+		}
+		else {
+			require(['vs/base/browser/ui/splitview/splitview', 'vs/base/common/event'], ({ SplitView, Sizing }, { Event }) => {
+				const buttons = document.getElementById('buttons');
+
+				let splitview;
+
+				class View {
+					static ID = 0;
+
+					constructor(minimumSize, maximumSize) {
+						this.id = View.ID++;
+						this.element = document.createElement('div');
+						this.element.className = 'view';
+						this.element.style.backgroundColor = `hsl(${(this.id * 41) % 360}, 50%, 70%)`;
+						this.element.textContent = `${this.id}`;
+						this.minimumSize = typeof minimumSize === 'number' ? minimumSize : 100;
+						this.maximumSize = typeof maximumSize === 'number' ? maximumSize : Number.POSITIVE_INFINITY;
+						this.onDidChange = Event.None;
+						this.snap = !minimumSize && !maximumSize;
+
+						this.button = document.createElement('button');
+						this.button.onclick = () => splitview.setViewVisible(this.id, !splitview.isViewVisible(this.id));
+						buttons.appendChild(this.button);
+						this.setVisible(true);
+					}
+
+					layout(size, orientation) {
+						this.element.style.lineHeight = `${size}px`;
+					}
+
+					setVisible(visible) {
+						this.button.textContent = visible ? `hide ${this.id}` : `show ${this.id}`;
+					}
+				}
+
+				const container = document.getElementById('container');
+
+				const views = [new View(100, 100), new View(), new View(), new View(), new View()];
+
+				if (testDeserialization) {
+					const splitViewDescriptor = {
+						views: [
+							{
+								view: views[0],
+								size: 100,
+								visible: true
+							},
+							{
+								view: views[1],
+								size: 100,
+								visible: false
+							},
+							{
+								view: views[2],
+								size: 100,
+								visible: true
+							},
+							{
+								view: views[3],
+								size: 200,
+								visible: true
+							},
+							{
+								view: views[4],
+								size: 200,
+								visible: true
+							}
+						]
+					};
+
+					splitview = new SplitView(container, { descriptor: splitViewDescriptor, orientation: 0 });
+					splitview.layout(600);
+				} else {
+					// Create a new split view from scratch
+					splitview = new SplitView(container, {});
+					splitview.layout(600);
+
+					splitview.addView(views[0], Sizing.Distribute);
+					splitview.addView(views[1], Sizing.Distribute);
+					splitview.addView(views[2], Sizing.Distribute);
+					splitview.addView(views[3], Sizing.Distribute);
+					splitview.addView(views[4], Sizing.Distribute);
+				}
+			});
+		}
+	</script>
+</body>
+
+</html>

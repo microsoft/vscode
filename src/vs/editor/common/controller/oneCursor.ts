@@ -11,8 +11,8 @@ import { TrackedRangeStickiness } from 'vs/editor/common/model';
 
 export class OneCursor {
 
-	public modelState: SingleCursorState;
-	public viewState: SingleCursorState;
+	public modelState!: SingleCursorState;
+	public viewState!: SingleCursorState;
 
 	private _selTrackedRange: string | null;
 	private _trackSelection: boolean;

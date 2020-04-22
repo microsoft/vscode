@@ -7,7 +7,6 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
 
 const localize = nls.loadMessageBundle();
 
@@ -16,7 +15,7 @@ interface Directive {
 	readonly description: string;
 }
 
-const directives: Directive[] = [
+const tsDirectives: Directive[] = [
 	{
 		value: '@ts-check',
 		description: localize(
@@ -35,7 +34,18 @@ const directives: Directive[] = [
 	}
 ];
 
+const tsDirectives390: Directive[] = [
+	...tsDirectives,
+	{
+		value: '@ts-expect-error',
+		description: localize(
+			'ts-expect-error',
+			"Suppresses @ts-check errors on the next line of a file, expecting at least one to exist.")
+	}
+];
+
 class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvider {
+
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 	) { }
@@ -45,7 +55,7 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 		position: vscode.Position,
 		_token: vscode.CancellationToken
 	): vscode.CompletionItem[] {
-		const file = this.client.toPath(document.uri);
+		const file = this.client.toOpenedFilePath(document);
 		if (!file) {
 			return [];
 		}
@@ -54,6 +64,10 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 		const prefix = line.slice(0, position.character);
 		const match = prefix.match(/^\s*\/\/+\s?(@[a-zA-Z\-]*)?$/);
 		if (match) {
+			const directives = this.client.apiVersion.gte(API.v390)
+				? tsDirectives390
+				: tsDirectives;
+
 			return directives.map(directive => {
 				const item = new vscode.CompletionItem(directive.value, vscode.CompletionItemKind.Snippet);
 				item.detail = directive.description;
@@ -69,9 +83,7 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, API.v230, () => {
-		return vscode.languages.registerCompletionItemProvider(selector,
-			new DirectiveCommentCompletionProvider(client),
-			'@');
-	});
+	return vscode.languages.registerCompletionItemProvider(selector,
+		new DirectiveCommentCompletionProvider(client),
+		'@');
 }

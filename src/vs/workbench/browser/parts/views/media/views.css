@@ -3,62 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* File icon themeable tree style */
-.file-icon-themable-tree .monaco-tree-row .content {
-	display: flex;
+/* File icons in trees */
+
+.file-icon-themable-tree.align-icons-and-twisties .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
+.file-icon-themable-tree .align-icon-with-twisty .monaco-tl-twistie:not(.force-twistie):not(.collapsible),
+.file-icon-themable-tree.hide-arrows .monaco-tl-twistie:not(.force-twistie) {
+	background-image: none !important;
+	width: 0 !important;
+	padding-right: 0 !important;
+	visibility: hidden;
 }
 
-.file-icon-themable-tree .monaco-tree-row .content::before {
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-	padding-right: 6px;
-	width: 16px;
-	height: 22px;
-	display: inline-block;
-	vertical-align: top;
-	content: ' ';
-}
+/* Misc */
 
-.file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded.svg");
-}
-
-.file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	display: inline-block;
-	background-image: url("collapsed.svg");
-}
-
-.vs-dark .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-dark.svg");
-}
-
-.vs-dark .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-dark.svg");
-}
-
-.hc-black .file-icon-themable-tree .monaco-tree-row.has-children.expanded .content::before {
-	background-image: url("expanded-hc.svg");
-}
-
-.hc-black .file-icon-themable-tree .monaco-tree-row.has-children .content::before {
-	background-image: url("collapsed-hc.svg");
-}
-
-.file-icon-themable-tree.align-icons-and-twisties .monaco-tree-row:not(.has-children) .content::before,
-.file-icon-themable-tree.hide-arrows .monaco-tree-row .content::before {
-	display: none;
+.monaco-workbench .tree-explorer-viewlet-tree-view {
+	height: 100%;
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .message {
-	padding: 4px 0px 0px 18px;
-	user-select: text
+	display: flex;
+	padding: 4px 12px 4px 18px;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .message p {
 	margin-top: 0px;
 	margin-bottom: 0px;
 	padding-bottom: 4px;
+}
+
+.monaco-workbench .tree-explorer-viewlet-tree-view .message ul {
+	padding-left: 24px;
 }
 
 .monaco-workbench .tree-explorer-viewlet-tree-view .message.hide {
@@ -69,35 +45,78 @@
 	height: 100%;
 }
 
-.customview-tree.file-icon-themable-tree .monaco-tree-row .content.align-icon-with-twisty::before {
+.monaco-workbench .tree-explorer-viewlet-tree-view .customview-tree.hide {
 	display: none;
 }
 
-.customview-tree.file-icon-themable-tree .monaco-tree-row .content:not(.align-icon-with-twisty)::before {
+.monaco-workbench .pane > .pane-body > .welcome-view {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+}
+
+.monaco-workbench .pane > .pane-body:not(.welcome) > .welcome-view,
+.monaco-workbench .pane > .pane-body.welcome > :not(.welcome-view) {
+	display: none;
+}
+
+.monaco-workbench .pane > .pane-body > .welcome-view .monaco-button {
+	max-width: 260px;
+	margin-left: auto;
+	margin-right: auto;
+	display: block;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content {
+	padding: 0 20px 0 20px;
+	box-sizing: border-box;
+}
+
+.monaco-workbench .pane > .pane-body .welcome-view-content > * {
+	margin-block-start: 1em;
+	margin-block-end: 1em;
+	margin-inline-start: 0px;
+	margin-inline-end: 0px;
+}
+
+.customview-tree .monaco-list-row .monaco-tl-contents.align-icon-with-twisty::before {
+	display: none;
+}
+
+.customview-tree .monaco-list-row .monaco-tl-contents:not(.align-icon-with-twisty)::before {
 	display: inline-block;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row {
+.customview-tree .monaco-list .monaco-list-row {
 	padding-right: 12px;
+	padding-left: 0px;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item {
 	display: flex;
 	height: 22px;
 	line-height: 22px;
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
-	flex-wrap: nowrap
+	flex-wrap: nowrap;
+	padding-left: 3px;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .monaco-inputbox {
+	line-height: normal;
+	flex: 1;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel {
 	flex: 1;
 	text-overflow: ellipsis;
 	overflow: hidden;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon {
 	background-size: 16px;
 	background-position: left center;
 	background-repeat: no-repeat;
@@ -105,29 +124,47 @@
 	width: 16px;
 	height: 22px;
 	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel .monaco-icon-label-description-container {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon {
+	margin-top: 3px;
+}
+
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-icon.codicon {
+	color: currentColor !important;
+}
+
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
 	flex: 1;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel::after {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .custom-view-tree-node-item-resourceLabel::after {
 	padding-right: 0px;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
+.customview-tree .monaco-list .monaco-list-row .custom-view-tree-node-item .actions {
 	display: none;
 }
 
-.customview-tree .monaco-tree .monaco-tree-row:hover .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
-.customview-tree .monaco-tree .monaco-tree-row.selected .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions,
-.customview-tree .monaco-tree .monaco-tree-row.focused .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions {
+.customview-tree .monaco-list .monaco-list-row:hover .custom-view-tree-node-item .actions,
+.customview-tree .monaco-list .monaco-list-row.selected .custom-view-tree-node-item .actions,
+.customview-tree .monaco-list .monaco-list-row.focused .custom-view-tree-node-item .actions {
 	display: block;
 }
 
-.customview-tree .monaco-tree .custom-view-tree-node-item > .custom-view-tree-node-item-resourceLabel > .actions .action-label {
+.customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label {
 	width: 16px;
 	height: 100%;
+	background-size: 16px;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
+}
+
+.customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label.codicon {
+	line-height: 22px;
+}
+
+.customview-tree .monaco-list .custom-view-tree-node-item .actions .action-label.codicon::before {
+	vertical-align: middle;
 }

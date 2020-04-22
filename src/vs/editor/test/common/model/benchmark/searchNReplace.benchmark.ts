@@ -41,7 +41,7 @@ for (let fileSize of fileSizes) {
 				return textBuffer;
 			},
 			fn: (textBuffer) => {
-				textBuffer.applyEdits(edits.slice(0, i), false);
+				textBuffer.applyEdits(edits.slice(0, i), false, false);
 			}
 		});
 	}

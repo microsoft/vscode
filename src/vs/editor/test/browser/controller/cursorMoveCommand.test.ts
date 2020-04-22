@@ -13,6 +13,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Cursor move command test', () => {
 
@@ -30,9 +32,10 @@ suite('Cursor move command test', () => {
 			'1'
 		].join('\n');
 
-		thisModel = TextModel.createFromString(text);
-		thisConfiguration = new TestConfiguration(null);
-		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, null);
+		thisModel = createTextModel(text);
+		thisConfiguration = new TestConfiguration({});
+		const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(thisConfiguration.options);
+		thisViewModel = new ViewModel(0, thisConfiguration, thisModel, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
 		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
 	});
 
@@ -132,7 +135,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from middle', () => {
 		moveTo(thisCursor, 1, 8);
 
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
+		moveToLineFirstNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 6);
 	});
@@ -140,7 +143,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from first non white space character', () => {
 		moveTo(thisCursor, 1, 6);
 
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
+		moveToLineFirstNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 6);
 	});
@@ -148,7 +151,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from first character', () => {
 		moveTo(thisCursor, 1, 1);
 
-		moveToLineFirstNonWhiteSpaceCharacter(thisCursor);
+		moveToLineFirstNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 6);
 	});
@@ -180,7 +183,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from middle', () => {
 		moveTo(thisCursor, 1, 8);
 
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		moveToLineLastNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 19);
 	});
@@ -188,7 +191,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from last non white space character', () => {
 		moveTo(thisCursor, 1, 19);
 
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		moveToLineLastNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 19);
 	});
@@ -196,7 +199,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from line end', () => {
 		moveTo(thisCursor, 1, 21);
 
-		moveToLineLastNonWhiteSpaceCharacter(thisCursor);
+		moveToLineLastNonWhitespaceCharacter(thisCursor);
 
 		cursorEqual(thisCursor, 1, 19);
 	});
@@ -415,7 +418,7 @@ function moveToLineStart(cursor: Cursor) {
 	move(cursor, { to: CursorMove.RawDirection.WrappedLineStart });
 }
 
-function moveToLineFirstNonWhiteSpaceCharacter(cursor: Cursor) {
+function moveToLineFirstNonWhitespaceCharacter(cursor: Cursor) {
 	move(cursor, { to: CursorMove.RawDirection.WrappedLineFirstNonWhitespaceCharacter });
 }
 
@@ -427,7 +430,7 @@ function moveToLineEnd(cursor: Cursor) {
 	move(cursor, { to: CursorMove.RawDirection.WrappedLineEnd });
 }
 
-function moveToLineLastNonWhiteSpaceCharacter(cursor: Cursor) {
+function moveToLineLastNonWhitespaceCharacter(cursor: Cursor) {
 	move(cursor, { to: CursorMove.RawDirection.WrappedLineLastNonWhitespaceCharacter });
 }
 
@@ -483,11 +486,11 @@ function selectionEqual(selection: Selection, posLineNumber: number, posColumn: 
 		positionLineNumber: selection.positionLineNumber,
 		positionColumn: selection.positionColumn
 	}, {
-			selectionStartLineNumber: selLineNumber,
-			selectionStartColumn: selColumn,
-			positionLineNumber: posLineNumber,
-			positionColumn: posColumn
-		}, 'selection equal');
+		selectionStartLineNumber: selLineNumber,
+		selectionStartColumn: selColumn,
+		positionLineNumber: posLineNumber,
+		positionColumn: posColumn
+	}, 'selection equal');
 }
 
 function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {

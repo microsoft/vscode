@@ -4,9 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { PluginManager } from './utils/plugins';
 
-interface ApiV0 {
-	readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem>;
+class ApiV0 {
+	public constructor(
+		public readonly onCompletionAccepted: vscode.Event<vscode.CompletionItem & { metadata?: any }>,
+		private readonly _pluginManager: PluginManager,
+	) { }
+
+	configurePlugin(pluginId: string, configuration: {}): void {
+		this._pluginManager.setConfiguration(pluginId, configuration);
+	}
 }
 
 export interface Api {
@@ -14,14 +22,13 @@ export interface Api {
 }
 
 export function getExtensionApi(
-	onCompletionAccepted: vscode.Event<vscode.CompletionItem>
+	onCompletionAccepted: vscode.Event<vscode.CompletionItem>,
+	pluginManager: PluginManager,
 ): Api {
 	return {
 		getAPI(version) {
 			if (version === 0) {
-				return {
-					onCompletionAccepted: onCompletionAccepted
-				} as ApiV0;
+				return new ApiV0(onCompletionAccepted, pluginManager);
 			}
 			return undefined;
 		}

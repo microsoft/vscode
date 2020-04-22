@@ -1,0 +1,20 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-binary-resource-editor:focus {
+	outline: none !important;
+}
+
+.monaco-binary-resource-editor {
+	padding: 5px 0 0 10px;
+	box-sizing: border-box;
+}
+
+.monaco-binary-resource-editor .embedded-link,
+.monaco-binary-resource-editor .embedded-link:hover {
+	cursor: pointer;
+	text-decoration: underline;
+	margin-left: 5px;
+}

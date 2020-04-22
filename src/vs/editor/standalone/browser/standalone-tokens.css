@@ -134,26 +134,6 @@
 		box-sizing: border-box;
 	}
 
-	/* tree */
-	.monaco-editor.vs .monaco-tree .monaco-tree-row,
-	.monaco-editor.vs-dark .monaco-tree .monaco-tree-row {
-		-ms-high-contrast-adjust: none;
-		color: windowtext !important;
-	}
-	.monaco-editor.vs .monaco-tree .monaco-tree-row.selected,
-	.monaco-editor.vs-dark .monaco-tree .monaco-tree-row.selected,
-	.monaco-editor.vs .monaco-tree .monaco-tree-row.focused,
-	.monaco-editor.vs-dark .monaco-tree .monaco-tree-row.focused {
-		color: highlighttext !important;
-		background-color: highlight !important;
-	}
-	.monaco-editor.vs .monaco-tree .monaco-tree-row:hover,
-	.monaco-editor.vs-dark .monaco-tree .monaco-tree-row:hover {
-		background: transparent !important;
-		border: 1px solid highlight;
-		box-sizing: border-box;
-	}
-
 	/* scrollbars */
 	.monaco-editor.vs .monaco-scrollable-element > .scrollbar,
 	.monaco-editor.vs-dark .monaco-scrollable-element > .scrollbar {

@@ -1,9 +1,0 @@
-// ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
-
-[{
-	"name": "language-rust",
-	"version": "0.4.9",
-	"license": "MIT",
-	"repositoryURL": "https://github.com/zargony/atom-language-rust",
-	"description": "The files syntaxes/rust.tmLanguage.json was derived from the Atom package https://atom.io/packages/language-rust."
-}]

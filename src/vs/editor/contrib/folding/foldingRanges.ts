@@ -14,13 +14,13 @@ export const MAX_LINE_NUMBER = 0xFFFFFF;
 const MASK_INDENT = 0xFF000000;
 
 export class FoldingRegions {
-	private _startIndexes: Uint32Array;
-	private _endIndexes: Uint32Array;
-	private _collapseStates: Uint32Array;
+	private readonly _startIndexes: Uint32Array;
+	private readonly _endIndexes: Uint32Array;
+	private readonly _collapseStates: Uint32Array;
 	private _parentsComputed: boolean;
-	private _types: (string | undefined)[] | undefined;
+	private readonly _types: Array<string | undefined> | undefined;
 
-	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: (string | undefined)[]) {
+	constructor(startIndexes: Uint32Array, endIndexes: Uint32Array, types?: Array<string | undefined>) {
 		if (startIndexes.length !== endIndexes.length || startIndexes.length > MAX_FOLDING_REGIONS) {
 			throw new Error('invalid startIndexes or endIndexes size');
 		}
@@ -28,6 +28,7 @@ export class FoldingRegions {
 		this._endIndexes = endIndexes;
 		this._collapseStates = new Uint32Array(Math.ceil(startIndexes.length / 32));
 		this._types = types;
+		this._parentsComputed = false;
 	}
 
 	private ensureParentIndices() {
@@ -68,7 +69,7 @@ export class FoldingRegions {
 	}
 
 	public getType(index: number): string | undefined {
-		return this._types ? this._types[index] : void 0;
+		return this._types ? this._types[index] : undefined;
 	}
 
 	public hasTypes() {
@@ -150,11 +151,31 @@ export class FoldingRegions {
 		}
 		return res.join(', ');
 	}
+
+	public equals(b: FoldingRegions) {
+		if (this.length !== b.length) {
+			return false;
+		}
+
+		for (let i = 0; i < this.length; i++) {
+			if (this.getStartLineNumber(i) !== b.getStartLineNumber(i)) {
+				return false;
+			}
+			if (this.getEndLineNumber(i) !== b.getEndLineNumber(i)) {
+				return false;
+			}
+			if (this.getType(i) !== b.getType(i)) {
+				return false;
+			}
+		}
+
+		return true;
+	}
 }
 
 export class FoldingRegion {
 
-	constructor(private ranges: FoldingRegions, private index: number) {
+	constructor(private readonly ranges: FoldingRegions, private index: number) {
 	}
 
 	public get startLineNumber() {

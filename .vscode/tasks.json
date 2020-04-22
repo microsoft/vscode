@@ -3,9 +3,12 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watch",
+			"script": "watchd",
 			"label": "Build VS Code",
-			"group": "build",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
 			"isBackground": true,
 			"presentation": {
 				"reveal": "never"
@@ -30,25 +33,13 @@
 		},
 		{
 			"type": "npm",
-			"script": "strict-null-check-watch",
-			"label": "TS - Strict Null Checks",
-			"isBackground": true,
+			"script": "kill-watchd",
+			"label": "Kill Build VS Code",
+			"group": "build",
 			"presentation": {
 				"reveal": "never"
 			},
-			"problemMatcher": {
-				"base": "$tsc-watch",
-				"owner": "typescript-strict-null",
-				"applyTo": "allDocuments"
-			}
-		},
-		{
-			"type": "gulp",
-			"task": "tslint",
-			"label": "Run tslint",
-			"problemMatcher": [
-				"$tslint5"
-			]
+			"problemMatcher": "$tsc"
 		},
 		{
 			"label": "Run tests",
@@ -73,14 +64,40 @@
 			"problemMatcher": []
 		},
 		{
-			"type": "gulp",
-			"task": "electron",
+			"type": "npm",
+			"script": "electron",
 			"label": "Download electron"
 		},
 		{
 			"type": "gulp",
 			"task": "hygiene",
 			"problemMatcher": []
+		},
+		{
+			"type": "shell",
+			"command": "yarn web -- --no-launch",
+			"label": "Run web",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "never"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "eslint",
+			"problemMatcher": {
+				"source": "eslint",
+				"base": "$eslint-stylish"
+			}
 		}
 	]
 }

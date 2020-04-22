@@ -7,7 +7,7 @@ import path = require('path');
 import os = require('os');
 
 export function makeRandomHexString(length: number): string {
-	let chars = ['0', '1', '2', '3', '4', '5', '6', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+	const chars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
 	let result = '';
 	for (let i = 0; i < length; i++) {
 		const idx = Math.floor(chars.length * Math.random());

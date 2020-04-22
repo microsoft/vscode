@@ -10,7 +10,7 @@
 		}
 	},
 	"files.associations": {
-		"OSSREADME.json": "jsonc"
+		"cglicenses.json": "jsonc"
 	},
 	"search.exclude": {
 		"**/node_modules": true,
@@ -22,6 +22,8 @@
 		"i18n/**": true,
 		"extensions/**/out/**": true,
 		"test/smoke/out/**": true,
+		"test/automation/out/**": true,
+		"test/integration/browser/out/**": true,
 		"src/vs/base/test/node/uri.test.data.txt": true
 	},
 	"lcov.path": [
@@ -37,9 +39,39 @@
 			}
 		}
 	],
+	"eslint.options": {
+		"rulePaths": [
+			"./build/lib/eslint"
+		]
+	},
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
+	"npm.packageManager": "yarn",
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
-	"typescript.preferences.quoteStyle": "single"
+	"typescript.preferences.quoteStyle": "single",
+	"json.schemas": [
+		{
+			"fileMatch": [
+				"cgmanifest.json"
+			],
+			"url": "./.vscode/cgmanifest.schema.json"
+		},
+		{
+			"fileMatch": [
+				"cglicenses.json"
+			],
+			"url": "./.vscode/cglicenses.schema.json"
+		}
+	],
+	"git.ignoreLimitWarning": true,
+	"remote.extensionKind": {
+		"msjsdiag.debugger-for-chrome": "workspace"
+	},
+	"gulp.autoDetect": "off",
+	"files.insertFinalNewline": true,
+  "[typescript]": {
+		"editor.defaultFormatter": "vscode.typescript-language-features"
+	},
+	"typescript.tsc.autoDetect": "off"
 }

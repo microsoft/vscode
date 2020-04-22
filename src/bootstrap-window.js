@@ -21,19 +21,33 @@ exports.assign = function assign(destination, source) {
  *
  * @param {string[]} modulePaths
  * @param {(result, configuration: object) => any} resultCallback
- * @param {{ forceEnableDeveloperKeybindings?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
+ * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
  */
 exports.load = function (modulePaths, resultCallback, options) {
 
-	// @ts-ignore
 	const webFrame = require('electron').webFrame;
 	const path = require('path');
 
 	const args = parseURLQueryArgs();
+	/**
+	 * // configuration: INativeWindowConfiguration
+	 * @type {{
+	 * zoomLevel?: number,
+	 * extensionDevelopmentPath?: string[],
+	 * extensionTestsPath?: string,
+	 * userEnv?: { [key: string]: string | undefined },
+	 * appRoot?: string,
+	 * nodeCachedDataDir?: string
+	 * }} */
 	const configuration = JSON.parse(args['config'] || '{}') || {};
 
+	// Apply zoom level early to avoid glitches
+	const zoomLevel = configuration.zoomLevel;
+	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
+		webFrame.setZoomLevel(zoomLevel);
+	}
+
 	// Error handler
-	// @ts-ignore
 	process.on('uncaughtException', function (error) {
 		onUnexpectedError(error, enableDeveloperTools);
 	});
@@ -42,7 +56,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const enableDeveloperTools = (process.env['VSCODE_DEV'] || !!configuration.extensionDevelopmentPath) && !configuration.extensionTestsPath;
 	let developerToolsUnbind;
 	if (enableDeveloperTools || (options && options.forceEnableDeveloperKeybindings)) {
-		developerToolsUnbind = registerDeveloperKeybindings();
+		developerToolsUnbind = registerDeveloperKeybindings(options && options.disallowReloadKeybinding);
 	}
 
 	// Correctly inherit the parent's environment
@@ -50,13 +64,6 @@ exports.load = function (modulePaths, resultCallback, options) {
 
 	// Enable ASAR support
 	bootstrap.enableASARSupport(path.join(configuration.appRoot, 'node_modules'));
-
-	// disable pinch zoom & apply zoom level early to avoid glitches
-	const zoomLevel = configuration.zoomLevel;
-	webFrame.setVisualZoomLevelLimits(1, 1);
-	if (typeof zoomLevel === 'number' && zoomLevel !== 0) {
-		webFrame.setZoomLevel(zoomLevel);
-	}
 
 	if (options && typeof options.canModifyDOM === 'function') {
 		options.canModifyDOM(configuration);
@@ -91,9 +98,16 @@ exports.load = function (modulePaths, resultCallback, options) {
 	const loaderConfig = {
 		baseUrl: bootstrap.uriFromPath(configuration.appRoot) + '/out',
 		'vs/nls': nlsConfig,
-		nodeCachedDataDir: configuration.nodeCachedDataDir,
 		nodeModules: [/*BUILD->INSERT_NODE_MODULES*/]
 	};
+
+	// cached data config
+	if (configuration.nodeCachedDataDir) {
+		loaderConfig.nodeCachedData = {
+			path: configuration.nodeCachedDataDir,
+			seed: modulePaths.join('')
+		};
+	}
 
 	if (options && typeof options.beforeLoaderConfig === 'function') {
 		options.beforeLoaderConfig(configuration, loaderConfig);
@@ -126,7 +140,7 @@ exports.load = function (modulePaths, resultCallback, options) {
 		} catch (error) {
 			onUnexpectedError(error, enableDeveloperTools);
 		}
-	});
+	}, onUnexpectedError);
 };
 
 /**
@@ -143,11 +157,11 @@ function parseURLQueryArgs() {
 }
 
 /**
+ * @param {boolean} disallowReloadKeybinding
  * @returns {() => void}
  */
-function registerDeveloperKeybindings() {
+function registerDeveloperKeybindings(disallowReloadKeybinding) {
 
-	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	const extractKey = function (e) {
@@ -162,13 +176,14 @@ function registerDeveloperKeybindings() {
 
 	// Devtools & reload support
 	const TOGGLE_DEV_TOOLS_KB = (process.platform === 'darwin' ? 'meta-alt-73' : 'ctrl-shift-73'); // mac: Cmd-Alt-I, rest: Ctrl-Shift-I
+	const TOGGLE_DEV_TOOLS_KB_ALT = '123'; // F12
 	const RELOAD_KB = (process.platform === 'darwin' ? 'meta-82' : 'ctrl-82'); // mac: Cmd-R, rest: Ctrl-R
 
 	let listener = function (e) {
 		const key = extractKey(e);
-		if (key === TOGGLE_DEV_TOOLS_KB) {
+		if (key === TOGGLE_DEV_TOOLS_KB || key === TOGGLE_DEV_TOOLS_KB_ALT) {
 			ipc.send('vscode:toggleDevTools');
-		} else if (key === RELOAD_KB) {
+		} else if (key === RELOAD_KB && !disallowReloadKeybinding) {
 			ipc.send('vscode:reloadWindow');
 		}
 	};
@@ -178,14 +193,13 @@ function registerDeveloperKeybindings() {
 	return function () {
 		if (listener) {
 			window.removeEventListener('keydown', listener);
-			listener = void 0;
+			listener = undefined;
 		}
 	};
 }
 
 function onUnexpectedError(error, enableDeveloperTools) {
 
-	// @ts-ignore
 	const ipc = require('electron').ipcRenderer;
 
 	if (enableDeveloperTools) {
@@ -194,7 +208,7 @@ function onUnexpectedError(error, enableDeveloperTools) {
 
 	console.error('[uncaught exception]: ' + error);
 
-	if (error.stack) {
+	if (error && error.stack) {
 		console.error(error.stack);
 	}
 }

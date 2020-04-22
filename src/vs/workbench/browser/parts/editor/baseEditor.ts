@@ -3,19 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, EditorOptions, IEditor, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
+import { Composite } from 'vs/workbench/browser/composite';
+import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
-import { once, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { MementoObject } from 'vs/workbench/common/memento';
+import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { isLinux } from 'vs/base/common/platform';
+import { indexOfPath } from 'vs/base/common/extpath';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -30,21 +33,25 @@ import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs
  *
  * This class is only intended to be subclassed and not instantiated.
  */
-export abstract class BaseEditor extends Panel implements IEditor {
+export abstract class BaseEditor extends Composite implements IEditorPane {
 
-	private static readonly EDITOR_MEMENTOS: Map<string, EditorMemento<any>> = new Map<string, EditorMemento<any>>();
+	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 
 	readonly minimumWidth = DEFAULT_EDITOR_MIN_DIMENSIONS.width;
 	readonly maximumWidth = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
 	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
 	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
 
-	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
+	readonly onDidSizeConstraintsChange = Event.None;
 
-	protected _input: EditorInput;
+	protected _input: EditorInput | undefined;
+	get input(): EditorInput | undefined { return this._input; }
 
-	private _options: EditorOptions;
-	private _group: IEditorGroup;
+	protected _options: EditorOptions | undefined;
+	get options(): EditorOptions | undefined { return this._options; }
+
+	private _group?: IEditorGroup;
+	get group(): IEditorGroup | undefined { return this._group; }
 
 	constructor(
 		id: string,
@@ -53,18 +60,6 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		storageService: IStorageService
 	) {
 		super(id, telemetryService, themeService, storageService);
-	}
-
-	get input(): EditorInput {
-		return this._input;
-	}
-
-	get options(): EditorOptions {
-		return this._options;
-	}
-
-	get group(): IEditorGroup {
-		return this._group;
 	}
 
 	/**
@@ -78,11 +73,9 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	async setInput(input: EditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
-
-		return TPromise.wrap<void>(null);
 	}
 
 	/**
@@ -90,8 +83,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * resources associated with the input should be freed.
 	 */
 	clearInput(): void {
-		this._input = null;
-		this._options = null;
+		this._input = undefined;
+		this._options = undefined;
 	}
 
 	/**
@@ -101,7 +94,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: EditorOptions): void {
+	setOptions(options: EditorOptions | undefined): void {
 		this._options = options;
 	}
 
@@ -112,6 +105,10 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this.createEditor(parent);
 	}
 
+	onHide() { }
+
+	onWillHide() { }
+
 	/**
 	 * Called to create the editor in the parent HTMLElement.
 	 */
@@ -119,6 +116,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);
+
 		// Propagate to Editor
 		this.setEditorVisible(visible, group);
 	}
@@ -130,7 +128,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * @param visible the state of visibility of this editor
 	 * @param group the editor group this editor is in.
 	 */
-	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		this._group = group;
 	}
 
@@ -159,8 +157,8 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	}
 
 	dispose(): void {
-		this._input = null;
-		this._options = null;
+		this._input = undefined;
+		this._options = undefined;
 
 		super.dispose();
 	}
@@ -171,20 +169,16 @@ interface MapGroupToMemento<T> {
 }
 
 export class EditorMemento<T> implements IEditorMemento<T> {
-	private cache: LRUCache<string, MapGroupToMemento<T>>;
+	private cache: LRUCache<string, MapGroupToMemento<T>> | undefined;
 	private cleanedUp = false;
 
 	constructor(
-		private _id: string,
+		public readonly id: string,
 		private key: string,
-		private memento: object,
+		private memento: MementoObject,
 		private limit: number,
 		private editorGroupService: IEditorGroupsService
 	) { }
-
-	get id(): string {
-		return this._id;
-	}
 
 	saveEditorState(group: IEditorGroup, resource: URI, state: T): void;
 	saveEditorState(group: IEditorGroup, editor: EditorInput, state: T): void;
@@ -206,18 +200,18 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		// Automatically clear when editor input gets disposed if any
 		if (resourceOrEditor instanceof EditorInput) {
-			once(resourceOrEditor.onDispose)(() => {
+			Event.once(resourceOrEditor.onDispose)(() => {
 				this.clearEditorState(resource);
 			});
 		}
 	}
 
-	loadEditorState(group: IEditorGroup, resource: URI): T;
-	loadEditorState(group: IEditorGroup, editor: EditorInput): T;
-	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
+	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
+	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T | undefined {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
-			return void 0; // we are not in a good state to load any state for a resource
+			return undefined; // we are not in a good state to load any state for a resource
 		}
 
 		const cache = this.doLoad();
@@ -227,7 +221,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 			return mementoForResource[group.id];
 		}
 
-		return void 0;
+		return undefined;
 	}
 
 	clearEditorState(resource: URI, group?: IEditorGroup): void;
@@ -248,9 +242,37 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	private doGetResource(resourceOrEditor: URI | EditorInput): URI {
+	moveEditorState(source: URI, target: URI): void {
+		const cache = this.doLoad();
+
+		const cacheKeys = cache.keys();
+		for (const cacheKey of cacheKeys) {
+			const resource = URI.parse(cacheKey);
+
+			if (!isEqualOrParent(resource, source)) {
+				continue; // not matching our resource
+			}
+
+			// Determine new resulting target resource
+			let targetResource: URI;
+			if (source.toString() === resource.toString()) {
+				targetResource = target; // file got moved
+			} else {
+				const index = indexOfPath(resource.path, source.path, !isLinux);
+				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
+			}
+
+			const value = cache.get(cacheKey);
+			if (value) {
+				cache.delete(cacheKey);
+				cache.set(targetResource.toString(), value);
+			}
+		}
+	}
+
+	private doGetResource(resourceOrEditor: URI | EditorInput): URI | undefined {
 		if (resourceOrEditor instanceof EditorInput) {
-			return resourceOrEditor.getResource();
+			return resourceOrEditor.resource;
 		}
 
 		return resourceOrEditor;

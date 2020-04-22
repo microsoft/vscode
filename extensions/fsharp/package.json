@@ -4,6 +4,7 @@
 	"description": "%description%",
 	"version": "1.0.0",
 	"publisher": "vscode",
+	"license": "MIT",
 	"engines": { "vscode": "*" },
 	"scripts": {
 		"update-grammar": "node ../../build/npm/update-grammar.js ionide/ionide-fsgrammar grammar/fsharp.json ./syntaxes/fsharp.tmLanguage.json"
@@ -22,7 +23,7 @@
 		}],
 		"snippets": [{
 			"language": "fsharp",
-			"path": "./snippets/fsharp.json"
+			"path": "./snippets/fsharp.code-snippets"
 		}]
 	}
 }

@@ -6,146 +6,67 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 
-export interface ParsedArgs {
-	[arg: string]: any;
-	_: string[];
-	'folder-uri'?: string | string[];
-	'file-uri'?: string | string[];
-	_urls?: string[];
-	help?: boolean;
-	version?: boolean;
-	status?: boolean;
-	wait?: boolean;
-	waitMarkerFilePath?: string;
-	diff?: boolean;
-	add?: boolean;
-	goto?: boolean;
-	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
-	'reuse-window'?: boolean;
-	locale?: string;
-	'user-data-dir'?: string;
-	performance?: boolean;
-	'prof-startup'?: string;
-	'prof-startup-prefix'?: string;
-	'prof-append-timers'?: string;
-	verbose?: boolean;
-	trace?: boolean;
-	'trace-category-filter'?: string;
-	'trace-options'?: string;
-	log?: string;
-	logExtensionHostCommunication?: boolean;
-	'extensions-dir'?: string;
-	'builtin-extensions-dir'?: string;
-	extensionDevelopmentPath?: string;
-	extensionTestsPath?: string;
-	debugPluginHost?: string;
-	debugBrkPluginHost?: string;
-	debugId?: string;
-	debugSearch?: string;
-	debugBrkSearch?: string;
-	'disable-extensions'?: boolean;
-	'disable-extension'?: string | string[];
-	'list-extensions'?: boolean;
-	'show-versions'?: boolean;
-	'install-extension'?: string | string[];
-	'uninstall-extension'?: string | string[];
-	'enable-proposed-api'?: string | string[];
-	'open-url'?: boolean;
-	'skip-getting-started'?: boolean;
-	'skip-release-notes'?: boolean;
-	'sticky-quickopen'?: boolean;
-	'disable-restore-windows'?: boolean;
-	'disable-telemetry'?: boolean;
-	'export-default-configuration'?: string;
-	'install-source'?: string;
-	'disable-updates'?: string;
-	'disable-crash-reporter'?: string;
-	'skip-add-to-recently-opened'?: boolean;
-	'max-memory'?: number;
-	'file-write'?: boolean;
-	'file-chmod'?: boolean;
-	'upload-logs'?: string;
-	'driver'?: string;
-	'driver-verbose'?: boolean;
-	remote?: string;
-}
-
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
 
 export interface IDebugParams {
-	port: number;
+	port: number | null;
 	break: boolean;
 }
 
 export interface IExtensionHostDebugParams extends IDebugParams {
-	debugId: string;
+	debugId?: string;
 }
 
+export const BACKUPS = 'Backups';
+
 export interface IEnvironmentService {
-	_serviceBrand: any;
 
-	args: ParsedArgs;
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NOTE: DO NOT ADD ANY OTHER PROPERTY INTO THE COLLECTION HERE
+	// UNLESS THIS PROPERTY IS SUPPORTED BOTH IN WEB AND DESKTOP!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-	execPath: string;
-	cliPath: string;
-	appRoot: string;
+	_serviceBrand: undefined;
 
-	userHome: string;
-	userDataPath: string;
+	// --- user roaming data
+	userRoamingDataHome: URI;
+	settingsResource: URI;
+	keybindingsResource: URI;
+	keyboardLayoutResource: URI;
+	argvResource: URI;
+	snippetsHome: URI;
 
-	appNameLong: string;
-	appQuality: string;
-	appSettingsHome: string;
-	appSettingsPath: string;
-	appKeybindingsPath: string;
+	// --- data paths
+	backupHome: URI;
+	untitledWorkspacesHome: URI;
 
-	settingsSearchBuildId: number;
-	settingsSearchUrl: string;
+	// --- settings sync
+	userDataSyncLogResource: URI;
+	userDataSyncHome: URI;
+	sync: 'on' | 'off' | undefined;
+	enableSyncByDefault: boolean;
 
-	workspaceStorageHome: string;
-
-	backupHome: string;
-	backupWorkspacesPath: string;
-
-	workspacesHome: string;
-
+	// --- extension development
+	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
-	builtinExtensionsPath: string;
-	extensionsPath: string;
-	extensionDevelopmentLocationURI: URI;
-	extensionTestsPath: string;
+	extensionDevelopmentLocationURI?: URI[];
+	extensionTestsLocationURI?: URI;
+	extensionEnabledProposedApi?: string[];
+	logExtensionHostCommunication?: boolean;
 
-	debugExtensionHost: IExtensionHostDebugParams;
-	debugSearch: IDebugParams;
-
-	logExtensionHostCommunication: boolean;
-
-	isBuilt: boolean;
-	wait: boolean;
-	status: boolean;
-	performance: boolean;
-
-	// logging
-	log: string;
+	// --- logging
 	logsPath: string;
+	logLevel?: string;
 	verbose: boolean;
+	isBuilt: boolean;
 
-	skipGettingStarted: boolean | undefined;
-	skipReleaseNotes: boolean | undefined;
+	// --- misc
+	disableTelemetry: boolean;
+	serviceMachineIdResource: URI;
 
-	skipAddToRecentlyOpened: boolean;
-
-	mainIPCHandle: string;
-	sharedIPCHandle: string;
-
-	nodeCachedDataDir: string;
-
-	installSourcePath: string;
-	disableUpdates: boolean;
-	disableCrashReporter: boolean;
-
-	driverHandle: string;
-	driverVerbose: boolean;
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+	// NOTE: DO NOT ADD ANY OTHER PROPERTY INTO THE COLLECTION HERE
+	// UNLESS THIS PROPERTY IS SUPPORTED BOTH IN WEB AND DESKTOP!!!!
+	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 }

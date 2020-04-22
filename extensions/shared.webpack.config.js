@@ -9,11 +9,17 @@
 'use strict';
 
 const path = require('path');
+const fs = require('fs');
 const merge = require('merge-options');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-
+const { NLSBundlePlugin } = require('vscode-nls-dev/lib/webpack-bundler');
 
 module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
+	// Need to find the top-most `package.json` file
+	const folderName = path.relative(__dirname, extConfig.context).split(/[\\\/]/)[0];
+	const pkgPath = path.join(__dirname, folderName, 'package.json');
+	const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+	const id = `${pkg.publisher}.${pkg.name}`;
 
 	/** @type WebpackConfig */
 	let defaultConfig = {
@@ -43,7 +49,7 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 					loader: 'ts-loader',
 					options: {
 						compilerOptions: {
-							"sourceMap": true,
+							'sourceMap': true,
 						}
 					}
 				}]
@@ -51,22 +57,22 @@ module.exports = function withDefaults(/**@type WebpackConfig*/extConfig) {
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist
-
-			// "vscode-extension-telemetry": 'commonjs vscode-extension-telemetry', // commonly used
 		},
 		output: {
 			// all output goes into `dist`.
 			// packaging depends on that and this must always be like it
 			filename: '[name].js',
 			path: path.join(extConfig.context, 'dist'),
-			libraryTarget: "commonjs",
+			libraryTarget: 'commonjs',
 		},
 		// yes, really source maps
 		devtool: 'source-map',
 		plugins: [
+			// @ts-expect-error
 			new CopyWebpackPlugin([
-				{ from: './out/**/*', to: '.', ignore: ['*.js', '*.js.map'], flatten: true }
-			])
+				{ from: 'src', to: '.', ignore: ['**/test/**', '*.ts'] }
+			]),
+			new NLSBundlePlugin(id)
 		],
 	};
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./aria';
-import * as nls from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 
@@ -23,7 +22,8 @@ export function setARIAContainer(parent: HTMLElement) {
 
 	statusContainer = document.createElement('div');
 	statusContainer.className = 'monaco-status';
-	statusContainer.setAttribute('role', 'status');
+	statusContainer.setAttribute('role', 'complementary');
+	statusContainer.setAttribute('aria-live', 'polite');
 	statusContainer.setAttribute('aria-atomic', 'true');
 	ariaContainer.appendChild(statusContainer);
 
@@ -48,32 +48,13 @@ export function status(msg: string): void {
 	}
 }
 
-let repeatedTimes = 0;
-let prevText: string | undefined = undefined;
 function insertMessage(target: HTMLElement, msg: string): void {
 	if (!ariaContainer) {
-		// console.warn('ARIA support needs a container. Call setARIAContainer() first.');
 		return;
-	}
-
-	if (prevText === msg) {
-		repeatedTimes++;
-	}
-	else {
-		prevText = msg;
-		repeatedTimes = 0;
-	}
-
-
-	switch (repeatedTimes) {
-		case 0: break;
-		case 1: msg = nls.localize('repeated', "{0} (occurred again)", msg); break;
-		default: msg = nls.localize('repeatedNtimes', "{0} (occurred {1} times)", msg, repeatedTimes); break;
 	}
 
 	dom.clearNode(target);
 	target.textContent = msg;
-
 
 	// See https://www.paciellogroup.com/blog/2012/06/html5-accessibility-chops-aria-rolealert-browser-support/
 	target.style.visibility = 'hidden';

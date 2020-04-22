@@ -4,119 +4,176 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
+import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
+import { Storage, IStorageDatabase, IStorage, StorageHint } from 'vs/base/parts/storage/common/storage';
+import { mark } from 'vs/base/common/performance';
+import { join } from 'vs/base/common/path';
+import { copy, exists, mkdirp, writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { Storage, IStorageLoggingOptions, NullStorage, IStorage } from 'vs/base/node/storage';
-import { IStorageLegacyService, StorageLegacyScope } from 'vs/platform/storage/common/storageLegacyService';
-import { startsWith } from 'vs/base/common/strings';
-import { Action } from 'vs/base/common/actions';
-import { IWindowService } from 'vs/platform/windows/common/windows';
-import { localize } from 'vs/nls';
-import { mark, getDuration } from 'vs/base/common/performance';
-import { join, basename } from 'path';
-import { copy } from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
+import { IWorkspaceInitializationPayload, isWorkspaceIdentifier, isSingleFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { assertIsDefined } from 'vs/base/common/types';
+import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 
-export class StorageService extends Disposable implements IStorageService {
-	_serviceBrand: any;
+export class NativeStorageService extends Disposable implements IStorageService {
 
-	static IN_MEMORY_PATH = ':memory:';
+	_serviceBrand: undefined;
 
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
+	private static readonly WORKSPACE_STORAGE_NAME = 'state.vscdb';
+	private static readonly WORKSPACE_META_NAME = 'workspace.json';
 
-	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
+	private readonly _onDidChangeStorage = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private _hasErrors = false;
-	get hasErrors(): boolean { return this._hasErrors; }
+	private readonly _onWillSaveState = this._register(new Emitter<IWillSaveStateEvent>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
-	private bufferedStorageErrors?: (string | Error)[] = [];
-	private _onStorageError: Emitter<string | Error> = this._register(new Emitter<string | Error>());
-	get onStorageError(): Event<string | Error> {
-		if (Array.isArray(this.bufferedStorageErrors)) {
-			// todo@ben cleanup after a while
-			if (this.bufferedStorageErrors.length > 0) {
-				const bufferedStorageErrors = this.bufferedStorageErrors;
-				setTimeout(() => {
-					this._onStorageError.fire(`[startup errors] ${bufferedStorageErrors.join('\n')}`);
-				}, 0);
-			}
+	private readonly globalStorage = new Storage(this.globalStorageDatabase);
 
-			this.bufferedStorageErrors = void 0;
-		}
+	private workspaceStoragePath: string | undefined;
+	private workspaceStorage: IStorage | undefined;
+	private workspaceStorageListener: IDisposable | undefined;
 
-		return this._onStorageError.event;
-	}
+	private initializePromise: Promise<void> | undefined;
 
-	private globalStorage: IStorage;
-	private globalStorageWorkspacePath: string;
-
-	private workspaceStoragePath: string;
-	private workspaceStorage: IStorage;
-	private workspaceStorageListener: IDisposable;
-
-	private loggingOptions: IStorageLoggingOptions;
+	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 60000 /* every minute */));
+	private runWhenIdleDisposable: IDisposable | undefined = undefined;
 
 	constructor(
-		workspaceStoragePath: string,
-		disableGlobalStorage: boolean,
-		@ILogService logService: ILogService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		private globalStorageDatabase: IStorageDatabase,
+		@ILogService private readonly logService: ILogService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService
 	) {
 		super();
 
-		this.loggingOptions = {
-			trace: logService.getLevel() === LogLevel.Trace,
-			logTrace: msg => logService.trace(msg),
-			logError: error => {
-				logService.error(error);
-
-				this._hasErrors = true;
-
-				if (Array.isArray(this.bufferedStorageErrors)) {
-					this.bufferedStorageErrors.push(error);
-				} else {
-					this._onStorageError.fire(error);
-				}
-			}
-		};
-
-		this.globalStorageWorkspacePath = workspaceStoragePath === StorageService.IN_MEMORY_PATH ? StorageService.IN_MEMORY_PATH : StorageService.IN_MEMORY_PATH;
-		this.globalStorage = disableGlobalStorage ? new NullStorage() : new Storage({ path: this.globalStorageWorkspacePath, logging: this.loggingOptions });
-		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
-
-		this.createWorkspaceStorage(workspaceStoragePath);
+		this.registerListeners();
 	}
 
-	private createWorkspaceStorage(workspaceStoragePath: string): void {
+	private registerListeners(): void {
 
-		// Dispose old (if any)
-		this.workspaceStorage = dispose(this.workspaceStorage);
-		this.workspaceStorageListener = dispose(this.workspaceStorageListener);
-
-		// Create new
-		this.workspaceStoragePath = workspaceStoragePath;
-		this.workspaceStorage = new Storage({ path: workspaceStoragePath, logging: this.loggingOptions });
-		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE));
+		// Global Storage change events
+		this._register(this.globalStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.GLOBAL)));
 	}
 
 	private handleDidChangeStorage(key: string, scope: StorageScope): void {
 		this._onDidChangeStorage.fire({ key, scope });
 	}
 
-	init(): Promise<void> {
-		mark('willInitWorkspaceStorage');
-		return this.workspaceStorage.init().then(() => {
-			mark('didInitWorkspaceStorage');
+	initialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = this.doInitialize(payload);
+		}
 
-			mark('willInitGlobalStorage');
-			return this.globalStorage.init().then(() => {
-				mark('didInitGlobalStorage');
-			});
-		});
+		return this.initializePromise;
+	}
+
+	private async doInitialize(payload?: IWorkspaceInitializationPayload): Promise<void> {
+
+		// Init all storage locations
+		await Promise.all([
+			this.initializeGlobalStorage(),
+			payload ? this.initializeWorkspaceStorage(payload) : Promise.resolve()
+		]);
+
+		// On some OS we do not get enough time to persist state on shutdown (e.g. when
+		// Windows restarts after applying updates). In other cases, VSCode might crash,
+		// so we periodically save state to reduce the chance of loosing any state.
+		this.periodicFlushScheduler.schedule();
+	}
+
+	private initializeGlobalStorage(): Promise<void> {
+		return this.globalStorage.init();
+	}
+
+	private async initializeWorkspaceStorage(payload: IWorkspaceInitializationPayload): Promise<void> {
+
+		// Prepare workspace storage folder for DB
+		try {
+			const result = await this.prepareWorkspaceStorageFolder(payload);
+
+			const useInMemoryStorage = !!this.environmentService.extensionTestsLocationURI; // no storage during extension tests!
+
+			// Create workspace storage and initialize
+			mark('willInitWorkspaceStorage');
+			try {
+				const workspaceStorage = this.createWorkspaceStorage(
+					useInMemoryStorage ? SQLiteStorageDatabase.IN_MEMORY_PATH : join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME),
+					result.wasCreated ? StorageHint.STORAGE_DOES_NOT_EXIST : undefined
+				);
+				await workspaceStorage.init();
+			} finally {
+				mark('didInitWorkspaceStorage');
+			}
+		} catch (error) {
+			this.logService.error(`[storage] initializeWorkspaceStorage(): Unable to init workspace storage due to ${error}`);
+		}
+	}
+
+	private createWorkspaceStorage(workspaceStoragePath: string, hint?: StorageHint): IStorage {
+
+		// Logger for workspace storage
+		const workspaceLoggingOptions: ISQLiteStorageDatabaseLoggingOptions = {
+			logTrace: (this.logService.getLevel() === LogLevel.Trace) ? msg => this.logService.trace(msg) : undefined,
+			logError: error => this.logService.error(error)
+		};
+
+		// Dispose old (if any)
+		dispose(this.workspaceStorage);
+		dispose(this.workspaceStorageListener);
+
+		// Create new
+		this.workspaceStoragePath = workspaceStoragePath;
+		this.workspaceStorage = new Storage(new SQLiteStorageDatabase(workspaceStoragePath, { logging: workspaceLoggingOptions }), { hint });
+		this.workspaceStorageListener = this.workspaceStorage.onDidChangeStorage(key => this.handleDidChangeStorage(key, StorageScope.WORKSPACE));
+
+		return this.workspaceStorage;
+	}
+
+	private getWorkspaceStorageFolderPath(payload: IWorkspaceInitializationPayload): string {
+		return join(this.environmentService.workspaceStorageHome, payload.id); // workspace home + workspace id;
+	}
+
+	private async prepareWorkspaceStorageFolder(payload: IWorkspaceInitializationPayload): Promise<{ path: string, wasCreated: boolean }> {
+		const workspaceStorageFolderPath = this.getWorkspaceStorageFolderPath(payload);
+
+		const storageExists = await exists(workspaceStorageFolderPath);
+		if (storageExists) {
+			return { path: workspaceStorageFolderPath, wasCreated: false };
+		}
+
+		await mkdirp(workspaceStorageFolderPath);
+
+		// Write metadata into folder
+		this.ensureWorkspaceStorageFolderMeta(payload);
+
+		return { path: workspaceStorageFolderPath, wasCreated: true };
+	}
+
+	private ensureWorkspaceStorageFolderMeta(payload: IWorkspaceInitializationPayload): void {
+		let meta: object | undefined = undefined;
+		if (isSingleFolderWorkspaceInitializationPayload(payload)) {
+			meta = { folder: payload.folder.toString() };
+		} else if (isWorkspaceIdentifier(payload)) {
+			meta = { configuration: payload.configPath };
+		}
+
+		if (meta) {
+			const logService = this.logService;
+			const workspaceStorageMetaPath = join(this.getWorkspaceStorageFolderPath(payload), NativeStorageService.WORKSPACE_META_NAME);
+			(async function () {
+				try {
+					const storageExists = await exists(workspaceStorageMetaPath);
+					if (!storageExists) {
+						await writeFile(workspaceStorageMetaPath, JSON.stringify(meta, undefined, 2));
+					}
+				} catch (error) {
+					logService.error(error);
+				}
+			})();
+		}
 	}
 
 	get(key: string, scope: StorageScope, fallbackValue: string): string;
@@ -131,13 +188,13 @@ export class StorageService extends Disposable implements IStorageService {
 		return this.getStorage(scope).getBoolean(key, fallbackValue);
 	}
 
-	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger(key: string, scope: StorageScope): number | undefined;
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope).getInteger(key, fallbackValue);
+	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: StorageScope): number | undefined;
+	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
+		return this.getStorage(scope).getNumber(key, fallbackValue);
 	}
 
-	store(key: string, value: any, scope: StorageScope): void {
+	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
 		this.getStorage(scope).set(key, value);
 	}
 
@@ -145,228 +202,72 @@ export class StorageService extends Disposable implements IStorageService {
 		this.getStorage(scope).delete(key);
 	}
 
-	close(): Promise<void> {
-
-		// Signal as event so that clients can still store data
-		this._onWillSaveState.fire();
-
-		// Do it
-		return Promise.all([
-			this.globalStorage.close(),
-			this.workspaceStorage.close()
-		]).then(() => void 0);
-	}
-
 	private getStorage(scope: StorageScope): IStorage {
-		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
+		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
 	}
 
-	getSize(scope: StorageScope): number {
-		return scope === StorageScope.GLOBAL ? this.globalStorage.size : this.workspaceStorage.size;
-	}
+	private doFlushWhenIdle(): void {
 
-	checkIntegrity(scope: StorageScope, full: boolean): Promise<string> {
-		return scope === StorageScope.GLOBAL ? this.globalStorage.checkIntegrity(full) : this.workspaceStorage.checkIntegrity(full);
-	}
+		// Dispose any previous idle runner
+		dispose(this.runWhenIdleDisposable);
 
-	logStorage(): Promise<void> {
-		return Promise.all([
-			this.globalStorage.getItems(),
-			this.workspaceStorage.getItems(),
-			this.globalStorage.checkIntegrity(true /* full */),
-			this.workspaceStorage.checkIntegrity(true /* full */)
-		]).then(result => {
-			const safeParse = (value: string) => {
-				try {
-					return JSON.parse(value);
-				} catch (error) {
-					return value;
-				}
-			};
+		// Run when idle
+		this.runWhenIdleDisposable = runWhenIdle(() => {
 
-			const globalItems = new Map<string, string>();
-			const globalItemsParsed = new Map<string, string>();
-			result[0].forEach((value, key) => {
-				globalItems.set(key, value);
-				globalItemsParsed.set(key, safeParse(value));
-			});
+			// send event to collect state
+			this.flush();
 
-			const workspaceItems = new Map<string, string>();
-			const workspaceItemsParsed = new Map<string, string>();
-			result[1].forEach((value, key) => {
-				workspaceItems.set(key, value);
-				workspaceItemsParsed.set(key, safeParse(value));
-			});
-
-			console.group(`Storage: Global (integrity: ${result[2]}, load: ${getDuration('willInitGlobalStorage', 'didInitGlobalStorage')}, path: ${this.globalStorageWorkspacePath})`);
-			let globalValues: { key: string, value: string }[] = [];
-			globalItems.forEach((value, key) => {
-				globalValues.push({ key, value });
-			});
-			console.table(globalValues);
-			console.groupEnd();
-
-			console.log(globalItemsParsed);
-
-			console.group(`Storage: Workspace (integrity: ${result[3]}, load: ${getDuration('willInitWorkspaceStorage', 'didInitWorkspaceStorage')}, path: ${this.workspaceStoragePath})`);
-			let workspaceValues: { key: string, value: string }[] = [];
-			workspaceItems.forEach((value, key) => {
-				workspaceValues.push({ key, value });
-			});
-			console.table(workspaceValues);
-			console.groupEnd();
-
-			console.log(workspaceItemsParsed);
+			// repeat
+			this.periodicFlushScheduler.schedule();
 		});
 	}
 
-	migrate(toWorkspaceStorageFolder: string): Thenable<void> {
-		if (this.workspaceStoragePath === StorageService.IN_MEMORY_PATH) {
+	flush(): void {
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.NONE });
+	}
+
+	async close(): Promise<void> {
+
+		// Stop periodic scheduler and idle runner as we now collect state normally
+		this.periodicFlushScheduler.dispose();
+		dispose(this.runWhenIdleDisposable);
+		this.runWhenIdleDisposable = undefined;
+
+		// Signal as event so that clients can still store data
+		this._onWillSaveState.fire({ reason: WillSaveStateReason.SHUTDOWN });
+
+		// Do it
+		await Promise.all([
+			this.globalStorage.close(),
+			this.workspaceStorage ? this.workspaceStorage.close() : Promise.resolve()
+		]);
+	}
+
+	async logStorage(): Promise<void> {
+		return logStorage(
+			this.globalStorage.items,
+			this.workspaceStorage ? this.workspaceStorage.items : new Map<string, string>(), // Shared process storage does not has workspace storage
+			this.environmentService.globalStorageHome,
+			this.workspaceStoragePath || '');
+	}
+
+	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
+		if (this.workspaceStoragePath === SQLiteStorageDatabase.IN_MEMORY_PATH) {
 			return Promise.resolve(); // no migration needed if running in memory
 		}
 
-		// Compute new workspace storage path based on workspace identifier
-		const newWorkspaceStoragePath = join(toWorkspaceStorageFolder, basename(this.workspaceStoragePath));
-		if (this.workspaceStoragePath === newWorkspaceStoragePath) {
-			return Promise.resolve(); // guard against migrating to same path
-		}
-
 		// Close workspace DB to be able to copy
-		return this.workspaceStorage.close().then(() => {
-			return copy(this.workspaceStoragePath, newWorkspaceStoragePath).then(() => {
-				this.createWorkspaceStorage(newWorkspaceStoragePath);
+		await this.getStorage(StorageScope.WORKSPACE).close();
 
-				return this.workspaceStorage.init();
-			});
-		});
-	}
-}
+		// Prepare new workspace storage folder
+		const result = await this.prepareWorkspaceStorageFolder(toWorkspace);
 
-export class LogStorageAction extends Action {
+		const newWorkspaceStoragePath = join(result.path, NativeStorageService.WORKSPACE_STORAGE_NAME);
 
-	static readonly ID = 'workbench.action.logStorage';
-	static LABEL = localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
+		// Copy current storage over to new workspace storage
+		await copy(assertIsDefined(this.workspaceStoragePath), newWorkspaceStoragePath);
 
-	constructor(
-		id: string,
-		label: string,
-		@IStorageService private storageService: DelegatingStorageService,
-		@IWindowService private windowService: IWindowService
-	) {
-		super(id, label);
-	}
-
-	run(): Thenable<void> {
-		this.storageService.storage.logStorage();
-
-		return this.windowService.openDevTools();
-	}
-}
-
-export class DelegatingStorageService extends Disposable implements IStorageService {
-	_serviceBrand: any;
-
-	private _onDidChangeStorage: Emitter<IWorkspaceStorageChangeEvent> = this._register(new Emitter<IWorkspaceStorageChangeEvent>());
-	get onDidChangeStorage(): Event<IWorkspaceStorageChangeEvent> { return this._onDidChangeStorage.event; }
-
-	private _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	get onWillSaveState(): Event<void> { return this._onWillSaveState.event; }
-
-	private closed: boolean;
-	private useLegacyWorkspaceStorage: boolean;
-
-	constructor(
-		private storageService: IStorageService,
-		private storageLegacyService: IStorageLegacyService,
-		private logService: ILogService,
-		configurationService: IConfigurationService
-	) {
-		super();
-
-		this.useLegacyWorkspaceStorage = configurationService.inspect<boolean>('workbench.enableLegacyStorage').value === true;
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeStorage(e => this._onDidChangeStorage.fire(e)));
-		this._register(this.storageService.onWillSaveState(() => this._onWillSaveState.fire()));
-
-		const globalKeyMarker = 'storage://global/';
-
-		window.addEventListener('storage', e => {
-			if (e.key && startsWith(e.key, globalKeyMarker)) {
-				const key = e.key.substr(globalKeyMarker.length);
-
-				this._onDidChangeStorage.fire({ key, scope: StorageScope.GLOBAL });
-			}
-		});
-	}
-
-	get storage(): StorageService {
-		return this.storageService as StorageService;
-	}
-
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
-			return this.storageService.get(key, scope, fallbackValue);
-		}
-
-		return this.storageLegacyService.get(key, this.convertScope(scope), fallbackValue);
-	}
-
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
-			return this.storageService.getBoolean(key, scope, fallbackValue);
-		}
-
-		return this.storageLegacyService.getBoolean(key, this.convertScope(scope), fallbackValue);
-	}
-
-	getInteger(key: string, scope: StorageScope, fallbackValue: number): number;
-	getInteger(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		if (scope === StorageScope.WORKSPACE && !this.useLegacyWorkspaceStorage) {
-			return this.storageService.getInteger(key, scope, fallbackValue);
-		}
-
-		return this.storageLegacyService.getInteger(key, this.convertScope(scope), fallbackValue);
-	}
-
-	store(key: string, value: any, scope: StorageScope): void {
-		if (this.closed) {
-			this.logService.warn(`Unsupported write (store) access after close (key: ${key})`);
-
-			return; // prevent writing after close to detect late write access
-		}
-
-		this.storageLegacyService.store(key, value, this.convertScope(scope));
-
-		this.storageService.store(key, value, scope);
-	}
-
-	remove(key: string, scope: StorageScope): void {
-		if (this.closed) {
-			this.logService.warn(`Unsupported write (remove) access after close (key: ${key})`);
-
-			return; // prevent writing after close to detect late write access
-		}
-
-		this.storageLegacyService.remove(key, this.convertScope(scope));
-
-		this.storageService.remove(key, scope);
-	}
-
-	close(): Promise<void> {
-		const promise = this.storage.close();
-
-		this.closed = true;
-
-		return promise;
-	}
-
-	private convertScope(scope: StorageScope): StorageLegacyScope {
-		return scope === StorageScope.GLOBAL ? StorageLegacyScope.GLOBAL : StorageLegacyScope.WORKSPACE;
+		// Recreate and init workspace storage
+		return this.createWorkspaceStorage(newWorkspaceStoragePath).init();
 	}
 }

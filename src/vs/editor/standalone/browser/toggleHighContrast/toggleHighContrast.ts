@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { ToggleHighContrastNLS } from 'vs/editor/common/standaloneStrings';
 
 class ToggleHighContrast extends EditorAction {
 
@@ -15,9 +15,9 @@ class ToggleHighContrast extends EditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.toggleHighContrast',
-			label: nls.localize('toggleHighContrast', "Toggle High Contrast Theme"),
+			label: ToggleHighContrastNLS.toggleHighContrast,
 			alias: 'Toggle High Contrast Theme',
-			precondition: null
+			precondition: undefined
 		});
 		this._originalThemeName = null;
 	}
@@ -29,7 +29,7 @@ class ToggleHighContrast extends EditorAction {
 			standaloneThemeService.setTheme(this._originalThemeName);
 			this._originalThemeName = null;
 		} else {
-			this._originalThemeName = standaloneThemeService.getTheme().themeName;
+			this._originalThemeName = standaloneThemeService.getColorTheme().themeName;
 			standaloneThemeService.setTheme('hc-black');
 		}
 	}

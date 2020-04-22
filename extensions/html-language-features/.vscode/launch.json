@@ -17,8 +17,7 @@
 			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out/**/*.js"],
-			"preLaunchTask": "npm"
+			"outFiles": ["${workspaceFolder}/client/out/**/*.js"]
 		},
 		{
 			"name": "Launch Tests",
@@ -28,8 +27,7 @@
 			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/client/out/test" ],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out/test/**/*.js"],
-			"preLaunchTask": "npm"
+			"outFiles": ["${workspaceFolder}/client/out/test/**/*.js"]
 		},
 		{
 			"name": "Attach Language Server",

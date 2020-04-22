@@ -12,15 +12,18 @@
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		["\"", "\""]
+		{ "open": "\"", "close": "\"", "notIn": ["string"] }
 	],
 	"surroundingPairs": [
 		["{", "}"],
 		["[", "]"],
 		["(", ")"],
-		["\"", "\""],
-		["'", "'"]
+		["\"", "\""]
 	],
+	"indentationRules": {
+		"increaseIndentPattern": "^.*\\{[^}\"']*$|^.*\\([^\\)\"']*$",
+		"decreaseIndentPattern": "^\\s*(\\s*\\/[*].*[*]\\/\\s*)*[})]"
+	},
 	"folding": {
 		"markers": {
 			"start": "^\\s*//\\s*#?region\\b",

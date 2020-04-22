@@ -4,35 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelpart';
-import { IAction } from 'vs/base/common/actions';
-import { Event, mapEvent } from 'vs/base/common/event';
+import { IAction, Action } from 'vs/base/common/actions';
+import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IPanel } from 'vs/workbench/common/panel';
+import { IPanel, ActivePanelContext, PanelFocusContext } from 'vs/workbench/common/panel';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { Panel, PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts, Position } from 'vs/workbench/services/part/common/partService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
-import { CompositeBar } from 'vs/workbench/browser/parts/compositeBar';
+import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { ViewContainer, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { Before2D } from 'vs/workbench/browser/dnd';
+import { IActivity } from 'vs/workbench/common/activity';
 
-export const ActivePanelContext = new RawContextKey<string>('activePanel', '');
-export const PanelFocusContext = new RawContextKey<boolean>('panelFocus', false);
+interface ICachedPanel {
+	id: string;
+	name?: string;
+	pinned: boolean;
+	order?: number;
+	visible: boolean;
+	views?: { when?: string }[];
+}
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -41,33 +57,65 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
+
+	//#region IView
+
+	readonly minimumWidth: number = 300;
+	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
+	readonly minimumHeight: number = 77;
+	readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+
+	readonly snap = true;
+
+	get preferredHeight(): number | undefined {
+		// Don't worry about titlebar or statusbar visibility
+		// The difference is minimal and keeps this function clean
+		return this.layoutService.dimension.height * 0.4;
+	}
+
+	get preferredWidth(): number | undefined {
+		return this.layoutService.dimension.width * 0.4;
+	}
+
+	//#endregion
+
+	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean; }> { return Event.map(this.onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus })); }
+	readonly onDidPanelClose = this.onDidCompositeClose.event;
 
 	private activePanelContextKey: IContextKey<string>;
 	private panelFocusContextKey: IContextKey<boolean>;
-	private blockOpeningPanel: boolean;
+
 	private compositeBar: CompositeBar;
-	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } } = Object.create(null);
-	private dimension: Dimension;
+	private readonly compositeActions = new Map<string, { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; }>();
+
+	private readonly panelDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
+
+	private blockOpeningPanel = false;
+	private contentDimension: Dimension | undefined;
+
+	private panelRegistry: PanelRegistry;
 
 	constructor(
-		id: string,
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IPartService partService: IPartService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super(
 			notificationService,
 			storageService,
 			telemetryService,
 			contextMenuService,
-			partService,
+			layoutService,
 			keybindingService,
 			instantiationService,
 			themeService,
@@ -76,28 +124,38 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			'panel',
 			'panel',
-			null,
-			id,
+			undefined,
+			Parts.PANEL_PART,
 			{ hasTitle: true }
 		);
 
-		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, {
+		this.panelRegistry = Registry.as<PanelRegistry>(PanelExtensions.Panels);
+		storageKeysSyncRegistryService.registerStorageKey({ key: PanelPart.PINNED_PANELS, version: 1 });
+
+		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
-			storageId: PanelPart.PINNED_PANELS,
 			orientation: ActionsOrientation.HORIZONTAL,
-			openComposite: (compositeId: string) => Promise.resolve(this.openPanel(compositeId, true)),
+			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
+			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
 			getContextMenuActions: () => [
-				this.instantiationService.createInstance(TogglePanelPositionAction, TogglePanelPositionAction.ID, TogglePanelPositionAction.LABEL),
+				...PositionPanelActionConfigs
+					// show the contextual menu item if it is not in that position
+					.filter(({ when }) => contextKeyService.contextMatchesRules(when))
+					.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
 				this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
-			],
-			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
-			hidePart: () => this.partService.setPanelHidden(true),
+			] as Action[],
+			getContextMenuActionsForComposite: (compositeId: string) => this.getContextMenuActionsForComposite(compositeId) as Action[],
+			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
+			hidePart: () => this.layoutService.setPanelHidden(true),
+			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
+				(id: string, focus?: boolean) => this.openPanel(id, focus) as Promise<IPaneComposite | undefined>,
+				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore)
+			),
 			compositeSize: 0,
 			overflowActionSize: 44,
-			colors: theme => ({
+			colors: (theme: IColorTheme) => ({
 				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
 				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
@@ -109,86 +167,224 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			})
 		}));
 
-		for (const panel of this.getPanels()) {
-			this.compositeBar.addComposite(panel);
-		}
-
 		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
 		this.panelFocusContextKey = PanelFocusContext.bindTo(contextKeyService);
 
 		this.registerListeners();
+		this.onDidRegisterPanels([...this.getPanels()]);
 	}
 
-	create(parent: HTMLElement): void {
-		super.create(parent);
+	private getContextMenuActionsForComposite(compositeId: string): readonly IAction[] {
+		const result: IAction[] = [];
+		const container = this.getViewContainer(compositeId);
+		if (container) {
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
+			if (viewContainerModel.allViewDescriptors.length === 1) {
+				const viewMenuActions = this.instantiationService.createInstance(ViewMenuActions, viewContainerModel.allViewDescriptors[0].id, MenuId.ViewTitle, MenuId.ViewTitleContext);
+				result.push(...viewMenuActions.getContextMenuActions());
+				viewMenuActions.dispose();
+			}
+		}
+		return result;
+	}
 
-		const focusTracker = trackFocus(parent);
+	private onDidRegisterPanels(panels: PanelDescriptor[]): void {
+		for (const panel of panels) {
+			const cachedPanel = this.getCachedPanels().filter(({ id }) => id === panel.id)[0];
+			const activePanel = this.getActivePanel();
+			const isActive = activePanel?.getId() === panel.id;
 
-		focusTracker.onDidFocus(() => {
-			this.panelFocusContextKey.set(true);
-		});
-		focusTracker.onDidBlur(() => {
-			this.panelFocusContextKey.set(false);
-		});
+			if (isActive || !this.shouldBeHidden(panel.id, cachedPanel)) {
+				this.compositeBar.addComposite(panel);
+
+				// Pin it by default if it is new
+				if (!cachedPanel) {
+					this.compositeBar.pin(panel.id);
+				}
+
+				if (isActive) {
+					this.compositeBar.activateComposite(panel.id);
+				}
+			}
+		}
+
+		for (const panel of panels) {
+			const viewContainer = this.getViewContainer(panel.id)!;
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			this.updateActivity(viewContainer, viewContainerModel);
+			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
+
+			const disposables = new DisposableStore();
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
+
+			this.panelDisposables.set(panel.id, disposables);
+		}
+	}
+
+	private onDidDeregisterPanel(panelId: string): void {
+		const disposable = this.panelDisposables.get(panelId);
+		if (disposable) {
+			disposable.dispose();
+		}
+
+		this.panelDisposables.delete(panelId);
+		this.hideComposite(panelId);
+	}
+
+	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		const activity: IActivity = {
+			id: viewContainer.id,
+			name: viewContainerModel.title,
+			keybindingId: viewContainer.focusCommand?.id
+		};
+
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
+		activityAction.setActivity(activity);
+
+		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
+			pinnedAction.setActivity(activity);
+		}
+
+		this.saveCachedPanels();
+	}
+
+	private onDidChangeActiveViews(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		if (viewContainerModel.activeViewDescriptors.length) {
+			this.compositeBar.addComposite(viewContainer);
+		} else if (viewContainer.hideIfEmpty) {
+			this.hideComposite(viewContainer.id);
+		}
+	}
+
+	private shouldBeHidden(panelId: string, cachedPanel?: ICachedPanel): boolean {
+		const viewContainer = this.getViewContainer(panelId);
+		if (!viewContainer || !viewContainer.hideIfEmpty) {
+			return false;
+		}
+
+		return cachedPanel?.views && cachedPanel.views.length
+			? cachedPanel.views.every(({ when }) => !!when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(when)))
+			: false;
 	}
 
 	private registerListeners(): void {
-		this._register(this.onDidPanelOpen(({ panel }) => this._onDidPanelOpen(panel)));
-		this._register(this.onDidPanelClose(this._onDidPanelClose, this));
+		// Panel registration
+		this._register(this.registry.onDidRegister(panel => this.onDidRegisterPanels([panel])));
+		this._register(this.registry.onDidDeregister(panel => this.onDidDeregisterPanel(panel.id)));
 
-		this._register(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor)));
+		// Activate on panel open
+		this._register(this.onDidPanelOpen(({ panel }) => this.onPanelOpen(panel)));
 
-		// Activate panel action on opening of a panel
-		this._register(this.onDidPanelOpen(({ panel }) => {
-			this.compositeBar.activateComposite(panel.getId());
-			this.layoutCompositeBar(); // Need to relayout composite bar since different panels have different action bar width
+		// Deactivate on panel close
+		this._register(this.onDidPanelClose(this.onPanelClose, this));
+
+		// Extension registration
+		let disposables = this._register(new DisposableStore());
+		this._register(this.extensionService.onDidRegisterExtensions(() => {
+			disposables.clear();
+			this.onDidRegisterExtensions();
+			this.compositeBar.onDidChange(() => this.saveCachedPanels(), this, disposables);
+			this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e), this, disposables);
 		}));
-
-		// Deactivate panel action on close
-		this._register(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
 	}
 
-	private _onDidPanelOpen(panel: IPanel): void {
+	private onDidRegisterExtensions(): void {
+		this.removeNotExistingComposites();
+
+		this.saveCachedPanels();
+	}
+
+	private removeNotExistingComposites(): void {
+		const panels = this.getPanels();
+		for (const { id } of this.getCachedPanels()) { // should this value match viewlet (load on ctor)
+			if (panels.every(panel => panel.id !== id)) {
+				this.hideComposite(id);
+			}
+		}
+	}
+
+	private hideComposite(compositeId: string): void {
+		this.compositeBar.hideComposite(compositeId);
+
+		const compositeActions = this.compositeActions.get(compositeId);
+		if (compositeActions) {
+			compositeActions.activityAction.dispose();
+			compositeActions.pinnedAction.dispose();
+			this.compositeActions.delete(compositeId);
+		}
+	}
+
+	private onPanelOpen(panel: IPanel): void {
 		this.activePanelContextKey.set(panel.getId());
+
+		const foundPanel = this.panelRegistry.getPanel(panel.getId());
+		if (foundPanel) {
+			this.compositeBar.addComposite(foundPanel);
+		}
+
+		// Activate composite when opened
+		this.compositeBar.activateComposite(panel.getId());
+
+		const panelDescriptor = this.panelRegistry.getPanel(panel.getId());
+		if (panelDescriptor) {
+			const viewContainer = this.getViewContainer(panelDescriptor.id);
+			if (viewContainer?.hideIfEmpty) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
+					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
+				}
+			}
+		}
+
+		this.layoutCompositeBar(); // Need to relayout composite bar since different panels have different action bar width
 	}
 
-	private _onDidPanelClose(panel: IPanel): void {
+	private onPanelClose(panel: IPanel): void {
 		const id = panel.getId();
 
 		if (this.activePanelContextKey.get() === id) {
 			this.activePanelContextKey.reset();
 		}
+
+		this.compositeBar.deactivateComposite(panel.getId());
 	}
 
-	get onDidPanelOpen(): Event<{ panel: IPanel, focus: boolean }> {
-		return mapEvent(this._onDidCompositeOpen.event, compositeOpen => ({ panel: compositeOpen.composite, focus: compositeOpen.focus }));
-	}
+	create(parent: HTMLElement): void {
+		this.element = parent;
 
-	get onDidPanelClose(): Event<IPanel> {
-		return this._onDidCompositeClose.event;
+		super.create(parent);
+
+		const focusTracker = this._register(trackFocus(parent));
+		this._register(focusTracker.onDidFocus(() => this.panelFocusContextKey.set(true)));
+		this._register(focusTracker.onDidBlur(() => this.panelFocusContextKey.set(false)));
 	}
 
 	updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
-		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND);
-		container.style.borderLeftColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		const container = assertIsDefined(this.getContainer());
+		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND) || '';
+		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+		container.style.borderLeftColor = borderColor;
+		container.style.borderRightColor = borderColor;
 
 		const title = this.getTitleArea();
-		title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder);
+		if (title) {
+			title.style.borderTopColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
+		}
 	}
 
-	openPanel(id: string, focus?: boolean): Panel {
+	doOpenPanel(id: string, focus?: boolean): Panel | undefined {
 		if (this.blockOpeningPanel) {
-			return null; // Workaround against a potential race condition
+			return undefined; // Workaround against a potential race condition
 		}
 
 		// First check if panel is hidden and show if so
-		if (!this.partService.isVisible(Parts.PANEL_PART)) {
+		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			try {
 				this.blockOpeningPanel = true;
-				this.partService.setPanelHidden(false);
+				this.layoutService.setPanelHidden(false);
 			} finally {
 				this.blockOpeningPanel = false;
 			}
@@ -197,47 +393,58 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.openComposite(id, focus);
 	}
 
+	async openPanel(id?: string, focus?: boolean): Promise<Panel | undefined> {
+		if (typeof id === 'string' && this.getPanel(id)) {
+			return this.doOpenPanel(id, focus);
+		}
+
+		await this.extensionService.whenInstalledExtensionsRegistered();
+
+		if (typeof id === 'string' && this.getPanel(id)) {
+			return this.doOpenPanel(id, focus);
+		}
+
+		return undefined;
+	}
+
 	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable {
 		return this.compositeBar.showActivity(panelId, badge, clazz);
 	}
 
-	private getPanel(panelId: string): IPanelIdentifier {
-		return this.getPanels().filter(p => p.id === panelId).pop();
+	getPanel(panelId: string): IPanelIdentifier | undefined {
+		return this.panelRegistry.getPanel(panelId);
 	}
 
-	getPanels(): PanelDescriptor[] {
-		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
-			.filter(p => p.enabled)
-			.sort((v1, v2) => v1.order - v2.order);
+	getPanels(): readonly PanelDescriptor[] {
+		return this.panelRegistry.getPanels()
+			.sort((v1, v2) => {
+				if (typeof v1.order !== 'number') {
+					return 1;
+				}
+
+				if (typeof v2.order !== 'number') {
+					return -1;
+				}
+
+				return v1.order - v2.order;
+			});
 	}
 
-	getPinnedPanels(): PanelDescriptor[] {
+	getPinnedPanels(): readonly PanelDescriptor[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(c => c.id);
 		return this.getPanels()
 			.filter(p => pinnedCompositeIds.indexOf(p.id) !== -1)
 			.sort((p1, p2) => pinnedCompositeIds.indexOf(p1.id) - pinnedCompositeIds.indexOf(p2.id));
 	}
 
-	setPanelEnablement(id: string, enabled: boolean): void {
-		const descriptor = Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels().filter(p => p.id === id).pop();
-		if (descriptor && descriptor.enabled !== enabled) {
-			descriptor.enabled = enabled;
-			if (enabled) {
-				this.compositeBar.addComposite(descriptor);
-			} else {
-				this.removeComposite(id);
-			}
-		}
-	}
-
-	protected getActions(): IAction[] {
+	protected getActions(): ReadonlyArray<IAction> {
 		return [
 			this.instantiationService.createInstance(ToggleMaximizedPanelAction, ToggleMaximizedPanelAction.ID, ToggleMaximizedPanelAction.LABEL),
 			this.instantiationService.createInstance(ClosePanelAction, ClosePanelAction.ID, ClosePanelAction.LABEL)
 		];
 	}
 
-	getActivePanel(): IPanel {
+	getActivePanel(): IPanel | undefined {
 		return this.getActiveComposite();
 	}
 
@@ -246,6 +453,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	hideActivePanel(): void {
+		// First check if panel is visible and hide if so
+		if (this.layoutService.isVisible(Parts.PANEL_PART)) {
+			this.layoutService.setPanelHidden(true);
+		}
+
 		this.hideActiveComposite();
 	}
 
@@ -266,66 +478,186 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		};
 	}
 
-	layout(dimension: Dimension): Dimension[] {
-		if (!this.partService.isVisible(Parts.PANEL_PART)) {
-			return [dimension];
+	layout(width: number, height: number): void {
+		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
+			return;
 		}
 
-		if (this.partService.getPanelPosition() === Position.RIGHT) {
-			// Take into account the 1px border when layouting
-			this.dimension = new Dimension(dimension.width - 1, dimension.height);
+		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
+			this.contentDimension = new Dimension(width - 1, height); // Take into account the 1px border when layouting
 		} else {
-			this.dimension = dimension;
+			this.contentDimension = new Dimension(width, height);
 		}
-		const sizes = super.layout(this.dimension);
-		this.layoutCompositeBar();
 
-		return sizes;
+		// Layout contents
+		super.layout(this.contentDimension.width, this.contentDimension.height);
+
+		// Layout composite bar
+		this.layoutCompositeBar();
 	}
 
 	private layoutCompositeBar(): void {
-		if (this.dimension) {
-			let availableWidth = this.dimension.width - 40; // take padding into account
+		if (this.contentDimension && this.dimension) {
+			let availableWidth = this.contentDimension.width - 40; // take padding into account
 			if (this.toolBar) {
-				// adjust height for global actions showing
-				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
+				availableWidth = Math.max(PanelPart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth()); // adjust height for global actions showing
 			}
+
 			this.compositeBar.layout(new Dimension(availableWidth, this.dimension.height));
 		}
 	}
 
-	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } {
-		let compositeActions = this.compositeActions[compositeId];
+	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction; } {
+		let compositeActions = this.compositeActions.get(compositeId);
 		if (!compositeActions) {
-			compositeActions = {
-				activityAction: this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
-				pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
-			};
-			this.compositeActions[compositeId] = compositeActions;
+			const panel = this.getPanel(compositeId);
+			const cachedPanel = this.getCachedPanels().filter(p => p.id === compositeId)[0];
+
+			if (panel && cachedPanel?.name) {
+				panel.name = cachedPanel.name;
+			}
+
+			if (panel) {
+				compositeActions = {
+					activityAction: new PanelActivityAction(assertIsDefined(this.getPanel(compositeId)), this),
+					pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
+				};
+			} else {
+				compositeActions = {
+					activityAction: new PlaceHolderPanelActivityAction(compositeId, this),
+					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
+				};
+			}
+
+			this.compositeActions.set(compositeId, compositeActions);
 		}
+
 		return compositeActions;
 	}
 
-	private removeComposite(compositeId: string): void {
-		this.compositeBar.hideComposite(compositeId);
-		const compositeActions = this.compositeActions[compositeId];
-		if (compositeActions) {
-			compositeActions.activityAction.dispose();
-			compositeActions.pinnedAction.dispose();
-			delete this.compositeActions[compositeId];
+	protected removeComposite(compositeId: string): boolean {
+		if (super.removeComposite(compositeId)) {
+			const compositeActions = this.compositeActions.get(compositeId);
+			if (compositeActions) {
+				compositeActions.activityAction.dispose();
+				compositeActions.pinnedAction.dispose();
+				this.compositeActions.delete(compositeId);
+			}
+
+			return true;
 		}
+
+		return false;
 	}
 
 	private getToolbarWidth(): number {
 		const activePanel = this.getActivePanel();
-		if (!activePanel) {
+		if (!activePanel || !this.toolBar) {
 			return 0;
 		}
+
 		return this.toolBar.getItemsWidth();
+	}
+
+	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
+		if (e.key === PanelPart.PINNED_PANELS && e.scope === StorageScope.GLOBAL
+			&& this.cachedPanelsValue !== this.getStoredCachedPanelsValue() /* This checks if current window changed the value or not */) {
+			this._cachedPanelsValue = undefined;
+			const newCompositeItems: ICompositeBarItem[] = [];
+			const compositeItems = this.compositeBar.getCompositeBarItems();
+			const cachedPanels = this.getCachedPanels();
+
+			for (const cachedPanel of cachedPanels) {
+				// Add and update existing items
+				const existingItem = compositeItems.filter(({ id }) => id === cachedPanel.id)[0];
+				if (existingItem) {
+					newCompositeItems.push({
+						id: existingItem.id,
+						name: existingItem.name,
+						order: existingItem.order,
+						pinned: cachedPanel.pinned,
+						visible: existingItem.visible
+					});
+				}
+			}
+
+			for (let index = 0; index < compositeItems.length; index++) {
+				// Add items currently exists but does not exist in new.
+				if (!newCompositeItems.some(({ id }) => id === compositeItems[index].id)) {
+					newCompositeItems.splice(index, 0, compositeItems[index]);
+				}
+			}
+
+			this.compositeBar.setCompositeBarItems(newCompositeItems);
+		}
+	}
+
+	private saveCachedPanels(): void {
+		const state: ICachedPanel[] = [];
+
+		const compositeItems = this.compositeBar.getCompositeBarItems();
+		for (const compositeItem of compositeItems) {
+			const viewContainer = this.getViewContainer(compositeItem.id);
+			if (viewContainer) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+			}
+		}
+
+		this.cachedPanelsValue = JSON.stringify(state);
+	}
+
+	private getCachedPanels(): ICachedPanel[] {
+		const registeredPanels = this.getPanels();
+
+		const storedStates: Array<string | ICachedPanel> = JSON.parse(this.cachedPanelsValue);
+		const cachedPanels = storedStates.map(c => {
+			const serialized: ICachedPanel = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true } : c;
+			const registered = registeredPanels.some(p => p.id === serialized.id);
+			serialized.visible = registered ? isUndefinedOrNull(serialized.visible) ? true : serialized.visible : false;
+			return serialized;
+		});
+
+		return cachedPanels;
+	}
+
+	private _cachedPanelsValue: string | undefined;
+	private get cachedPanelsValue(): string {
+		if (!this._cachedPanelsValue) {
+			this._cachedPanelsValue = this.getStoredCachedPanelsValue();
+		}
+
+		return this._cachedPanelsValue;
+	}
+
+	private set cachedPanelsValue(cachedViewletsValue: string) {
+		if (this.cachedPanelsValue !== cachedViewletsValue) {
+			this._cachedPanelsValue = cachedViewletsValue;
+			this.setStoredCachedViewletsValue(cachedViewletsValue);
+		}
+	}
+
+	private getStoredCachedPanelsValue(): string {
+		return this.storageService.get(PanelPart.PINNED_PANELS, StorageScope.GLOBAL, '[]');
+	}
+
+	private setStoredCachedViewletsValue(value: string): void {
+		this.storageService.store(PanelPart.PINNED_PANELS, value, StorageScope.GLOBAL);
+	}
+
+	private getViewContainer(panelId: string): ViewContainer | undefined {
+		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+		return viewContainerRegistry.get(panelId);
+	}
+
+	toJSON(): object {
+		return {
+			type: Parts.PANEL_PART
+		};
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	// Panel Background: since panels can host editors, we apply a background rule if the panel background
 	// color is different from the editor background color. This is a bit of a hack though. The better way
@@ -333,9 +665,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const panelBackground = theme.getColor(PANEL_BACKGROUND);
 	if (panelBackground && panelBackground !== theme.getColor(editorBackground)) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .content .monaco-editor,
-			.monaco-workbench > .part.panel > .content .monaco-editor .margin,
-			.monaco-workbench > .part.panel > .content .monaco-editor .monaco-editor-background {
+			.monaco-workbench .part.panel > .content .monaco-editor,
+			.monaco-workbench .part.panel > .content .monaco-editor .margin,
+			.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
 				background-color: ${panelBackground};
 			}
 		`);
@@ -346,7 +678,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
 	if (titleActive || titleActiveBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
 				color: ${titleActive} !important;
 				border-bottom-color: ${titleActiveBorder} !important;
 			}
@@ -357,14 +689,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const focusBorderColor = theme.getColor(focusBorder);
 	if (focusBorderColor) {
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label {
 				color: ${titleActive} !important;
 				border-bottom-color: ${focusBorderColor} !important;
 				border-bottom: 1px solid;
 			}
 			`);
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
 				outline: none;
 			}
 			`);
@@ -373,11 +705,9 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
-		const outline = theme.getColor(activeContrastBorder);
-
 		collector.addRule(`
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
 				outline-color: ${outline};
 				outline-width: 1px;
 				outline-style: solid;
@@ -386,9 +716,20 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				outline-offset: 1px;
 			}
 
-			.monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
 				outline-style: dashed;
 			}
 		`);
 	}
+
+	const inputBorder = theme.getColor(PANEL_INPUT_BORDER);
+	if (inputBorder) {
+		collector.addRule(`
+			.monaco-workbench .part.panel .monaco-inputbox {
+				border-color: ${inputBorder}
+			}
+		`);
+	}
 });
+
+registerSingleton(IPanelService, PanelPart);

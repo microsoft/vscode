@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Application, Quality } from '../../application';
+import { Application, Quality } from '../../../../automation';
 
 export function setup() {
 	describe('Localization', () => {
@@ -14,9 +14,8 @@ export function setup() {
 				return;
 			}
 
-			const extensionName = 'German Language Pack for Visual Studio Code';
 			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.installExtension(extensionName);
+			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', 'German Language Pack for Visual Studio Code');
 
 			await app.restart({ extraArgs: ['--locale=DE'] });
 		});
@@ -37,11 +36,12 @@ export function setup() {
 			await app.workbench.scm.openSCMViewlet();
 			await app.workbench.scm.waitForTitle(title => /quellcodeverwaltung/i.test(title));
 
-			await app.workbench.debug.openDebugViewlet();
-			await app.workbench.debug.waitForTitle(title => /debuggen/i.test(title));
+			// See https://github.com/microsoft/vscode/issues/93462
+			// await app.workbench.debug.openDebugViewlet();
+			// await app.workbench.debug.waitForTitle(title => /starten/i.test(title));
 
-			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.waitForTitle(title => /erweiterungen/i.test(title));
+			// await app.workbench.extensions.openExtensionsViewlet();
+			// await app.workbench.extensions.waitForTitle(title => /extensions/i.test(title));
 		});
 	});
 }

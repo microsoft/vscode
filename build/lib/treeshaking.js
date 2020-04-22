@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.shake = exports.toStringShakeLevel = exports.ShakeLevel = void 0;
 const fs = require("fs");
 const path = require("path");
 const ts = require("typescript");
@@ -14,18 +15,28 @@ var ShakeLevel;
     ShakeLevel[ShakeLevel["InnerFile"] = 1] = "InnerFile";
     ShakeLevel[ShakeLevel["ClassMembers"] = 2] = "ClassMembers";
 })(ShakeLevel = exports.ShakeLevel || (exports.ShakeLevel = {}));
-function printDiagnostics(diagnostics) {
-    for (let i = 0; i < diagnostics.length; i++) {
-        const diag = diagnostics[i];
+function toStringShakeLevel(shakeLevel) {
+    switch (shakeLevel) {
+        case 0 /* Files */:
+            return 'Files (0)';
+        case 1 /* InnerFile */:
+            return 'InnerFile (1)';
+        case 2 /* ClassMembers */:
+            return 'ClassMembers (2)';
+    }
+}
+exports.toStringShakeLevel = toStringShakeLevel;
+function printDiagnostics(options, diagnostics) {
+    for (const diag of diagnostics) {
         let result = '';
         if (diag.file) {
-            result += `${diag.file.fileName}: `;
+            result += `${path.join(options.sourcesRoot, diag.file.fileName)}`;
         }
         if (diag.file && diag.start) {
             let location = diag.file.getLineAndCharacterOfPosition(diag.start);
-            result += `- ${location.line + 1},${location.character} - `;
+            result += `:${location.line + 1}:${location.character}`;
         }
-        result += JSON.stringify(diag.messageText);
+        result += ` - ` + JSON.stringify(diag.messageText);
         console.log(result);
     }
 }
@@ -34,17 +45,17 @@ function shake(options) {
     const program = languageService.getProgram();
     const globalDiagnostics = program.getGlobalDiagnostics();
     if (globalDiagnostics.length > 0) {
-        printDiagnostics(globalDiagnostics);
+        printDiagnostics(options, globalDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     const syntacticDiagnostics = program.getSyntacticDiagnostics();
     if (syntacticDiagnostics.length > 0) {
-        printDiagnostics(syntacticDiagnostics);
+        printDiagnostics(options, syntacticDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     const semanticDiagnostics = program.getSemanticDiagnostics();
     if (semanticDiagnostics.length > 0) {
-        printDiagnostics(semanticDiagnostics);
+        printDiagnostics(options, semanticDiagnostics);
         throw new Error(`Compilation Errors encountered.`);
     }
     markNodes(languageService, options);
@@ -65,11 +76,7 @@ function createTypeScriptLanguageService(options) {
         FILES[typing] = fs.readFileSync(filePath).toString();
     });
     // Resolve libs
-    const RESOLVED_LIBS = {};
-    options.libs.forEach((filename) => {
-        const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
-        RESOLVED_LIBS[`defaultLib:${filename}`] = fs.readFileSync(filepath).toString();
-    });
+    const RESOLVED_LIBS = processLibFiles(options);
     const compilerOptions = ts.convertCompilerOptionsFromJson(options.compilerOptions, options.sourcesRoot).options;
     const host = new TypeScriptLanguageServiceHost(RESOLVED_LIBS, FILES, compilerOptions);
     return ts.createLanguageService(host);
@@ -97,6 +104,11 @@ function discoverAndReadFiles(options) {
             FILES[`${moduleId}.d.ts`] = dts_filecontents;
             continue;
         }
+        const js_filename = path.join(options.sourcesRoot, moduleId + '.js');
+        if (fs.existsSync(js_filename)) {
+            // This is an import for a .js file, so ignore it...
+            continue;
+        }
         let ts_filename;
         if (options.redirects[moduleId]) {
             ts_filename = path.join(options.sourcesRoot, options.redirects[moduleId] + '.ts');
@@ -121,6 +133,29 @@ function discoverAndReadFiles(options) {
         FILES[`${moduleId}.ts`] = ts_filecontents;
     }
     return FILES;
+}
+/**
+ * Read lib files and follow lib references
+ */
+function processLibFiles(options) {
+    const stack = [...options.compilerOptions.lib];
+    const result = {};
+    while (stack.length > 0) {
+        const filename = `lib.${stack.shift().toLowerCase()}.d.ts`;
+        const key = `defaultLib:${filename}`;
+        if (!result[key]) {
+            // add this file
+            const filepath = path.join(TYPESCRIPT_LIB_FOLDER, filename);
+            const sourceText = fs.readFileSync(filepath).toString();
+            result[key] = sourceText;
+            // precess dependencies and "recurse"
+            const info = ts.preProcessFile(sourceText);
+            for (let ref of info.libReferenceDirectives) {
+                stack.push(ref.fileName);
+            }
+        }
+    }
+    return result;
 }
 /**
  * A TypeScript language service host
@@ -219,6 +254,7 @@ function markNodes(languageService, options) {
     }
     const black_queue = [];
     const gray_queue = [];
+    const export_import_queue = [];
     const sourceFilesLoaded = {};
     function enqueueTopLevelModuleStatements(sourceFile) {
         sourceFile.forEachChild((node) => {
@@ -230,9 +266,15 @@ function markNodes(languageService, options) {
                 return;
             }
             if (ts.isExportDeclaration(node)) {
-                if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+                if (!node.exportClause && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+                    // export * from "foo";
                     setColor(node, 2 /* Black */);
                     enqueueImport(node, node.moduleSpecifier.text);
+                }
+                if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+                    for (const exportSpecifier of node.exportClause.elements) {
+                        export_import_queue.push(exportSpecifier);
+                    }
                 }
                 return;
             }
@@ -291,7 +333,7 @@ function markNodes(languageService, options) {
         }
         setColor(node, 2 /* Black */);
         black_queue.push(node);
-        if (options.shakeLevel === 2 /* ClassMembers */ && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
+        if (options.shakeLevel === 2 /* ClassMembers */ && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
             const references = languageService.getReferencesAtPosition(node.getSourceFile().fileName, node.name.pos + node.name.getLeadingTriviaWidth());
             if (references) {
                 for (let i = 0, len = references.length; i < len; i++) {
@@ -343,7 +385,7 @@ function markNodes(languageService, options) {
         ++step;
         let node;
         if (step % 100 === 0) {
-            console.log(`${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
+            console.log(`Treeshaking - ${Math.floor(100 * step / (step + black_queue.length + gray_queue.length))}% - ${step}/${step + black_queue.length + gray_queue.length} (${black_queue.length}, ${gray_queue.length})`);
         }
         if (black_queue.length === 0) {
             for (let i = 0; i < gray_queue.length; i++) {
@@ -387,9 +429,11 @@ function markNodes(languageService, options) {
                                 || ts.isConstructSignatureDeclaration(member)
                                 || ts.isIndexSignatureDeclaration(member)
                                 || ts.isCallSignatureDeclaration(member)
+                                || memberName === '[Symbol.iterator]'
                                 || memberName === 'toJSON'
                                 || memberName === 'toString'
                                 || memberName === 'dispose' // TODO: keeping all `dispose` methods
+                                || /^_(.*)Brand$/.test(memberName || '') // TODO: keeping all members ending with `Brand`...
                             ) {
                                 enqueue_black(member);
                             }
@@ -409,6 +453,22 @@ function markNodes(languageService, options) {
             node.forEachChild(loop);
         };
         node.forEachChild(loop);
+    }
+    while (export_import_queue.length > 0) {
+        const node = export_import_queue.shift();
+        if (nodeOrParentIsBlack(node)) {
+            continue;
+        }
+        const symbol = node.symbol;
+        if (!symbol) {
+            continue;
+        }
+        const aliased = checker.getAliasedSymbol(symbol);
+        if (aliased.declarations && aliased.declarations.length > 0) {
+            if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
+                setColor(node, 2 /* Black */);
+            }
+        }
     }
 }
 function nodeIsInItsOwnDeclaration(nodeSourceFile, node, symbol) {
@@ -475,8 +535,7 @@ function generateResult(languageService, shakeLevel) {
                     }
                     else {
                         let survivingImports = [];
-                        for (let i = 0; i < node.importClause.namedBindings.elements.length; i++) {
-                            const importNode = node.importClause.namedBindings.elements[i];
+                        for (const importNode of node.importClause.namedBindings.elements) {
                             if (getColor(importNode) === 2 /* Black */) {
                                 survivingImports.push(importNode.getFullText(sourceFile));
                             }
@@ -502,16 +561,27 @@ function generateResult(languageService, shakeLevel) {
                     }
                 }
             }
+            if (ts.isExportDeclaration(node)) {
+                if (node.exportClause && node.moduleSpecifier && ts.isNamedExports(node.exportClause)) {
+                    let survivingExports = [];
+                    for (const exportSpecifier of node.exportClause.elements) {
+                        if (getColor(exportSpecifier) === 2 /* Black */) {
+                            survivingExports.push(exportSpecifier.getFullText(sourceFile));
+                        }
+                    }
+                    const leadingTriviaWidth = node.getLeadingTriviaWidth();
+                    const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
+                    if (survivingExports.length > 0) {
+                        return write(`${leadingTrivia}export {${survivingExports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
+                    }
+                }
+            }
             if (shakeLevel === 2 /* ClassMembers */ && (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) && nodeOrChildIsBlack(node)) {
                 let toWrite = node.getFullText();
                 for (let i = node.members.length - 1; i >= 0; i--) {
                     const member = node.members[i];
                     if (getColor(member) === 2 /* Black */ || !member.name) {
                         // keep method
-                        continue;
-                    }
-                    if (/^_(.*)Brand$/.test(member.name.getText())) {
-                        // TODO: keep all members ending with `Brand`...
                         continue;
                     }
                     let pos = member.pos - node.pos;
@@ -556,7 +626,7 @@ function getRealNodeSymbol(checker, node) {
     //   (2) when the aliased symbol is originating from an import.
     //
     function shouldSkipAlias(node, declaration) {
-        if (node.kind !== ts.SyntaxKind.Identifier) {
+        if (!ts.isShorthandPropertyAssignment(node) && node.kind !== ts.SyntaxKind.Identifier) {
             return false;
         }
         if (node.parent === declaration) {
@@ -578,7 +648,9 @@ function getRealNodeSymbol(checker, node) {
         }
     }
     const { parent } = node;
-    let symbol = checker.getSymbolAtLocation(node);
+    let symbol = (ts.isShorthandPropertyAssignment(node)
+        ? checker.getShorthandAssignmentValueSymbol(node)
+        : checker.getSymbolAtLocation(node));
     let importNode = null;
     // If this is an alias, and the request came at the declaration location
     // get the aliased symbol instead. This allows for goto def on an import e.g.

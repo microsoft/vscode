@@ -1,0 +1,74 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "vscode-swift",
+					"repositoryUrl": "https://github.com/owensd/vscode-swift",
+					"commitHash": "cec27af6662e3799120b208e64483efdfe5521f5"
+				}
+			},
+			"licenseDetail": [
+				"The MIT License (MIT)",
+				"",
+				"Copyright (c) 2015 David Owens II",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining a copy",
+				"of this software and associated documentation files (the \"Software\"), to deal",
+				"in the Software without restriction, including without limitation the rights",
+				"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+				"copies of the Software, and to permit persons to whom the Software is",
+				"furnished to do so, subject to the following conditions:",
+				"",
+				"The above copyright notice and this permission notice shall be included in all",
+				"copies or substantial portions of the Software.",
+				"",
+				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+				"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+				"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+				"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+			],
+			"license": "MIT",
+			"description": "The files in this folder are based on https://github.com/owensd/vscode-swift.",
+			"version": "0.0.1"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "freebroccolo/atom-language-swift",
+					"repositoryUrl": "https://github.com/freebroccolo/atom-language-swift",
+					"commitHash": "d8f4ed1f79cbb4d5d215e7a68fa8cc6b618e16e0"
+				}
+			},
+			"licenseDetail": [
+				"The MIT License (MIT)",
+				"",
+				"Copyright (c) 2014 Darin Morrison",
+				"",
+				"Permission is hereby granted, free of charge, to any person obtaining a copy",
+				"of this software and associated documentation files (the \"Software\"), to deal",
+				"in the Software without restriction, including without limitation the rights",
+				"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+				"copies of the Software, and to permit persons to whom the Software is",
+				"furnished to do so, subject to the following conditions:",
+				"",
+				"The above copyright notice and this permission notice shall be included in all",
+				"copies or substantial portions of the Software.",
+				"",
+				"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+				"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+				"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+				"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+				"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+				"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
+			],
+			"license": "MIT",
+			"version": "0.0.0"
+		}
+	],
+	"version": 1
+}

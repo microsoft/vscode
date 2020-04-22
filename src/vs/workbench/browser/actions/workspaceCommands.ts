@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import * as resources from 'vs/base/common/resources';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -18,7 +18,6 @@ import { IQuickInputService, IPickOptions, IQuickPickItem } from 'vs/platform/qu
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
@@ -35,7 +34,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: '_files.pickFolderAndOpen',
-	handler: (accessor: ServicesAccessor, forceNewWindow: boolean) => accessor.get(IFileDialogService).pickFolderAndOpen({ forceNewWindow })
+	handler: (accessor: ServicesAccessor, options: { forceNewWindow: boolean }) => accessor.get(IFileDialogService).pickFolderAndOpen(options)
 });
 
 CommandsRegistry.registerCommand({
@@ -55,30 +54,28 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: ADD_ROOT_FOLDER_COMMAND_ID,
-	handler: (accessor) => {
+	handler: async (accessor) => {
 		const viewletService = accessor.get(IViewletService);
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const dialogsService = accessor.get(IFileDialogService);
-		return dialogsService.showOpenDialog({
+		const folders = await dialogsService.showOpenDialog({
 			openLabel: mnemonicButtonLabel(nls.localize({ key: 'add', comment: ['&& denotes a mnemonic'] }, "&&Add")),
 			title: nls.localize('addFolderToWorkspaceTitle', "Add Folder to Workspace"),
 			canSelectFolders: true,
 			canSelectMany: true,
-			defaultUri: dialogsService.defaultFolderPath(Schemas.file)
-		}).then(folders => {
-			if (!folders || !folders.length) {
-				return null;
-			}
-
-			// Add and show Files Explorer viewlet
-			return workspaceEditingService.addFolders(folders.map(folder => ({ uri: folder })))
-				.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
-				.then(() => void 0);
+			defaultUri: dialogsService.defaultFolderPath()
 		});
+
+		if (!folders || !folders.length) {
+			return;
+		}
+
+		await workspaceEditingService.addFolders(folders.map(folder => ({ uri: resources.removeTrailingPathSeparator(folder) })));
+		await viewletService.openViewlet(viewletService.getDefaultViewletId(), true);
 	}
 });
 
-CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
+CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, async function (accessor, args?: [IPickOptions<IQuickPickItem>, CancellationToken]) {
 	const quickInputService = accessor.get(IQuickInputService);
 	const labelService = accessor.get(ILabelService);
 	const contextService = accessor.get(IWorkspaceContextService);
@@ -87,26 +84,19 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 
 	const folders = contextService.getWorkspace().folders;
 	if (!folders.length) {
-		return void 0;
+		return;
 	}
 
-	const folderPicks = folders.map(folder => {
+	const folderPicks: IQuickPickItem[] = folders.map(folder => {
 		return {
 			label: folder.name,
 			description: labelService.getUriLabel(resources.dirname(folder.uri), { relative: true }),
 			folder,
 			iconClasses: getIconClasses(modelService, modeService, folder.uri, FileKind.ROOT_FOLDER)
-		} as IQuickPickItem;
+		};
 	});
 
-	let options: IPickOptions<IQuickPickItem>;
-	if (args) {
-		options = args[0];
-	}
-
-	if (!options) {
-		options = Object.create(null);
-	}
+	const options: IPickOptions<IQuickPickItem> = (args ? args[0] : undefined) || Object.create(null);
 
 	if (!options.activeItem) {
 		options.activeItem = folderPicks[0];
@@ -120,20 +110,12 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		options.matchOnDescription = true;
 	}
 
-	let token: CancellationToken;
-	if (args) {
-		token = args[1];
-	}
+	const token: CancellationToken = (args ? args[1] : undefined) || CancellationToken.None;
+	const pick = await quickInputService.pick(folderPicks, options, token);
 
-	if (!token) {
-		token = CancellationToken.None;
-	}
-
-	return quickInputService.pick(folderPicks, options, token).then(pick => {
-		if (!pick) {
-			return void 0;
-		}
-
+	if (pick) {
 		return folders[folderPicks.indexOf(pick)];
-	});
+	}
+
+	return;
 });

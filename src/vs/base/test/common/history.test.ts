@@ -106,6 +106,40 @@ suite('History Navigator', () => {
 		assert.deepEqual(['2', '3', '1'], toArray(testObject));
 	});
 
+	test('previous returns null if the current position is the first one', () => {
+		const testObject = new HistoryNavigator(['1', '2', '3']);
+
+		testObject.first();
+
+		assert.deepEqual(testObject.previous(), null);
+	});
+
+	test('previous returns object if the current position is not the first one', () => {
+		const testObject = new HistoryNavigator(['1', '2', '3']);
+
+		testObject.first();
+		testObject.next();
+
+		assert.deepEqual(testObject.previous(), '1');
+	});
+
+	test('next returns null if the current position is the last one', () => {
+		const testObject = new HistoryNavigator(['1', '2', '3']);
+
+		testObject.last();
+
+		assert.deepEqual(testObject.next(), null);
+	});
+
+	test('next returns object if the current position is not the last one', () => {
+		const testObject = new HistoryNavigator(['1', '2', '3']);
+
+		testObject.last();
+		testObject.previous();
+
+		assert.deepEqual(testObject.next(), '3');
+	});
+
 	test('clear', () => {
 		const testObject = new HistoryNavigator(['a', 'b', 'c']);
 		assert.equal(testObject.previous(), 'c');
@@ -113,12 +147,12 @@ suite('History Navigator', () => {
 		assert.equal(testObject.current(), undefined);
 	});
 
-	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
-		let result: string[] = [];
+	function toArray(historyNavigator: HistoryNavigator<string>): Array<string | null> {
+		let result: Array<string | null> = [];
 		historyNavigator.first();
 		if (historyNavigator.current()) {
 			do {
-				result.push(historyNavigator.current());
+				result.push(historyNavigator.current()!);
 			} while (historyNavigator.next());
 		}
 		return result;

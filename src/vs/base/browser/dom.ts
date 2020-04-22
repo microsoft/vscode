@@ -8,11 +8,14 @@ import { domEvent } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { coalesce } from 'vs/base/common/arrays';
+import { URI } from 'vs/base/common/uri';
+import { Schemas, RemoteAuthorities } from 'vs/base/common/network';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
 
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
@@ -31,131 +34,21 @@ export function isInDOM(node: Node | null): boolean {
 		if (node === document.body) {
 			return true;
 		}
-		node = node.parentNode;
+		node = node.parentNode || (node as ShadowRoot).host;
 	}
 	return false;
 }
 
 interface IDomClassList {
-	hasClass(node: HTMLElement, className: string): boolean;
-	addClass(node: HTMLElement, className: string): void;
-	addClasses(node: HTMLElement, ...classNames: string[]): void;
-	removeClass(node: HTMLElement, className: string): void;
-	removeClasses(node: HTMLElement, ...classNames: string[]): void;
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void;
+	hasClass(node: HTMLElement | SVGElement, className: string): boolean;
+	addClass(node: HTMLElement | SVGElement, className: string): void;
+	addClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
+	removeClass(node: HTMLElement | SVGElement, className: string): void;
+	removeClasses(node: HTMLElement | SVGElement, ...classNames: string[]): void;
+	toggleClass(node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean): void;
 }
 
-const _manualClassList = new class implements IDomClassList {
-
-	private _lastStart: number;
-	private _lastEnd: number;
-
-	private _findClassName(node: HTMLElement, className: string): void {
-
-		let classes = node.className;
-		if (!classes) {
-			this._lastStart = -1;
-			return;
-		}
-
-		className = className.trim();
-
-		let classesLen = classes.length,
-			classLen = className.length;
-
-		if (classLen === 0) {
-			this._lastStart = -1;
-			return;
-		}
-
-		if (classesLen < classLen) {
-			this._lastStart = -1;
-			return;
-		}
-
-		if (classes === className) {
-			this._lastStart = 0;
-			this._lastEnd = classesLen;
-			return;
-		}
-
-		let idx = -1,
-			idxEnd: number;
-
-		while ((idx = classes.indexOf(className, idx + 1)) >= 0) {
-
-			idxEnd = idx + classLen;
-
-			// a class that is followed by another class
-			if ((idx === 0 || classes.charCodeAt(idx - 1) === CharCode.Space) && classes.charCodeAt(idxEnd) === CharCode.Space) {
-				this._lastStart = idx;
-				this._lastEnd = idxEnd + 1;
-				return;
-			}
-
-			// last class
-			if (idx > 0 && classes.charCodeAt(idx - 1) === CharCode.Space && idxEnd === classesLen) {
-				this._lastStart = idx - 1;
-				this._lastEnd = idxEnd;
-				return;
-			}
-
-			// equal - duplicate of cmp above
-			if (idx === 0 && idxEnd === classesLen) {
-				this._lastStart = 0;
-				this._lastEnd = idxEnd;
-				return;
-			}
-		}
-
-		this._lastStart = -1;
-	}
-
-	hasClass(node: HTMLElement, className: string): boolean {
-		this._findClassName(node, className);
-		return this._lastStart !== -1;
-	}
-
-	addClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.addClass(node, name)));
-	}
-
-	addClass(node: HTMLElement, className: string): void {
-		if (!node.className) { // doesn't have it for sure
-			node.className = className;
-		} else {
-			this._findClassName(node, className); // see if it's already there
-			if (this._lastStart === -1) {
-				node.className = node.className + ' ' + className;
-			}
-		}
-	}
-
-	removeClass(node: HTMLElement, className: string): void {
-		this._findClassName(node, className);
-		if (this._lastStart === -1) {
-			return; // Prevent styles invalidation if not necessary
-		} else {
-			node.className = node.className.substring(0, this._lastStart) + node.className.substring(this._lastEnd);
-		}
-	}
-
-	removeClasses(node: HTMLElement, ...classNames: string[]): void {
-		classNames.forEach(nameValue => nameValue.split(' ').forEach(name => this.removeClass(node, name)));
-	}
-
-	toggleClass(node: HTMLElement, className: string, shouldHaveIt?: boolean): void {
-		this._findClassName(node, className);
-		if (this._lastStart !== -1 && (shouldHaveIt === void 0 || !shouldHaveIt)) {
-			this.removeClass(node, className);
-		}
-		if (this._lastStart === -1 && (shouldHaveIt === void 0 || shouldHaveIt)) {
-			this.addClass(node, className);
-		}
-	}
-};
-
-const _nativeClassList = new class implements IDomClassList {
+const _classList: IDomClassList = new class implements IDomClassList {
 	hasClass(node: HTMLElement, className: string): boolean {
 		return Boolean(className) && node.classList && node.classList.contains(className);
 	}
@@ -187,29 +80,26 @@ const _nativeClassList = new class implements IDomClassList {
 	}
 };
 
-// In IE11 there is only partial support for `classList` which makes us keep our
-// custom implementation. Otherwise use the native implementation, see: http://caniuse.com/#search=classlist
-const _classList: IDomClassList = browser.isIE ? _manualClassList : _nativeClassList;
-export const hasClass: (node: HTMLElement, className: string) => boolean = _classList.hasClass.bind(_classList);
-export const addClass: (node: HTMLElement, className: string) => void = _classList.addClass.bind(_classList);
-export const addClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
-export const removeClass: (node: HTMLElement, className: string) => void = _classList.removeClass.bind(_classList);
-export const removeClasses: (node: HTMLElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
-export const toggleClass: (node: HTMLElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
+export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
-	private _node: Element | Window | Document;
+	private _node: EventTarget;
 	private readonly _type: string;
-	private readonly _useCapture: boolean;
+	private readonly _options: boolean | AddEventListenerOptions;
 
-	constructor(node: Element | Window | Document, type: string, handler: (e: any) => void, useCapture?: boolean) {
+	constructor(node: EventTarget, type: string, handler: (e: any) => void, options?: boolean | AddEventListenerOptions) {
 		this._node = node;
 		this._type = type;
 		this._handler = handler;
-		this._useCapture = (useCapture || false);
-		this._node.addEventListener(this._type, this._handler, this._useCapture);
+		this._options = (options || false);
+		this._node.addEventListener(this._type, this._handler, this._options);
 	}
 
 	public dispose(): void {
@@ -218,7 +108,7 @@ class DomListener implements IDisposable {
 			return;
 		}
 
-		this._node.removeEventListener(this._type, this._handler, this._useCapture);
+		this._node.removeEventListener(this._type, this._handler, this._options);
 
 		// Prevent leakers from holding on to the dom or handler func
 		this._node = null!;
@@ -226,8 +116,11 @@ class DomListener implements IDisposable {
 	}
 }
 
-export function addDisposableListener(node: Element | Window | Document, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	return new DomListener(node, type, handler, useCapture);
+export function addDisposableListener<K extends keyof GlobalEventHandlersEventMap>(node: EventTarget, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, options: AddEventListenerOptions): IDisposable;
+export function addDisposableListener(node: EventTarget, type: string, handler: (event: any) => void, useCaptureOrOptions?: boolean | AddEventListenerOptions): IDisposable {
+	return new DomListener(node, type, handler, useCaptureOrOptions);
 }
 
 export interface IAddStandardDisposableListenerSignature {
@@ -260,10 +153,47 @@ export let addStandardDisposableListener: IAddStandardDisposableListenerSignatur
 	return addDisposableListener(node, type, wrapHandler, useCapture);
 };
 
+export let addStandardDisposableGenericMouseDownListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseDownListner(node, wrapHandler, useCapture);
+};
+
+export let addStandardDisposableGenericMouseUpListner = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	let wrapHandler = _wrapAsStandardMouseEvent(handler);
+
+	return addDisposableGenericMouseUpListner(node, wrapHandler, useCapture);
+};
+export function addDisposableGenericMouseDownListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_DOWN : EventType.MOUSE_DOWN, handler, useCapture);
+}
+
+export function addDisposableGenericMouseMoveListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_MOVE : EventType.MOUSE_MOVE, handler, useCapture);
+}
+
+export function addDisposableGenericMouseUpListner(node: EventTarget, handler: (event: any) => void, useCapture?: boolean): IDisposable {
+	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
+}
 export function addDisposableNonBubblingMouseOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
 	return addDisposableListener(node, 'mouseout', (e: MouseEvent) => {
 		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
-		let toElement: Node | null = <Node>(e.relatedTarget || e.toElement);
+		let toElement: Node | null = <Node>(e.relatedTarget);
+		while (toElement && toElement !== node) {
+			toElement = toElement.parentNode;
+		}
+		if (toElement === node) {
+			return;
+		}
+
+		handler(e);
+	});
+}
+
+export function addDisposableNonBubblingPointerOutListener(node: Element, handler: (event: MouseEvent) => void): IDisposable {
+	return addDisposableListener(node, 'pointerout', (e: MouseEvent) => {
+		// Mouse out bubbles, so this is an attempt to ignore faux mouse outs coming from children elements
+		let toElement: Node | null = <Node>(e.relatedTarget);
 		while (toElement && toElement !== node) {
 			toElement = toElement.parentNode;
 		}
@@ -422,7 +352,7 @@ export interface DOMEvent {
 }
 
 const MINIMUM_TIME_MS = 16;
-const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent, currentEvent: DOMEvent) {
+const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
 
@@ -464,33 +394,25 @@ export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
 	return document.defaultView!.getComputedStyle(el, null);
 }
 
-// Adapted from WinJS
-// Converts a CSS positioning string for the specified element to pixels.
-const convertToPixels: (element: HTMLElement, value: string) => number = (function () {
-	return function (element: HTMLElement, value: string): number {
-		return parseFloat(value) || 0;
-	};
-})();
-
-function getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
-	let computedStyle: CSSStyleDeclaration = getComputedStyle(element);
-	let value = '0';
-	if (computedStyle) {
-		if (computedStyle.getPropertyValue) {
-			value = computedStyle.getPropertyValue(cssPropertyName);
-		} else {
-			// IE8
-			value = (<any>computedStyle).getAttribute(jsPropertyName);
-		}
-	}
-	return convertToPixels(element, value);
-}
-
 export function getClientArea(element: HTMLElement): Dimension {
 
 	// Try with DOM clientWidth / clientHeight
 	if (element !== document.body) {
 		return new Dimension(element.clientWidth, element.clientHeight);
+	}
+
+	// If visual view port exits and it's on mobile, it should be used instead of window innerWidth / innerHeight, or document.body.clientWidth / document.body.clientHeight
+	if (platform.isIOS && (<any>window).visualViewport) {
+		const width = (<any>window).visualViewport.width;
+		const height = (<any>window).visualViewport.height - (
+			browser.isStandalone
+				// in PWA mode, the visual viewport always includes the safe-area-inset-bottom (which is for the home indicator)
+				// even when you are using the onscreen monitor, the visual viewport will include the area between system statusbar and the onscreen keyboard
+				// plus the area between onscreen keyboard and the bottom bezel, which is 20px on iOS.
+				? (20 + 4) // + 4px for body margin
+				: 0
+		);
+		return new Dimension(width, height);
 	}
 
 	// Try innerWidth / innerHeight
@@ -511,60 +433,81 @@ export function getClientArea(element: HTMLElement): Dimension {
 	throw new Error('Unable to figure out browser width and height');
 }
 
-const sizeUtils = {
+class SizeUtils {
+	// Adapted from WinJS
+	// Converts a CSS positioning string for the specified element to pixels.
+	private static convertToPixels(element: HTMLElement, value: string): number {
+		return parseFloat(value) || 0;
+	}
 
-	getBorderLeftWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-left-width', 'borderLeftWidth');
-	},
-	getBorderRightWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-right-width', 'borderRightWidth');
-	},
-	getBorderTopWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-top-width', 'borderTopWidth');
-	},
-	getBorderBottomWidth: function (element: HTMLElement): number {
-		return getDimension(element, 'border-bottom-width', 'borderBottomWidth');
-	},
+	private static getDimension(element: HTMLElement, cssPropertyName: string, jsPropertyName: string): number {
+		let computedStyle: CSSStyleDeclaration = getComputedStyle(element);
+		let value = '0';
+		if (computedStyle) {
+			if (computedStyle.getPropertyValue) {
+				value = computedStyle.getPropertyValue(cssPropertyName);
+			} else {
+				// IE8
+				value = (<any>computedStyle).getAttribute(jsPropertyName);
+			}
+		}
+		return SizeUtils.convertToPixels(element, value);
+	}
 
-	getPaddingLeft: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-left', 'paddingLeft');
-	},
-	getPaddingRight: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-right', 'paddingRight');
-	},
-	getPaddingTop: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-top', 'paddingTop');
-	},
-	getPaddingBottom: function (element: HTMLElement): number {
-		return getDimension(element, 'padding-bottom', 'paddingBottom');
-	},
+	static getBorderLeftWidth(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'border-left-width', 'borderLeftWidth');
+	}
+	static getBorderRightWidth(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'border-right-width', 'borderRightWidth');
+	}
+	static getBorderTopWidth(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'border-top-width', 'borderTopWidth');
+	}
+	static getBorderBottomWidth(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'border-bottom-width', 'borderBottomWidth');
+	}
 
-	getMarginLeft: function (element: HTMLElement): number {
-		return getDimension(element, 'margin-left', 'marginLeft');
-	},
-	getMarginTop: function (element: HTMLElement): number {
-		return getDimension(element, 'margin-top', 'marginTop');
-	},
-	getMarginRight: function (element: HTMLElement): number {
-		return getDimension(element, 'margin-right', 'marginRight');
-	},
-	getMarginBottom: function (element: HTMLElement): number {
-		return getDimension(element, 'margin-bottom', 'marginBottom');
-	},
-	__commaSentinel: false
-};
+	static getPaddingLeft(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'padding-left', 'paddingLeft');
+	}
+	static getPaddingRight(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'padding-right', 'paddingRight');
+	}
+	static getPaddingTop(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'padding-top', 'paddingTop');
+	}
+	static getPaddingBottom(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'padding-bottom', 'paddingBottom');
+	}
+
+	static getMarginLeft(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'margin-left', 'marginLeft');
+	}
+	static getMarginTop(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'margin-top', 'marginTop');
+	}
+	static getMarginRight(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'margin-right', 'marginRight');
+	}
+	static getMarginBottom(element: HTMLElement): number {
+		return SizeUtils.getDimension(element, 'margin-bottom', 'marginBottom');
+	}
+}
 
 // ----------------------------------------------------------------------------------------
 // Position & Dimension
 
-export class Dimension {
-	public width: number;
-	public height: number;
+export interface IDimension {
+	readonly width: number;
+	readonly height: number;
+}
 
-	constructor(width: number, height: number) {
-		this.width = width;
-		this.height = height;
-	}
+export class Dimension implements IDimension {
+
+	constructor(
+		public readonly width: number,
+		public readonly height: number,
+	) { }
 
 	static equals(a: Dimension | undefined, b: Dimension | undefined): boolean {
 		if (a === b) {
@@ -581,18 +524,24 @@ export function getTopLeftOffset(element: HTMLElement): { left: number; top: num
 	// Adapted from WinJS.Utilities.getPosition
 	// and added borders to the mix
 
-	let offsetParent = element.offsetParent, top = element.offsetTop, left = element.offsetLeft;
+	let offsetParent = element.offsetParent;
+	let top = element.offsetTop;
+	let left = element.offsetLeft;
 
-	while ((element = <HTMLElement>element.parentNode) !== null && element !== document.body && element !== document.documentElement) {
+	while (
+		(element = <HTMLElement>element.parentNode) !== null
+		&& element !== document.body
+		&& element !== document.documentElement
+	) {
 		top -= element.scrollTop;
-		let c = getComputedStyle(element);
+		const c = isShadowRoot(element) ? null : getComputedStyle(element);
 		if (c) {
 			left -= c.direction !== 'rtl' ? element.scrollLeft : -element.scrollLeft;
 		}
 
 		if (element === offsetParent) {
-			left += sizeUtils.getBorderLeftWidth(element);
-			top += sizeUtils.getBorderTopWidth(element);
+			left += SizeUtils.getBorderLeftWidth(element);
+			top += SizeUtils.getBorderTopWidth(element);
 			top += element.offsetTop;
 			left += element.offsetLeft;
 			offsetParent = element.offsetParent;
@@ -612,7 +561,7 @@ export interface IDomNodePagePosition {
 	height: number;
 }
 
-export function size(element: HTMLElement, width: number, height: number): void {
+export function size(element: HTMLElement, width: number | null, height: number | null): void {
 	if (typeof width === 'number') {
 		element.style.width = `${width}px`;
 	}
@@ -683,33 +632,33 @@ export const StandardWindow: IStandardWindow = new class implements IStandardWin
 // Adapted from WinJS
 // Gets the width of the element, including margins.
 export function getTotalWidth(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.offsetWidth + margin;
 }
 
 export function getContentWidth(element: HTMLElement): number {
-	let border = sizeUtils.getBorderLeftWidth(element) + sizeUtils.getBorderRightWidth(element);
-	let padding = sizeUtils.getPaddingLeft(element) + sizeUtils.getPaddingRight(element);
+	let border = SizeUtils.getBorderLeftWidth(element) + SizeUtils.getBorderRightWidth(element);
+	let padding = SizeUtils.getPaddingLeft(element) + SizeUtils.getPaddingRight(element);
 	return element.offsetWidth - border - padding;
 }
 
 export function getTotalScrollWidth(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginLeft(element) + sizeUtils.getMarginRight(element);
+	let margin = SizeUtils.getMarginLeft(element) + SizeUtils.getMarginRight(element);
 	return element.scrollWidth + margin;
 }
 
 // Adapted from WinJS
 // Gets the height of the content of the specified element. The content height does not include borders or padding.
 export function getContentHeight(element: HTMLElement): number {
-	let border = sizeUtils.getBorderTopWidth(element) + sizeUtils.getBorderBottomWidth(element);
-	let padding = sizeUtils.getPaddingTop(element) + sizeUtils.getPaddingBottom(element);
+	let border = SizeUtils.getBorderTopWidth(element) + SizeUtils.getBorderBottomWidth(element);
+	let padding = SizeUtils.getPaddingTop(element) + SizeUtils.getPaddingBottom(element);
 	return element.offsetHeight - border - padding;
 }
 
 // Adapted from WinJS
 // Gets the height of the element, including its margins.
 export function getTotalHeight(element: HTMLElement): number {
-	let margin = sizeUtils.getMarginTop(element) + sizeUtils.getMarginBottom(element);
+	let margin = SizeUtils.getMarginTop(element) + SizeUtils.getMarginBottom(element);
 	return element.offsetHeight + margin;
 }
 
@@ -746,7 +695,7 @@ export function isAncestor(testChild: Node | null, testAncestor: Node | null): b
 }
 
 export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (hasClass(node, clazz)) {
 			return node;
 		}
@@ -769,12 +718,43 @@ export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClaz
 	return null;
 }
 
+export function hasParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): boolean {
+	return !!findParentWithClass(node, clazz, stopAtClazzOrNode);
+}
+
+export function isShadowRoot(node: Node): node is ShadowRoot {
+	return (
+		node && !!(<ShadowRoot>node).host && !!(<ShadowRoot>node).mode
+	);
+}
+
+export function isInShadowDOM(domNode: Node): boolean {
+	return !!getShadowRoot(domNode);
+}
+
+export function getShadowRoot(domNode: Node): ShadowRoot | null {
+	while (domNode.parentNode) {
+		if (domNode === document.body) {
+			// reached the body
+			return null;
+		}
+		domNode = domNode.parentNode;
+	}
+	return isShadowRoot(domNode) ? domNode : null;
+}
+
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLStyleElement {
 	let style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
 	container.appendChild(style);
 	return style;
+}
+
+export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
+	let meta = document.createElement('meta');
+	container.appendChild(meta);
+	return meta;
 }
 
 let _sharedStyleSheet: HTMLStyleElement | null = null;
@@ -842,6 +822,10 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
+	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
+	POINTER_UP: 'pointerup',
+	POINTER_DOWN: 'pointerdown',
+	POINTER_MOVE: 'pointermove',
 	CONTEXT_MENU: 'contextmenu',
 	WHEEL: 'wheel',
 	// Keyboard
@@ -850,11 +834,14 @@ export const EventType = {
 	KEY_UP: 'keyup',
 	// HTML Document
 	LOAD: 'load',
+	BEFORE_UNLOAD: 'beforeunload',
 	UNLOAD: 'unload',
 	ABORT: 'abort',
 	ERROR: 'error',
 	RESIZE: 'resize',
 	SCROLL: 'scroll',
+	FULLSCREEN_CHANGE: 'fullscreenchange',
+	WK_FULLSCREEN_CHANGE: 'webkitfullscreenchange',
 	// Form
 	SELECT: 'select',
 	CHANGE: 'change',
@@ -879,7 +866,7 @@ export const EventType = {
 	ANIMATION_START: browser.isWebKit ? 'webkitAnimationStart' : 'animationstart',
 	ANIMATION_END: browser.isWebKit ? 'webkitAnimationEnd' : 'animationend',
 	ANIMATION_ITERATION: browser.isWebKit ? 'webkitAnimationIteration' : 'animationiteration'
-};
+} as const;
 
 export interface EventLike {
 	preventDefault(): void;
@@ -906,10 +893,10 @@ export const EventHelper = {
 	}
 };
 
-export interface IFocusTracker {
+export interface IFocusTracker extends Disposable {
 	onDidFocus: Event<void>;
 	onDidBlur: Event<void>;
-	dispose(): void;
+	refreshState?(): void;
 }
 
 export function saveParentsScrollTop(node: Element): number[] {
@@ -930,21 +917,22 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 	}
 }
 
-class FocusTracker implements IFocusTracker {
+class FocusTracker extends Disposable implements IFocusTracker {
 
-	private _onDidFocus = new Emitter<void>();
-	readonly onDidFocus: Event<void> = this._onDidFocus.event;
+	private readonly _onDidFocus = this._register(new Emitter<void>());
+	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
-	private _onDidBlur = new Emitter<void>();
-	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
 
-	private disposables: IDisposable[] = [];
+	private _refreshStateHandler: () => void;
 
 	constructor(element: HTMLElement | Window) {
+		super();
 		let hasFocus = isAncestor(document.activeElement, <HTMLElement>element);
 		let loosingFocus = false;
 
-		let onFocus = () => {
+		const onFocus = () => {
 			loosingFocus = false;
 			if (!hasFocus) {
 				hasFocus = true;
@@ -952,7 +940,7 @@ class FocusTracker implements IFocusTracker {
 			}
 		};
 
-		let onBlur = () => {
+		const onBlur = () => {
 			if (hasFocus) {
 				loosingFocus = true;
 				window.setTimeout(() => {
@@ -965,14 +953,23 @@ class FocusTracker implements IFocusTracker {
 			}
 		};
 
-		domEvent(element, EventType.FOCUS, true)(onFocus, null, this.disposables);
-		domEvent(element, EventType.BLUR, true)(onBlur, null, this.disposables);
+		this._refreshStateHandler = () => {
+			let currentNodeHasFocus = isAncestor(document.activeElement, <HTMLElement>element);
+			if (currentNodeHasFocus !== hasFocus) {
+				if (hasFocus) {
+					onBlur();
+				} else {
+					onFocus();
+				}
+			}
+		};
+
+		this._register(domEvent(element, EventType.FOCUS, true)(onFocus));
+		this._register(domEvent(element, EventType.BLUR, true)(onBlur));
 	}
 
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		this._onDidFocus.dispose();
-		this._onDidBlur.dispose();
+	refreshState() {
+		this._refreshStateHandler();
 	}
 }
 
@@ -992,14 +989,28 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
 
 const SELECTOR_REGEX = /([\w\-]+)?(#([\w\-]+))?((.([\w\-]+))*)/;
 
-export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: (Node | string)[]): T {
+export enum Namespace {
+	HTML = 'http://www.w3.org/1999/xhtml',
+	SVG = 'http://www.w3.org/2000/svg'
+}
+
+function _$<T extends Element>(namespace: Namespace, description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
 	let match = SELECTOR_REGEX.exec(description);
 
 	if (!match) {
 		throw new Error('Bad use of emmet');
 	}
 
-	let result = document.createElement(match[1] || 'div');
+	attrs = { ...(attrs || {}) };
+
+	let tagName = match[1] || 'div';
+	let result: T;
+
+	if (namespace !== Namespace.HTML) {
+		result = document.createElementNS(namespace as string, tagName) as T;
+	} else {
+		result = document.createElement(tagName) as unknown as T;
+	}
 
 	if (match[3]) {
 		result.id = match[3];
@@ -1008,9 +1019,13 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		result.className = match[4].replace(/\./g, ' ').trim();
 	}
 
-	attrs = attrs || {};
 	Object.keys(attrs).forEach(name => {
 		const value = attrs![name];
+
+		if (typeof value === 'undefined') {
+			return;
+		}
+
 		if (/^on\w+$/.test(name)) {
 			(<any>result)[name] = value;
 		} else if (name === 'selected') {
@@ -1023,8 +1038,7 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 		}
 	});
 
-	children
-		.filter(child => !!child)
+	coalesce(children)
 		.forEach(child => {
 			if (child instanceof Node) {
 				result.appendChild(child);
@@ -1035,6 +1049,14 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 
 	return result as T;
 }
+
+export function $<T extends HTMLElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+	return _$(Namespace.HTML, description, attrs, ...children);
+}
+
+$.SVG = function <T extends SVGElement>(description: string, attrs?: { [key: string]: any; }, ...children: Array<Node | string>): T {
+	return _$(Namespace.SVG, description, attrs, ...children);
+};
 
 export function join(nodes: Node[], separator: Node | string): Node[] {
 	const result: Node[] = [];
@@ -1069,7 +1091,7 @@ export function hide(...elements: HTMLElement[]): void {
 }
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
-	while (node) {
+	while (node && node.nodeType === node.ELEMENT_NODE) {
 		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
 			return node;
 		}
@@ -1154,4 +1176,66 @@ export function windowOpenNoOpener(url: string): void {
 			newTab.location.href = url;
 		}
 	}
+}
+
+export function animate(fn: () => void): IDisposable {
+	const step = () => {
+		fn();
+		stepDisposable = scheduleAtNextAnimationFrame(step);
+	};
+
+	let stepDisposable = scheduleAtNextAnimationFrame(step);
+	return toDisposable(() => stepDisposable.dispose());
+}
+
+RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
+
+export function asDomUri(uri: URI): URI {
+	if (!uri) {
+		return uri;
+	}
+	if (Schemas.vscodeRemote === uri.scheme) {
+		return RemoteAuthorities.rewrite(uri);
+	}
+	return uri;
+}
+
+/**
+ * returns url('...')
+ */
+export function asCSSUrl(uri: URI): string {
+	if (!uri) {
+		return `url('')`;
+	}
+	return `url('${asDomUri(uri).toString(true).replace(/'/g, '%27')}')`;
+}
+
+
+export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
+
+	// If the data is provided as Buffer, we create a
+	// blog URL out of it to produce a valid link
+	let url: string;
+	if (URI.isUri(dataOrUri)) {
+		url = dataOrUri.toString(true);
+	} else {
+		const blob = new Blob([dataOrUri]);
+		url = URL.createObjectURL(blob);
+
+		// Ensure to free the data from DOM eventually
+		setTimeout(() => URL.revokeObjectURL(url));
+	}
+
+	// In order to download from the browser, the only way seems
+	// to be creating a <a> element with download attribute that
+	// points to the file to download.
+	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
+	const anchor = document.createElement('a');
+	document.body.appendChild(anchor);
+	anchor.download = name;
+	anchor.href = url;
+	anchor.click();
+
+	// Ensure to remove the element from DOM eventually
+	setTimeout(() => document.body.removeChild(anchor));
 }

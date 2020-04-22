@@ -9,12 +9,13 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 // --------- utils
 
 interface ILightWeightDecoration2 {
 	range: Range;
-	className: string;
+	className: string | null | undefined;
 }
 
 function modelHasDecorations(model: TextModel, decorations: ILightWeightDecoration2[]) {
@@ -46,11 +47,11 @@ function addDecoration(model: TextModel, startLineNumber: number, startColumn: n
 		return changeAccessor.addDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), {
 			className: className
 		});
-	});
+	})!;
 }
 
 function lineHasDecorations(model: TextModel, lineNumber: number, decorations: { start: number; end: number; className: string; }[]) {
-	let lineDecorations: Array<{ start: number; end: number; className: string; }> = [];
+	let lineDecorations: Array<{ start: number; end: number; className: string | null | undefined; }> = [];
 	let decs = model.getLineDecorations(lineNumber);
 	for (let i = 0, len = decs.length; i < len; i++) {
 		lineDecorations.push({
@@ -92,12 +93,11 @@ suite('Editor Model - Model Decorations', () => {
 			LINE3 + '\n' +
 			LINE4 + '\r\n' +
 			LINE5;
-		thisModel = TextModel.createFromString(text);
+		thisModel = createTextModel(text);
 	});
 
 	teardown(() => {
 		thisModel.dispose();
-		thisModel = null;
 	});
 
 	test('single character decoration', () => {
@@ -401,7 +401,7 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('removeAllDecorationsWithOwnerId can be called after model dispose', () => {
-		let model = TextModel.createFromString('asd');
+		let model = createTextModel('asd');
 		model.dispose();
 		model.removeAllDecorationsWithOwnerId(1);
 	});
@@ -416,7 +416,7 @@ suite('Editor Model - Model Decorations', () => {
 suite('Decorations and editing', () => {
 
 	function _runTest(decRange: Range, stickiness: TrackedRangeStickiness, editRange: Range, editText: string, editForceMoveMarkers: boolean, expectedDecRange: Range, msg: string): void {
-		let model = TextModel.createFromString([
+		let model = createTextModel([
 			'My First Line',
 			'My Second Line',
 			'Third Line'
@@ -1141,15 +1141,15 @@ suite('deltaDecorations', () => {
 	function readModelDecorations(model: TextModel, ids: string[]): ILightWeightDecoration[] {
 		return ids.map((id) => {
 			return {
-				range: model.getDecorationRange(id),
-				id: model.getDecorationOptions(id).className
+				range: model.getDecorationRange(id)!,
+				id: model.getDecorationOptions(id)!.className!
 			};
 		});
 	}
 
 	function testDeltaDecorations(text: string[], decorations: ILightWeightDecoration[], newDecorations: ILightWeightDecoration[]): void {
 
-		let model = TextModel.createFromString(text.join('\n'));
+		let model = createTextModel(text.join('\n'));
 
 		// Add initial decorations & assert they are added
 		let initialIds = model.deltaDecorations([], decorations.map(toModelDeltaDecoration));
@@ -1178,7 +1178,7 @@ suite('deltaDecorations', () => {
 	}
 
 	test('result respects input', () => {
-		let model = TextModel.createFromString([
+		let model = createTextModel([
 			'Hello world,',
 			'How are you?'
 		].join('\n'));
@@ -1266,7 +1266,7 @@ suite('deltaDecorations', () => {
 
 	test('issue #4317: editor.setDecorations doesn\'t update the hover message', () => {
 
-		let model = TextModel.createFromString('Hello world!');
+		let model = createTextModel('Hello world!');
 
 		let ids = model.deltaDecorations([], [{
 			range: {
@@ -1294,13 +1294,13 @@ suite('deltaDecorations', () => {
 
 		let actualDecoration = model.getDecorationOptions(ids[0]);
 
-		assert.deepEqual(actualDecoration.hoverMessage, { value: 'hello2' });
+		assert.deepEqual(actualDecoration!.hoverMessage, { value: 'hello2' });
 
 		model.dispose();
 	});
 
 	test('model doesn\'t get confused with individual tracked ranges', () => {
-		let model = TextModel.createFromString([
+		let model = createTextModel([
 			'Hello world,',
 			'How are you?'
 		].join('\n'));
@@ -1313,12 +1313,12 @@ suite('deltaDecorations', () => {
 					endLineNumber: 1,
 					endColumn: 1
 				}, {
-					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-				}
+				stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+			}
 			);
 		});
 		model.changeDecorations((changeAccessor) => {
-			changeAccessor.removeDecoration(trackedRangeId);
+			changeAccessor.removeDecoration(trackedRangeId!);
 		});
 
 		let ids = model.deltaDecorations([], [
@@ -1341,7 +1341,7 @@ suite('deltaDecorations', () => {
 	});
 
 	test('issue #16922: Clicking on link doesn\'t seem to do anything', () => {
-		let model = TextModel.createFromString([
+		let model = createTextModel([
 			'Hello world,',
 			'How are you?',
 			'Fine.',
@@ -1372,7 +1372,7 @@ suite('deltaDecorations', () => {
 
 	test('issue #41492: URL highlighting persists after pasting over url', () => {
 
-		let model = TextModel.createFromString([
+		let model = createTextModel([
 			'My First Line'
 		].join('\n'));
 

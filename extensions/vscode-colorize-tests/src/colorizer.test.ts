@@ -56,7 +56,7 @@ function hasThemeChange(d: any, p: any) : boolean {
 		}
 	}
 	return false;
-};
+}
 
 suite('colorization', () => {
 	let extensionsFolder = normalize(join(__dirname, '../../'));

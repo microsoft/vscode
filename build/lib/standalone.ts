@@ -31,25 +31,29 @@ function writeFile(filePath: string, contents: Buffer | string): void {
 }
 
 export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: string }): void {
-	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.json')).toString());
+	const tsConfig = JSON.parse(fs.readFileSync(path.join(options.sourcesRoot, 'tsconfig.monaco.json')).toString());
 	let compilerOptions: { [key: string]: any };
 	if (tsConfig.extends) {
 		compilerOptions = Object.assign({}, require(path.join(options.sourcesRoot, tsConfig.extends)).compilerOptions, tsConfig.compilerOptions);
+		delete tsConfig.extends;
 	} else {
 		compilerOptions = tsConfig.compilerOptions;
 	}
 	tsConfig.compilerOptions = compilerOptions;
 
+	compilerOptions.noEmit = false;
 	compilerOptions.noUnusedLocals = false;
 	compilerOptions.preserveConstEnums = false;
 	compilerOptions.declaration = false;
 	compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
 
-	delete compilerOptions.types;
-	delete tsConfig.extends;
-	tsConfig.exclude = [];
 
 	options.compilerOptions = compilerOptions;
+
+	console.log(`Running tree shaker with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
+
+	// Take the extra included .d.ts files from `tsconfig.monaco.json`
+	options.typings = (<string[]>tsConfig.include).filter(includedFile => /\.d\.ts$/.test(includedFile));
 
 	let result = tss.shake(options);
 	for (let fileName in result) {
@@ -139,8 +143,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 	};
 
 	const allFiles = walkDirRecursive(SRC_FOLDER);
-	for (let i = 0; i < allFiles.length; i++) {
-		const file = allFiles[i];
+	for (const file of allFiles) {
 
 		if (options.ignores.indexOf(file.replace(/\\/g, '/')) >= 0) {
 			continue;
@@ -154,7 +157,7 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 			continue;
 		}
 
-		if (/\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file)) {
+		if (/\.d\.ts$/.test(file) || /\.css$/.test(file) || /\.js$/.test(file) || /\.ttf$/.test(file)) {
 			// Transport the files directly
 			write(getDestAbsoluteFilePath(file), fs.readFileSync(path.join(SRC_FOLDER, file)));
 			continue;
@@ -244,7 +247,6 @@ export function createESMSourcesAndResources2(options: IOptions2): void {
 			let mode = 0;
 			for (let i = 0; i < lines.length; i++) {
 				const line = lines[i];
-
 				if (mode === 0) {
 					if (/\/\/ ESM-comment-begin/.test(line)) {
 						mode = 1;
@@ -291,40 +293,41 @@ function transportCSS(module: string, enqueue: (module: string) => void, write: 
 	const filename = path.join(SRC_DIR, module);
 	const fileContents = fs.readFileSync(filename).toString();
 	const inlineResources = 'base64'; // see https://github.com/Microsoft/monaco-editor/issues/148
-	const inlineResourcesLimit = 300000;//3000; // see https://github.com/Microsoft/monaco-editor/issues/336
 
-	const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64', inlineResourcesLimit);
+	const newContents = _rewriteOrInlineUrls(fileContents, inlineResources === 'base64');
 	write(module, newContents);
 	return true;
 
-	function _rewriteOrInlineUrls(contents: string, forceBase64: boolean, inlineByteLimit: number): string {
+	function _rewriteOrInlineUrls(contents: string, forceBase64: boolean): string {
 		return _replaceURL(contents, (url) => {
-			let imagePath = path.join(path.dirname(module), url);
-			let fileContents = fs.readFileSync(path.join(SRC_DIR, imagePath));
-
-			if (fileContents.length < inlineByteLimit) {
-				const MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
-				let DATA = ';base64,' + fileContents.toString('base64');
-
-				if (!forceBase64 && /\.svg$/.test(url)) {
-					// .svg => url encode as explained at https://codepen.io/tigt/post/optimizing-svgs-in-data-uris
-					let newText = fileContents.toString()
-						.replace(/"/g, '\'')
-						.replace(/</g, '%3C')
-						.replace(/>/g, '%3E')
-						.replace(/&/g, '%26')
-						.replace(/#/g, '%23')
-						.replace(/\s+/g, ' ');
-					let encodedData = ',' + newText;
-					if (encodedData.length < DATA.length) {
-						DATA = encodedData;
-					}
-				}
-				return '"data:' + MIME + DATA + '"';
+			const fontMatch = url.match(/^(.*).ttf\?(.*)$/);
+			if (fontMatch) {
+				const relativeFontPath = `${fontMatch[1]}.ttf`; // trim the query parameter
+				const fontPath = path.join(path.dirname(module), relativeFontPath);
+				enqueue(fontPath);
+				return relativeFontPath;
 			}
 
-			enqueue(imagePath);
-			return url;
+			const imagePath = path.join(path.dirname(module), url);
+			const fileContents = fs.readFileSync(path.join(SRC_DIR, imagePath));
+			const MIME = /\.svg$/.test(url) ? 'image/svg+xml' : 'image/png';
+			let DATA = ';base64,' + fileContents.toString('base64');
+
+			if (!forceBase64 && /\.svg$/.test(url)) {
+				// .svg => url encode as explained at https://codepen.io/tigt/post/optimizing-svgs-in-data-uris
+				let newText = fileContents.toString()
+					.replace(/"/g, '\'')
+					.replace(/</g, '%3C')
+					.replace(/>/g, '%3E')
+					.replace(/&/g, '%26')
+					.replace(/#/g, '%23')
+					.replace(/\s+/g, ' ');
+				let encodedData = ',' + newText;
+				if (encodedData.length < DATA.length) {
+					DATA = encodedData;
+				}
+			}
+			return '"data:' + MIME + DATA + '"';
 		});
 	}
 

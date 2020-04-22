@@ -11,12 +11,14 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { Handler } from 'vs/editor/common/editorCommon';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('SnippetController2', function () {
 
 	function assertSelections(editor: ICodeEditor, ...s: Selection[]) {
-		for (const selection of editor.getSelections()) {
-			const actual = s.shift();
+		for (const selection of editor.getSelections()!) {
+			const actual = s.shift()!;
 			assert.ok(selection.equalsSelection(actual), `actual=${selection.toString()} <> expected=${actual.toString()}`);
 		}
 		assert.equal(s.length, 0);
@@ -35,7 +37,7 @@ suite('SnippetController2', function () {
 
 	setup(function () {
 		contextKeys = new MockContextKeyService();
-		model = TextModel.createFromString('if\n    $state\nfi');
+		model = createTextModel('if\n    $state\nfi');
 		editor = createTestCodeEditor({ model: model });
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');
@@ -360,5 +362,81 @@ suite('SnippetController2', function () {
 		ctrl.next();
 		assertSelections(editor, new Selection(1, 7, 1, 7));
 		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('Cancelling snippet mode should discard added cursors #68512 (soft cancel)', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('.REGION ${2:FUNCTION_NAME}\nCREATE.FUNCTION ${1:VOID} ${2:FUNCTION_NAME}(${3:})\n\t${4:}\nEND\n.ENDREGION$0');
+		assertSelections(editor, new Selection(2, 17, 2, 21));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 9, 1, 22), new Selection(2, 22, 2, 35));
+		assertContextKeys(contextKeys, true, true, true);
+
+		editor.setSelections([new Selection(1, 22, 1, 22), new Selection(2, 35, 2, 35)]);
+		assertContextKeys(contextKeys, true, true, true);
+
+		editor.setSelections([new Selection(2, 1, 2, 1), new Selection(2, 36, 2, 36)]);
+		assertContextKeys(contextKeys, false, false, false);
+		assertSelections(editor, new Selection(2, 1, 2, 1), new Selection(2, 36, 2, 36));
+	});
+
+	test('Cancelling snippet mode should discard added cursors #68512 (hard cancel)', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('.REGION ${2:FUNCTION_NAME}\nCREATE.FUNCTION ${1:VOID} ${2:FUNCTION_NAME}(${3:})\n\t${4:}\nEND\n.ENDREGION$0');
+		assertSelections(editor, new Selection(2, 17, 2, 21));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(1, 9, 1, 22), new Selection(2, 22, 2, 35));
+		assertContextKeys(contextKeys, true, true, true);
+
+		editor.setSelections([new Selection(1, 22, 1, 22), new Selection(2, 35, 2, 35)]);
+		assertContextKeys(contextKeys, true, true, true);
+
+		ctrl.cancel(true);
+		assertContextKeys(contextKeys, false, false, false);
+		assertSelections(editor, new Selection(1, 22, 1, 22));
+	});
+
+	test('User defined snippet tab stops ignored #72862', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('export default $1');
+		assertContextKeys(contextKeys, true, false, true);
+	});
+
+	test('Optional tabstop in snippets #72358', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+
+		ctrl.insert('${1:prop: {$2\\},}\nmore$0');
+		assertContextKeys(contextKeys, true, false, true);
+
+		assertSelections(editor, new Selection(1, 1, 1, 10));
+		editor.trigger('test', Handler.Cut, {});
+
+		assertSelections(editor, new Selection(1, 1, 1, 1));
+
+		ctrl.next();
+		assertSelections(editor, new Selection(2, 5, 2, 5));
+		assertContextKeys(contextKeys, false, false, false);
+	});
+
+	test('issue #90135: confusing trim whitespace edits', function () {
+		const ctrl = new SnippetController2(editor, logService, contextKeys);
+		model.setValue('');
+		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+
+		ctrl.insert('\nfoo');
+		assertSelections(editor, new Selection(2, 8, 2, 8));
 	});
 });

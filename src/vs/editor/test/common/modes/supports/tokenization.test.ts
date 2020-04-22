@@ -334,8 +334,8 @@ suite('Token theme resolving', () => {
 		let actual = TokenTheme.createFromParsedTokenTheme([
 			new ParsedTokenThemeRule('var', -1, FontStyle.NotSet, 'F8F8F2', null)
 		], [
-				'000000', 'FFFFFF', '0F0F0F'
-			]);
+			'000000', 'FFFFFF', '0F0F0F'
+		]);
 		let colorMap = new ColorMap();
 		colorMap.getId('000000');
 		colorMap.getId('FFFFFF');

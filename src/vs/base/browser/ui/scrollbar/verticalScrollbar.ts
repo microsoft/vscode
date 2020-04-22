@@ -9,10 +9,16 @@ import { ScrollableElementResolvedOptions } from 'vs/base/browser/ui/scrollbar/s
 import { ARROW_IMG_SIZE } from 'vs/base/browser/ui/scrollbar/scrollbarArrow';
 import { ScrollbarState } from 'vs/base/browser/ui/scrollbar/scrollbarState';
 import { INewScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
+
+const scrollbarButtonUpIcon = registerIcon('scrollbar-button-up', Codicon.triangleUp);
+const scrollbarButtonDownIcon = registerIcon('scrollbar-button-down', Codicon.triangleDown);
 
 export class VerticalScrollbar extends AbstractScrollbar {
 
 	constructor(scrollable: Scrollable, options: ScrollableElementResolvedOptions, host: ScrollbarHost) {
+		const scrollDimensions = scrollable.getScrollDimensions();
+		const scrollPosition = scrollable.getCurrentScrollPosition();
 		super({
 			lazyRender: options.lazyRender,
 			host: host,
@@ -20,7 +26,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 				(options.verticalHasArrows ? options.arrowSize : 0),
 				(options.vertical === ScrollbarVisibility.Hidden ? 0 : options.verticalScrollbarSize),
 				// give priority to vertical scroll bar over horizontal and let it scroll all the way to the bottom
-				0
+				0,
+				scrollDimensions.height,
+				scrollDimensions.scrollHeight,
+				scrollPosition.scrollTop
 			),
 			visibility: options.vertical,
 			extraScrollbarClassName: 'vertical',
@@ -32,22 +41,24 @@ export class VerticalScrollbar extends AbstractScrollbar {
 			let scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
-				className: 'up-arrow',
+				className: 'scra',
+				icon: scrollbarButtonUpIcon,
 				top: arrowDelta,
 				left: scrollbarDelta,
-				bottom: void 0,
-				right: void 0,
+				bottom: undefined,
+				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
 				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, 1)),
 			});
 
 			this._createArrow({
-				className: 'down-arrow',
-				top: void 0,
+				className: 'scra',
+				icon: scrollbarButtonDownIcon,
+				top: undefined,
 				left: scrollbarDelta,
 				bottom: arrowDelta,
-				right: void 0,
+				right: undefined,
 				bgWidth: options.verticalScrollbarSize,
 				bgHeight: options.arrowSize,
 				onActivate: () => this._host.onMouseWheel(new StandardWheelEvent(null, 0, -1)),
@@ -86,6 +97,10 @@ export class VerticalScrollbar extends AbstractScrollbar {
 
 	protected _sliderOrthogonalMousePosition(e: ISimplifiedMouseEvent): number {
 		return e.posx;
+	}
+
+	protected _updateScrollbarSize(size: number): void {
+		this.slider.setWidth(size);
 	}
 
 	public writeScrollPosition(target: INewScrollPosition, scrollPosition: number): void {

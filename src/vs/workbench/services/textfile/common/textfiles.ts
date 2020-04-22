@@ -3,16 +3,181 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TPromise } from 'vs/base/common/winjs.base';
 import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
+import { Event, IWaitUntil } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
-import { IBaseStat, IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
+import { IEncodingSupport, IModeSupport, ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
+import { IBaseStatWithMetadata, IFileStatWithMetadata, IReadFileOptions, IWriteFileOptions, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
-import { ITextBufferFactory } from 'vs/editor/common/model';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
+import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
+import { isUndefinedOrNull } from 'vs/base/common/types';
+import { isNative } from 'vs/base/common/platform';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IUntitledTextEditorModelManager } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
+
+export const ITextFileService = createDecorator<ITextFileService>('textFileService');
+
+export interface TextFileCreateEvent extends IWaitUntil {
+	readonly resource: URI;
+}
+
+export interface ITextFileService extends IDisposable {
+
+	_serviceBrand: undefined;
+
+	/**
+	 * Access to the manager of text file editor models providing further
+	 * methods to work with them.
+	 */
+	readonly files: ITextFileEditorModelManager;
+
+	/**
+	 * Access to the manager of untitled text editor models providing further
+	 * methods to work with them.
+	 */
+	readonly untitled: IUntitledTextEditorModelManager;
+
+	/**
+	 * Helper to determine encoding for resources.
+	 */
+	readonly encoding: IResourceEncodings;
+
+	/**
+	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
+	 *
+	 * @param resource the resource to check for being dirty
+	 */
+	isDirty(resource: URI): boolean;
+
+	/**
+	 * Saves the resource.
+	 *
+	 * @param resource the resource to save
+	 * @param options optional save options
+	 * @return Path of the saved resource or undefined if canceled.
+	 */
+	save(resource: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
+
+	/**
+	 * Saves the provided resource asking the user for a file name or using the provided one.
+	 *
+	 * @param resource the resource to save as.
+	 * @param targetResource the optional target to save to.
+	 * @param options optional save options
+	 * @return Path of the saved resource or undefined if canceled.
+	 */
+	saveAs(resource: URI, targetResource?: URI, options?: ITextFileSaveOptions): Promise<URI | undefined>;
+
+	/**
+	 * Reverts the provided resource.
+	 *
+	 * @param resource the resource of the file to revert.
+	 * @param force to force revert even when the file is not dirty
+	 */
+	revert(resource: URI, options?: IRevertOptions): Promise<void>;
+
+	/**
+	 * Read the contents of a file identified by the resource.
+	 */
+	read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent>;
+
+	/**
+	 * Read the contents of a file identified by the resource as stream.
+	 */
+	readStream(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileStreamContent>;
+
+	/**
+	 * Update a file with given contents.
+	 */
+	write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * An event that is fired after a text file has been created.
+	 */
+	readonly onDidCreateTextFile: Event<TextFileCreateEvent>;
+
+	/**
+	 * Create a file. If the file exists it will be overwritten with the contents if
+	 * the options enable to overwrite.
+	 */
+	create(resource: URI, contents?: string | ITextSnapshot, options?: { overwrite?: boolean }): Promise<IFileStatWithMetadata>;
+}
+
+export interface IReadTextFileOptions extends IReadFileOptions {
+
+	/**
+	 * The optional acceptTextOnly parameter allows to fail this request early if the file
+	 * contents are not textual.
+	 */
+	acceptTextOnly?: boolean;
+
+	/**
+	 * The optional encoding parameter allows to specify the desired encoding when resolving
+	 * the contents of the file.
+	 */
+	encoding?: string;
+
+	/**
+	 * The optional guessEncoding parameter allows to guess encoding from content of the file.
+	 */
+	autoGuessEncoding?: boolean;
+}
+
+export interface IWriteTextFileOptions extends IWriteFileOptions {
+
+	/**
+	 * The encoding to use when updating a file.
+	 */
+	encoding?: string;
+
+	/**
+	 * If set to true, will enforce the selected encoding and not perform any detection using BOMs.
+	 */
+	overwriteEncoding?: boolean;
+
+	/**
+	 * Whether to overwrite a file even if it is readonly.
+	 */
+	overwriteReadonly?: boolean;
+
+	/**
+	 * Whether to write to the file as elevated (admin) user. When setting this option a prompt will
+	 * ask the user to authenticate as super user.
+	 */
+	writeElevated?: boolean;
+}
+
+export const enum TextFileOperationResult {
+	FILE_IS_BINARY
+}
+
+export class TextFileOperationError extends FileOperationError {
+
+	static isTextFileOperationError(obj: unknown): obj is TextFileOperationError {
+		return obj instanceof Error && !isUndefinedOrNull((obj as TextFileOperationError).textFileOperationResult);
+	}
+
+	constructor(
+		message: string,
+		public textFileOperationResult: TextFileOperationResult,
+		public options?: IReadTextFileOptions & IWriteTextFileOptions
+	) {
+		super(message, FileOperationResult.FILE_OTHER_ERROR);
+	}
+}
+
+export interface IResourceEncodings {
+	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): IResourceEncoding;
+}
+
+export interface IResourceEncoding {
+	encoding: string;
+	hasBOM: boolean;
+}
 
 /**
  * The save error handler can be installed on the text file editor model to install code that executes when save errors occur.
@@ -25,20 +190,24 @@ export interface ISaveErrorHandler {
 	onSaveError(error: Error, model: ITextFileEditorModel): void;
 }
 
-export interface ISaveParticipant {
-
-	/**
-	 * Participate in a save of a model. Allows to change the model before it is being saved to disk.
-	 */
-	participate(model: ITextFileEditorModel, env: { reason: SaveReason }): void;
-}
-
 /**
  * States the text file editor model can be in.
  */
-export const enum ModelState {
+export const enum TextFileEditorModelState {
+
+	/**
+	 * A model is saved.
+	 */
 	SAVED,
+
+	/**
+	 * A model is dirty.
+	 */
 	DIRTY,
+
+	/**
+	 * A model is currently being saved but this operation has not completed yet.
+	 */
 	PENDING_SAVE,
 
 	/**
@@ -54,88 +223,18 @@ export const enum ModelState {
 
 	/**
 	 * Any error that happens during a save that is not causing the CONFLICT state.
-	 * Models in error mode are always diry.
+	 * Models in error mode are always dirty.
 	 */
 	ERROR
 }
 
-export const enum StateChange {
-	DIRTY,
-	SAVING,
-	SAVE_ERROR,
-	SAVED,
-	REVERTED,
-	ENCODING,
-	CONTENT_CHANGE,
-	ORPHANED_CHANGE
-}
-
-export class TextFileModelChangeEvent {
-	private _resource: URI;
-	private _kind: StateChange;
-
-	constructor(model: ITextFileEditorModel, kind: StateChange) {
-		this._resource = model.getResource();
-		this._kind = kind;
-	}
-
-	get resource(): URI {
-		return this._resource;
-	}
-
-	get kind(): StateChange {
-		return this._kind;
-	}
-}
-
-export const TEXT_FILE_SERVICE_ID = 'textFileService';
-export const AutoSaveContext = new RawContextKey<string>('config.files.autoSave', undefined);
-
-export interface ITextFileOperationResult {
-	results: IResult[];
-}
-
-export interface IResult {
-	source: URI;
-	target?: URI;
-	success?: boolean;
-}
-
-export interface IAutoSaveConfiguration {
-	autoSaveDelay: number;
-	autoSaveFocusChange: boolean;
-	autoSaveApplicationChange: boolean;
-}
-
-export const enum AutoSaveMode {
-	OFF,
-	AFTER_SHORT_DELAY,
-	AFTER_LONG_DELAY,
-	ON_FOCUS_CHANGE,
-	ON_WINDOW_CHANGE
-}
-
-export const enum SaveReason {
-	EXPLICIT = 1,
-	AUTO = 2,
-	FOCUS_CHANGE = 3,
-	WINDOW_CHANGE = 4
-}
-
-export const enum LoadReason {
+export const enum TextFileLoadReason {
 	EDITOR = 1,
 	REFERENCE = 2,
 	OTHER = 3
 }
 
-export const ITextFileService = createDecorator<ITextFileService>(TEXT_FILE_SERVICE_ID);
-
-export interface IRawTextContent extends IBaseStat {
-
-	/**
-	 * The line grouped content of a text file.
-	 */
-	value: ITextBufferFactory;
+interface IBaseTextFileContent extends IBaseStatWithMetadata {
 
 	/**
 	 * The encoding of the content if known.
@@ -143,12 +242,33 @@ export interface IRawTextContent extends IBaseStat {
 	encoding: string;
 }
 
-export interface IModelLoadOrCreateOptions {
+export interface ITextFileContent extends IBaseTextFileContent {
+
+	/**
+	 * The content of a text file.
+	 */
+	value: string;
+}
+
+export interface ITextFileStreamContent extends IBaseTextFileContent {
+
+	/**
+	 * The line grouped content of a text file.
+	 */
+	value: ITextBufferFactory;
+}
+
+export interface ITextFileEditorModelLoadOrCreateOptions {
 
 	/**
 	 * Context why the model is being loaded or created.
 	 */
-	reason?: LoadReason;
+	reason?: TextFileLoadReason;
+
+	/**
+	 * The language mode to use for the model text content.
+	 */
+	mode?: string;
 
 	/**
 	 * The encoding to use when resolving the model text content.
@@ -158,9 +278,9 @@ export interface IModelLoadOrCreateOptions {
 	/**
 	 * If the model was already loaded before, allows to trigger
 	 * a reload of it to fetch the latest contents:
-	 * - async: loadOrCreate() will return immediately and trigger
+	 * - async: resolve() will return immediately and trigger
 	 * a reload that will run in the background.
-	 * - sync: loadOrCreate() will only return resolved when the
+	 * - sync: resolve() will only return resolved when the
 	 * model has finished reloading.
 	 */
 	reload?: {
@@ -173,42 +293,99 @@ export interface IModelLoadOrCreateOptions {
 	allowBinary?: boolean;
 }
 
+export interface ITextFileSaveEvent {
+	model: ITextFileEditorModel;
+	reason: SaveReason;
+}
+
+export interface ITextFileLoadEvent {
+	model: ITextFileEditorModel;
+	reason: TextFileLoadReason;
+}
+
+export interface ITextFileSaveParticipant {
+
+	/**
+	 * Participate in a save of a model. Allows to change the model
+	 * before it is being saved to disk.
+	 */
+	participate(
+		model: ITextFileEditorModel,
+		context: { reason: SaveReason },
+		progress: IProgress<IProgressStep>,
+		token: CancellationToken
+	): Promise<void>;
+}
+
 export interface ITextFileEditorModelManager {
 
-	onModelDisposed: Event<URI>;
-	onModelContentChanged: Event<TextFileModelChangeEvent>;
-	onModelEncodingChanged: Event<TextFileModelChangeEvent>;
+	readonly onDidCreate: Event<ITextFileEditorModel>;
+	readonly onDidLoad: Event<ITextFileLoadEvent>;
+	readonly onDidChangeDirty: Event<ITextFileEditorModel>;
+	readonly onDidChangeEncoding: Event<ITextFileEditorModel>;
+	readonly onDidSaveError: Event<ITextFileEditorModel>;
+	readonly onDidSave: Event<ITextFileSaveEvent>;
+	readonly onDidRevert: Event<ITextFileEditorModel>;
 
-	onModelDirty: Event<TextFileModelChangeEvent>;
-	onModelSaveError: Event<TextFileModelChangeEvent>;
-	onModelSaved: Event<TextFileModelChangeEvent>;
-	onModelReverted: Event<TextFileModelChangeEvent>;
-	onModelOrphanedChanged: Event<TextFileModelChangeEvent>;
+	readonly models: ITextFileEditorModel[];
 
-	onModelsDirty: Event<TextFileModelChangeEvent[]>;
-	onModelsSaveError: Event<TextFileModelChangeEvent[]>;
-	onModelsSaved: Event<TextFileModelChangeEvent[]>;
-	onModelsReverted: Event<TextFileModelChangeEvent[]>;
+	saveErrorHandler: ISaveErrorHandler;
 
-	get(resource: URI): ITextFileEditorModel;
+	/**
+	 * Returns the text file editor model for the provided resource
+	 * or undefined if none.
+	 */
+	get(resource: URI): ITextFileEditorModel | undefined;
 
-	getAll(resource?: URI): ITextFileEditorModel[];
+	/**
+	 * Allows to load a text file model from disk.
+	 */
+	resolve(resource: URI, options?: ITextFileEditorModelLoadOrCreateOptions): Promise<ITextFileEditorModel>;
 
-	loadOrCreate(resource: URI, options?: IModelLoadOrCreateOptions): TPromise<ITextFileEditorModel>;
+	/**
+	 * Adds a participant for saving text file models.
+	 */
+	addSaveParticipant(participant: ITextFileSaveParticipant): IDisposable;
+
+	/**
+	 * Runs the registered save participants on the provided model.
+	 */
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void>
 
 	disposeModel(model: ITextFileEditorModel): void;
 }
 
-export interface ISaveOptions {
-	force?: boolean;
-	reason?: SaveReason;
+export interface ITextFileSaveOptions extends ISaveOptions {
+
+	/**
+	 * Makes the file writable if it is readonly.
+	 */
 	overwriteReadonly?: boolean;
+
+	/**
+	 * Overwrite the encoding of the file on disk as configured.
+	 */
 	overwriteEncoding?: boolean;
-	skipSaveParticipants?: boolean;
+
+	/**
+	 * Save the file with elevated privileges.
+	 *
+	 * Note: This may not be supported in all environments.
+	 */
 	writeElevated?: boolean;
+
+	/**
+	 * Allows to write to a file even if it has been modified on disk.
+	 */
+	ignoreModifiedSince?: boolean;
+
+	/**
+	 * If set, will bubble up the error to the caller instead of handling it.
+	 */
+	ignoreErrorHandler?: boolean;
 }
 
-export interface ILoadOptions {
+export interface ITextFileLoadOptions {
 
 	/**
 	 * Go to disk bypassing any cache of the model if any.
@@ -223,154 +400,362 @@ export interface ILoadOptions {
 	/**
 	 * Context why the model is being loaded.
 	 */
-	reason?: LoadReason;
+	reason?: TextFileLoadReason;
 }
 
-export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport {
+export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport, IModeSupport, IWorkingCopy {
 
-	onDidContentChange: Event<StateChange>;
-	onDidStateChange: Event<StateChange>;
+	readonly onDidChangeContent: Event<void>;
+	readonly onDidSaveError: Event<void>;
+	readonly onDidChangeOrphaned: Event<void>;
 
-	getVersionId(): number;
+	hasState(state: TextFileEditorModelState): boolean;
 
-	getResource(): URI;
+	updatePreferredEncoding(encoding: string | undefined): void;
 
-	hasState(state: ModelState): boolean;
+	save(options?: ITextFileSaveOptions): Promise<boolean>;
+	revert(options?: IRevertOptions): Promise<void>;
 
-	getETag(): string;
+	load(options?: ITextFileLoadOptions): Promise<ITextFileEditorModel>;
 
-	updatePreferredEncoding(encoding: string): void;
+	isDirty(): this is IResolvedTextFileEditorModel;
 
-	save(options?: ISaveOptions): TPromise<void>;
+	getMode(): string | undefined;
 
-	load(options?: ILoadOptions): TPromise<ITextFileEditorModel>;
-
-	revert(soft?: boolean): TPromise<void>;
-
-	createSnapshot(): ITextSnapshot;
-
-	isDirty(): boolean;
-
-	isResolved(): boolean;
-
+	isResolved(): this is IResolvedTextFileEditorModel;
 	isDisposed(): boolean;
 }
 
+export interface IResolvedTextFileEditorModel extends ITextFileEditorModel {
 
-export interface IWillMoveEvent {
-	oldResource: URI;
-	newResource: URI;
-	waitUntil(p: Thenable<any>): void;
+	readonly textEditorModel: ITextModel;
+
+	createSnapshot(): ITextSnapshot;
 }
 
-export interface ITextFileService extends IDisposable {
-	_serviceBrand: any;
+export function snapshotToString(snapshot: ITextSnapshot): string {
+	const chunks: string[] = [];
 
-	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
-	readonly onFilesAssociationChange: Event<void>;
+	let chunk: string | null;
+	while (typeof (chunk = snapshot.read()) === 'string') {
+		chunks.push(chunk);
+	}
 
-	onWillMove: Event<IWillMoveEvent>;
-
-	readonly isHotExitEnabled: boolean;
-
-	/**
-	 * Access to the manager of text file editor models providing further methods to work with them.
-	 */
-	readonly models: ITextFileEditorModelManager;
-
-	/**
-	 * Resolve the contents of a file identified by the resource.
-	 */
-	resolveTextContent(resource: URI, options?: IResolveContentOptions): TPromise<IRawTextContent>;
-
-	/**
-	 * A resource is dirty if it has unsaved changes or is an untitled file not yet saved.
-	 *
-	 * @param resource the resource to check for being dirty. If it is not specified, will check for
-	 * all dirty resources.
-	 */
-	isDirty(resource?: URI): boolean;
-
-	/**
-	 * Returns all resources that are currently dirty matching the provided resources or all dirty resources.
-	 *
-	 * @param resources the resources to check for being dirty. If it is not specified, will check for
-	 * all dirty resources.
-	 */
-	getDirty(resources?: URI[]): URI[];
-
-	/**
-	 * Saves the resource.
-	 *
-	 * @param resource the resource to save
-	 * @param options optional save options
-	 * @return true if the resource was saved.
-	 */
-	save(resource: URI, options?: ISaveOptions): TPromise<boolean>;
-
-	/**
-	 * Saves the provided resource asking the user for a file name or using the provided one.
-	 *
-	 * @param resource the resource to save as.
-	 * @param targetResource the optional target to save to.
-	 * @param options optional save options
-	 * @return true if the file was saved.
-	 */
-	saveAs(resource: URI, targetResource?: URI, options?: ISaveOptions): TPromise<URI>;
-
-	/**
-	 * Saves the set of resources and returns a promise with the operation result.
-	 *
-	 * @param resources can be null to save all.
-	 * @param includeUntitled to save all resources and optionally exclude untitled ones.
-	 */
-	saveAll(includeUntitled?: boolean, options?: ISaveOptions): TPromise<ITextFileOperationResult>;
-	saveAll(resources: URI[], options?: ISaveOptions): TPromise<ITextFileOperationResult>;
-
-	/**
-	 * Reverts the provided resource.
-	 *
-	 * @param resource the resource of the file to revert.
-	 * @param force to force revert even when the file is not dirty
-	 */
-	revert(resource: URI, options?: IRevertOptions): TPromise<boolean>;
-
-	/**
-	 * Reverts all the provided resources and returns a promise with the operation result.
-	 */
-	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult>;
-
-	/**
-	 * Create a file. If the file exists it will be overwritten with the contents if
-	 * the options enable to overwrite.
-	 */
-	create(resource: URI, contents?: string, options?: { overwrite?: boolean }): TPromise<void>;
-
-	/**
-	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
-	 */
-	delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
-
-	/**
-	 * Move a file. If the file is dirty, its contents will be preserved and restored.
-	 */
-	move(source: URI, target: URI, overwrite?: boolean): TPromise<void>;
-
-	/**
-	 * Brings up the confirm dialog to either save, don't save or cancel.
-	 *
-	 * @param resources the resources of the files to ask for confirmation or null if
-	 * confirming for all dirty resources.
-	 */
-	confirmSave(resources?: URI[]): TPromise<ConfirmResult>;
-
-	/**
-	 * Convinient fast access to the current auto save mode.
-	 */
-	getAutoSaveMode(): AutoSaveMode;
-
-	/**
-	 * Convinient fast access to the raw configured auto save settings.
-	 */
-	getAutoSaveConfiguration(): IAutoSaveConfiguration;
+	return chunks.join('');
 }
+
+export function stringToSnapshot(value: string): ITextSnapshot {
+	let done = false;
+
+	return {
+		read(): string | null {
+			if (!done) {
+				done = true;
+
+				return value;
+			}
+
+			return null;
+		}
+	};
+}
+
+export class TextSnapshotReadable implements VSBufferReadable {
+	private preambleHandled = false;
+
+	constructor(private snapshot: ITextSnapshot, private preamble?: string) { }
+
+	read(): VSBuffer | null {
+		let value = this.snapshot.read();
+
+		// Handle preamble if provided
+		if (!this.preambleHandled) {
+			this.preambleHandled = true;
+
+			if (typeof this.preamble === 'string') {
+				if (typeof value === 'string') {
+					value = this.preamble + value;
+				} else {
+					value = this.preamble;
+				}
+			}
+		}
+
+		if (typeof value === 'string') {
+			return VSBuffer.fromString(value);
+		}
+
+		return null;
+	}
+}
+
+export function toBufferOrReadable(value: string): VSBuffer;
+export function toBufferOrReadable(value: ITextSnapshot): VSBufferReadable;
+export function toBufferOrReadable(value: string | ITextSnapshot): VSBuffer | VSBufferReadable;
+export function toBufferOrReadable(value: string | ITextSnapshot | undefined): VSBuffer | VSBufferReadable | undefined;
+export function toBufferOrReadable(value: string | ITextSnapshot | undefined): VSBuffer | VSBufferReadable | undefined {
+	if (typeof value === 'undefined') {
+		return undefined;
+	}
+
+	if (typeof value === 'string') {
+		return VSBuffer.fromString(value);
+	}
+
+	return new TextSnapshotReadable(value);
+}
+
+export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; labelShort: string; order: number; encodeOnly?: boolean; alias?: string } } =
+
+	// Desktop
+	isNative ?
+		{
+			utf8: {
+				labelLong: 'UTF-8',
+				labelShort: 'UTF-8',
+				order: 1,
+				alias: 'utf8bom'
+			},
+			utf8bom: {
+				labelLong: 'UTF-8 with BOM',
+				labelShort: 'UTF-8 with BOM',
+				encodeOnly: true,
+				order: 2,
+				alias: 'utf8'
+			},
+			utf16le: {
+				labelLong: 'UTF-16 LE',
+				labelShort: 'UTF-16 LE',
+				order: 3
+			},
+			utf16be: {
+				labelLong: 'UTF-16 BE',
+				labelShort: 'UTF-16 BE',
+				order: 4
+			},
+			windows1252: {
+				labelLong: 'Western (Windows 1252)',
+				labelShort: 'Windows 1252',
+				order: 5
+			},
+			iso88591: {
+				labelLong: 'Western (ISO 8859-1)',
+				labelShort: 'ISO 8859-1',
+				order: 6
+			},
+			iso88593: {
+				labelLong: 'Western (ISO 8859-3)',
+				labelShort: 'ISO 8859-3',
+				order: 7
+			},
+			iso885915: {
+				labelLong: 'Western (ISO 8859-15)',
+				labelShort: 'ISO 8859-15',
+				order: 8
+			},
+			macroman: {
+				labelLong: 'Western (Mac Roman)',
+				labelShort: 'Mac Roman',
+				order: 9
+			},
+			cp437: {
+				labelLong: 'DOS (CP 437)',
+				labelShort: 'CP437',
+				order: 10
+			},
+			windows1256: {
+				labelLong: 'Arabic (Windows 1256)',
+				labelShort: 'Windows 1256',
+				order: 11
+			},
+			iso88596: {
+				labelLong: 'Arabic (ISO 8859-6)',
+				labelShort: 'ISO 8859-6',
+				order: 12
+			},
+			windows1257: {
+				labelLong: 'Baltic (Windows 1257)',
+				labelShort: 'Windows 1257',
+				order: 13
+			},
+			iso88594: {
+				labelLong: 'Baltic (ISO 8859-4)',
+				labelShort: 'ISO 8859-4',
+				order: 14
+			},
+			iso885914: {
+				labelLong: 'Celtic (ISO 8859-14)',
+				labelShort: 'ISO 8859-14',
+				order: 15
+			},
+			windows1250: {
+				labelLong: 'Central European (Windows 1250)',
+				labelShort: 'Windows 1250',
+				order: 16
+			},
+			iso88592: {
+				labelLong: 'Central European (ISO 8859-2)',
+				labelShort: 'ISO 8859-2',
+				order: 17
+			},
+			cp852: {
+				labelLong: 'Central European (CP 852)',
+				labelShort: 'CP 852',
+				order: 18
+			},
+			windows1251: {
+				labelLong: 'Cyrillic (Windows 1251)',
+				labelShort: 'Windows 1251',
+				order: 19
+			},
+			cp866: {
+				labelLong: 'Cyrillic (CP 866)',
+				labelShort: 'CP 866',
+				order: 20
+			},
+			iso88595: {
+				labelLong: 'Cyrillic (ISO 8859-5)',
+				labelShort: 'ISO 8859-5',
+				order: 21
+			},
+			koi8r: {
+				labelLong: 'Cyrillic (KOI8-R)',
+				labelShort: 'KOI8-R',
+				order: 22
+			},
+			koi8u: {
+				labelLong: 'Cyrillic (KOI8-U)',
+				labelShort: 'KOI8-U',
+				order: 23
+			},
+			iso885913: {
+				labelLong: 'Estonian (ISO 8859-13)',
+				labelShort: 'ISO 8859-13',
+				order: 24
+			},
+			windows1253: {
+				labelLong: 'Greek (Windows 1253)',
+				labelShort: 'Windows 1253',
+				order: 25
+			},
+			iso88597: {
+				labelLong: 'Greek (ISO 8859-7)',
+				labelShort: 'ISO 8859-7',
+				order: 26
+			},
+			windows1255: {
+				labelLong: 'Hebrew (Windows 1255)',
+				labelShort: 'Windows 1255',
+				order: 27
+			},
+			iso88598: {
+				labelLong: 'Hebrew (ISO 8859-8)',
+				labelShort: 'ISO 8859-8',
+				order: 28
+			},
+			iso885910: {
+				labelLong: 'Nordic (ISO 8859-10)',
+				labelShort: 'ISO 8859-10',
+				order: 29
+			},
+			iso885916: {
+				labelLong: 'Romanian (ISO 8859-16)',
+				labelShort: 'ISO 8859-16',
+				order: 30
+			},
+			windows1254: {
+				labelLong: 'Turkish (Windows 1254)',
+				labelShort: 'Windows 1254',
+				order: 31
+			},
+			iso88599: {
+				labelLong: 'Turkish (ISO 8859-9)',
+				labelShort: 'ISO 8859-9',
+				order: 32
+			},
+			windows1258: {
+				labelLong: 'Vietnamese (Windows 1258)',
+				labelShort: 'Windows 1258',
+				order: 33
+			},
+			gbk: {
+				labelLong: 'Simplified Chinese (GBK)',
+				labelShort: 'GBK',
+				order: 34
+			},
+			gb18030: {
+				labelLong: 'Simplified Chinese (GB18030)',
+				labelShort: 'GB18030',
+				order: 35
+			},
+			cp950: {
+				labelLong: 'Traditional Chinese (Big5)',
+				labelShort: 'Big5',
+				order: 36
+			},
+			big5hkscs: {
+				labelLong: 'Traditional Chinese (Big5-HKSCS)',
+				labelShort: 'Big5-HKSCS',
+				order: 37
+			},
+			shiftjis: {
+				labelLong: 'Japanese (Shift JIS)',
+				labelShort: 'Shift JIS',
+				order: 38
+			},
+			eucjp: {
+				labelLong: 'Japanese (EUC-JP)',
+				labelShort: 'EUC-JP',
+				order: 39
+			},
+			euckr: {
+				labelLong: 'Korean (EUC-KR)',
+				labelShort: 'EUC-KR',
+				order: 40
+			},
+			windows874: {
+				labelLong: 'Thai (Windows 874)',
+				labelShort: 'Windows 874',
+				order: 41
+			},
+			iso885911: {
+				labelLong: 'Latin/Thai (ISO 8859-11)',
+				labelShort: 'ISO 8859-11',
+				order: 42
+			},
+			koi8ru: {
+				labelLong: 'Cyrillic (KOI8-RU)',
+				labelShort: 'KOI8-RU',
+				order: 43
+			},
+			koi8t: {
+				labelLong: 'Tajik (KOI8-T)',
+				labelShort: 'KOI8-T',
+				order: 44
+			},
+			gb2312: {
+				labelLong: 'Simplified Chinese (GB 2312)',
+				labelShort: 'GB 2312',
+				order: 45
+			},
+			cp865: {
+				labelLong: 'Nordic DOS (CP 865)',
+				labelShort: 'CP 865',
+				order: 46
+			},
+			cp850: {
+				labelLong: 'Western European DOS (CP 850)',
+				labelShort: 'CP 850',
+				order: 47
+			}
+		} :
+
+		// Web (https://github.com/microsoft/vscode/issues/79275)
+		{
+			utf8: {
+				labelLong: 'UTF-8',
+				labelShort: 'UTF-8',
+				order: 1,
+				alias: 'utf8bom'
+			}
+		};

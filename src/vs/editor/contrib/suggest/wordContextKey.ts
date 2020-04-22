@@ -4,36 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export class WordContextKey {
+export class WordContextKey extends Disposable {
 
 	static readonly AtEnd = new RawContextKey<boolean>('atEndOfWord', false);
 
 	private readonly _ckAtEnd: IContextKey<boolean>;
-	private readonly _confListener: IDisposable;
 
-	private _enabled: boolean;
+	private _enabled: boolean = false;
 	private _selectionListener?: IDisposable;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
+		super();
 		this._ckAtEnd = WordContextKey.AtEnd.bindTo(contextKeyService);
-		this._editor.onDidChangeConfiguration(e => e.contribInfo && this._update());
+		this._register(this._editor.onDidChangeConfiguration(e => e.hasChanged(EditorOption.tabCompletion) && this._update()));
 		this._update();
 	}
 
 	dispose(): void {
-		dispose(this._confListener, this._selectionListener);
+		super.dispose();
+		dispose(this._selectionListener);
 		this._ckAtEnd.reset();
 	}
 
 	private _update(): void {
 		// only update this when tab completions are enabled
-		const enabled = this._editor.getConfiguration().contribInfo.tabCompletion === 'on';
+		const enabled = this._editor.getOption(EditorOption.tabCompletion) === 'on';
 		if (this._enabled === enabled) {
 			return;
 		}

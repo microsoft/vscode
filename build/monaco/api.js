@@ -4,17 +4,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.execute = exports.run3 = exports.DeclarationResolver = exports.FSProvider = exports.RECIPE_PATH = void 0;
 const fs = require("fs");
 const ts = require("typescript");
 const path = require("path");
-const util = require("gulp-util");
-const dtsv = '2';
+const fancyLog = require("fancy-log");
+const ansiColors = require("ansi-colors");
+const dtsv = '3';
 const tsfmt = require('../../tsfmt.json');
 const SRC = path.join(__dirname, '../../src');
 exports.RECIPE_PATH = path.join(__dirname, './monaco.d.ts.recipe');
 const DECLARATION_PATH = path.join(__dirname, '../../src/vs/monaco.d.ts');
 function logErr(message, ...rest) {
-    util.log(util.colors.yellow(`[monaco.d.ts]`), message, ...rest);
+    fancyLog(ansiColors.yellow(`[monaco.d.ts]`), message, ...rest);
 }
 function isDeclaration(a) {
     return (a.kind === ts.SyntaxKind.InterfaceDeclaration
@@ -134,11 +136,12 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
                 }
                 else {
                     const memberName = member.name.text;
+                    const memberAccess = (memberName.indexOf('.') >= 0 ? `['${memberName}']` : `.${memberName}`);
                     if (isStatic(member)) {
-                        usage.push(`a = ${staticTypeName}.${memberName};`);
+                        usage.push(`a = ${staticTypeName}${memberAccess};`);
                     }
                     else {
-                        usage.push(`a = (<${instanceTypeName}>b).${memberName};`);
+                        usage.push(`a = (<${instanceTypeName}>b)${memberAccess};`);
                     }
                 }
             }
@@ -147,11 +150,44 @@ function getMassagedTopLevelDeclarationText(sourceFile, declaration, importName,
             }
         });
     }
-    result = result.replace(/export default/g, 'export');
-    result = result.replace(/export declare/g, 'export');
+    else if (declaration.kind === ts.SyntaxKind.VariableStatement) {
+        const jsDoc = result.substr(0, declaration.getLeadingTriviaWidth(sourceFile));
+        if (jsDoc.indexOf('@monacodtsreplace') >= 0) {
+            const jsDocLines = jsDoc.split(/\r\n|\r|\n/);
+            let directives = [];
+            for (const jsDocLine of jsDocLines) {
+                const m = jsDocLine.match(/^\s*\* \/([^/]+)\/([^/]+)\/$/);
+                if (m) {
+                    directives.push([new RegExp(m[1], 'g'), m[2]]);
+                }
+            }
+            // remove the jsdoc
+            result = result.substr(jsDoc.length);
+            if (directives.length > 0) {
+                // apply replace directives
+                const replacer = createReplacerFromDirectives(directives);
+                result = replacer(result);
+            }
+        }
+    }
+    result = result.replace(/export default /g, 'export ');
+    result = result.replace(/export declare /g, 'export ');
+    result = result.replace(/declare /g, '');
+    let lines = result.split(/\r\n|\r|\n/);
+    for (let i = 0; i < lines.length; i++) {
+        if (/\s*\*/.test(lines[i])) {
+            // very likely a comment
+            continue;
+        }
+        lines[i] = lines[i].replace(/"/g, '\'');
+    }
+    result = lines.join('\n');
     if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
         result = result.replace(/const enum/, 'enum');
-        enums.push(result);
+        enums.push({
+            enumName: declaration.name.getText(sourceFile),
+            text: result
+        });
     }
     return result;
 }
@@ -275,6 +311,14 @@ function format(text, endl) {
         return result;
     }
 }
+function createReplacerFromDirectives(directives) {
+    return (str) => {
+        for (let i = 0; i < directives.length; i++) {
+            str = str.replace(directives[i][0], directives[i][1]);
+        }
+        return str;
+    };
+}
 function createReplacer(data) {
     data = data || '';
     let rawDirectives = data.split(';');
@@ -290,12 +334,7 @@ function createReplacer(data) {
         findStr = '\\b' + findStr + '\\b';
         directives.push([new RegExp(findStr, 'g'), replaceStr]);
     });
-    return (str) => {
-        for (let i = 0; i < directives.length; i++) {
-            str = str.replace(directives[i][0], directives[i][1]);
-        }
-        return str;
-    };
+    return createReplacerFromDirectives(directives);
 }
 function generateDeclarationFile(recipe, sourceFileGetter) {
     const endl = /\r\n/.test(recipe) ? '\r\n' : '\n';
@@ -305,8 +344,8 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
     let usageImports = [];
     let usage = [];
     let failed = false;
-    usage.push(`var a;`);
-    usage.push(`var b;`);
+    usage.push(`var a: any;`);
+    usage.push(`var b: any;`);
     const generateUsageImport = (moduleId) => {
         let importName = 'm' + (++usageCounter);
         usageImports.push(`import * as ${importName} from './${moduleId.replace(/\.d\.ts$/, '')}';`);
@@ -413,6 +452,15 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
     resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
     resultTxt = format(resultTxt, endl);
     resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
+    enums.sort((e1, e2) => {
+        if (e1.enumName < e2.enumName) {
+            return -1;
+        }
+        if (e1.enumName > e2.enumName) {
+            return 1;
+        }
+        return 0;
+    });
     let resultEnums = [
         '/*---------------------------------------------------------------------------------------------',
         ' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -421,7 +469,7 @@ function generateDeclarationFile(recipe, sourceFileGetter) {
         '',
         '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
         ''
-    ].concat(enums).join(endl);
+    ].concat(enums.map(e => e.text)).join(endl);
     resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
     resultEnums = format(resultEnums, endl);
     resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
@@ -456,11 +504,20 @@ class FSProvider {
     existsSync(filePath) {
         return fs.existsSync(filePath);
     }
+    statSync(filePath) {
+        return fs.statSync(filePath);
+    }
     readFileSync(_moduleId, filePath) {
         return fs.readFileSync(filePath);
     }
 }
 exports.FSProvider = FSProvider;
+class CacheEntry {
+    constructor(sourceFile, mtime) {
+        this.sourceFile = sourceFile;
+        this.mtime = mtime;
+    }
+}
 class DeclarationResolver {
     constructor(_fsProvider) {
         this._fsProvider = _fsProvider;
@@ -470,31 +527,43 @@ class DeclarationResolver {
         this._sourceFileCache[moduleId] = null;
     }
     getDeclarationSourceFile(moduleId) {
+        if (this._sourceFileCache[moduleId]) {
+            // Since we cannot trust file watching to invalidate the cache, check also the mtime
+            const fileName = this._getFileName(moduleId);
+            const mtime = this._fsProvider.statSync(fileName).mtime.getTime();
+            if (this._sourceFileCache[moduleId].mtime !== mtime) {
+                this._sourceFileCache[moduleId] = null;
+            }
+        }
         if (!this._sourceFileCache[moduleId]) {
             this._sourceFileCache[moduleId] = this._getDeclarationSourceFile(moduleId);
         }
-        return this._sourceFileCache[moduleId];
+        return this._sourceFileCache[moduleId] ? this._sourceFileCache[moduleId].sourceFile : null;
+    }
+    _getFileName(moduleId) {
+        if (/\.d\.ts$/.test(moduleId)) {
+            return path.join(SRC, moduleId);
+        }
+        return path.join(SRC, `${moduleId}.ts`);
     }
     _getDeclarationSourceFile(moduleId) {
-        if (/\.d\.ts$/.test(moduleId)) {
-            const fileName = path.join(SRC, moduleId);
-            if (!this._fsProvider.existsSync(fileName)) {
-                return null;
-            }
-            const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
-            return ts.createSourceFile(fileName, fileContents, ts.ScriptTarget.ES5);
-        }
-        const fileName = path.join(SRC, `${moduleId}.ts`);
+        const fileName = this._getFileName(moduleId);
         if (!this._fsProvider.existsSync(fileName)) {
             return null;
+        }
+        const mtime = this._fsProvider.statSync(fileName).mtime.getTime();
+        if (/\.d\.ts$/.test(moduleId)) {
+            // const mtime = this._fsProvider.statFileSync()
+            const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
+            return new CacheEntry(ts.createSourceFile(fileName, fileContents, ts.ScriptTarget.ES5), mtime);
         }
         const fileContents = this._fsProvider.readFileSync(moduleId, fileName).toString();
         const fileMap = {
             'file.ts': fileContents
         };
         const service = ts.createLanguageService(new TypeScriptLanguageServiceHost({}, fileMap, {}));
-        const text = service.getEmitOutput('file.ts', true).outputFiles[0].text;
-        return ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5);
+        const text = service.getEmitOutput('file.ts', true, true).outputFiles[0].text;
+        return new CacheEntry(ts.createSourceFile(fileName, text, ts.ScriptTarget.ES5), mtime);
     }
 }
 exports.DeclarationResolver = DeclarationResolver;

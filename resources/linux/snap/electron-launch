@@ -1,6 +1,34 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
-# Create $XDG_RUNTIME_DIR if it doesn't exist
-[ -n "$XDG_RUNTIME_DIR" ] && mkdir -p $XDG_RUNTIME_DIR -m 700
+# On Fedora $SNAP is under /var and there is some magic to map it to /snap.
+# We need to handle that case and reset $SNAP
+SNAP=$(echo "$SNAP" | sed -e "s|/var/lib/snapd||g")
+
+if [ "$SNAP_ARCH" == "amd64" ]; then
+  ARCH="x86_64-linux-gnu"
+elif [ "$SNAP_ARCH" == "armhf" ]; then
+  ARCH="arm-linux-gnueabihf"
+elif [ "$SNAP_ARCH" == "arm64" ]; then
+  ARCH="aarch64-linux-gnu"
+else
+  ARCH="$SNAP_ARCH-linux-gnu"
+fi
+
+GDK_CACHE_DIR="$SNAP_USER_COMMON/.cache"
+if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$GDK_CACHE_DIR" ]]; then
+  # the .cache directory used to be stored under $SNAP_USER_DATA, migrate it
+  mv "$SNAP_USER_DATA/.cache" "$SNAP_USER_COMMON/"
+fi
+[ ! -d "$GDK_CACHE_DIR" ] && mkdir -p "$GDK_CACHE_DIR"
+
+# Gdk-pixbuf loaders
+export GDK_PIXBUF_MODULE_FILE="$GDK_CACHE_DIR/gdk-pixbuf-loaders.cache"
+export GDK_PIXBUF_MODULEDIR="$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/2.10.0/loaders"
+if [ -f "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
+  "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
+fi
+
+# Create $XDG_RUNTIME_DIR if not exists (to be removed when https://pad.lv/1656340 is fixed)
+[ -n "$XDG_RUNTIME_DIR" ] && mkdir -p "$XDG_RUNTIME_DIR" -m 700
 
 exec "$@"

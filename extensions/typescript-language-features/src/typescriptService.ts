@@ -8,24 +8,24 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 import * as Proto from './protocol';
 import API from './utils/api';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
-import Logger from './utils/logger';
 import { PluginManager } from './utils/plugins';
 
-export class CancelledResponse {
-	public readonly type: 'cancelled' = 'cancelled';
+export namespace ServerResponse {
 
-	constructor(
-		public readonly reason: string
-	) { }
+	export class Cancelled {
+		public readonly type = 'cancelled';
+
+		constructor(
+			public readonly reason: string
+		) { }
+	}
+
+	export const NoContent = { type: 'noContent' } as const;
+
+	export type Response<T extends Proto.Response> = T | Cancelled | typeof NoContent;
 }
 
-export class NoContentResponse {
-	public readonly type: 'noContent' = 'noContent';
-}
-
-export type ServerResponse<T extends Proto.Response> = T | CancelledResponse | NoContentResponse;
-
-interface TypeScriptRequestTypes {
+interface StandardTsServerRequests {
 	'applyCodeActionCommand': [Proto.ApplyCodeActionCommandRequestArgs, Proto.ApplyCodeActionCommandResponse];
 	'completionEntryDetails': [Proto.CompletionDetailsRequestArgs, Proto.CompletionDetailsResponse];
 	'completionInfo': [Proto.CompletionsRequestArgs, Proto.CompletionInfoResponse];
@@ -34,10 +34,11 @@ interface TypeScriptRequestTypes {
 	'definition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
 	'definitionAndBoundSpan': [Proto.FileLocationRequestArgs, Proto.DefinitionInfoAndBoundSpanReponse];
 	'docCommentTemplate': [Proto.FileLocationRequestArgs, Proto.DocCommandTemplateResponse];
+	'documentHighlights': [Proto.DocumentHighlightsRequestArgs, Proto.DocumentHighlightsResponse];
 	'format': [Proto.FormatRequestArgs, Proto.FormatResponse];
 	'formatonkey': [Proto.FormatOnKeyRequestArgs, Proto.FormatResponse];
 	'getApplicableRefactors': [Proto.GetApplicableRefactorsRequestArgs, Proto.GetApplicableRefactorsResponse];
-	'getCodeFixes': [Proto.CodeFixRequestArgs, Proto.GetCodeFixesResponse];
+	'getCodeFixes': [Proto.CodeFixRequestArgs, Proto.CodeFixResponse];
 	'getCombinedCodeFix': [Proto.GetCombinedCodeFixRequestArgs, Proto.GetCombinedCodeFixResponse];
 	'getEditsForFileRename': [Proto.GetEditsForFileRenameRequestArgs, Proto.GetEditsForFileRenameResponse];
 	'getEditsForRefactor': [Proto.GetEditsForRefactorRequestArgs, Proto.GetEditsForRefactorResponse];
@@ -47,15 +48,41 @@ interface TypeScriptRequestTypes {
 	'jsxClosingTag': [Proto.JsxClosingTagRequestArgs, Proto.JsxClosingTagResponse];
 	'navto': [Proto.NavtoRequestArgs, Proto.NavtoResponse];
 	'navtree': [Proto.FileRequestArgs, Proto.NavTreeResponse];
-	'occurrences': [Proto.FileLocationRequestArgs, Proto.OccurrencesResponse];
 	'organizeImports': [Proto.OrganizeImportsRequestArgs, Proto.OrganizeImportsResponse];
 	'projectInfo': [Proto.ProjectInfoRequestArgs, Proto.ProjectInfoResponse];
 	'quickinfo': [Proto.FileLocationRequestArgs, Proto.QuickInfoResponse];
 	'references': [Proto.FileLocationRequestArgs, Proto.ReferencesResponse];
 	'rename': [Proto.RenameRequestArgs, Proto.RenameResponse];
+	'selectionRange': [Proto.SelectionRangeRequestArgs, Proto.SelectionRangeResponse];
 	'signatureHelp': [Proto.SignatureHelpRequestArgs, Proto.SignatureHelpResponse];
 	'typeDefinition': [Proto.FileLocationRequestArgs, Proto.TypeDefinitionResponse];
+	'updateOpen': [Proto.UpdateOpenRequestArgs, Proto.Response];
+	'prepareCallHierarchy': [Proto.FileLocationRequestArgs, Proto.PrepareCallHierarchyResponse];
+	'provideCallHierarchyIncomingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyIncomingCallsResponse];
+	'provideCallHierarchyOutgoingCalls': [Proto.FileLocationRequestArgs, Proto.ProvideCallHierarchyOutgoingCallsResponse];
 }
+
+interface NoResponseTsServerRequests {
+	'open': [Proto.OpenRequestArgs, null];
+	'close': [Proto.FileRequestArgs, null];
+	'change': [Proto.ChangeRequestArgs, null];
+	'compilerOptionsForInferredProjects': [Proto.SetCompilerOptionsForInferredProjectsArgs, null];
+	'reloadProjects': [null, null];
+	'configurePlugin': [Proto.ConfigurePluginRequest, Proto.ConfigurePluginResponse];
+}
+
+interface AsyncTsServerRequests {
+	'geterr': [Proto.GeterrRequestArgs, Proto.Response];
+	'geterrForProject': [Proto.GeterrForProjectRequestArgs, Proto.Response];
+}
+
+export type TypeScriptRequests = StandardTsServerRequests & NoResponseTsServerRequests & AsyncTsServerRequests;
+
+export type ExecConfig = {
+	readonly lowPriority?: boolean;
+	readonly nonRecoverable?: boolean;
+	readonly cancelOnResourceChange?: vscode.Uri
+};
 
 export interface ITypeScriptServiceClient {
 	/**
@@ -63,19 +90,26 @@ export interface ITypeScriptServiceClient {
 	 *
 	 * Does not try handling case insensitivity.
 	 */
-	normalizedPath(resource: vscode.Uri): string | null;
+	normalizedPath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Map a resource to a normalized path
 	 *
 	 * This will attempt to handle case insensitivity.
 	 */
-	toPath(resource: vscode.Uri): string | null;
+	toPath(resource: vscode.Uri): string | undefined;
 
 	/**
 	 * Convert a path to a resource.
 	 */
 	toResource(filepath: string): vscode.Uri;
+
+	/**
+	 * Tries to ensure that a vscode document is open on the TS server.
+	 *
+	 * Returns the normalized path.
+	 */
+	toOpenedFilePath(document: vscode.TextDocument): string | undefined;
 
 	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
 
@@ -85,29 +119,35 @@ export interface ITypeScriptServiceClient {
 	readonly onDidEndInstallTypings: vscode.Event<Proto.EndInstallTypesEventBody>;
 	readonly onTypesInstallerInitializationFailed: vscode.Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
+	onReady(f: () => void): Promise<void>;
+
+	showVersionPicker(): void;
+
 	readonly apiVersion: API;
 	readonly pluginManager: PluginManager;
 	readonly configuration: TypeScriptServiceConfiguration;
-	readonly logger: Logger;
 	readonly bufferSyncSupport: BufferSyncSupport;
 
-	execute<K extends keyof TypeScriptRequestTypes>(
+	execute<K extends keyof StandardTsServerRequests>(
 		command: K,
-		args: TypeScriptRequestTypes[K][0],
+		args: StandardTsServerRequests[K][0],
 		token: vscode.CancellationToken,
-		lowPriority?: boolean
-	): Promise<ServerResponse<TypeScriptRequestTypes[K][1]>>;
+		config?: ExecConfig
+	): Promise<ServerResponse.Response<StandardTsServerRequests[K][1]>>;
 
-	executeWithoutWaitingForResponse(command: 'open', args: Proto.OpenRequestArgs): void;
-	executeWithoutWaitingForResponse(command: 'close', args: Proto.FileRequestArgs): void;
-	executeWithoutWaitingForResponse(command: 'change', args: Proto.ChangeRequestArgs): void;
-	executeWithoutWaitingForResponse(command: 'compilerOptionsForInferredProjects', args: Proto.SetCompilerOptionsForInferredProjectsArgs): void;
-	executeWithoutWaitingForResponse(command: 'reloadProjects', args: null): void;
+	executeWithoutWaitingForResponse<K extends keyof NoResponseTsServerRequests>(
+		command: K,
+		args: NoResponseTsServerRequests[K][0]
+	): void;
 
-	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: vscode.CancellationToken): Promise<any>;
+	executeAsync<K extends keyof AsyncTsServerRequests>(
+		command: K,
+		args: AsyncTsServerRequests[K][0],
+		token: vscode.CancellationToken
+	): Promise<ServerResponse.Response<Proto.Response>>;
 
 	/**
 	 * Cancel on going geterr requests and re-queue them after `f` has been evaluated.
 	 */
-	interuptGetErr<R>(f: () => R): R;
+	interruptGetErr<R>(f: () => R): R;
 }

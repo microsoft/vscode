@@ -5,6 +5,7 @@
 
 import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -16,6 +17,24 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 	return compareIgnoreCase(a.id, b.id) === 0;
 }
 
+export class ExtensionIdentifierWithVersion {
+	constructor(
+		readonly identifier: IExtensionIdentifier,
+		readonly version: string
+	) { }
+
+	key(): string {
+		return `${this.identifier.id}-${this.version}`;
+	}
+
+	equals(o: any): boolean {
+		if (!(o instanceof ExtensionIdentifierWithVersion)) {
+			return false;
+		}
+		return areSameExtensions(this.identifier, o.identifier) && this.version === o.version;
+	}
+}
+
 export function adoptToGalleryExtensionId(id: string): string {
 	return id.toLocaleLowerCase();
 }
@@ -24,27 +43,9 @@ export function getGalleryExtensionId(publisher: string, name: string): string {
 	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
 }
 
-export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {
-	return local.manifest ? getGalleryExtensionId(local.manifest.publisher, local.manifest.name) : local.identifier.id;
-}
-
-export const LOCAL_EXTENSION_ID_REGEX = /^([^.]+\..+)-(\d+\.\d+\.\d+(-.*)?)$/;
-
-export function getIdFromLocalExtensionId(localExtensionId: string): string {
-	const matches = LOCAL_EXTENSION_ID_REGEX.exec(localExtensionId);
-	if (matches && matches[1]) {
-		return adoptToGalleryExtensionId(matches[1]);
-	}
-	return adoptToGalleryExtensionId(localExtensionId);
-}
-
-export function getLocalExtensionId(id: string, version: string): string {
-	return `${id}-${version}`;
-}
-
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
 	const byExtension: T[][] = [];
-	const findGroup = extension => {
+	const findGroup = (extension: T) => {
 		for (const group of byExtension) {
 			if (group.some(e => areSameExtensions(getExtensionIdentifier(e), getExtensionIdentifier(extension)))) {
 				return group;
@@ -65,7 +66,7 @@ export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t:
 
 export function getLocalExtensionTelemetryData(extension: ILocalExtension): any {
 	return {
-		id: getGalleryExtensionIdFromLocal(extension),
+		id: extension.identifier.id,
 		name: extension.manifest.name,
 		galleryId: null,
 		publisherId: extension.metadata ? extension.metadata.publisherId : null,
@@ -103,8 +104,7 @@ export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): 
 	};
 }
 
-export const BetterMergeDisabledNowKey = 'extensions/bettermergedisablednow';
-export const BetterMergeId = 'pprice.better-merge';
+export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
 
 export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<string> {
 	const result = new Set<string>();

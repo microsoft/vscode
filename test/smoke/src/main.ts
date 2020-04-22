@@ -11,24 +11,32 @@ import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
 import { ncp } from 'ncp';
-import { Application, Quality, ApplicationOptions } from './application';
+import {
+	Application,
+	Quality,
+	ApplicationOptions,
+	MultiLogger,
+	Logger,
+	ConsoleLogger,
+	FileLogger,
+} from '../../automation';
 
-// import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
+import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
-import { setup as setupDataExplorerTests } from './areas/explorer/explorer.test';
 import { setup as setupDataPreferencesTests } from './areas/preferences/preferences.test';
 import { setup as setupDataSearchTests } from './areas/search/search.test';
-import { setup as setupDataCSSTests } from './areas/css/css.test';
+import { setup as setupDataLanguagesTests } from './areas/languages/languages.test';
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
-import { setup as setupDataDebugTests } from './areas/debug/debug.test';
-import { setup as setupDataGitTests } from './areas/git/git.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
-import { MultiLogger, Logger, ConsoleLogger, FileLogger } from './logger';
+
+if (!/^v10/.test(process.version) && !/^v12/.test(process.version)) {
+	console.error('Error: Smoketest must be run using Node 10/12. Currently running', process.version);
+	process.exit(1);
+}
 
 const tmpDir = tmp.dirSync({ prefix: 't' }) as { name: string; removeCallback: Function; };
 const testDataPath = tmpDir.name;
@@ -37,6 +45,7 @@ process.once('exit', () => rimraf.sync(testDataPath));
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
 	string: [
+		'browser',
 		'build',
 		'stable-build',
 		'wait-time',
@@ -45,7 +54,9 @@ const opts = minimist(args, {
 		'log'
 	],
 	boolean: [
-		'verbose'
+		'verbose',
+		'remote',
+		'web'
 	],
 	default: {
 		verbose: false
@@ -58,7 +69,6 @@ const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
 
 const screenshotsPath = opts.screenshots ? path.resolve(opts.screenshots) : null;
-
 if (screenshotsPath) {
 	mkdirp.sync(screenshotsPath);
 }
@@ -68,85 +78,120 @@ function fail(errorMessage): void {
 	process.exit(1);
 }
 
-if (parseInt(process.version.substr(1)) < 6) {
-	fail('Please update your Node version to greater than 6 to run the smoke test.');
-}
-
 const repoPath = path.join(__dirname, '..', '..', '..');
 
-function getDevElectronPath(): string {
-	const buildPath = path.join(repoPath, '.build');
-	const product = require(path.join(repoPath, 'product.json'));
+let quality: Quality;
 
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
-		case 'linux':
-			return path.join(buildPath, 'electron', `${product.applicationName}`);
-		case 'win32':
-			return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
-		default:
-			throw new Error('Unsupported platform.');
+//
+// #### Electron Smoke Tests ####
+//
+if (!opts.web) {
+
+	function getDevElectronPath(): string {
+		const buildPath = path.join(repoPath, '.build');
+		const product = require(path.join(repoPath, 'product.json'));
+
+		switch (process.platform) {
+			case 'darwin':
+				return path.join(buildPath, 'electron', `${product.nameLong}.app`, 'Contents', 'MacOS', 'Electron');
+			case 'linux':
+				return path.join(buildPath, 'electron', `${product.applicationName}`);
+			case 'win32':
+				return path.join(buildPath, 'electron', `${product.nameShort}.exe`);
+			default:
+				throw new Error('Unsupported platform.');
+		}
+	}
+
+	function getBuildElectronPath(root: string): string {
+		switch (process.platform) {
+			case 'darwin':
+				return path.join(root, 'Contents', 'MacOS', 'Electron');
+			case 'linux': {
+				const product = require(path.join(root, 'resources', 'app', 'product.json'));
+				return path.join(root, product.applicationName);
+			}
+			case 'win32': {
+				const product = require(path.join(root, 'resources', 'app', 'product.json'));
+				return path.join(root, `${product.nameShort}.exe`);
+			}
+			default:
+				throw new Error('Unsupported platform.');
+		}
+	}
+
+	let testCodePath = opts.build;
+	let stableCodePath = opts['stable-build'];
+	let electronPath: string;
+	let stablePath: string | undefined = undefined;
+
+	if (testCodePath) {
+		electronPath = getBuildElectronPath(testCodePath);
+
+		if (stableCodePath) {
+			stablePath = getBuildElectronPath(stableCodePath);
+		}
+	} else {
+		testCodePath = getDevElectronPath();
+		electronPath = testCodePath;
+		process.env.VSCODE_REPOSITORY = repoPath;
+		process.env.VSCODE_DEV = '1';
+		process.env.VSCODE_CLI = '1';
+	}
+
+	if (!fs.existsSync(electronPath || '')) {
+		fail(`Can't find VSCode at ${electronPath}.`);
+	}
+
+	if (typeof stablePath === 'string' && !fs.existsSync(stablePath)) {
+		fail(`Can't find Stable VSCode at ${stablePath}.`);
+	}
+
+	if (process.env.VSCODE_DEV === '1') {
+		quality = Quality.Dev;
+	} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
+		quality = Quality.Insiders;
+	} else {
+		quality = Quality.Stable;
 	}
 }
 
-function getBuildElectronPath(root: string): string {
-	switch (process.platform) {
-		case 'darwin':
-			return path.join(root, 'Contents', 'MacOS', 'Electron');
-		case 'linux': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, product.applicationName);
-		}
-		case 'win32': {
-			const product = require(path.join(root, 'resources', 'app', 'product.json'));
-			return path.join(root, `${product.nameShort}.exe`);
-		}
-		default:
-			throw new Error('Unsupported platform.');
+//
+// #### Web Smoke Tests ####
+//
+else {
+	const testCodeServerPath = opts.build || process.env.VSCODE_REMOTE_SERVER_PATH;
+
+	if (typeof testCodeServerPath === 'string' && !fs.existsSync(testCodeServerPath)) {
+		fail(`Can't find Code server at ${testCodeServerPath}.`);
 	}
-}
 
-let testCodePath = opts.build;
-// let stableCodePath = opts['stable-build'];
-let electronPath: string;
-// let stablePath: string;
+	if (!testCodeServerPath) {
+		process.env.VSCODE_REPOSITORY = repoPath;
+		process.env.VSCODE_DEV = '1';
+		process.env.VSCODE_CLI = '1';
+	}
 
-if (testCodePath) {
-	electronPath = getBuildElectronPath(testCodePath);
-
-	// if (stableCodePath) {
-	// 	stablePath = getBuildElectronPath(stableCodePath);
-	// }
-} else {
-	testCodePath = getDevElectronPath();
-	electronPath = testCodePath;
-	process.env.VSCODE_REPOSITORY = repoPath;
-	process.env.VSCODE_DEV = '1';
-	process.env.VSCODE_CLI = '1';
-}
-
-if (!fs.existsSync(electronPath || '')) {
-	fail(`Can't find Code at ${electronPath}.`);
+	if (process.env.VSCODE_DEV === '1') {
+		quality = Quality.Dev;
+	} else {
+		quality = Quality.Insiders;
+	}
 }
 
 const userDataDir = path.join(testDataPath, 'd');
-
-let quality: Quality;
-if (process.env.VSCODE_DEV === '1') {
-	quality = Quality.Dev;
-} else if (electronPath.indexOf('Code - Insiders') >= 0 /* macOS/Windows */ || electronPath.indexOf('code-insiders') /* Linux */ >= 0) {
-	quality = Quality.Insiders;
-} else {
-	quality = Quality.Stable;
-}
 
 async function setupRepository(): Promise<void> {
 	if (opts['test-repo']) {
 		console.log('*** Copying test project repository:', opts['test-repo']);
 		rimraf.sync(workspacePath);
 		// not platform friendly
-		cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		if (process.platform === 'win32') {
+			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
+		} else {
+			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
+		}
+
 	} else {
 		if (!fs.existsSync(workspacePath)) {
 			console.log('*** Cloning test project repository...');
@@ -195,13 +240,15 @@ function createOptions(): ApplicationOptions {
 		logger: new MultiLogger(loggers),
 		verbose: opts.verbose,
 		log,
-		screenshotsPath
+		screenshotsPath,
+		remote: opts.remote,
+		web: opts.web,
+		browser: opts.browser
 	};
 }
 
 before(async function () {
-	// allow two minutes for setup
-	this.timeout(2 * 60 * 1000);
+	this.timeout(2 * 60 * 1000); // allow two minutes for setup
 	await setup();
 	this.defaultOptions = createOptions();
 });
@@ -218,14 +265,10 @@ after(async function () {
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
-// describe('Data Migration', () => {
-// 	setupDataMigrationTests(userDataDir, createApp);
-// });
-
-describe('Running Code', () => {
+describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	before(async function () {
 		const app = new Application(this.defaultOptions);
-		await app!.start();
+		await app!.start(opts.web ? false : undefined);
 		this.app = app;
 	});
 
@@ -253,20 +296,15 @@ describe('Running Code', () => {
 			app.logger.log('*** Test start:', title);
 		});
 	}
-
-	setupDataLossTests();
-	setupDataExplorerTests();
-	setupDataPreferencesTests();
+	if (!opts.web) { setupDataMigrationTests(opts['stable-build'], testDataPath); }
+	if (!opts.web) { setupDataLossTests(); }
+	if (!opts.web) { setupDataPreferencesTests(); }
 	setupDataSearchTests();
-	setupDataCSSTests();
+	setupDataLanguagesTests();
 	setupDataEditorTests();
-	setupDataDebugTests();
-	setupDataGitTests();
-	setupDataStatusbarTests();
-	setupDataExtensionTests();
-	setupTerminalTests();
-	setupDataMultirootTests();
-	setupDataLocalizationTests();
+	setupDataStatusbarTests(!!opts.web);
+	if (!opts.web) { setupDataExtensionTests(); }
+	if (!opts.web) { setupDataMultirootTests(); }
+	if (!opts.web) { setupDataLocalizationTests(); }
+	if (!opts.web) { setupLaunchTests(); }
 });
-
-setupLaunchTests();

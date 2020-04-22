@@ -5,44 +5,56 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
+import { CachedResponse } from '../tsServer/cachedResponse';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
-import { CachedNavTreeResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
+import * as typeConverters from '../utils/typeConverters';
+import { getSymbolRange, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 
 const localize = nls.loadMessageBundle();
 
-class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+	public constructor(
+		protected client: ITypeScriptServiceClient,
+		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
+		private modeId: string
+	) {
+		super(client, _cachedResponse);
+	}
 
-	public resolveCodeLens(inputCodeLens: vscode.CodeLens, _token: vscode.CancellationToken): Thenable<vscode.CodeLens> {
+	public async resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
-		return vscode.commands.executeCommand<vscode.Location[]>('vscode.executeReferenceProvider', codeLens.document, codeLens.range.start).then((locations: vscode.Location[] | undefined) => {
-			if (!locations) {
-				throw codeLens;
-			}
+		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
+		const response = await this.client.execute('references', args, token, { lowPriority: true, cancelOnResourceChange: codeLens.document });
+		if (response.type !== 'response' || !response.body) {
+			codeLens.command = response.type === 'cancelled'
+				? TypeScriptBaseCodeLensProvider.cancelledCommand
+				: TypeScriptBaseCodeLensProvider.errorCommand;
+			return codeLens;
+		}
 
-			const referenceLocations = locations.filter(location =>
+		const locations = response.body.refs
+			.map(reference =>
+				typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference))
+			.filter(location =>
 				// Exclude original definition from references
 				!(location.uri.toString() === codeLens.document.toString() &&
 					location.range.start.isEqual(codeLens.range.start)));
 
-			codeLens.command = {
-				title: referenceLocations.length === 1
-					? localize('oneReferenceLabel', '1 reference')
-					: localize('manyReferenceLabel', '{0} references', referenceLocations.length),
-				command: referenceLocations.length ? 'editor.action.showReferences' : '',
-				arguments: [codeLens.document, codeLens.range.start, referenceLocations]
-			};
-			return codeLens;
-		}).then(undefined, () => {
-			codeLens.command = {
-				title: localize('referenceErrorLabel', 'Could not determine references'),
-				command: ''
-			};
-			return codeLens;
-		});
+		codeLens.command = {
+			title: this.getCodeLensLabel(locations),
+			command: locations.length ? 'editor.action.showReferences' : '',
+			arguments: [codeLens.document, codeLens.range.start, locations]
+		};
+		return codeLens;
+	}
+
+	private getCodeLensLabel(locations: ReadonlyArray<vscode.Location>): string {
+		return locations.length === 1
+			? localize('oneReferenceLabel', '1 reference')
+			: localize('manyReferenceLabel', '{0} references', locations.length);
 	}
 
 	protected extractSymbol(
@@ -51,35 +63,58 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 		parent: Proto.NavigationTree | null
 	): vscode.Range | null {
 		if (parent && parent.kind === PConst.Kind.enum) {
-			return super.getSymbolRange(document, item);
+			return getSymbolRange(document, item);
 		}
 
 		switch (item.kind) {
+			case PConst.Kind.function:
+				const showOnAllFunctions = vscode.workspace.getConfiguration(this.modeId).get<boolean>('referencesCodeLens.showOnAllFunctions');
+				if (showOnAllFunctions) {
+					return getSymbolRange(document, item);
+				}
+			// fallthrough
+
 			case PConst.Kind.const:
 			case PConst.Kind.let:
 			case PConst.Kind.variable:
-			case PConst.Kind.function:
 				// Only show references for exported variables
-				if (!item.kindModifiers.match(/\bexport\b/)) {
-					break;
+				if (/\bexport\b/.test(item.kindModifiers)) {
+					return getSymbolRange(document, item);
 				}
-			// fallthrough
+				break;
 
 			case PConst.Kind.class:
 				if (item.text === '<class>') {
 					break;
 				}
-			// fallthrough
+				return getSymbolRange(document, item);
 
-			case PConst.Kind.memberFunction:
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-			case PConst.Kind.constructorImplementation:
 			case PConst.Kind.interface:
 			case PConst.Kind.type:
 			case PConst.Kind.enum:
-				return super.getSymbolRange(document, item);
+				return getSymbolRange(document, item);
+
+			case PConst.Kind.method:
+			case PConst.Kind.memberGetAccessor:
+			case PConst.Kind.memberSetAccessor:
+			case PConst.Kind.constructorImplementation:
+			case PConst.Kind.memberVariable:
+				// Don't show if child and parent have same start
+				// For https://github.com/microsoft/vscode/issues/90396
+				if (parent &&
+					typeConverters.Position.fromLocation(parent.spans[0].start).isEqual(typeConverters.Position.fromLocation(item.spans[0].start))
+				) {
+					return null;
+				}
+
+				// Only show if parent is a class type object (not a literal)
+				switch (parent?.kind) {
+					case PConst.Kind.class:
+					case PConst.Kind.interface:
+					case PConst.Kind.type:
+						return getSymbolRange(document, item);
+				}
+				break;
 		}
 
 		return null;
@@ -90,11 +125,10 @@ export function register(
 	selector: vscode.DocumentSelector,
 	modeId: string,
 	client: ITypeScriptServiceClient,
-	cachedResponse: CachedNavTreeResponse,
+	cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 ) {
-	return new VersionDependentRegistration(client, API.v206, () =>
-		new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
-			return vscode.languages.registerCodeLensProvider(selector,
-				new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
-		}));
+	return new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
+		return vscode.languages.registerCodeLensProvider(selector,
+			new TypeScriptReferencesCodeLensProvider(client, cachedResponse, modeId));
+	});
 }

@@ -28,14 +28,14 @@ export class BinaryResourceDiffEditor extends SideBySideEditor {
 		super(telemetryService, instantiationService, themeService, storageService);
 	}
 
-	getMetadata(): string {
-		const master = this.masterEditor;
-		const details = this.detailsEditor;
+	getMetadata(): string | undefined {
+		const master = this.masterEditorPane;
+		const details = this.detailsEditorPane;
 
 		if (master instanceof BaseBinaryResourceEditor && details instanceof BaseBinaryResourceEditor) {
 			return nls.localize('metadataDiff', "{0} ↔ {1}", details.getMetadata(), master.getMetadata());
 		}
 
-		return null;
+		return undefined;
 	}
 }

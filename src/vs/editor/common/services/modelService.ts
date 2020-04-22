@@ -8,13 +8,17 @@ import { URI } from 'vs/base/common/uri';
 import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { ILanguageSelection } from 'vs/editor/common/services/modeService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/modes';
+import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
 export const IModelService = createDecorator<IModelService>('modelService');
 
-export interface IModelService {
-	_serviceBrand: any;
+export type DocumentTokensProvider = DocumentSemanticTokensProvider | DocumentRangeSemanticTokensProvider;
 
-	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource: URI, isForSimpleWidget?: boolean): ITextModel;
+export interface IModelService {
+	_serviceBrand: undefined;
+
+	createModel(value: string | ITextBufferFactory, languageSelection: ILanguageSelection | null, resource?: URI, isForSimpleWidget?: boolean): ITextModel;
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
@@ -27,6 +31,8 @@ export interface IModelService {
 	getCreationOptions(language: string, resource: URI, isForSimpleWidget: boolean): ITextModelCreationOptions;
 
 	getModel(resource: URI): ITextModel | null;
+
+	getSemanticTokensProviderStyling(provider: DocumentTokensProvider): SemanticTokensProviderStyling;
 
 	onModelAdded: Event<ITextModel>;
 

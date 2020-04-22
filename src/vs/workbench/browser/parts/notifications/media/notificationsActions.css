@@ -5,65 +5,13 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .action-label,
 .monaco-workbench > .notifications-center > .notifications-center-header > .notifications-center-header-toolbar .action-label {
-	display: block;
+	display: flex;
+	align-items: center;
 	width: 16px;
 	height: 22px;
 	margin-right: 4px;
 	margin-left: 4px;
+	color: inherit;
 	background-position: center;
 	background-repeat: no-repeat;
-}
-
-.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action {
-	background-image: url('close.svg');
-}
-
-.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action,
-.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .clear-notification-action {
-	background-image: url('close-inverse.svg');
-}
-
-.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action {
-	background-image: url('up.svg');
-}
-
-.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action,
-.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .expand-notification-action {
-	background-image: url('up-inverse.svg');
-}
-
-.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action {
-	background-image: url('down.svg');
-}
-
-.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action,
-.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .collapse-notification-action {
-	background-image: url('down-inverse.svg');
-}
-
-.vs .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .configure-notification-action {
-	background-image: url('configure.svg');
-}
-
-.vs-dark .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .configure-notification-action,
-.hc-black .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-toolbar-container .configure-notification-action {
-	background-image: url('configure-inverse.svg');
-}
-
-.vs-dark .monaco-workbench > .notifications-center > .notifications-center-header .clear-all-notifications-action,
-.hc-black .monaco-workbench > .notifications-center > .notifications-center-header .clear-all-notifications-action {
-	background-image: url('closeall-inverse.svg');
-}
-
-.vs .monaco-workbench > .notifications-center > .notifications-center-header .clear-all-notifications-action {
-	background-image: url('closeall.svg');
-}
-
-.vs-dark .monaco-workbench > .notifications-center > .notifications-center-header .hide-all-notifications-action,
-.hc-black .monaco-workbench > .notifications-center > .notifications-center-header .hide-all-notifications-action {
-	background-image: url('down-inverse.svg');
-}
-
-.vs .monaco-workbench > .notifications-center > .notifications-center-header .hide-all-notifications-action {
-	background-image: url('down.svg');
 }

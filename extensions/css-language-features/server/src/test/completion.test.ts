@@ -5,7 +5,7 @@
 import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
-import Uri from 'vscode-uri';
+import { URI } from 'vscode-uri';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol';
 import { getPathCompletionParticipant } from '../pathCompletion';
@@ -60,8 +60,8 @@ suite('Completions', () => {
 	}
 
 	test('CSS url() Path completion', function () {
-		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		assertCompletions('html { background-image: url("./|")', {
 			items: [
@@ -119,8 +119,8 @@ suite('Completions', () => {
 	});
 
 	test('CSS url() Path Completion - Unquoted url', function () {
-		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		assertCompletions('html { background-image: url(./|)', {
 			items: [
@@ -148,8 +148,8 @@ suite('Completions', () => {
 	});
 
 	test('CSS @import Path completion', function () {
-		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		assertCompletions(`@import './|'`, {
 			items: [
@@ -171,8 +171,8 @@ suite('Completions', () => {
 	 * For SCSS, `@import 'foo';` can be used for importing partial file `_foo.scss`
 	 */
 	test('SCSS @import Path completion', function () {
-		let testCSSUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+		let testCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		/**
 		 * We are in a CSS file, so no special treatment for SCSS partial files
@@ -184,7 +184,7 @@ suite('Completions', () => {
 			]
 		}, testCSSUri, folders);
 
-		let testSCSSUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/scss/main.scss')).toString();
+		let testSCSSUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/scss/main.scss')).toString();
 		assertCompletions(`@import './|'`, {
 			items: [
 				{ label: '_foo.scss', resultText: `@import './foo'` }
@@ -193,8 +193,8 @@ suite('Completions', () => {
 	});
 
 	test('Completion should ignore files/folders starting with dot', function () {
-		let testUri = Uri.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
-		let folders = [{ name: 'x', uri: Uri.file(path.resolve(__dirname, '../../test')).toString() }];
+		let testUri = URI.file(path.resolve(__dirname, '../../test/pathCompletionFixtures/about/about.css')).toString();
+		let folders = [{ name: 'x', uri: URI.file(path.resolve(__dirname, '../../test')).toString() }];
 
 		assertCompletions('html { background-image: url("../|")', {
 			count: 4

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head id='headID'>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Strada </title>
+    <link href="site.css" rel="stylesheet" type="text/css" />
+    <script src="jquery-1.4.1.js"></script>
+    <script src="../compiler/dtree.js" type="text/javascript"></script>
+    <script src="../compiler/typescript.js" type="text/javascript"></script>
+    <script type="text/javascript">
+
+    // Compile strada source into resulting javascript
+    function compile(prog, libText) {
+        var outfile = {
+          source: "",
+          Write: function (s) { this.source += s; },
+          WriteLine: function (s) { this.source += s + "\r"; },
+        }
+
+        var parseErrors = []
+
+        var compiler=new Tools.TypeScriptCompiler(outfile,true);
+        compiler.setErrorCallback(function(start,len, message) { parseErrors.push({start:start, len:len, message:message}); });
+        compiler.addUnit(libText,"lib.ts");
+        compiler.addUnit(prog,"input.ts");
+        compiler.typeCheck();
+        compiler.emit();
+
+        if(parseErrors.length > 0 ) {
+          //throw new Error(parseErrors);
+        }
+
+	while(outfile.source[0] == '/' && outfile.source[1] == '/' && outfile.source[2] == ' ') {
+            outfile.source = outfile.source.slice(outfile.source.indexOf('\r')+1);
+        }
+        var errorPrefix = "";
+	for(var i = 0;i<parseErrors.length;i++) {
+          errorPrefix += "// Error: (" + parseErrors[i].start + "," + parseErrors[i].len + ") " + parseErrors[i].message + "\r";
+        }
+
+        return errorPrefix + outfile.source;
+    }
+    </script>
+    <script type="text/javascript">
+	
+        var libText = "";
+        $.get("../compiler/lib.ts", function(newLibText) {
+            libText = newLibText;
+        });	
+        
+
+        // execute the javascript in the compiledOutput pane
+        function execute() {
+          $('#compilation').text("Running...");
+          var txt = $('#compiledOutput').val();
+          var res;
+          try {
+             var ret = eval(txt);
+             res = "Ran successfully!";
+          } catch(e) { 
+             res = "Exception thrown: " + e;
+          }
+          $('#compilation').text(String(res));
+        }
+
+        // recompile the stradaSrc and populate the compiledOutput pane
+        function srcUpdated() {
+            var newText = $('#stradaSrc').val();
+            var compiledSource;
+            try {
+                compiledSource = compile(newText, libText);
+            } catch (e) {
+                compiledSource = "//Parse error"
+                for(var i in e) 
+                  compiledSource += "\r// " + e[i];
+            }
+            $('#compiledOutput').val(compiledSource);
+        }
+
+        // Populate the stradaSrc pane with one of the built in samples
+        function exampleSelectionChanged() {
+            var examples = document.getElementById('examples');
+            var selectedExample = examples.options[examples.selectedIndex].value;
+            if (selectedExample != "") {
+                $.get('examples/' + selectedExample, function (srcText) {
+                    $('#stradaSrc').val(srcText);
+                    setTimeout(srcUpdated,100);
+                }, function (err) {
+                    console.log(err);
+                });
+            }
+        }
+
+    </script>
+</head>
+<body>
+    <h1>TypeScript</h1>
+    <br />
+    <select id="examples" onchange='exampleSelectionChanged()'>
+        <option value="">Select...</option>
+        <option value="small.ts">Small</option>
+        <option value="employee.ts">Employees</option>
+        <option value="conway.ts">Conway Game of Life</option>
+        <option value="typescript.ts">TypeScript Compiler</option>
+    </select>
+
+    <div>
+        <textarea id='stradaSrc' rows='40' cols='80' onchange='srcUpdated()' onkeyup='srcUpdated()' spellcheck="false">
+//Type your TypeScript here...
+      </textarea>
+      <textarea id='compiledOutput' rows='40' cols='80' spellcheck="false">
+//Compiled code will show up here...
+      </textarea>
+      <br />
+      <button onclick='execute()'/>Run</button> 
+      <div id='compilation'>Press 'run' to execute code...</div>
+      <div id='results'>...write your results into #results...</div>
+    </div>
+    <div id='bod' style='display:none'></div>
+</body>
+</html>
