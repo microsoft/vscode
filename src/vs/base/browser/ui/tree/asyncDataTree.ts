@@ -21,6 +21,7 @@ import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IThemable } from 'vs/base/common/styler';
 import { isFilterResult, getVisibleState } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { treeItemLoadingIcon } from 'vs/base/browser/ui/tree/treeIcons';
 
 interface IAsyncDataTreeNode<TInput, T> {
 	element: TInput | T;
@@ -109,7 +110,7 @@ class AsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> implements IT
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
-		toggleClass(twistieElement, 'codicon-loading', element.slow);
+		toggleClass(twistieElement, treeItemLoadingIcon.iconClassName, element.slow);
 		return false;
 	}
 
@@ -1038,7 +1039,7 @@ class CompressibleAsyncDataTreeRenderer<TInput, T, TFilterData, TTemplateData> i
 	}
 
 	renderTwistie(element: IAsyncDataTreeNode<TInput, T>, twistieElement: HTMLElement): boolean {
-		toggleClass(twistieElement, 'codicon-loading', element.slow);
+		toggleClass(twistieElement, treeItemLoadingIcon.iconClassName, element.slow);
 		return false;
 	}
 
