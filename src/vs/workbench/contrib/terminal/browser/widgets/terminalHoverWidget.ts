@@ -119,7 +119,7 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 		return {
 			x: firstPosition.left,
 			horizontalAnchorSide: HorizontalAnchorSide.Left,
-			y: document.documentElement.clientHeight - firstPosition.top,
+			y: document.documentElement.clientHeight - firstPosition.top - 1,
 			verticalAnchorSide: VerticalAnchorSide.Bottom,
 			fallbackY: firstPosition.top + firstPosition.height - 1
 		};
