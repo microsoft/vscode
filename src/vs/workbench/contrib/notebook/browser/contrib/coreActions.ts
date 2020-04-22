@@ -674,8 +674,9 @@ registerAction2(class extends Action2 {
 		if (result) {
 			// deletion succeeds, move focus to the next cell
 
-			if (index < context.notebookEditor.viewModel!.length) {
-				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[index], false);
+			const nextCellIdx = index < context.notebookEditor.viewModel!.length ? index : context.notebookEditor.viewModel!.length - 1;
+			if (nextCellIdx >= 0) {
+				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[nextCellIdx], false);
 			}
 		}
 	}
