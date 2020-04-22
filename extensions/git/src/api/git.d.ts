@@ -192,6 +192,7 @@ export interface Repository {
 
 export interface RemoteSource {
 	readonly name: string;
+	readonly description?: string;
 	readonly url: string | string[];
 }
 
