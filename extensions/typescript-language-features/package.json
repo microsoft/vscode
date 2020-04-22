@@ -140,6 +140,12 @@
             "usesOnlineServices"
           ]
         },
+        "typescript.enablePromptUseWorkspaceTsdk": {
+          "type": "boolean",
+          "default": false,
+          "description": "%typescript.enablePromptUseWorkspaceTsdk%",
+          "scope": "window"
+        },
         "typescript.npm": {
           "type": [
             "string",

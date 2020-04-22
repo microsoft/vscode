@@ -140,7 +140,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 		this.versionProvider = new TypeScriptVersionProvider(this._configuration);
 		this.pluginPathsProvider = new TypeScriptPluginPathsProvider(this._configuration);
-		this._versionManager = this._register(new TypeScriptVersionManager(this.versionProvider, this.workspaceState));
+		this._versionManager = this._register(new TypeScriptVersionManager(this._configuration, this.versionProvider, this.workspaceState));
 		this._register(this._versionManager.onDidPickNewVersion(() => {
 			this.restartTsServer();
 		}));
@@ -163,6 +163,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this._configuration = TypeScriptServiceConfiguration.loadFromWorkspace();
 
 			this.versionProvider.updateConfiguration(this._configuration);
+			this._versionManager.updateConfiguration(this._configuration);
 			this.pluginPathsProvider.updateConfiguration(this._configuration);
 			this.tracer.updateConfiguration();
 
