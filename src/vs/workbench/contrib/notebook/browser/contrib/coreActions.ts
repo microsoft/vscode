@@ -1101,7 +1101,8 @@ registerAction2(class extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.Home,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
 				weight: KeybindingWeight.WorkbenchContrib
-			}
+			},
+			f1: true
 		});
 	}
 
@@ -1133,7 +1134,8 @@ registerAction2(class extends Action2 {
 				primary: KeyMod.CtrlCmd | KeyCode.End,
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.DownArrow },
 				weight: KeybindingWeight.WorkbenchContrib
-			}
+			},
+			f1: true
 		});
 	}
 
