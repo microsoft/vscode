@@ -214,12 +214,12 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
-	 * Session id of the current logged in user
+	 * Session id of the current authenticated user
 	 */
-	readonly sessionId?: string;
+	readonly authenticationSessionId?: string;
 
 	/**
-	 * Enables user data sync by default and syncs into the current logged in user using the provided [sessionId}(#sessionId).
+	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
 	 */
 	readonly enableSyncByDefault?: boolean;
 

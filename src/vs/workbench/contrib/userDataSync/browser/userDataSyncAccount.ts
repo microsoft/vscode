@@ -97,8 +97,8 @@ export class UserDataSyncAccounts extends Disposable {
 	}
 
 	private async initialize(): Promise<void> {
-		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && this.environmentService.options?.sessionId) {
-			this.currentSessionId = this.environmentService.options.sessionId;
+		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && this.environmentService.options?.authenticationSessionId) {
+			this.currentSessionId = this.environmentService.options.authenticationSessionId;
 			this.useWorkbenchSessionId = false;
 		}
 
