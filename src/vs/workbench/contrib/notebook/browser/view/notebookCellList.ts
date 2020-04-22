@@ -129,6 +129,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	detachViewModel() {
 		this._viewModelStore.clear();
 		this._viewModel = null;
+		this.hiddenRangesPrefixSum = null;
 	}
 
 	attachViewModel(model: NotebookViewModel) {
