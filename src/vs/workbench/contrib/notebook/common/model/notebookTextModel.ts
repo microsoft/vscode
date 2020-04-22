@@ -7,7 +7,15 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+
+function compareRangesUsingEnds(a: [number, number], b: [number, number]): number {
+	if (a[1] === b[1]) {
+		return a[1] - b[1];
+
+	}
+	return a[1] - b[1];
+}
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 	private static _cellhandlePool: number = 0;
@@ -69,19 +77,48 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return new NotebookCellTextModel(URI.revive(cellUri), cellHandle, source, language, cellKind, outputs || [], metadata);
 	}
 
-	applyEdit(modelVersionId: number, edits: ICellEditOperation[]): boolean {
+	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[]): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
 
 		const oldViewCells = this.cells.slice(0);
 		const oldMap = new Map(this._mapping);
-		edits = edits.reverse();
 
-		for (let i = 0; i < edits.length; i++) {
-			switch (edits[i].editType) {
+		let operations: ({ sortIndex: number; start: number; end: number; } & ICellEditOperation)[] = [];
+		for (let i = 0; i < rawEdits.length; i++) {
+			if (rawEdits[i].editType === CellEditType.Insert) {
+				const edit = rawEdits[i] as ICellInsertEdit;
+				operations.push({
+					sortIndex: i,
+					start: edit.index,
+					end: edit.index,
+					...edit
+				});
+			} else {
+				const edit = rawEdits[i] as ICellDeleteEdit;
+				operations.push({
+					sortIndex: i,
+					start: edit.index,
+					end: edit.index + edit.count,
+					...edit
+				});
+			}
+		}
+
+		// const edits
+		operations = operations.sort((a, b) => {
+			let r = compareRangesUsingEnds([a.start, a.end], [b.start, b.end]);
+			if (r === 0) {
+				return b.sortIndex - a.sortIndex;
+			}
+			return -r;
+		});
+
+		for (let i = 0; i < operations.length; i++) {
+			switch (operations[i].editType) {
 				case CellEditType.Insert:
-					const insertEdit = edits[i] as ICellInsertEdit;
+					const insertEdit = operations[i] as ICellInsertEdit;
 					const mainCells = insertEdit.cells.map(cell => {
 						const cellHandle = NotebookTextModel._cellhandlePool++;
 						const cellUri = CellUri.generate(this.uri, cellHandle);
@@ -90,7 +127,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this.insertNewCell(insertEdit.index, mainCells);
 					break;
 				case CellEditType.Delete:
-					this.removeCell(edits[i].index);
+					this.removeCell(operations[i].index);
 					break;
 			}
 		}
