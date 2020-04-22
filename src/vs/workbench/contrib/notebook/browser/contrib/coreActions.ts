@@ -179,9 +179,10 @@ registerAction2(class extends Action2 {
 		// Try to select below, fall back on inserting
 		const nextCell = editor.viewModel?.viewCells[idx + 1];
 		if (nextCell) {
-			editor.focusNotebookCell(nextCell, false);
+			editor.focusNotebookCell(nextCell, activeCell.editState === CellEditState.Editing);
 		} else {
-			await editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+			const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+			editor.focusNotebookCell(newCell, true);
 		}
 	}
 });
@@ -211,7 +212,8 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		await editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+		const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+		editor.focusNotebookCell(newCell, true);
 	}
 });
 
@@ -410,7 +412,7 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 	}
 
 	const text = activeCell.getText();
-	await editor.insertNotebookCell(activeCell, kind, 'below', text);
+	editor.insertNotebookCell(activeCell, kind, 'below', text);
 	const idx = editor.viewModel?.getCellIndex(activeCell);
 	if (typeof idx !== 'number') {
 		return;
@@ -421,7 +423,7 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 		return;
 	}
 
-	editor.focusNotebookCell(newCell, true);
+	editor.focusNotebookCell(newCell, activeCell.editState === CellEditState.Editing);
 	editor.deleteNotebookCell(activeCell);
 }
 
@@ -471,8 +473,8 @@ abstract class InsertCellCommand extends Action2 {
 			}
 		}
 
-		const newCell = await context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
-		await context.notebookEditor.focusNotebookCell(newCell, true);
+		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
+		context.notebookEditor.focusNotebookCell(newCell, true);
 	}
 }
 
@@ -690,7 +692,8 @@ async function moveCell(context: INotebookCellActionContext, direction: 'up' | '
 async function copyCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const text = context.cell.getText();
 	const newCellDirection = direction === 'up' ? 'above' : 'below';
-	await context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
+	const newCell = context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
+	context.notebookEditor.focusNotebookCell(newCell, true);
 }
 
 registerAction2(class extends Action2 {

@@ -673,25 +673,18 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	async insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): Promise<CellViewModel> {
+	insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText: string = ''): CellViewModel {
 		const newLanguages = this.notebookViewModel!.languages;
 		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
 		const index = this.notebookViewModel!.getCellIndex(cell);
 		const insertIndex = direction === 'above' ? index : index + 1;
 		const newCell = this.notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, true);
-		this.list?.focusElement(newCell);
 
 		if (type === CellKind.Markdown) {
 			newCell.editState = CellEditState.Editing;
 		}
 
-		let r: (cell: CellViewModel) => void;
-		DOM.scheduleAtNextAnimationFrame(() => {
-			this.list?.revealElementInCenterIfOutsideViewport(cell);
-			r(newCell);
-		});
-
-		return new Promise(resolve => { r = resolve; });
+		return newCell;
 	}
 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<boolean> {
