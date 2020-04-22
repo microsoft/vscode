@@ -268,7 +268,7 @@ export class KeybindingsEditorModel extends EditorModel {
 			}
 
 			if (keybinding.command in contributedKeybindings) {
-				const keybindingLabel = keybinding?.keybinding?.getLabel();
+				const keybindingLabel = keybinding.keybinding.getLabel();
 				if (!keybindingLabel) {
 					continue;
 				}
