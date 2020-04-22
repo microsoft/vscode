@@ -122,6 +122,8 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get sync(): 'on' | 'off' | undefined { return undefined; }
 
+	get defaultUserDataSyncAccount() { return this.options.defaultUserDataSyncAccount; }
+
 	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
 

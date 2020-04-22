@@ -19,6 +19,7 @@ import { values } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { flatten } from 'vs/base/common/arrays';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -31,7 +32,7 @@ type UserAccountEvent = {
 type AccountQuickPickItem = { label: string, authenticationProvider: IAuthenticationProvider, account?: IUserDataSyncAccount, detail?: string };
 
 export interface IUserDataSyncAccount {
-	readonly providerId: string;
+	readonly authenticationProviderId: string;
 	readonly sessionId: string;
 	readonly accountName: string;
 }
@@ -44,11 +45,13 @@ export const enum AccountStatus {
 
 export class UserDataSyncAccounts extends Disposable {
 
+	private static DONOT_USE_DEFAULT_ACCOUNT = 'userDataSyncAccount.donotUseDefaultAccount';
 	private static CACHED_SESSION_STORAGE_KEY = 'userDataSyncAccountPreference';
 
 	_serviceBrand: any;
 
 	readonly authenticationProviders: IAuthenticationProvider[];
+	private readonly defaultUserDataSyncAccount: Omit<IUserDataSyncAccount, 'sessionId'> | undefined;
 
 	private _status: AccountStatus = AccountStatus.Uninitialized;
 	get status(): AccountStatus { return this._status; }
@@ -61,7 +64,7 @@ export class UserDataSyncAccounts extends Disposable {
 	private _all: Map<string, IUserDataSyncAccount[]> = new Map<string, IUserDataSyncAccount[]>();
 	get all(): IUserDataSyncAccount[] { return flatten(values(this._all)); }
 
-	get current(): IUserDataSyncAccount | undefined { return this.all.filter(({ sessionId }) => sessionId === this.currentSessionId)[0]; }
+	get current(): IUserDataSyncAccount | undefined { return this.all.filter(account => this.isCurrentAccount(account))[0]; }
 
 	constructor(
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -74,15 +77,17 @@ export class UserDataSyncAccounts extends Disposable {
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		super();
 		this.authenticationProviders = getUserDataSyncStore(productService, configurationService)?.authenticationProviders || [];
+		this.defaultUserDataSyncAccount = environmentService.defaultUserDataSyncAccount;
 		if (this.authenticationProviders.length) {
 			extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this.authenticationProviders.some(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
 					this.initialize();
 				} else {
-					this._register(Event.once(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, providerId => this.isSupportedAuthenticationProviderId(providerId)))(() => this.initialize()));
+					this._register(Event.once(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, authenticationProviderId => this.isSupportedAuthenticationProviderId(authenticationProviderId)))(() => this.initialize()));
 				}
 			});
 		}
@@ -97,7 +102,7 @@ export class UserDataSyncAccounts extends Disposable {
 					Event.any(
 						this.authenticationService.onDidRegisterAuthenticationProvider,
 						this.authenticationService.onDidUnregisterAuthenticationProvider,
-					), providerId => this.isSupportedAuthenticationProviderId(providerId)),
+					), authenticationProviderId => this.isSupportedAuthenticationProviderId(authenticationProviderId)),
 				this.authenticationTokenService.onTokenFailed)
 				(() => this.update()));
 
@@ -140,11 +145,11 @@ export class UserDataSyncAccounts extends Disposable {
 
 		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
 		for (const session of sessions) {
-			const account: IUserDataSyncAccount = { providerId: authenticationProviderId, sessionId: session.id, accountName: session.accountName };
+			const account: IUserDataSyncAccount = { authenticationProviderId, sessionId: session.id, accountName: session.accountName };
 			accounts.set(account.accountName, account);
-			if (session.id === this.currentSessionId) {
-				currentSession = session;
+			if (this.isCurrentAccount(account)) {
 				currentAccount = account;
+				currentSession = session;
 			}
 		}
 
@@ -164,6 +169,18 @@ export class UserDataSyncAccounts extends Disposable {
 		}
 
 		return values(accounts);
+	}
+
+	private isCurrentAccount(account: IUserDataSyncAccount): boolean {
+		if (account.sessionId === this.currentSessionId) {
+			return true;
+		}
+		if (this.defaultUserDataSyncAccount && this.useDefaultUserDataSyncAccount
+			&& this.defaultUserDataSyncAccount.authenticationProviderId === account.authenticationProviderId
+			&& this.defaultUserDataSyncAccount.accountName === account.accountName) {
+			return true;
+		}
+		return false;
 	}
 
 	async pick(): Promise<boolean> {
@@ -222,7 +239,7 @@ export class UserDataSyncAccounts extends Disposable {
 
 	private createQuickpickItems(): (AccountQuickPickItem | IQuickPickSeparator)[] {
 		const quickPickItems: (AccountQuickPickItem | IQuickPickSeparator)[] = [];
-		const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.providerId ? -1 : 1);
+		const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
 		for (const authenticationProvider of authenticationProviders) {
 			const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
 			if (this.all.length) {
@@ -286,6 +303,7 @@ export class UserDataSyncAccounts extends Disposable {
 			if (cachedSessionId === undefined) {
 				this.storageService.remove(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
 			} else {
+				this.useDefaultUserDataSyncAccount = false;
 				this.storageService.store(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, cachedSessionId, StorageScope.GLOBAL);
 			}
 		}
@@ -293,5 +311,13 @@ export class UserDataSyncAccounts extends Disposable {
 
 	private getStoredCachedSessionId(): string | undefined {
 		return this.storageService.get(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+	}
+
+	private get useDefaultUserDataSyncAccount(): boolean {
+		return !this.storageService.getBoolean(UserDataSyncAccounts.DONOT_USE_DEFAULT_ACCOUNT, StorageScope.GLOBAL, false);
+	}
+
+	private set useDefaultUserDataSyncAccount(useDefaultAccount: boolean) {
+		this.storageService.store(UserDataSyncAccounts.DONOT_USE_DEFAULT_ACCOUNT, !useDefaultAccount, StorageScope.GLOBAL);
 	}
 }

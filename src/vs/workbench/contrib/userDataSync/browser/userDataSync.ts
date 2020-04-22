@@ -87,7 +87,7 @@ const getActivityTitle = (label: string, userDataSyncService: IUserDataSyncServi
 };
 const getIdentityTitle = (label: string, userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) => {
 	const account = userDataSyncAccountService.current;
-	return account ? `${label} (${authenticationService.getDisplayName(account.providerId)}:${account.accountName})` : label;
+	return account ? `${label} (${authenticationService.getDisplayName(account.authenticationProviderId)}:${account.accountName})` : label;
 };
 const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
 const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) { return getIdentityTitle(localize('stop sync', "Preferences Sync: Turn Off"), userDataSyncAccountService, authenticationService); } };
