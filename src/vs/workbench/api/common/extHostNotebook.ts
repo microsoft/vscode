@@ -613,6 +613,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return this._activeNotebookDocument;
 	}
 
+	private _activeNotebookEditor: ExtHostNotebookEditor | undefined;
+
+	get activeNotebookEditor() {
+		return this._activeNotebookEditor;
+	}
+
 	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 
@@ -746,6 +752,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	async $updateActiveEditor(viewType: string, uri: UriComponents): Promise<void> {
 		this._activeNotebookDocument = this._documents.get(URI.revive(uri).toString());
+		this._activeNotebookEditor = this._editors.get(URI.revive(uri).toString())?.editor;
 	}
 
 	async $destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean> {

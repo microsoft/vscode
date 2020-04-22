@@ -1750,6 +1750,8 @@ declare module 'vscode' {
 
 		export let activeNotebookDocument: NotebookDocument | undefined;
 
+		export let activeNotebookEditor: NotebookEditor | undefined;
+
 		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
 
 		/**

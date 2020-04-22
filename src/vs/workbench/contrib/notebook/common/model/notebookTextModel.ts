@@ -147,6 +147,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				]
 			]
 		});
+		this._onDidChangeCells.fire([[0, 0, [cell]]]);
 
 		return;
 	}
@@ -183,6 +184,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				]
 			]
 		});
+		this._onDidChangeCells.fire([[index, 0, cells]]);
 
 		return;
 	}
@@ -198,6 +200,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._increaseVersionId();
 		this._onDidModelChange.fire({ versionId: this._versionId, changes: [[index, 1, []]] });
+		this._onDidChangeCells.fire([[index, 1, []]]);
 	}
 
 	// TODO@rebornix should this trigger content change event?
