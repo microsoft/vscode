@@ -24,8 +24,8 @@ import { Codicon, registerIcon, stripCodicons } from 'vs/base/common/codicons';
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
-const menuSelectionIcon = registerIcon('menu-selection', Codicon.chevronRight);
-const menuSubmenuIcon = registerIcon('menu-submenu', Codicon.check);
+const menuSelectionIcon = registerIcon('menu-selection', Codicon.check);
+const menuSubmenuIcon = registerIcon('menu-submenu', Codicon.chevronRight);
 
 export enum Direction {
 	Right,
@@ -426,7 +426,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		this.check = append(this.item, $('span.menu-item-check.' + menuSelectionIcon.cssSelector));
+		this.check = append(this.item, $('span.menu-item-check' + menuSelectionIcon.cssSelector));
 		this.check.setAttribute('role', 'none');
 
 		this.label = append(this.item, $('span.action-label'));
