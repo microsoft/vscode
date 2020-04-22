@@ -143,7 +143,7 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 		async enter(context) {
 			statusItem?.hide();
 			// not strictly necessary, but clearing the cached state if autoattach is
-			// disabled provices an escape hatch if state gets corrupted somehow:
+			// disabled provides an escape hatch if state gets corrupted somehow:
 			await context.workspaceState.update(JS_DEBUG_IPC_KEY, undefined);
 		},
 	},
