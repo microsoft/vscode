@@ -142,9 +142,12 @@ const transitions: { [S in State]: StateTransition<unknown> } = {
 	[State.Disabled]: {
 		async enter(context) {
 			statusItem?.hide();
-			// not strictly necessary, but clearing the cached state if autoattach is
-			// disabled provides an escape hatch if state gets corrupted somehow:
-			await context.workspaceState.update(JS_DEBUG_IPC_KEY, undefined);
+
+			// If there was js-debug state set, clear it and clear any environment variables
+			if (context.workspaceState.get<CachedIpcState>(JS_DEBUG_IPC_KEY)) {
+				await context.workspaceState.update(JS_DEBUG_IPC_KEY, undefined);
+				await vscode.commands.executeCommand('extension.js-debug.clearAutoAttachVariables');
+			}
 		},
 	},
 
