@@ -705,7 +705,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 
 		if (!metadata.statusMessage && (typeof metadata.runState === 'undefined' || metadata.runState === NotebookCellRunState.Idle)) {
-			templateData.cellStatusPlaceholderContainer.textContent = 'Ctrl + Enter to run';
+			templateData.cellStatusPlaceholderContainer.textContent = platform.isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run';
 		} else {
 			templateData.cellStatusPlaceholderContainer.textContent = '';
 		}
