@@ -1430,16 +1430,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				[nls.localize('saveBeforeRun.save', 'Save'), nls.localize('saveBeforeRun.dontSave', 'Don\'t save')],
 				{
 					detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
-					cancelId: -1
+					cancelId: 1
 				}
 			);
 
 			if (dialogOptions.choice === 0) {
 				return saveAllEditorsAndExecTask(task, resolver);
-			} else if (dialogOptions.choice === 1) {
-				return execTask(task, resolver);
 			} else {
-				// TODO: Need to change return type now that the task isn't run
+				return execTask(task, resolver);
 			}
 		};
 
