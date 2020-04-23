@@ -269,7 +269,6 @@ export class ExplorerView extends ViewPane {
 			if (isEditing) {
 				if (e.parent !== this.tree.getInput()) {
 					await this.tree.expand(e.parent!);
-					this.tree.reveal(e.parent!);
 				}
 			} else {
 				DOM.removeClass(treeContainer, 'highlight');
