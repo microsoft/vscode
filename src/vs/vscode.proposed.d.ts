@@ -1760,11 +1760,12 @@ declare module 'vscode' {
 
 		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
 
+		// remove activeNotebookDocument, now that there is activeNotebookEditor.document
 		export let activeNotebookDocument: NotebookDocument | undefined;
 
 		export let activeNotebookEditor: NotebookEditor | undefined;
 
-		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
 
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
