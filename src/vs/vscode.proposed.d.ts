@@ -1239,9 +1239,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`EditableCustomDocument`](#EditableCustomDocument).
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`CustomEditableDocument`](#CustomEditableDocument).
 	 *
-	 * @see [`EditableCustomDocument.onDidChange`](#EditableCustomDocument.onDidChange).
+	 * @see [`CustomEditableDocument.onDidChange`](#CustomEditableDocument.onDidChange).
 	 */
 	interface CustomDocumentEditEvent {
 		/**
@@ -1267,17 +1267,17 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Event triggered by extensions to signal to VS Code that the content of a [`EditableCustomDocument`](#EditableCustomDocument)
+	 * Event triggered by extensions to signal to VS Code that the content of a [`CustomEditableDocument`](#CustomEditableDocument)
 	 * has changed.
 	 *
-	 * @see [`EditableCustomDocument.onDidChange`](#EditableCustomDocument.onDidChange).
+	 * @see [`CustomEditableDocument.onDidChange`](#CustomEditableDocument.onDidChange).
 	 */
 	interface CustomDocumentContentChangeEvent {
 		// marker interface
 	}
 
 	/**
-	 * A backup for an [`EditableCustomDocument`](#EditableCustomDocument).
+	 * A backup for an [`CustomEditableDocument`](#CustomEditableDocument).
 	 */
 	interface CustomDocumentBackup {
 		/**
@@ -1288,21 +1288,33 @@ declare module 'vscode' {
 		readonly backupId: string;
 
 		/**
-		 * Dispose of the current backup.
+		 * Delete the current backup.
 		 *
-		 * This is called by VS Code when it is clear the current backup, such as when a new backup is made or when the
-		 * file is saved.
+		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
+		 * is made or when the file is saved.
 		 */
-		dispose(): void;
+		delete(): void;
+	}
+
+	/**
+	 * Additional information about used to implement [`CustomEditableDocument.backup`](#CustomEditableDocument.backup).
+	 */
+	interface CustomDocumentBackupContext {
+		/**
+		 * Uri of a workspace specific directory in which the extension can store backup data.
+		 *
+		 * The directory might not exist on disk and creation is up to the extension.
+		 */
+		readonly workspaceStorageUri: Uri | undefined;
 	}
 
 	/**
 	 * Represents an editable custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
 	 *
-	 * `EditableCustomDocument` is how custom editors hook into standard VS Code operations such as save and undo. The
+	 * `CustomEditableDocument` is how custom editors hook into standard VS Code operations such as save and undo. The
 	 * document is also how custom editors notify VS Code that an edit has taken place.
 	 */
-	interface EditableCustomDocument extends CustomDocument {
+	interface CustomEditableDocument extends CustomDocument {
 
 		/**
 		 * Signal that an edit has occurred inside a custom editor.
@@ -1389,18 +1401,19 @@ declare module 'vscode' {
 		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
 		 * `auto save` is enabled (since auto save already persists resource ).
 		 *
+		 * @param context Information that can be used to backup the document.
 		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
 		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+		backup(context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 	}
 
 	/**
 	 * Additional information about the opening custom document.
 	 */
-	interface OpenCustomDocumentContext {
+	interface CustomDocumentOpenContext {
 		/**
 		 * The id of the backup to restore the document from or `undefined` if there is no backup.
 		 *
@@ -1437,7 +1450,7 @@ declare module 'vscode' {
 		 *
 		 * @return The custom document.
 		 */
-		openCustomDocument(uri: Uri, openContext: OpenCustomDocumentContext, token: CancellationToken): Thenable<T> | T;
+		openCustomDocument(uri: Uri, openContext: CustomDocumentOpenContext, token: CancellationToken): Thenable<T> | T;
 
 		/**
 		 * Resolve a custom editor for a given resource.

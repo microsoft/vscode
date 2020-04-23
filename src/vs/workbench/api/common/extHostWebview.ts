@@ -21,6 +21,7 @@ import type * as vscode from 'vscode';
 import { Cache } from './cache';
 import * as extHostProtocol from './extHost.protocol';
 import * as extHostTypes from './extHostTypes';
+import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 
 type IconPath = URI | { light: URI, dark: URI };
 
@@ -267,6 +268,7 @@ class CustomDocumentStoreEntry {
 
 	constructor(
 		public readonly document: vscode.CustomDocument,
+		public readonly backupContext: vscode.CustomDocumentBackupContext,
 	) { }
 
 	private readonly _edits = new Cache<vscode.CustomDocumentEditEvent>('custom documents');
@@ -299,12 +301,12 @@ class CustomDocumentStoreEntry {
 	}
 
 	updateBackup(backup: vscode.CustomDocumentBackup): void {
-		this._backup?.dispose();
+		this._backup?.delete();
 		this._backup = backup;
 	}
 
 	disposeBackup(): void {
-		this._backup?.dispose();
+		this._backup?.delete();
 		this._backup = undefined;
 	}
 
@@ -324,12 +326,12 @@ class CustomDocumentStore {
 		return this._documents.get(this.key(viewType, resource));
 	}
 
-	public add(viewType: string, document: vscode.CustomDocument): CustomDocumentStoreEntry {
+	public add(viewType: string, document: vscode.CustomDocument, backupContext: vscode.CustomDocumentBackupContext): CustomDocumentStoreEntry {
 		const key = this.key(viewType, document.uri);
 		if (this._documents.has(key)) {
 			throw new Error(`Document already exists for viewType:${viewType} resource:${document.uri}`);
 		}
-		const entry = new CustomDocumentStoreEntry(document);
+		const entry = new CustomDocumentStoreEntry(document, backupContext);
 		this._documents.set(key, entry);
 		return entry;
 	}
@@ -409,6 +411,7 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		private readonly _logService: ILogService,
 		private readonly _deprecationService: IExtHostApiDeprecationService,
 		private readonly _extHostDocuments: ExtHostDocuments,
+		private readonly _extensionStoragePaths?: IExtensionStoragePaths,
 	) {
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadWebviews);
 	}
@@ -567,7 +570,10 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 		const revivedResource = URI.revive(resource);
 		const document = await entry.provider.openCustomDocument(revivedResource, { backupId }, cancellation);
-		const documentEntry = this._documents.add(viewType, document);
+		const workspaceStoragePath = this._extensionStoragePaths?.workspaceValue(entry.extension);
+		const documentEntry = this._documents.add(viewType, document, {
+			workspaceStorageUri: workspaceStoragePath ? URI.file(workspaceStoragePath) : undefined,
+		});
 
 		if (this.isEditable(document)) {
 			document.onDidChange(e => {
@@ -674,27 +680,27 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 
 	async $revert(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
 		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		const document = this.getEditableCustomDocument(viewType, resourceComponents);
+		const document = this.getCustomEditableDocument(viewType, resourceComponents);
 		await document.revert(cancellation);
 		entry.disposeBackup();
 	}
 
 	async $onSave(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<void> {
 		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		const document = this.getEditableCustomDocument(viewType, resourceComponents);
+		const document = this.getCustomEditableDocument(viewType, resourceComponents);
 		await document.save(cancellation);
 		entry.disposeBackup();
 	}
 
 	async $onSaveAs(resourceComponents: UriComponents, viewType: string, targetResource: UriComponents, cancellation: CancellationToken): Promise<void> {
-		const document = this.getEditableCustomDocument(viewType, resourceComponents);
+		const document = this.getCustomEditableDocument(viewType, resourceComponents);
 		return document.saveAs(URI.revive(targetResource), cancellation);
 	}
 
 	async $backup(resourceComponents: UriComponents, viewType: string, cancellation: CancellationToken): Promise<string> {
 		const entry = this.getCustomDocumentEntry(viewType, resourceComponents);
-		const document = this.getEditableCustomDocument(viewType, resourceComponents);
-		const backup = await document.backup(cancellation);
+		const document = this.getCustomEditableDocument(viewType, resourceComponents);
+		const backup = await document.backup(entry.backupContext, cancellation);
 		entry.updateBackup(backup);
 		return backup.backupId;
 	}
@@ -711,11 +717,11 @@ export class ExtHostWebviews implements extHostProtocol.ExtHostWebviewsShape {
 		return entry;
 	}
 
-	private isEditable(document: vscode.CustomDocument): document is vscode.EditableCustomDocument {
-		return !!(document as vscode.EditableCustomDocument).onDidChange;
+	private isEditable(document: vscode.CustomDocument): document is vscode.CustomEditableDocument {
+		return !!(document as vscode.CustomEditableDocument).onDidChange;
 	}
 
-	private getEditableCustomDocument(viewType: string, resource: UriComponents): vscode.EditableCustomDocument {
+	private getCustomEditableDocument(viewType: string, resource: UriComponents): vscode.CustomEditableDocument {
 		const { document } = this.getCustomDocumentEntry(viewType, resource);
 		if (!this.isEditable(document)) {
 			throw new Error('Custom document is not editable');
