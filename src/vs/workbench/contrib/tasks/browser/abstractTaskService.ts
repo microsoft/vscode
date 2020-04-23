@@ -1402,12 +1402,52 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
-		return ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll().then(() => { // make sure all dirty editors are saved
+		enum SaveBeforeRunConfigOptions {
+			Always = 'always',
+			Never = 'never',
+			Prompt = 'prompt'
+		}
+
+		const saveBeforeRunTaskConfig: SaveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
+
+		const execTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+			return ProblemMatcherRegistry.onReady().then(() => {
 				let executeResult = this.getTaskSystem().run(task, resolver);
 				return this.handleExecuteResult(executeResult);
 			});
-		});
+		};
+
+		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+			return this.editorService.saveAll().then(() => {
+				return execTask(task, resolver);
+			});
+		};
+
+		const promptAsk = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+			const dialogOptions = await this.dialogService.show(
+				Severity.Info,
+				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors?'),
+				[nls.localize('saveBeforeRun.save', 'Save'), nls.localize('saveBeforeRun.dontSave', 'Don\'t save')],
+				{
+					detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
+					cancelId: 1
+				}
+			);
+
+			if (dialogOptions.choice === 0) {
+				return saveAllEditorsAndExecTask(task, resolver);
+			} else {
+				return execTask(task, resolver);
+			}
+		};
+
+		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
+			return execTask(task, resolver);
+		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt) {
+			return promptAsk(task, resolver);
+		} else {
+			return saveAllEditorsAndExecTask(task, resolver);
+		}
 	}
 
 	private async handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
