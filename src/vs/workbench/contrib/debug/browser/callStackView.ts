@@ -62,7 +62,7 @@ export function getContext(element: CallStackItem | null): any {
 export function getContextForContributedActions(element: CallStackItem | null): string | number {
 	if (element instanceof StackFrame) {
 		if (element.source.inMemory) {
-			return element.source.raw.path || element.source.reference || '';
+			return element.source.raw.path || element.source.reference || element.source.name;
 		}
 
 		return element.source.uri.toString();
