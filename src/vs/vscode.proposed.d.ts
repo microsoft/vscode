@@ -1303,6 +1303,29 @@ declare module 'vscode' {
 	 * document is also how custom editors notify VS Code that an edit has taken place.
 	 */
 	interface EditableCustomDocument extends CustomDocument {
+
+		/**
+		 * Signal that an edit has occurred inside a custom editor.
+		 *
+		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
+		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
+		 * define what an edit is and what data is stored on each edit.
+		 *
+		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
+		 * saves or reverts the file.
+		 *
+		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
+		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
+		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
+		 *
+		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
+		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
+		 * `save` or `revert` the file.
+		 *
+		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
+		 */
+		readonly onDidChange: Event<CustomDocumentEditEvent> | Event<CustomDocumentContentChangeEvent>;
+
 		/**
 		 * Save the resource for a custom editor.
 		 *
@@ -1327,34 +1350,12 @@ declare module 'vscode' {
 		 * To implement `saveAs`, the implementer must persist the custom editor to `targetResource`. The
 		 * existing editor will remain open after `saveAs` completes.
 		 *
-		 * @param targetResource Location to save to.
+		 * @param uri Location to save to.
 		 * @param cancellation Token that signals the save is no longer required.
 		 *
 		 * @return Thenable signaling that saving has completed.
 		 */
-		saveAs(targetResource: Uri, cancellation: CancellationToken): Thenable<void>;
-
-		/**
-		 * Signal that an edit has occurred inside a custom editor.
-		 *
-		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
-		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
-		 * define what an edit is and what data is stored on each edit.
-		 *
-		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
-		 * saves or reverts the file.
-		 *
-		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
-		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
-		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
-		 *
-		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
-		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
-		 * `save` or `revert` the file.
-		 *
-		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
-		 */
-		readonly onDidChange: Event<CustomDocumentEditEvent> | Event<CustomDocumentContentChangeEvent>;
+		saveAs(uri: Uri, cancellation: CancellationToken): Thenable<void>;
 
 		/**
 		 * Revert a custom editor to its last saved state.
