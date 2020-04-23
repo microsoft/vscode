@@ -184,7 +184,11 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			return this._grammarFactory;
 		}
 
-		const vscodeTextmate = await this._loadVSCodeTextmate();
+		const [vscodeTextmate, vscodeOniguruma] = await Promise.all([import('vscode-textmate'), this._getVSCodeOniguruma()]);
+		const onigLib: Promise<IOnigLib> = Promise.resolve({
+			createOnigScanner: (sources: string[]) => vscodeOniguruma.createOnigScanner(sources),
+			createOnigString: (str: string) => vscodeOniguruma.createOnigString(str)
+		});
 
 		// Avoid duplicate instantiations
 		if (this._grammarFactory) {
@@ -195,7 +199,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			logTrace: (msg: string) => this._logService.trace(msg),
 			logError: (msg: string, err: any) => this._logService.error(msg, err),
 			readFile: (resource: URI) => this._extensionResourceLoaderService.readExtensionResource(resource)
-		}, this._grammarDefinitions || [], vscodeTextmate, this._loadOnigLib());
+		}, this._grammarDefinitions || [], vscodeTextmate, onigLib);
 		this._onDidCreateGrammarFactory(this._grammarDefinitions || []);
 
 		this._updateTheme(this._grammarFactory, this._themeService.getColorTheme(), true);
@@ -340,8 +344,21 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	protected _onDidDisposeGrammarFactory(): void {
 	}
 
-	protected abstract _loadVSCodeTextmate(): Promise<typeof import('vscode-textmate')>;
-	protected abstract _loadOnigLib(): Promise<IOnigLib> | undefined;
+	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma-wasm')> | null = null;
+	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma-wasm')> {
+		if (!this._vscodeOniguruma) {
+			this._vscodeOniguruma = this._doGetVSCodeOniguruma();
+		}
+		return this._vscodeOniguruma;
+	}
+
+	private async _doGetVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma-wasm')> {
+		const [vscodeOniguruma, wasm] = await Promise.all([import('vscode-oniguruma-wasm'), this._loadVSCodeOnigurumWASM()]);
+		await vscodeOniguruma.loadWASM(wasm);
+		return vscodeOniguruma;
+	}
+
+	protected abstract _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer>;
 }
 
 const donotAskUpdateKey = 'editor.maxTokenizationLineLength.donotask';

@@ -283,18 +283,6 @@ normalize-path@^3.0.0, normalize-path@~3.0.0:
   resolved "https://registry.yarnpkg.com/normalize-path/-/normalize-path-3.0.0.tgz#0dcd69ff23a1c9b11fd0978316644a0388216a65"
   integrity sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
 
-onigasm-umd@2.2.5:
-  version "2.2.5"
-  resolved "https://registry.yarnpkg.com/onigasm-umd/-/onigasm-umd-2.2.5.tgz#f104247334a543accd3f8d641a4d99b3d908d6a1"
-  integrity sha512-R3qD7hq6i2bBklF+QyjqZl/G4fe7GwtukI28YLH2vuiatqx52tb9vpg2sxwemKc3nF76SgkeyOKJLchBmTm0Aw==
-
-oniguruma@^7.2.0:
-  version "7.2.0"
-  resolved "https://registry.yarnpkg.com/oniguruma/-/oniguruma-7.2.0.tgz#c9a59c1ea7b9fe67e237a02e02139b638856f3af"
-  integrity sha512-bh+ZLdykY1sdIx8jBp2zpLbVFDBc3XmKH4Ceo2lijNaN1WhEqtnpqFlmtCbRuDB17nJ58RAUStVwfW8e8uEbnA==
-  dependencies:
-    nan "^2.14.0"
-
 pend@~1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/pend/-/pend-1.2.0.tgz#7a57eb550a6783f9115331fcf4663d5c8e007a50"
@@ -379,6 +367,11 @@ vscode-nsfw@1.2.8:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
+vscode-oniguruma-wasm@1.1.0:
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/vscode-oniguruma-wasm/-/vscode-oniguruma-wasm-1.1.0.tgz#9959396aa20ffe570f1b3a4d51d37ce94b73943d"
+  integrity sha512-VbJJ8lx0YFnPI7Zu+EKNYuw02NFTobKKqxZjfxnQz9AGKN3wl8D+bB748zC9DRoEX4vgWd5NYdMvdfA9zT2tCw==
+
 vscode-proxy-agent@^0.5.2:
   version "0.5.2"
   resolved "https://registry.yarnpkg.com/vscode-proxy-agent/-/vscode-proxy-agent-0.5.2.tgz#0c90d24d353957b841d741da7b2701e3f0a044c4"
@@ -394,12 +387,10 @@ vscode-ripgrep@^1.5.8:
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.5.8.tgz#32cb33da6d1a9ca8f5de8c2813ed5114fd55fc11"
   integrity sha512-l6Pv/t1Jk63RU+kEkMO04XxnNRYdyzuesizj9AzFpcfrUxxpAjEJBK1qO9Mov30UUGZl7uDUBn+uCv9koaHPPA==
 
-vscode-textmate@4.4.0:
-  version "4.4.0"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.4.0.tgz#14032afeb50152e8f53258c95643e555f2948305"
-  integrity sha512-dFpm2eK0HwEjeFSD1DDh3j0q47bDSVuZt20RiJWxGqjtm73Wu2jip3C2KaZI3dQx/fSeeXCr/uEN4LNaNj7Ytw==
-  dependencies:
-    oniguruma "^7.2.0"
+vscode-textmate@5.0.2:
+  version "5.0.2"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.0.2.tgz#db661c4a9d7aae5923030b4e3d55cf88b7ece0dd"
+  integrity sha512-ZkaXGGXvxinC7bVJT67MOQLdmXE3p3xqUbkhy7tmBRlsHWPKh3MP1zA/+NeFlu4JAGzyuT1Y5MPn7s64szvMpQ==
 
 vscode-windows-ca-certs@0.2.0:
   version "0.2.0"

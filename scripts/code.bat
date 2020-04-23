@@ -28,7 +28,6 @@ if not exist out yarn compile
 :: Configuration
 set NODE_ENV=development
 set VSCODE_DEV=1
-set ELECTRON_ENABLE_SECURITY_WARNINGS=1
 set VSCODE_CLI=1
 REM set ELECTRON_DEFAULT_ERROR_MODE=1 TODO@ben to investigate if this helps with builds reporting stacks if renderer crashes
 set ELECTRON_ENABLE_LOGGING=1
