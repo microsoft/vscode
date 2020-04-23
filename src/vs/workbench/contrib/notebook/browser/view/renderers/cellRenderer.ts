@@ -251,7 +251,7 @@ abstract class AbstractCellRenderer {
 			}));
 		} else {
 			container.style.position = 'static';
-			container.style.height = '22px';
+			container.style.height = `${BOTTOM_CELL_TOOLBAR_HEIGHT}`;
 		}
 	}
 
@@ -765,8 +765,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	private renderExecutionOrder(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		const hasExecutionOrder = this.notebookEditor.viewModel!.notebookDocument.metadata?.hasExecutionOrder;
 		if (hasExecutionOrder) {
-			const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[ ${element.metadata.executionOrder} ]` :
-				'[   ]';
+			const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[${element.metadata.executionOrder}]` :
+				'[ ]';
 			templateData.executionOrderLabel.innerText = executionOrdeerLabel;
 		} else {
 			templateData.executionOrderLabel.innerText = '';
