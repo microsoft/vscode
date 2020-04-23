@@ -90,6 +90,10 @@ suite('Configuration Resolver Service', () => {
 		}
 	});
 
+	test('workspace folder with invalid argument', () => {
+		assert.throws(() => configurationResolverService!.resolve(workspace, 'abc ${workspaceFolder:invalidLocation} xyz'));
+	});
+
 	test('workspace folder with undefined workspace folder', () => {
 		assert.throws(() => configurationResolverService!.resolve(undefined, 'abc ${workspaceFolder} xyz'));
 	});
@@ -100,6 +104,10 @@ suite('Configuration Resolver Service', () => {
 		} else {
 			assert.strictEqual(configurationResolverService!.resolve(undefined, 'abc ${workspaceFolder:workspaceLocation} xyz'), 'abc /VSCode/workspaceLocation xyz');
 		}
+	});
+
+	test('workspace folder with invalid argument and undefined workspace folder', () => {
+		assert.throws(() => configurationResolverService!.resolve(undefined, 'abc ${workspaceFolder:invalidLocation} xyz'));
 	});
 
 	test('workspace root folder name', () => {
@@ -118,6 +126,10 @@ suite('Configuration Resolver Service', () => {
 		assert.strictEqual(configurationResolverService!.resolve(workspace, 'abc ${relativeFile:workspaceLocation} xyz'), 'abc file xyz');
 	});
 
+	test('relative file with invalid argument', () => {
+		assert.throws(() => configurationResolverService!.resolve(workspace, 'abc ${relativeFile:invalidLocation} xyz'));
+	});
+
 	test('relative file with undefined workspace folder', () => {
 		if (platform.isWindows) {
 			assert.strictEqual(configurationResolverService!.resolve(undefined, 'abc ${relativeFile} xyz'), 'abc \\VSCode\\workspaceLocation\\file xyz');
@@ -128,6 +140,10 @@ suite('Configuration Resolver Service', () => {
 
 	test('relative file with argument and undefined workspace folder', () => {
 		assert.strictEqual(configurationResolverService!.resolve(undefined, 'abc ${relativeFile:workspaceLocation} xyz'), 'abc file xyz');
+	});
+
+	test('relative file with invalid argument and undefined workspace folder', () => {
+		assert.throws(() => configurationResolverService!.resolve(undefined, 'abc ${relativeFile:invalidLocation} xyz'));
 	});
 
 	test('substitute many', () => {
