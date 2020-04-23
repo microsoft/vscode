@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -132,6 +132,8 @@ export class ExplorerView extends ViewPane {
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
+	private availableEditorIdsContext: IContextKey<string>;
+
 	private rootContext: IContextKey<boolean>;
 	private resourceMoveableToTrash: IContextKey<boolean>;
 
@@ -179,6 +181,7 @@ export class ExplorerView extends ViewPane {
 
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
+		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
 		this.compressedFocusContext = ExplorerCompressedFocusContext.bindTo(contextKeyService);
@@ -473,6 +476,14 @@ export class ExplorerView extends ViewPane {
 		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && stat.isReadonly);
 		this.rootContext.set(!stat || (stat && stat.isRoot));
+
+		if (resource) {
+			const fileEditorInput = this.editorService.createEditorInput({ resource, forceFile: true });
+			const overrides = this.editorService.getEditorOverrides(fileEditorInput, undefined, undefined);
+			this.availableEditorIdsContext.set(overrides.map(([, entry]) => entry.id).join(','));
+		} else {
+			this.availableEditorIdsContext.reset();
+		}
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {

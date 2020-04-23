@@ -77,6 +77,10 @@ export const ExplorerViewletVisibleContext = new RawContextKey<boolean>('explore
 export const ExplorerFolderContext = new RawContextKey<boolean>('explorerResourceIsFolder', false);
 export const ExplorerResourceReadonlyContext = new RawContextKey<boolean>('explorerResourceReadonly', false);
 export const ExplorerResourceNotReadonlyContext = ExplorerResourceReadonlyContext.toNegated();
+/**
+ * Comma separated list of editor ids that can be used for the selected explorer resource.
+ */
+export const ExplorerResourceAvailableEditorIdsContext = new RawContextKey<string>('explorerResourceAvailableEditorIds', '');
 export const ExplorerRootContext = new RawContextKey<boolean>('explorerResourceIsRoot', false);
 export const ExplorerResourceCut = new RawContextKey<boolean>('explorerResourceCut', false);
 export const ExplorerResourceMoveableToTrash = new RawContextKey<boolean>('explorerResourceMoveableToTrash', false);
