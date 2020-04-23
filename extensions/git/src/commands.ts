@@ -524,7 +524,7 @@ export class CommandCenter {
 			quickpick.ignoreFocusOut = true;
 
 			const providers = this.model.getRemoteProviders()
-				.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('clonefrom', "Clone from {1}", provider.name), alwaysShow: true, provider }));
+				.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('clonefrom', "Clone from {0}", provider.name), alwaysShow: true, provider }));
 
 			quickpick.placeholder = providers.length === 0
 				? localize('provide url', "Provide repository URL.")
