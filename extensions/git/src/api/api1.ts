@@ -252,6 +252,13 @@ export class ApiImpl implements API {
 		return result ? new ApiRepository(result) : null;
 	}
 
+	async init(root: Uri): Promise<Repository | null> {
+		const path = root.fsPath;
+		await this._model.git.init(path);
+		await this._model.openRepository(path);
+		return this.getRepository(root) || null;
+	}
+
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
 		return this._model.registerRemoteSourceProvider(provider);
 	}
