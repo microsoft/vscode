@@ -1049,6 +1049,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
+		// Dispose the environment info widget if it exists
+		this._environmentInfo?.disposable.dispose();
+
 		if (!reset) {
 			// HACK: Force initialText to be non-falsy for reused terminals such that the
 			// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
