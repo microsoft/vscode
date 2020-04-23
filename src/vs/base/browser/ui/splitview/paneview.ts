@@ -190,7 +190,8 @@ export abstract class Pane extends Disposable implements IView {
 		this.header = $('.pane-header');
 		append(this.element, this.header);
 		this.header.setAttribute('tabindex', '0');
-		this.header.setAttribute('role', 'toolbar');
+		// Use role button so the aria-expanded state gets read https://github.com/microsoft/vscode/issues/95996
+		this.header.setAttribute('role', 'button');
 		this.header.setAttribute('aria-label', this.ariaHeaderLabel);
 		this.renderHeader(this.header);
 
