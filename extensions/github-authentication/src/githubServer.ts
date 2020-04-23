@@ -10,6 +10,8 @@ import { PromiseAdapter, promiseFromEvent } from './common/utils';
 import Logger from './common/logger';
 import ClientRegistrar, { ClientDetails } from './common/clientRegistrar';
 
+export const NETWORK_ERROR = 'network error';
+
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
 		this.fire(uri);
@@ -145,7 +147,7 @@ export class GitHubServer {
 						Logger.info('Got account info!');
 						resolve({ id: json.id, accountName: json.login });
 					} else {
-						Logger.error('Getting account info failed');
+						Logger.error(`Getting account info failed: ${result.statusMessage}`);
 						reject(new Error(result.statusMessage));
 					}
 				});
@@ -153,7 +155,52 @@ export class GitHubServer {
 
 			post.end();
 			post.on('error', err => {
-				reject(err);
+				Logger.error(err.message);
+				reject(new Error(NETWORK_ERROR));
+			});
+		});
+	}
+
+	public async validateToken(token: string): Promise<void> {
+		return new Promise(async (resolve, reject) => {
+			const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+			const clientDetails = ClientRegistrar.getClientDetails(callbackUri);
+			const detailsString = `${clientDetails.id}:${clientDetails.secret}`;
+
+			const payload = JSON.stringify({ access_token: token });
+
+			Logger.info('Validating token...');
+			const post = https.request({
+				host: 'api.github.com',
+				path: `/applications/${clientDetails.id}/token`,
+				method: 'POST',
+				headers: {
+					Authorization: `Basic ${Buffer.from(detailsString).toString('base64')}`,
+					'User-Agent': 'Visual-Studio-Code',
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(payload)
+				}
+			}, result => {
+				const buffer: Buffer[] = [];
+				result.on('data', (chunk: Buffer) => {
+					buffer.push(chunk);
+				});
+				result.on('end', () => {
+					if (result.statusCode === 200) {
+						Logger.info('Validated token!');
+						resolve();
+					} else {
+						Logger.info(`Validating token failed: ${result.statusMessage}`);
+						reject(new Error(result.statusMessage));
+					}
+				});
+			});
+
+			post.write(payload);
+			post.end();
+			post.on('error', err => {
+				Logger.error(err.message);
+				reject(new Error(NETWORK_ERROR));
 			});
 		});
 	}
