@@ -1402,13 +1402,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
-		enum saveBeforeRunConfigOptions {
+		enum SaveBeforeRunConfigOptions {
 			Always = 'always',
 			Never = 'never',
 			Prompt = 'prompt'
 		}
 
-		const saveBeforeRunTaskConfig: saveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
+		const saveBeforeRunTaskConfig: SaveBeforeRunConfigOptions = this.configurationService.getValue('task.saveBeforeRun');
 
 		const execTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
 			return ProblemMatcherRegistry.onReady().then(() => {
@@ -1426,21 +1426,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const promptAsk = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
 			const dialogOptions = await this.dialogService.show(
 				Severity.Info,
-				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors and run task?'),
-				[nls.localize('Save', 'Save'), nls.localize('Do not save', 'Do not save')],
-				{ detail: nls.localize('detail', "Press 'Save' to save all editors before running the task.") }
+				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors?'),
+				[nls.localize('saveBeforeRun.save', 'Save'), nls.localize('saveBeforeRun.dontSave', 'Don\'t save')],
+				{
+					detail: nls.localize('detail', "Do you want to save all editors before running the task?"),
+					cancelId: -1
+				}
 			);
 
 			if (dialogOptions.choice === 0) {
 				return saveAllEditorsAndExecTask(task, resolver);
-			} else {
+			} else if (dialogOptions.choice === 1) {
 				return execTask(task, resolver);
+			} else {
+				// TODO: Need to change return type now that the task isn't run
 			}
 		};
 
-		if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Never) {
+		if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Never) {
 			return execTask(task, resolver);
-		} else if (saveBeforeRunTaskConfig === saveBeforeRunConfigOptions.Prompt) {
+		} else if (saveBeforeRunTaskConfig === SaveBeforeRunConfigOptions.Prompt) {
 			return promptAsk(task, resolver);
 		} else {
 			return saveAllEditorsAndExecTask(task, resolver);
