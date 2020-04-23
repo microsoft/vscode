@@ -17,6 +17,7 @@ export interface ICellEditingDelegate {
 	deleteCell?(index: number): void;
 	moveCell?(fromIndex: number, toIndex: number): void;
 	createCellViewModel?(cell: ICell): BaseCellViewModel;
+	setSelections(selections: number[]): void;
 }
 
 export class InsertCellEdit implements IResourceUndoRedoElement {
@@ -26,7 +27,9 @@ export class InsertCellEdit implements IResourceUndoRedoElement {
 		public resource: URI,
 		private insertIndex: number,
 		private cell: BaseCellViewModel,
-		private editingDelegate: ICellEditingDelegate
+		private editingDelegate: ICellEditingDelegate,
+		private beforedSelections: number[],
+		private endSelections: number[]
 	) {
 	}
 
@@ -36,6 +39,7 @@ export class InsertCellEdit implements IResourceUndoRedoElement {
 		}
 
 		this.editingDelegate.deleteCell(this.insertIndex);
+		this.editingDelegate.setSelections(this.beforedSelections);
 	}
 	redo(): void | Promise<void> {
 		if (!this.editingDelegate.insertCell) {
@@ -43,6 +47,7 @@ export class InsertCellEdit implements IResourceUndoRedoElement {
 		}
 
 		this.editingDelegate.insertCell(this.insertIndex, this.cell);
+		this.editingDelegate.setSelections(this.endSelections);
 	}
 }
 
@@ -55,7 +60,9 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 		public resource: URI,
 		private insertIndex: number,
 		cell: BaseCellViewModel,
-		private editingDelegate: ICellEditingDelegate
+		private editingDelegate: ICellEditingDelegate,
+		private beforedSelections: number[],
+		private endSelections: number[]
 	) {
 		this._rawCell = cell.model;
 
@@ -70,6 +77,7 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 
 		const cell = this.editingDelegate.createCellViewModel(this._rawCell);
 		this.editingDelegate.insertCell(this.insertIndex, cell);
+		this.editingDelegate.setSelections(this.beforedSelections);
 	}
 
 	redo(): void | Promise<void> {
@@ -78,6 +86,7 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 		}
 
 		this.editingDelegate.deleteCell(this.insertIndex);
+		this.editingDelegate.setSelections(this.endSelections);
 	}
 }
 
@@ -89,7 +98,9 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 		public resource: URI,
 		private fromIndex: number,
 		private toIndex: number,
-		private editingDelegate: ICellEditingDelegate
+		private editingDelegate: ICellEditingDelegate,
+		private beforedSelections: number[],
+		private endSelections: number[]
 	) {
 	}
 
@@ -99,6 +110,7 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 		}
 
 		this.editingDelegate.moveCell(this.toIndex, this.fromIndex);
+		this.editingDelegate.setSelections(this.beforedSelections);
 	}
 
 	redo(): void | Promise<void> {
@@ -107,6 +119,7 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 		}
 
 		this.editingDelegate.moveCell(this.fromIndex, this.toIndex);
+		this.editingDelegate.setSelections(this.endSelections);
 	}
 }
 
@@ -116,7 +129,9 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 	constructor(
 		public resource: URI,
 		private diffs: [number, CellViewModel[], CellViewModel[]][],
-		private editingDelegate: ICellEditingDelegate
+		private editingDelegate: ICellEditingDelegate,
+		private beforeHandles: number[],
+		private endHandles: number[]
 	) {
 	}
 
@@ -134,6 +149,7 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 				this.editingDelegate.insertCell!(diff[0], cell);
 			});
 		});
+		this.editingDelegate.setSelections(this.beforeHandles);
 	}
 
 	redo(): void | Promise<void> {
@@ -151,5 +167,6 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 			});
 		});
 
+		this.editingDelegate.setSelections(this.endHandles);
 	}
 }

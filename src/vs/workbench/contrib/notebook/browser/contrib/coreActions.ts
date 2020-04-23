@@ -687,8 +687,8 @@ registerAction2(class extends Action2 {
 
 async function moveCell(context: INotebookCellActionContext, direction: 'up' | 'down'): Promise<void> {
 	const result = direction === 'up' ?
-		context.notebookEditor.moveCellUp(context.cell) :
-		context.notebookEditor.moveCellDown(context.cell);
+		await context.notebookEditor.moveCellUp(context.cell) :
+		await context.notebookEditor.moveCellDown(context.cell);
 
 	if (result) {
 		// move cell command only works when the cell container has focus

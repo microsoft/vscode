@@ -160,6 +160,24 @@
 			}
 		},
 		{
+			"type": "extensionHost",
+			"request": "launch",
+			"name": "VS Code Notebook Tests",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"${workspaceFolder}/extensions/vscode-notebook-tests/test",
+				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-notebook-tests",
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-notebook-tests/out"
+			],
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"presentation": {
+				"group": "6_tests",
+				"order": 6
+			}
+		},
+		{
 			"type": "chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
