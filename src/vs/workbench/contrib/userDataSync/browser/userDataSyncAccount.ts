@@ -157,7 +157,7 @@ export class UserDataSyncAccounts extends Disposable {
 
 		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
 		for (const session of sessions) {
-			const account: IUserDataSyncAccount = { authenticationProviderId, sessionId: session.id, accountName: session.accountName };
+			const account: IUserDataSyncAccount = { authenticationProviderId, sessionId: session.id, accountName: session.account.displayName };
 			accounts.set(account.accountName, account);
 			if (this.isCurrentAccount(account)) {
 				currentAccount = account;
@@ -196,7 +196,7 @@ export class UserDataSyncAccounts extends Disposable {
 		if (isAuthenticationProvider(result)) {
 			const session = await this.authenticationService.login(result.id, result.scopes);
 			sessionId = session.id;
-			accountName = session.accountName;
+			accountName = session.account.displayName;
 		} else {
 			sessionId = result.sessionId;
 			accountName = result.accountName;

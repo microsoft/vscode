@@ -145,6 +145,7 @@ export class GitHubServer {
 						Logger.info('Got account info!');
 						resolve({ id: json.id, accountName: json.login });
 					} else {
+						Logger.error('Getting account info failed');
 						reject(new Error(result.statusMessage));
 					}
 				});

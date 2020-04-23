@@ -25,7 +25,10 @@ interface IToken {
 	expiresAt?: number; // UNIX epoch time at which token will expire
 	refreshToken: string;
 
-	accountName: string;
+	account: {
+		displayName: string;
+		id: string;
+	};
 	scope: string;
 	sessionId: string; // The account id + the scope
 }
@@ -44,7 +47,10 @@ interface IStoredSession {
 	id: string;
 	refreshToken: string;
 	scope: string; // Scopes are alphabetized and joined with a space
-	accountName: string;
+	account: {
+		displayName: string,
+		id: string
+	}
 }
 
 function parseQuery(uri: vscode.Uri) {
@@ -93,7 +99,10 @@ export class AzureActiveDirectoryService {
 								this._tokens.push({
 									accessToken: undefined,
 									refreshToken: session.refreshToken,
-									accountName: session.accountName,
+									account: {
+										displayName: session.account.displayName,
+										id: session.account.id
+									},
 									scope: session.scope,
 									sessionId: session.id
 								});
@@ -125,7 +134,7 @@ export class AzureActiveDirectoryService {
 				id: token.sessionId,
 				refreshToken: token.refreshToken,
 				scope: token.scope,
-				accountName: token.accountName
+				account: token.account
 			};
 		});
 
@@ -199,7 +208,7 @@ export class AzureActiveDirectoryService {
 		return {
 			id: token.sessionId,
 			getAccessToken: () => this.resolveAccessToken(token),
-			accountName: token.accountName,
+			account: token.account,
 			scopes: token.scope.split(' ')
 		};
 	}
@@ -223,8 +232,6 @@ export class AzureActiveDirectoryService {
 		} catch (e) {
 			throw new Error('Unavailable due to network problems');
 		}
-
-		throw new Error('Unavailable due to network problems');
 	}
 
 	private getTokenClaims(accessToken: string): ITokenClaims {
@@ -419,7 +426,10 @@ export class AzureActiveDirectoryService {
 			refreshToken: json.refresh_token,
 			scope,
 			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
-			accountName: claims.email || claims.unique_name || 'user@example.com'
+			account: {
+				displayName: claims.email || claims.unique_name || 'user@example.com',
+				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
+			}
 		};
 	}
 
