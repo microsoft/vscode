@@ -293,11 +293,11 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
 		});
 
+		scrollState.restoreRelativeVerticalPositionOfCursor(this.editor, true);
+
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
 			this.editor.pushUndoStop();
 		}
-
-		scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 
 		if (!suggestion.command) {
 			// done
