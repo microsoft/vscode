@@ -80,6 +80,9 @@ export async function openEditorWith(
 
 	const picker = quickInputService.createQuickPick<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler })>();
 	picker.items = items;
+	if (items.length) {
+		picker.selectedItems = [items[0]];
+	}
 	picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
 
 	const pickedItem = await new Promise<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler }) | undefined>(resolve => {
