@@ -12,7 +12,7 @@ import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selec
 import { SelectActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -36,6 +36,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	private options: { label: string, handler?: (() => boolean) }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
+	private providers: { label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
 
 	constructor(
 		private context: unknown,
@@ -127,6 +128,12 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 		}));
+		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
+			this.providers = providers;
+			if (this.providers.length > 0) {
+				this.updateOptions();
+			}
+		});
 
 		this.updateOptions();
 	}
@@ -155,7 +162,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.toDispose = dispose(this.toDispose);
 	}
 
-	private async updateOptions(): Promise<void> {
+	private updateOptions(): void {
 		this.selected = 0;
 		this.options = [];
 		const manager = this.debugService.getConfigurationManager();
@@ -191,8 +198,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			disabledIdxs.push(this.options.length - 1);
 		}
 
-		const providers = await manager.getDynamicProviders();
-		providers.forEach(p => {
+		this.providers.forEach(p => {
 			this.options.push({
 				label: `${p.label}...`, handler: () => {
 					StartAction.GET_CONFIG_AND_LAUNCH = p.pick;
@@ -201,7 +207,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			});
 		});
 
-		if (providers.length > 0) {
+		if (this.providers.length > 0) {
 			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
 			disabledIdxs.push(this.options.length - 1);
 		}
