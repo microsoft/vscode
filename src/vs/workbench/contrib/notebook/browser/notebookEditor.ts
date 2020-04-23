@@ -29,7 +29,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, INotebookEditorContribution, NOTEBOOK_EDITOR_RUNNABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -106,6 +106,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
 	private editorEditable: IContextKey<boolean> | null = null;
+	private editorRunnable: IContextKey<boolean> | null = null;
 	private editorExecutingNotebook: IContextKey<boolean> | null = null;
 	private outputRenderer: OutputRenderer;
 	protected readonly _contributions: { [key: string]: INotebookEditorContribution; };
@@ -182,6 +183,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
+		this.editorRunnable = NOTEBOOK_EDITOR_RUNNABLE.bindTo(this.contextKeyService);
+		this.editorRunnable.set(true);
 		this.editorExecutingNotebook = NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK.bindTo(this.contextKeyService);
 
 		const contributions = NotebookEditorExtensionsRegistry.getEditorContributions();
@@ -419,10 +422,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.eventDispatcher = new NotebookEventDispatcher();
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher, this.getLayoutInfo());
 		this.editorEditable?.set(!!this.viewModel.metadata?.editable);
+		this.editorRunnable?.set(!!this.viewModel.metadata?.runnable);
 		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
 		this.localStore.add(this.eventDispatcher.onDidChangeMetadata((e) => {
 			this.editorEditable?.set(e.source.editable);
+			this.editorRunnable?.set(e.source.runnable);
 		}));
 
 		// restore view states, including contributions
