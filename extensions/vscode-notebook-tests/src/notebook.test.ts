@@ -100,16 +100,15 @@ suite('notebook workflow', () => {
 
 		// ---- move up and down ---- //
 
-		// await vscode.commands.executeCommand('workbench.notebook.cell.moveDown');
-		// await vscode.commands.executeCommand('workbench.notebook.cell.moveDown');
-		// activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		await vscode.commands.executeCommand('workbench.notebook.cell.moveDown');
+		await vscode.commands.executeCommand('workbench.notebook.cell.moveDown');
+		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2);
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[0].source, 'test');
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[1].source, '');
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[2].source, 'test');
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[3].source, '');
-
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2);
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[0].source, 'test');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[1].source, '');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[2].source, 'test');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[3].source, '');
 
 		// ---- ---- //
 

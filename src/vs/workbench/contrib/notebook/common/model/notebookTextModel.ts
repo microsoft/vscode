@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 function compareRangesUsingEnds(a: [number, number], b: [number, number]): number {
 	if (a[1] === b[1]) {
@@ -192,6 +192,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeContent.fire();
 
 		this._onDidModelChangeProxy.fire({
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: this._versionId, changes: [
 				[
 					0,
@@ -228,6 +229,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeContent.fire();
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: this._versionId, changes: [
 				[
 					index,
@@ -258,7 +260,24 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ versionId: this._versionId, changes: [[index, 1, []]] });
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, 1, []]] });
+	}
+
+	moveCellToIdx(index: number, newIdx: number) {
+		this.assertIndex(index);
+		this.assertIndex(newIdx);
+
+		const cells = this.cells.splice(index, 1);
+		this.cells.splice(newIdx, 0, ...cells);
+
+		this._increaseVersionId();
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, newIdx });
+	}
+
+	assertIndex(index: number) {
+		if (index < 0 || index >= this.cells.length) {
+			throw new Error(`model index out of range ${index}`);
+		}
 	}
 
 	// TODO@rebornix should this trigger content change event?

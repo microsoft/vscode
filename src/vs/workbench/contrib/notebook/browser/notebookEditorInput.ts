@@ -69,6 +69,10 @@ export class NotebookEditorModel extends EditorModel {
 		}
 	}
 
+	moveCellToIdx(index: number, newIdx: number) {
+		this.notebook.moveCellToIdx(index, newIdx);
+	}
+
 	async save(): Promise<boolean> {
 		if (this._notebook) {
 			this._dirty = false;

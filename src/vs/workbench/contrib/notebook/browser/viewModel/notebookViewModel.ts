@@ -664,10 +664,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		this.viewCells.splice(index, 1);
-		this._model.deleteCell(index);
-
 		this.viewCells!.splice(newIdx, 0, viewCell);
-		this._model.insertCell(viewCell.model, newIdx);
+		this._model.moveCellToIdx(index, newIdx);
 
 		if (pushedToUndoStack) {
 			this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {

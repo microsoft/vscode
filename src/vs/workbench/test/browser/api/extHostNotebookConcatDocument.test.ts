@@ -11,7 +11,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ExtHostNotebookConcatDocument } from 'vs/workbench/api/common/extHostNotebookConcatDocument';
 import { ExtHostNotebookDocument, ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { URI } from 'vs/base/common/uri';
-import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Position, Location, Range } from 'vs/workbench/api/common/extHostTypes';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
@@ -51,6 +51,7 @@ suite('NotebookConcatDocument', function () {
 		});
 		await extHostNotebooks.$resolveNotebook('test', notebookUri);
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: 0,
 			changes: [[0, 0, [{
 				handle: 0,
@@ -104,6 +105,7 @@ suite('NotebookConcatDocument', function () {
 	test('location, position mapping', function () {
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[0, 0, [{
 				handle: 1,
@@ -142,6 +144,7 @@ suite('NotebookConcatDocument', function () {
 
 		// UPDATE 1
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[0, 0, [{
 				handle: 1,
@@ -163,6 +166,7 @@ suite('NotebookConcatDocument', function () {
 
 		// UPDATE 2
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[1, 0, [{
 				handle: 2,
@@ -185,6 +189,7 @@ suite('NotebookConcatDocument', function () {
 
 		// UPDATE 3 (remove cell #2 again)
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[1, 1, []]]
 		});
@@ -202,6 +207,7 @@ suite('NotebookConcatDocument', function () {
 
 		// UPDATE 1
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[0, 0, [{
 				handle: 1,
@@ -264,6 +270,7 @@ suite('NotebookConcatDocument', function () {
 	test('selector', function () {
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[0, 0, [{
 				handle: 1,
@@ -291,6 +298,7 @@ suite('NotebookConcatDocument', function () {
 		assertLines(barLangDoc, 'barLang-document');
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[2, 0, [{
 				handle: 3,
@@ -323,6 +331,7 @@ suite('NotebookConcatDocument', function () {
 	test('offsetAt(position) <-> positionAt(offset)', function () {
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[0, 0, [{
 				handle: 1,
@@ -373,6 +382,7 @@ suite('NotebookConcatDocument', function () {
 	test('locationAt(position) <-> positionAt(location)', function () {
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[0, 0, [{
 				handle: 1,
@@ -407,6 +417,7 @@ suite('NotebookConcatDocument', function () {
 	test('getText(range)', function () {
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
+			kind: NotebookCellsChangeType.ModelChange,
 			versionId: notebook.versionId + 1,
 			changes: [[0, 0, [{
 				handle: 1,

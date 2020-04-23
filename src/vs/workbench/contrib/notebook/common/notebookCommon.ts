@@ -215,11 +215,25 @@ export type NotebookCellsSplice2 = [
 	IMainCellDto[]
 ];
 
-export interface NotebookCellsChangedEvent {
+export enum NotebookCellsChangeType {
+	ModelChange = 1,
+	Move = 2
+}
+
+export interface NotebookCellsModelChangedEvent {
+	readonly kind: NotebookCellsChangeType.ModelChange;
 	readonly changes: NotebookCellsSplice2[];
 	readonly versionId: number;
 }
 
+export interface NotebookCellsModelMoveEvent {
+	readonly kind: NotebookCellsChangeType.Move;
+	readonly index: number;
+	readonly newIdx: number;
+	readonly versionId: number;
+}
+
+export type NotebookCellsChangedEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2
