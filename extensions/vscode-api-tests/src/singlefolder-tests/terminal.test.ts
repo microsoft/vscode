@@ -27,6 +27,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.dispose();
 				disposables.push(window.onDidCloseTerminal(() => done()));
@@ -41,20 +42,24 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
+				const dataDisposable = window.onDidWriteTerminalData(e => {
 					try {
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					data += e.data;
 					if (data.indexOf(expected) !== 0) {
+						dataDisposable.dispose();
 						terminal.dispose();
 						disposables.push(window.onDidCloseTerminal(() => done()));
 					}
-				}));
+				});
+				disposables.push(dataDisposable);
 			}));
 			// Use a single character to avoid winpty/conpty issues with injected sequences
 			const expected = '`';
@@ -80,6 +85,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.dispose();
 				disposables.push(window.onDidCloseTerminal(() => done()));
@@ -93,12 +99,14 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.processId.then(id => {
 					try {
 						ok(id && id > 0);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					terminal.dispose();
 					disposables.push(window.onDidCloseTerminal(() => done()));
@@ -113,6 +121,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.dispose();
 				disposables.push(window.onDidCloseTerminal(() => done()));
@@ -122,6 +131,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				equal(terminal.name, 'a');
 			} catch (e) {
 				done(e);
+				return;
 			}
 		});
 
@@ -131,6 +141,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(terminal, term);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				terminal.dispose();
 				disposables.push(window.onDidCloseTerminal(() => done()));
@@ -146,6 +157,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				throws(() => (<any>terminal.creationOptions).name = 'bad', 'creationOptions should be readonly at runtime');
 			} catch (e) {
 				done(e);
+				return;
 			}
 		});
 
@@ -155,6 +167,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(term.name, 'b');
 				} catch (e) {
 					done(e);
+					return;
 				}
 				disposables.push(window.onDidCloseTerminal(() => done()));
 				terminal.dispose();
@@ -168,6 +181,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					equal(term, terminal);
 				} catch (e) {
 					done(e);
+					return;
 				}
 				disposables.push(window.onDidCloseTerminal(t => {
 					try {
@@ -263,6 +277,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						ok(window.terminals.indexOf(terminal) !== -1);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(() => {
 						// reg3.dispose();
@@ -360,6 +375,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(term.name, 'c');
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(() => done()));
 					term.dispose();
@@ -425,6 +441,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, term);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					term.show();
 					disposables.push(window.onDidChangeTerminalDimensions(e => {
@@ -440,6 +457,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 								equal(e.terminal, terminal);
 							} catch (e) {
 								done(e);
+								return;
 							}
 							disposables.push(window.onDidCloseTerminal(() => done()));
 							terminal.dispose();
@@ -464,6 +482,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal.exitStatus, undefined);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(t => {
 						try {
@@ -494,6 +513,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal.exitStatus, undefined);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(t => {
 						try {
@@ -524,6 +544,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal.exitStatus, undefined);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					disposables.push(window.onDidCloseTerminal(t => {
 						try {
@@ -553,6 +574,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, term);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					terminal.dispose();
 					disposables.push(window.onDidCloseTerminal(() => done()));
@@ -588,6 +610,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
@@ -633,6 +656,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
@@ -677,6 +701,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
@@ -718,6 +743,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						equal(terminal, e.terminal);
 					} catch (e) {
 						done(e);
+						return;
 					}
 					// Multiple expected could show up in the same data event
 					while (expectedText.length > 0 && e.data.indexOf(expectedText[0]) >= 0) {
