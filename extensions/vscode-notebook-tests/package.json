@@ -29,12 +29,12 @@
   "contributes": {
     "notebookProvider": [
       {
-        "viewType": "notebookTest",
-        "displayName": "Notebook Test",
+        "viewType": "notebookCoreTest",
+        "displayName": "Notebook Core Test",
         "selector": [
           {
-            "filenamePattern": "*.ipynb",
-            "excludeFileNamePattern": "*.test.ipynb"
+            "filenamePattern": "*.vsctestnb",
+            "excludeFileNamePattern": ""
           }
         ]
       }

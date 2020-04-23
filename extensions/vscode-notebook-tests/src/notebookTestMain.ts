@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext): any {
-	context.subscriptions.push(vscode.notebook.registerNotebookProvider('notebookTest', {
+	context.subscriptions.push(vscode.notebook.registerNotebookProvider('notebookCoreTest', {
 		resolveNotebook: async (editor: vscode.NotebookEditor) => {
 			await editor.edit(eb => {
 				eb.insert(0, 'test', 'typescript', vscode.CellKind.Code, [], {});

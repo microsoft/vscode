@@ -23,8 +23,8 @@ function waitFor(ms: number): Promise<void> {
 
 suite('notebook workflow', () => {
 	test('notebook open', async function () {
-		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.ipynb'));
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookTest');
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		await waitFor(500);
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -46,8 +46,8 @@ suite('notebook workflow', () => {
 	});
 
 	test('notebook cell actions', async function () {
-		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './second.ipynb'));
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookTest');
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './second.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		await waitFor(500);
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
