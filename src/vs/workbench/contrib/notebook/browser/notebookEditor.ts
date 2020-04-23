@@ -10,7 +10,7 @@ import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -271,6 +271,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list.rowsContainer.appendChild(this.webview.element);
 
 		this._register(this.list);
+		this._register(combinedDisposable(...renders));
 
 		// transparent cover
 		this.webviewTransparentCover = DOM.append(this.list.rowsContainer, $('.webview-cover'));
