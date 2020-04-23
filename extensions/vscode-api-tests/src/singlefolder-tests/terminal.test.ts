@@ -45,7 +45,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					return;
 				}
 				let data = '';
-				disposables.push(window.onDidWriteTerminalData(e => {
+				const dataDisposable = window.onDidWriteTerminalData(e => {
 					try {
 						equal(terminal, e.terminal);
 					} catch (e) {
@@ -54,10 +54,12 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 					}
 					data += e.data;
 					if (data.indexOf(expected) !== 0) {
+						dataDisposable.dispose();
 						terminal.dispose();
 						disposables.push(window.onDidCloseTerminal(() => done()));
 					}
-				}));
+				});
+				disposables.push(dataDisposable);
 			}));
 			// Use a single character to avoid winpty/conpty issues with injected sequences
 			const expected = '`';
