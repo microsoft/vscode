@@ -312,6 +312,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			this._onDidChangeContainerLocation.fire({ viewContainer, from, to });
 
+			const views = this.getViewsByContainer(viewContainer);
+			this._onDidChangeLocation.fire({ views, from, to });
+
 			this.saveViewContainerLocationsToCache();
 		}
 	}

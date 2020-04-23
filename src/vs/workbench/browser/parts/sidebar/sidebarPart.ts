@@ -165,12 +165,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 		const draggedItemProvider = (): { type: 'view' | 'composite', id: string } => {
 			const activeViewlet = this.getActiveViewlet()!;
-			const visibleViews = activeViewlet.getViewPaneContainer().views.filter(v => v.isVisible());
-			if (visibleViews.length === 1) {
-				return { type: 'view', id: visibleViews[0].id };
-			} else {
-				return { type: 'composite', id: activeViewlet.getId() };
-			}
+			return { type: 'composite', id: activeViewlet.getId() };
 		};
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
