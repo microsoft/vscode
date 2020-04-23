@@ -165,12 +165,13 @@ export class StandardWheelEvent {
 				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
 				const ev = <WheelEvent><unknown>e;
 
+				let deltaInPx = -e.deltaY;
 				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
 					// the deltas are expressed in lines
-					this.deltaY = -e.deltaY;
-				} else {
-					this.deltaY = -e.deltaY / 40;
+					// 1 line = 16px by default in firefox (which is the only browser that supports DOM_DELTA_LINE)
+					deltaInPx = -e.deltaY * 16;
 				}
+				this.deltaY = deltaInPx / 40;
 			}
 
 			// horizontal delta scroll
@@ -187,12 +188,13 @@ export class StandardWheelEvent {
 				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
 				const ev = <WheelEvent><unknown>e;
 
+				let deltaInPx = -e.deltaX;
 				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
 					// the deltas are expressed in lines
-					this.deltaX = -e.deltaX;
-				} else {
-					this.deltaX = -e.deltaX / 40;
+					// 1 line = 16px by default in firefox (which is the only browser that supports DOM_DELTA_LINE)
+					deltaInPx = -e.deltaX * 16;
 				}
+				this.deltaX = deltaInPx / 40;
 			}
 
 			// Assume a vertical scroll if nothing else worked
