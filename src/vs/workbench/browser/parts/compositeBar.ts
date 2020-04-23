@@ -59,19 +59,10 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 					return;
 				}
 
-				this.viewDescriptorService.moveViewToLocation(viewsToMove[0], this.targetContainerLocation);
-				const newContainer = this.viewDescriptorService.getViewContainerById(viewsToMove[0].id)!;
-				this.moveComposite(newContainer.id, targetCompositeId, before);
+				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation);
+				this.moveComposite(currentContainer.id, targetCompositeId, before);
 
-				if (viewsToMove.length > 1) {
-					this.viewDescriptorService.moveViewsToContainer(viewsToMove.slice(1), newContainer);
-				}
-
-				this.openComposite(newContainer.id, true).then(composite => {
-					if (composite && viewsToMove.length === 1) {
-						composite.openView(viewsToMove[0].id, true);
-					}
-				});
+				this.openComposite(currentContainer.id, true);
 			}
 		}
 

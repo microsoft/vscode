@@ -482,6 +482,7 @@ export interface IViewDescriptorService {
 
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
 	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
+	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
 
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void;
 
@@ -498,6 +499,8 @@ export interface IViewDescriptorService {
 	getViewContainerById(id: string): ViewContainer | null;
 
 	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
+
+	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 
 	getDefaultContainerById(id: string): ViewContainer | null;
 

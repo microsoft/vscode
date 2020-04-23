@@ -588,12 +588,22 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 2
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
-	id: Constants.ToggleCaseSensitiveCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
-	handler: toggleCaseSensitiveCommand
-}, ToggleCaseSensitiveKeybinding));
+if (platform.isMacintosh) {
+	// Register this with a more restrictive `when` on mac to avoid conflict with "copy path"
+	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+		id: Constants.ToggleCaseSensitiveCommandId,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
+		handler: toggleCaseSensitiveCommand
+	}, ToggleCaseSensitiveKeybinding));
+} else {
+	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+		id: Constants.ToggleCaseSensitiveCommandId,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: Constants.SearchViewFocusedKey,
+		handler: toggleCaseSensitiveCommand
+	}, ToggleCaseSensitiveKeybinding));
+}
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleWholeWordCommandId,

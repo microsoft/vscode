@@ -431,12 +431,13 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 
 	private fixToolbarIcon(toolbar: ToolBar): void {
-		const button = toolbar.getContainer().querySelector('.codicon-more');
+		const button = toolbar.getContainer().querySelector('.codicon-toolbar-more');
 		if (button) {
 			(<HTMLElement>button).tabIndex = -1;
 
 			// change icon from ellipsis to gear
 			(<HTMLElement>button).classList.add('codicon-gear');
+			(<HTMLElement>button).classList.remove('codicon-toolbar-more');
 		}
 	}
 
