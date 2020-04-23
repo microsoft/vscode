@@ -498,6 +498,12 @@ export class ResetViewLocationsAction extends Action {
 					this.viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
 				}
 			});
+
+			const defaultContainerLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
+			const currentContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+			if (defaultContainerLocation !== null && currentContainerLocation !== defaultContainerLocation) {
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultContainerLocation);
+			}
 		});
 	}
 }

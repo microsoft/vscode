@@ -68,8 +68,8 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		this.viewDescriptorService.getViewContainers().forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewDescriptorService.getViewContainerLocation(viewContainer)!));
 		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => this.onDidRegisterViewContainer(viewContainer, viewContainerLocation)));
-
 		this._register(this.viewContainersRegistry.onDidDeregister(e => this.viewPaneContainers.delete(e.viewContainer.id)));
+		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeContainerLocation(viewContainer, from, to)));
 	}
 
 	private registerViewPaneContainer(viewPaneContainer: ViewPaneContainer): void {
@@ -105,6 +105,11 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.visibleViewContextKeys.set(visibleContextKeyId, contextKey);
 		}
 		return contextKey;
+	}
+
+	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
+		this.deregisterViewletOrPanel(viewContainer, from);
+		this.registerViewletOrPanel(viewContainer, to);
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
@@ -363,6 +368,27 @@ export class ViewsService extends Disposable implements IViewsService {
 			viewContainer.order,
 			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
 		));
+	}
+
+	private deregisterViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
+		switch (viewContainerLocation) {
+			case ViewContainerLocation.Panel:
+				this.deregisterPanel(viewContainer);
+				break;
+			case ViewContainerLocation.Sidebar:
+				if (viewContainer.ctorDescriptor) {
+					this.deregisterViewlet(viewContainer);
+				}
+				break;
+		}
+	}
+
+	private deregisterPanel(viewContainer: ViewContainer): void {
+		Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(viewContainer.id);
+	}
+
+	private deregisterViewlet(viewContainer: ViewContainer): void {
+		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
 	}
 }
 
