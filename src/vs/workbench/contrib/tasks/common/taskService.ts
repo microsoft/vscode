@@ -58,8 +58,8 @@ export interface ITaskService {
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;
-	build(): Promise<ITaskSummary | undefined>;
-	runTest(): Promise<ITaskSummary | undefined>;
+	build(): Promise<ITaskSummary>;
+	runTest(): Promise<ITaskSummary>;
 	run(task: Task | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary | undefined>;
 	inTerminal(): boolean;
 	isActive(): Promise<boolean>;
