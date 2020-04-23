@@ -28,9 +28,10 @@
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item {
 	display: flex;
 	align-items: center;
-	font-size: 11px;
+	font-size: 13px;
 	margin-right: 0.3em;
 	height: 20px;
+	line-height: 20px;
 	flex-shrink: 1;
 	margin-top: 7px;
 }
@@ -40,15 +41,23 @@
 }
 
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon {
+	line-height: inherit;
+	outline-offset: 0px;
 	flex-shrink: 0;
 	transition: transform 50ms ease;
+}
+
+.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.select-container {
+	margin-left: 1px;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
-	outline-offset: 2px;
+	font-size: inherit;
+	line-height: inherit;
+	outline-offset: 0px;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
