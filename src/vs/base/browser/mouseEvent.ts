@@ -171,7 +171,7 @@ export class StandardWheelEvent {
 					// 1 line = 16px by default in firefox (which is the only browser that supports DOM_DELTA_LINE)
 					deltaInPx = -e.deltaY * 16;
 				}
-				this.deltaY = deltaInPx / 40;
+				this.deltaY = deltaInPx / 50;
 			}
 
 			// horizontal delta scroll
@@ -194,7 +194,7 @@ export class StandardWheelEvent {
 					// 1 line = 16px by default in firefox (which is the only browser that supports DOM_DELTA_LINE)
 					deltaInPx = -e.deltaX * 16;
 				}
-				this.deltaX = deltaInPx / 40;
+				this.deltaX = deltaInPx / 50;
 			}
 
 			// Assume a vertical scroll if nothing else worked
