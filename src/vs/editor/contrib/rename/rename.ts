@@ -168,12 +168,13 @@ class RenameController implements IEditorContribution {
 		if (this._cts.token.isCancellationRequested) {
 			return undefined;
 		}
+		this._cts.dispose();
+		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, undefined, loc.range);
 
 		// do rename at location
 		let selection = this.editor.getSelection();
 		let selectionStart = 0;
 		let selectionEnd = loc.text.length;
-		(this._cts as EditorStateCancellationTokenSource).range = loc.range;
 
 		if (!Range.isEmpty(selection) && !Range.spansMultipleLines(selection) && Range.containsRange(loc.range, selection)) {
 			selectionStart = Math.max(0, selection.startColumn - loc.range.startColumn);
