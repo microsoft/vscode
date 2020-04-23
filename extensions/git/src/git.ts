@@ -1498,7 +1498,12 @@ export class Repository {
 	}
 
 	async removeRemote(name: string): Promise<void> {
-		const args = ['remote', 'rm', name];
+		const args = ['remote', 'remove', name];
+		await this.run(args);
+	}
+
+	async renameRemote(name: string, newName: string): Promise<void> {
+		const args = ['remote', 'rename', name, newName];
 		await this.run(args);
 	}
 

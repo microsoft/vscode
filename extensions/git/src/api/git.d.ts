@@ -179,6 +179,7 @@ export interface Repository {
 
 	addRemote(name: string, url: string): Promise<void>;
 	removeRemote(name: string): Promise<void>;
+	renameRemote(name: string, newName: string): Promise<void>;
 
 	fetch(remote?: string, ref?: string, depth?: number): Promise<void>;
 	pull(unshallow?: boolean): Promise<void>;

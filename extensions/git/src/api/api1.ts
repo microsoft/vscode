@@ -183,6 +183,10 @@ export class ApiRepository implements Repository {
 		return this._repository.removeRemote(name);
 	}
 
+	renameRemote(name: string, newName: string): Promise<void> {
+		return this._repository.renameRemote(name, newName);
+	}
+
 	fetch(remote?: string | undefined, ref?: string | undefined, depth?: number | undefined): Promise<void> {
 		return this._repository.fetch(remote, ref, depth);
 	}
