@@ -171,7 +171,7 @@ export class TerminalValidatedLocalLinkProvider implements ILinkProvider {
 	private _isDirectoryInsideWorkspace(uri: URI) {
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		for (let i = 0; i < folders.length; i++) {
-			if (isEqualOrParent(uri, folders[0].uri)) {
+			if (isEqualOrParent(uri, folders[i].uri)) {
 				return true;
 			}
 		}
