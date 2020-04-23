@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/0facf7cbe02cda460db1160fd730f2e57bf15c36",
+	"version": "https://github.com/atom/language-java/commit/2e179ceac423403eb5bf0eff26884093c3edba6f",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -221,22 +221,60 @@
 					"include": "#all-types"
 				},
 				{
-					"begin": "(?<!\\])\\s*({)",
-					"beginCaptures": {
-						"1": {
-							"name": "punctuation.section.inner-class.begin.bracket.curly.java"
-						}
-					},
-					"end": "}",
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.section.inner-class.end.bracket.curly.java"
-						}
-					},
-					"name": "meta.inner-class.java",
+					"begin": "(?<=\\))",
+					"end": "(?=;|\\)|\\]|\\.|,|\\?|:|}|\\+|\\-|\\*|\\/(?!\\/|\\*)|%|!|&|\\||\\^|=)",
 					"patterns": [
 						{
-							"include": "#class-body"
+							"include": "#comments"
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.inner-class.begin.bracket.curly.java"
+								}
+							},
+							"end": "}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.inner-class.end.bracket.curly.java"
+								}
+							},
+							"name": "meta.inner-class.java",
+							"patterns": [
+								{
+									"include": "#class-body"
+								}
+							]
+						}
+					]
+				},
+				{
+					"begin": "(?<=\\])",
+					"end": "(?=;|\\)|\\]|\\.|,|\\?|:|}|\\+|\\-|\\*|\\/(?!\\/|\\*)|%|!|&|\\||\\^|=)",
+					"patterns": [
+						{
+							"include": "#comments"
+						},
+						{
+							"begin": "{",
+							"beginCaptures": {
+								"0": {
+									"name": "punctuation.section.array-initializer.begin.bracket.curly.java"
+								}
+							},
+							"end": "}",
+							"endCaptures": {
+								"0": {
+									"name": "punctuation.section.array-initializer.end.bracket.curly.java"
+								}
+							},
+							"name": "meta.array-initializer.java",
+							"patterns": [
+								{
+									"include": "#code"
+								}
+							]
 						}
 					]
 				},
@@ -418,6 +456,9 @@
 				},
 				{
 					"include": "#class"
+				},
+				{
+					"include": "#record"
 				},
 				{
 					"include": "#anonymous-block-and-instance-initializer"
@@ -1331,7 +1372,7 @@
 							"name": "punctuation.separator.period.java"
 						},
 						"2": {
-							"name": "variable.other.property.java"
+							"name": "variable.other.object.property.java"
 						}
 					}
 				},
@@ -1345,6 +1386,147 @@
 							"name": "invalid.illegal.identifier.java"
 						}
 					}
+				}
+			]
+		},
+		"record": {
+			"begin": "(?=\\w?[\\w\\s]*\\b(?:record)\\s+[\\w$]+)",
+			"end": "}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.section.class.end.bracket.curly.java"
+				}
+			},
+			"name": "meta.record.java",
+			"patterns": [
+				{
+					"include": "#storage-modifiers"
+				},
+				{
+					"include": "#generics"
+				},
+				{
+					"include": "#comments"
+				},
+				{
+					"begin": "(record)\\s+([\\w$]+)(<[\\w$]+>)?(\\()",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.java"
+						},
+						"2": {
+							"name": "entity.name.type.record.java"
+						},
+						"3": {
+							"patterns": [
+								{
+									"include": "#generics"
+								}
+							]
+						},
+						"4": {
+							"name": "punctuation.definition.parameters.begin.bracket.round.java"
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
+							"name": "punctuation.definition.parameters.end.bracket.round.java"
+						}
+					},
+					"name": "meta.record.identifier.java",
+					"patterns": [
+						{
+							"include": "#code"
+						}
+					]
+				},
+				{
+					"begin": "(implements)\\s",
+					"beginCaptures": {
+						"1": {
+							"name": "storage.modifier.implements.java"
+						}
+					},
+					"end": "(?=\\s*\\{)",
+					"name": "meta.definition.class.implemented.interfaces.java",
+					"patterns": [
+						{
+							"include": "#object-types-inherited"
+						},
+						{
+							"include": "#comments"
+						}
+					]
+				},
+				{
+					"include": "#record-body"
+				}
+			]
+		},
+		"record-body": {
+			"begin": "{",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.section.class.begin.bracket.curly.java"
+				}
+			},
+			"end": "(?=})",
+			"name": "meta.record.body.java",
+			"patterns": [
+				{
+					"include": "#record-constructor"
+				},
+				{
+					"include": "#class-body"
+				}
+			]
+		},
+		"record-constructor": {
+			"begin": "(?!new)(?=[\\w<].*\\s+)(?=([^\\(=/]|/(?!/))+(?={))",
+			"end": "(})|(?=;)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.section.method.end.bracket.curly.java"
+				}
+			},
+			"name": "meta.method.java",
+			"patterns": [
+				{
+					"include": "#storage-modifiers"
+				},
+				{
+					"begin": "(\\w+)",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.function.java"
+						}
+					},
+					"end": "(?=\\s*{)",
+					"name": "meta.method.identifier.java",
+					"patterns": [
+						{
+							"include": "#comments"
+						}
+					]
+				},
+				{
+					"include": "#comments"
+				},
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.method.begin.bracket.curly.java"
+						}
+					},
+					"end": "(?=})",
+					"contentName": "meta.method.body.java",
+					"patterns": [
+						{
+							"include": "#code"
+						}
+					]
 				}
 			]
 		},

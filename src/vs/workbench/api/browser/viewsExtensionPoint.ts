@@ -320,7 +320,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				name: title, extensionId,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					[id, `${id}.state`, { mergeViewWithContainerWhenSingleView: true }]
+					[id, { mergeViewWithContainerWhenSingleView: true }]
 				),
 				hideIfEmpty: true,
 				order,

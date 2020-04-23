@@ -121,11 +121,11 @@
     "snippets": [
       {
         "language": "javascript",
-        "path": "./snippets/javascript.json"
+        "path": "./snippets/javascript.code-snippets"
       },
       {
         "language": "javascriptreact",
-        "path": "./snippets/javascript.json"
+        "path": "./snippets/javascript.code-snippets"
       }
     ]
   }

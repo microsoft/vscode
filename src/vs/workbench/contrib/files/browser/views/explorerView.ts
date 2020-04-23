@@ -24,7 +24,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IDecorationsService } from 'vs/workbench/services/decorations/browser/decorations';
-import { ResourceNavigator, WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator, WorkbenchCompressibleAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -238,6 +238,7 @@ export class ExplorerView extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
@@ -266,7 +267,9 @@ export class ExplorerView extends ViewPane {
 			const isEditing = !!this.explorerService.getEditableData(e);
 
 			if (isEditing) {
-				await this.tree.expand(e.parent!);
+				if (e.parent !== this.tree.getInput()) {
+					await this.tree.expand(e.parent!);
+				}
 			} else {
 				DOM.removeClass(treeContainer, 'highlight');
 			}
@@ -370,7 +373,6 @@ export class ExplorerView extends ViewPane {
 			this.instantiationService.createInstance(ExplorerDataSource), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
-			ariaLabel: nls.localize('treeAriaLabel', "Files Explorer"),
 			identityProvider: {
 				getId: (stat: ExplorerItem) => {
 					if (stat instanceof NewExplorerItem) {
@@ -419,7 +421,7 @@ export class ExplorerView extends ViewPane {
 		// Update resource context based on focused element
 		this._register(this.tree.onDidChangeFocus(e => this.onFocusChanged(e.elements)));
 		this.onFocusChanged([]);
-		const explorerNavigator = ResourceNavigator.createTreeResourceNavigator(this.tree);
+		const explorerNavigator = new TreeResourceNavigator(this.tree);
 		this._register(explorerNavigator);
 		// Open when selecting via keyboard
 		this._register(explorerNavigator.onDidOpenResource(async e => {
@@ -655,7 +657,8 @@ export class ExplorerView extends ViewPane {
 		}
 
 		// Expand all stats in the parent chain.
-		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource))
+		const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
+		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource, ignoreCase))
 			// Take the root that is the closest to the stat #72299
 			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
@@ -664,10 +667,16 @@ export class ExplorerView extends ViewPane {
 				return this.onSelectResource(resource, reveal, retry + 1);
 			}
 			await this.tree.expand(item);
-			item = first(values(item.children), i => isEqualOrParent(resource, i.resource));
+			item = first(values(item.children), i => isEqualOrParent(resource, i.resource, ignoreCase));
 		}
 
-		if (item && item.parent) {
+		if (item) {
+			if (item === this.tree.getInput()) {
+				this.tree.setFocus([]);
+				this.tree.setSelection([]);
+				return;
+			}
+
 			try {
 				if (reveal) {
 					if (item.isDisposed) {

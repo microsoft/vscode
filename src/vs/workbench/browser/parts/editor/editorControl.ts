@@ -205,6 +205,7 @@ export class EditorControl extends Disposable {
 		// Remove editor pane from parent and hide
 		const editorPaneContainer = this._activeEditorPane.getContainer();
 		if (editorPaneContainer) {
+			this._activeEditorPane.onWillHide();
 			this.parent.removeChild(editorPaneContainer);
 			hide(editorPaneContainer);
 			this._activeEditorPane.onHide();

@@ -125,6 +125,28 @@ suite('ExternalTerminalService', () => {
 		);
 	});
 
+	test(`WinTerminalService - windows terminal should open workspace directory`, done => {
+		let testShell = 'wt';
+		let testCwd = 'c:/foo';
+		let mockSpawner = {
+			spawn: (command: any, args: any, opts: any) => {
+				// assert
+				equal(opts.cwd, 'C:/foo');
+				done();
+				return { on: (evt: any) => evt };
+			}
+		};
+		let testService = new WindowsExternalTerminalService(mockConfig);
+		(<any>testService).spawnTerminal(
+			mockSpawner,
+			mockConfig,
+			testShell,
+			testCwd,
+			mockOnExit,
+			mockOnError
+		);
+	});
+
 	test(`MacTerminalService - uses terminal from configuration`, done => {
 		let testCwd = 'path/to/workspace';
 		let mockSpawner = {

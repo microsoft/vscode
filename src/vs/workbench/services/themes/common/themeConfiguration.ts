@@ -89,10 +89,10 @@ const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 const productIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
 	default: DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE,
-	description: nls.localize('workbenchIconTheme', "Specifies the workbench icon theme used."),
+	description: nls.localize('productIconTheme', "Specifies the product icon theme used."),
 	enum: [DEFAULT_PRODUCT_ICON_THEME_SETTING_VALUE],
-	enumDescriptions: [nls.localize('defaultWorkbenchIconThemeDesc', 'Default')],
-	errorMessage: nls.localize('workbenchIconThemeError', "Workbench icon theme is unknown or not installed.")
+	enumDescriptions: [nls.localize('defaultProductIconThemeDesc', 'Default')],
+	errorMessage: nls.localize('productIconThemeError', "Product icon theme is unknown or not installed.")
 };
 
 const themeSettingsConfiguration: IConfigurationNode = {

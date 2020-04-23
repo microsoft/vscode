@@ -5,19 +5,19 @@
 
 import { Lazy } from 'vs/base/common/lazy';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { IWebviewService } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewEditorInputFactory, SerializedWebview } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
+import { IWebviewService, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
+import { reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputFactory, DeserializedWebview } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
 import { IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export interface CustomDocumentBackupData {
 	readonly viewType: string;
 	readonly editorResource: UriComponents;
+	backupId: string;
+
 	readonly extension: undefined | {
 		readonly location: UriComponents;
 		readonly id: string;
@@ -32,7 +32,15 @@ export interface CustomDocumentBackupData {
 
 interface SerializedCustomEditor extends SerializedWebview {
 	readonly editorResource: UriComponents;
-	readonly dirty?: boolean;
+	readonly dirty: boolean;
+	readonly backupId?: string;
+}
+
+
+interface DeserializedCustomEditor extends DeserializedWebview {
+	readonly editorResource: URI;
+	readonly dirty: boolean;
+	readonly backupId?: string;
 }
 
 
@@ -53,6 +61,7 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			...this.toJson(input),
 			editorResource: input.resource.toJSON(),
 			dirty: input.isDirty(),
+			backupId: input.backupId,
 		};
 
 		try {
@@ -62,34 +71,37 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 		}
 	}
 
+	protected fromJson(data: SerializedCustomEditor): DeserializedCustomEditor {
+		return {
+			...super.fromJson(data),
+			editorResource: URI.from(data.editorResource),
+			dirty: data.dirty,
+		};
+	}
+
 	public deserialize(
 		_instantiationService: IInstantiationService,
 		serializedEditorInput: string
 	): CustomEditorInput {
-		const data = this.fromJson(serializedEditorInput);
-		const id = data.id || generateUuid();
-
-		const webview = new Lazy(() => {
-			const webview = this._webviewService.createWebviewOverlay(id, {
-				enableFindWidget: data.options.enableFindWidget,
-				retainContextWhenHidden: data.options.retainContextWhenHidden
-			}, data.options);
-
-			if (data.extensionLocation && data.extensionId) {
-				webview.extension = {
-					location: data.extensionLocation,
-					id: data.extensionId
-				};
-			}
-
-			return webview;
-		});
-
-		const customInput = this._instantiationService.createInstance(CustomEditorInput, URI.from((data as any).editorResource), data.viewType, id, webview, { startsDirty: (data as any).dirty });
+		const data = this.fromJson(JSON.parse(serializedEditorInput));
+		const webview = CustomEditorInputFactory.reviveWebview(data, this._webviewService);
+		const customInput = this._instantiationService.createInstance(CustomEditorInput, data.editorResource, data.viewType, data.id, webview, { startsDirty: data.dirty, backupId: data.backupId });
 		if (typeof data.group === 'number') {
 			customInput.updateGroup(data.group);
 		}
 		return customInput;
+	}
+
+	private static reviveWebview(data: { id: string, state: any, options: WebviewInputOptions, extension?: WebviewExtensionDescription, }, webviewService: IWebviewService) {
+		return new Lazy(() => {
+			const webview = webviewService.createWebviewOverlay(data.id, {
+				enableFindWidget: data.options.enableFindWidget,
+				retainContextWhenHidden: data.options.retainContextWhenHidden
+			}, data.options);
+			webview.state = data.state;
+			webview.extension = data.extension;
+			return webview;
+		});
 	}
 
 	public static createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<IEditorInput> {
@@ -104,22 +116,10 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 
 			const backupData = backup.meta;
 			const id = backupData.webview.id;
+			const extension = reviveWebviewExtensionDescription(backupData.extension?.id, backupData.extension?.location);
+			const webview = CustomEditorInputFactory.reviveWebview({ id, options: backupData.webview.options, state: backupData.webview.state, extension, }, webviewService);
 
-			const webview = new Lazy(() => {
-				const webview = webviewService.createWebviewOverlay(id, {
-					enableFindWidget: backupData.webview.options.enableFindWidget,
-					retainContextWhenHidden: backupData.webview.options.retainContextWhenHidden
-				}, backupData.webview.options);
-
-				webview.extension = backupData.extension ? {
-					location: URI.revive(backupData.extension.location),
-					id: new ExtensionIdentifier(backupData.extension.id),
-				} : undefined;
-
-				return webview;
-			});
-
-			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { startsDirty: true });
+			const editor = instantiationService.createInstance(CustomEditorInput, URI.revive(backupData.editorResource), backupData.viewType, id, webview, { backupId: backupData.backupId });
 			editor.updateGroup(0);
 			return editor;
 		});

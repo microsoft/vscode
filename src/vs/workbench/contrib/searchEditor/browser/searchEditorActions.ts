@@ -21,6 +21,7 @@ import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/cont
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { searchRefreshIcon, searchNewEditorIcon, searchGotoFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -79,7 +80,7 @@ export class OpenSearchEditorAction extends Action {
 	constructor(id: string, label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(id, label, 'codicon-new-file');
+		super(id, label, searchNewEditorIcon.classNames);
 	}
 
 	update() {
@@ -103,7 +104,7 @@ export class OpenSearchEditorToSideAction extends Action {
 	constructor(id: string, label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(id, label, 'codicon-new-file');
+		super(id, label, searchNewEditorIcon.classNames);
 	}
 
 	async run() {
@@ -120,7 +121,7 @@ export class OpenResultsInEditorAction extends Action {
 		@IViewsService private viewsService: IViewsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(id, label, 'codicon-go-to-file');
+		super(id, label, searchGotoFileIcon.classNames);
 	}
 
 	get enabled(): boolean {
@@ -147,13 +148,31 @@ export class RerunSearchEditorSearchAction extends Action {
 	constructor(id: string, label: string,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(id, label, 'codicon-refresh');
+		super(id, label, searchRefreshIcon.classNames);
 	}
 
 	async run() {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			(this.editorService.activeEditorPane as SearchEditor).triggerSearch({ resetCursor: false });
+		}
+	}
+}
+
+export class FocusQueryEditorWidgetAction extends Action {
+	static readonly ID: string = Constants.FocusQueryEditorWidgetCommandId;
+	static readonly LABEL = localize('search.action.focusQueryEditorWidget', "Focus Query Editor Widget");
+
+	constructor(id: string, label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	async run() {
+		const input = this.editorService.activeEditor;
+		if (input instanceof SearchEditorInput) {
+			(this.editorService.activeEditorPane as SearchEditor).focusSearchInput();
 		}
 	}
 }
@@ -189,7 +208,7 @@ const openNewSearchEditor =
 
 		telemetryService.publicLog2('searchEditor/openNewSearchEditor');
 
-		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected } });
+		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { config: { query: selected }, text: '' });
 		const editor = await editorService.openEditor(input, { pinned: true }, toSide ? SIDE_GROUP : ACTIVE_GROUP) as SearchEditor;
 
 		if (selected && configurationService.getValue<ISearchConfigurationProperties>('search').searchOnType) {
@@ -214,9 +233,9 @@ export const createEditorFromSearchResult =
 
 		const labelFormatter = (uri: URI): string => labelService.getUriLabel(uri, { relative: true });
 
-		const { text, matchRanges } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter, true);
+		const { text, matchRanges, config } = serializeSearchResultForEditor(searchResult, rawIncludePattern, rawExcludePattern, 0, labelFormatter);
 
-		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text });
+		const input = instantiationService.invokeFunction(getOrMakeSearchEditorInput, { text, config });
 		await editorService.openEditor(input, { pinned: true });
 		input.setMatchRanges(matchRanges);
 	};

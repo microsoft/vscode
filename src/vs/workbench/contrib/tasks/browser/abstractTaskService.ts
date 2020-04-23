@@ -70,7 +70,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
@@ -251,7 +251,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ITerminalInstanceService private readonly terminalInstanceService: ITerminalInstanceService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@IPathService private readonly pathService: IPathService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
@@ -761,10 +761,22 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private setRecentlyUsedTask(task: Task): void {
-		const key = task.getRecentlyUsedKey();
+	private async setRecentlyUsedTask(task: Task): Promise<void> {
+		let key = task.getRecentlyUsedKey();
 		if (!InMemoryTask.is(task) && key) {
-			this.getRecentlyUsedTasks().set(key, JSON.stringify(this.createCustomizableTask(task)));
+			const customizations = this.createCustomizableTask(task);
+			if (ContributedTask.is(task) && customizations) {
+				let custom: CustomTask[] = [];
+				let customized: IStringDictionary<ConfiguringTask> = Object.create(null);
+				await this.computeTasksForSingleConfig(task._source.workspaceFolder ?? this.workspaceFolders[0], {
+					version: '2.0.0',
+					tasks: [customizations]
+				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
+				for (const configuration in customized) {
+					key = customized[configuration].getRecentlyUsedKey()!;
+				}
+			}
+			this.getRecentlyUsedTasks().set(key, JSON.stringify(customizations));
 			this.saveRecentlyUsedTasks();
 		}
 	}
@@ -841,8 +853,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				} else {
 					resolve(undefined);
 				}
+			} else {
+				resolve(this.executeTask(task, resolver));
 			}
-			resolve(this.executeTask(task, resolver));
 		}).then((value) => {
 			if (runSource === TaskRunSource.User) {
 				this.getWorkspaceTasks().then(workspaceTasks => {
@@ -1434,7 +1447,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
+	private async handleExecuteResult(executeResult: ITaskExecuteResult): Promise<ITaskSummary> {
 		if (executeResult.task.taskLoadMessages && executeResult.task.taskLoadMessages.length > 0) {
 			executeResult.task.taskLoadMessages.forEach(loadMessage => {
 				this._outputChannel.append(loadMessage + '\n');
@@ -1442,7 +1455,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.showOutput();
 		}
 
-		this.setRecentlyUsedTask(executeResult.task);
+		await this.setRecentlyUsedTask(executeResult.task);
 		if (executeResult.kind === TaskExecuteKind.Active) {
 			let active = executeResult.active;
 			if (active && active.same) {
@@ -1506,7 +1519,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.modelService, this.configurationResolverService, this.telemetryService,
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalInstanceService,
-			this.remotePathService, this.viewDescriptorService,
+			this.pathService, this.viewDescriptorService,
 			(workspaceFolder: IWorkspaceFolder) => {
 				if (!workspaceFolder) {
 					return undefined;
@@ -1680,7 +1693,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				await Promise.all(customTasksPromises);
 				if (needsRecentTasksMigration) {
 					// At this point we have all the tasks and can migrate the recently used tasks.
-					this.migrateRecentTasks(result.all());
+					await this.migrateRecentTasks(result.all());
 				}
 				return result;
 			}, () => {
@@ -2280,7 +2293,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return (this.getRecentlyUsedTasksV1().size > 0) && (this.getRecentlyUsedTasks().size === 0);
 	}
 
-	public migrateRecentTasks(tasks: Task[]) {
+	public async migrateRecentTasks(tasks: Task[]) {
 		if (!this.needsRecentTasksMigration()) {
 			return;
 		}
@@ -2292,12 +2305,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				taskMap[key] = task;
 			}
 		});
-		recentlyUsedTasks.keys().reverse().forEach(key => {
+		const reversed = recentlyUsedTasks.keys().reverse();
+		for (const key in reversed) {
 			let task = taskMap[key];
 			if (task) {
-				this.setRecentlyUsedTask(task);
+				await this.setRecentlyUsedTask(task);
 			}
-		});
+		}
 		this.storageService.remove(AbstractTaskService.RecentlyUsedTasks_Key, StorageScope.WORKSPACE);
 	}
 
@@ -2714,7 +2728,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	private handleSelection(selection: TaskQuickPickEntryType) {
+	private handleSelection(selection: TaskQuickPickEntryType | undefined) {
 		if (!selection) {
 			return;
 		}

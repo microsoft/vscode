@@ -2,7 +2,7 @@
 # Flags: CaseSensitive WordMatch
 # ContextLines: 2
 
-9 results - 4 files
+10 results - 4 files
 
 src/vs/base/common/arrays.ts:
   401  
@@ -24,17 +24,17 @@ src/vs/base/common/arrays.ts:
   564  export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
 
 src/vs/base/common/map.ts:
-   9  
-  10  /**
-  11:  * @deprecated ES6: use `[...SetOrMap.values()]`
-  12   */
-  13  export function values<V = any>(set: Set<V>): V[];
+  11  
+  12  /**
+  13:  * @deprecated ES6: use `[...SetOrMap.values()]`
+  14   */
+  15  export function values<V = any>(set: Set<V>): V[];
 
-  20  
-  21  /**
-  22:  * @deprecated ES6: use `[...map.keys()]`
-  23   */
-  24  export function keys<K, V>(map: Map<K, V>): K[] {
+  22  
+  23  /**
+  24:  * @deprecated ES6: use `[...map.keys()]`
+  25   */
+  26  export function keys<K, V>(map: Map<K, V>): K[] {
 
 src/vs/base/common/objects.ts:
   115  
@@ -61,3 +61,9 @@ src/vs/base/common/strings.ts:
   169:  * @deprecated ES6: use `String.endsWith`
   170   */
   171  export function endsWith(haystack: string, needle: string): boolean {
+
+  853  
+  854  /**
+  855:  * @deprecated ES6
+  856   */
+  857  export function repeat(s: string, count: number): string {

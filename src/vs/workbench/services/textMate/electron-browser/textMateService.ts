@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IOnigLib, IRawTheme } from 'vscode-textmate';
+import { IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TextMateWorker } from 'vs/workbench/services/textMate/electron-browser/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
@@ -177,12 +177,10 @@ export class TextMateService extends AbstractTextMateService {
 		}
 	}
 
-	protected _loadVSCodeTextmate(): Promise<typeof import('vscode-textmate')> {
-		return import('vscode-textmate');
-	}
-
-	protected _loadOnigLib(): Promise<IOnigLib> | undefined {
-		return undefined;
+	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
+		const wasmPath = require.toUrl('../../../../../../node_modules/vscode-oniguruma-wasm/release/onig.wasm');
+		const response = await fetch(wasmPath);
+		return response;
 	}
 
 	protected _onDidCreateGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): void {

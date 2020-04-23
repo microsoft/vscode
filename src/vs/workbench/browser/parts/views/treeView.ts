@@ -27,7 +27,7 @@ import { URI } from 'vs/base/common/uri';
 import { dirname, basename } from 'vs/base/common/resources';
 import { LIGHT, FileThemeIcon, FolderThemeIcon, registerThemingParticipant, ThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
-import { WorkbenchAsyncDataTree, ResourceNavigator } from 'vs/platform/list/browser/listService';
+import { WorkbenchAsyncDataTree, TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { localize } from 'vs/nls';
 import { timeout } from 'vs/base/common/async';
@@ -89,6 +89,7 @@ export class TreeViewPane extends ViewPane {
 	}
 
 	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.treeView.layout(height, width);
 	}
 
@@ -198,11 +199,11 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	get viewContainer(): ViewContainer {
-		return this.viewDescriptorService.getViewContainer(this.id)!;
+		return this.viewDescriptorService.getViewContainerByViewId(this.id)!;
 	}
 
 	get viewLocation(): ViewContainerLocation {
-		return this.viewDescriptorService.getViewLocation(this.id)!;
+		return this.viewDescriptorService.getViewLocationById(this.id)!;
 	}
 
 	private _dataProvider: ITreeViewDataProvider | undefined;
@@ -417,6 +418,7 @@ export class TreeView extends Disposable implements ITreeView {
 		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, <T>(task: Promise<T>) => this.progressService.withProgress({ location: this.id }, () => task));
 		const aligner = new Aligner(this.themeService);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, treeMenus, this.treeLabels, actionViewItemProvider, aligner);
+		const widgetAriaLabel = this._title;
 
 		this.tree = this._register(this.instantiationService.createInstance(Tree, this.id, this.treeContainer, new TreeViewDelegate(), [renderer],
 			dataSource, {
@@ -424,9 +426,11 @@ export class TreeView extends Disposable implements ITreeView {
 			accessibilityProvider: {
 				getAriaLabel(element: ITreeItem): string {
 					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+				},
+				getWidgetAriaLabel(): string {
+					return widgetAriaLabel;
 				}
 			},
-			ariaLabel: this._title,
 			keyboardNavigationLabelProvider: {
 				getKeyboardNavigationLabel: (item: ITreeItem) => {
 					return item.label ? item.label.label : (item.resourceUri ? basename(URI.revive(item.resourceUri)) : undefined);
@@ -462,7 +466,7 @@ export class TreeView extends Disposable implements ITreeView {
 		}));
 		this.tree.setInput(this.root).then(() => this.updateContentAreas());
 
-		const treeNavigator = ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false });
+		const treeNavigator = new TreeResourceNavigator(this.tree, { openOnFocus: false, openOnSelection: false });
 		this._register(treeNavigator);
 		this._register(treeNavigator.onDidOpenResource(e => {
 			if (!e.browserEvent) {

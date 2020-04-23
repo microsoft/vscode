@@ -236,6 +236,7 @@ export abstract class Pane extends Disposable implements IView {
 		const height = this._orientation === Orientation.VERTICAL ? size - headerSize : this.orthogonalSize - headerSize;
 
 		if (this.isExpanded()) {
+			toggleClass(this.body, 'wide', width >= 600);
 			this.layoutBody(height, width);
 			this.expandedSize = size;
 		}

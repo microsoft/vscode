@@ -289,11 +289,12 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	private handleModelEvent(model: ITextModel): void {
-		if (!this.label || !this.label.resource) {
-			return; // only update if label exists
+		const resource = toResource(this.label);
+		if (!resource) {
+			return; // only update if resource exists
 		}
 
-		if (model.uri.toString() === this.label.resource.toString()) {
+		if (model.uri.toString() === resource.toString()) {
 			if (this.lastKnownDetectedModeId !== model.getModeId()) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}
@@ -417,8 +418,8 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	private clearIconCache(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
-		const newResource = newLabel ? newLabel.resource : undefined;
-		const oldResource = this.label ? this.label.resource : undefined;
+		const newResource = toResource(newLabel);
+		const oldResource = toResource(this.label);
 
 		const newFileKind = newOptions ? newOptions.fileKind : undefined;
 		const oldFileKind = this.options ? this.options.fileKind : undefined;

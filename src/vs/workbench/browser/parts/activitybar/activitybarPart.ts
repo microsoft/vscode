@@ -6,10 +6,9 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
-import { Registry } from 'vs/platform/registry/common/platform';
+import { GLOBAL_ACTIVITY_ID, IActivity } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem, HomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
@@ -26,10 +25,10 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewDescriptorCollection, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
+import { isUndefinedOrNull, assertIsDefined, isString } from 'vs/base/common/types';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Schemas } from 'vs/base/common/network';
@@ -38,16 +37,17 @@ import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menuba
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Before2D } from 'vs/workbench/browser/dnd';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 
 interface IPlaceholderViewlet {
 	id: string;
 	name?: string;
 	iconUrl?: UriComponents;
+	iconCSS?: string;
 	views?: { when?: string }[];
 }
 
@@ -61,7 +61,7 @@ interface IPinnedViewlet {
 interface ICachedViewlet {
 	id: string;
 	name?: string;
-	iconUrl?: UriComponents;
+	icon?: URI | string;
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
@@ -85,20 +85,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	//#endregion
 
-	private globalActivityAction: ActivityAction | undefined;
-	private globalActivityActionBar: ActionBar | undefined;
-	private globalActivity: ICompositeActivity[] = [];
-
-	private customMenubar: CustomMenubarControl | undefined;
-	private menubar: HTMLElement | undefined;
 	private content: HTMLElement | undefined;
 
-	private cachedViewlets: ICachedViewlet[] = [];
+	private menuBar: CustomMenubarControl | undefined;
+	private menuBarContainer: HTMLElement | undefined;
 
 	private compositeBar: CompositeBar;
-	private readonly compositeActions: Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }> = new Map();
 
-	private readonly viewletDisposables: Map<string, IDisposable> = new Map<string, IDisposable>();
+	private globalActivityAction: ActivityAction | undefined;
+	private globalActivityActionBar: ActionBar | undefined;
+	private readonly globalActivity: ICompositeActivity[] = [];
+
+	private readonly cachedViewlets: ICachedViewlet[] = [];
+	private readonly compositeActions = new Map<string, { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
+	private readonly viewletDisposables = new Map<string, IDisposable>();
 
 	constructor(
 		@IViewletService private readonly viewletService: IViewletService,
@@ -110,18 +110,18 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IProductService private readonly productService: IProductService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
+
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEWLETS, version: 1 });
 		this.migrateFromOldCachedViewletsValue();
 
 		this.cachedViewlets = this.getCachedViewlets();
 		for (const cachedViewlet of this.cachedViewlets) {
-			if (workbenchEnvironmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
+			if (environmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
 				|| this.shouldBeHidden(cachedViewlet.id, cachedViewlet)
 			) {
 				cachedViewlet.visible = false;
@@ -199,7 +199,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private onDidRegisterExtensions(): void {
 		this.removeNotExistingComposites();
-
 		this.saveCachedViewlets();
 	}
 
@@ -217,8 +216,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (viewletDescriptor) {
 			const viewContainer = this.getViewContainer(viewletDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				if (viewDescriptors.activeViewDescriptors.length === 0) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (viewContainerModel.activeViewDescriptors.length === 0) {
 					this.hideComposite(viewletDescriptor.id); // Update the composite bar by hiding
 				}
 			}
@@ -296,25 +295,25 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private uninstallMenubar() {
-		if (this.customMenubar) {
-			this.customMenubar.dispose();
+		if (this.menuBar) {
+			this.menuBar.dispose();
 		}
 
-		if (this.menubar) {
-			removeNode(this.menubar);
+		if (this.menuBarContainer) {
+			removeNode(this.menuBarContainer);
 		}
 	}
 
 	private installMenubar() {
-		this.menubar = document.createElement('div');
-		addClass(this.menubar, 'menubar');
+		this.menuBarContainer = document.createElement('div');
+		addClass(this.menuBarContainer, 'menubar');
 
 		const content = assertIsDefined(this.content);
-		content.prepend(this.menubar);
+		content.prepend(this.menuBarContainer);
 
 		// Menubar: install a custom menu bar depending on configuration
-		this.customMenubar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
-		this.customMenubar.create(this.menubar);
+		this.menuBar = this._register(this.instantiationService.createInstance(CustomMenubarControl));
+		this.menuBar.create(this.menuBarContainer);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -323,6 +322,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.content = document.createElement('div');
 		addClass(this.content, 'content');
 		parent.appendChild(this.content);
+
+		// Home action bar
+		const homeIndicator = this.environmentService.options?.homeIndicator;
+		if (homeIndicator) {
+			let codicon = iconRegistry.get(homeIndicator.icon);
+			if (!codicon) {
+				console.warn(`Unknown home indicator icon ${homeIndicator.icon}`);
+				codicon = Codicon.code;
+			}
+			this.createHomeBar(homeIndicator.command, homeIndicator.title, codicon);
+		}
 
 		// Install menubar if compact
 		if (getMenuBarVisibility(this.configurationService, this.environmentService) === 'compact') {
@@ -342,10 +352,26 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this.content;
 	}
 
+	private createHomeBar(command: string, title: string, icon: Codicon): void {
+		const homeBarContainer = document.createElement('div');
+		homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
+		homeBarContainer.setAttribute('role', 'toolbar');
+		addClass(homeBarContainer, 'home-bar');
+
+		const homeActionBar = this._register(new ActionBar(homeBarContainer, {
+			orientation: ActionsOrientation.VERTICAL,
+			animated: false
+		}));
+
+		homeActionBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
+
+		const content = assertIsDefined(this.content);
+		content.prepend(homeBarContainer);
+	}
+
 	updateStyles(): void {
 		super.updateStyles();
 
-		// Part container
 		const container = assertIsDefined(this.getContainer());
 		const background = this.getColor(ACTIVITY_BAR_BACKGROUND) || '';
 		container.style.backgroundColor = background;
@@ -359,7 +385,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		container.style.borderLeftWidth = borderColor && !isPositionLeft ? '1px' : '';
 		container.style.borderLeftStyle = borderColor && !isPositionLeft ? 'solid' : '';
 		container.style.borderLeftColor = !isPositionLeft ? borderColor : '';
-		// container.style.outlineColor = this.getColor(ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 	}
 
 	private getActivitybarItemColors(theme: IColorTheme): ICompositeBarColors {
@@ -396,14 +421,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.globalActivityAction = new ActivityAction({
 			id: 'workbench.actions.manage',
 			name: nls.localize('manage', "Manage"),
-			cssClass: 'codicon-settings-gear'
+			cssClass: Codicon.gear.classNames
 		});
 
 		if (getUserDataSyncStore(this.productService, this.configurationService)) {
 			const profileAction = new ActivityAction({
 				id: 'workbench.actions.accounts',
 				name: nls.localize('accounts', "Accounts"),
-				cssClass: 'codicon-account'
+				cssClass: Codicon.account.classNames
 			});
 
 			this.globalActivityActionBar.push(profileAction);
@@ -424,7 +449,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			} else {
 				const cachedComposite = this.cachedViewlets.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite?.name || compositeId, cachedComposite?.iconUrl ? URI.revive(cachedComposite.iconUrl) : undefined),
+					activityAction: this.instantiationService.createInstance(PlaceHolderViewletActivityAction, compositeId, cachedComposite?.icon),
 					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)
 				};
 			}
@@ -456,13 +481,16 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		for (const viewlet of viewlets) {
-			this.enableCompositeActions(viewlet);
-			const viewContainer = this.getViewContainer(viewlet.id);
-			if (viewContainer?.hideIfEmpty) {
-				const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-				this.onDidChangeActiveViews(viewlet, viewDescriptors);
-				this.viewletDisposables.set(viewlet.id, viewDescriptors.onDidChangeActiveViews(() => this.onDidChangeActiveViews(viewlet, viewDescriptors)));
-			}
+			const viewContainer = this.getViewContainer(viewlet.id)!;
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			this.updateActivity(viewContainer, viewContainerModel);
+			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
+
+			const disposables = new DisposableStore();
+			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
+
+			this.viewletDisposables.set(viewlet.id, disposables);
 		}
 	}
 
@@ -476,11 +504,31 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.hideComposite(viewletId);
 	}
 
-	private onDidChangeActiveViews(viewlet: ViewletDescriptor, viewDescriptors: IViewDescriptorCollection): void {
-		if (viewDescriptors.activeViewDescriptors.length) {
-			this.compositeBar.addComposite(viewlet);
-		} else {
-			this.hideComposite(viewlet.id);
+	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+
+		const activity: IActivity = {
+			id: viewContainer.id,
+			name: viewContainerModel.title,
+			iconUrl: URI.isUri(viewContainerModel.icon) ? viewContainerModel.icon : undefined,
+			cssClass: isString(viewContainerModel.icon) ? viewContainerModel.icon : undefined,
+			keybindingId: viewContainer.focusCommand?.id || viewContainer.id
+		};
+
+		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
+		activityAction.setActivity(activity);
+
+		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
+			pinnedAction.setActivity(activity);
+		}
+
+		this.saveCachedViewlets();
+	}
+
+	private onDidChangeActiveViews(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		if (viewContainerModel.activeViewDescriptors.length) {
+			this.compositeBar.addComposite(viewContainer);
+		} else if (viewContainer.hideIfEmpty) {
+			this.hideComposite(viewContainer.id);
 		}
 	}
 
@@ -515,17 +563,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 	}
 
-	private enableCompositeActions(viewlet: ViewletDescriptor): void {
-		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
-		if (activityAction instanceof PlaceHolderViewletActivityAction) {
-			activityAction.setActivity(viewlet);
-		}
-
-		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
-			pinnedAction.setActivity(viewlet);
-		}
-	}
-
 	getPinnedViewletIds(): string[] {
 		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(v => v.id);
 
@@ -548,15 +585,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (this.globalActivityActionBar) {
 			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
-		if (this.menubar) {
-			availableHeight -= this.menubar.clientHeight;
+		if (this.menuBarContainer) {
+			availableHeight -= this.menuBarContainer.clientHeight;
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
 
 	private getViewContainer(viewletId: string): ViewContainer | undefined {
-		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		return viewContainerRegistry.get(viewletId);
+		return this.viewDescriptorService.getViewContainerById(viewletId) || undefined;
 	}
 
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
@@ -594,21 +630,25 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private saveCachedViewlets(): void {
 		const state: ICachedViewlet[] = [];
-		const allViewlets = this.viewletService.getViewlets();
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 		for (const compositeItem of compositeItems) {
 			const viewContainer = this.getViewContainer(compositeItem.id);
-			const viewlet = allViewlets.filter(({ id }) => id === compositeItem.id)[0];
-			if (viewlet) {
+			if (viewContainer) {
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				const views: { when: string | undefined }[] = [];
-				if (viewContainer) {
-					const viewDescriptors = this.viewDescriptorService.getViewDescriptors(viewContainer);
-					for (const { when } of viewDescriptors.allViewDescriptors) {
-						views.push({ when: when ? when.serialize() : undefined });
-					}
+				for (const { when } of viewContainerModel.allViewDescriptors) {
+					views.push({ when: when ? when.serialize() : undefined });
 				}
-				state.push({ id: compositeItem.id, name: viewlet.name, iconUrl: viewlet.iconUrl && viewlet.iconUrl.scheme === Schemas.file ? viewlet.iconUrl : undefined, views, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+				state.push({
+					id: compositeItem.id,
+					name: viewContainerModel.title,
+					icon: URI.isUri(viewContainerModel.icon) && viewContainerModel.icon.scheme === Schemas.file ? viewContainerModel.icon : viewContainerModel.icon,
+					views,
+					pinned: compositeItem.pinned,
+					order: compositeItem.order,
+					visible: compositeItem.visible
+				});
 			} else {
 				state.push({ id: compositeItem.id, pinned: compositeItem.pinned, order: compositeItem.order, visible: false });
 			}
@@ -618,12 +658,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private getCachedViewlets(): ICachedViewlet[] {
-		const cachedViewlets: Array<ICachedViewlet> = JSON.parse(this.pinnedViewletsValue);
-		for (const placeholderViewlet of JSON.parse(this.placeholderViewletsValue)) {
+		const cachedViewlets: ICachedViewlet[] = this.getPinnedViewlets();
+		for (const placeholderViewlet of this.getPlaceholderViewlets()) {
 			const cachedViewlet = cachedViewlets.filter(cached => cached.id === placeholderViewlet.id)[0];
 			if (cachedViewlet) {
 				cachedViewlet.name = placeholderViewlet.name;
-				cachedViewlet.iconUrl = placeholderViewlet.iconUrl;
+				cachedViewlet.icon = placeholderViewlet.iconCSS ? placeholderViewlet.iconCSS :
+					placeholderViewlet.iconUrl ? URI.revive(placeholderViewlet.iconUrl) : undefined;
 				cachedViewlet.views = placeholderViewlet.views;
 			}
 		}
@@ -632,8 +673,27 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private storeCachedViewletsState(cachedViewlets: ICachedViewlet[]): void {
-		this.pinnedViewletsValue = JSON.stringify(cachedViewlets.map(({ id, pinned, visible, order }) => (<IPinnedViewlet>{ id, pinned, visible, order })));
-		this.placeholderViewletsValue = JSON.stringify(cachedViewlets.map(({ id, iconUrl, name, views }) => (<IPlaceholderViewlet>{ id, iconUrl, name, views })));
+		this.setPinnedViewlets(cachedViewlets.map(({ id, pinned, visible, order }) => (<IPinnedViewlet>{
+			id,
+			pinned,
+			visible,
+			order
+		})));
+		this.setPlaceholderViewlets(cachedViewlets.map(({ id, icon, name, views }) => (<IPlaceholderViewlet>{
+			id,
+			iconUrl: URI.isUri(icon) ? icon : undefined,
+			iconCSS: isString(icon) ? icon : undefined,
+			name,
+			views
+		})));
+	}
+
+	private getPinnedViewlets(): IPinnedViewlet[] {
+		return JSON.parse(this.pinnedViewletsValue);
+	}
+
+	private setPinnedViewlets(pinnedViewlets: IPinnedViewlet[]): void {
+		this.pinnedViewletsValue = JSON.stringify(pinnedViewlets);
 	}
 
 	private _pinnedViewletsValue: string | undefined;
@@ -658,6 +718,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private setStoredPinnedViewletsValue(value: string): void {
 		this.storageService.store(ActivitybarPart.PINNED_VIEWLETS, value, StorageScope.GLOBAL);
+	}
+
+	private getPlaceholderViewlets(): IPlaceholderViewlet[] {
+		return JSON.parse(this.placeholderViewletsValue);
+	}
+
+	private setPlaceholderViewlets(placeholderViewlets: IPlaceholderViewlet[]): void {
+		this.placeholderViewletsValue = JSON.stringify(placeholderViewlets);
 	}
 
 	private _placeholderViewletsValue: string | undefined;
@@ -689,7 +757,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (value !== undefined) {
 			const storedStates: Array<string | ICachedViewlet> = JSON.parse(value);
 			const cachedViewlets = storedStates.map(c => {
-				const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, name: undefined, iconUrl: undefined, views: undefined } : c;
+				const serialized: ICachedViewlet = typeof c === 'string' /* migration from pinned states to composites states */ ? { id: c, pinned: true, order: undefined, visible: true, name: undefined, icon: undefined, views: undefined } : c;
 				serialized.visible = isUndefinedOrNull(serialized.visible) ? true : serialized.visible;
 				return serialized;
 			});

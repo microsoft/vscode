@@ -129,6 +129,6 @@ export class GotoSymbolAction extends Action {
 	}
 }
 
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(SyncActionDescriptor.create(GotoSymbolAction, GotoSymbolAction.ID, GotoSymbolAction.LABEL, {
+Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(SyncActionDescriptor.from(GotoSymbolAction, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
 }), 'Go to Symbol in Editor...');

@@ -23,10 +23,10 @@ import { IMarkersWorkbenchService } from 'vs/workbench/contrib/markers/browser/m
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Relay, Event, Emitter } from 'vs/base/common/event';
-import { WorkbenchObjectTree, ResourceNavigator, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree, TreeResourceNavigator, IListService, IWorkbenchObjectTreeOptions } from 'vs/platform/list/browser/listService';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
 import { IExpression } from 'vs/base/common/glob';
 import { deepClone } from 'vs/base/common/objects';
@@ -49,17 +49,15 @@ import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Codicon } from 'vs/base/common/codicons';
 
-function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterator<ITreeElement<TreeElement>> {
-	const markersIt = Iterator.fromArray(resourceMarkers.markers);
-
-	return Iterator.map(markersIt, m => {
-		const relatedInformationIt = Iterator.from(m.relatedInformation);
-		const children = Iterator.map(relatedInformationIt, r => ({ element: r }));
+function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<TreeElement>> {
+	return Iterable.map(resourceMarkers.markers, m => {
+		const relatedInformationIt = Iterable.from(m.relatedInformation);
+		const children = Iterable.map(relatedInformationIt, r => ({ element: r }));
 
 		return { element: m, children };
 	});
-
 }
 
 export class MarkersView extends ViewPane implements IMarkerFilterController {
@@ -169,6 +167,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 	}
 
 	public layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		const wasSmallLayout = this.smallLayout;
 		this.smallLayout = width < 600 && height > 100;
 		if (this.smallLayout !== wasSmallLayout) {
@@ -304,6 +303,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 						// Update resource
 						for (const updated of markerOrChange.updated) {
 							this.tree.setChildren(updated, createResourceMarkersIterator(updated));
+							this.tree.rerender(updated);
 						}
 					}
 				}
@@ -338,7 +338,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		} else {
 			resourceMarkers = this.markersWorkbenchService.markersModel.resourceMarkers;
 		}
-		this.tree.setChildren(null, Iterator.map(Iterator.fromArray(resourceMarkers), m => ({ element: m, children: createResourceMarkersIterator(m) })));
+		this.tree.setChildren(null, Iterable.map(resourceMarkers, m => ({ element: m, children: createResourceMarkersIterator(m) })));
 	}
 
 	private updateFilter() {
@@ -432,7 +432,7 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 			relatedInformationFocusContextKey.set(focus.elements.some(e => e instanceof RelatedInformation));
 		}));
 
-		const markersNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: true }));
+		const markersNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(Event.debounce(markersNavigator.onDidOpenResource, (last, event) => event, 75, true)(options => {
 			this.openFileAtElement(options.element, !!options.editorOptions.preserveFocus, options.sideBySide, !!options.editorOptions.pinned);
 		}));
@@ -600,9 +600,9 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		} else {
 			this.messageBoxContainer.style.display = 'none';
 			if (filtered === total) {
-				this.ariaLabelElement.setAttribute('aria-label', localize('No problems filtered', "Showing {0} problems", total));
+				this.setAriaLabel(localize('No problems filtered', "Showing {0} problems", total));
 			} else {
-				this.ariaLabelElement.setAttribute('aria-label', localize('problems filtered', "Showing {0} of {1} problems", filtered, total));
+				this.setAriaLabel(localize('problems filtered', "Showing {0} of {1} problems", filtered, total));
 			}
 			this.messageBoxContainer.removeAttribute('tabIndex');
 		}
@@ -631,19 +631,26 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 				e.stopPropagation();
 			}
 		});
-		this.ariaLabelElement!.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
+		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_FILTERS);
 	}
 
 	private renderNoProblemsMessageForActiveFile(container: HTMLElement) {
 		const span = dom.append(container, dom.$('span'));
 		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT;
-		this.ariaLabelElement!.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT);
+		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_ACTIVE_FILE_BUILT);
 	}
 
 	private renderNoProblemsMessage(container: HTMLElement) {
 		const span = dom.append(container, dom.$('span'));
 		span.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT;
-		this.ariaLabelElement!.setAttribute('aria-label', Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
+		this.setAriaLabel(Messages.MARKERS_PANEL_NO_PROBLEMS_BUILT);
+	}
+
+	private setAriaLabel(label: string): void {
+		if (this.tree) {
+			this.tree.ariaLabel = label;
+		}
+		this.ariaLabelElement!.setAttribute('aria-label', label);
 	}
 
 	private clearFilters(): void {
@@ -890,7 +897,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
 	if (editorLightBulbForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .markers-panel-container .codicon-lightbulb {
+		.monaco-workbench .markers-panel-container ${Codicon.lightBulb.cssSelector} {
 			color: ${editorLightBulbForegroundColor};
 		}`);
 	}
@@ -899,7 +906,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
 	if (editorLightBulbAutoFixForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
+		.monaco-workbench .markers-panel-container ${Codicon.lightbulbAutofix.cssSelector} {
 			color: ${editorLightBulbAutoFixForegroundColor};
 		}`);
 	}

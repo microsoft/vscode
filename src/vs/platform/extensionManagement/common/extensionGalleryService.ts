@@ -769,8 +769,6 @@ export async function resolveMarketplaceHeaders(version: string, environmentServ
 		'User-Agent': `VSCode ${version}`
 	};
 	const uuid = await getServiceMachineId(environmentService, fileService, storageService);
-	if (uuid) {
-		headers['X-Market-User-Id'] = uuid;
-	}
+	headers['X-Market-User-Id'] = uuid;
 	return headers;
 }
