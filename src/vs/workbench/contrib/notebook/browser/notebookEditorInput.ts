@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { isEqual } from 'vs/base/common/resources';
+import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -20,6 +21,9 @@ export class NotebookEditorModel extends EditorModel {
 
 	private readonly _onDidChangeCells = new Emitter<NotebookCellTextModelSplice[]>();
 	get onDidChangeCells(): Event<NotebookCellTextModelSplice[]> { return this._onDidChangeCells.event; }
+
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 
 	get notebook() {
@@ -35,6 +39,7 @@ export class NotebookEditorModel extends EditorModel {
 			this._register(_notebook.onDidChangeContent(() => {
 				this._dirty = true;
 				this._onDidChangeDirty.fire();
+				this._onDidChangeContent.fire();
 			}));
 			this._register(_notebook.onDidChangeCells((e) => {
 				this._onDidChangeCells.fire(e);
@@ -89,14 +94,33 @@ export class NotebookEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.notebook';
 	private promise: Promise<NotebookEditorModel> | null = null;
 	private textModel: NotebookEditorModel | null = null;
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	constructor(
 		public resource: URI,
 		public name: string,
 		public readonly viewType: string | undefined,
-		@INotebookService private readonly notebookService: INotebookService
+		@INotebookService private readonly notebookService: INotebookService,
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
 	) {
 		super();
+
+		const input = this;
+		const workingCopyAdapter = new class implements IWorkingCopy {
+			readonly resource = input.resource;
+			get name() { return input.getName(); }
+			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
+			readonly onDidChangeDirty = input.onDidChangeDirty;
+			readonly onDidChangeContent = input.onDidChangeContent;
+			isDirty(): boolean { return input.isDirty(); }
+			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
+			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
+			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }
+		};
+
+		this._register(this.workingCopyService.registerWorkingCopy(workingCopyAdapter));
+
 	}
 
 	getTypeId(): string {
@@ -137,11 +161,18 @@ export class NotebookEditorInput extends EditorInput {
 			this.promise = this.notebookService.resolveNotebook(this.viewType!, this.resource).then(notebook => {
 				this.textModel = new NotebookEditorModel(notebook!);
 				this.textModel.onDidChangeDirty(() => this._onDidChangeDirty.fire());
+				this.textModel.onDidChangeContent(() => {
+					this._onDidChangeContent.fire();
+				});
 				return this.textModel;
 			});
 		}
 
 		return this.promise;
+	}
+
+	async backup(): Promise<IWorkingCopyBackup> {
+		return {};
 	}
 
 	matches(otherInput: unknown): boolean {
