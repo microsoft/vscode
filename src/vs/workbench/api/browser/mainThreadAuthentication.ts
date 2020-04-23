@@ -129,21 +129,21 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	private registerSession(session: modes.AuthenticationSession) {
-		this._sessions.set(session.id, session.accountName);
+		this._sessions.set(session.id, session.account.displayName);
 
-		const existingSessionsForAccount = this._accounts.get(session.accountName);
+		const existingSessionsForAccount = this._accounts.get(session.account.displayName);
 		if (existingSessionsForAccount) {
-			this._accounts.set(session.accountName, existingSessionsForAccount.concat(session.id));
+			this._accounts.set(session.account.displayName, existingSessionsForAccount.concat(session.id));
 			return;
 		} else {
-			this._accounts.set(session.accountName, [session.id]);
+			this._accounts.set(session.account.displayName, [session.id]);
 		}
 
 		const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 			group: '1_accounts',
 			command: {
 				id: `configureSessions${session.id}`,
-				title: `${session.accountName} (${this.displayName})`
+				title: `${session.account.displayName} (${this.displayName})`
 			},
 			order: 3
 		});
@@ -170,11 +170,11 @@ export class MainThreadAuthenticationProvider extends Disposable {
 					}
 
 					if (selected.label === manage) {
-						this.manageTrustedExtensions(quickInputService, storageService, session.accountName);
+						this.manageTrustedExtensions(quickInputService, storageService, session.account.displayName);
 					}
 
 					if (selected.label === showUsage) {
-						this.showUsage(quickInputService, session.accountName);
+						this.showUsage(quickInputService, session.account.displayName);
 					}
 
 					quickPick.dispose();
@@ -188,28 +188,28 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			},
 		});
 
-		this._sessionMenuItems.set(session.accountName, [menuItem, manageCommand]);
+		this._sessionMenuItems.set(session.account.displayName, [menuItem, manageCommand]);
 	}
 
 	async signOut(dialogService: IDialogService, session: modes.AuthenticationSession): Promise<void> {
 		const providerUsage = accountUsages.get(this.id);
-		const accountUsage = (providerUsage || {})[session.accountName] || [];
-		const sessionsForAccount = this._accounts.get(session.accountName);
+		const accountUsage = (providerUsage || {})[session.account.displayName] || [];
+		const sessionsForAccount = this._accounts.get(session.account.displayName);
 
 		// Skip dialog if nothing is using the account
 		if (!accountUsage.length) {
-			accountUsages.set(this.id, { [session.accountName]: [] });
+			accountUsages.set(this.id, { [session.account.displayName]: [] });
 			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
 			return;
 		}
 
 		const result = await dialogService.confirm({
-			title: nls.localize('signOutConfirm', "Sign out of {0}", session.accountName),
-			message: nls.localize('signOutMessage', "The account {0} is currently used by: \n\n{1}\n\n Sign out of these features?", session.accountName, accountUsage.join('\n'))
+			title: nls.localize('signOutConfirm', "Sign out of {0}", session.account.displayName),
+			message: nls.localize('signOutMessage', "The account {0} is currently used by: \n\n{1}\n\n Sign out of these features?", session.account.displayName, accountUsage.join('\n'))
 		});
 
 		if (result.confirmed) {
-			accountUsages.set(this.id, { [session.accountName]: [] });
+			accountUsages.set(this.id, { [session.account.displayName]: [] });
 			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
 		}
 	}
@@ -218,9 +218,9 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		return (await this._proxy.$getSessions(this.id)).map(session => {
 			return {
 				id: session.id,
-				accountName: session.accountName,
+				account: session.account,
 				getAccessToken: () => {
-					addAccountUsage(this.id, session.accountName, nls.localize('sync', "Preferences Sync"));
+					addAccountUsage(this.id, session.account.displayName, nls.localize('sync', "Preferences Sync"));
 					return this._proxy.$getSessionAccessToken(this.id, session.id);
 				}
 			};
@@ -258,7 +258,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		return this._proxy.$login(this.id, scopes).then(session => {
 			return {
 				id: session.id,
-				accountName: session.accountName,
+				account: session.account,
 				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
 			};
 		});
