@@ -182,11 +182,6 @@
 	right: 32px;
 	top: 0px;
 	z-index: 10;
-	box-shadow: 0 0 8px 4px rgba(0, 0, 0, 0.2);
-}
-
-.vs .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-toolbar {
-	box-shadow: 0 0 8px 4px rgba(168, 168, 168, 0.1);
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-toolbar .action-item {
