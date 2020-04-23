@@ -1419,9 +1419,9 @@ declare module 'vscode' {
 	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
 	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
 	 *
-	 * @param DocumentType Type of the custom document returned by this provider.
+	 * @param T Type of the custom document returned by this provider.
 	 */
-	export interface CustomEditorProvider<DocumentType extends CustomDocument = CustomDocument> {
+	export interface CustomEditorProvider<T extends CustomDocument = CustomDocument> {
 
 		/**
 		 * Create a new document for a given resource.
@@ -1437,7 +1437,7 @@ declare module 'vscode' {
 		 *
 		 * @return The custom document.
 		 */
-		openCustomDocument(uri: Uri, openContext: OpenCustomDocumentContext, token: CancellationToken): Thenable<DocumentType> | DocumentType;
+		openCustomDocument(uri: Uri, openContext: OpenCustomDocumentContext, token: CancellationToken): Thenable<T> | T;
 
 		/**
 		 * Resolve a custom editor for a given resource.
@@ -1454,7 +1454,7 @@ declare module 'vscode' {
 		 *
 		 * @return Optional thenable indicating that the custom editor has been resolved.
 		 */
-		resolveCustomEditor(document: DocumentType, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
+		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
 	}
 
 	namespace window {
