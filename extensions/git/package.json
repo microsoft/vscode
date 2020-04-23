@@ -610,10 +610,6 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
-          "command": "git.pullFrom",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
-        },
-        {
           "command": "git.merge",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },

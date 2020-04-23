@@ -13,7 +13,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { Range } from 'vs/editor/common/core/range';
 import { escape } from 'vs/base/common/strings';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as platform from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
@@ -48,6 +48,7 @@ import { domEvent } from 'vs/base/browser/event';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ITextModel } from 'vs/editor/common/model';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
+import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = DOM.$;
 
@@ -94,46 +95,88 @@ export class CodiconActionViewItem extends ContextAwareMenuEntryActionViewItem {
 	}
 }
 
+export class CellEditorOptions {
+
+	private static fixedEditorOptions: IEditorOptions = {
+		padding: {
+			top: EDITOR_TOP_PADDING,
+			bottom: EDITOR_BOTTOM_PADDING
+		},
+		scrollBeyondLastLine: false,
+		scrollbar: {
+			verticalScrollbarSize: 14,
+			horizontal: 'auto',
+			useShadows: true,
+			verticalHasArrows: false,
+			horizontalHasArrows: false,
+			alwaysConsumeMouseWheel: false
+		},
+		renderLineHighlightOnlyWhenFocus: true,
+		overviewRulerLanes: 0,
+		selectOnLineNumbers: false,
+		lineNumbers: 'off',
+		lineDecorationsWidth: 0,
+		glyphMargin: false,
+		fixedOverflowWidgets: false,
+		minimap: { enabled: false },
+	};
+
+	private _value: IEditorOptions;
+	private _disposable: IDisposable;
+
+	private readonly _onDidChange = new Emitter<IEditorOptions>();
+	readonly onDidChange: Event<IEditorOptions> = this._onDidChange.event;
+
+	constructor(configurationService: IConfigurationService, language: string) {
+
+		this._disposable = configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor')) {
+				this._value = computeEditorOptions();
+				this._onDidChange.fire(this.value);
+			}
+		});
+
+		const computeEditorOptions = () => {
+			const editorOptions = deepClone(configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
+			return {
+				...editorOptions,
+				...CellEditorOptions.fixedEditorOptions
+			};
+		};
+
+		this._value = computeEditorOptions();
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
+		this._disposable.dispose();
+	}
+
+	get value(): IEditorOptions {
+		return this._value;
+	}
+}
+
 abstract class AbstractCellRenderer {
-	protected editorOptions: IEditorOptions;
+	protected editorOptions: CellEditorOptions;
 	private actionRunner = new ActionRunner();
 
 	constructor(
 		protected readonly instantiationService: IInstantiationService,
 		protected readonly notebookEditor: INotebookEditor,
 		protected readonly contextMenuService: IContextMenuService,
-		private readonly configurationService: IConfigurationService,
+		configurationService: IConfigurationService,
 		private readonly keybindingService: IKeybindingService,
 		private readonly notificationService: INotificationService,
 		protected readonly contextKeyService: IContextKeyService,
 		language: string,
 		protected readonly dndController: CellDragAndDropController
 	) {
-		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
-		this.editorOptions = {
-			...editorOptions,
-			padding: {
-				top: EDITOR_TOP_PADDING,
-				bottom: EDITOR_BOTTOM_PADDING
-			},
-			scrollBeyondLastLine: false,
-			scrollbar: {
-				verticalScrollbarSize: 14,
-				horizontal: 'auto',
-				useShadows: true,
-				verticalHasArrows: false,
-				horizontalHasArrows: false,
-				alwaysConsumeMouseWheel: false
-			},
-			renderLineHighlightOnlyWhenFocus: true,
-			overviewRulerLanes: 0,
-			selectOnLineNumbers: false,
-			lineNumbers: 'off',
-			lineDecorationsWidth: 0,
-			glyphMargin: false,
-			fixedOverflowWidgets: false,
-			minimap: { enabled: false },
-		};
+		this.editorOptions = new CellEditorOptions(configurationService, language);
+	}
+
+	dispose() {
+		this.editorOptions.dispose();
 	}
 
 	protected createBottomCellToolbar(container: HTMLElement): ToolBar {
@@ -349,7 +392,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		if (height) {
 			const elementDisposables = templateData.elementDisposables;
 
-			elementDisposables.add(new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions, this.instantiationService));
+			const markdownCell = new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions.value, this.instantiationService);
+			elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
+			elementDisposables.add(markdownCell);
 
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
@@ -620,12 +665,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
-			...this.editorOptions,
+			...this.editorOptions.value,
 			dimension: {
 				width: 0,
 				height: 0
 			}
 		}, {});
+
+		disposables.add(this.editorOptions.onDidChange(newValue => editor.updateOptions(newValue)));
 
 		const progressBar = new ProgressBar(editorPart);
 		progressBar.hide();
@@ -705,7 +752,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		}
 
 		if (!metadata.statusMessage && (typeof metadata.runState === 'undefined' || metadata.runState === NotebookCellRunState.Idle)) {
-			templateData.cellStatusPlaceholderContainer.textContent = 'Ctrl + Enter to run';
+			templateData.cellStatusPlaceholderContainer.textContent = platform.isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run';
 		} else {
 			templateData.cellStatusPlaceholderContainer.textContent = '';
 		}

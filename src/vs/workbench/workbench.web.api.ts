@@ -119,7 +119,7 @@ interface IDefaultSideBarLayout {
 		}[];
 	} | {
 		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false | undefined;
+		active?: false;
 		order?: number;
 		visible?: boolean;
 		views?: {
@@ -140,7 +140,7 @@ interface IDefaultPanelLayout {
 	} | {
 		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
 		order?: number;
-		active?: false | undefined;
+		active?: false;
 		visible?: boolean;
 	})[];
 }

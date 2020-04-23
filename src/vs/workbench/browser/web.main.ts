@@ -170,24 +170,21 @@ class BrowserMain extends Disposable {
 							viewletId = `workbench.view.extension.${container.id}`;
 					}
 
-					order = container.order ?? (order + 1);
-					const state: SideBarActivityState = {
-						id: viewletId,
-						order: order,
-						pinned: true,
-						visible: true
-					};
-
 					if (container.active) {
 						storageService.store('workbench.sidebar.activeviewletid', viewletId, StorageScope.WORKSPACE);
-					} else {
-						if (container.visible !== undefined) {
-							state.pinned = container.visible;
-							state.visible = container.visible;
-						}
 					}
 
-					sidebarState.push(state);
+					if (container.order !== undefined || (container.active === undefined && container.visible !== undefined)) {
+						order = container.order ?? (order + 1);
+						const state: SideBarActivityState = {
+							id: viewletId,
+							order: order,
+							pinned: (container.active || container.visible) ?? true,
+							visible: (container.active || container.visible) ?? true
+						};
+
+						sidebarState.push(state);
+					}
 
 					if (container.views !== undefined) {
 						const viewsState: { id: string, isHidden?: boolean, order?: number }[] = [];
@@ -215,7 +212,9 @@ class BrowserMain extends Disposable {
 					}
 				}
 
-				storageService.store('workbench.activity.pinnedViewlets2', JSON.stringify(sidebarState), StorageScope.GLOBAL);
+				if (sidebarState.length) {
+					storageService.store('workbench.activity.pinnedViewlets2', JSON.stringify(sidebarState), StorageScope.GLOBAL);
+				}
 			}
 		}
 
@@ -264,28 +263,27 @@ class BrowserMain extends Disposable {
 							continue;
 					}
 
-					order = container.order ?? (order + 1);
-					const state: PanelActivityState = {
-						id: panelId,
-						name: name,
-						order: order,
-						pinned: true,
-						visible: true
-					};
-
 					if (container.active) {
 						storageService.store('workbench.panelpart.activepanelid', panelId, StorageScope.WORKSPACE);
-					} else {
-						if (container.visible !== undefined) {
-							state.pinned = container.visible;
-							state.visible = container.visible;
-						}
 					}
 
-					panelState.push(state);
+					if (container.order !== undefined || (container.active === undefined && container.visible !== undefined)) {
+						order = container.order ?? (order + 1);
+						const state: PanelActivityState = {
+							id: panelId,
+							name: name,
+							order: order,
+							pinned: (container.active || container.visible) ?? true,
+							visible: (container.active || container.visible) ?? true
+						};
+
+						panelState.push(state);
+					}
 				}
 
-				storageService.store('workbench.panel.pinnedPanels', JSON.stringify(panelState), StorageScope.GLOBAL);
+				if (panelState.length) {
+					storageService.store('workbench.panel.pinnedPanels', JSON.stringify(panelState), StorageScope.GLOBAL);
+				}
 			}
 		}
 	}
