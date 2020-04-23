@@ -805,7 +805,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?LinkId=733558'));
 	}
 
-	public build(): Promise<ITaskSummary> {
+	public build(): Promise<ITaskSummary | undefined> {
 		return this.getGroupedTasks().then((tasks) => {
 			let runnable = this.createRunnableTask(tasks, TaskGroup.Build);
 			if (!runnable || !runnable.task) {
@@ -822,7 +822,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		});
 	}
 
-	public runTest(): Promise<ITaskSummary> {
+	public runTest(): Promise<ITaskSummary | undefined> {
 		return this.getGroupedTasks().then((tasks) => {
 			let runnable = this.createRunnableTask(tasks, TaskGroup.Test);
 			if (!runnable || !runnable.task) {
@@ -1401,7 +1401,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 	}
 
-	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary> {
+	private executeTask(task: Task, resolver: ITaskResolver): Promise<ITaskSummary | undefined> {
 		enum SaveBeforeRunConfigOptions {
 			Always = 'always',
 			Never = 'never',
@@ -1423,7 +1423,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			});
 		};
 
-		const promptAsk = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
+		const promptAsk = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary | undefined> => {
 			const dialogOptions = await this.dialogService.show(
 				Severity.Info,
 				nls.localize('TaskSystem.saveBeforeRun.prompt.title', 'Save all editors?'),
@@ -1439,7 +1439,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			} else if (dialogOptions.choice === 1) {
 				return execTask(task, resolver);
 			} else {
-				// TODO: Need to change return type now that the task isn't run
+				return;
 			}
 		};
 
