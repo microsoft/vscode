@@ -12,8 +12,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, NOTEBOOK_CELL_RUNNABLE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
-import { BaseCellRenderTemplate, CellEditState, CellRunState, ICellViewModel, INotebookEditor, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellRunState, ICellViewModel, INotebookEditor, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -182,7 +181,9 @@ registerAction2(class extends Action2 {
 			editor.focusNotebookCell(nextCell, activeCell.editState === CellEditState.Editing);
 		} else {
 			const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
-			editor.focusNotebookCell(newCell, true);
+			if (newCell) {
+				editor.focusNotebookCell(newCell, true);
+			}
 		}
 	}
 });
@@ -213,7 +214,9 @@ registerAction2(class extends Action2 {
 		}
 
 		const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
-		editor.focusNotebookCell(newCell, true);
+		if (newCell) {
+			editor.focusNotebookCell(newCell, true);
+		}
 	}
 });
 
@@ -322,7 +325,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	order: 0,
 	group: 'navigation',
-	when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(NOTEBOOK_CELL_RUNNABLE_CONTEXT_KEY))
+	when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_RUNNABLE)
 });
 
 registerAction2(class extends Action2 {
@@ -412,7 +415,10 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 	}
 
 	const text = activeCell.getText();
-	editor.insertNotebookCell(activeCell, kind, 'below', text);
+	if (!editor.insertNotebookCell(activeCell, kind, 'below', text)) {
+		return;
+	}
+
 	const idx = editor.viewModel?.getCellIndex(activeCell);
 	if (typeof idx !== 'number') {
 		return;
@@ -474,7 +480,9 @@ abstract class InsertCellCommand extends Action2 {
 		}
 
 		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
-		context.notebookEditor.focusNotebookCell(newCell, true);
+		if (newCell) {
+			context.notebookEditor.focusNotebookCell(newCell, true);
+		}
 	}
 }
 
@@ -583,9 +591,9 @@ registerAction2(class extends Action2 {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown'),
-						ContextKeyExpr.equals(NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, false),
-						ContextKeyExpr.equals(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, true)),
+						NOTEBOOK_CELL_TYPE.isEqualTo('markdown'),
+						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.toNegated(),
+						NOTEBOOK_CELL_EDITABLE),
 					order: CellToolbarOrder.EditCell
 				},
 				icon: { id: 'codicon/pencil' }
@@ -613,9 +621,9 @@ registerAction2(class extends Action2 {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
-						ContextKeyExpr.equals(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown'),
-						ContextKeyExpr.equals(NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, true),
-						ContextKeyExpr.equals(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, true)),
+						NOTEBOOK_CELL_TYPE.isEqualTo('markdown'),
+						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE,
+						NOTEBOOK_CELL_EDITABLE),
 					order: CellToolbarOrder.SaveCell
 				},
 				icon: { id: 'codicon/check' }
@@ -679,7 +687,9 @@ registerAction2(class extends Action2 {
 			} else {
 				// No cells left, insert a new empty one
 				const newCell = context.notebookEditor.insertNotebookCell(undefined, context.cell.cellKind);
-				context.notebookEditor.focusNotebookCell(newCell, true);
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, true);
+				}
 			}
 		}
 	}
@@ -700,7 +710,9 @@ async function copyCell(context: INotebookCellActionContext, direction: 'up' | '
 	const text = context.cell.getText();
 	const newCellDirection = direction === 'up' ? 'above' : 'below';
 	const newCell = context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
-	context.notebookEditor.focusNotebookCell(newCell, false);
+	if (newCell) {
+		context.notebookEditor.focusNotebookCell(newCell, false);
+	}
 }
 
 registerAction2(class extends Action2 {

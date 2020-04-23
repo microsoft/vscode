@@ -31,9 +31,9 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, NOTEBOOK_CELL_TYPE_CONTEXT_KEY, NOTEBOOK_CELL_RUN_STATE_CONTEXT_KEY, NOTEBOOK_VIEW_TYPE, BOTTOM_CELL_TOOLBAR_HEIGHT, NOTEBOOK_CELL_RUNNABLE_CONTEXT_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
+import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ExecuteCellAction, INotebookCellActionContext, CancelCellAction, InsertCodeCellAction, InsertMarkdownCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellEditState, CellRunState, CodeCellRenderTemplate, ICellViewModel, INotebookEditor, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellRunState, CodeCellRenderTemplate, ICellViewModel, INotebookEditor, MarkdownCellRenderTemplate, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_RUNNABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
@@ -399,11 +399,11 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			elementDisposables.add(markdownCell);
 
 			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
-			contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'markdown');
-			contextKeyService.createKey(NOTEBOOK_VIEW_TYPE, element.viewType);
-
+			NOTEBOOK_CELL_TYPE.bindTo(contextKeyService).set('markdown');
+			NOTEBOOK_VIEW_TYPE.bindTo(contextKeyService).set(element.viewType);
 			const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
-			const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!metadata.editable);
+			const cellEditableKey = NOTEBOOK_CELL_EDITABLE.bindTo(contextKeyService);
+			cellEditableKey.set(!!metadata.editable);
 			const updateForMetadata = () => {
 				const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
 				cellEditableKey.set(!!metadata.editable);
@@ -416,7 +416,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 				}
 			}));
 
-			const editModeKey = contextKeyService.createKey(NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY, element.editState === CellEditState.Editing);
+			const editModeKey = NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.bindTo(contextKeyService);
+			editModeKey.set(element.editState === CellEditState.Editing);
 			elementDisposables.add(element.onDidChangeState((e) => {
 				if (e.editStateChanged) {
 					editModeKey.set(element.editState === CellEditState.Editing);
@@ -799,7 +800,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 
-		const runStateKey = contextKeyService.createKey(NOTEBOOK_CELL_RUN_STATE_CONTEXT_KEY, CellRunState[element.runState]);
+		const runStateKey = NOTEBOOK_CELL_RUN_STATE.bindTo(contextKeyService);
+		runStateKey.set(CellRunState[element.runState]);
 		this.updateForRunState(element, templateData, runStateKey);
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.runStateChanged) {
@@ -807,11 +809,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			}
 		}));
 
-		contextKeyService.createKey(NOTEBOOK_CELL_TYPE_CONTEXT_KEY, 'code');
-		contextKeyService.createKey(NOTEBOOK_VIEW_TYPE, element.viewType);
+		NOTEBOOK_CELL_TYPE.bindTo(contextKeyService).set('code');
+		NOTEBOOK_VIEW_TYPE.bindTo(contextKeyService).set(element.viewType);
 		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
-		const cellEditableKey = contextKeyService.createKey(NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY, !!metadata.editable);
-		const cellRunnableKey = contextKeyService.createKey(NOTEBOOK_CELL_RUNNABLE_CONTEXT_KEY, !!metadata.runnable);
+		const cellEditableKey = NOTEBOOK_CELL_EDITABLE.bindTo(contextKeyService);
+		cellEditableKey.set(!!metadata.editable);
+		const cellRunnableKey = NOTEBOOK_CELL_RUNNABLE.bindTo(contextKeyService);
+		cellRunnableKey.set(!!metadata.runnable);
 		this.updateForMetadata(element, templateData, cellEditableKey, cellRunnableKey);
 		elementDisposables.add(element.onDidChangeState((e) => {
 			if (e.metadataChanged) {

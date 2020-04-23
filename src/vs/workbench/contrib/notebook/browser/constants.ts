@@ -17,12 +17,3 @@ export const EDITOR_TOP_MARGIN = 16;
 // Top and bottom padding inside the monaco editor in a cell, which are included in `cell.editorHeight`
 export const EDITOR_TOP_PADDING = 12;
 export const EDITOR_BOTTOM_PADDING = 12;
-
-// Cell context keys
-
-export const NOTEBOOK_VIEW_TYPE = 'notebookViewType';
-export const NOTEBOOK_CELL_TYPE_CONTEXT_KEY = 'notebookCellType'; // code, markdown
-export const NOTEBOOK_CELL_EDITABLE_CONTEXT_KEY = 'notebookCellEditable'; // bool
-export const NOTEBOOK_CELL_RUNNABLE_CONTEXT_KEY = 'notebookCellRunnable'; // bool
-export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE_CONTEXT_KEY = 'notebookCellMarkdownEditMode'; // bool
-export const NOTEBOOK_CELL_RUN_STATE_CONTEXT_KEY = 'notebookCellRunState'; // idle, running
