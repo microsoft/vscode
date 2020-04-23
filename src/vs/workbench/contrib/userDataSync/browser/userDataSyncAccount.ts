@@ -35,6 +35,7 @@ export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
 	readonly sessionId: string;
 	readonly accountName: string;
+	readonly accountId: string;
 }
 
 export const enum AccountStatus {
@@ -157,7 +158,7 @@ export class UserDataSyncAccounts extends Disposable {
 
 		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
 		for (const session of sessions) {
-			const account: IUserDataSyncAccount = { authenticationProviderId, sessionId: session.id, accountName: session.account.displayName };
+			const account: IUserDataSyncAccount = { authenticationProviderId, sessionId: session.id, accountName: session.account.displayName, accountId: session.account.id };
 			accounts.set(account.accountName, account);
 			if (this.isCurrentAccount(account)) {
 				currentAccount = account;
@@ -192,16 +193,18 @@ export class UserDataSyncAccounts extends Disposable {
 		if (!result) {
 			return false;
 		}
-		let sessionId: string, accountName: string;
+		let sessionId: string, accountName: string, accountId: string;
 		if (isAuthenticationProvider(result)) {
 			const session = await this.authenticationService.login(result.id, result.scopes);
 			sessionId = session.id;
 			accountName = session.account.displayName;
+			accountId = session.account.id;
 		} else {
 			sessionId = result.sessionId;
 			accountName = result.accountName;
+			accountId = result.accountId;
 		}
-		await this.switch(sessionId, accountName);
+		await this.switch(sessionId, accountName, accountId);
 		return true;
 	}
 
@@ -268,13 +271,13 @@ export class UserDataSyncAccounts extends Disposable {
 		return quickPickItems;
 	}
 
-	private async switch(sessionId: string, accountName: string): Promise<void> {
+	private async switch(sessionId: string, accountName: string, accountId: string): Promise<void> {
 		const currentAccount = this.current;
 		if (this.userDataSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
 			// accounts are switched while sync is enabled.
 		}
 		this.currentSessionId = sessionId;
-		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: sessionId.split('/')[1] });
+		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId });
 		await this.update();
 	}
 
