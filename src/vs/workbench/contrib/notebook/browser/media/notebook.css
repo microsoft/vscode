@@ -470,15 +470,13 @@
 	margin-bottom: 0;
 }
 
+/* Add minor padding for h and p tags when only one item is there */
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div > h2:only-child,
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div > h3:only-child,
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div > h4:only-child,
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div > h5:only-child,
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div > h6:only-child,
 .monaco-workbench .part.editor > .content .notebook-editor .cell.markdown div > p:only-child {
-	/* display: flex;
-	align-items: center;
-	min-height: 32px;*/
 	padding-top: 4px;
 }
 
