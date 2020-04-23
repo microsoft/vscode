@@ -608,7 +608,7 @@ export class ReopenResourcesAction extends Action {
 				// And persist the setting
 				if (pick && id) {
 					const newAssociation: CustomEditorAssociation = { viewType: id, filenamePattern: '*' + resourceExt };
-					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)] || [];
+					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)];
 
 					// First try updating existing association
 					for (let i = 0; i < currentAssociations.length; ++i) {
