@@ -1657,7 +1657,7 @@ export class SearchView extends ViewPane {
 				revealIfVisible: true
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			if (editor && element instanceof Match && preserveFocus) {
+			if (element instanceof Match && preserveFocus && isCodeEditor(editor)) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
 					(<ICodeEditor>editor.getControl()).getModel()!,
 					element.range()
