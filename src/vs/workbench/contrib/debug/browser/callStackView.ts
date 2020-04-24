@@ -21,7 +21,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -87,7 +87,7 @@ export class CallStackView extends ViewPane {
 	private callStackItemType: IContextKey<string>;
 	private dataSource!: CallStackDataSource;
 	private tree!: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
-	private contributedContextMenu: IMenu;
+	private menu: IMenu;
 	private parentSessionToExpand = new Set<IDebugSession>();
 	private selectionNeedsUpdate = false;
 
@@ -109,8 +109,8 @@ export class CallStackView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
-		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		this._register(this.contributedContextMenu);
+		this.menu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
+		this._register(this.menu);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
@@ -172,7 +172,7 @@ export class CallStackView extends ViewPane {
 
 		this.dataSource = new CallStackDataSource(this.debugService);
 		this.tree = <WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
-			new SessionsRenderer(this.instantiationService, this.debugService),
+			new SessionsRenderer(this.menu, this.instantiationService, this.debugService),
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
@@ -378,12 +378,15 @@ export class CallStackView extends ViewPane {
 			this.callStackItemType.reset();
 		}
 
-		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
+
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
+			getActions: () => result.secondary,
 			getActionsContext: () => getContext(element),
 			onHide: () => dispose(actionsDisposable)
 		});
@@ -406,6 +409,7 @@ interface ISessionTemplateData {
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
 	actionBar: ActionBar;
+	elementDisposable?: IDisposable;
 }
 
 interface IErrorTemplateData {
@@ -430,6 +434,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 	static readonly ID = 'session';
 
 	constructor(
+		private menu: IMenu,
 		private readonly instantiationService: IInstantiationService,
 		private readonly debugService: IDebugService
 	) { }
@@ -458,6 +463,12 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 
 		data.actionBar.clear();
 		const actions = getActions(this.instantiationService, element.element);
+
+		const primary: IAction[] = actions;
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+		data.elementDisposable = createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => g === 'inline');
+
 		data.actionBar.push(actions, { icon: true, label: false });
 		data.stateLabel.hidden = false;
 
@@ -475,6 +486,12 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 
 	disposeTemplate(templateData: ISessionTemplateData): void {
 		templateData.actionBar.dispose();
+	}
+
+	disposeElement(_element: ITreeNode<IDebugSession, FuzzyScore>, _: number, templateData: ISessionTemplateData): void {
+		if (templateData.elementDisposable) {
+			templateData.elementDisposable.dispose();
+		}
 	}
 }
 
