@@ -170,7 +170,7 @@ export class DebugService implements IDebugService {
 				this.activity.dispose();
 			}
 			if (numberOfSessions > 0) {
-				this.activity = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(numberOfSessions, n => n === 1 ? nls.localize('1activeSession', "1 active session") : nls.localize('nActiveSessions', "{0} active sessions", n)));
+				this.activity = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge: new NumberBadge(numberOfSessions, n => n === 1 ? nls.localize('1activeSession', "1 active session") : nls.localize('nActiveSessions', "{0} active sessions", n)) });
 			}
 		}));
 		this.toDispose.push(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));

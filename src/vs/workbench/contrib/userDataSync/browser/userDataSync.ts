@@ -34,7 +34,6 @@ import {
 	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
-import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -394,7 +393,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (badge) {
-			this.badgeDisposable.value = this.activityService.showActivity(GLOBAL_ACTIVITY_ID, badge, clazz, priority);
+			this.badgeDisposable.value = this.activityService.showGlobalActivity({ badge, clazz, priority });
 		}
 	}
 
