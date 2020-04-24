@@ -97,7 +97,7 @@ export interface ITokenColorCustomizations {
 }
 
 export interface IExperimentalTokenStyleCustomizations {
-	[styleRuleOrThemeSettingsId: string]: string | ITokenColorizationSetting | IExperimentalTokenStyleCustomizations | undefined;
+	[styleRuleOrThemeSettingsId: string]: string | ISemanticTokenColorizationSetting | IExperimentalTokenStyleCustomizations | undefined;
 }
 
 export interface ITextMateThemingRule {
@@ -110,6 +110,14 @@ export interface ITokenColorizationSetting {
 	foreground?: string;
 	background?: string;
 	fontStyle?: string; /* [italic|underline|bold] */
+}
+
+export interface ISemanticTokenColorizationSetting {
+	foreground?: string;
+	fontStyle?: string; /* [italic|underline|bold] */
+	bold?: boolean;
+	underline?: boolean;
+	italic?: boolean;
 }
 
 export interface ExtensionData {
