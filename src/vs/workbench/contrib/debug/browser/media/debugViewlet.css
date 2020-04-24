@@ -28,7 +28,7 @@
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item {
 	display: flex;
 	align-items: center;
-	font-size: 13px;
+	font-size: 11px;
 	margin-right: 0.3em;
 	height: 20px;
 	line-height: 20px;
