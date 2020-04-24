@@ -640,10 +640,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				for (const { when } of viewContainerModel.allViewDescriptors) {
 					views.push({ when: when ? when.serialize() : undefined });
 				}
+				const cacheIcon = URI.isUri(viewContainerModel.icon) ? viewContainerModel.icon.scheme === Schemas.file : true;
 				state.push({
 					id: compositeItem.id,
 					name: viewContainerModel.title,
-					icon: URI.isUri(viewContainerModel.icon) && viewContainerModel.icon.scheme === Schemas.file ? viewContainerModel.icon : viewContainerModel.icon,
+					icon: cacheIcon ? viewContainerModel.icon : undefined,
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,

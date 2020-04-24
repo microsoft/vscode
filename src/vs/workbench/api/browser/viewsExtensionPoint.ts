@@ -30,6 +30,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -255,7 +256,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 
 	private registerTestViewContainer(): void {
 		const title = localize('test', "Test");
-		const icon = URI.parse(require.toUrl('./media/test.svg'));
+		const icon = Codicon.beaker.classNames;
 
 		this.registerCustomViewContainer(TEST_VIEW_CONTAINER_ID, title, icon, TEST_VIEW_CONTAINER_ORDER, undefined, ViewContainerLocation.Sidebar);
 	}
@@ -310,7 +311,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		return order;
 	}
 
-	private registerCustomViewContainer(id: string, title: string, icon: URI, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation): ViewContainer {
+	private registerCustomViewContainer(id: string, title: string, icon: URI | string, order: number, extensionId: ExtensionIdentifier | undefined, location: ViewContainerLocation): ViewContainer {
 		let viewContainer = this.viewContainersRegistry.get(id);
 
 		if (!viewContainer) {
