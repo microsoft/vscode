@@ -207,7 +207,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		const capabilities = this.getCustomEditorCapabilities(viewType) || {};
-		if (!capabilities.supportsMultipleEditorsPerResource) {
+		if (!capabilities.supportsMultipleEditorsPerDocument) {
 			const movedEditor = await this.tryRevealExistingEditorForResourceInGroup(resource, viewType, options, group);
 			if (movedEditor) {
 				return movedEditor;

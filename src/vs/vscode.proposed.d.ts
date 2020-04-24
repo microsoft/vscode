@@ -1491,7 +1491,7 @@ declare module 'vscode' {
 				 * When set, users can split and create copies of the custom editor. The custom editor must make sure it
 				 * can properly synchronize the states of all editor instances for a resource so that they are consistent.
 				 */
-				readonly supportsMultipleEditorsPerResource?: boolean;
+				readonly supportsMultipleEditorsPerDocument?: boolean;
 			}
 		): Disposable;
 	}
