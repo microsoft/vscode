@@ -409,7 +409,7 @@ interface ISessionTemplateData {
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
 	actionBar: ActionBar;
-	elementDisposable?: IDisposable;
+	elementDisposable: IDisposable[];
 }
 
 interface IErrorTemplateData {
@@ -452,7 +452,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(session);
 
-		return { session, name, state, stateLabel, label, actionBar };
+		return { session, name, state, stateLabel, label, actionBar, elementDisposable: [] };
 	}
 
 	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, _: number, data: ISessionTemplateData): void {
@@ -461,15 +461,19 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		data.label.set(session.getLabel(), createMatches(element.filterData));
 		const thread = session.getAllThreads().filter(t => t.stopped).pop();
 
-		data.actionBar.clear();
-		const actions = getActions(this.instantiationService, element.element);
+		const setActionBar = () => {
+			data.actionBar.clear();
+			const actions = getActions(this.instantiationService, element.element);
 
-		const primary: IAction[] = actions;
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		data.elementDisposable = createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => g === 'inline');
+			const primary: IAction[] = actions;
+			const secondary: IAction[] = [];
+			const result = { primary, secondary };
+			data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => g === 'inline'));
 
-		data.actionBar.push(actions, { icon: true, label: false });
+			data.actionBar.push(actions, { icon: true, label: false });
+		};
+		setActionBar();
+		data.elementDisposable.push(this.menu.onDidChange(() => setActionBar()));
 		data.stateLabel.hidden = false;
 
 		if (thread && thread.stoppedDetails) {
@@ -489,9 +493,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 	}
 
 	disposeElement(_element: ITreeNode<IDebugSession, FuzzyScore>, _: number, templateData: ISessionTemplateData): void {
-		if (templateData.elementDisposable) {
-			templateData.elementDisposable.dispose();
-		}
+		dispose(templateData.elementDisposable);
 	}
 }
 
