@@ -3,7 +3,7 @@
 	"version": "0.0.0",
 	"dependencies": {
 		"semver-umd": "^5.5.6",
-		"vscode-oniguruma-wasm": "1.1.0",
+		"vscode-oniguruma": "1.1.1",
 		"vscode-textmate": "5.0.2",
 		"xterm": "4.6.0-beta.15",
 		"xterm-addon-search": "0.6.0",

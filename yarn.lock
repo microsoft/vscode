@@ -9248,15 +9248,15 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
+typescript@3.9.0-dev.20200423:
+  version "3.9.0-dev.20200423"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200423.tgz#3569bd92d57ccf0b389a08a5beed1e35c193ab16"
+  integrity sha512-BZuOaEN9L3glTWfvzDhRm5ElSGhK4+OEC9Fr9aZTcWbNfCAYkvEqq6q6B65riIzputiBqeynheuX4HAjFMqw8w==
+
 typescript@^2.6.2:
   version "2.6.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
-
-typescript@^3.9.0-dev.20200420:
-  version "3.9.0-dev.20200420"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200420.tgz#99c2bc0936dbf4479b0b5260d80475ed494b1532"
-  integrity sha512-36MW6V+oXNnsSgliSjUWvtOkO21g9+iFGHPFv+O06HsCl3dcuqzBac17m8xuOuWo1LUlEgS6yAnD9fiVgvmCfg==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
@@ -9694,10 +9694,10 @@ vscode-nsfw@1.2.8:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
-vscode-oniguruma-wasm@1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-oniguruma-wasm/-/vscode-oniguruma-wasm-1.1.0.tgz#9959396aa20ffe570f1b3a4d51d37ce94b73943d"
-  integrity sha512-VbJJ8lx0YFnPI7Zu+EKNYuw02NFTobKKqxZjfxnQz9AGKN3wl8D+bB748zC9DRoEX4vgWd5NYdMvdfA9zT2tCw==
+vscode-oniguruma@1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.1.1.tgz#81460d148e70668b7c1abfd78ab7fcb2e2c6b316"
+  integrity sha512-4bygPUQjD5o9nLxp8f0s2TbqLte+Kz3C/IZxheIwunos69jI6OOxAhXW06RgqFbnXAw9ggUydx5qIZ7LD6iNuw==
 
 vscode-proxy-agent@^0.5.2:
   version "0.5.2"

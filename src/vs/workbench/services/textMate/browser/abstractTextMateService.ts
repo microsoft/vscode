@@ -344,16 +344,16 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	protected _onDidDisposeGrammarFactory(): void {
 	}
 
-	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma-wasm')> | null = null;
-	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma-wasm')> {
+	private _vscodeOniguruma: Promise<typeof import('vscode-oniguruma')> | null = null;
+	private _getVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
 		if (!this._vscodeOniguruma) {
 			this._vscodeOniguruma = this._doGetVSCodeOniguruma();
 		}
 		return this._vscodeOniguruma;
 	}
 
-	private async _doGetVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma-wasm')> {
-		const [vscodeOniguruma, wasm] = await Promise.all([import('vscode-oniguruma-wasm'), this._loadVSCodeOnigurumWASM()]);
+	private async _doGetVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
+		const [vscodeOniguruma, wasm] = await Promise.all([import('vscode-oniguruma'), this._loadVSCodeOnigurumWASM()]);
 		await vscodeOniguruma.loadWASM(wasm);
 		return vscodeOniguruma;
 	}

@@ -29,7 +29,7 @@ export class TextMateService extends AbstractTextMateService {
 	}
 
 	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
-		const wasmPath = require.toUrl('vscode-oniguruma-wasm/../onig.wasm');
+		const wasmPath = require.toUrl('vscode-oniguruma/../onig.wasm');
 		const response = await fetch(wasmPath);
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.

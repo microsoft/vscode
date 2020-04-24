@@ -182,8 +182,8 @@ export class TextMateService extends AbstractTextMateService {
 	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
 		const wasmPath = (
 			this._environmentService.isBuilt
-				? require.toUrl('../../../../../../node_modules.asar.unpacked/vscode-oniguruma-wasm/release/onig.wasm')
-				: require.toUrl('../../../../../../node_modules/vscode-oniguruma-wasm/release/onig.wasm')
+				? require.toUrl('../../../../../../node_modules.asar.unpacked/vscode-oniguruma/release/onig.wasm')
+				: require.toUrl('../../../../../../node_modules/vscode-oniguruma/release/onig.wasm')
 		);
 		const response = await fetch(wasmPath);
 		return response;

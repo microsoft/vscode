@@ -367,10 +367,10 @@ vscode-nsfw@1.2.8:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
-vscode-oniguruma-wasm@1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/vscode-oniguruma-wasm/-/vscode-oniguruma-wasm-1.1.0.tgz#9959396aa20ffe570f1b3a4d51d37ce94b73943d"
-  integrity sha512-VbJJ8lx0YFnPI7Zu+EKNYuw02NFTobKKqxZjfxnQz9AGKN3wl8D+bB748zC9DRoEX4vgWd5NYdMvdfA9zT2tCw==
+vscode-oniguruma@1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.1.1.tgz#81460d148e70668b7c1abfd78ab7fcb2e2c6b316"
+  integrity sha512-4bygPUQjD5o9nLxp8f0s2TbqLte+Kz3C/IZxheIwunos69jI6OOxAhXW06RgqFbnXAw9ggUydx5qIZ7LD6iNuw==
 
 vscode-proxy-agent@^0.5.2:
   version "0.5.2"

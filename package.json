@@ -55,7 +55,7 @@
     "sudo-prompt": "9.1.1",
     "v8-inspect-profiler": "^0.0.20",
     "vscode-nsfw": "1.2.8",
-    "vscode-oniguruma-wasm": "1.1.0",
+    "vscode-oniguruma": "1.1.1",
     "vscode-proxy-agent": "^0.5.2",
     "vscode-ripgrep": "^1.5.8",
     "vscode-sqlite3": "4.0.10",
