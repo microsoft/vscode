@@ -251,6 +251,12 @@ export class ExplorerItem {
 					local.addChild(diskChild);
 				}
 			});
+
+			oldLocalChildren.forEach(oldChild => {
+				if (oldChild instanceof NewExplorerItem) {
+					local.addChild(oldChild);
+				}
+			});
 		}
 	}
 

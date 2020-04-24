@@ -934,9 +934,6 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	}
 
 	const newStat = new NewExplorerItem(fileService, folder, isFolder);
-	const sortOrder = explorerService.sortOrder;
-	await folder.fetchChildren(sortOrder);
-
 	folder.addChild(newStat);
 
 	const onSuccess = async (value: string): Promise<void> => {

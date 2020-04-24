@@ -312,15 +312,19 @@ export class ExplorerView extends ViewPane {
 	}
 
 	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
+		let shouldRefresh = true;
 		if (isEditing) {
 			if (stat.parent && stat.parent !== this.tree.getInput()) {
+				shouldRefresh = stat.parent.isDirectoryResolved;
 				await this.tree.expand(stat.parent);
 			}
 		} else {
 			DOM.removeClass(this.treeContainer, 'highlight');
 		}
 
-		await this.refresh(false, stat.parent);
+		if (shouldRefresh) {
+			await this.refresh(false, stat.parent);
+		}
 
 		if (isEditing) {
 			DOM.addClass(this.treeContainer, 'highlight');
