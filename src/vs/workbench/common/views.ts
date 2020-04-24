@@ -634,7 +634,7 @@ export interface IEditableData {
 	validationMessage: (value: string) => { content: string, severity: Severity } | null;
 	placeholder?: string | null;
 	startingValue?: string | null;
-	onFinish: (value: string, success: boolean) => void;
+	onFinish: (value: string, success: boolean) => Promise<void>;
 }
 
 export interface IViewPaneContainer {
