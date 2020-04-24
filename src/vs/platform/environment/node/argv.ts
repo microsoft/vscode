@@ -36,6 +36,7 @@ export interface ParsedArgs {
 	log?: string;
 	logExtensionHostCommunication?: boolean;
 	'extensions-dir'?: string;
+	'extensions-download-dir'?: string;
 	'builtin-extensions-dir'?: string;
 	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
 	extensionTestsPath?: string; // either a local path or a URI
@@ -134,6 +135,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 
 	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
+	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
