@@ -703,7 +703,7 @@ class StatusbarEntryItem extends Disposable {
 			if (entry.tooltip) {
 				this.container.title = entry.tooltip;
 			} else {
-				delete this.container.title;
+				this.container.title = '';
 			}
 		}
 
