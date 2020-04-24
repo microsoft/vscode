@@ -116,11 +116,8 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
 
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
-		const resourceMarkers = this.markersWorkbenchService.markersModel.resourceMarkers;
-		for (const resourceMarker of resourceMarkers) {
-			for (const marker of resourceMarker.markers) {
-				this.markersViewModel.add(marker);
-			}
+		for (const resourceMarker of this.markersWorkbenchService.markersModel.resourceMarkers) {
+			resourceMarker.markers.forEach(marker => this.markersViewModel.add(marker));
 		}
 		this._register(this.markersViewModel.onDidChange(marker => this.onDidChangeViewState(marker)));
 
