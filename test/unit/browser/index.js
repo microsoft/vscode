@@ -121,8 +121,8 @@ async function runTestsInBrowser(testModules, browserType) {
 	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
 	const browser = await playwright[browserType].launch({
 		headless: !Boolean(argv.debug), logger: {
-			isEnabled: (name, severity) => name === 'browser',
-			log: (name, severity, message, args) => console.log(`${name} ${message}`)
+			isEnabled: () => true,
+			log: (name, severity, message, args) => console.log(name, message)
 		}, args
 	});
 	const context = await browser.newContext();

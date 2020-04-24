@@ -143,8 +143,8 @@ export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromi
 	return new Promise(async (c) => {
 		const browser = await playwright[browserType].launch({
 			headless: false, logger: {
-				isEnabled: (name, severity) => name === 'browser',
-				log: (name, severity, message, args) => console.log(`${name} ${message}`)
+				isEnabled: () => true,
+				log: (name, severity, message, args) => console.log(name, message)
 			}
 		});
 		const context = await browser.newContext();
