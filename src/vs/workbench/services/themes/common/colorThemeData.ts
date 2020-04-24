@@ -801,7 +801,7 @@ function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenSt
 }
 
 function isTokenColorizationSetting(style: any): style is ITokenColorizationSetting {
-	return style && (style.foreground || style.fontStyle);
+	return style && (types.isString(style.foreground) || types.isString(style.fontStyle));
 }
 
 
