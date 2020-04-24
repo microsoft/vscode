@@ -64,6 +64,14 @@
 		"focusBorder": "#75715E",
 		"editorWidget.background": "#1e1f1c",
 		"debugToolBar.background": "#1e1f1c",
+		"debugView.valueChangedHighlight": "#66D9EF",
+		"debugView.exceptionLabelBackground": "#90274A",
+		"debugTokenExpression.name": "#66D9EF",
+		"debugTokenExpression.value": "#F8F8F2",
+		"debugTokenExpression.number": "#AE81FF",
+		"debugTokenExpression.string": "#E6DB74",
+		"debugTokenExpression.boolean": "#AE81FF",
+		"debugTokenExpression.error": "#f44747",
 		"diffEditor.insertedTextBackground": "#4b661680", // middle of #272822 and #a6e22e
 		"diffEditor.removedTextBackground": "#90274A70", // middle of #272822 and #f92672
 		"inputValidation.errorBackground": "#90274A", // middle of #272822 and #f92672
