@@ -513,10 +513,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list!.layout();
 
 		// restore list state at last, it must be after list layout
-		this.restoreTextEditorViewState(viewState);
+		this.restoreListViewState(viewState);
 	}
 
-	private restoreTextEditorViewState(viewState: INotebookEditorViewState | undefined): void {
+	private restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
 		if (viewState?.scrollPosition !== undefined) {
 			this.list!.scrollTop = viewState!.scrollPosition.top;
 			this.list!.scrollLeft = viewState!.scrollPosition.left;
@@ -526,8 +526,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		const focusIdx = typeof viewState?.focus === 'number' ? viewState.focus : 0;
-		this.list!.setFocus([focusIdx]);
-		this.list!.setSelection([focusIdx]);
+		if (focusIdx < this.list!.length) {
+			this.list!.setFocus([focusIdx]);
+			this.list!.setSelection([focusIdx]);
+		} else if (this.list!.length > 0) {
+			this.list!.setFocus([0]);
+		}
 
 		if (viewState?.editorFocused) {
 			this.list?.focusView();

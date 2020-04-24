@@ -46,7 +46,7 @@ suite('notebook workflow', () => {
 	});
 
 	test('notebook cell actions', async function () {
-		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './second.vsctestnb'));
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		await waitFor(500);
