@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
-import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
+import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
 import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
@@ -52,7 +52,7 @@ export class TaskQuickPick extends Disposable {
 		}
 		if (ConfiguringTask.is(task)) {
 			let label: string = task.configures.type;
-			const configures = Objects.deepClone(task.configures);
+			const configures: Partial<KeyedTaskIdentifier> = Objects.deepClone(task.configures);
 			delete configures['_key'];
 			delete configures['type'];
 			Object.keys(configures).forEach(key => label += `: ${configures[key]}`);
