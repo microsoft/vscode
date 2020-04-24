@@ -9248,15 +9248,15 @@ typescript-formatter@7.1.0:
     commandpost "^1.0.0"
     editorconfig "^0.15.0"
 
-typescript@3.9.0-dev.20200423:
-  version "3.9.0-dev.20200423"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200423.tgz#3569bd92d57ccf0b389a08a5beed1e35c193ab16"
-  integrity sha512-BZuOaEN9L3glTWfvzDhRm5ElSGhK4+OEC9Fr9aZTcWbNfCAYkvEqq6q6B65riIzputiBqeynheuX4HAjFMqw8w==
-
 typescript@^2.6.2:
   version "2.6.2"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
+
+typescript@^3.9.0-dev.20200420:
+  version "3.9.0-dev.20200424"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200424.tgz#7f1be64ee9b9d75a5bf9ec55d900787b83c99023"
+  integrity sha512-dlfK6Mtv78aQhWs8Umtq+twEP051mnXStu+TwOYlvkqMF/hdG626I5PMonLx11gLL2NmOftLTjM/ebAiAZqx7g==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
