@@ -24,6 +24,23 @@
 	padding: 4px 8px;
 }
 
+.monaco-editor-hover .hover-contents-ff-monospace {
+	font-family: var(--monaco-monospace-font);
+}
+
+.monaco-editor-hover .hover-contents-ws-nowrap p {
+	white-space: nowrap;
+}
+.monaco-editor-hover .hover-contents-ws-pre p {
+	white-space: pre;
+}
+.monaco-editor-hover .hover-contents-ws-pre-wrap p {
+	white-space: pre-wrap;
+}
+.monaco-editor-hover .hover-contents-ws-pre-line p {
+	white-space: pre-line;
+}
+
 .monaco-editor-hover .markdown-hover > .hover-contents:not(.code-hover-contents) {
 	max-width: 500px;
 	word-wrap: break-word;

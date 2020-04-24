@@ -367,6 +367,16 @@ export interface IEditorOptions {
 	 */
 	gotoLocation?: IGotoLocationOptions;
 	/**
+	 * Enable monospace font in quick info boxes.
+	 * Defaults to false.
+	 */
+	quickInfoMonospace?: boolean;
+	/**
+	 * Control whitespace treatment in quick info boxes. Values correspond to CSS white-space values.
+	 * Defaults to 'normal'.
+	 */
+	quickInfoWhitespace?: 'normal' | 'nowrap' | 'pre' | 'pre-wrap' | 'pre-line';
+	/**
 	 * Enable quick suggestions (shadow suggestions)
 	 * Defaults to true.
 	 */
@@ -3404,6 +3414,8 @@ export const enum EditorOption {
 	parameterHints,
 	peekWidgetDefaultFocus,
 	definitionLinkOpensInPeek,
+	quickInfoWhitespace,
+	quickInfoMonospace,
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
@@ -3815,6 +3827,24 @@ export const EditorOptions = {
 	definitionLinkOpensInPeek: register(new EditorBooleanOption(
 		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
 		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the Go to Definition mouse gesture always opens the peek widget.") }
+	)),
+	quickInfoMonospace: register(new EditorBooleanOption(
+		EditorOption.quickInfoMonospace, 'quickInfoMonospace', false, { description: nls.localize('quickInfoMonospace', "Controls whether quick info boxes use a monospace font.") }
+	)),
+	quickInfoWhitespace: register(new EditorStringEnumOption(
+		EditorOption.quickInfoWhitespace, 'quickInfoWhitespace',
+		'normal' as 'normal' | 'nowrap' | 'pre' | 'pre-wrap' | 'pre-line',
+		['normal', 'nowrap', 'pre', 'pre-wrap', 'pre-line'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('quickInfoWhitespace.normal', "Sequences of white space are collapsed. Newline characters in the source are handled the same as other white space. Lines are broken as necessary to fill line boxes."),
+				nls.localize('quickInfoWhitespace.nowrap', "Collapses white space as for 'normal', but suppresses line breaks (text wrapping) within the source."),
+				nls.localize('quickInfoWhitespace.pre', "Sequences of white space are preserved. Lines are only broken at newline characters in the source."),
+				nls.localize('quickInfoWhitespace.pre-wrap', "Sequences of white space are preserved. Lines are broken at newline characters and as necessary to fill line boxes."),
+				nls.localize('quickInfoWhitespace.pre-line', "Sequences of white space are collapsed. Lines are broken at newline characters and as necessary to fill line boxes.")
+			],
+			markdownDescription: nls.localize('quickInfoWhitespace', "Controls the treatment of whitespace characters in quick info boxes. The values correspond to the `white-space` CSS property.")
+		}
 	)),
 	quickSuggestions: register(new EditorQuickSuggestions()),
 	quickSuggestionsDelay: register(new EditorIntOption(

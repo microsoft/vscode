@@ -60,6 +60,11 @@ export const tocData: ITOCEntry = {
 					settings: ['editor.minimap.*']
 				},
 				{
+					id: 'editor/quickInfo',
+					label: localize('quickInfo', "Quick Info"),
+					settings: ['editor.quickInfo*']
+				},
+				{
 					id: 'editor/suggestions',
 					label: localize('suggestions', "Suggestions"),
 					settings: ['editor.*suggest*']
