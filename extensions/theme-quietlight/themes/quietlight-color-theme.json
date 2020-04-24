@@ -441,6 +441,14 @@
       	}
 	],
 	"colors": {
+		"debugView.valueChangedHighlight": "#7A3E9D",
+		"debugView.exceptionLabelBackground": "#f1897f",
+		"debugTokenExpression.name": "#7A3E9D",
+		"debugTokenExpression.value": "#777777",
+		"debugTokenExpression.number": "#9C5D27",
+		"debugTokenExpression.string": "#448C27",
+		"debugTokenExpression.boolean": "#9C5D27",
+		"debugTokenExpression.error": "#f1897f",
 		"focusBorder": "#A6B39B",
 		"pickerGroup.foreground": "#A6B39B",
 		"pickerGroup.border": "#749351",
