@@ -21,6 +21,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { ItemActivation, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AllEditorsByMostRecentlyUsedQuickAccess, ActiveGroupEditorsByMostRecentlyUsedQuickAccess, AllEditorsByAppearanceQuickAccess } from 'vs/workbench/browser/parts/editor/editorQuickAccess';
 import { Codicon } from 'vs/base/common/codicons';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class ExecuteCommandAction extends Action {
 
@@ -522,7 +523,8 @@ export abstract class BaseCloseAllAction extends Action {
 		private workingCopyService: IWorkingCopyService,
 		private fileDialogService: IFileDialogService,
 		protected editorGroupService: IEditorGroupsService,
-		private editorService: IEditorService
+		private editorService: IEditorService,
+		private filesConfigurationService: IFilesConfigurationService
 	) {
 		super(id, label, clazz);
 	}
@@ -562,31 +564,51 @@ export abstract class BaseCloseAllAction extends Action {
 		}));
 
 		const dirtyEditorsToConfirm = new Set<string>();
+		const dirtyEditorsToAutoSave = new Set<IEditorInput>();
 
 		for (const editor of this.editorService.editors) {
 			if (!editor.isDirty() || editor.isSaving()) {
 				continue; // only interested in dirty editors (unless in the process of saving)
 			}
 
-			let name: string;
-			if (editor instanceof SideBySideEditorInput) {
-				name = editor.master.getName(); // prefer shorter names by using master's name in this case
-			} else {
-				name = editor.getName();
+			// Auto-save on focus change: assume to Save unless the editor is untitled
+			// because bringing up a dialog would save in this case anyway.
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled()) {
+				dirtyEditorsToAutoSave.add(editor);
 			}
 
-			dirtyEditorsToConfirm.add(name);
+			// No auto-save on focus change: ask user
+			else {
+				let name: string;
+				if (editor instanceof SideBySideEditorInput) {
+					name = editor.master.getName(); // prefer shorter names by using master's name in this case
+				} else {
+					name = editor.getName();
+				}
+
+				dirtyEditorsToConfirm.add(name);
+			}
 		}
 
-		const confirm = await this.fileDialogService.showSaveConfirm(Array.from(dirtyEditorsToConfirm.values()));
-		if (confirm === ConfirmResult.CANCEL) {
+		let confirmation: ConfirmResult;
+		let saveReason = SaveReason.EXPLICIT;
+		if (dirtyEditorsToConfirm.size > 0) {
+			confirmation = await this.fileDialogService.showSaveConfirm(Array.from(dirtyEditorsToConfirm.values()));
+		} else if (dirtyEditorsToAutoSave.size > 0) {
+			confirmation = ConfirmResult.SAVE;
+			saveReason = SaveReason.FOCUS_CHANGE;
+		} else {
+			confirmation = ConfirmResult.DONT_SAVE;
+		}
+
+		if (confirmation === ConfirmResult.CANCEL) {
 			return;
 		}
 
-		if (confirm === ConfirmResult.DONT_SAVE) {
+		if (confirmation === ConfirmResult.DONT_SAVE) {
 			await this.editorService.revertAll({ soft: true, includeUntitled: true });
 		} else {
-			await this.editorService.saveAll({ reason: SaveReason.EXPLICIT, includeUntitled: true });
+			await this.editorService.saveAll({ reason: saveReason, includeUntitled: true });
 		}
 
 		if (!this.workingCopyService.hasDirty) {
@@ -608,9 +630,10 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, Codicon.closeAll.classNames, workingCopyService, fileDialogService, editorGroupService, editorService);
+		super(id, label, Codicon.closeAll.classNames, workingCopyService, fileDialogService, editorGroupService, editorService, filesConfigurationService);
 	}
 
 	protected async doCloseAll(): Promise<void> {
@@ -629,9 +652,10 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(id, label, undefined, workingCopyService, fileDialogService, editorGroupService, editorService);
+		super(id, label, undefined, workingCopyService, fileDialogService, editorGroupService, editorService, filesConfigurationService);
 	}
 
 	protected async doCloseAll(): Promise<void> {
