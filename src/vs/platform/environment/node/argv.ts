@@ -249,23 +249,25 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const parsedArgs = minimist(args, { string, boolean, alias });
 
 	const cleanedArgs: any = {};
+	const remainingArgs: any = parsedArgs;
 
 	// https://github.com/microsoft/vscode/issues/58177
 	cleanedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
-	delete parsedArgs._;
+
+	delete remainingArgs._;
 
 	for (let optionId in options) {
 		const o = options[optionId];
 		if (o.alias) {
-			delete parsedArgs[o.alias];
+			delete remainingArgs[o.alias];
 		}
 
-		let val = parsedArgs[optionId];
-		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates)) {
+		let val = remainingArgs[optionId];
+		if (o.deprecates && remainingArgs.hasOwnProperty(o.deprecates)) {
 			if (!val) {
-				val = parsedArgs[o.deprecates];
+				val = remainingArgs[o.deprecates];
 			}
-			delete parsedArgs[o.deprecates];
+			delete remainingArgs[o.deprecates];
 		}
 
 		if (typeof val !== 'undefined') {
@@ -281,10 +283,10 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			}
 			cleanedArgs[optionId] = val;
 		}
-		delete parsedArgs[optionId];
+		delete remainingArgs[optionId];
 	}
 
-	for (let key in parsedArgs) {
+	for (let key in remainingArgs) {
 		errorReporter.onUnknownOption(key);
 	}
 
