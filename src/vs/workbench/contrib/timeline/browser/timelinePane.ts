@@ -660,7 +660,7 @@ export class TimelinePane extends ViewPane {
 		let count = 0;
 
 		if (this.timelinesBySource.size === 1) {
-			const [source, timeline] = Iterable.first(this.timelinesBySource);
+			const [source, timeline] = Iterable.first(this.timelinesBySource)!;
 
 			timeline.lastRenderedIndex = -1;
 
