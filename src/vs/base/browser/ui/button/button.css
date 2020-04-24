@@ -26,4 +26,5 @@
 
 .monaco-button > .codicon {
 	margin: 0 0.2em;
+	color: inherit;
 }
