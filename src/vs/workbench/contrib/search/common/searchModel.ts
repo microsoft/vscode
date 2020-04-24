@@ -1100,7 +1100,7 @@ export class SearchModel extends Disposable {
 		this._resultQueue = [];
 
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
-		delete options.pattern;
+		delete (options as any).pattern;
 
 		const stats = completed && completed.stats as ITextSearchStats;
 
