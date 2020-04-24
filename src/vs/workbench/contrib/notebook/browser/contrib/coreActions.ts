@@ -18,31 +18,45 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 
-const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.code.insertCellAbove';
-const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'workbench.notebook.code.insertCellBelow';
-const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.markdown.insertCellAbove';
-const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'workbench.notebook.markdown.insertCellBelow';
+// Notebook Commands
+const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
+const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
+const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
+const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
+const NOTEBOOK_REDO = 'notebook.redo';
+const NOTEBOOK_UNDO = 'notebook.undo';
+const NOTEBOOK_CURSOR_UP = 'notebook.cursorUp';
+const NOTEBOOK_CURSOR_DOWN = 'notebook.cursorDown';
+const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 
-const EDIT_CELL_COMMAND_ID = 'workbench.notebook.cell.edit';
-const SAVE_CELL_COMMAND_ID = 'workbench.notebook.cell.save';
-const DELETE_CELL_COMMAND_ID = 'workbench.notebook.cell.delete';
+// Cell Commands
+const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
+const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
+const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellAbove';
+const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
+const CHANGE_CELL_TO_CODE_COMMAND_ID = 'notebook.cell.changeToCode';
+const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
 
-const MOVE_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.moveUp';
-const MOVE_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.moveDown';
-const COPY_CELL_COMMAND_ID = 'workbench.notebook.cell.copy';
-const CUT_CELL_COMMAND_ID = 'workbench.notebook.cell.cut';
-const PASTE_CELL_COMMAND_ID = 'workbench.notebook.cell.paste';
-const PASTE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.cell.pasteAbove';
-const COPY_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.copyUp';
-const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
+const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
+const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
+const SAVE_CELL_COMMAND_ID = 'notebook.cell.save';
+const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 
-const EXECUTE_CELL_COMMAND_ID = 'workbench.notebook.cell.execute';
-const CANCEL_CELL_COMMAND_ID = 'workbench.notebook.cell.cancelExecution';
-const EXECUTE_NOTEBOOK_COMMAND_ID = 'workbench.notebook.executeNotebook';
-const CANCEL_NOTEBOOK_COMMAND_ID = 'workbench.notebook.cancelExecution';
+const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
+const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
+const COPY_CELL_COMMAND_ID = 'notebook.cell.copy';
+const CUT_CELL_COMMAND_ID = 'notebook.cell.cut';
+const PASTE_CELL_COMMAND_ID = 'notebook.cell.paste';
+const PASTE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.pasteAbove';
+const COPY_CELL_UP_COMMAND_ID = 'notebook.cell.copyUp';
+const COPY_CELL_DOWN_COMMAND_ID = 'notebook.cell.copyDown';
 
-const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'workbench.action.notebook.clearCellOutputs';
-const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'workbench.action.notebook.clearAllCellsOutputs';
+const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
+const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
+const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
+const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
+const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+
 
 const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
@@ -152,7 +166,7 @@ export class CancelCellAction extends MenuItemAction {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.executeNotebookCellSelectBelow',
+			id: EXECUTE_CELL_SELECT_BELOW,
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
@@ -195,7 +209,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.executeNotebookCellInsertBelow',
+			id: EXECUTE_CELL_INSERT_BELOW,
 			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
@@ -269,7 +283,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.quitNotebookEdit',
+			id: QUIT_EDIT_CELL_COMMAND_ID,
 			title: localize('notebookActions.quitEditing', "Quit Notebook Cell Editing"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
@@ -335,7 +349,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.changeCellToCode',
+			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
 			title: localize('notebookActions.changeCellToCode', "Change Cell to Code"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -355,7 +369,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.changeCellToMarkdown',
+			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
 			title: localize('notebookActions.changeCellToMarkdown', "Change Cell to Markdown"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -968,7 +982,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.cursorDown',
+			id: NOTEBOOK_CURSOR_DOWN,
 			title: 'Notebook Cursor Move Down',
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
@@ -1007,7 +1021,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.cursorUp',
+			id: NOTEBOOK_CURSOR_UP,
 			title: 'Notebook Cursor Move Up',
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
@@ -1051,7 +1065,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.undo',
+			id: NOTEBOOK_UNDO,
 			title: 'Notebook Undo',
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -1082,7 +1096,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.redo',
+			id: NOTEBOOK_REDO,
 			title: 'Notebook Redo',
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -1113,7 +1127,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.focusTop',
+			id: NOTEBOOK_FOCUS_TOP,
 			title: 'Notebook Focus First Cell',
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -1146,7 +1160,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.focusBottom',
+			id: NOTEBOOK_FOCUS_BOTTOM,
 			title: 'Notebook Focus Last Cell',
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),

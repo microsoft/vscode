@@ -132,7 +132,7 @@ registerNotebookContribution(FoldingController.id, FoldingController);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.fold',
+			id: 'notebook.fold',
 			title: 'Notebook Fold Cell',
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -169,7 +169,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.unfold',
+			id: 'notebook.unfold',
 			title: 'Notebook Unfold Cell',
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
