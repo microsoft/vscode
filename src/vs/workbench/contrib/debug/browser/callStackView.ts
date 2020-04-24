@@ -470,7 +470,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 			const result = { primary, secondary };
 			data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => g === 'inline'));
 
-			data.actionBar.push(actions, { icon: true, label: false });
+			data.actionBar.push(primary, { icon: true, label: false });
 		};
 		setActionBar();
 		data.elementDisposable.push(this.menu.onDidChange(() => setActionBar()));
