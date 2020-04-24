@@ -50,8 +50,8 @@ import { once } from 'vs/base/common/functional';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Codicon } from 'vs/base/common/codicons';
-import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
 import { IViewsService } from 'vs/workbench/common/views';
+import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -539,7 +539,44 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		return openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
+		await openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
+	}
+}
+
+export class ToggleEditorTypeCommand extends Action {
+
+	static readonly ID = 'workbench.files.action.toggleEditorType';
+	static readonly LABEL = nls.localize('workbench.files.action.toggleEditorType', "Toggle Editor Type");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const input = activeEditorPane.input;
+		if (!input.resource) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+
+		const overrides = getAllAvailableEditors(input, input.resource, options, group, this.editorService);
+		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
+		if (!firstNonActiveOverride) {
+			return;
+		}
+
+		await firstNonActiveOverride[0].open(input, options, group, firstNonActiveOverride[1].id)?.override;
 	}
 }
 
