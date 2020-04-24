@@ -120,10 +120,10 @@ export class BackLayerWebView extends Disposable {
 		super();
 		this.element = document.createElement('div');
 
-		this.element.style.width = `calc(100% - ${CELL_MARGIN * 2}px)`;
+		this.element.style.width = `calc(100% - ${(CELL_MARGIN + CELL_RUN_GUTTER) * 2}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
-		this.element.style.margin = `0px 0 0px ${CELL_MARGIN}px`;
+		this.element.style.margin = `0px 0 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px`;
 
 		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
 		const loader = URI.file(pathsPath).with({ scheme: WebviewResourceScheme });
@@ -500,7 +500,7 @@ ${loaderJs}
 			return {
 				id: id,
 				top: outputOffset,
-				left: CELL_RUN_GUTTER
+				left: 0
 			};
 		});
 
@@ -540,7 +540,7 @@ ${loaderJs}
 			id: cell.id,
 			outputId: outputId,
 			top: initialTop,
-			left: CELL_RUN_GUTTER
+			left: 0
 		};
 
 		this.webview.sendMessage(message);

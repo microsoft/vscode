@@ -71,7 +71,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	private computeEditorWidth(outerWidth: number) {
-		return outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER;
+		return outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER * 2;
 	}
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {

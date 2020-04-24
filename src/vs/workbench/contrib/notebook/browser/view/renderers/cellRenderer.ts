@@ -338,10 +338,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		container.classList.add('markdown-cell-row');
 		const disposables = new DisposableStore();
 		const toolbar = disposables.add(this.createToolbar(container));
-
-		const dragHandle = DOM.prepend(container, $('.cell-drag-handle'));
-		dragHandle.innerHTML = renderCodicons('$(gripper)');
-		dragHandle.setAttribute('draggable', 'true');
+		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		focusIndicator.setAttribute('draggable', 'true');
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const cellEditorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
@@ -350,14 +348,12 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const insertionIndicatorTop = DOM.append(container, DOM.$('.notebook-cell-insertion-indicator-top'));
-		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 		const foldingIndicator = DOM.append(container, DOM.$('.notebook-folding-indicator'));
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		const templateData: MarkdownCellRenderTemplate = {
 			insertionIndicatorTop,
-			dragHandle,
 			container,
 			cellContainer: innerContent,
 			editingContainer,
@@ -468,7 +464,7 @@ export class CellDragAndDropController {
 
 	addListeners(templateData: BaseCellRenderTemplate, dragImageProvider: DragImageProvider): void {
 		const container = templateData.container;
-		const dragHandle = templateData.dragHandle;
+		const dragHandle = templateData.focusIndicator;
 
 		const dragCleanup = () => {
 			if (this.currentDraggedCell) {
@@ -656,15 +652,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		container.tabIndex = 0;
 		const disposables = new DisposableStore();
 		const toolbar = disposables.add(this.createToolbar(container));
+		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
+		focusIndicator.setAttribute('draggable', 'true');
 
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
 		const runToolbar = this.createToolbar(runButtonContainer);
 		disposables.add(runToolbar);
-
-		const dragHandle = DOM.prepend(container, $('.cell-drag-handle'));
-		dragHandle.innerHTML = renderCodicons('$(gripper)');
-		dragHandle.setAttribute('draggable', 'true');
 
 		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
 
@@ -690,13 +684,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const cellStatusPlaceholderContainer = DOM.append(statusBarContainer, $('.cell-status-placeholder'));
 
 		const insertionIndicatorTop = DOM.append(container, DOM.$('.notebook-cell-insertion-indicator-top'));
-		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 		const outputContainer = DOM.append(container, $('.output'));
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		const templateData: CodeCellRenderTemplate = {
 			insertionIndicatorTop,
-			dragHandle,
 			container,
 			cellContainer,
 			statusBarContainer,

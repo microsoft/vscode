@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Cell sizing related
-export const CELL_MARGIN = 20;
-export const CELL_RUN_GUTTER = 32; // TODO should be dynamic based on execution order width, and runnable enablement
+export const CELL_MARGIN = 12;
+export const CELL_RUN_GUTTER = 32;
 
 export const EDITOR_TOOLBAR_HEIGHT = 0;
 export const BOTTOM_CELL_TOOLBAR_HEIGHT = 36;

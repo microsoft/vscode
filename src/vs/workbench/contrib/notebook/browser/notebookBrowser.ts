@@ -379,7 +379,6 @@ export interface INotebookCellList {
 export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
-	dragHandle: HTMLElement;
 	toolbar: ToolBar;
 	focusIndicator: HTMLElement;
 	insertionIndicatorTop: HTMLElement;
