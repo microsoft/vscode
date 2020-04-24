@@ -204,6 +204,15 @@ export interface RemoteSourceProvider {
 	getRemoteSources(query?: string): ProviderResult<RemoteSource[]>;
 }
 
+export interface Credentials {
+	readonly username: string;
+	readonly password: string;
+}
+
+export interface CredentialsProvider {
+	getCredentials(host: Uri): ProviderResult<Credentials>;
+}
+
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface API {
@@ -217,7 +226,9 @@ export interface API {
 	toGitUri(uri: Uri, ref: string): Uri;
 	getRepository(uri: Uri): Repository | null;
 	init(root: Uri): Promise<Repository | null>;
+
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable;
+	registerCredentialsProvider(provider: CredentialsProvider): Disposable;
 }
 
 export interface GitExtension {
