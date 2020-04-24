@@ -1199,7 +1199,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			panesToRemove.push(this.panes[index]);
 		}
 		this.removePanes(panesToRemove);
-		dispose(panesToRemove);
 	}
 
 	protected toggleViewVisibility(viewId: string): void {
@@ -1234,8 +1233,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			leftBorder: PANEL_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, pane);
-		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
-		const paneItem: IViewPaneItem = { pane: pane, disposable };
+		const disposable = combinedDisposable(pane, onDidFocus, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
+		const paneItem: IViewPaneItem = { pane, disposable };
 
 		this.paneItems.splice(index, 0, paneItem);
 		assertIsDefined(this.paneview).addPane(pane, size, index);

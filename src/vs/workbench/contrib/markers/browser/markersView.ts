@@ -865,6 +865,10 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		super.saveState();
 	}
 
+	dispose() {
+		super.dispose();
+	}
+
 }
 
 class MarkersTree extends WorkbenchObjectTree<TreeElement, FilterData> {
