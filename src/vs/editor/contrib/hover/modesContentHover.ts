@@ -469,11 +469,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							const markdownHoverElement = $('div.hover-row.markdown-hover');
 							const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
 
-							// only apply the quick info text style to parts not formatted as code (e.g. function signature parts are completely wrapped in a code block for syntax highlighting)
-							// KNOWN ISSUE: normal text parts starting and ending with a code block will not be formatted according to the options; workaround would be to use one of the other code block fences like ~~~
-							if (!contents.value.startsWith('```') || !contents.value.endsWith('```')) {
-								hoverContentsElement.className += quickInfoSettingsClasses;
-							}
+							hoverContentsElement.className += quickInfoSettingsClasses;
 
 							const renderer = markdownDisposeables.add(new MarkdownRenderer(this._editor, this._modeService, this._openerService));
 							markdownDisposeables.add(renderer.onDidRenderCodeBlock(() => {
