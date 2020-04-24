@@ -394,11 +394,23 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		if (height) {
 			const elementDisposables = templateData.elementDisposables;
 
+			// render toolbar first
+			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
+			this.setupCellToolbarActions(contextKeyService, templateData, elementDisposables);
+
+			const toolbarContext = <INotebookCellActionContext>{
+				cell: element,
+				notebookEditor: this.notebookEditor,
+				$mid: 12
+			};
+			templateData.toolbar.context = toolbarContext;
+
+			this.setupBetweenCellToolbarActions(element, templateData, elementDisposables, toolbarContext);
+
 			const markdownCell = new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions.value, this.instantiationService);
 			elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
 			elementDisposables.add(markdownCell);
 
-			const contextKeyService = this.contextKeyService.createScoped(templateData.container);
 			NOTEBOOK_CELL_TYPE.bindTo(contextKeyService).set('markdown');
 			NOTEBOOK_VIEW_TYPE.bindTo(contextKeyService).set(element.viewType);
 			const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
@@ -424,16 +436,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 				}
 			}));
 
-			this.setupCellToolbarActions(contextKeyService, templateData, elementDisposables);
-
-			const toolbarContext = <INotebookCellActionContext>{
-				cell: element,
-				notebookEditor: this.notebookEditor,
-				$mid: 12
-			};
-			templateData.toolbar.context = toolbarContext;
-
-			this.setupBetweenCellToolbarActions(element, templateData, elementDisposables, toolbarContext);
 			element.totalHeight = height;
 		}
 

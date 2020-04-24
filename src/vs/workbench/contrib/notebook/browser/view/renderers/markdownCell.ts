@@ -149,6 +149,10 @@ export class StatefullMarkdownCell extends Disposable {
 							this.markdownContainer.appendChild(renderedHTML);
 						}
 					}));
+
+					const clientHeight = templateData.container.clientHeight;
+					this.viewCell.totalHeight = clientHeight;
+					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 				}
 			}
 		};
