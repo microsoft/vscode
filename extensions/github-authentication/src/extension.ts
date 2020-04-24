@@ -8,6 +8,29 @@ import { GitHubAuthenticationProvider, onDidChangeSessions } from './github';
 import { uriHandler } from './githubServer';
 import Logger from './common/logger';
 import TelemetryReporter from 'vscode-extension-telemetry';
+import { GitExtension, CredentialsProvider, Credentials } from './typings/git';
+
+class GitHubCredentialProvider implements CredentialsProvider {
+
+	async getCredentials(host: vscode.Uri): Promise<Credentials | undefined> {
+		if (!/github\.com/i.test(host.authority)) {
+			return;
+		}
+
+		const session = await this.getSession();
+		return { username: session.account.id, password: await session.getAccessToken() };
+	}
+
+	private async getSession(): Promise<vscode.AuthenticationSession> {
+		const authenticationSessions = await vscode.authentication.getSessions('github', ['repo']);
+
+		if (authenticationSessions.length) {
+			return await authenticationSessions[0];
+		} else {
+			return await vscode.authentication.login('github', ['repo']);
+		}
+	}
+}
 
 export async function activate(context: vscode.ExtensionContext) {
 	const { name, version, aiKey } = require('../package.json') as { name: string, version: string, aiKey: string };
@@ -51,7 +74,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	});
 
-	return;
+	const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git')!.exports;
+	const gitAPI = gitExtension.getAPI(1);
+	context.subscriptions.push(gitAPI.registerCredentialsProvider(new GitHubCredentialProvider()));
 }
 
 // this method is called when your extension is deactivated
