@@ -33,7 +33,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { ExecuteCellAction, INotebookCellActionContext, CancelCellAction, InsertCodeCellAction, InsertMarkdownCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellEditState, CellRunState, CodeCellRenderTemplate, ICellViewModel, INotebookEditor, MarkdownCellRenderTemplate, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_RUNNABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellRunState, CodeCellRenderTemplate, ICellViewModel, INotebookEditor, MarkdownCellRenderTemplate, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
@@ -651,6 +651,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	renderTemplate(container: HTMLElement): CodeCellRenderTemplate {
 		container.classList.add('code-cell-row');
+		container.tabIndex = 0;
 		const disposables = new DisposableStore();
 		const toolbar = disposables.add(this.createToolbar(container));
 
@@ -807,6 +808,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			if (e.runStateChanged) {
 				this.updateForRunState(element, templateData, runStateKey);
 			}
+		}));
+
+		const cellHasOutputsContext = NOTEBOOK_CELL_HAS_OUTPUTS.bindTo(contextKeyService);
+		cellHasOutputsContext.set(element.outputs.length > 0);
+		elementDisposables.add(element.onDidChangeOutputs(() => {
+			cellHasOutputsContext.set(element.outputs.length > 0);
 		}));
 
 		NOTEBOOK_CELL_TYPE.bindTo(contextKeyService).set('code');
