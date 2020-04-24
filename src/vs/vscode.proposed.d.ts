@@ -984,6 +984,15 @@ declare module 'vscode' {
 	 */
 	export interface EnvironmentVariableCollection {
 		/**
+		 * Whether the collection should be cached for the workspace and applied to the terminal
+		 * across window reloads. When true the collection will be active immediately such when the
+		 * window reloads. Additionally, this API will return the cached version if it exists. The
+		 * collection will be invalidated when the extension is uninstalled or when the collection
+		 * is cleared. Defaults to true.
+		 */
+		persistent: boolean;
+
+		/**
 		 * Replace an environment variable with a value.
 		 *
 		 * Note that an extension can only make a single change to any one variable, so this will
@@ -1026,26 +1035,14 @@ declare module 'vscode' {
 		 * Clears all mutators from this collection.
 		 */
 		clear(): void;
-
-		/**
-		 * Disposes the collection, if the collection was persisted it will no longer be retained
-		 * across reloads.
-		 */
-		dispose(): void;
 	}
 
-	export namespace window {
+	export interface ExtensionContext {
 		/**
-		 * Creates or returns the extension's environment variable collection for this workspace,
-		 * enabling changes to be applied to terminal environment variables.
-		 *
-		 * @param persistent Whether the collection should be cached for the workspace and applied
-		 * to the terminal across window reloads. When true the collection will be active
-		 * immediately such when the window reloads. Additionally, this API will return the cached
-		 * version if it exists. The collection will be invalidated when the extension is
-		 * uninstalled or when the collection is disposed. Defaults to false.
+		 * Gets the extension's environment variable collection for this workspace, enabling changes
+		 * to be applied to terminal environment variables.
 		 */
-		export function getEnvironmentVariableCollection(persistent?: boolean): EnvironmentVariableCollection;
+		readonly environmentVariableCollection: EnvironmentVariableCollection;
 	}
 
 	//#endregion

@@ -242,6 +242,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		if (!collection) {
 			// If not persistent, clear out the current collection and create a new one
 			dispose(this._environmentVariableCollections.get(extension.identifier.value));
+
+			// TODO: Disable dispose
 			collection = new EnvironmentVariableCollection(persistent);
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
