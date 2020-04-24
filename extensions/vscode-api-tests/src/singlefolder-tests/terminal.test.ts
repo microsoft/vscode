@@ -9,8 +9,11 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 // TODO@Daniel flaky tests (https://github.com/microsoft/vscode/issues/92826)
 ((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - terminal', () => {
 	suiteSetup(async () => {
+		const config = workspace.getConfiguration('terminal.integrated');
 		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
-		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
+		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
+		// Disable exit alerts as tests may trigger then and we're not testing the notifications
+		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 	});
 	suite('Terminal', () => {
 		let disposables: Disposable[] = [];
@@ -562,7 +565,12 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(22),
+					open: () => {
+						// Wait 500ms as any exits that occur within 500ms of terminal launch are
+						// are counted as "exiting during launch" which triggers a notification even
+						// when showExitAlerts is true
+						setTimeout(() => closeEmitter.fire(22), 500);
+					},
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
