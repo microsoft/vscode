@@ -842,6 +842,20 @@
               "description": "%configuration.tsserver.watchOptions.synchronousWatchDirectory%"
             }
           }
+        },
+        "typescript.workspaceSymbols.scope": {
+          "type": "string",
+          "enum": [
+            "allOpenProjects",
+            "currentProject"
+          ],
+          "enumDescriptions": [
+            "%typescript.workspaceSymbols.scope.allOpenProjects%",
+            "%typescript.workspaceSymbols.scope.currentProject%"
+          ],
+          "default": "allOpenProjects",
+          "markdownDescription": "%typescript.workspaceSymbols.scope%",
+          "scope": "window"
         }
       }
     },
