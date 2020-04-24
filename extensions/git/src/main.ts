@@ -20,7 +20,6 @@ import { GitProtocolHandler } from './protocolHandler';
 import { GitExtensionImpl } from './api/extension';
 import * as path from 'path';
 import * as fs from 'fs';
-import { createIPCServer, IIPCServer } from './ipc/ipcServer';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
 
@@ -36,27 +35,11 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 
-	let env: any = {};
-	let ipc: IIPCServer | undefined;
+	const askpass = await Askpass.create(outputChannel);
+	disposables.push(askpass);
 
-	try {
-		ipc = await createIPCServer();
-		disposables.push(ipc);
-		env = { ...env, ...ipc.getEnv() };
-	} catch (err) {
-		outputChannel.appendLine(`[error] Failed to create git askpass IPC: ${err}`);
-	}
-
-	if (ipc) {
-		const askpass = new Askpass(ipc);
-		disposables.push(askpass);
-		env = { ...env, ...askpass.getEnv() };
-	} else {
-		env = { ...env, ...Askpass.getDisabledEnv() };
-	}
-
-	const git = new Git({ gitPath: info.path, version: info.version, env });
-	const model = new Model(git, context.globalState, outputChannel);
+	const git = new Git({ gitPath: info.path, version: info.version, env: askpass.getEnv() });
+	const model = new Model(git, askpass, context.globalState, outputChannel);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);
