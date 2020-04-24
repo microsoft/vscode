@@ -18,42 +18,44 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 
-const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.code.insertCellAbove';
-const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'workbench.notebook.code.insertCellBelow';
-const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.markdown.insertCellAbove';
-const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'workbench.notebook.markdown.insertCellBelow';
+// Notebook Commands
+const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
+const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
+const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
+const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
+const NOTEBOOK_REDO = 'notebook.redo';
+const NOTEBOOK_UNDO = 'notebook.undo';
+const NOTEBOOK_CURSOR_UP = 'notebook.cursorUp';
+const NOTEBOOK_CURSOR_DOWN = 'notebook.cursorDown';
+const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 
-const EDIT_CELL_COMMAND_ID = 'workbench.notebook.cell.edit';
-const QUI_EDIT_CELL_COMMAND_ID = 'workbench.action.quitNotebookEdit';
-const SAVE_CELL_COMMAND_ID = 'workbench.notebook.cell.save';
-const DELETE_CELL_COMMAND_ID = 'workbench.notebook.cell.delete';
+// Cell Commands
+const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
+const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
+const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellAbove';
+const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
+const CHANGE_CELL_TO_CODE_COMMAND_ID = 'notebook.cell.changeToCode';
+const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
 
-const CHANGE_CELL_TO_CODE_COMMAND_ID = 'workbench.action.changeCellToCode';
-const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'workbench.action.changeCellToMarkdown';
+const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
+const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
+const SAVE_CELL_COMMAND_ID = 'notebook.cell.save';
+const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 
-const NOTEBOOK_FOCUS_TOP = 'workbench.action.notebook.focusTop';
-const NOTEBOOK_FOCUS_BOTTOM = 'workbench.action.notebook.focusBottom';
-const NOTEBOOK_REDO = 'workbench.action.notebook.redo';
-const NOTEBOOK_UNDO = 'workbench.action.notebook.undo';
-const NOTEBOOK_CURSOR_UP = 'workbench.action.notebook.cursorUp';
-const NOTEBOOK_CURSOR_DOWN = 'workbench.action.notebook.cursorDown';
-const MOVE_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.moveUp';
-const MOVE_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.moveDown';
-const COPY_CELL_COMMAND_ID = 'workbench.notebook.cell.copy';
-const CUT_CELL_COMMAND_ID = 'workbench.notebook.cell.cut';
-const PASTE_CELL_COMMAND_ID = 'workbench.notebook.cell.paste';
-const PASTE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.cell.pasteAbove';
-const COPY_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.copyUp';
-const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
+const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
+const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
+const COPY_CELL_COMMAND_ID = 'notebook.cell.copy';
+const CUT_CELL_COMMAND_ID = 'notebook.cell.cut';
+const PASTE_CELL_COMMAND_ID = 'notebook.cell.paste';
+const PASTE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.pasteAbove';
+const COPY_CELL_UP_COMMAND_ID = 'notebook.cell.copyUp';
+const COPY_CELL_DOWN_COMMAND_ID = 'notebook.cell.copyDown';
 
-const EXECUTE_CELL_COMMAND_ID = 'workbench.notebook.cell.execute';
-const CANCEL_CELL_COMMAND_ID = 'workbench.notebook.cell.cancelExecution';
-const EXECUTE_NOTEBOOK_COMMAND_ID = 'workbench.notebook.executeNotebook';
-const CANCEL_NOTEBOOK_COMMAND_ID = 'workbench.notebook.cancelExecution';
-const EXECUTE_CELL_SELECT_BELOW = 'workbench.action.executeNotebookCellSelectBelow';
-const EXECUTE_CELL_INSERT_BELOW = 'workbench.action.executeNotebookCellInsertBelow';
-const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'workbench.action.notebook.clearCellOutputs';
-const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'workbench.action.notebook.clearAllCellsOutputs';
+const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
+const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
+const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
+const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
+const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 
 
 const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
@@ -281,7 +283,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: QUI_EDIT_CELL_COMMAND_ID,
+			id: QUIT_EDIT_CELL_COMMAND_ID,
 			title: localize('notebookActions.quitEditing', "Quit Notebook Cell Editing"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
