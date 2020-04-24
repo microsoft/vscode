@@ -43,8 +43,8 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 		ipc = await createIPCServer();
 		disposables.push(ipc);
 		env = { ...env, ...ipc.getEnv() };
-	} catch {
-		// noop
+	} catch (err) {
+		outputChannel.appendLine(`[error] Failed to create git askpass IPC: ${err}`);
 	}
 
 	if (ipc) {
