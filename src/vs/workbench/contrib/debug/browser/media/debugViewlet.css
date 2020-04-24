@@ -84,6 +84,11 @@
 	cursor: initial;
 }
 
+/* Make icons the same color as the list foreground on focus selection */
+.debug-pane .monaco-list:focus .monaco-list-row.selected.focused .codicon {
+	color: inherit !important;
+}
+
 /* Call stack */
 
 .debug-pane .debug-call-stack-title {
