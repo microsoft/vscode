@@ -31,10 +31,10 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, 'test');
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 
-		await vscode.commands.executeCommand('workbench.notebook.code.insertCellBelow');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
 
-		await vscode.commands.executeCommand('workbench.notebook.code.insertCellAbove');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.notEqual(vscode.notebook.activeNotebookEditor!.selection, undefined);
 		assert.equal(activeCell!.source, '');
@@ -55,11 +55,11 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 
 		// ---- insert cell below and focus ---- //
-		await vscode.commands.executeCommand('workbench.notebook.code.insertCellBelow');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
 
 		// ---- insert cell above and focus ---- //
-		await vscode.commands.executeCommand('workbench.notebook.code.insertCellAbove');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		let activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.notEqual(vscode.notebook.activeNotebookEditor!.selection, undefined);
 		assert.equal(activeCell!.source, '');
@@ -67,28 +67,28 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 
 		// ---- focus bottom ---- //
-		await vscode.commands.executeCommand('workbench.action.notebook.focusBottom');
+		await vscode.commands.executeCommand('notebook.focusBottom');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2);
 
 		// ---- focus top and then copy down ---- //
-		await vscode.commands.executeCommand('workbench.action.notebook.focusTop');
+		await vscode.commands.executeCommand('notebook.focusTop');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
 
-		await vscode.commands.executeCommand('workbench.notebook.cell.copyDown');
+		await vscode.commands.executeCommand('notebook.cell.copyDown');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 		assert.equal(activeCell?.source, 'test');
 
-		await vscode.commands.executeCommand('workbench.notebook.cell.delete');
+		await vscode.commands.executeCommand('notebook.cell.delete');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 		assert.equal(activeCell?.source, '');
 
 		// ---- focus top and then copy up ---- //
-		await vscode.commands.executeCommand('workbench.action.notebook.focusTop');
-		await vscode.commands.executeCommand('workbench.notebook.cell.copyUp');
+		await vscode.commands.executeCommand('notebook.focusTop');
+		await vscode.commands.executeCommand('notebook.cell.copyUp');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 4);
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[0].source, 'test');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[1].source, 'test');
@@ -100,8 +100,8 @@ suite('notebook workflow', () => {
 
 		// ---- move up and down ---- //
 
-		await vscode.commands.executeCommand('workbench.notebook.cell.moveDown');
-		await vscode.commands.executeCommand('workbench.notebook.cell.moveDown');
+		await vscode.commands.executeCommand('notebook.cell.moveDown');
+		await vscode.commands.executeCommand('notebook.cell.moveDown');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2);
