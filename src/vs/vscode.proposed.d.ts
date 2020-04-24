@@ -1297,7 +1297,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Additional information about used to implement [`CustomEditableDocument.backup`](#CustomEditableDocument.backup).
+	 * Additional information used to implement [`CustomEditableDocument.backup`](#CustomEditableDocument.backup).
 	 */
 	interface CustomDocumentBackupContext {
 		/**
@@ -1357,10 +1357,10 @@ declare module 'vscode' {
 		/**
 		 * Save the resource for a custom editor to a different location.
 		 *
-		 * This method is invoked by VS Code when the user triggers `save as` on a custom editor.
+		 * This method is invoked by VS Code when the user triggers save as on a custom editor. The implementer must
+		 * persist the custom editor to `targetResource`.
 		 *
-		 * To implement `saveAs`, the implementer must persist the custom editor to `targetResource`. The
-		 * existing editor will remain open after `saveAs` completes.
+		 * When the user accepts save as, the current editor is be replaced by an editor for the newly saved file.
 		 *
 		 * @param uri Location to save to.
 		 * @param cancellation Token that signals the save is no longer required.
