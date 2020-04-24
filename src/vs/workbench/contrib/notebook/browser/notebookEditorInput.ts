@@ -108,7 +108,7 @@ export class NotebookEditorInput extends EditorInput {
 
 		const input = this;
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = input.resource;
+			readonly resource = input.resource.with({ scheme: 'vscode-notebook' });
 			get name() { return input.getName(); }
 			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : 0;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
