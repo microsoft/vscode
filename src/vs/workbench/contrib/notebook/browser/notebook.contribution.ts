@@ -134,6 +134,14 @@ export class NotebookContribution implements IWorkbenchContribution {
 			return undefined;
 		}
 
+		if (this._resourceMapping.has(resource)) {
+			const input = this._resourceMapping.get(resource);
+
+			if (!input!.isDisposed()) {
+				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
+			}
+		}
+
 		let info: NotebookProviderInfo | undefined;
 		const data = CellUri.parse(resource);
 		if (data) {
@@ -154,14 +162,6 @@ export class NotebookContribution implements IWorkbenchContribution {
 
 		if (!info) {
 			return undefined;
-		}
-
-		if (this._resourceMapping.has(resource)) {
-			const input = this._resourceMapping.get(resource);
-
-			if (!input!.isDisposed()) {
-				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
-			}
 		}
 
 		const input = this.instantiationService.createInstance(NotebookEditorInput, resource, originalInput.getName(), info.id);
