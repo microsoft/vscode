@@ -378,7 +378,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 				get logPath() { return path.join(that._initData.logsLocation.fsPath, extensionDescription.identifier.value); },
 				get environmentVariableCollection() {
 					checkProposedApiEnabled(extensionDescription);
-					return this._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription);
+					return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription);
 				}
 			});
 		});
