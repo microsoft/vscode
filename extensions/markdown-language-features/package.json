@@ -312,7 +312,7 @@
 		"customEditors": [
 			{
 				"viewType": "vscode.markdown.preview.editor",
-				"displayName": "(Experimental) VS Code Markdown Preview",
+				"displayName": "Markdown Preview (Experimental)",
 				"priority": "option",
 				"selector": [
 					{

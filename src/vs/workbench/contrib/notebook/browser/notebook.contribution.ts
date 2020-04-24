@@ -3,8 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
+import { parse } from 'vs/base/common/marshalling';
+import { basename } from 'vs/base/common/resources';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -13,22 +23,20 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { NotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { parse } from 'vs/base/common/marshalling';
-import { CellUri, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ResourceMap } from 'vs/base/common/map';
+
+// Editor Contribution
+
+import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
+import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 
 // Output renderers registration
 
@@ -36,10 +44,7 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTrans
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 
-// Actions
-import 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
-import { basename } from 'vs/base/common/resources';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+/*--------------------------------------------------------------------------------------------- */
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -94,7 +99,26 @@ export class NotebookContribution implements IWorkbenchContribution {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 
 	) {
-		this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
+		this.editorService.overrideOpenEditor({
+			getEditorOverrides: (editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+				let resource = editor.resource;
+				if (!resource) {
+					return [];
+				}
+
+				const infos = notebookService.getContributedNotebookProviders(resource);
+
+				return infos.map(info => {
+					return {
+						label: info.displayName,
+						id: info.id,
+						active: editor instanceof NotebookEditorInput && editor.viewType === info.id,
+						detail: info.providerDisplayName
+					};
+				});
+			},
+			open: (editor, options, group, id) => this.onEditorOpening(editor, options, group, id)
+		});
 
 		this.editorService.onDidActiveEditorChange(() => {
 			if (this.editorService.activeEditor && this.editorService.activeEditor! instanceof NotebookEditorInput) {
@@ -104,7 +128,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 		});
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id: string | undefined): IOpenEditorOverride | undefined {
 		let resource = originalInput.resource;
 		if (!resource) {
 			return undefined;
@@ -112,15 +136,22 @@ export class NotebookContribution implements IWorkbenchContribution {
 
 		let info: NotebookProviderInfo | undefined;
 		const data = CellUri.parse(resource);
-		if (data && (info = getFirstNotebookInfo(this.notebookService, data.notebook))) {
-			// cell-uri -> open (container) notebook
-			const name = basename(data.notebook);
-			const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
-			this._resourceMapping.set(resource, input);
-			return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
+		if (data) {
+			const infos = this.notebookService.getContributedNotebookProviders(data.notebook);
+
+			if (infos.length) {
+				const info = id === undefined ? infos[0] : (infos.find(info => info.id === id) || infos[0]);
+				// cell-uri -> open (container) notebook
+				const name = basename(data.notebook);
+				const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
+				this._resourceMapping.set(resource, input);
+				return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
+			}
 		}
 
-		info = getFirstNotebookInfo(this.notebookService, resource);
+		const infos = this.notebookService.getContributedNotebookProviders(resource);
+		info = id === undefined ? infos[0] : infos.find(info => info.id === id);
+
 		if (!info) {
 			return undefined;
 		}

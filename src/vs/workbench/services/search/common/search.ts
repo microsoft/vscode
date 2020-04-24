@@ -344,8 +344,13 @@ export interface ISearchConfigurationProperties {
 	maintainFileSearchCache: boolean;
 	collapseResults: 'auto' | 'alwaysCollapse' | 'alwaysExpand';
 	searchOnType: boolean;
+	seedOnFocus: boolean;
+	seedWithNearestWord: boolean;
 	searchOnTypeDebouncePeriod: number;
-	searchEditor: { doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide' };
+	searchEditor: {
+		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
+		experimental: { reusePriorSearchConfiguration: boolean }
+	};
 	sortOrder: SearchSortOrder;
 }
 
@@ -614,9 +619,7 @@ export class QueryGlobTester {
 	 * Guaranteed async.
 	 */
 	includedInQuery(testPath: string, basename?: string, hasSibling?: (name: string) => boolean | Promise<boolean>): Promise<boolean> {
-		const excludeP = this._parsedExcludeExpression ?
-			Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result) :
-			Promise.resolve(false);
+		const excludeP = Promise.resolve(this._parsedExcludeExpression(testPath, basename, hasSibling)).then(result => !!result);
 
 		return excludeP.then(excluded => {
 			if (excluded) {

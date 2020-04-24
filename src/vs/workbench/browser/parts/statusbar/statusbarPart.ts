@@ -7,7 +7,7 @@ import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
@@ -449,6 +449,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.leftItemsContainer = document.createElement('div');
 		addClasses(this.leftItemsContainer, 'left-items', 'items-container');
 		this.element.appendChild(this.leftItemsContainer);
+		this.element.tabIndex = -1;
 
 		// Right items container
 		this.rightItemsContainer = document.createElement('div');
@@ -624,6 +625,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return itemContainer;
 	}
 
+	focus(): void {
+		this.getContainer();
+	}
+
 	layout(width: number, height: number): void {
 		super.layout(width, height);
 		super.layoutContents(width, height);
@@ -689,12 +694,16 @@ class StatusbarEntryItem extends Disposable {
 			}
 		}
 
+		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
+			this.labelContainer.setAttribute('aria-label', entry.ariaLabel);
+		}
+
 		// Update: Tooltip (on the container, because label can be disabled)
 		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
 			if (entry.tooltip) {
 				this.container.title = entry.tooltip;
 			} else {
-				delete this.container.title;
+				this.container.title = '';
 			}
 		}
 

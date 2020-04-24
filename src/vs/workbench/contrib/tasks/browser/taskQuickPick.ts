@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as Objects from 'vs/base/common/objects';
-import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
+import { Task, ContributedTask, CustomTask, ConfiguringTask, TaskSorter, KeyedTaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import * as Types from 'vs/base/common/types';
 import { ITaskService, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
@@ -52,7 +52,7 @@ export class TaskQuickPick extends Disposable {
 		}
 		if (ConfiguringTask.is(task)) {
 			let label: string = task.configures.type;
-			const configures = Objects.deepClone(task.configures);
+			const configures: Partial<KeyedTaskIdentifier> = Objects.deepClone(task.configures);
 			delete configures['_key'];
 			delete configures['type'];
 			Object.keys(configures).forEach(key => label += `: ${configures[key]}`);
@@ -77,9 +77,9 @@ export class TaskQuickPick extends Disposable {
 	private createTypeEntries(entries: QuickPickInput<TaskTwoLevelQuickPickEntry>[], types: string[]) {
 		entries.push({ type: 'separator', label: nls.localize('contributedTasks', "contributed") });
 		types.forEach(type => {
-			entries.push({ label: `$(folder) ${type}`, task: type });
+			entries.push({ label: `$(folder) ${type}`, task: type, ariaLabel: nls.localize('taskType', "All {0} tasks", type) });
 		});
-		entries.push({ label: SHOW_ALL, task: SHOW_ALL });
+		entries.push({ label: SHOW_ALL, task: SHOW_ALL, alwaysShow: true });
 	}
 
 	private handleFolderTaskResult(result: Map<string, WorkspaceFolderTaskResult>): (Task | ConfiguringTask)[] {
@@ -244,12 +244,14 @@ export class TaskQuickPick extends Disposable {
 				type: 'separator'
 			}, {
 				label: nls.localize('TaskQuickPick.goBack', 'Go back ↩'),
-				task: null
+				task: null,
+				alwaysShow: true
 			});
 		} else {
 			taskQuickPickEntries = [{
 				label: nls.localize('TaskQuickPick.noTasksForType', 'No {0} tasks found. Go back ↩', type),
-				task: null
+				task: null,
+				alwaysShow: true
 			}];
 		}
 		return taskQuickPickEntries;

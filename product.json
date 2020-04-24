@@ -26,7 +26,7 @@
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.node-debug",
-			"version": "1.44.4",
+			"version": "1.44.5",
 			"repo": "https://github.com/Microsoft/vscode-node-debug",
 			"metadata": {
 				"id": "b6ded8fb-a0a0-4c1c-acbd-ab2a3bc995a6",
@@ -41,7 +41,7 @@
 		},
 		{
 			"name": "ms-vscode.node-debug2",
-			"version": "1.42.1",
+			"version": "1.42.2",
 			"repo": "https://github.com/Microsoft/vscode-node-debug2",
 			"metadata": {
 				"id": "36d19e17-7569-4841-a001-947eb18602b2",
@@ -56,7 +56,7 @@
 		},
 		{
 			"name": "ms-vscode.references-view",
-			"version": "0.0.50",
+			"version": "0.0.51",
 			"repo": "https://github.com/Microsoft/vscode-reference-view",
 			"metadata": {
 				"id": "dc489f46-520d-4556-ae85-1f9eab3c412d",
@@ -71,7 +71,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-companion",
-			"version": "0.0.4",
+			"version": "1.0.0",
 			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
 			"metadata": {
 				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
@@ -86,7 +86,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-nightly",
-			"version": "2020.3.3117",
+			"version": "2020.4.2217",
 			"repo": "https://github.com/Microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "7acbb4ce-c85a-49d4-8d95-a8054406ae97",

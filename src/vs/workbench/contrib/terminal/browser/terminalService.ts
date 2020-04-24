@@ -6,7 +6,6 @@
 import * as nls from 'vs/nls';
 import { TERMINAL_VIEW_ID, IShellLaunchConfig, ITerminalConfigHelper, ITerminalNativeService, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, ITerminalProcessExtHostProxy, IShellDefinition, LinuxDistro, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
@@ -27,11 +26,11 @@ import { escapeNonWindowsPath } from 'vs/workbench/contrib/terminal/common/termi
 import { isWindows, isMacintosh, OperatingSystem } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/path';
 // TODO@daniel code layering
-// eslint-disable-next-line code-layering
+// eslint-disable-next-line code-layering, code-import-patterns
 import { INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { find } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IViewsService, ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
 interface IExtHostReadyEntry {
@@ -96,7 +95,6 @@ export class TerminalService implements ITerminalService {
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IPanelService private _panelService: IPanelService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDialogService private _dialogService: IDialogService,
@@ -106,6 +104,7 @@ export class TerminalService implements ITerminalService {
 		@IQuickInputService private _quickInputService: IQuickInputService,
 		@IConfigurationService private _configurationService: IConfigurationService,
 		@IViewsService private _viewsService: IViewsService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@optional(ITerminalNativeService) terminalNativeService: ITerminalNativeService
 	) {
 		// @optional could give undefined and properly typing it breaks service registration
@@ -296,6 +295,13 @@ export class TerminalService implements ITerminalService {
 			return null;
 		}
 		return tab.activeInstance;
+	}
+
+	public doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
+		const instance = this.getActiveInstance();
+		if (instance) {
+			return callback(instance);
+		}
 	}
 
 	public getInstanceFromId(terminalId: number): ITerminalInstance | undefined {
@@ -694,9 +700,13 @@ export class TerminalService implements ITerminalService {
 	}
 
 	public hidePanel(): void {
-		const panel = this._panelService.getActivePanel();
-		if (panel && panel.getId() === TERMINAL_VIEW_ID) {
-			this._layoutService.setPanelHidden(true);
+		// Hide the panel if the terminal is in the panel and it has no sibling views
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
+		if (location === ViewContainerLocation.Panel) {
+			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
+			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
+				this._layoutService.setPanelHidden(true);
+			}
 		}
 	}
 }

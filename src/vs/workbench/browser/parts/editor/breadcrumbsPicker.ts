@@ -24,11 +24,13 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platf
 import { ResourceLabels, IResourceLabel, DEFAULT_LABELS_CONTAINER } from 'vs/workbench/browser/labels';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbElement, FileElement } from 'vs/workbench/browser/parts/editor/breadcrumbsModel';
-
 import { IAsyncDataSource, ITreeRenderer, ITreeNode, ITreeFilter, TreeVisibility, ITreeSorter } from 'vs/base/browser/ui/tree/tree';
-import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItemComparator, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineDataSource, OutlineSortOrder, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IIdentityProvider, IListVirtualDelegate, IKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/list/list';
 import { IFileIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { localize } from 'vs/nls';
 
 export function createBreadcrumbsPicker(instantiationService: IInstantiationService, parent: HTMLElement, element: BreadcrumbElement): BreadcrumbsPicker {
 	return element instanceof FileElement
@@ -272,6 +274,17 @@ class FileNavigationLabelProvider implements IKeyboardNavigationLabelProvider<IW
 	}
 }
 
+class FileAccessibilityProvider implements IListAccessibilityProvider<IWorkspaceFolder | IFileStat> {
+
+	getWidgetAriaLabel(): string {
+		return localize('breadcrumbs', "Breadcrumbs");
+	}
+
+	getAriaLabel(element: IWorkspaceFolder | IFileStat): string | null {
+		return element.name;
+	}
+}
+
 class FileFilter implements ITreeFilter<IWorkspaceFolder | IFileStat> {
 
 	private readonly _cachedExpressions = new Map<string, glob.ParsedExpression>();
@@ -374,16 +387,24 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		const labels = this._instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER /* TODO@Jo visibility propagation */);
 		this._disposables.add(labels);
 
-		return <WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>>this._instantiationService.createInstance(WorkbenchAsyncDataTree, 'BreadcrumbsFilePicker', container, new FileVirtualDelegate(), [this._instantiationService.createInstance(FileRenderer, labels)], this._instantiationService.createInstance(FileDataSource), {
-			multipleSelectionSupport: false,
-			sorter: new FileSorter(),
-			filter: this._instantiationService.createInstance(FileFilter),
-			identityProvider: new FileIdentityProvider(),
-			keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
-			overrideStyles: {
-				listBackground: breadcrumbsPickerBackground
-			}
-		});
+		return <WorkbenchAsyncDataTree<IWorkspace | URI, IWorkspaceFolder | IFileStat, FuzzyScore>>this._instantiationService.createInstance(
+			WorkbenchAsyncDataTree,
+			'BreadcrumbsFilePicker',
+			container,
+			new FileVirtualDelegate(),
+			[this._instantiationService.createInstance(FileRenderer, labels)],
+			this._instantiationService.createInstance(FileDataSource),
+			{
+				multipleSelectionSupport: false,
+				sorter: new FileSorter(),
+				filter: this._instantiationService.createInstance(FileFilter),
+				identityProvider: new FileIdentityProvider(),
+				keyboardNavigationLabelProvider: new FileNavigationLabelProvider(),
+				accessibilityProvider: this._instantiationService.createInstance(FileAccessibilityProvider),
+				overrideStyles: {
+					listBackground: breadcrumbsPickerBackground
+				},
+			});
 	}
 
 	_setInput(element: BreadcrumbElement): Promise<void> {
@@ -436,6 +457,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IModeService private readonly _modeService: IModeService,
 	) {
 		super(parent, instantiationService, themeService, configurationService);
 		this._symbolSortOrder = BreadcrumbsConfig.SymbolSortOrder.bindTo(this._configurationService);
@@ -457,6 +479,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 				sorter: this._outlineComparator,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				accessibilityProvider: new OutlineAccessibilityProvider(localize('breadcrumbs', "Breadcrumbs")),
 				filter: this._instantiationService.createInstance(OutlineFilter, 'breadcrumbs')
 			}
 		);
@@ -472,10 +495,9 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 		const model = OutlineModel.get(element)!;
 		const tree = this._tree as WorkbenchDataTree<OutlineModel, any, FuzzyScore>;
 
-		const textModel = model.textModel;
 		const overrideConfiguration = {
-			resource: textModel.uri,
-			overrideIdentifier: textModel.getLanguageIdentifier().language
+			resource: model.uri,
+			overrideIdentifier: this._modeService.getModeIdByFilepathOrFirstLine(model.uri)
 		};
 		this._outlineComparator.type = this._getOutlineItemCompareType(overrideConfiguration);
 

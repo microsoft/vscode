@@ -8,6 +8,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 export const OpenInEditorCommandId = 'search.action.openInEditor';
 export const OpenNewEditorCommandId = 'search.action.openNewEditor';
 export const OpenNewEditorToSideCommandId = 'search.action.openNewEditorToSide';
+export const FocusQueryEditorWidgetCommandId = 'search.action.focusQueryEditorWidget';
 
 export const ToggleSearchEditorCaseSensitiveCommandId = 'toggleSearchEditorCaseSensitive';
 export const ToggleSearchEditorWholeWordCommandId = 'toggleSearchEditorWholeWord';

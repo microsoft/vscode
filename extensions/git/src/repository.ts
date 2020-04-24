@@ -743,6 +743,15 @@ export class Repository implements Disposable {
 		const onConfigListenerForUntracked = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.untrackedChanges', root));
 		onConfigListenerForUntracked(this.updateModelState, this, this.disposables);
 
+		const updateInputBoxVisibility = () => {
+			const config = workspace.getConfiguration('git', root);
+			this._sourceControl.inputBox.visible = config.get<boolean>('showCommitInput', true);
+		};
+
+		const onConfigListenerForInputBoxVisibility = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.showCommitInput', root));
+		onConfigListenerForInputBoxVisibility(updateInputBoxVisibility, this, this.disposables);
+		updateInputBoxVisibility();
+
 		this.mergeGroup.hideWhenEmpty = true;
 		this.untrackedGroup.hideWhenEmpty = true;
 
@@ -1085,6 +1094,10 @@ export class Repository implements Disposable {
 
 	async removeRemote(name: string): Promise<void> {
 		await this.run(Operation.Remote, () => this.repository.removeRemote(name));
+	}
+
+	async renameRemote(name: string, newName: string): Promise<void> {
+		await this.run(Operation.Remote, () => this.repository.renameRemote(name, newName));
 	}
 
 	@throttle

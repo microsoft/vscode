@@ -205,7 +205,7 @@ export class URI implements UriComponents {
 		// if (this.scheme !== 'file') {
 		// 	console.warn(`[UriError] calling fsPath with scheme ${this.scheme}`);
 		// }
-		return _makeFsPath(this, false);
+		return uriToFsPath(this, false);
 	}
 
 	// ---- modify to new -------------------------
@@ -349,7 +349,7 @@ export class URI implements UriComponents {
 		}
 		let newPath: string;
 		if (isWindows && uri.scheme === 'file') {
-			newPath = URI.file(paths.win32.join(_makeFsPath(uri, true), ...pathFragment)).path;
+			newPath = URI.file(paths.win32.join(uriToFsPath(uri, true), ...pathFragment)).path;
 		} else {
 			newPath = paths.posix.join(uri.path, ...pathFragment);
 		}
@@ -420,7 +420,7 @@ class _URI extends URI {
 
 	get fsPath(): string {
 		if (!this._fsPath) {
-			this._fsPath = _makeFsPath(this, false);
+			this._fsPath = uriToFsPath(this, false);
 		}
 		return this._fsPath;
 	}
@@ -576,7 +576,7 @@ function encodeURIComponentMinimal(path: string): string {
 /**
  * Compute `fsPath` for the given uri
  */
-function _makeFsPath(uri: URI, keepDriveLetterCasing: boolean): string {
+export function uriToFsPath(uri: URI, keepDriveLetterCasing: boolean): string {
 
 	let value: string;
 	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {

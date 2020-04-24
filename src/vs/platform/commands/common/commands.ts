@@ -39,9 +39,14 @@ export interface ICommand {
 }
 
 export interface ICommandHandlerDescription {
-	description: string;
-	args: { name: string; description?: string; constraint?: TypeConstraint; schema?: IJSONSchema; }[];
-	returns?: string;
+	readonly description: string;
+	readonly args: ReadonlyArray<{
+		readonly name: string;
+		readonly description?: string;
+		readonly constraint?: TypeConstraint;
+		readonly schema?: IJSONSchema;
+	}>;
+	readonly returns?: string;
 }
 
 export interface ICommandRegistry {
