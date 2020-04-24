@@ -19,6 +19,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 import { isWeb } from 'vs/base/common/platform';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
@@ -114,6 +115,7 @@ export class BackLayerWebView extends Disposable {
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 		this.element = document.createElement('div');
@@ -594,7 +596,12 @@ ${loaderJs}
 			let rendererInfo = this.notebookService.getRendererInfo(preload);
 
 			if (rendererInfo) {
-				let preloadResources = rendererInfo.preloads.map(preloadResource => preloadResource.with({ scheme: WebviewResourceScheme }));
+				let preloadResources = rendererInfo.preloads.map(preloadResource => {
+					if (this.environmentService.isExtensionDevelopment && (preloadResource.scheme === 'http' || preloadResource.scheme === 'https')) {
+						return preloadResource;
+					}
+					return preloadResource.with({ scheme: WebviewResourceScheme });
+				});
 				extensionLocations.push(rendererInfo.extensionLocation);
 				preloadResources.forEach(e => {
 					if (!this.preloadsCache.has(e.toString())) {
