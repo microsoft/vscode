@@ -1777,6 +1777,7 @@
           "ignore"
         ],
         "filenames": [
+          ".gitignore_global",
           ".gitignore"
         ],
         "configuration": "./languages/ignore.language-configuration.json"
