@@ -145,10 +145,19 @@ interface IDefaultPanelLayout {
 	})[];
 }
 
+interface IDefaultEditor {
+	path: string;
+	scheme: string;
+	active?: boolean;
+}
+
 interface IDefaultLayout {
 	sidebar?: IDefaultSideBarLayout;
 	panel?: IDefaultPanelLayout;
-	// editors?: IDefaultWorkspaceEditorsLayout
+	editors?: IDefaultEditor[];
+
+	// Internal only
+	firstRun?: boolean;
 }
 
 interface IWorkbenchConstructionOptions {

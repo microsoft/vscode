@@ -54,7 +54,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	static readonly activePanelSettingsKey = 'workbench.panelpart.activepanelid';
 
-	private static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
+	static readonly PINNED_PANELS = 'workbench.panel.pinnedPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
 	_serviceBrand: undefined;
