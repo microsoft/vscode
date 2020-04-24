@@ -286,6 +286,28 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		cell?.spliceNotebookCellOutputs(splices);
 	}
 
+	clearCellOutput(handle: number) {
+		let cell = this._mapping.get(handle);
+		if (cell) {
+			cell.spliceNotebookCellOutputs([
+				[0, cell.outputs.length, []]
+			]);
+
+			this._increaseVersionId();
+			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.CellClearOutput, versionId: this._versionId, index: this.cells.indexOf(cell) });
+		}
+	}
+
+	clearAllCellOutputs() {
+		this.cells.forEach(cell => {
+			cell.spliceNotebookCellOutputs([
+				[0, cell.outputs.length, []]
+			]);
+		});
+		this._increaseVersionId();
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.CellsClearOutput, versionId: this._versionId });
+	}
+
 	dispose() {
 		this._onWillDispose.fire();
 		this._cellListeners.forEach(val => val.dispose());

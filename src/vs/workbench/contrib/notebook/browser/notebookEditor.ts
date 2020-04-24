@@ -466,15 +466,21 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				const scrollTop = this.list?.scrollTop || 0;
 				const scrollHeight = this.list?.scrollHeight || 0;
 				this.webview!.element.style.height = `${scrollHeight}px`;
-				let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
 
 				if (this.webview?.insetMapping) {
+					let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
+					let removedItems: IOutput[] = [];
 					this.webview?.insetMapping.forEach((value, key) => {
 						const cell = value.cell;
 						const viewIndex = this.list?.getViewIndex(cell);
 
 						if (viewIndex === undefined) {
 							return;
+						}
+
+						if (cell.outputs.indexOf(key) < 0) {
+							// output is already gone
+							removedItems.push(key);
 						}
 
 						const cellTop = this.list?.getAbsoluteTopOfElement(cell) || 0;
@@ -486,6 +492,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 							});
 						}
 					});
+
+					removedItems.forEach(output => this.webview?.removeInset(output));
 
 					if (updateItems.length) {
 						this.webview?.updateViewScrollTop(-scrollTop, updateItems);

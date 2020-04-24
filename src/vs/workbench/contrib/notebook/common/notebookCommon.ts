@@ -219,7 +219,9 @@ export type NotebookCellsSplice2 = [
 
 export enum NotebookCellsChangeType {
 	ModelChange = 1,
-	Move = 2
+	Move = 2,
+	CellClearOutput = 3,
+	CellsClearOutput = 4
 }
 
 export interface NotebookCellsModelChangedEvent {
@@ -235,7 +237,18 @@ export interface NotebookCellsModelMoveEvent {
 	readonly versionId: number;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent;
+export interface NotebookCellClearOutputEvent {
+	readonly kind: NotebookCellsChangeType.CellClearOutput;
+	readonly index: number;
+	readonly versionId: number;
+}
+
+export interface NotebookCellsClearOutputEvent {
+	readonly kind: NotebookCellsChangeType.CellsClearOutput;
+	readonly versionId: number;
+}
+
+export type NotebookCellsChangedEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2

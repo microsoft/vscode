@@ -251,6 +251,10 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			this.$spliceNotebookCells(event.changes);
 		} else if (event.kind === NotebookCellsChangeType.Move) {
 			this.$moveCell(event.index, event.newIdx);
+		} else if (event.kind === NotebookCellsChangeType.CellClearOutput) {
+			this.$clearCellOutputs(event.index);
+		} else if (event.kind === NotebookCellsChangeType.CellsClearOutput) {
+			this.$clearAllCellOutputs();
 		}
 
 		this._versionId = event.versionId;
@@ -297,6 +301,15 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	private $moveCell(index: number, newIdx: number) {
 		const cells = this.cells.splice(index, 1);
 		this.cells.splice(newIdx, 0, ...cells);
+	}
+
+	private $clearCellOutputs(index: number) {
+		const cell = this.cells[index];
+		cell.outputs = [];
+	}
+
+	private $clearAllCellOutputs() {
+		this.cells.forEach(cell => cell.outputs = []);
 	}
 
 	eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<vscode.CellOutput>[]) {

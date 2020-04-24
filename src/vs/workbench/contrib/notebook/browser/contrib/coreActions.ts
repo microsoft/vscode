@@ -41,6 +41,9 @@ const CANCEL_CELL_COMMAND_ID = 'workbench.notebook.cell.cancelExecution';
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'workbench.notebook.executeNotebook';
 const CANCEL_NOTEBOOK_COMMAND_ID = 'workbench.notebook.cancelExecution';
 
+const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'workbench.action.notebook.clearCellOutputs';
+const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'workbench.action.notebook.clearAllCellsOutputs';
+
 const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
 const EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
@@ -50,6 +53,7 @@ const enum CellToolbarOrder {
 	MoveCellDown,
 	EditCell,
 	SaveCell,
+	ClearCellOutput,
 	InsertCell,
 	DeleteCell
 }
@@ -1171,3 +1175,69 @@ registerAction2(class extends Action2 {
 		editor.focusNotebookCell(firstCell, false);
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
+			title: 'Notebook Clear Active Cell Outputs',
+			menu: {
+				id: MenuId.NotebookCellTitle,
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_RUNNABLE),
+				order: CellToolbarOrder.ClearCellOutput
+			},
+			icon: { id: 'codicon/clear-all' },
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		if (!editor.viewModel || !editor.viewModel.length) {
+			return;
+		}
+
+		editor.viewModel.notebookDocument.clearCellOutput(context.cell.handle);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
+			title: 'Notebook Clear All Cells Outputs',
+			menu: {
+				id: MenuId.EditorTitle,
+				when: NOTEBOOK_EDITOR_FOCUSED,
+				group: 'navigation',
+				order: 0
+			},
+			icon: { id: 'codicon/clear-all' },
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		if (!editor.viewModel || !editor.viewModel.length) {
+			return;
+		}
+
+		editor.viewModel.notebookDocument.clearAllCellOutputs();
+	}
+});
+
