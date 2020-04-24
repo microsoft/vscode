@@ -45,7 +45,20 @@
 	position: absolute;
 	top: -500px;
 	z-index: 1000;
-	padding-bottom: 16px;
+	padding-bottom: 8px;
+	padding-top: 8px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .notebook-cell-focus-indicator {
+	top: 8px !important;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image.markdown-cell-row .notebook-cell-focus-indicator {
+	bottom: 8px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image .output {
+	display: none !important;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-drag-image > .monaco-toolbar {
@@ -89,6 +102,10 @@
 .monaco-workbench .part.editor > .content .notebook-editor .output > div.foreground {
 	padding: 8px;
 	box-sizing: border-box;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-drag-image .output .multi-mimetype-output {
+	display: none;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .output .multi-mimetype-output {
