@@ -164,7 +164,7 @@ export class StableEditorScrollState {
 		}
 	}
 
-	public restoreRelativeVerticalPositionOfCursor(editor: ICodeEditor, shouldPushUndoStop: boolean = false): void {
+	public restoreRelativeVerticalPositionOfCursor(editor: ICodeEditor): void {
 		const currentCursorPosition = editor.getPosition();
 
 		if (!this._cursorPosition || !currentCursorPosition) {
@@ -172,9 +172,7 @@ export class StableEditorScrollState {
 		}
 
 		const offset = editor.getTopForLineNumber(currentCursorPosition.lineNumber) - editor.getTopForLineNumber(this._cursorPosition.lineNumber);
-		if (shouldPushUndoStop) {
-			editor.pushUndoStop();
-		}
 		editor.setScrollTop(editor.getScrollTop() + offset);
+		editor.pushUndoStop();
 	}
 }
