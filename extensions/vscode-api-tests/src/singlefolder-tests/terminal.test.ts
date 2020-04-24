@@ -6,8 +6,10 @@
 import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
-// TODO@Daniel flaky tests (https://github.com/microsoft/vscode/issues/92826)
-((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - terminal', () => {
+// Disable terminal tests:
+// - Web https://github.com/microsoft/vscode/issues/92826
+// - Remote https://github.com/microsoft/vscode/issues/96057
+((env.uiKind === UIKind.Web || typeof env.remoteName !== 'undefined') ? suite.skip : suite)('vscode API - terminal', () => {
 	suiteSetup(async () => {
 		const config = workspace.getConfiguration('terminal.integrated');
 		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
