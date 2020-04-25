@@ -199,6 +199,14 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		return this.model.source.join('\n');
 	}
 
+	setText(value: string[]) {
+		if (this._textModel) {
+			return this._textModel.setValue(value.join('\n'));
+		} else {
+			this.model.source = value;
+		}
+	}
+
 	private saveViewState(): editorCommon.ICodeEditorViewState | null {
 		if (!this._textEditor) {
 			return null;
@@ -267,6 +275,15 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 
 	setSelection(range: Range) {
 		this._textEditor?.setSelection(range);
+	}
+
+	getSelectionOffsets(): number[] | undefined {
+		const textModel = this._textEditor?.getModel();
+		const selections = this._textEditor?.getSelections();
+		if (textModel && selections) {
+			return selections.map(s => textModel.getOffsetAt(s.getStartPosition()));
+		}
+		return undefined;
 	}
 
 	getLineScrollTopOffset(line: number): number {

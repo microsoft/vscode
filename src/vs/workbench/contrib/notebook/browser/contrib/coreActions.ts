@@ -50,6 +50,9 @@ const PASTE_CELL_COMMAND_ID = 'notebook.cell.paste';
 const PASTE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.pasteAbove';
 const COPY_CELL_UP_COMMAND_ID = 'notebook.cell.copyUp';
 const COPY_CELL_DOWN_COMMAND_ID = 'notebook.cell.copyDown';
+const SPLIT_CELL_COMMAND_ID = 'notebook.cell.split';
+const JOIN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.joinAbove';
+const JOIN_CELL_BELOW_COMMAND_ID = 'notebook.cell.joinBelow';
 
 const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
 const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
@@ -66,6 +69,7 @@ const enum CellToolbarOrder {
 	MoveCellUp,
 	MoveCellDown,
 	EditCell,
+	SplitCell,
 	SaveCell,
 	ClearCellOutput,
 	InsertCell,
@@ -1252,6 +1256,98 @@ registerAction2(class extends Action2 {
 		}
 
 		editor.viewModel.notebookDocument.clearAllCellOutputs();
+	}
+});
+
+async function splitCell(context: INotebookCellActionContext): Promise<void> {
+	if (context.cell.cellKind === CellKind.Code) {
+		const newCells = context.notebookEditor.splitNotebookCell(context.cell);
+		if (newCells) {
+			context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], true);
+		}
+	}
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: SPLIT_CELL_COMMAND_ID,
+				title: localize('notebookActions.splitCell', "Split Cell"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_EDITABLE, InputFocusedContext),
+					order: CellToolbarOrder.SplitCell
+				},
+				icon: { id: 'codicon/split-vertical' },
+				f1: true
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		return splitCell(context);
+	}
+});
+
+
+async function joinCells(context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
+	const cell = await context.notebookEditor.joinNotebookCells(context.cell, direction, CellKind.Code);
+	if (cell) {
+		context.notebookEditor.focusNotebookCell(cell, true);
+	}
+}
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: JOIN_CELL_ABOVE_COMMAND_ID,
+				title: localize('notebookActions.joinCellAbove', "Join with Previous Cell"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		return joinCells(context, 'above');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super(
+			{
+				id: JOIN_CELL_BELOW_COMMAND_ID,
+				title: localize('notebookActions.joinCellBelow', "Join with Next Cell"),
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				f1: true
+			});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		return joinCells(context, 'below');
 	}
 });
 

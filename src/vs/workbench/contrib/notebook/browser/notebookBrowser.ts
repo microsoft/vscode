@@ -99,6 +99,10 @@ export interface ICellViewModel {
 	getText(): string;
 	metadata: NotebookCellMetadata | undefined;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
+
+	getSelectionOffsets(): number[] | undefined;
+	language: string;
+	setText(value: string[]): void;
 }
 
 export interface INotebookEditorMouseEvent {
@@ -161,6 +165,16 @@ export interface INotebookEditor {
 	 * Insert a new cell around `cell`
 	 */
 	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string): CellViewModel | null;
+
+	/**
+	 * Split a given cell into multiple cells of the same type using the selection start positions.
+	 */
+	splitNotebookCell(cell: ICellViewModel): CellViewModel[] | null;
+
+	/**
+	 * Joins the given cell either with the cell above or the one below depending on the given direction.
+	 */
+	joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null>;
 
 	/**
 	 * Delete a cell from the notebook

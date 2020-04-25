@@ -729,6 +729,73 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return newCell;
 	}
 
+	splitNotebookCell(cell: ICellViewModel): CellViewModel[] | null {
+		if (!this.notebookViewModel!.metadata.editable) {
+			return null;
+		}
+
+		const splitPoints = cell.getSelectionOffsets();
+		if (splitPoints && splitPoints.length > 0) {
+			const cellContent = cell.getText();
+			splitPoints.push(cellContent.length);
+
+			// update the content of first cell
+			cell.setText(cellContent.substr(0, splitPoints[0]).split(/\r?\n/g));
+
+			const language = cell.model.language;
+			const kind = cell.cellKind;
+			let insertIndex = this.notebookViewModel!.getCellIndex(cell) + 1;
+			const newCells = [];
+			for (let i = 1, y = insertIndex; i < splitPoints.length; i++, y++) {
+				// create new cells containing the text chucks between starts of the selections
+				let initialText = cellContent.substring(splitPoints[i - 1], splitPoints[i]);
+				newCells.push(this.notebookViewModel!.createCell(y, initialText.split(/\r?\n/g), language, kind, true));
+			}
+			return newCells;
+		}
+
+		return null;
+	}
+
+	async joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null> {
+		if (!this.notebookViewModel!.metadata.editable) {
+			return null;
+		}
+
+		if (constraint && cell.cellKind !== constraint) {
+			return null;
+		}
+
+		const index = this.notebookViewModel!.getCellIndex(cell);
+		if (index === 0 && direction === 'above') {
+			return null;
+		}
+
+		if (index === this.notebookViewModel!.length - 1 && direction === 'below') {
+			return null;
+		}
+
+		if (direction === 'above') {
+			const above = this.notebookViewModel!.viewCells[index - 1];
+			if (constraint && above.cellKind !== constraint) {
+				return null;
+			}
+			const newContent = `${above.getText()}\n${cell.getText()}`;
+			above.setText(newContent.split(/\r?\n/g));
+			await this.deleteNotebookCell(cell);
+			return above;
+		} else {
+			const below = this.notebookViewModel!.viewCells[index + 1];
+			if (constraint && below.cellKind !== constraint) {
+				return null;
+			}
+			const newContent = `${cell.getText()}\n${below.getText()}`;
+			cell.setText(newContent.split(/\r?\n/g));
+			await this.deleteNotebookCell(below);
+			return cell;
+		}
+	}
+
 	async deleteNotebookCell(cell: ICellViewModel): Promise<boolean> {
 		if (!this.notebookViewModel!.metadata.editable) {
 			return false;
