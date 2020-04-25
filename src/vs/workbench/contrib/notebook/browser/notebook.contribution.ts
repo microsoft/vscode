@@ -31,6 +31,10 @@ import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebook
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
+import { coalesce, distinct } from 'vs/base/common/arrays';
+import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 
 // Editor Contribution
 
@@ -96,7 +100,8 @@ export class NotebookContribution implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 
 	) {
 		this.editorService.overrideOpenEditor({
@@ -106,9 +111,12 @@ export class NotebookContribution implements IWorkbenchContribution {
 					return [];
 				}
 
-				const infos = notebookService.getContributedNotebookProviders(resource);
+				const associatedEditors = distinct([
+					...this.getUserAssociatedNotebookEditors(resource),
+					...this.getContributedEditors(resource)
+				], editor => editor.id);
 
-				return infos.map(info => {
+				return associatedEditors.map(info => {
 					return {
 						label: info.displayName,
 						id: info.id,
@@ -128,10 +136,39 @@ export class NotebookContribution implements IWorkbenchContribution {
 		});
 	}
 
+	getUserAssociatedEditors(resource: URI) {
+		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+
+		return coalesce(rawAssociations
+			.filter(association => CustomEditorInfo.selectorMatches(association, resource)));
+	}
+
+	getUserAssociatedNotebookEditors(resource: URI) {
+		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+
+		return coalesce(rawAssociations
+			.filter(association => CustomEditorInfo.selectorMatches(association, resource))
+			.map(association => this.notebookService.getContributedNotebookProvider(association.viewType)));
+	}
+
+	getContributedEditors(resource: URI) {
+		return this.notebookService.getContributedNotebookProviders(resource);
+	}
+
 	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id: string | undefined): IOpenEditorOverride | undefined {
 		let resource = originalInput.resource;
 		if (!resource) {
 			return undefined;
+		}
+
+		if (id === undefined) {
+			const userAssociatedEditors = this.getUserAssociatedEditors(resource);
+			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
+
+			if (userAssociatedEditors.length && !notebookEditor.length) {
+				// user pick a non-notebook editor for this resource
+				return undefined;
+			}
 		}
 
 		if (this._resourceMapping.has(resource)) {
@@ -145,7 +182,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 		let info: NotebookProviderInfo | undefined;
 		const data = CellUri.parse(resource);
 		if (data) {
-			const infos = this.notebookService.getContributedNotebookProviders(data.notebook);
+			const infos = this.getContributedEditors(data.notebook);
 
 			if (infos.length) {
 				const info = id === undefined ? infos[0] : (infos.find(info => info.id === id) || infos[0]);
