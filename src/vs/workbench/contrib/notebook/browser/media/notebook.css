@@ -206,6 +206,14 @@
 	box-sizing: border-box;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-left {
+	flex-grow: 1;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-right {
+	padding-right: 12px;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-message {
 	display: flex;
 	align-items: center;

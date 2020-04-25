@@ -99,7 +99,7 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		runCell(context);
+		return runCell(context);
 	}
 });
 
@@ -434,27 +434,37 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 		return;
 	}
 
-	if (activeCell.cellKind === kind) {
+	changeCellToKind(kind, { cell: activeCell, notebookEditor: editor });
+}
+
+export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string): Promise<void> {
+	const { cell, notebookEditor } = context;
+
+	if (cell.cellKind === kind) {
 		return;
 	}
 
-	const text = activeCell.getText();
-	if (!editor.insertNotebookCell(activeCell, kind, 'below', text)) {
+	const text = cell.getText();
+	if (!notebookEditor.insertNotebookCell(cell, kind, 'below', text)) {
 		return;
 	}
 
-	const idx = editor.viewModel?.getCellIndex(activeCell);
+	const idx = notebookEditor.viewModel?.getCellIndex(cell);
 	if (typeof idx !== 'number') {
 		return;
 	}
 
-	const newCell = editor.viewModel?.viewCells[idx + 1];
+	const newCell = notebookEditor.viewModel?.viewCells[idx + 1];
 	if (!newCell) {
 		return;
 	}
 
-	editor.focusNotebookCell(newCell, activeCell.editState === CellEditState.Editing);
-	editor.deleteNotebookCell(activeCell);
+	if (language) {
+		newCell.model.language = language;
+	}
+
+	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing);
+	notebookEditor.deleteNotebookCell(cell);
 }
 
 export interface INotebookCellActionContext {
