@@ -123,7 +123,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			if (originalPayload && Array.isArray(originalPayload)) {
 				for (let pair of originalPayload) {
 					if (Array.isArray(pair) && pair.length === 2) {
-						switch(pair[0]) {
+						switch (pair[0]) {
 							case 'extensionDevelopmentPath':
 							case 'debugId':
 							case 'inspect-brk-extensions':
@@ -139,7 +139,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 			// Folder
 			if (isFolderToOpen(openable)) {
-				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload: newPayload } );
+				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload: newPayload });
 			}
 
 			// Workspace
