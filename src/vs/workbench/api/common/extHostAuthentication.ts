@@ -17,43 +17,54 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	private _onDidChangeAuthenticationProviders = new Emitter<vscode.AuthenticationProvidersChangeEvent>();
 	readonly onDidChangeAuthenticationProviders: Event<vscode.AuthenticationProvidersChangeEvent> = this._onDidChangeAuthenticationProviders.event;
 
-	private _onDidChangeSessions = new Emitter<string[]>();
-	readonly onDidChangeSessions: Event<string[]> = this._onDidChangeSessions.event;
+	private _onDidChangeSessions = new Emitter<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }>();
+	readonly onDidChangeSessions: Event<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }> = this._onDidChangeSessions.event;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
 
-	hasProvider(providerId: string): boolean {
-		return !!this._authenticationProviders.get(providerId);
+	get providerIds(): string[] {
+		const ids: string[] = [];
+		this._authenticationProviders.forEach(provider => {
+			ids.push(provider.id);
+		});
+
+		return ids;
 	}
 
-	async getSessions(requestingExtension: IExtensionDescription, providerId: string): Promise<readonly vscode.AuthenticationSession[]> {
+	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: string[]): Promise<readonly vscode.AuthenticationSession[]> {
 		const provider = this._authenticationProviders.get(providerId);
 		if (!provider) {
 			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
 		}
 
-		return (await provider.getSessions()).map(session => {
-			return {
-				id: session.id,
-				accountName: session.accountName,
-				scopes: session.scopes,
-				getAccessToken: async () => {
-					const isAllowed = await this._proxy.$getSessionsPrompt(
-						provider.id,
-						provider.displayName,
-						ExtensionIdentifier.toKey(requestingExtension.identifier),
-						requestingExtension.displayName || requestingExtension.name);
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+		const orderedScopes = scopes.sort().join(' ');
 
-					if (!isAllowed) {
-						throw new Error('User did not consent to token access.');
+		return (await provider.getSessions())
+			.filter(session => session.scopes.sort().join(' ') === orderedScopes)
+			.map(session => {
+				return {
+					id: session.id,
+					account: session.account,
+					scopes: session.scopes,
+					getAccessToken: async () => {
+						const isAllowed = await this._proxy.$getSessionsPrompt(
+							provider.id,
+							session.account.displayName,
+							provider.displayName,
+							extensionId,
+							requestingExtension.displayName || requestingExtension.name);
+
+						if (!isAllowed) {
+							throw new Error('User did not consent to token access.');
+						}
+
+						return session.getAccessToken();
 					}
-
-					return session.getAccessToken();
-				}
-			};
-		});
+				};
+			});
 	}
 
 	async login(requestingExtension: IExtensionDescription, providerId: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
@@ -62,12 +73,33 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
 		}
 
-		const isAllowed = await this._proxy.$loginPrompt(provider.id, provider.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), requestingExtension.displayName || requestingExtension.name);
+		const extensionName = requestingExtension.displayName || requestingExtension.name;
+		const isAllowed = await this._proxy.$loginPrompt(provider.displayName, extensionName);
 		if (!isAllowed) {
 			throw new Error('User did not consent to login.');
 		}
 
-		return provider.login(scopes);
+		const session = await provider.login(scopes);
+		await this._proxy.$setTrustedExtension(provider.id, session.account.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
+		return {
+			id: session.id,
+			account: session.account,
+			scopes: session.scopes,
+			getAccessToken: async () => {
+				const isAllowed = await this._proxy.$getSessionsPrompt(
+					provider.id,
+					session.account.displayName,
+					provider.displayName,
+					ExtensionIdentifier.toKey(requestingExtension.identifier),
+					requestingExtension.displayName || requestingExtension.name);
+
+				if (!isAllowed) {
+					throw new Error('User did not consent to token access.');
+				}
+
+				return session.getAccessToken();
+			}
+		};
 	}
 
 	registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {
@@ -77,9 +109,9 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 		this._authenticationProviders.set(provider.id, provider);
 
-		const listener = provider.onDidChangeSessions(_ => {
-			this._proxy.$onDidChangeSessions(provider.id);
-			this._onDidChangeSessions.fire([provider.id]);
+		const listener = provider.onDidChangeSessions(e => {
+			this._proxy.$onDidChangeSessions(provider.id, e);
+			this._onDidChangeSessions.fire({ [provider.id]: e });
 		});
 
 		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName);

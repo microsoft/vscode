@@ -91,6 +91,7 @@
 	padding: .5em;
 	width: 22px;
 	height: 22px;
+	line-height: 22px;
 	border: none;
 	cursor: pointer;
 }
@@ -119,10 +120,6 @@
 	border: 1px solid transparent;
 }
 
-.vs .monaco-workbench .feedback-form .cancel {
-	background: url('close.svg') center center no-repeat;
-}
-
 .monaco-workbench .feedback-form .form-buttons {
 	display: flex;
 }
@@ -138,13 +135,17 @@
 
 .monaco-workbench .feedback-form .form-buttons .send {
 	width: auto;
-	background-image: url('twitter.svg');
-	background-position: 12px center;
-	background-size: 20px;
-	background-repeat: no-repeat;
-	padding: 8px 12px 8px 38px;
+	padding: 8px 12px;
 	margin-left: auto;
+	display: flex;
+	align-items: center;
 	transition: width 200ms ease-out;
+}
+
+.monaco-workbench .feedback-form .form-buttons .send .codicon {
+	color: currentColor;
+	font-size: 20px;
+	padding-right: 8px;
 }
 
 .monaco-workbench .feedback-form .form-buttons .send.in-progress,
@@ -179,11 +180,6 @@
 	font-family: inherit;
 }
 
-.vs-dark .monaco-workbench .feedback-form .cancel,
-.hc-black .monaco-workbench .feedback-form .cancel {
-	background: url('close-dark.svg') center center no-repeat;
-}
-
 .monaco-workbench .feedback-form .sentiment.smile {
 	background-image: url('happy.svg');
 	background-position: center;
@@ -194,19 +190,6 @@
 	background-image: url('sad.svg');
 	background-position: center;
 	background-repeat: no-repeat;
-}
-
-.monaco-workbench .feedback-form .infotip {
-	background-image: url('info.svg');
-	background-position: center;
-	background-repeat: no-repeat;
-
-	height: 16px;
-	width: 16px;
-	display: inline-block;
-	vertical-align: text-bottom;
-	box-sizing:	border-box;
-	margin-left: 5px;
 }
 
 /* High Contrast Theming */
@@ -234,16 +217,4 @@
 
 .hc-black .monaco-workbench .feedback-form .form-buttons .send:hover {
 	background-color: #0C141F;
-}
-
-
-.monaco-workbench .feedback-form .infotip {
-	background: none;
-}
-
-.monaco-workbench .feedback-form .infotip:before {
-	content: url('info.svg');
-	height: 16px;
-	width: 16px;
-	display: inline-block;
 }

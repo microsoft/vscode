@@ -33,7 +33,8 @@ registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.userData.actions.openSyncBackupsFolder',
-			title: localize('Open Backup folder', "Sync: Open Local Backups Folder"),
+			title: { value: localize('Open Backup folder', "Open Local Backups Folder"), original: 'Open Local Backups Folder' },
+			category: { value: localize('sync preferences', "Preferences Sync"), original: `Preferences Sync` },
 			menu: {
 				id: MenuId.CommandPalette,
 				when: CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized),

@@ -27,12 +27,13 @@ import { ISearchConfigurationProperties } from 'vs/workbench/services/search/com
 import { attachFindReplaceInputBoxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { appendKeyBindingLabel, isSearchViewFocused } from 'vs/workbench/contrib/search/browser/searchActions';
+import { appendKeyBindingLabel, isSearchViewFocused, getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { isMacintosh } from 'vs/base/common/platform';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IViewsService } from 'vs/workbench/common/views';
+import { searchReplaceAllIcon, searchHideReplaceIcon, searchShowContextIcon, searchShowReplaceIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 
 /** Specified in searchview.css */
 export const SingleLineInputHeight = 24;
@@ -52,20 +53,10 @@ export interface ISearchWidgetOptions {
 
 class ReplaceAllAction extends Action {
 
-	private static fgInstance: ReplaceAllAction | null = null;
 	static readonly ID: string = 'search.action.replaceAll';
 
-	static get INSTANCE(): ReplaceAllAction {
-		if (ReplaceAllAction.fgInstance === null) {
-			ReplaceAllAction.fgInstance = new ReplaceAllAction();
-		}
-		return ReplaceAllAction.fgInstance;
-	}
-
-	private _searchWidget: SearchWidget | null = null;
-
-	constructor() {
-		super(ReplaceAllAction.ID, '', 'codicon-replace-all', false);
+	constructor(private _searchWidget: SearchWidget) {
+		super(ReplaceAllAction.ID, '', searchReplaceAllIcon.classNames, false);
 	}
 
 	set searchWidget(searchWidget: SearchWidget) {
@@ -301,8 +292,7 @@ export class SearchWidget extends Widget {
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
-		this.toggleReplaceButton.element.classList.add('codicon');
-		this.toggleReplaceButton.element.classList.add('codicon-chevron-right');
+		dom.addClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
 		this.toggleReplaceButton.icon = 'toggle-replace-button';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
@@ -359,7 +349,7 @@ export class SearchWidget extends Widget {
 		this._register(this.searchInputFocusTracker.onDidBlur(() => this.searchInputBoxFocused.set(false)));
 
 
-		this.showContextCheckbox = new Checkbox({ isChecked: false, title: nls.localize('showContext', "Show Context"), actionClassName: 'codicon-list-selection' });
+		this.showContextCheckbox = new Checkbox({ isChecked: false, title: nls.localize('showContext', "Show Context"), icon: searchShowContextIcon });
 		this._register(this.showContextCheckbox.onChange(() => this.onContextLinesChanged()));
 
 		if (options.showContextToggle) {
@@ -417,8 +407,7 @@ export class SearchWidget extends Widget {
 		this._register(this.replaceInput.inputBox.onDidChange(() => this._onReplaceValueChanged.fire()));
 		this._register(this.replaceInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
 
-		this.replaceAllAction = ReplaceAllAction.INSTANCE;
-		this.replaceAllAction.searchWidget = this;
+		this.replaceAllAction = new ReplaceAllAction(this);
 		this.replaceAllAction.label = SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 		this.replaceActionBar = this._register(new ActionBar(this.replaceContainer));
 		this.replaceActionBar.push([this.replaceAllAction], { icon: true, label: false });
@@ -437,8 +426,13 @@ export class SearchWidget extends Widget {
 
 	private onToggleReplaceButton(): void {
 		dom.toggleClass(this.replaceContainer, 'disabled');
-		dom.toggleClass(this.toggleReplaceButton.element, 'codicon-chevron-right');
-		dom.toggleClass(this.toggleReplaceButton.element, 'codicon-chevron-down');
+		if (this.isReplaceShown()) {
+			dom.removeClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
+			dom.addClasses(this.toggleReplaceButton.element, searchShowReplaceIcon.classNames);
+		} else {
+			dom.removeClasses(this.toggleReplaceButton.element, searchShowReplaceIcon.classNames);
+			dom.addClasses(this.toggleReplaceButton.element, searchHideReplaceIcon.classNames);
+		}
 		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
@@ -634,8 +628,15 @@ export class SearchWidget extends Widget {
 		this._onSearchSubmit.fire({ triggeredOnType, delay });
 	}
 
-	contextLines() {
+	getContextLines() {
 		return this.showContextCheckbox.checked ? +this.contextLinesInput.value : 0;
+	}
+
+	modifyContextLines(increase: boolean) {
+		const current = +this.contextLinesInput.value;
+		const modified = current + (increase ? 1 : -1);
+		this.showContextCheckbox.checked = modified !== 0;
+		this.contextLinesInput.value = '' + modified;
 	}
 
 	toggleContextLines() {
@@ -660,8 +661,12 @@ export function registerContributions() {
 		when: ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceActiveKey, CONTEXT_FIND_WIDGET_NOT_VISIBLE),
 		primary: KeyMod.Alt | KeyMod.CtrlCmd | KeyCode.Enter,
 		handler: accessor => {
-			if (isSearchViewFocused(accessor.get(IViewsService))) {
-				ReplaceAllAction.INSTANCE.run();
+			const viewsService = accessor.get(IViewsService);
+			if (isSearchViewFocused(viewsService)) {
+				const searchView = getSearchView(viewsService);
+				if (searchView) {
+					new ReplaceAllAction(searchView.searchAndReplaceWidget).run();
+				}
 			}
 		}
 	});

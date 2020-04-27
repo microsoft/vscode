@@ -15,6 +15,7 @@ import { IPanel } from 'vs/workbench/common/panel';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 
 abstract class BaseNavigationAction extends Action {
 
@@ -200,10 +201,67 @@ class NavigateDownAction extends BaseNavigationAction {
 	}
 }
 
+function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Parts, next: boolean): Parts {
+	const neighbour = part === Parts.EDITOR_PART ? (next ? Parts.STATUSBAR_PART : Parts.PANEL_PART) : part === Parts.STATUSBAR_PART ? (next ? Parts.SIDEBAR_PART : Parts.EDITOR_PART) :
+		part === Parts.SIDEBAR_PART ? (next ? Parts.PANEL_PART : Parts.STATUSBAR_PART) : part === Parts.PANEL_PART ? (next ? Parts.EDITOR_PART : Parts.SIDEBAR_PART) : Parts.EDITOR_PART;
+	if (layoutService.isVisible(neighbour) || neighbour === Parts.EDITOR_PART) {
+		return neighbour;
+	}
+
+	return findVisibleNeighbour(layoutService, neighbour, next);
+}
+
+function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, next: boolean): void {
+	const currentlyFocusedPart = layoutService.hasFocus(Parts.EDITOR_PART) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.STATUSBAR_PART) ? Parts.STATUSBAR_PART :
+		layoutService.hasFocus(Parts.SIDEBAR_PART) ? Parts.SIDEBAR_PART : layoutService.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : undefined;
+	let partToFocus = Parts.EDITOR_PART;
+	if (currentlyFocusedPart) {
+		partToFocus = findVisibleNeighbour(layoutService, currentlyFocusedPart, next);
+	}
+
+	layoutService.focusPart(partToFocus);
+}
+
+export class FocusNextPart extends Action {
+	static readonly ID = 'workbench.action.focusNextPart';
+	static readonly LABEL = nls.localize('focusNextPart', "Focus Next Part");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		focusNextOrPreviousPart(this.layoutService, true);
+	}
+}
+
+export class FocusPreviousPart extends Action {
+	static readonly ID = 'workbench.action.focusPreviousPart';
+	static readonly LABEL = nls.localize('focusPreviousPart', "Focus Previous Part");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		focusNextOrPreviousPart(this.layoutService, false);
+	}
+}
+
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, undefined), 'View: Navigate to the View Above', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, undefined), 'View: Navigate to the View Below', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, undefined), 'View: Navigate to the View on the Left', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, undefined), 'View: Navigate to the View on the Right', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateDownAction, undefined), 'View: Navigate to the View Below', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAction, undefined), 'View: Navigate to the View on the Left', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', viewCategory);

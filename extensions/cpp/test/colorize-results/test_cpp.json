@@ -485,7 +485,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -496,7 +496,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp punctuation.separator.delimiter.comma.cpp",
+		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp punctuation.separator.delimiter.comma.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -507,7 +507,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp meta.block.class.cpp meta.body.class.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -793,7 +793,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -804,7 +804,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -815,7 +815,7 @@
 	},
 	{
 		"c": "x",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp variable.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp variable.parameter.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -826,7 +826,7 @@
 	},
 	{
 		"c": ",",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp punctuation.separator.delimiter.comma.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp punctuation.separator.delimiter.comma.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -837,7 +837,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -848,7 +848,7 @@
 	},
 	{
 		"c": "int",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -859,7 +859,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -870,7 +870,7 @@
 	},
 	{
 		"c": "y",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp variable.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp variable.parameter.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1123,7 +1123,7 @@
 	},
 	{
 		"c": "long",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1134,7 +1134,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload meta.parameter.cpp",
+		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -1145,7 +1145,7 @@
 	},
 	{
 		"c": "double",
-		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
+		"t": "source.cpp meta.function.definition.special.operator-overload.cpp meta.head.function.definition.special.operator-overload.cpp meta.function.definition.parameters.special.operator-overload.cpp meta.parameter.cpp storage.type.primitive.cpp storage.type.built-in.primitive.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -1519,7 +1519,7 @@
 	},
 	{
 		"c": "movl %a %b",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp meta.embedded.assembly",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp meta.embedded.assembly.cpp",
 		"r": {
 			"dark_plus": "meta.embedded.assembly: #CE9178",
 			"light_plus": "meta.embedded.assembly: #A31515",

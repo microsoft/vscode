@@ -75,11 +75,11 @@
 		"snippets": [
 			{
 				"language": "c",
-				"path": "./snippets/c.json"
+				"path": "./snippets/c.code-snippets"
 			},
 			{
 				"language": "cpp",
-				"path": "./snippets/cpp.json"
+				"path": "./snippets/cpp.code-snippets"
 			}
 		]
 	}

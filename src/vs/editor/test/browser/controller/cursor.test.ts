@@ -1348,7 +1348,7 @@ suite('Editor Controller - Regression tests', () => {
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world ');
-			assertCursor(cursor, new Position(1, 13));
+			assertCursor(cursor, new Selection(1, 12, 1, 13));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
@@ -1419,6 +1419,28 @@ suite('Editor Controller - Regression tests', () => {
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			moveTo(cursor, 1, 7, false);
 			assertCursor(cursor, new Selection(1, 7, 1, 7));
+
+			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
+			assert.equal(model.getLineContent(1), '    ');
+			assertCursor(cursor, new Selection(1, 5, 1, 5));
+		});
+
+		model.dispose();
+	});
+
+	test('issue #95591: Unindenting moves cursor to beginning of line', () => {
+		let model = createTextModel(
+			[
+				'        '
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, {
+			model: model,
+			useTabStops: false
+		}, (editor, cursor) => {
+			moveTo(cursor, 1, 9, false);
+			assertCursor(cursor, new Selection(1, 9, 1, 9));
 
 			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    ');
@@ -5616,4 +5638,24 @@ suite('Undo stops', () => {
 		});
 	});
 
+	test('issue #93585: Undo multi cursor edit corrupts document', () => {
+		let model = createTextModel(
+			[
+				'hello world',
+				'hello world',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [
+				new Selection(2, 7, 2, 12),
+				new Selection(1, 7, 1, 12),
+			]);
+			cursorCommand(cursor, H.Type, { text: 'no' }, 'keyboard');
+			assert.equal(model.getValue(), 'hello no\nhello no');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(), 'hello world\nhello world');
+		});
+	});
 });

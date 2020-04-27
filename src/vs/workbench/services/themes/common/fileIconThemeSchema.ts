@@ -120,7 +120,7 @@ const schema: IJSONSchema = {
 							properties: {
 								path: {
 									type: 'string',
-									description: nls.localize('schema.font-path', 'The font path, relative to the current icon theme file.'),
+									description: nls.localize('schema.font-path', 'The font path, relative to the current file icon theme file.'),
 								},
 								format: {
 									type: 'string',

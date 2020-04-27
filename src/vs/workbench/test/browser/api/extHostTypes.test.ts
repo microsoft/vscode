@@ -566,4 +566,76 @@ suite('ExtHostTypes', function () {
 		assert.ok(!types.CodeActionKind.RefactorExtract.intersects(types.CodeActionKind.Empty.append('other').append('refactor')));
 		assert.ok(!types.CodeActionKind.RefactorExtract.intersects(types.CodeActionKind.Empty.append('refactory')));
 	});
+
+	function toArr(uint32Arr: Uint32Array): number[] {
+		const r = [];
+		for (let i = 0, len = uint32Arr.length; i < len; i++) {
+			r[i] = uint32Arr[i];
+		}
+		return r;
+	}
+
+	test('SemanticTokensBuilder simple', () => {
+		const builder = new types.SemanticTokensBuilder();
+		builder.push(1, 0, 5, 1, 1);
+		builder.push(1, 10, 4, 2, 2);
+		builder.push(2, 2, 3, 2, 2);
+		assert.deepEqual(toArr(builder.build().data), [
+			1, 0, 5, 1, 1,
+			0, 10, 4, 2, 2,
+			1, 2, 3, 2, 2
+		]);
+	});
+
+	test('SemanticTokensBuilder no modifier', () => {
+		const builder = new types.SemanticTokensBuilder();
+		builder.push(1, 0, 5, 1);
+		builder.push(1, 10, 4, 2);
+		builder.push(2, 2, 3, 2);
+		assert.deepEqual(toArr(builder.build().data), [
+			1, 0, 5, 1, 0,
+			0, 10, 4, 2, 0,
+			1, 2, 3, 2, 0
+		]);
+	});
+
+	test('SemanticTokensBuilder out of order 1', () => {
+		const builder = new types.SemanticTokensBuilder();
+		builder.push(2, 0, 5, 1, 1);
+		builder.push(2, 10, 1, 2, 2);
+		builder.push(2, 15, 2, 3, 3);
+		builder.push(1, 0, 4, 4, 4);
+		assert.deepEqual(toArr(builder.build().data), [
+			1, 0, 4, 4, 4,
+			1, 0, 5, 1, 1,
+			0, 10, 1, 2, 2,
+			0, 5, 2, 3, 3
+		]);
+	});
+
+	test('SemanticTokensBuilder out of order 2', () => {
+		const builder = new types.SemanticTokensBuilder();
+		builder.push(2, 10, 5, 1, 1);
+		builder.push(2, 2, 4, 2, 2);
+		assert.deepEqual(toArr(builder.build().data), [
+			2, 2, 4, 2, 2,
+			0, 8, 5, 1, 1
+		]);
+	});
+
+	test('SemanticTokensBuilder with legend', () => {
+		const legend = new types.SemanticTokensLegend(
+			['aType', 'bType', 'cType', 'dType'],
+			['mod0', 'mod1', 'mod2', 'mod3', 'mod4', 'mod5']
+		);
+		const builder = new types.SemanticTokensBuilder(legend);
+		builder.push(new types.Range(1, 0, 1, 5), 'bType');
+		builder.push(new types.Range(2, 0, 2, 4), 'cType', ['mod0', 'mod5']);
+		builder.push(new types.Range(3, 0, 3, 3), 'dType', ['mod2', 'mod4']);
+		assert.deepEqual(toArr(builder.build().data), [
+			1, 0, 5, 1, 0,
+			1, 0, 4, 2, 1 | (1 << 5),
+			1, 0, 3, 3, (1 << 2) | (1 << 4)
+		]);
+	});
 });

@@ -186,7 +186,7 @@ export default class FileConfigurationManager extends Disposable {
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
-			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true),
+			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true) === false ? false : config.get<boolean>('useAliasesForRenames', true),
 			allowRenameOfImportPath: true,
 		};
 

@@ -11,6 +11,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
+import { TestWorkingCopy } from 'vs/workbench/services/workingCopy/test/common/workingCopyService.test';
 
 suite('WorkingCopyFileService', () => {
 
@@ -185,5 +186,30 @@ suite('WorkingCopyFileService', () => {
 
 		model1.dispose();
 		model2.dispose();
+	});
+
+	test('registerWorkingCopyProvider', async function () {
+		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
+		(<TextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
+		await model1.load();
+		model1.textEditorModel!.setValue('foo');
+
+		const testWorkingCopy = new TestWorkingCopy(toResource.call(this, '/path/file-2.txt'), true);
+		const registration = accessor.workingCopyFileService.registerWorkingCopyProvider(() => {
+			return [model1, testWorkingCopy];
+		});
+
+		let dirty = accessor.workingCopyFileService.getDirty(model1.resource);
+		assert.strictEqual(dirty.length, 2, 'Should return default working copy + working copy from provider');
+		assert.strictEqual(dirty[0], model1);
+		assert.strictEqual(dirty[1], testWorkingCopy);
+
+		registration.dispose();
+
+		dirty = accessor.workingCopyFileService.getDirty(model1.resource);
+		assert.strictEqual(dirty.length, 1, 'Should have unregistered our provider');
+		assert.strictEqual(dirty[0], model1);
+
+		model1.dispose();
 	});
 });

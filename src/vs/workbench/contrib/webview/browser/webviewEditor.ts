@@ -86,11 +86,10 @@ export class WebviewEditor extends BaseEditor {
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
-				this.webview.claim(this);
+				this.claimWebview(this.input);
 			} else {
 				this.webview.release(this);
 			}
-			this.claimWebview(this.input);
 		}
 		super.setEditorVisible(visible, group);
 	}
@@ -109,7 +108,8 @@ export class WebviewEditor extends BaseEditor {
 			return;
 		}
 
-		if (this.webview) {
+		const alreadyOwnsWebview = input instanceof WebviewInput && input.webview === this.webview;
+		if (this.webview && !alreadyOwnsWebview) {
 			this.webview.release(this);
 		}
 
@@ -125,7 +125,9 @@ export class WebviewEditor extends BaseEditor {
 				input.updateGroup(this.group.id);
 			}
 
-			this.claimWebview(input);
+			if (!alreadyOwnsWebview) {
+				this.claimWebview(input);
+			}
 			if (this._dimension) {
 				this.layout(this._dimension);
 			}

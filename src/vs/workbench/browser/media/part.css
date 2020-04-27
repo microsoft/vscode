@@ -8,6 +8,24 @@
 	overflow: hidden;
 }
 
+.monaco-workbench .part > .drop-block-overlay.visible {
+	visibility: visible;
+	opacity: 1;
+}
+
+.monaco-workbench .part > .drop-block-overlay {
+	position: absolute;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	backdrop-filter: brightness(97%) blur(2px);
+	pointer-events: none;
+	visibility: hidden;
+	opacity: 0;
+	transition: opacity .5s, visibility .5s;
+	z-index: 10;
+}
+
 .monaco-workbench .part > .title {
 	display: none; /* Parts have to opt in to show title area */
 }

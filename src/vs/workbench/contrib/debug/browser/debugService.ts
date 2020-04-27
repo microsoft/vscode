@@ -170,7 +170,7 @@ export class DebugService implements IDebugService {
 				this.activity.dispose();
 			}
 			if (numberOfSessions > 0) {
-				this.activity = this.activityService.showActivity(VIEWLET_ID, new NumberBadge(numberOfSessions, n => n === 1 ? nls.localize('1activeSession', "1 active session") : nls.localize('nActiveSessions', "{0} active sessions", n)));
+				this.activity = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge: new NumberBadge(numberOfSessions, n => n === 1 ? nls.localize('1activeSession', "1 active session") : nls.localize('nActiveSessions', "{0} active sessions", n)) });
 			}
 		}));
 		this.toDispose.push(this.model.onDidChangeBreakpoints(() => setBreakpointsExistContext()));
@@ -584,7 +584,8 @@ export class DebugService implements IDebugService {
 
 			const focusedSession = this.viewModel.focusedSession;
 			if (focusedSession && focusedSession.getId() === session.getId()) {
-				await this.focusStackFrame(undefined);
+				const { session } = getStackFrameThreadAndSessionToFocus(this.model, undefined);
+				this.viewModel.setFocus(undefined, undefined, session, false);
 			}
 
 			if (this.model.getSessions().length === 0) {
@@ -760,8 +761,9 @@ export class DebugService implements IDebugService {
 				const control = editor.getControl();
 				if (stackFrame && isCodeEditor(control) && control.hasModel()) {
 					const model = control.getModel();
-					if (stackFrame.range.startLineNumber <= model.getLineCount()) {
-						const lineContent = control.getModel().getLineContent(stackFrame.range.startLineNumber);
+					const lineNumber = stackFrame.range.startLineNumber;
+					if (lineNumber >= 1 && lineNumber <= model.getLineCount()) {
+						const lineContent = control.getModel().getLineContent(lineNumber);
 						aria.alert(nls.localize('debuggingPaused', "Debugging paused {0}, {1} {2} {3}", thread && thread.stoppedDetails ? `, reason ${thread.stoppedDetails.reason}` : '', stackFrame.source ? stackFrame.source.name : '', stackFrame.range.startLineNumber, lineContent));
 					}
 				}

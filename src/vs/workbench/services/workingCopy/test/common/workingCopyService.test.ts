@@ -12,64 +12,65 @@ import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestSe
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { basename } from 'vs/base/common/resources';
 
-suite('WorkingCopyService', () => {
+export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
-	class TestWorkingCopy extends Disposable implements IWorkingCopy {
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-		private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-		readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-		private readonly _onDidChangeContent = this._register(new Emitter<void>());
-		readonly onDidChangeContent = this._onDidChangeContent.event;
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
 
-		private readonly _onDispose = this._register(new Emitter<void>());
-		readonly onDispose = this._onDispose.event;
+	readonly capabilities = 0;
 
-		readonly capabilities = 0;
+	readonly name = basename(this.resource);
 
-		readonly name = basename(this.resource);
+	private dirty = false;
 
-		private dirty = false;
+	constructor(public readonly resource: URI, isDirty = false) {
+		super();
 
-		constructor(public readonly resource: URI, isDirty = false) {
-			super();
+		this.dirty = isDirty;
+	}
 
-			this.dirty = isDirty;
-		}
-
-		setDirty(dirty: boolean): void {
-			if (this.dirty !== dirty) {
-				this.dirty = dirty;
-				this._onDidChangeDirty.fire();
-			}
-		}
-
-		setContent(content: string): void {
-			this._onDidChangeContent.fire();
-		}
-
-		isDirty(): boolean {
-			return this.dirty;
-		}
-
-		async save(options?: ISaveOptions): Promise<boolean> {
-			return true;
-		}
-
-		async revert(options?: IRevertOptions): Promise<void> {
-			this.setDirty(false);
-		}
-
-		async backup(): Promise<IWorkingCopyBackup> {
-			return {};
-		}
-
-		dispose(): void {
-			this._onDispose.fire();
-
-			super.dispose();
+	setDirty(dirty: boolean): void {
+		if (this.dirty !== dirty) {
+			this.dirty = dirty;
+			this._onDidChangeDirty.fire();
 		}
 	}
+
+	setContent(content: string): void {
+		this._onDidChangeContent.fire();
+	}
+
+	isDirty(): boolean {
+		return this.dirty;
+	}
+
+	async save(options?: ISaveOptions): Promise<boolean> {
+		return true;
+	}
+
+	async revert(options?: IRevertOptions): Promise<void> {
+		this.setDirty(false);
+	}
+
+	async backup(): Promise<IWorkingCopyBackup> {
+		return {};
+	}
+
+	dispose(): void {
+		this._onDispose.fire();
+
+		super.dispose();
+	}
+}
+
+suite('WorkingCopyService', () => {
+
 
 	test('registry - basics', () => {
 		const service = new TestWorkingCopyService();

@@ -26,11 +26,19 @@ const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
 });
 
 const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
-	type: 'object',
-	properties: codeActionsOnSaveDefaultProperties,
-	'additionalProperties': {
-		type: 'boolean'
-	},
+	oneOf: [
+		{
+			type: 'object',
+			properties: codeActionsOnSaveDefaultProperties,
+			additionalProperties: {
+				type: 'boolean'
+			},
+		},
+		{
+			type: 'array',
+			items: { type: 'string' }
+		}
+	],
 	default: {},
 	description: nls.localize('codeActionsOnSave', "Code action kinds to be run on save."),
 	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
@@ -106,7 +114,6 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				},
 				then: {
-					required: ['args'],
 					properties: {
 						'args': {
 							required: ['kind'],

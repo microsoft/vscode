@@ -269,6 +269,21 @@ export class Scope extends ExpressionContainer implements IScope {
 	}
 }
 
+export class ErrorScope extends Scope {
+
+	constructor(
+		stackFrame: IStackFrame,
+		index: number,
+		message: string,
+	) {
+		super(stackFrame, index, message, 0, false);
+	}
+
+	toString(): string {
+		return this.name;
+	}
+}
+
 export class StackFrame implements IStackFrame {
 
 	private scopes: Promise<Scope[]> | undefined;
@@ -290,10 +305,20 @@ export class StackFrame implements IStackFrame {
 	getScopes(): Promise<IScope[]> {
 		if (!this.scopes) {
 			this.scopes = this.thread.session.scopes(this.frameId, this.thread.threadId).then(response => {
-				return response && response.body && response.body.scopes ?
-					response.body.scopes.map((rs, index) => new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
-						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined)) : [];
-			}, err => []);
+				if (!response || !response.body || !response.body.scopes) {
+					return [];
+				}
+
+				const scopeNameIndexes = new Map<string, number>();
+				return response.body.scopes.map(rs => {
+					const previousIndex = scopeNameIndexes.get(rs.name);
+					const index = typeof previousIndex === 'number' ? previousIndex + 1 : 0;
+					scopeNameIndexes.set(rs.name, index);
+					return new Scope(this, index, rs.name, rs.variablesReference, rs.expensive, rs.namedVariables, rs.indexedVariables,
+						rs.line && rs.column && rs.endLine && rs.endColumn ? new Range(rs.line, rs.column, rs.endLine, rs.endColumn) : undefined);
+
+				});
+			}, err => [new ErrorScope(this, 0, err.message)]);
 		}
 
 		return this.scopes;

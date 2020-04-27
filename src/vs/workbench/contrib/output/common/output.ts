@@ -52,6 +52,8 @@ export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
 export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
 
+export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
+
 export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
 
 /**
@@ -104,11 +106,6 @@ export interface IOutputChannel {
 	 * Label of the output channel to be displayed to the user.
 	 */
 	label: string;
-
-	/**
-	 * Returns the value indicating whether the channel has scroll locked.
-	 */
-	scrollLock: boolean;
 
 	/**
 	 * URI of the output channel.

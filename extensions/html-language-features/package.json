@@ -165,7 +165,8 @@
           "type": "boolean",
           "scope": "resource",
           "default": false,
-          "description": "%html.mirrorCursorOnMatchingTag%"
+          "description": "%html.mirrorCursorOnMatchingTag%",
+          "deprecationMessage": "%html.mirrorCursorOnMatchingTagDeprecationMessage%"
         },
         "html.trace.server": {
           "type": "string",

@@ -331,7 +331,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp meta.head.struct.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -342,7 +342,7 @@
 	},
 	{
 		"c": "public",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp meta.head.struct.cpp storage.type.modifier.access.public.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp storage.type.modifier.access.public.cpp",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -353,7 +353,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp meta.head.struct.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -364,7 +364,7 @@
 	},
 	{
 		"c": "base",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp meta.head.struct.cpp meta.qualified_type.cpp entity.name.type.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp meta.qualified_type.cpp entity.name.type.cpp",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -375,7 +375,7 @@
 	},
 	{
 		"c": "                                                                   ",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp meta.head.struct.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp",
 		"r": {
 			"dark_plus": "meta.preprocessor: #569CD6",
 			"light_plus": "meta.preprocessor: #0000FF",
@@ -386,7 +386,7 @@
 	},
 	{
 		"c": "\\",
-		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp meta.head.struct.cpp constant.character.escape.line-continuation.cpp",
+		"t": "source.cpp meta.preprocessor.macro.cpp meta.block.namespace.cpp meta.body.namespace.cpp meta.block.struct.cpp constant.character.escape.line-continuation.cpp",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #FF0000",

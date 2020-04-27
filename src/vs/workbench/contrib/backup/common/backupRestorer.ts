@@ -10,9 +10,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IUntitledTextResourceEditorInput, IEditorInput } from 'vs/workbench/common/editor';
+import { IUntitledTextResourceEditorInput, IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { toLocalResource, isEqual } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -22,7 +24,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@IEditorService private readonly editorService: IEditorService,
 		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		this.restoreBackups();
 	}
@@ -78,13 +81,13 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	private async doOpenEditors(resources: URI[]): Promise<void> {
 		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
-		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
+		const inputs = await Promise.all(resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors)));
 
 		// Open all remaining backups as editors and resolve them to load their backups
 		await this.editorService.openEditors(inputs);
 	}
 
-	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceEditorInput | IUntitledTextResourceEditorInput {
+	private async resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): Promise<IResourceEditorInput | IUntitledTextResourceEditorInput | IEditorInputWithOptions> {
 		const options = { pinned: true, preserveFocus: true, inactive: index > 0 || hasOpenedEditors };
 
 		// this is a (weak) strategy to find out if the untitled input had
@@ -92,6 +95,12 @@ export class BackupRestorer implements IWorkbenchContribution {
 		// if so, we must ensure to restore the local resource it had.
 		if (resource.scheme === Schemas.untitled && !BackupRestorer.UNTITLED_REGEX.test(resource.path)) {
 			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority), options, forceUntitled: true };
+		}
+
+		if (resource.scheme === Schemas.vscodeCustomEditor) {
+			const editor = await Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory()
+				.createCustomEditorInput(resource, this.instantiationService);
+			return { editor, options };
 		}
 
 		return { resource, options };

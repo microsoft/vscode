@@ -13,12 +13,12 @@ const localize = nls.loadMessageBundle();
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString,
 } from 'vscode';
 import {
 	LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature
 } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -153,25 +153,41 @@ export function activate(context: ExtensionContext) {
 			},
 			// testing the replace / insert mode
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
-				function updateRanges(item: CompletionItem) {
+				function update(item: CompletionItem) {
 					const range = item.range;
 					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
 						item.range = { inserting: new Range(range.start, position), replacing: range };
 					}
+					if (item.documentation instanceof MarkdownString) {
+						item.documentation = updateMarkdownString(item.documentation);
+					}
+
 				}
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
 					if (r) {
-						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+						(Array.isArray(r) ? r : r.items).forEach(update);
 					}
 					return r;
 				}
-				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
 
 				const r = next(document, position, context, token);
 				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
 					return r.then(updateProposals);
 				}
 				return updateProposals(r);
+			},
+			provideHover(document: TextDocument, position: Position, token: CancellationToken, next: ProvideHoverSignature) {
+				function updateHover(r: Hover | null | undefined): Hover | null | undefined {
+					if (r && Array.isArray(r.contents)) {
+						r.contents = r.contents.map(h => h instanceof MarkdownString ? updateMarkdownString(h) : h);
+					}
+					return r;
+				}
+				const r = next(document, position, token);
+				if (isThenable<Hover | null | undefined>(r)) {
+					return r.then(updateHover);
+				}
+				return updateHover(r);
 			}
 		}
 	};
@@ -188,6 +204,9 @@ export function activate(context: ExtensionContext) {
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
 			const uri = Uri.parse(uriPath);
+			if (uri.scheme === 'untitled') {
+				return Promise.reject(new Error(localize('untitled.schema', 'Unable to load {0}', uri.toString())));
+			}
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 				return workspace.openTextDocument(uri).then(doc => {
 					schemaDocuments[uri.toString()] = true;
@@ -342,6 +361,9 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 						fileMatch = [fileMatch];
 					}
 					if (Array.isArray(fileMatch) && url) {
+						if (url[0] === '.' && url[1] === '/') {
+							url = Uri.file(path.join(extension.extensionPath, url)).toString();
+						}
 						fileMatch = fileMatch.map(fm => {
 							if (fm[0] === '%') {
 								fm = fm.replace(/%APP_SETTINGS_HOME%/, '/User');
@@ -485,4 +507,14 @@ function readJSONFile(location: string) {
 		console.log(`Problems reading ${location}: ${e}`);
 		return {};
 	}
+}
+
+function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
+	return obj && (<any>obj)['then'];
+}
+
+function updateMarkdownString(h: MarkdownString): MarkdownString {
+	const n = new MarkdownString(h.value, true);
+	n.isTrusted = h.isTrusted;
+	return n;
 }

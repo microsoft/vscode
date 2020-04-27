@@ -10,6 +10,7 @@ export namespace EditorContextKeys {
 	export const editorSimpleInput = new RawContextKey<boolean>('editorSimpleInput', false);
 	/**
 	 * A context key that is set when the editor's text has focus (cursor is blinking).
+	 * Is false when focus is in simple editor widgets (repl input, scm commit input).
 	 */
 	export const editorTextFocus = new RawContextKey<boolean>('editorTextFocus', false);
 	/**

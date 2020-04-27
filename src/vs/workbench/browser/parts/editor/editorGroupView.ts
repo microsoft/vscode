@@ -16,7 +16,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER } from 'vs/workbench/common/theme';
+import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
@@ -51,6 +51,8 @@ import { Schemas } from 'vs/base/common/network';
 import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/editor';
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { Codicon } from 'vs/base/common/codicons';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -133,7 +135,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ILogService private readonly logService: ILogService,
-		@IEditorService private readonly editorService: EditorServiceImpl
+		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(themeService);
 
@@ -290,13 +293,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const removeGroupAction = this._register(new Action(
 			CLOSE_EDITOR_GROUP_COMMAND_ID,
 			localize('closeGroupAction', "Close"),
-			'codicon-close',
+			Codicon.close.classNames,
 			true,
-			() => {
-				this.accessor.removeGroup(this);
-
-				return Promise.resolve(true);
-			}));
+			async () => this.accessor.removeGroup(this)));
 
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : undefined });
@@ -807,7 +806,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Guard against invalid inputs
 		if (!editor) {
-			return Promise.resolve(null);
+			return null;
 		}
 
 		// Editor opening event allows for prevention
@@ -822,13 +821,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		return withUndefinedAsNull(await this.doOpenEditor(editor, options));
 	}
 
-	private doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
+	private async doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Guard against invalid inputs. Disposed inputs
 		// should never open because they emit no events
 		// e.g. to indicate dirty changes.
 		if (editor.isDisposed()) {
-			return Promise.resolve(undefined);
+			return;
 		}
 
 		// Determine options
@@ -898,7 +897,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private async doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
 		// Show in editor control if the active editor changed
-		let openEditorPromise: Promise<IEditorPane | undefined>;
+		let openEditorPromise: Promise<IEditorPane | undefined> | undefined;
 		if (active) {
 			openEditorPromise = (async () => {
 				try {
@@ -919,7 +918,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				}
 			})();
 		} else {
-			openEditorPromise = Promise.resolve(undefined); // inactive: return undefined as result to signal this
+			openEditorPromise = undefined; // inactive: return undefined as result to signal this
 		}
 
 		// Show in title control after editor control because some actions depend on it
@@ -1309,30 +1308,43 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false; // editor is still editable somewhere else
 		}
 
-		// Switch to editor that we want to handle and confirm to save/revert
-		await this.openEditor(editor);
-
-		let name: string;
-		if (editor instanceof SideBySideEditorInput) {
-			name = editor.master.getName(); // prefer shorter names by using master's name in this case
-		} else {
-			name = editor.getName();
+		// Auto-save on focus change: assume to Save unless the editor is untitled
+		// because bringing up a dialog would save in this case anyway.
+		let confirmation: ConfirmResult;
+		let saveReason = SaveReason.EXPLICIT;
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled()) {
+			confirmation = ConfirmResult.SAVE;
+			saveReason = SaveReason.FOCUS_CHANGE;
 		}
 
-		const res = await this.fileDialogService.showSaveConfirm([name]);
+		// No auto-save on focus change: ask user
+		else {
+
+			// Switch to editor that we want to handle and confirm to save/revert
+			await this.openEditor(editor);
+
+			let name: string;
+			if (editor instanceof SideBySideEditorInput) {
+				name = editor.master.getName(); // prefer shorter names by using master's name in this case
+			} else {
+				name = editor.getName();
+			}
+
+			confirmation = await this.fileDialogService.showSaveConfirm([name]);
+		}
 
 		// It could be that the editor saved meanwhile or is saving, so we check
 		// again to see if anything needs to happen before closing for good.
 		// This can happen for example if autoSave: onFocusChange is configured
 		// so that the save happens when the dialog opens.
 		if (!editor.isDirty() || editor.isSaving()) {
-			return res === ConfirmResult.CANCEL ? true : false;
+			return confirmation === ConfirmResult.CANCEL ? true : false;
 		}
 
 		// Otherwise, handle accordingly
-		switch (res) {
+		switch (confirmation) {
 			case ConfirmResult.SAVE:
-				await editor.save(this.id, { reason: SaveReason.EXPLICIT });
+				await editor.save(this.id, { reason: saveReason });
 
 				return editor.isDirty(); // veto if still dirty
 			case ConfirmResult.DONT_SAVE:
@@ -1553,10 +1565,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Title control
-		const { showTabs } = this.accessor.partOptions;
-		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
-
-		if (!isEmpty && showTabs && borderColor) {
+		const borderColor = this.getColor(EDITOR_GROUP_HEADER_BORDER) || this.getColor(contrastBorder);
+		if (!isEmpty && borderColor) {
 			addClass(this.titleContainer, 'title-border-bottom');
 			this.titleContainer.style.setProperty('--title-border-bottom-color', borderColor.toString());
 		} else {
@@ -1564,6 +1574,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.titleContainer.style.removeProperty('--title-border-bottom-color');
 		}
 
+		const { showTabs } = this.accessor.partOptions;
 		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
 
 		// Editor container

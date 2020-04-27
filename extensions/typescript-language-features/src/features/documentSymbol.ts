@@ -16,7 +16,7 @@ const getSymbolKind = (kind: string): vscode.SymbolKind => {
 		case PConst.Kind.class: return vscode.SymbolKind.Class;
 		case PConst.Kind.enum: return vscode.SymbolKind.Enum;
 		case PConst.Kind.interface: return vscode.SymbolKind.Interface;
-		case PConst.Kind.memberFunction: return vscode.SymbolKind.Method;
+		case PConst.Kind.method: return vscode.SymbolKind.Method;
 		case PConst.Kind.memberVariable: return vscode.SymbolKind.Property;
 		case PConst.Kind.memberGetAccessor: return vscode.SymbolKind.Property;
 		case PConst.Kind.memberSetAccessor: return vscode.SymbolKind.Property;

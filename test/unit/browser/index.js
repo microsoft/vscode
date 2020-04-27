@@ -22,7 +22,7 @@ const optimist = require('optimist')
 	.describe('run', 'only run tests matching <relative_file_path>').string('run')
 	.describe('glob', 'only run tests matching <glob_pattern>').string('glob')
 	.describe('debug', 'do not run browsers headless').boolean('debug')
-	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium'])
+	.describe('browser', 'browsers in which tests should run').string('browser').default('browser', ['chromium', 'firefox', 'webkit'])
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
 	.describe('tfs', 'tfs').string('tfs')
@@ -119,7 +119,7 @@ const testModules = (async function () {
 
 async function runTestsInBrowser(testModules, browserType) {
 	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
-	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), dumpio: true, args });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), args });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
@@ -155,7 +155,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	});
 
 	try {
-		// @ts-ignore
+		// @ts-expect-error
 		await page.evaluate(modules => loadAndRun(modules), testModules);
 	} catch (err) {
 		console.error(err);

@@ -9,7 +9,7 @@ import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelLoadOrCreateOptions, ITextFileLoadEvent, ITextFileSaveEvent, ITextFileSaveParticipant, IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelLoadOrCreateOptions, ITextFileLoadEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
@@ -280,16 +280,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			const newModel = model = this.instantiationService.createInstance(TextFileEditorModel, resource, options ? options.encoding : undefined, options ? options.mode : undefined);
 			modelPromise = model.load(options);
 
-			// Install model listeners
-			const modelListeners = new DisposableStore();
-			modelListeners.add(model.onDidLoad(reason => this._onDidLoad.fire({ model: newModel, reason })));
-			modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(newModel)));
-			modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(newModel)));
-			modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: newModel, reason })));
-			modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(newModel)));
-			modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(newModel)));
-
-			this.mapResourceToModelListeners.set(resource, modelListeners);
+			this.registerModel(newModel);
 		}
 
 		// Store pending loads to avoid race conditions
@@ -298,9 +289,15 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Make known to manager (if not already known)
 		this.add(resource, model);
 
-		// Signal as event if we created the model
+		// Emit some events if we created the model
 		if (didCreateModel) {
 			this._onDidCreate.fire(model);
+
+			// If the model is dirty right from the beginning,
+			// make sure to emit this as an event
+			if (model.isDirty()) {
+				this._onDidChangeDirty.fire(model);
+			}
 		}
 
 		try {
@@ -333,6 +330,21 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 			throw error;
 		}
+	}
+
+	private registerModel(model: TextFileEditorModel): void {
+
+		// Install model listeners
+		const modelListeners = new DisposableStore();
+		modelListeners.add(model.onDidLoad(reason => this._onDidLoad.fire({ model, reason })));
+		modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire(model)));
+		modelListeners.add(model.onDidSaveError(() => this._onDidSaveError.fire(model)));
+		modelListeners.add(model.onDidSave(reason => this._onDidSave.fire({ model: model, reason })));
+		modelListeners.add(model.onDidRevert(() => this._onDidRevert.fire(model)));
+		modelListeners.add(model.onDidChangeEncoding(() => this._onDidChangeEncoding.fire(model)));
+
+		// Keep for disposal
+		this.mapResourceToModelListeners.set(model.resource, modelListeners);
 	}
 
 	add(resource: URI, model: TextFileEditorModel): void {
@@ -376,7 +388,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: IResolvedTextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
+	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason; }, token: CancellationToken): Promise<void> {
 		return this.saveParticipants.participate(model, context, token);
 	}
 

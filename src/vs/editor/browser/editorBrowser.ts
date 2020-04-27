@@ -333,6 +333,7 @@ export interface IOverviewRuler {
  */
 export interface IEditorAriaOptions {
 	activeDescendant: string | undefined;
+	role?: string;
 }
 
 /**
@@ -704,6 +705,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getVisibleRanges(): Range[];
 
 	/**
+	 * @internal
+	 */
+	getVisibleRangesPlusViewportAboveBelow(): Range[];
+
+	/**
 	 * Get the view zones.
 	 * @internal
 	 */
@@ -1011,6 +1017,16 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 	} else {
 		return false;
 	}
+}
+
+/**
+ *@internal
+ */
+export function isCompositeEditor(thing: any): thing is editorCommon.ICompositeCodeEditor {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof (<editorCommon.ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
+
 }
 
 /**

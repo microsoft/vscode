@@ -13,6 +13,7 @@ import { IWorkingCopyFileOperationParticipant } from 'vs/workbench/services/work
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { insert } from 'vs/base/common/arrays';
 
 export class WorkingCopyFileOperationParticipant extends Disposable {
 
@@ -27,9 +28,9 @@ export class WorkingCopyFileOperationParticipant extends Disposable {
 	}
 
 	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable {
-		this.participants.push(participant);
+		const remove = insert(this.participants, participant);
 
-		return toDisposable(() => this.participants.splice(this.participants.indexOf(participant), 1));
+		return toDisposable(() => remove());
 	}
 
 	async participate(target: URI, source: URI | undefined, operation: FileOperation): Promise<void> {
