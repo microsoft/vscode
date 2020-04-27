@@ -294,7 +294,6 @@ export class SuggestController implements IEditorContribution {
 		});
 
 		scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
-		this.editor.pushUndoStop();
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
 			this.editor.pushUndoStop();
