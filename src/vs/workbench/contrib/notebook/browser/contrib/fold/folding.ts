@@ -16,7 +16,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { getActiveNotebookEditor, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { localize } from 'vs/nls';
 
 export class FoldingController extends Disposable implements INotebookEditorContribution {
@@ -135,7 +135,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.fold',
 			title: localize('fold.cell', 'Fold Cell'),
-			category: localize('cat', "Notebook"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyCode.LeftArrow,
@@ -173,7 +173,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.unfold',
 			title: localize('unfold.cell', 'Unfold Cell'),
-			category: localize('cat', "Notebook"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyCode.RightArrow,

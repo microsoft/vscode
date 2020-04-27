@@ -10,7 +10,7 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { getActiveNotebookEditor, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -26,7 +26,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.format',
 			title: localize('format.title', 'Format Notebook'),
-			category: localize('cat', "Notebook"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR),
 			keybinding: {
 				when: EditorContextKeys.editorTextFocus.toNegated(),
