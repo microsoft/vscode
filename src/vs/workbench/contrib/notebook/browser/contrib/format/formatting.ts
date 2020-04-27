@@ -27,8 +27,9 @@ registerAction2(class extends Action2 {
 			id: 'notebook.format',
 			title: localize('format.title', 'Format Notebook'),
 			category: localize('cat', "Notebook"),
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, EditorContextKeys.editorTextFocus.toNegated()),
+				when: EditorContextKeys.editorTextFocus.toNegated(),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
 				weight: KeybindingWeight.WorkbenchContrib
