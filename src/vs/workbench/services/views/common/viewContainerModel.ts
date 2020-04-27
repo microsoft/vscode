@@ -381,11 +381,11 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 			const viewDescriptor = viewDescriptorItem.viewDescriptor;
 
 			if (!viewDescriptor.canToggleVisibility) {
-				throw new Error(`Can't toggle this view's visibility`);
+				continue;
 			}
 
-			if (this.isViewDescriptorVisible(viewDescriptorItem) === visible) {
-				return;
+			if (this.isViewDescriptorVisibleWhenActive(viewDescriptorItem) === visible) {
+				continue;
 			}
 
 			if (viewDescriptor.workspace) {
@@ -396,6 +396,11 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 
 			if (typeof viewDescriptorItem.state.size === 'number') {
 				viewDescriptorItem.state.size = size;
+			}
+
+			if (this.isViewDescriptorVisible(viewDescriptorItem) !== visible) {
+				// do not add events if visibility is not changed
+				continue;
 			}
 
 			if (visible) {

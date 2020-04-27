@@ -6,7 +6,7 @@
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
@@ -87,19 +87,28 @@ export class EditorState {
 /**
  * A cancellation token source that cancels when the editor changes as expressed
  * by the provided flags
+ * @param range If provided, changes in position and selection within this range will not trigger cancellation
  */
 export class EditorStateCancellationTokenSource extends EditorKeybindingCancellationTokenSource implements IDisposable {
 
 	private readonly _listener = new DisposableStore();
 
-	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, parent?: CancellationToken) {
+	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, range?: IRange, parent?: CancellationToken) {
 		super(editor, parent);
 
 		if (flags & CodeEditorStateFlag.Position) {
-			this._listener.add(editor.onDidChangeCursorPosition(_ => this.cancel()));
+			this._listener.add(editor.onDidChangeCursorPosition(e => {
+				if (!range || !Range.containsPosition(range, e.position)) {
+					this.cancel();
+				}
+			}));
 		}
 		if (flags & CodeEditorStateFlag.Selection) {
-			this._listener.add(editor.onDidChangeCursorSelection(_ => this.cancel()));
+			this._listener.add(editor.onDidChangeCursorSelection(e => {
+				if (!range || !Range.containsRange(range, e.selection)) {
+					this.cancel();
+				}
+			}));
 		}
 		if (flags & CodeEditorStateFlag.Scroll) {
 			this._listener.add(editor.onDidScrollChange(_ => this.cancel()));

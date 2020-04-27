@@ -251,6 +251,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			}
 			let text = this._compute(grammar, semanticTokens, position);
 			this._domNode.innerHTML = text;
+			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);
 		}, (err) => {
 			this._notificationService.warn(err);
@@ -552,7 +553,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			theme.resolveScopes(definition, scopesDefinition);
 			const matchingRule = scopesDefinition[property];
 			if (matchingRule && scopesDefinition.scope) {
-				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${matchingRule.scope}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
+				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope.join(', ') : String(matchingRule.scope);
+				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${strScopes}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return '';
 		} else if (TokenStylingRule.is(definition)) {
