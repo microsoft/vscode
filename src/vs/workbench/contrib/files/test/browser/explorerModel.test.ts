@@ -222,6 +222,8 @@ suite('Files - View Model', function () {
 		const d = new Date().getTime();
 		const wsFolder = createStat.call(this, '/', 'workspaceFolder', true, false, 8096, d);
 
+		assert(validateFileName(wsFolder, './foo/bar') === null);
+		assert(validateFileName(wsFolder, '../foo/bar') !== null);
 		assert(validateFileName(wsFolder, 'foo/bar') === null);
 		assert(validateFileName(wsFolder, 'foo\\bar') === null);
 		assert(validateFileName(wsFolder, 'all/slashes/are/same') === null);
