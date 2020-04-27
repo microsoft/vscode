@@ -58,7 +58,7 @@ const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 
 
-const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
+export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
 const EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
 
@@ -168,6 +168,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.Shift | KeyCode.Enter,
@@ -211,6 +212,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: EXECUTE_CELL_INSERT_BELOW,
 			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.Alt | KeyCode.Enter,
@@ -285,6 +287,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: QUIT_EDIT_CELL_COMMAND_ID,
 			title: localize('notebookActions.quitEditing', "Quit Notebook Cell Editing"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
 				primary: KeyCode.Escape,
@@ -316,6 +319,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: EXECUTE_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.executeNotebook', "Execute Notebook (Run all cells)"),
+		category: NOTEBOOK_ACTIONS_CATEGORY,
 		icon: { id: 'codicon/run-all' }
 	},
 	order: -1,
@@ -327,6 +331,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: CANCEL_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.cancelNotebook', "Stop Notebook Execution"),
+		category: NOTEBOOK_ACTIONS_CATEGORY,
 		icon: { id: 'codicon/primitive-square' }
 	},
 	order: -1,
@@ -339,6 +344,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: EXECUTE_CELL_COMMAND_ID,
 		title: localize('notebookActions.menu.execute', "Execute Notebook Cell"),
+		category: NOTEBOOK_ACTIONS_CATEGORY,
 		icon: { id: 'codicon/run' }
 	},
 	order: 0,
@@ -983,7 +989,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: NOTEBOOK_CURSOR_DOWN,
-			title: 'Notebook Cursor Move Down',
+			title: localize('cursorMoveDown', 'Cursor Move Down'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.DownArrow,
@@ -1022,7 +1029,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: NOTEBOOK_CURSOR_UP,
-			title: 'Notebook Cursor Move Up',
+			title: localize('cursorMoveUp', 'Cursor Move Up'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.UpArrow,
@@ -1066,7 +1074,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: NOTEBOOK_UNDO,
-			title: 'Notebook Undo',
+			title: localize('undo', 'Undo'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z,
@@ -1097,7 +1106,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: NOTEBOOK_REDO,
-			title: 'Notebook Redo',
+			title: localize('redo', 'Redo'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z,
@@ -1128,7 +1138,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: NOTEBOOK_FOCUS_TOP,
-			title: 'Notebook Focus First Cell',
+			title: localize('focusFirstCell', 'Focus First Cell'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.Home,
@@ -1161,7 +1172,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: NOTEBOOK_FOCUS_BOTTOM,
-			title: 'Notebook Focus Last Cell',
+			title: localize('focusLastCell', 'Focus Last Cell'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.End,
@@ -1194,7 +1206,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
-			title: 'Notebook Clear Active Cell Outputs',
+			title: localize('clearActiveCellOutputs', 'Clear Active Cell Outputs'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: {
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_RUNNABLE),
@@ -1226,7 +1239,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
-			title: 'Notebook Clear All Cells Outputs',
+			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: {
 				id: MenuId.EditorTitle,
 				when: NOTEBOOK_EDITOR_FOCUSED,
@@ -1254,4 +1268,3 @@ registerAction2(class extends Action2 {
 		editor.viewModel.notebookDocument.clearAllCellOutputs();
 	}
 });
-
