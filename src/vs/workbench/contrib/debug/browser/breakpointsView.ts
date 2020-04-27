@@ -236,8 +236,14 @@ export class BreakpointsView extends ViewPane {
 		if (this.isBodyVisible()) {
 			this.updateSize();
 			if (this.list) {
+				const lastFocusIndex = this.list.getFocus()[0];
+				// Check whether focused element was removed
+				const needsRefocus = lastFocusIndex !== -1 && !this.elements.includes(this.list.element(lastFocusIndex));
 				this.list.splice(0, this.list.length, this.elements);
 				this.needsRefresh = false;
+				if (needsRefocus) {
+					this.list.focusNth(Math.min(lastFocusIndex, this.list.length - 1));
+				}
 			}
 		} else {
 			this.needsRefresh = true;
