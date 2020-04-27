@@ -54,7 +54,8 @@ const viewsContainerSchema: IJSONSchema = {
 			description: localize('vscode.extension.contributes.views.containers.icon', "Path to the container icon. Icons are 24x24 centered on a 50x40 block and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted."),
 			type: 'string'
 		}
-	}
+	},
+	required: ['id', 'title', 'icon']
 };
 
 export const viewsContainersContribution: IJSONSchema = {
