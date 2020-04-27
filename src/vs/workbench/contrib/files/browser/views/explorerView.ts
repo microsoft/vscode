@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -123,7 +123,6 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 }
 
 export class ExplorerView extends ViewPane {
-	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;
@@ -132,12 +131,15 @@ export class ExplorerView extends ViewPane {
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
 	private readonlyContext: IContextKey<boolean>;
+	private availableEditorIdsContext: IContextKey<string>;
+
 	private rootContext: IContextKey<boolean>;
 	private resourceMoveableToTrash: IContextKey<boolean>;
 
 	private renderer!: FilesRenderer;
 
 	private styleElement!: HTMLStyleElement;
+	private treeContainer!: HTMLElement;
 	private compressedFocusContext: IContextKey<boolean>;
 	private compressedFocusFirstContext: IContextKey<boolean>;
 	private compressedFocusLastContext: IContextKey<boolean>;
@@ -179,13 +181,14 @@ export class ExplorerView extends ViewPane {
 
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
 		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
+		this.availableEditorIdsContext = ExplorerResourceAvailableEditorIdsContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 		this.resourceMoveableToTrash = ExplorerResourceMoveableToTrash.bindTo(contextKeyService);
 		this.compressedFocusContext = ExplorerCompressedFocusContext.bindTo(contextKeyService);
 		this.compressedFocusFirstContext = ExplorerCompressedFirstFocusContext.bindTo(contextKeyService);
 		this.compressedFocusLastContext = ExplorerCompressedLastFocusContext.bindTo(contextKeyService);
 
-		this.explorerService.registerContextProvider(this);
+		this.explorerService.registerView(this);
 	}
 
 	get name(): string {
@@ -245,47 +248,16 @@ export class ExplorerView extends ViewPane {
 	renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		const treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
+		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 
-		this.styleElement = DOM.createStyleSheet(treeContainer);
+		this.styleElement = DOM.createStyleSheet(this.treeContainer);
 		attachStyler<IExplorerViewColors>(this.themeService, { listDropBackground }, this.styleListDropBackground.bind(this));
 
-		this.createTree(treeContainer);
+		this.createTree(this.treeContainer);
 
 		this._register(this.labelService.onDidChangeFormatters(() => {
 			this._onDidChangeTitleArea.fire();
 		}));
-
-		this._register(this.explorerService.onDidChangeRoots(() => this.setTreeInput()));
-		this._register(this.explorerService.onDidChangeItem(e => {
-			if (this.explorerService.isEditable(undefined)) {
-				this.tree.domFocus();
-			}
-			this.refresh(e.recursive, e.item);
-		}));
-		this._register(this.explorerService.onDidChangeEditable(async e => {
-			const isEditing = !!this.explorerService.getEditableData(e);
-
-			if (isEditing) {
-				if (e.parent !== this.tree.getInput()) {
-					await this.tree.expand(e.parent!);
-					this.tree.reveal(e.parent!);
-				}
-			} else {
-				DOM.removeClass(treeContainer, 'highlight');
-			}
-
-			await this.refresh(false, e.parent);
-
-			if (isEditing) {
-				DOM.addClass(treeContainer, 'highlight');
-				this.tree.reveal(e);
-			} else {
-				this.tree.domFocus();
-			}
-		}));
-		this._register(this.explorerService.onDidSelectResource(e => this.onSelectResource(e.resource, e.reveal)));
-		this._register(this.explorerService.onDidCopyItems(e => this.onCopyItems(e.items, e.cut, e.previouslyCutItems)));
 
 		// Update configuration
 		const configuration = this.configurationService.getValue<IFilesConfiguration>();
@@ -336,6 +308,29 @@ export class ExplorerView extends ViewPane {
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
 		return getContext(this.tree.getFocus(), this.tree.getSelection(), respectMultiSelection, this.renderer);
+	}
+
+	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
+		let shouldRefresh = true;
+		if (isEditing) {
+			if (stat.parent && stat.parent !== this.tree.getInput()) {
+				shouldRefresh = stat.parent.isDirectoryResolved;
+				await this.tree.expand(stat.parent);
+			}
+		} else {
+			DOM.removeClass(this.treeContainer, 'highlight');
+		}
+
+		if (shouldRefresh) {
+			await this.refresh(false, stat.parent);
+		}
+
+		if (isEditing) {
+			DOM.addClass(this.treeContainer, 'highlight');
+			this.tree.reveal(stat);
+		} else {
+			this.tree.domFocus();
+		}
 	}
 
 	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
@@ -443,10 +438,10 @@ export class ExplorerView extends ViewPane {
 
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
-		this._register(this.tree.onDidScroll(e => {
+		this._register(this.tree.onDidScroll(async e => {
 			let editable = this.explorerService.getEditable();
 			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
-				editable.data.onFinish('', false);
+				await editable.data.onFinish('', false);
 			}
 		}));
 
@@ -474,6 +469,14 @@ export class ExplorerView extends ViewPane {
 		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && stat.isReadonly);
 		this.rootContext.set(!stat || (stat && stat.isRoot));
+
+		if (resource) {
+			const fileEditorInput = this.editorService.createEditorInput({ resource, forceFile: true });
+			const overrides = this.editorService.getEditorOverrides(fileEditorInput, undefined, undefined);
+			this.availableEditorIdsContext.set(overrides.map(([, entry]) => entry.id).join(','));
+		} else {
+			this.availableEditorIdsContext.reset();
+		}
 	}
 
 	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
@@ -556,19 +559,18 @@ export class ExplorerView extends ViewPane {
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
-	private refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
-		if (!this.tree || !this.isBodyVisible()) {
+	refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
+		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item))) {
+			// Tree node doesn't exist yet
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
 		}
 
-		// Tree node doesn't exist yet
-		if (item && !this.tree.hasNode(item)) {
-			return Promise.resolve(undefined);
+		if (this.explorerService.isEditable(undefined)) {
+			this.tree.domFocus();
 		}
 
 		const toRefresh = item || this.tree.getInput();
-
 		return this.tree.updateChildren(toRefresh, recursive);
 	}
 
@@ -579,7 +581,7 @@ export class ExplorerView extends ViewPane {
 		return DOM.getLargestChildWidth(parentNode, childNodes);
 	}
 
-	private async setTreeInput(): Promise<void> {
+	async setTreeInput(): Promise<void> {
 		if (!this.isBodyVisible()) {
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
@@ -647,7 +649,7 @@ export class ExplorerView extends ViewPane {
 		return withNullAsUndefined(toResource(input, { supportSideBySide: SideBySideEditor.MASTER }));
 	}
 
-	private async onSelectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
+	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
 		// do no retry more than once to prevent inifinite loops in cases of inconsistent model
 		if (retry === 2) {
 			return;
@@ -664,10 +666,11 @@ export class ExplorerView extends ViewPane {
 			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
 		while (item && item.resource.toString() !== resource.toString()) {
-			if (item.isDisposed) {
-				return this.onSelectResource(resource, reveal, retry + 1);
+			try {
+				await this.tree.expand(item);
+			} catch (e) {
+				return this.selectResource(resource, reveal, retry + 1);
 			}
-			await this.tree.expand(item);
 			item = first(values(item.children), i => isEqualOrParent(resource, i.resource, ignoreCase));
 		}
 
@@ -680,10 +683,6 @@ export class ExplorerView extends ViewPane {
 
 			try {
 				if (reveal) {
-					if (item.isDisposed) {
-						return this.onSelectResource(resource, reveal, retry + 1);
-					}
-
 					// Don't scroll to the item if it's already visible
 					if (this.tree.getRelativeTop(item) === null) {
 						this.tree.reveal(item, 0.5);
@@ -693,12 +692,13 @@ export class ExplorerView extends ViewPane {
 				this.tree.setFocus([item]);
 				this.tree.setSelection([item]);
 			} catch (e) {
-				// Element might not be in the tree, silently fail
+				// Element might not be in the tree, try again and silently fail
+				return this.selectResource(resource, reveal, retry + 1);
 			}
 		}
 	}
 
-	private onCopyItems(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
+	itemsCopied(stats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void {
 		this.fileCopiedContextKey.set(stats.length > 0);
 		this.resourceCutContextKey.set(cut && stats.length > 0);
 		if (previousCut) {

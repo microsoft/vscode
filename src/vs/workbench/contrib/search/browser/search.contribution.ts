@@ -557,7 +557,7 @@ const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.Workbenc
 
 // Show Search and Find in Files are redundant, but we can't break keybindings by removing one. So it's the same action, same keybinding, registered to different IDs.
 // Show Search 'when' is redundant but if the two conflict with exactly the same keybinding and 'when' clause, then they can show up as "unbound" - #51780
-registry.registerWorkbenchAction(SyncActionDescriptor.create(OpenSearchViewletAction, VIEWLET_ID, OpenSearchViewletAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenSearchViewletAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F }, Constants.SearchViewVisibleKey.toNegated()), 'View: Show Search', nls.localize('view', "View"));
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: Constants.FindInFilesActionId,
 	weight: KeybindingWeight.WorkbenchContrib,
@@ -588,12 +588,22 @@ MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
 	order: 2
 });
 
-KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
-	id: Constants.ToggleCaseSensitiveCommandId,
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
-	handler: toggleCaseSensitiveCommand
-}, ToggleCaseSensitiveKeybinding));
+if (platform.isMacintosh) {
+	// Register this with a more restrictive `when` on mac to avoid conflict with "copy path"
+	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+		id: Constants.ToggleCaseSensitiveCommandId,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: ContextKeyExpr.and(Constants.SearchViewFocusedKey, Constants.FileMatchOrFolderMatchFocusKey.toNegated()),
+		handler: toggleCaseSensitiveCommand
+	}, ToggleCaseSensitiveKeybinding));
+} else {
+	KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
+		id: Constants.ToggleCaseSensitiveCommandId,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: Constants.SearchViewFocusedKey,
+		handler: toggleCaseSensitiveCommand
+	}, ToggleCaseSensitiveKeybinding));
+}
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 	id: Constants.ToggleWholeWordCommandId,

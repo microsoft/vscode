@@ -19,7 +19,9 @@ import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 
 export class StatefullMarkdownCell extends Disposable {
+
 	private editor: CodeEditorWidget | null = null;
+	private editorOptions: IEditorOptions;
 	private markdownContainer: HTMLElement;
 	private editingContainer: HTMLElement;
 
@@ -37,6 +39,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 		this.markdownContainer = templateData.cellContainer;
 		this.editingContainer = templateData.editingContainer;
+		this.editorOptions = editorOptions;
 		this.localDisposables = new DisposableStore();
 		this._register(this.localDisposables);
 
@@ -65,7 +68,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.editingContainer.innerHTML = '';
 					this.editor = instantiationService.createInstance(CodeEditorWidget, this.editingContainer, {
-						...editorOptions,
+						...this.editorOptions,
 						dimension: {
 							width: width,
 							height: totalHeight
@@ -146,6 +149,10 @@ export class StatefullMarkdownCell extends Disposable {
 							this.markdownContainer.appendChild(renderedHTML);
 						}
 					}));
+
+					const clientHeight = templateData.container.clientHeight;
+					this.viewCell.totalHeight = clientHeight;
+					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 				}
 			}
 		};
@@ -190,6 +197,13 @@ export class StatefullMarkdownCell extends Disposable {
 		}));
 
 		viewUpdate();
+	}
+
+	updateEditorOptions(newValue: IEditorOptions): any {
+		this.editorOptions = newValue;
+		if (this.editor) {
+			this.editor.updateOptions(this.editorOptions);
+		}
 	}
 
 	setFoldingIndicator() {

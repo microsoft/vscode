@@ -22,7 +22,7 @@ import { InEditorZenModeContext, IsCenteredLayoutContext, EditorAreaVisibleConte
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsService, FocusedViewContext, ViewContainerLocation, IViewDescriptor } from 'vs/workbench/common/views';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
@@ -487,18 +487,23 @@ export class ResetViewLocationsAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		viewContainerRegistry.all.forEach(viewContainer => {
+		this.viewDescriptorService.getViewContainers().forEach(viewContainer => {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 
 			viewContainerModel.allViewDescriptors.forEach(viewDescriptor => {
-				const defaultContainer = this.viewDescriptorService.getDefaultContainer(viewDescriptor.id);
-				const currentContainer = this.viewDescriptorService.getViewContainer(viewDescriptor.id);
+				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
+				const currentContainer = this.viewDescriptorService.getViewContainerByViewId(viewDescriptor.id);
 
 				if (defaultContainer && currentContainer !== defaultContainer) {
 					this.viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
 				}
 			});
+
+			const defaultContainerLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer);
+			const currentContainerLocation = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+			if (defaultContainerLocation !== null && currentContainerLocation !== defaultContainerLocation) {
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultContainerLocation);
+			}
 		});
 	}
 }
@@ -525,7 +530,7 @@ export abstract class ToggleViewAction extends Action {
 		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
 
 		if (focusedViewId === this.viewId) {
-			if (this.viewDescriptorService.getViewLocation(this.viewId) === ViewContainerLocation.Sidebar) {
+			if (this.viewDescriptorService.getViewLocationById(this.viewId) === ViewContainerLocation.Sidebar) {
 				this.layoutService.setSideBarHidden(true);
 			} else {
 				this.layoutService.setPanelHidden(true);
@@ -556,8 +561,6 @@ export class MoveFocusedViewAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-
 		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
@@ -565,7 +568,7 @@ export class MoveFocusedViewAction extends Action {
 			return;
 		}
 
-		const viewDescriptor = this.viewDescriptorService.getViewDescriptor(focusedViewId);
+		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(focusedViewId);
 		if (!viewDescriptor || !viewDescriptor.canMoveView) {
 			this.notificationService.error(nls.localize('moveFocusedView.error.nonMovableView', "The currently focused view is not movable."));
 			return;
@@ -582,8 +585,8 @@ export class MoveFocusedViewAction extends Action {
 			label: nls.localize('sidebar', "Side Bar")
 		});
 
-		const currentContainer = this.viewDescriptorService.getViewContainer(focusedViewId)!;
-		const currentLocation = this.viewDescriptorService.getViewLocation(focusedViewId)!;
+		const currentContainer = this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!;
+		const currentLocation = this.viewDescriptorService.getViewLocationById(focusedViewId)!;
 		const isViewSolo = this.viewDescriptorService.getViewContainerModel(currentContainer).allViewDescriptors.length === 1;
 
 		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
@@ -596,16 +599,16 @@ export class MoveFocusedViewAction extends Action {
 		const pinnedViewlets = this.activityBarService.getPinnedViewletIds();
 		items.push(...pinnedViewlets
 			.filter(viewletId => {
-				if (viewletId === this.viewDescriptorService.getViewContainer(focusedViewId)!.id) {
+				if (viewletId === this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
 					return false;
 				}
 
-				return !viewContainerRegistry.get(viewletId)!.rejectAddedViews;
+				return !this.viewDescriptorService.getViewContainerById(viewletId)!.rejectAddedViews;
 			})
 			.map(viewletId => {
 				return {
 					id: viewletId,
-					label: viewContainerRegistry.get(viewletId)!.name
+					label: this.viewDescriptorService.getViewContainerById(viewletId)!.name
 				};
 			}));
 
@@ -624,16 +627,16 @@ export class MoveFocusedViewAction extends Action {
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		items.push(...pinnedPanels
 			.filter(panel => {
-				if (panel.id === this.viewDescriptorService.getViewContainer(focusedViewId)!.id) {
+				if (panel.id === this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
 					return false;
 				}
 
-				return !viewContainerRegistry.get(panel.id)!.rejectAddedViews;
+				return !this.viewDescriptorService.getViewContainerById(panel.id)!.rejectAddedViews;
 			})
 			.map(panel => {
 				return {
 					id: panel.id,
-					label: viewContainerRegistry.get(panel.id)!.name
+					label: this.viewDescriptorService.getViewContainerById(panel.id)!.name
 				};
 			}));
 
@@ -649,7 +652,7 @@ export class MoveFocusedViewAction extends Action {
 				this.viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar);
 				this.viewsService.openView(focusedViewId, true);
 			} else if (destination.id) {
-				this.viewDescriptorService.moveViewsToContainer([viewDescriptor], viewContainerRegistry.get(destination.id)!);
+				this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewDescriptorService.getViewContainerById(destination.id)!);
 				this.viewsService.openView(focusedViewId, true);
 			}
 
@@ -684,7 +687,7 @@ export class ResetFocusedViewLocationAction extends Action {
 
 		let viewDescriptor: IViewDescriptor | null = null;
 		if (focusedViewId !== undefined && focusedViewId.trim() !== '') {
-			viewDescriptor = this.viewDescriptorService.getViewDescriptor(focusedViewId);
+			viewDescriptor = this.viewDescriptorService.getViewDescriptorById(focusedViewId);
 		}
 
 		if (!viewDescriptor) {
@@ -692,8 +695,8 @@ export class ResetFocusedViewLocationAction extends Action {
 			return;
 		}
 
-		const defaultContainer = this.viewDescriptorService.getDefaultContainer(viewDescriptor.id);
-		if (!defaultContainer || defaultContainer === this.viewDescriptorService.getViewContainer(viewDescriptor.id)) {
+		const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewDescriptor.id);
+		if (!defaultContainer || defaultContainer === this.viewDescriptorService.getViewContainerByViewId(viewDescriptor.id)) {
 			return;
 		}
 

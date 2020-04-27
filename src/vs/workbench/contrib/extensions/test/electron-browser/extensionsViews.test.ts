@@ -152,7 +152,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IViewDescriptorService, {
-			getViewLocation(): ViewContainerLocation {
+			getViewLocationById(): ViewContainerLocation {
 				return ViewContainerLocation.Sidebar;
 			}
 		});

@@ -193,7 +193,7 @@ export class CodeApplication extends Disposable {
 					return;
 				}
 
-				delete (webPreferences as { preloadURL: string }).preloadURL; // https://github.com/electron/electron/issues/21553
+				delete (webPreferences as { preloadURL: string | undefined }).preloadURL; // https://github.com/electron/electron/issues/21553
 
 				// Otherwise prevent loading
 				this.logService.error('webContents#web-contents-created: Prevented webview attach');

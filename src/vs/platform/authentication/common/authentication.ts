@@ -53,6 +53,7 @@ export class AuthenticationTokenService extends Disposable implements IAuthentic
 	}
 
 	sendTokenFailed(): void {
+		this.setToken(undefined);
 		this._onTokenFailed.fire();
 	}
 }

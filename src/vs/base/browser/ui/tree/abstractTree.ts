@@ -26,13 +26,7 @@ import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { SetMap } from 'vs/base/common/collections';
-import { Codicon, registerIcon } from 'vs/base/common/codicons';
-
-const treeItemExpandedIcon = registerIcon('tree-item-expanded', Codicon.chevronDown); // collapsed is done with rotation
-
-const treeFilterOnTypeOnIcon = registerIcon('tree-filter-on-type-on', Codicon.listFilter);
-const treeFilterOnTypeOffIcon = registerIcon('tree-filter-on-type-off', Codicon.listSelection);
-const treeFilterClearIcon = registerIcon('tree-filter-clear', Codicon.close);
+import { treeItemExpandedIcon, treeFilterOnTypeOnIcon, treeFilterOnTypeOffIcon, treeFilterClearIcon } from 'vs/base/browser/ui/tree/treeIcons';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 

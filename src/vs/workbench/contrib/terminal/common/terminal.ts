@@ -397,6 +397,8 @@ export enum TitleEventSource {
 }
 
 export interface IWindowsShellHelper extends IDisposable {
+	readonly onShellNameChange: Event<string>;
+
 	getShellName(): Promise<string>;
 }
 

@@ -199,11 +199,11 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	get viewContainer(): ViewContainer {
-		return this.viewDescriptorService.getViewContainer(this.id)!;
+		return this.viewDescriptorService.getViewContainerByViewId(this.id)!;
 	}
 
 	get viewLocation(): ViewContainerLocation {
-		return this.viewDescriptorService.getViewLocation(this.id)!;
+		return this.viewDescriptorService.getViewLocationById(this.id)!;
 	}
 
 	private _dataProvider: ITreeViewDataProvider | undefined;

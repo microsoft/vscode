@@ -139,7 +139,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 			return existing;
 		}
 
-		const viewContainer: ViewContainer = { ...viewContainerDescriptor };
+		const viewContainer: ViewContainer = viewContainerDescriptor;
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
 		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
@@ -482,22 +482,33 @@ export interface IViewDescriptorService {
 
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
 	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
+	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
+
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void;
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
 
 	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	getViewContainerModel(container: ViewContainer): IViewContainerModel;
+	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
-	getViewDescriptor(viewId: string): IViewDescriptor | null;
+	getViewDescriptorById(id: string): IViewDescriptor | null;
 
-	getViewContainer(viewId: string): ViewContainer | null;
+	getViewContainerByViewId(id: string): ViewContainer | null;
 
-	getViewContainerLocation(viewContainr: ViewContainer): ViewContainerLocation | null;
+	getViewContainerById(id: string): ViewContainer | null;
 
-	getDefaultContainer(viewId: string): ViewContainer | null;
+	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 
-	getViewLocation(viewId: string): ViewContainerLocation | null;
+	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
+
+	getDefaultContainerById(id: string): ViewContainer | null;
+
+	getViewLocationById(id: string): ViewContainerLocation | null;
+
+	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
+
+	getViewContainers(): ViewContainer[];
 }
 
 // Custom views
@@ -623,7 +634,7 @@ export interface IEditableData {
 	validationMessage: (value: string) => { content: string, severity: Severity } | null;
 	placeholder?: string | null;
 	startingValue?: string | null;
-	onFinish: (value: string, success: boolean) => void;
+	onFinish: (value: string, success: boolean) => Promise<void>;
 }
 
 export interface IViewPaneContainer {

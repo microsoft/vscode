@@ -7,7 +7,6 @@ import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { GLOBAL_ACTIVITY_ID, IActivity } from 'vs/workbench/common/activity';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewletActivityAction, ToggleViewletAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewletActivityAction, AccountsActionViewItem, HomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -26,7 +25,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, ActivityAction, ICompositeActivity } from 'vs/workbench/browser/parts/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { IViewDescriptorService, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IViewDescriptorService, ViewContainer, TEST_VIEW_CONTAINER_ID, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { isUndefinedOrNull, assertIsDefined, isString } from 'vs/base/common/types';
@@ -74,7 +73,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	_serviceBrand: undefined;
 
 	private static readonly ACTION_HEIGHT = 48;
-	private static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets2';
+	static readonly PINNED_VIEWLETS = 'workbench.activity.pinnedViewlets2';
 	private static readonly PLACEHOLDER_VIEWLETS = 'workbench.activity.placeholderViewlets';
 
 	//#region IView
@@ -87,6 +86,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	//#endregion
 
 	private content: HTMLElement | undefined;
+
+	private homeBar: ActionBar | undefined;
+	private homeBarContainer: HTMLElement | undefined;
 
 	private menuBar: CustomMenubarControl | undefined;
 	private menuBarContainer: HTMLElement | undefined;
@@ -354,20 +356,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private createHomeBar(command: string, title: string, icon: Codicon): void {
-		const homeBarContainer = document.createElement('div');
-		homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
-		homeBarContainer.setAttribute('role', 'toolbar');
-		addClass(homeBarContainer, 'home-bar');
+		this.homeBarContainer = document.createElement('div');
+		this.homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
+		this.homeBarContainer.setAttribute('role', 'toolbar');
+		addClass(this.homeBarContainer, 'home-bar');
 
-		const homeActionBar = this._register(new ActionBar(homeBarContainer, {
+		this.homeBar = this._register(new ActionBar(this.homeBarContainer, {
 			orientation: ActionsOrientation.VERTICAL,
 			animated: false
 		}));
 
-		homeActionBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
+		this.homeBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
 
 		const content = assertIsDefined(this.content);
-		content.prepend(homeBarContainer);
+		content.prepend(this.homeBarContainer);
 	}
 
 	updateStyles(): void {
@@ -583,18 +585,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Layout composite bar
 		let availableHeight = contentAreaSize.height;
-		if (this.globalActivityActionBar) {
-			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
+		if (this.homeBarContainer) {
+			availableHeight -= this.homeBarContainer.clientHeight;
 		}
 		if (this.menuBarContainer) {
 			availableHeight -= this.menuBarContainer.clientHeight;
+		}
+		if (this.globalActivityActionBar) {
+			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
 
 	private getViewContainer(viewletId: string): ViewContainer | undefined {
-		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
-		return viewContainerRegistry.get(viewletId);
+		return this.viewDescriptorService.getViewContainerById(viewletId) || undefined;
 	}
 
 	private onDidStorageChange(e: IWorkspaceStorageChangeEvent): void {
@@ -642,10 +646,11 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				for (const { when } of viewContainerModel.allViewDescriptors) {
 					views.push({ when: when ? when.serialize() : undefined });
 				}
+				const cacheIcon = URI.isUri(viewContainerModel.icon) ? viewContainerModel.icon.scheme === Schemas.file : true;
 				state.push({
 					id: compositeItem.id,
 					name: viewContainerModel.title,
-					icon: URI.isUri(viewContainerModel.icon) && viewContainerModel.icon.scheme === Schemas.file ? viewContainerModel.icon : viewContainerModel.icon,
+					icon: cacheIcon ? viewContainerModel.icon : undefined,
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,

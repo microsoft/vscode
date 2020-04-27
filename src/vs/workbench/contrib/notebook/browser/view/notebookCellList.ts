@@ -193,6 +193,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		}));
 
+		this._viewModelStore.add(model.onDidChangeSelection(() => {
+			// convert model selections to view selections
+			const viewSelections = model.selectionHandles.map(handle => {
+				return model.getCellByHandle(handle);
+			}).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
+			this.setFocus(viewSelections);
+		}));
+
 		const hiddenRanges = model.getHiddenRanges();
 		this.setHiddenAreas(hiddenRanges, false);
 		const newRanges = reduceCellRanges(hiddenRanges);
@@ -344,6 +352,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this.setFocus([index]);
 		}
 	}
+
 	selectElement(cell: ICellViewModel) {
 		const index = this._getViewIndexUpperBound(cell);
 
@@ -351,6 +360,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this.setSelection([index]);
 			this.setFocus([index]);
 		}
+	}
+
+	setFocus(indexes: number[], browserEvent?: UIEvent): void {
+		if (this._viewModel) {
+			this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
+		}
+
+		super.setFocus(indexes, browserEvent);
 	}
 
 	revealElementInView(cell: ICellViewModel) {

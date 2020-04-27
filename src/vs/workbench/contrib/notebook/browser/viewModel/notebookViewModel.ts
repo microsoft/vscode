@@ -20,13 +20,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { CellEditState, CellFindMatch, ICellRange, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { DeleteCellEdit, InsertCellEdit, MoveCellEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
+import { DeleteCellEdit, InsertCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 
 export interface INotebookEditorViewState {
@@ -127,6 +127,20 @@ function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOpt
 	return ModelDecorationOptions.createDynamic(options);
 }
 
+function selectionsEqual(a: number[], b: number[]) {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	for (let i = 0; i < a.length; i++) {
+		if (a[i] !== b[i]) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 let MODEL_ID = 0;
 
 
@@ -197,6 +211,26 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._layoutInfo;
 	}
 
+	private readonly _onDidChangeSelection = new Emitter<void>();
+	get onDidChangeSelection(): Event<void> { return this._onDidChangeSelection.event; }
+
+	private _selections: number[] = [];
+
+	get selectionHandles() {
+		return this._selections;
+	}
+
+	set selectionHandles(selections: number[]) {
+		selections = selections.sort();
+		if (selectionsEqual(selections, this.selectionHandles)) {
+			return;
+		}
+
+		this._selections = selections;
+		this._model.notebook.selections = selections;
+		this._onDidChangeSelection.fire();
+	}
+
 	private _decorationsTree = new DecorationsTree();
 	private _decorations: { [decorationId: string]: IntervalNode; } = Object.create(null);
 	private _lastDecorationId: number = 0;
@@ -227,6 +261,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				})] as [number, number, CellViewModel[]];
 			});
 
+			const undoDiff = diffs.map(diff => {
+				const deletedCells = this.viewCells.slice(diff[0], diff[0] + diff[1]);
+
+				return [diff[0], deletedCells, diff[2]] as [number, CellViewModel[], CellViewModel[]];
+			});
+
 			diffs.reverse().forEach(diff => {
 				this._viewCells.splice(diff[0], diff[1], ...diff[2]);
 				diff[2].forEach(cell => {
@@ -239,6 +279,40 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				synchronous: true,
 				splices: diffs
 			});
+
+			let endSelectionHandles: number[] = [];
+			if (this.selectionHandles.length) {
+				const primaryHandle = this.selectionHandles[0];
+				const primarySelectionIndex = this._viewCells.indexOf(this.getCellByHandle(primaryHandle)!);
+				endSelectionHandles = [primaryHandle];
+				let delta = 0;
+
+				for (let i = 0; i < diffs.length; i++) {
+					const diff = diffs[0];
+					if (diff[0] + diff[1] <= primarySelectionIndex) {
+						delta += diff[2].length - diff[1];
+						continue;
+					}
+
+					if (diff[0] > primarySelectionIndex) {
+						endSelectionHandles = [primaryHandle];
+						break;
+					}
+
+					if (diff[0] + diff[1] > primaryHandle) {
+						endSelectionHandles = [this._viewCells[diff[0] + delta].handle];
+						break;
+					}
+				}
+			}
+
+			this.undoService.pushElement(new SpliceCellsEdit(this.uri, undoDiff, {
+				insertCell: this._insertCellDelegate.bind(this),
+				deleteCell: this._deleteCellDelegate.bind(this),
+				setSelections: this._setSelectionsDelegate.bind(this)
+			}, this.selectionHandles, endSelectionHandles));
+
+			this.selectionHandles = endSelectionHandles;
 		}));
 
 		this._register(this._model.notebook.onDidChangeMetadata(e => {
@@ -355,6 +429,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				cell.editState = CellEditState.Preview;
 			}
 		});
+	}
+
+	getCellByHandle(handle: number) {
+		return this._handleToViewCellMapping.get(handle);
 	}
 
 	getCellIndex(cell: ICellViewModel) {
@@ -486,13 +564,17 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
 	}
 
-	private _deleteCellDelegate(deleteIndex: number, cell: ICell) {
+	private _deleteCellDelegate(deleteIndex: number) {
 		const deleteCell = this._viewCells[deleteIndex];
 		this._viewCells.splice(deleteIndex, 1);
 		this._handleToViewCellMapping.delete(deleteCell.handle);
 
 		this._model.deleteCell(deleteIndex);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
+	}
+
+	private _setSelectionsDelegate(selections: number[]) {
+		this.selectionHandles = selections;
 	}
 
 	createCell(index: number, source: string[], language: string, type: CellKind, synchronous: boolean) {
@@ -502,10 +584,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._handleToViewCellMapping.set(newCell.handle, newCell);
 		this._model.insertCell(cell, index);
 		this._localStore.add(newCell);
+
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
 			insertCell: this._insertCellDelegate.bind(this),
-			deleteCell: this._deleteCellDelegate.bind(this)
-		}));
+			deleteCell: this._deleteCellDelegate.bind(this),
+			setSelections: this._setSelectionsDelegate.bind(this)
+		}, this.selectionHandles, this.selectionHandles));
 
 		this._decorationsTree.acceptReplace(index, 0, 1, true);
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
@@ -521,8 +605,9 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._localStore.add(newCell);
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
 			insertCell: this._insertCellDelegate.bind(this),
-			deleteCell: this._deleteCellDelegate.bind(this)
-		}));
+			deleteCell: this._deleteCellDelegate.bind(this),
+			setSelections: this._setSelectionsDelegate.bind(this)
+		}, this.selectionHandles, this.selectionHandles));
 
 		this._decorationsTree.acceptReplace(index, 0, 1, true);
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 0, [newCell]]] });
@@ -530,20 +615,41 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	deleteCell(index: number, synchronous: boolean) {
+		const primarySelectionIndex = this.selectionHandles.length ? this._viewCells.indexOf(this.getCellByHandle(this.selectionHandles[0])!) : null;
+
 		let viewCell = this._viewCells[index];
 		this._viewCells.splice(index, 1);
 		this._handleToViewCellMapping.delete(viewCell.handle);
 
 		this._model.deleteCell(index);
 
+		let endSelections: number[] = [];
+		if (this.selectionHandles.length) {
+			const primarySelectionHandle = this.selectionHandles[0];
+
+			if (index === primarySelectionIndex) {
+				if (primarySelectionIndex < this.length - 1) {
+					endSelections = [this._viewCells[primarySelectionIndex + 1].handle];
+				} else if (primarySelectionIndex === this.length - 1 && this.length > 1) {
+					endSelections = [this._viewCells[primarySelectionIndex - 1].handle];
+				} else {
+					endSelections = [];
+				}
+			} else {
+				endSelections = [primarySelectionHandle];
+			}
+		}
+
 		this.undoService.pushElement(new DeleteCellEdit(this.uri, index, viewCell, {
 			insertCell: this._insertCellDelegate.bind(this),
 			deleteCell: this._deleteCellDelegate.bind(this),
 			createCellViewModel: (cell: NotebookCellTextModel) => {
 				return createCellViewModel(this.instantiationService, this, cell);
-			}
-		}));
+			},
+			setSelections: this._setSelectionsDelegate.bind(this)
+		}, this.selectionHandles, endSelections));
 
+		this.selectionHandles = endSelections;
 
 		this._decorationsTree.acceptReplace(index, 1, 0, true);
 
@@ -558,18 +664,19 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		this.viewCells.splice(index, 1);
-		this._model.deleteCell(index);
-
 		this.viewCells!.splice(newIdx, 0, viewCell);
-		this._model.insertCell(viewCell.model, newIdx);
+		this._model.moveCellToIdx(index, newIdx);
 
 		if (pushedToUndoStack) {
 			this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
 				moveCell: (fromIndex: number, toIndex: number) => {
 					this.moveCellToIdx(fromIndex, toIndex, true, false);
-				}
-			}));
+				},
+				setSelections: this._setSelectionsDelegate.bind(this)
+			}, this.selectionHandles, this.selectionHandles));
 		}
+
+		this.selectionHandles = this.selectionHandles;
 
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[index, 1, []]] });
 		this._onDidChangeViewCells.fire({ synchronous: synchronous, splices: [[newIdx, 0, [viewCell]]] });

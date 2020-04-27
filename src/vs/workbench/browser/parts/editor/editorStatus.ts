@@ -441,7 +441,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				this.screenRedearModeElement.value = this.statusbarService.addEntry({
 					text,
 					ariaLabel: text,
-					tooltip: nls.localize('screenReaderDetectedExtra', "If you are not using a Screen Reader, please change the setting `editor.accessibilitySupport` to \"off\"."),
 					command: 'showEditorScreenReaderNotification',
 					backgroundColor: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_BACKGROUND),
 					color: themeColorFromId(STATUS_BAR_PROMINENT_ITEM_FOREGROUND)

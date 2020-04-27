@@ -52,6 +52,7 @@ import { EditorActivation, EditorOpenContext } from 'vs/platform/editor/common/e
 import { IDialogService, IFileDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Codicon } from 'vs/base/common/codicons';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -134,7 +135,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@ILogService private readonly logService: ILogService,
-		@IEditorService private readonly editorService: EditorServiceImpl
+		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super(themeService);
 
@@ -1306,30 +1308,43 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return false; // editor is still editable somewhere else
 		}
 
-		// Switch to editor that we want to handle and confirm to save/revert
-		await this.openEditor(editor);
-
-		let name: string;
-		if (editor instanceof SideBySideEditorInput) {
-			name = editor.master.getName(); // prefer shorter names by using master's name in this case
-		} else {
-			name = editor.getName();
+		// Auto-save on focus change: assume to Save unless the editor is untitled
+		// because bringing up a dialog would save in this case anyway.
+		let confirmation: ConfirmResult;
+		let saveReason = SaveReason.EXPLICIT;
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled()) {
+			confirmation = ConfirmResult.SAVE;
+			saveReason = SaveReason.FOCUS_CHANGE;
 		}
 
-		const res = await this.fileDialogService.showSaveConfirm([name]);
+		// No auto-save on focus change: ask user
+		else {
+
+			// Switch to editor that we want to handle and confirm to save/revert
+			await this.openEditor(editor);
+
+			let name: string;
+			if (editor instanceof SideBySideEditorInput) {
+				name = editor.master.getName(); // prefer shorter names by using master's name in this case
+			} else {
+				name = editor.getName();
+			}
+
+			confirmation = await this.fileDialogService.showSaveConfirm([name]);
+		}
 
 		// It could be that the editor saved meanwhile or is saving, so we check
 		// again to see if anything needs to happen before closing for good.
 		// This can happen for example if autoSave: onFocusChange is configured
 		// so that the save happens when the dialog opens.
 		if (!editor.isDirty() || editor.isSaving()) {
-			return res === ConfirmResult.CANCEL ? true : false;
+			return confirmation === ConfirmResult.CANCEL ? true : false;
 		}
 
 		// Otherwise, handle accordingly
-		switch (res) {
+		switch (confirmation) {
 			case ConfirmResult.SAVE:
-				await editor.save(this.id, { reason: SaveReason.EXPLICIT });
+				await editor.save(this.id, { reason: saveReason });
 
 				return editor.isDirty(); // veto if still dirty
 			case ConfirmResult.DONT_SAVE:

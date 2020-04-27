@@ -1096,6 +1096,10 @@ export class Repository implements Disposable {
 		await this.run(Operation.Remote, () => this.repository.removeRemote(name));
 	}
 
+	async renameRemote(name: string, newName: string): Promise<void> {
+		await this.run(Operation.Remote, () => this.repository.renameRemote(name, newName));
+	}
+
 	@throttle
 	async fetchDefault(options: { silent?: boolean } = {}): Promise<void> {
 		await this.run(Operation.Fetch, () => this.repository.fetch(options));

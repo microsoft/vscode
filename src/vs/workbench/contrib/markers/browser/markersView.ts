@@ -114,8 +114,13 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.smallLayoutContextKey = Constants.MarkersViewSmallLayoutContextKey.bindTo(this.contextKeyService);
 		this.panelState = new Memento(Constants.MARKERS_VIEW_STORAGE_ID, storageService).getMemento(StorageScope.WORKSPACE);
+
 		this.markersViewModel = this._register(instantiationService.createInstance(MarkersViewModel, this.panelState['multiline']));
+		for (const resourceMarker of this.markersWorkbenchService.markersModel.resourceMarkers) {
+			resourceMarker.markers.forEach(marker => this.markersViewModel.add(marker));
+		}
 		this._register(this.markersViewModel.onDidChange(marker => this.onDidChangeViewState(marker)));
+
 		this.setCurrentActiveEditor();
 
 		this.filter = new Filter(new FilterOptions());
@@ -858,6 +863,10 @@ export class MarkersView extends ViewPane implements IMarkerFilterController {
 		this.panelState['multiline'] = this.markersViewModel.multiline;
 
 		super.saveState();
+	}
+
+	dispose() {
+		super.dispose();
 	}
 
 }
