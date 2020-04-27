@@ -21,6 +21,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITextModel } from 'vs/editor/common/model';
 import { Constants } from 'vs/base/common/uint';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 class StartDebugTextMate extends Action {
 
@@ -35,7 +36,8 @@ class StartDebugTextMate extends Action {
 		@ITextMateService private readonly _textMateService: ITextMateService,
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IHostService private readonly _hostService: IHostService
 	) {
 		super(id, label);
 	}
@@ -60,10 +62,13 @@ class StartDebugTextMate extends Action {
 		const pathInTemp = path.join(os.tmpdir(), `vcode-tm-log-${generateUuid()}.txt`);
 		const logger = createRotatingLogger(`tm-log`, pathInTemp, 1024 * 1024 * 30, 1);
 		const model = this._getOrCreateModel();
-		this._append(model, [
-			`// Open the file you want to test to the side and watch here`,
-			`// Output mirrored at ${pathInTemp}`
-		].join('\n'));
+		const append = (str: string) => {
+			this._append(model, str + '\n');
+			scrollEditor();
+			logger.info(str);
+			logger.flush();
+		};
+		await this._hostService.openWindow([{ fileUri: URI.file(pathInTemp) }], { forceNewWindow: true });
 		const textEditorPane = await this._editorService.openEditor({
 			resource: model.uri
 		});
@@ -80,6 +85,10 @@ class StartDebugTextMate extends Action {
 				}
 			}
 		};
+
+		append(`// Open the file you want to test to the side and watch here`);
+		append(`// Output mirrored at ${pathInTemp}`);
+
 		this._textMateService.startDebugMode(
 			(str) => {
 				this._append(model, str + '\n');
