@@ -141,12 +141,7 @@ function waitForEndpoint(): Promise<string> {
 
 export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromium'): Promise<{ client: IDisposable, driver: IDriver }> {
 	return new Promise(async (c) => {
-		const browser = await playwright[browserType].launch({
-			headless: false, logger: {
-				isEnabled: () => true,
-				log: (name, severity, message, args) => console.log(name, message)
-			}
-		});
+		const browser = await playwright[browserType].launch({ headless: false });
 		const context = await browser.newContext();
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
