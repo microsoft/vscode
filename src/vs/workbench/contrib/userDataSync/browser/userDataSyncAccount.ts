@@ -29,7 +29,7 @@ type UserAccountEvent = {
 	id: string;
 };
 
-type AccountQuickPickItem = { label: string, authenticationProvider: IAuthenticationProvider, account?: UserDataSyncAccount, detail?: string };
+type AccountQuickPickItem = { label: string, authenticationProvider: IAuthenticationProvider, account?: UserDataSyncAccount, description?: string };
 
 export class UserDataSyncAccount {
 
@@ -261,7 +261,7 @@ export class UserDataSyncAccounts extends Disposable {
 				for (const account of accounts) {
 					quickPickItems.push({
 						label: account.accountName,
-						detail: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used") : undefined,
+						description: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used with Sync") : undefined,
 						account,
 						authenticationProvider,
 					});
