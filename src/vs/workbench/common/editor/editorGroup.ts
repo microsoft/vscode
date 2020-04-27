@@ -383,7 +383,7 @@ export class EditorGroup extends Disposable {
 
 	moveEditor(candidate: EditorInput, toIndex: number): EditorInput | undefined {
 		const index = this.indexOf(candidate);
-		if (index < 0) {
+		if (index < 0 || toIndex === index) {
 			return;
 		}
 
@@ -481,6 +481,10 @@ export class EditorGroup extends Disposable {
 	isPinned(editor: EditorInput): boolean;
 	isPinned(index: number): boolean;
 	isPinned(arg1: EditorInput | number): boolean {
+		if (!this.preview) {
+			return true; // no preview editor
+		}
+
 		let editor: EditorInput;
 		let index: number;
 		if (typeof arg1 === 'number') {
