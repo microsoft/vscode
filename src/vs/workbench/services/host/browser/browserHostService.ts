@@ -119,7 +119,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 			// selectively copy payload: for now only extension debugging properties are considered
 			const originalPayload = this.workspaceProvider.payload;
-			let newPayload: Array<any> | undefined = undefined;
+			let newPayload: Array<unknown> | undefined = undefined;
 			if (originalPayload && Array.isArray(originalPayload)) {
 				for (let pair of originalPayload) {
 					if (Array.isArray(pair) && pair.length === 2) {
