@@ -275,6 +275,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				multipleSelectionSupport: false,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
+				transformOptimization: false,
 				styleController: (_suffix: string) => { return this.list!; },
 				overrideStyles: {
 					listBackground: editorBackground,
