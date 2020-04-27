@@ -600,7 +600,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			let result: Task[] = [];
 			map.forEach((tasks) => {
 				for (let task of tasks) {
-					if (ContributedTask.is(task) && task.defines.type === filter.type) {
+					if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
 						result.push(task);
 					} else if (CustomTask.is(task)) {
 						if (task.type === filter.type) {
@@ -1574,7 +1574,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					for (const [handle, provider] of this._providers) {
 						if ((type === undefined) || (type === this._providerTypes.get(handle))) {
 							counter++;
-							provider.provideTasks(validTypes).then(done, error);
+							provider.provideTasks(validTypes).then((taskSet: TaskSet) => {
+								// Check that the tasks provided are of the correct type
+								for (const task of taskSet.tasks) {
+									if (task.type !== this._providerTypes.get(handle)) {
+										this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
+										this.showOutput();
+										break;
+									}
+								}
+								return done(taskSet);
+							}, error);
 						}
 					}
 				} else {
@@ -2213,7 +2223,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async showTwoLevelQuickPick(placeHolder: string, defaultEntry?: TaskQuickPickEntry) {
-		return TaskQuickPick.show(this, this.configurationService, this.quickInputService, placeHolder, defaultEntry);
+		return TaskQuickPick.show(this, this.configurationService, this.quickInputService, this.notificationService, placeHolder, defaultEntry);
 	}
 
 	private async showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
