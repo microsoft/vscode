@@ -18,6 +18,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	await loginService.initialize();
 
+	context.subscriptions.push(vscode.commands.registerCommand('github.provide-token', () => {
+		return loginService.manuallyProvideToken();
+	}));
+
 	vscode.authentication.registerAuthenticationProvider({
 		id: 'github',
 		displayName: 'GitHub',

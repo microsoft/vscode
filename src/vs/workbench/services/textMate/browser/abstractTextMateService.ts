@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IValidGrammarDefinition, IValidEmbeddedLanguagesMap, IValidTokenTypeMap } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGrammarFactory';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export abstract class AbstractTextMateService extends Disposable implements ITextMateService {
 	public _serviceBrand: undefined;
@@ -40,6 +41,9 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	private readonly _styleElement: HTMLStyleElement;
 	private readonly _createdModes: string[];
 	private readonly _encounteredLanguages: boolean[];
+
+	private _debugMode: boolean;
+	private _debugModePrintFunc: (str: string) => void;
 
 	private _grammarDefinitions: IValidGrammarDefinition[] | null;
 	private _grammarFactory: TMGrammarFactory | null;
@@ -54,13 +58,17 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IProgressService private readonly _progressService: IProgressService
 	) {
 		super();
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
 		this._createdModes = [];
 		this._encounteredLanguages = [];
+
+		this._debugMode = false;
+		this._debugModePrintFunc = () => { };
 
 		this._grammarDefinitions = null;
 		this._grammarFactory = null;
@@ -172,6 +180,46 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 			this._createdModes.push(modeId);
 			this._registerDefinitionIfAvailable(modeId);
 		});
+	}
+
+	public startDebugMode(printFn: (str: string) => void, onStop: () => void): void {
+		if (this._debugMode) {
+			this._notificationService.error(nls.localize('alreadyDebugging', "Already Logging."));
+			return;
+		}
+
+		this._debugModePrintFunc = printFn;
+		this._debugMode = true;
+
+		if (this._debugMode) {
+			this._progressService.withProgress(
+				{
+					location: ProgressLocation.Notification,
+					buttons: [nls.localize('stop', "Stop")]
+				},
+				(progress) => {
+					progress.report({
+						message: nls.localize('progress1', "Preparing to log TM Grammar parsing. Press Stop when finished.")
+					});
+
+					return this._getVSCodeOniguruma().then((vscodeOniguruma) => {
+						vscodeOniguruma.setDefaultDebugCall(true);
+						progress.report({
+							message: nls.localize('progress2', "Now logging TM Grammar parsing. Press Stop when finished.")
+						});
+						return new Promise<void>((resolve, reject) => { });
+					});
+				},
+				(choice) => {
+					this._getVSCodeOniguruma().then((vscodeOniguruma) => {
+						this._debugModePrintFunc = () => { };
+						this._debugMode = false;
+						vscodeOniguruma.setDefaultDebugCall(false);
+						onStop();
+					});
+				}
+			);
+		}
 	}
 
 	private _canCreateGrammarFactory(): boolean {
@@ -354,7 +402,13 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 
 	private async _doGetVSCodeOniguruma(): Promise<typeof import('vscode-oniguruma')> {
 		const [vscodeOniguruma, wasm] = await Promise.all([import('vscode-oniguruma'), this._loadVSCodeOnigurumWASM()]);
-		await vscodeOniguruma.loadWASM(wasm);
+		const options = {
+			data: wasm,
+			print: (str: string) => {
+				this._debugModePrintFunc(str);
+			}
+		};
+		await vscodeOniguruma.loadWASM(options);
 		return vscodeOniguruma;
 	}
 

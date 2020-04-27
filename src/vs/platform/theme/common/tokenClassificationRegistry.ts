@@ -24,7 +24,7 @@ export const typeAndModifierIdPattern = `^${idPattern}$`;
 
 export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(\\${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
 
-export const fontStylePattern = '^(\\s*(-?italic|-?bold|-?underline))*\\s*$';
+export const fontStylePattern = '^(\\s*(italic|bold|underline))*\\s*$';
 
 export interface TokenSelector {
 	match(type: string, modifiers: string[], language: string): number;
@@ -124,18 +124,18 @@ export interface TokenStyleDefaults {
 	hc?: TokenStyleValue;
 }
 
-export interface TokenStylingDefaultRule {
+export interface SemanticTokenDefaultRule {
 	selector: TokenSelector;
 	defaults: TokenStyleDefaults;
 }
 
-export interface TokenStylingRule {
+export interface SemanticTokenRule {
 	style: TokenStyle;
 	selector: TokenSelector;
 }
 
-export namespace TokenStylingRule {
-	export function fromJSONObject(registry: ITokenClassificationRegistry, o: any): TokenStylingRule | undefined {
+export namespace SemanticTokenRule {
+	export function fromJSONObject(registry: ITokenClassificationRegistry, o: any): SemanticTokenRule | undefined {
 		if (o && typeof o._selector === 'string' && o._style) {
 			const style = TokenStyle.fromJSONObject(o._style);
 			if (style) {
@@ -147,13 +147,13 @@ export namespace TokenStylingRule {
 		}
 		return undefined;
 	}
-	export function toJSONObject(rule: TokenStylingRule): any {
+	export function toJSONObject(rule: SemanticTokenRule): any {
 		return {
 			_selector: rule.selector.id,
 			_style: TokenStyle.toJSONObject(rule.style)
 		};
 	}
-	export function equals(r1: TokenStylingRule | undefined, r2: TokenStylingRule | undefined) {
+	export function equals(r1: SemanticTokenRule | undefined, r2: SemanticTokenRule | undefined) {
 		if (r1 === r2) {
 			return true;
 		}
@@ -161,7 +161,7 @@ export namespace TokenStylingRule {
 			&& r1.selector && r2.selector && r1.selector.id === r2.selector.id
 			&& TokenStyle.equals(r1.style, r2.style);
 	}
-	export function is(r: any): r is TokenStylingRule {
+	export function is(r: any): r is SemanticTokenRule {
 		return r && r.selector && typeof r.selector.selectorString === 'string' && TokenStyle.is(r.style);
 	}
 }
@@ -239,7 +239,7 @@ export interface ITokenClassificationRegistry {
 	/**
 	 * The styling rules to used when a schema does not define any styling rules.
 	 */
-	getTokenStylingDefaultRules(): TokenStylingDefaultRule[];
+	getTokenStylingDefaultRules(): SemanticTokenDefaultRule[];
 
 	/**
 	 * JSON schema for an object to assign styling to token classifications
@@ -258,14 +258,18 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 	private tokenTypeById: { [key: string]: TokenTypeOrModifierContribution };
 	private tokenModifierById: { [key: string]: TokenTypeOrModifierContribution };
 
-	private tokenStylingDefaultRules: TokenStylingDefaultRule[] = [];
+	private tokenStylingDefaultRules: SemanticTokenDefaultRule[] = [];
 
 	private typeHierarchy: { [id: string]: string[] };
 
-	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap } = {
+	private tokenStylingSchema: IJSONSchema & { properties: IJSONSchemaMap, patternProperties: IJSONSchemaMap } = {
 		type: 'object',
 		properties: {},
-		additionalProperties: getStylingSchemeEntry(),
+		patternProperties: {
+			[selectorPattern]: getStylingSchemeEntry()
+		},
+		//errorMessage: nls.localize('schema.token.errors', 'Valid token selectors have the form (*|tokenType)(.tokenModifier)*(:tokenLanguage)?.'),
+		additionalProperties: false,
 		definitions: {
 			style: {
 				type: 'object',
@@ -325,7 +329,8 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
 		this.tokenTypeById[id] = tokenStyleContribution;
 
-		this.tokenStylingSchema.properties[id] = getStylingSchemeEntry(description, deprecationMessage);
+		const stylingSchemeEntry = getStylingSchemeEntry(description, deprecationMessage);
+		this.tokenStylingSchema.properties[id] = stylingSchemeEntry;
 		this.typeHierarchy = {};
 	}
 
@@ -413,7 +418,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		return this.tokenStylingSchema;
 	}
 
-	public getTokenStylingDefaultRules(): TokenStylingDefaultRule[] {
+	public getTokenStylingDefaultRules(): SemanticTokenDefaultRule[] {
 		return this.tokenStylingDefaultRules;
 	}
 

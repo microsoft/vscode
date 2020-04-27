@@ -44,7 +44,8 @@ export class GitHubAuthenticationProvider {
 			// Ignore, network request failed
 		}
 
-		await this.validateSessions();
+		// TODO revert Cannot validate tokens from auth server, no available clientId
+		// await this.validateSessions();
 		this.pollForChange();
 	}
 
@@ -91,27 +92,6 @@ export class GitHubAuthenticationProvider {
 
 			this.pollForChange();
 		}, 1000 * 30);
-	}
-
-	private async validateSessions(): Promise<void> {
-		const validationPromises = this._sessions.map(async session => {
-			try {
-				await this._githubServer.validateToken(await session.getAccessToken());
-				return session;
-			} catch (e) {
-				if (e === NETWORK_ERROR) {
-					return session;
-				}
-
-				return undefined;
-			}
-		});
-
-		const validSessions = (await Promise.all(validationPromises)).filter((x: vscode.AuthenticationSession | undefined): x is vscode.AuthenticationSession => !!x);
-		if (validSessions.length !== this._sessions.length) {
-			this._sessions = validSessions;
-			this.storeSessions();
-		}
 	}
 
 	private async readSessions(): Promise<vscode.AuthenticationSession[]> {
@@ -190,6 +170,10 @@ export class GitHubAuthenticationProvider {
 		}
 	}
 
+	public async manuallyProvideToken(): Promise<void> {
+		this._githubServer.manuallyProvideToken();
+	}
+
 	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
 		const userInfo = await this._githubServer.getUserInfo(token);
 		return {
@@ -216,13 +200,15 @@ export class GitHubAuthenticationProvider {
 	public async logout(id: string) {
 		const sessionIndex = this._sessions.findIndex(session => session.id === id);
 		if (sessionIndex > -1) {
-			const session = this._sessions.splice(sessionIndex, 1)[0];
-			const token = await session.getAccessToken();
-			try {
-				await this._githubServer.revokeToken(token);
-			} catch (_) {
-				// ignore, should still remove from keychain
-			}
+			this._sessions.splice(sessionIndex, 1);
+			// TODO revert
+			// Cannot revoke tokens from auth server, no clientId available
+			// const token = await session.getAccessToken();
+			// try {
+			// 	await this._githubServer.revokeToken(token);
+			// } catch (_) {
+			// 	// ignore, should still remove from keychain
+			// }
 		}
 
 		await this.storeSessions();

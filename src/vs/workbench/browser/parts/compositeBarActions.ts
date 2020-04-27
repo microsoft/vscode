@@ -17,7 +17,7 @@ import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { Codicon } from 'vs/base/common/codicons';
@@ -477,32 +477,34 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
 
-		this._register(compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = undefined; this.updateActivity(); }, this));
+		this._register(compositeActivityAction.onDidChangeActivity(() => {
+			this.compositeActivity = undefined;
+			this.updateActivity();
+		}, this));
+		this._register(Event.any(
+			compositeActivityAction.onDidChangeActivity,
+			Event.filter(keybindingService.onDidUpdateKeybindings, () => this.compositeActivity!.name !== this.getActivtyName())
+		)(() => {
+			if (this.compositeActivity && this.compositeActivity.name !== this.getActivtyName()) {
+				this.compositeActivity = undefined;
+				this.updateActivity();
+			}
+		}));
 	}
 
 	protected get activity(): IActivity {
 		if (!this.compositeActivity) {
-			let activityName: string;
-			const keybinding = typeof this.compositeActivityAction.activity.keybindingId === 'string' ? this.getKeybindingLabel(this.compositeActivityAction.activity.keybindingId) : null;
-			if (keybinding) {
-				activityName = nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding);
-			} else {
-				activityName = this.compositeActivityAction.activity.name;
-			}
-
-			this.compositeActivity = { ...this.compositeActivityAction.activity, ... { name: activityName } };
+			this.compositeActivity = {
+				...this.compositeActivityAction.activity,
+				... { name: this.getActivtyName() }
+			};
 		}
-
 		return this.compositeActivity;
 	}
 
-	private getKeybindingLabel(id: string): string | null {
-		const kb = this.keybindingService.lookupKeybinding(id);
-		if (kb) {
-			return kb.getLabel();
-		}
-
-		return null;
+	private getActivtyName(): string {
+		const keybinding = this.compositeActivityAction.activity.keybindingId ? this.keybindingService.lookupKeybinding(this.compositeActivityAction.activity.keybindingId) : null;
+		return keybinding ? nls.localize('titleKeybinding', "{0} ({1})", this.compositeActivityAction.activity.name, keybinding.getLabel()) : this.compositeActivityAction.activity.name;
 	}
 
 	render(container: HTMLElement): void {

@@ -990,14 +990,14 @@ suite('Fuzzy Scorer', () => {
 		const target = 'HeLlo-World';
 
 		for (const offset of [0, 3]) {
-			let [score, matches] = _doScore2(target, 'HeLlo-World', offset);
+			let [score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HeLlo-World', offset);
 
 			assert.ok(score);
 			assert.equal(matches.length, 1);
 			assert.equal(matches[0].start, 0 + offset);
 			assert.equal(matches[0].end, target.length + offset);
 
-			[score, matches] = _doScore2(target, 'HW', offset);
+			[score, matches] = _doScore2(offset === 0 ? target : `123${target}`, 'HW', offset);
 
 			assert.ok(score);
 			assert.equal(matches.length, 2);

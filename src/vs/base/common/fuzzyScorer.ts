@@ -281,24 +281,24 @@ export type FuzzyScore2 = [number | undefined /* score */, IMatch[]];
 
 const NO_SCORE2: FuzzyScore2 = [undefined, []];
 
-export function scoreFuzzy2(target: string, query: IPreparedQuery | IPreparedQueryPiece, patternStart = 0, matchOffset = 0): FuzzyScore2 {
+export function scoreFuzzy2(target: string, query: IPreparedQuery | IPreparedQueryPiece, patternStart = 0, wordStart = 0): FuzzyScore2 {
 
 	// Score: multiple inputs
 	const preparedQuery = query as IPreparedQuery;
 	if (preparedQuery.values && preparedQuery.values.length > 1) {
-		return doScoreFuzzy2Multiple(target, preparedQuery.values, patternStart, matchOffset);
+		return doScoreFuzzy2Multiple(target, preparedQuery.values, patternStart, wordStart);
 	}
 
 	// Score: single input
-	return doScoreFuzzy2Single(target, query, patternStart, matchOffset);
+	return doScoreFuzzy2Single(target, query, patternStart, wordStart);
 }
 
-function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], patternStart: number, matchOffset: number): FuzzyScore2 {
+function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], patternStart: number, wordStart: number): FuzzyScore2 {
 	let totalScore = 0;
 	const totalMatches: IMatch[] = [];
 
 	for (const queryPiece of query) {
-		const [score, matches] = doScoreFuzzy2Single(target, queryPiece, patternStart, matchOffset);
+		const [score, matches] = doScoreFuzzy2Single(target, queryPiece, patternStart, wordStart);
 		if (typeof score !== 'number') {
 			// if a single query value does not match, return with
 			// no score entirely, we require all queries to match
@@ -314,13 +314,13 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 	return [totalScore, normalizeMatches(totalMatches)];
 }
 
-function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, matchOffset: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), 0, true);
+function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
+	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, true);
 	if (!score) {
 		return NO_SCORE2;
 	}
 
-	return [score[0], createFuzzyMatches(score, matchOffset)];
+	return [score[0], createFuzzyMatches(score)];
 }
 
 //#endregion

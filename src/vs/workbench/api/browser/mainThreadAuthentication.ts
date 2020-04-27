@@ -321,7 +321,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
-			nls.localize('confirmAuthenticationAccess', "The extension '{0}' is trying to access authentication information for the {1} account '{2}'.", extensionName, providerName, accountName),
+			nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
 			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow")],
 			{
 				cancelId: 0
