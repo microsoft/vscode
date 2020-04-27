@@ -36,11 +36,18 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	const pathHint = workspace.getConfiguration('git').get<string>('path');
 	const info = await findGit(pathHint, path => outputChannel.appendLine(localize('looking', "Looking for git in: {0}", path)));
 
-	const askpass = await Askpass.create(outputChannel);
+	const askpass = await Askpass.create(outputChannel, context.storagePath);
 	disposables.push(askpass);
+
+	const env = askpass.getEnv();
+
+	for (const name of Object.keys(env)) {
+		context.environmentVariableCollection.replace(name, env[name]);
+	}
+
 	context.subscriptions.push(askpass.registerCredentialsProvider(new GitHubCredentialProvider()));
 
-	const git = new Git({ gitPath: info.path, version: info.version, env: askpass.getEnv() });
+	const git = new Git({ gitPath: info.path, version: info.version, env });
 	const model = new Model(git, askpass, context.globalState, outputChannel);
 	disposables.push(model);
 
