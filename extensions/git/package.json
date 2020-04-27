@@ -1665,6 +1665,12 @@
           "scope": "resource",
           "default": true,
           "description": "%config.showCommitInput%"
+        },
+        "git.terminalAuthentication": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.terminalAuthentication%"
         }
       }
     },

@@ -29,7 +29,6 @@ export interface IIPCHandler {
 
 export async function createIPCServer(context?: string): Promise<IIPCServer> {
 	const server = http.createServer();
-
 	const hash = crypto.createHash('sha1');
 
 	if (!context) {
