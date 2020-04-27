@@ -95,6 +95,7 @@ export interface ICellViewModel {
 	dragging: boolean;
 	handle: number;
 	uri: URI;
+	language: string;
 	cellKind: CellKind;
 	editState: CellEditState;
 	readonly runState: CellRunState;

@@ -298,6 +298,16 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
+	changeCellLanguage(handle: number, languageId: string) {
+		let cell = this._mapping.get(handle);
+		if (cell) {
+			cell.language = languageId;
+
+			this._increaseVersionId();
+			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ChangeLanguage, versionId: this._versionId, index: this.cells.indexOf(cell), language: languageId });
+		}
+	}
+
 	clearAllCellOutputs() {
 		this.cells.forEach(cell => {
 			cell.spliceNotebookCellOutputs([

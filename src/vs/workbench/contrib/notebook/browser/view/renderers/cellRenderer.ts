@@ -29,7 +29,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import * as nls from 'vs/nls';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -40,9 +39,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CancelCellAction, ExecuteCellAction, INotebookCellActionContext, InsertCodeCellAction, InsertMarkdownCellAction, changeCellToKind } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext, InsertCodeCellAction, InsertMarkdownCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { BaseCellRenderTemplate, CellEditState, CellRunState, CodeCellRenderTemplate, ICellViewModel, INotebookEditor, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
@@ -52,8 +50,6 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { URI } from 'vs/base/common/uri';
 
 const $ = DOM.$;
 
@@ -537,11 +533,6 @@ export class CellDragAndDropController {
 	}
 }
 
-interface ILanguagePickInput extends IQuickPickItem {
-	languageId: string;
-	description: string;
-}
-
 export class CellLanguageStatusBarItem extends Disposable {
 	private labelElement: HTMLElement;
 
@@ -553,14 +544,17 @@ export class CellLanguageStatusBarItem extends Disposable {
 	constructor(
 		readonly container: HTMLElement,
 		@IModeService private readonly modeService: IModeService,
-		@IModelService private readonly modelService: IModelService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.labelElement = DOM.append(container, $('.cell-language-picker'));
 		this.labelElement.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
 
-		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => this.showLanguagePicker()));
+		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
+			this.instantiationService.invokeFunction(accessor => {
+				new ChangeCellLanguageAction().run(accessor, { notebookEditor: this._editor!, cell: this._cell! });
+			});
+		}));
 		this._register(this.cellDisposables = new DisposableStore());
 	}
 
@@ -575,77 +569,6 @@ export class CellLanguageStatusBarItem extends Disposable {
 
 	private render(): void {
 		this.labelElement.textContent = this.modeService.getLanguageName(this._cell!.language!);
-	}
-
-	private async showLanguagePicker() {
-		const topItems: ILanguagePickInput[] = [];
-		const mainItems: ILanguagePickInput[] = [];
-
-		this.modeService.getRegisteredModes().forEach(languageId => {
-			let description: string;
-			if (languageId === this._cell!.language) {
-				description = nls.localize('languageDescription', "({0}) - Current Language", languageId);
-			} else {
-				description = nls.localize('languageDescriptionConfigured', "({0})", languageId);
-			}
-
-			const languageName = this.modeService.getLanguageName(languageId) || '';
-			const item = <ILanguagePickInput>{
-				label: languageName,
-				iconClasses: getIconClasses(this.modelService, this.modeService, this.getFakeResource(languageName)),
-				description,
-				languageId
-			};
-
-			if (languageId === 'markdown' || languageId === this._cell!.language) {
-				topItems.push(item);
-			} else {
-				mainItems.push(item);
-			}
-		});
-
-		mainItems.sort((a, b) => {
-			return a.description.localeCompare(b.description);
-		});
-
-		const picks: QuickPickInput[] = [
-			...topItems,
-			{ type: 'separator' },
-			...mainItems
-		];
-
-		const selection = await this.quickInputService.pick(picks, { placeHolder: nls.localize('pickLanguageToConfigure', "Select Language Mode") }) as ILanguagePickInput | undefined;
-		if (selection && selection.languageId) {
-			if (selection.languageId === 'markdown' && this._cell?.language !== 'markdown') {
-				const newCell = await changeCellToKind(CellKind.Markdown, { cell: this._cell!, notebookEditor: this._editor! });
-				if (newCell) {
-					this._editor!.focusNotebookCell(newCell, true);
-				}
-			} else if (selection.languageId !== 'markdown' && this._cell?.language === 'markdown') {
-				await changeCellToKind(CellKind.Code, { cell: this._cell!, notebookEditor: this._editor! }, selection.languageId);
-			} else {
-				this._cell!.model.language = selection.languageId;
-			}
-		}
-	}
-
-	/**
-	 * Copied from editorStatus.ts
-	 */
-	private getFakeResource(lang: string): URI | undefined {
-		let fakeResource: URI | undefined;
-
-		const extensions = this.modeService.getExtensions(lang);
-		if (extensions?.length) {
-			fakeResource = URI.file(extensions[0]);
-		} else {
-			const filenames = this.modeService.getFilenames(lang);
-			if (filenames?.length) {
-				fakeResource = URI.file(filenames[0]);
-			}
-		}
-
-		return fakeResource;
 	}
 }
 

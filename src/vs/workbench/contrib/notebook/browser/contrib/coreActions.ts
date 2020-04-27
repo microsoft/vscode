@@ -17,6 +17,11 @@ import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
+import { URI } from 'vs/base/common/uri';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -56,6 +61,7 @@ const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
 const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
 const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
+const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
 
 
 export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
@@ -1246,6 +1252,115 @@ registerAction2(class extends Action2 {
 		editor.viewModel.notebookDocument.clearCellOutput(context.cell.handle);
 	}
 });
+
+interface ILanguagePickInput extends IQuickPickItem {
+	languageId: string;
+	description: string;
+}
+
+export class ChangeCellLanguageAction extends Action2 {
+	constructor() {
+		super({
+			id: CHANGE_CELL_LANGUAGE,
+			title: localize('changeLanguage', 'Change Cell Language'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		this.showLanguagePicker(accessor, context);
+	}
+
+	private async showLanguagePicker(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const topItems: ILanguagePickInput[] = [];
+		const mainItems: ILanguagePickInput[] = [];
+
+		const modeService = accessor.get(IModeService);
+		const modelService = accessor.get(IModelService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const providerLanguages = [...context.notebookEditor.viewModel!.notebookDocument.languages, 'markdown'];
+		providerLanguages.forEach(languageId => {
+			let description: string;
+			if (languageId === context.cell.language) {
+				description = localize('languageDescription', "({0}) - Current Language", languageId);
+			} else {
+				description = localize('languageDescriptionConfigured', "({0})", languageId);
+			}
+
+			const languageName = modeService.getLanguageName(languageId);
+			if (!languageName) {
+				// Notebook has unrecognized language
+				return;
+			}
+
+			const item = <ILanguagePickInput>{
+				label: languageName,
+				iconClasses: getIconClasses(modelService, modeService, this.getFakeResource(languageName, modeService)),
+				description,
+				languageId
+			};
+
+			if (languageId === 'markdown' || languageId === context.cell.language) {
+				topItems.push(item);
+			} else {
+				mainItems.push(item);
+			}
+		});
+
+		mainItems.sort((a, b) => {
+			return a.description.localeCompare(b.description);
+		});
+
+		const picks: QuickPickInput[] = [
+			...topItems,
+			{ type: 'separator' },
+			...mainItems
+		];
+
+		const selection = await quickInputService.pick(picks, { placeHolder: localize('pickLanguageToConfigure', "Select Language Mode") }) as ILanguagePickInput | undefined;
+		if (selection && selection.languageId) {
+			if (selection.languageId === 'markdown' && context.cell?.language !== 'markdown') {
+				const newCell = await changeCellToKind(CellKind.Markdown, { cell: context.cell, notebookEditor: context.notebookEditor });
+				if (newCell) {
+					context.notebookEditor.focusNotebookCell(newCell, true);
+				}
+			} else if (selection.languageId !== 'markdown' && context.cell?.language === 'markdown') {
+				await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, selection.languageId);
+			} else {
+				context.notebookEditor.viewModel!.notebookDocument.changeCellLanguage(context.cell.handle, selection.languageId);
+			}
+		}
+	}
+
+	/**
+	 * Copied from editorStatus.ts
+	 */
+	private getFakeResource(lang: string, modeService: IModeService): URI | undefined {
+		let fakeResource: URI | undefined;
+
+		const extensions = modeService.getExtensions(lang);
+		if (extensions?.length) {
+			fakeResource = URI.file(extensions[0]);
+		} else {
+			const filenames = modeService.getFilenames(lang);
+			if (filenames?.length) {
+				fakeResource = URI.file(filenames[0]);
+			}
+		}
+
+		return fakeResource;
+	}
+}
+registerAction2(ChangeCellLanguageAction);
 
 registerAction2(class extends Action2 {
 	constructor() {
