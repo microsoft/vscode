@@ -510,7 +510,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
 		const deprecationText = element.setting.deprecationMessage || '';
-		template.deprecationWarningElement.innerText = deprecationText;
+		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
+			const disposables = new DisposableStore();
+			template.elementDisposables.add(disposables);
+			template.deprecationWarningElement.innerHTML = '';
+			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, element.setting.deprecationMessage!, template.elementDisposables));
+		} else {
+			template.deprecationWarningElement.innerText = deprecationText;
+		}
 		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
@@ -524,7 +531,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}));
 	}
 
-	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
+	private renderSettingMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
@@ -545,7 +552,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			}
 		});
 
-		renderedMarkdown.classList.add('setting-item-description-markdown');
+		renderedMarkdown.classList.add('setting-item-markdown');
 		cleanRenderedMarkdown(renderedMarkdown);
 		return renderedMarkdown;
 	}
@@ -615,7 +622,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
 		if ((template as ISettingItemTemplate).elementDisposables) {
-			dispose((template as ISettingItemTemplate).elementDisposables);
+			(template as ISettingItemTemplate).elementDisposables.clear();
 		}
 	}
 }
