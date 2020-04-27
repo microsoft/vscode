@@ -158,7 +158,7 @@ export function isValidBasename(name: string | null | undefined, isWindowsOS: bo
 		return false; // check for certain invalid file names
 	}
 
-	if (name === '.' || name === '..') {
+	if (name === '..') {
 		return false; // check for reserved values
 	}
 
