@@ -15,9 +15,9 @@ export class Askpass implements IIPCHandler {
 	private cache = new Map<string, Credentials>();
 	private credentialsProviders = new Set<CredentialsProvider>();
 
-	static async create(outputChannel: OutputChannel): Promise<Askpass> {
+	static async create(outputChannel: OutputChannel, context?: string): Promise<Askpass> {
 		try {
-			return new Askpass(await createIPCServer());
+			return new Askpass(await createIPCServer(context));
 		} catch (err) {
 			outputChannel.appendLine(`[error] Failed to create git askpass IPC: ${err}`);
 			return new Askpass();
@@ -74,7 +74,6 @@ export class Askpass implements IIPCHandler {
 
 		return {
 			...this.ipc.getEnv(),
-			ELECTRON_RUN_AS_NODE: '1',
 			GIT_ASKPASS: path.join(__dirname, 'askpass.sh'),
 			VSCODE_GIT_ASKPASS_NODE: process.execPath,
 			VSCODE_GIT_ASKPASS_MAIN: path.join(__dirname, 'askpass-main.js')
