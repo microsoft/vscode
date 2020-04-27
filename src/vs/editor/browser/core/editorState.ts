@@ -173,6 +173,5 @@ export class StableEditorScrollState {
 
 		const offset = editor.getTopForLineNumber(currentCursorPosition.lineNumber) - editor.getTopForLineNumber(this._cursorPosition.lineNumber);
 		editor.setScrollTop(editor.getScrollTop() + offset);
-		editor.pushUndoStop();
 	}
 }
