@@ -1671,6 +1671,12 @@
           "scope": "resource",
           "default": true,
           "description": "%config.terminalAuthentication%"
+        },
+        "git.githubAuthentication": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.githubAuthentication%"
         }
       }
     },
