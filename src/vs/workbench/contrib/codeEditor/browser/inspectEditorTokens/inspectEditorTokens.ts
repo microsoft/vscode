@@ -27,7 +27,7 @@ import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/s
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
-import { TokenStylingRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEditorSemanticHighlightingOptions {
@@ -557,7 +557,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${strScopes}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return '';
-		} else if (TokenStylingRule.is(definition)) {
+		} else if (SemanticTokenRule.is(definition)) {
 			const scope = theme.getTokenStylingRuleScope(definition);
 			if (scope === 'setting') {
 				return `User settings: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`;
