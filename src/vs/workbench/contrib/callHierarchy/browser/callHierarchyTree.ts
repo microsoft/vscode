@@ -147,6 +147,10 @@ export class AccessibilityProvider implements IListAccessibilityProvider<Call> {
 		public getDirection: () => CallHierarchyDirection
 	) { }
 
+	getWidgetAriaLabel(): string {
+		return localize('tree.aria', "Call Hierarchy");
+	}
+
 	getAriaLabel(element: Call): string | null {
 		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
 			return localize('from', "calls from {0}", element.item.name);

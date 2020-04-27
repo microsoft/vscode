@@ -21,6 +21,7 @@ import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/cont
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
+import { searchRefreshIcon, searchNewEditorIcon, searchGotoFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -79,7 +80,7 @@ export class OpenSearchEditorAction extends Action {
 	constructor(id: string, label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(id, label, 'codicon-new-file');
+		super(id, label, searchNewEditorIcon.classNames);
 	}
 
 	update() {
@@ -103,7 +104,7 @@ export class OpenSearchEditorToSideAction extends Action {
 	constructor(id: string, label: string,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(id, label, 'codicon-new-file');
+		super(id, label, searchNewEditorIcon.classNames);
 	}
 
 	async run() {
@@ -120,7 +121,7 @@ export class OpenResultsInEditorAction extends Action {
 		@IViewsService private viewsService: IViewsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
-		super(id, label, 'codicon-go-to-file');
+		super(id, label, searchGotoFileIcon.classNames);
 	}
 
 	get enabled(): boolean {
@@ -147,7 +148,7 @@ export class RerunSearchEditorSearchAction extends Action {
 	constructor(id: string, label: string,
 		@IEditorService private readonly editorService: IEditorService,
 	) {
-		super(id, label, 'codicon-refresh');
+		super(id, label, searchRefreshIcon.classNames);
 	}
 
 	async run() {

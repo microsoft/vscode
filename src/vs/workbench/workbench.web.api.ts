@@ -105,6 +105,61 @@ interface IHomeIndicator {
 	title: string;
 }
 
+interface IDefaultSideBarLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active: true;
+		order?: number;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	} | {
+		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
+		active?: false;
+		order?: number;
+		visible?: boolean;
+		views?: {
+			id: string;
+			order?: number;
+			visible?: boolean;
+			collapsed?: boolean;
+		}[];
+	})[];
+}
+
+interface IDefaultPanelLayout {
+	visible?: boolean;
+	containers?: ({
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active: true;
+	} | {
+		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
+		order?: number;
+		active?: false;
+		visible?: boolean;
+	})[];
+}
+
+interface IDefaultEditor {
+	path: string;
+	scheme: string;
+	active?: boolean;
+}
+
+interface IDefaultLayout {
+	sidebar?: IDefaultSideBarLayout;
+	panel?: IDefaultPanelLayout;
+	editors?: IDefaultEditor[];
+
+	// Internal only
+	firstRun?: boolean;
+}
+
 interface IWorkbenchConstructionOptions {
 
 	//#region Connection related configuration
@@ -168,6 +223,16 @@ interface IWorkbenchConstructionOptions {
 	userDataProvider?: IFileSystemProvider;
 
 	/**
+	 * Session id of the current authenticated user
+	 */
+	readonly authenticationSessionId?: string;
+
+	/**
+	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 */
+	readonly enableSyncByDefault?: boolean;
+
+	/**
 	 * The credentials provider to store and retrieve secrets.
 	 */
 	readonly credentialsProvider?: ICredentialsProvider;
@@ -221,6 +286,8 @@ interface IWorkbenchConstructionOptions {
 	readonly driver?: boolean;
 
 	//#endregion
+
+	defaultLayout?: IDefaultLayout;
 }
 
 interface IWorkbench {
@@ -351,7 +418,12 @@ export {
 	commands,
 
 	// Home Indicator
-	IHomeIndicator
+	IHomeIndicator,
+
+	// Default layout
+	IDefaultLayout,
+	IDefaultPanelLayout,
+	IDefaultSideBarLayout,
 };
 
 //#endregion

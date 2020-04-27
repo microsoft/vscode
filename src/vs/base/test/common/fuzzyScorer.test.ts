@@ -912,6 +912,19 @@ suite('Fuzzy Scorer', () => {
 		assert.equal(res[0], resourceB);
 	});
 
+	test('compareFilesByScore - prefer case match (bug #96122)', function () {
+		const resourceA = URI.file('lists.php');
+		const resourceB = URI.file('lib/Lists.php');
+
+		let query = 'Lists.php';
+
+		let res = [resourceA, resourceB].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceB);
+
+		res = [resourceB, resourceA].sort((r1, r2) => compareItemsByScore(r1, r2, query, true, ResourceAccessor));
+		assert.equal(res[0], resourceB);
+	});
+
 	test('prepareQuery', () => {
 		assert.equal(scorer.prepareQuery(' f*a ').normalized, 'fa');
 		assert.equal(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
@@ -1020,7 +1033,7 @@ suite('Fuzzy Scorer', () => {
 		}
 
 		function assertNoScore() {
-			assert.equal(multiScore, 0);
+			assert.equal(multiScore, undefined);
 			assert.equal(multiMatches.length, 0);
 		}
 
@@ -1037,5 +1050,14 @@ suite('Fuzzy Scorer', () => {
 
 		[multiScore, multiMatches] = _doScore2(target, 'More Nothing');
 		assertNoScore();
+	});
+
+	test('fuzzyScore2 (#95716)', function () {
+		const target = '# ❌ Wow';
+
+		const score = _doScore2(target, '❌');
+		assert.ok(score);
+		assert.ok(typeof score[0] === 'number');
+		assert.ok(score[1].length > 0);
 	});
 });

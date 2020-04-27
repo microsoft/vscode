@@ -192,8 +192,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return (selected ? FileMatch._CURRENT_FIND_MATCH : FileMatch._FIND_MATCH);
 	}
 
-	private _onChange = this._register(new Emitter<boolean>());
-	readonly onChange: Event<boolean> = this._onChange.event;
+	private _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean }>());
+	readonly onChange: Event<{ didRemove?: boolean; forceUpdateModel?: boolean }> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
@@ -323,7 +323,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 				.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
 				.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
 
-		this._onChange.fire(modelChange);
+		this._onChange.fire({ forceUpdateModel: modelChange });
 		this.updateHighlights();
 	}
 
@@ -357,7 +357,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	remove(match: Match): void {
 		this.removeMatch(match);
 		this._removedMatches.add(match.id());
-		this._onChange.fire(false);
+		this._onChange.fire({ didRemove: true });
 	}
 
 	replace(toReplace: Match): Promise<void> {
@@ -410,7 +410,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	add(match: Match, trigger?: boolean) {
 		this._matches.set(match.id(), match);
 		if (trigger) {
-			this._onChange.fire(true);
+			this._onChange.fire({ forceUpdateModel: true });
 		}
 	}
 
@@ -529,7 +529,7 @@ export class FolderMatch extends Disposable {
 				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
 				added.push(fileMatch);
-				const disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
+				const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 				fileMatch.onDispose(() => disposable.dispose());
 			}
 		});
@@ -577,9 +577,8 @@ export class FolderMatch extends Disposable {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
-	private onFileChange(fileMatch: FileMatch): void {
-		let added: boolean = false;
-		let removed: boolean = false;
+	private onFileChange(fileMatch: FileMatch, removed = false): void {
+		let added = false;
 		if (!this._fileMatches.has(fileMatch.resource)) {
 			this.doAdd(fileMatch);
 			added = true;
@@ -1101,7 +1100,7 @@ export class SearchModel extends Disposable {
 		this._resultQueue = [];
 
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
-		delete options.pattern;
+		delete (options as any).pattern;
 
 		const stats = completed && completed.stats as ITextSearchStats;
 

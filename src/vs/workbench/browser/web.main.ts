@@ -65,6 +65,11 @@ class BrowserMain extends Disposable {
 	async open(): Promise<IWorkbench> {
 		const services = await this.initServices();
 
+		// const defaultLayout = this.configuration?.defaultLayout;
+		// if (defaultLayout) {
+		// 	defaultLayout.firstRun = services.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) === undefined;
+		// }
+
 		await domContentLoaded();
 		mark('willStartWorkbench');
 

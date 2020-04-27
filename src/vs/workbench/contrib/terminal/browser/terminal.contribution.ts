@@ -68,6 +68,7 @@ if (platform.isWeb) {
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: TERMINAL_VIEW_ID,
 	name: nls.localize('terminal', "Terminal"),
+	icon: 'codicon-terminal',
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [TERMINAL_VIEW_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 	storageId: TERMINAL_VIEW_ID,
 	focusCommand: { id: TERMINAL_COMMAND_ID.FOCUS },
@@ -88,12 +89,12 @@ Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registerTerminalActions();
 const category = TERMINAL_ACTION_CATEGORY;
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), 'Terminal: Kill the Active Terminal Instance', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(CreateNewTerminalAction, CreateNewTerminalAction.ID, CreateNewTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(KillTerminalAction), 'Terminal: Kill the Active Terminal Instance', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(CreateNewTerminalAction, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK }
 }), 'Terminal: Create New Integrated Terminal', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectAllTerminalAction, SelectAllTerminalAction.ID, SelectAllTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SelectAllTerminalAction, {
 	// Don't use ctrl+a by default as that would override the common go to start
 	// of prompt shell binding
 	primary: 0,
@@ -102,29 +103,29 @@ actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectAllTerm
 	// makes it easier for users to see how it works though.
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_A }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select All', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleTerminalAction, ToggleTerminalAction.ID, ToggleTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleTerminalAction, {
 	primary: KeyMod.CtrlCmd | KeyCode.US_BACKTICK,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.US_BACKTICK }
 }), 'View: Toggle Integrated Terminal', nls.localize('viewCategory', "View"));
 // Weight is higher than work workbench contributions so the keybinding remains
 // highest priority when chords are registered afterwards
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ClearTerminalAction, ClearTerminalAction.ID, ClearTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ClearTerminalAction, {
 	primary: 0,
 	mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_K }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KeybindingWeight.WorkbenchContrib + 1), 'Terminal: Clear', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SelectDefaultShellWindowsTerminalAction, SelectDefaultShellWindowsTerminalAction.ID, SelectDefaultShellWindowsTerminalAction.LABEL), 'Terminal: Select Default Shell', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SplitTerminalAction, SplitTerminalAction.ID, SplitTerminalAction.LABEL, {
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SelectDefaultShellWindowsTerminalAction), 'Terminal: Select Default Shell', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SplitTerminalAction, {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_5,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH,
 		secondary: [KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KEY_5]
 	}
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Split Terminal', category);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(SplitInActiveWorkspaceTerminalAction, SplitInActiveWorkspaceTerminalAction.ID, SplitInActiveWorkspaceTerminalAction.LABEL), 'Terminal: Split Terminal (In Active Workspace)', category);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(SplitInActiveWorkspaceTerminalAction), 'Terminal: Split Terminal (In Active Workspace)', category);
 
 // Commands might be affected by Web restrictons
 if (BrowserFeatures.clipboard.writeText) {
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
+	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(CopyTerminalSelectionAction, {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C] },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C }
@@ -146,7 +147,7 @@ function registerSendSequenceKeybinding(text: string, rule: { when?: ContextKeyE
 }
 
 if (BrowserFeatures.clipboard.readText) {
-	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(TerminalPasteAction, TerminalPasteAction.ID, TerminalPasteAction.LABEL, {
+	actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(TerminalPasteAction, {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V] },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_V }

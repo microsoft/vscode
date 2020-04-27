@@ -59,6 +59,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { Codicon } from 'vs/base/common/codicons';
 
 export function toExtensionDescription(local: ILocalExtension): IExtensionDescription {
 	return {
@@ -1843,7 +1844,7 @@ export class UndoIgnoreExtensionRecommendationAction extends Action {
 export class ShowRecommendedKeymapExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.showRecommendedKeymapExtensions';
-	static readonly SHORT_LABEL = localize('showRecommendedKeymapExtensionsShort', "Keymaps");
+	static readonly LABEL = localize('showRecommendedKeymapExtensionsShort', "Keymaps");
 
 	constructor(
 		id: string,
@@ -1866,7 +1867,7 @@ export class ShowRecommendedKeymapExtensionsAction extends Action {
 export class ShowLanguageExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.showLanguageExtensions';
-	static readonly SHORT_LABEL = localize('showLanguageExtensionsShort', "Language Extensions");
+	static readonly LABEL = localize('showLanguageExtensionsShort', "Language Extensions");
 
 	constructor(
 		id: string,
@@ -1889,7 +1890,7 @@ export class ShowLanguageExtensionsAction extends Action {
 export class ShowAzureExtensionsAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.showAzureExtensions';
-	static readonly SHORT_LABEL = localize('showAzureExtensionsShort', "Azure Extensions");
+	static readonly LABEL = localize('showAzureExtensionsShort', "Azure Extensions");
 
 	constructor(
 		id: string,
@@ -2691,8 +2692,8 @@ export class ExtensionToolTipAction extends ExtensionAction {
 export class SystemDisabledWarningAction extends ExtensionAction {
 
 	private static readonly CLASS = `${ExtensionAction.ICON_ACTION_CLASS} system-disable`;
-	private static readonly WARNING_CLASS = `${SystemDisabledWarningAction.CLASS} codicon-warning`;
-	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} codicon-info`;
+	private static readonly WARNING_CLASS = `${SystemDisabledWarningAction.CLASS} ${Codicon.warning.classNames}`;
+	private static readonly INFO_CLASS = `${SystemDisabledWarningAction.CLASS} ${Codicon.info.classNames}`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 	private _runningExtensions: IExtensionDescription[] | null = null;
@@ -2733,8 +2734,8 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
 					this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
 					this.tooltip = this.extension.server === this.extensionManagementServerService.localExtensionManagementServer
-						? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it also there.", this.extensionManagementServerService.remoteExtensionManagementServer.label)
-						: localize('Install language pack also locally', "Install the language pack extension locally to enable it also there.");
+						? localize('Install language pack also in remote server', "Install the language pack extension on '{0}' to enable it there also.", this.extensionManagementServerService.remoteExtensionManagementServer.label)
+						: localize('Install language pack also locally', "Install the language pack extension locally to enable it there also.");
 				}
 				return;
 			}

@@ -30,7 +30,7 @@ import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGR
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, ITerminalBeforeHandleLinkEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalBeforeHandleLinkEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -99,7 +99,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
 	private _linkManager: TerminalLinkManager | undefined;
-	private _environmentVariableWidgetDisposable: IDisposable | undefined;
+	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
@@ -902,7 +902,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				this._xtermReadyPromise.then(xterm => {
 					if (!this._isDisposed && this._processManager && this._processManager.shellProcessId) {
-						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, this, xterm);
+						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, xterm);
+						this._windowsShellHelper.onShellNameChange(title => {
+							this.setShellType(this.getShellType(title));
+							if (this.isTitleSetByProcess) {
+								this.setTitle(title, TitleEventSource.Process);
+							}
+						});
 					}
 				});
 			});
@@ -913,6 +919,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		setTimeout(() => {
 			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
 		}, 0);
+	}
+
+	private getShellType(executable: string): TerminalShellType {
+		switch (executable.toLowerCase()) {
+			case 'cmd.exe':
+				return WindowsShellType.CommandPrompt;
+			case 'powershell.exe':
+			case 'pwsh.exe':
+				return WindowsShellType.PowerShell;
+			case 'bash.exe':
+				return WindowsShellType.GitBash;
+			case 'wsl.exe':
+			case 'ubuntu.exe':
+			case 'ubuntu1804.exe':
+			case 'kali.exe':
+			case 'debian.exe':
+			case 'opensuse-42.exe':
+			case 'sles-12.exe':
+				return WindowsShellType.Wsl;
+			default:
+				return undefined;
+		}
 	}
 
 	private _onProcessData(data: string): void {
@@ -1048,6 +1076,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._isExiting = false;
 			}
 		}
+
+		// Dispose the environment info widget if it exists
+		this._environmentInfo?.disposable.dispose();
 
 		if (!reset) {
 			// HACK: Force initialText to be non-falsy for reused terminals such that the
@@ -1359,12 +1390,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
 	}
 
+	public showEnvironmentInfoHover(): void {
+		if (this._environmentInfo) {
+			this._environmentInfo.widget.focus();
+		}
+	}
+
 	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
+		if (info.requiresAction) {
+			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._id));
+		}
 		this._refreshEnvironmentVariableInfoWidgetState(info);
 	}
 
 	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
-		this._environmentVariableWidgetDisposable?.dispose();
+		this._environmentInfo?.disposable.dispose();
 
 		// Check if the widget should not exist
 		if (!info ||
@@ -1375,7 +1415,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// (Re-)create the widget
 		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
-		this._environmentVariableWidgetDisposable = this._widgetManager.attachWidget(widget);
+		const disposable = this._widgetManager.attachWidget(widget);
+		if (disposable) {
+			this._environmentInfo = { widget, disposable };
+		}
 	}
 
 	private _getXtermTheme(theme?: IColorTheme): any {
@@ -1383,7 +1426,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			theme = this._themeService.getColorTheme();
 		}
 
-		const location = this._viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID)!;
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
 		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Sidebar ? theme.getColor(SIDE_BAR_BACKGROUND) : theme.getColor(PANEL_BACKGROUND));
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;

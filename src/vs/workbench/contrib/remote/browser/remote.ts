@@ -56,6 +56,7 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { RemoteWindowActiveIndicator } from 'vs/workbench/contrib/remote/browser/remoteIndicator';
 import { inQuickPickContextKeyValue } from 'vs/workbench/browser/quickaccess';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 export interface HelpInformation {
 	extensionDescription: IExtensionDescription;
@@ -150,8 +151,14 @@ class HelpDataSource implements IAsyncDataSource<any, any> {
 	}
 }
 
+const getStartedIcon = registerIcon('remote-explorer-get-started', Codicon.star);
+const documentationIcon = registerIcon('remote-explorer-documentation', Codicon.book);
+const feedbackIcon = registerIcon('remote-explorer-feedback', Codicon.twitter);
+const reviewIssuesIcon = registerIcon('remote-explorer-review-issues', Codicon.issues);
+const reportIssuesIcon = registerIcon('remote-explorer-report-issues', Codicon.comment);
+
 interface IHelpItem {
-	key: string;
+	icon: Codicon,
 	iconClasses: string[];
 	label: string;
 	handleClick(): Promise<void>;
@@ -173,7 +180,7 @@ class HelpModel {
 
 		if (getStarted.length) {
 			helpItems.push(new HelpItem(
-				'star',
+				getStartedIcon,
 				nls.localize('remote.help.getStarted', "Get Started"),
 				getStarted.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
@@ -191,7 +198,7 @@ class HelpModel {
 
 		if (documentation.length) {
 			helpItems.push(new HelpItem(
-				'book',
+				documentationIcon,
 				nls.localize('remote.help.documentation', "Read Documentation"),
 				documentation.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
@@ -209,7 +216,7 @@ class HelpModel {
 
 		if (feedback.length) {
 			helpItems.push(new HelpItem(
-				'twitter',
+				feedbackIcon,
 				nls.localize('remote.help.feedback', "Provide Feedback"),
 				feedback.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
@@ -227,7 +234,7 @@ class HelpModel {
 
 		if (issues.length) {
 			helpItems.push(new HelpItem(
-				'issues',
+				reviewIssuesIcon,
 				nls.localize('remote.help.issues', "Review Issues"),
 				issues.map((info: HelpInformation) => ({
 					extensionDescription: info.extensionDescription,
@@ -243,7 +250,7 @@ class HelpModel {
 
 		if (helpItems.length) {
 			helpItems.push(new IssueReporterItem(
-				'comment',
+				reportIssuesIcon,
 				nls.localize('remote.help.report', "Report Issue"),
 				viewModel.helpInformation.map(info => ({
 					extensionDescription: info.extensionDescription,
@@ -265,16 +272,15 @@ class HelpModel {
 abstract class HelpItemBase implements IHelpItem {
 	public iconClasses: string[] = [];
 	constructor(
-		public key: string,
+		public icon: Codicon,
 		public label: string,
 		public values: { extensionDescription: IExtensionDescription, url?: string, remoteAuthority: string[] | undefined }[],
 		private quickInputService: IQuickInputService,
 		private environmentService: IWorkbenchEnvironmentService,
 		private remoteExplorerService: IRemoteExplorerService
 	) {
-		this.iconClasses.push(`codicon-${key}`);
+		this.iconClasses.push(icon.classNames);
 		this.iconClasses.push('remote-help-tree-node-item-icon');
-		this.iconClasses.push('codicon');
 	}
 
 	async handleClick() {
@@ -321,7 +327,7 @@ abstract class HelpItemBase implements IHelpItem {
 
 class HelpItem extends HelpItemBase {
 	constructor(
-		key: string,
+		icon: Codicon,
 		label: string,
 		values: { extensionDescription: IExtensionDescription; url: string, remoteAuthority: string[] | undefined }[],
 		quickInputService: IQuickInputService,
@@ -329,7 +335,7 @@ class HelpItem extends HelpItemBase {
 		private openerService: IOpenerService,
 		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(key, label, values, quickInputService, environmentService, remoteExplorerService);
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription, url: string): Promise<void> {
@@ -339,7 +345,7 @@ class HelpItem extends HelpItemBase {
 
 class IssueReporterItem extends HelpItemBase {
 	constructor(
-		key: string,
+		icon: Codicon,
 		label: string,
 		values: { extensionDescription: IExtensionDescription; remoteAuthority: string[] | undefined }[],
 		quickInputService: IQuickInputService,
@@ -347,7 +353,7 @@ class IssueReporterItem extends HelpItemBase {
 		private commandService: ICommandService,
 		remoteExplorerService: IRemoteExplorerService
 	) {
-		super(key, label, values, quickInputService, environmentService, remoteExplorerService);
+		super(icon, label, values, quickInputService, environmentService, remoteExplorerService);
 	}
 
 	protected async takeAction(extensionDescription: IExtensionDescription): Promise<void> {
@@ -399,7 +405,8 @@ class HelpPanel extends ViewPane {
 				accessibilityProvider: {
 					getAriaLabel: (item: HelpItemBase) => {
 						return item.label;
-					}
+					},
+					getWidgetAriaLabel: () => nls.localize('remotehelp', "Remote Help")
 				}
 			}
 		);
@@ -584,7 +591,7 @@ class OpenRemoteViewletAction extends ShowViewletAction {
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenRemoteViewletAction, VIEWLET_ID, nls.localize('toggleRemoteViewlet', "Show Remote Explorer"), {
+	SyncActionDescriptor.from(OpenRemoteViewletAction, {
 		primary: 0
 	}),
 	'View: Show Remote Explorer',
@@ -811,4 +818,3 @@ class RemoteAgentConnectionStatusListener implements IWorkbenchContribution {
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteAgentConnectionStatusListener, LifecyclePhase.Eventually);
 workbenchContributionsRegistry.registerWorkbenchContribution(RemoteWindowActiveIndicator, LifecyclePhase.Starting);
-

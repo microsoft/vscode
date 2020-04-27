@@ -259,9 +259,9 @@ export class FocusPreviousPart extends Action {
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 const viewCategory = nls.localize('view', "View");
 
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateUpAction, NavigateUpAction.ID, NavigateUpAction.LABEL, undefined), 'View: Navigate to the View Above', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateDownAction, NavigateDownAction.ID, NavigateDownAction.LABEL, undefined), 'View: Navigate to the View Below', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateLeftAction, NavigateLeftAction.ID, NavigateLeftAction.LABEL, undefined), 'View: Navigate to the View on the Left', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NavigateRightAction, NavigateRightAction.ID, NavigateRightAction.LABEL, undefined), 'View: Navigate to the View on the Right', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusNextPart, FocusNextPart.ID, FocusNextPart.LABEL, { primary: KeyCode.F6 }), 'View: Focus Next Part', viewCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusPreviousPart, FocusPreviousPart.ID, FocusPreviousPart.LABEL, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateUpAction, undefined), 'View: Navigate to the View Above', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateDownAction, undefined), 'View: Navigate to the View Below', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateLeftAction, undefined), 'View: Navigate to the View on the Left', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NavigateRightAction, undefined), 'View: Navigate to the View on the Right', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusNextPart, { primary: KeyCode.F6 }), 'View: Focus Next Part', viewCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusPreviousPart, { primary: KeyMod.Shift | KeyCode.F6 }), 'View: Focus Previous Part', viewCategory);

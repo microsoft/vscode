@@ -69,7 +69,7 @@ export async function activate(context: vscode.ExtensionContext) {
 		const selectedSession = await vscode.window.showQuickPick(sessions.map(session => {
 			return {
 				id: session.id,
-				label: session.accountName
+				label: session.account.displayName
 			};
 		}));
 

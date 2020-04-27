@@ -27,7 +27,7 @@ import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, Cust
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
-import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/browser/editorAssociationsSetting';
+import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICustomEditorInfo, ICustomEditorViewTypesHandler, IEditorService, IOpenEditorOverride, IOpenEditorOverrideEntry } from 'vs/workbench/services/editor/common/editorService';
 import { ContributedCustomEditors, defaultCustomEditor } from '../common/contributedCustomEditors';
@@ -170,7 +170,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				// And persist the setting
 				if (pick) {
 					const newAssociation: CustomEditorAssociation = { viewType: pick, filenamePattern: '*' + resourceExt };
-					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)] || [];
+					const currentAssociations = [...this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)];
 
 					// First try updating existing association
 					for (let i = 0; i < currentAssociations.length; ++i) {
@@ -207,7 +207,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		}
 
 		const capabilities = this.getCustomEditorCapabilities(viewType) || {};
-		if (!capabilities.supportsMultipleEditorsPerResource) {
+		if (!capabilities.supportsMultipleEditorsPerDocument) {
 			const movedEditor = await this.tryRevealExistingEditorForResourceInGroup(resource, viewType, options, group);
 			if (movedEditor) {
 				return movedEditor;

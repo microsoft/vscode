@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createWebWorker, MonacoWebWorker } from 'vs/editor/common/services/webWorker';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { IOnigLib, IRawTheme } from 'vscode-textmate';
+import { IRawTheme } from 'vscode-textmate';
 import { IValidGrammarDefinition } from 'vs/workbench/services/textMate/common/TMScopeRegistry';
 import { TextMateWorker } from 'vs/workbench/services/textMate/electron-browser/textMateWorker';
 import { ITextModel } from 'vs/editor/common/model';
@@ -24,6 +24,7 @@ import { TMGrammarFactory } from 'vs/workbench/services/textMate/common/TMGramma
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -117,7 +118,7 @@ export class TextMateWorkerHost {
 
 	constructor(
 		private readonly textMateService: TextMateService,
-		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService,
+		@IExtensionResourceLoaderService private readonly _extensionResourceLoaderService: IExtensionResourceLoaderService
 	) {
 	}
 
@@ -147,6 +148,7 @@ export class TextMateService extends AbstractTextMateService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IModelService private readonly _modelService: IModelService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
 	) {
 		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService);
 		this._worker = null;
@@ -177,12 +179,14 @@ export class TextMateService extends AbstractTextMateService {
 		}
 	}
 
-	protected _loadVSCodeTextmate(): Promise<typeof import('vscode-textmate')> {
-		return import('vscode-textmate');
-	}
-
-	protected _loadOnigLib(): Promise<IOnigLib> | undefined {
-		return undefined;
+	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
+		const wasmPath = (
+			this._environmentService.isBuilt
+				? require.toUrl('../../../../../../node_modules.asar.unpacked/vscode-oniguruma/release/onig.wasm')
+				: require.toUrl('../../../../../../node_modules/vscode-oniguruma/release/onig.wasm')
+		);
+		const response = await fetch(wasmPath);
+		return response;
 	}
 
 	protected _onDidCreateGrammarFactory(grammarDefinitions: IValidGrammarDefinition[]): void {

@@ -34,7 +34,7 @@ import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/u
 import { timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
-import { DEFAULT_CUSTOM_EDITOR, updateViewTypeSchema, editorAssociationsConfigurationNode } from 'vs/workbench/services/editor/browser/editorAssociationsSetting';
+import { DEFAULT_CUSTOM_EDITOR, updateViewTypeSchema, editorAssociationsConfigurationNode } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
@@ -1166,7 +1166,7 @@ export class DelegatingEditorService implements IEditorService {
 	) { }
 
 	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) {
-		return [];
+		return this.editorService.getEditorOverrides(editorInput, options, group);
 	}
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;

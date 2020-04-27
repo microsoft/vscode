@@ -6,7 +6,7 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, IExperimentalTokenStyleCustomizations, ITokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, IExperimentalTokenStyleCustomizations, ISemanticTokenColorizationSetting } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -770,13 +770,13 @@ function getScopeMatcher(rule: ITextMateThemingRule): Matcher<ProbeScope> {
 	};
 }
 
-function readCustomTokenStyleRule(selectorString: string, settings: ITokenColorizationSetting | string | undefined): TokenStylingRule | undefined {
+function readCustomTokenStyleRule(selectorString: string, settings: ISemanticTokenColorizationSetting | string | undefined): TokenStylingRule | undefined {
 	const selector = tokenClassificationRegistry.parseTokenSelector(selectorString);
 	let style: TokenStyle | undefined;
 	if (typeof settings === 'string') {
 		style = TokenStyle.fromSettings(settings, undefined);
-	} else if (isTokenColorizationSetting(settings)) {
-		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle);
+	} else if (isSemanticTokenColorizationSetting(settings)) {
+		style = TokenStyle.fromSettings(settings.foreground, settings.fontStyle, settings.bold, settings.underline, settings.italic);
 	}
 	if (style) {
 		return { selector, style };
@@ -800,8 +800,9 @@ function readCustomTokenStyleRules(tokenStylingRuleSection: IExperimentalTokenSt
 	return result;
 }
 
-function isTokenColorizationSetting(style: any): style is ITokenColorizationSetting {
-	return style && (style.foreground || style.fontStyle);
+function isSemanticTokenColorizationSetting(style: any): style is ISemanticTokenColorizationSetting {
+	return style && (types.isString(style.foreground) || types.isString(style.fontStyle) || types.isBoolean(style.italic)
+		|| types.isBoolean(style.underline) || types.isBoolean(style.bold));
 }
 
 

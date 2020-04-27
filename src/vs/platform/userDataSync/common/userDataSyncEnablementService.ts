@@ -47,7 +47,7 @@ export class UserDataSyncEnablementService extends Disposable implements IUserDa
 			case 'off':
 				return false;
 		}
-		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, false);
+		return this.storageService.getBoolean(enablementKey, StorageScope.GLOBAL, this.environmentService.enableSyncByDefault);
 	}
 
 	setEnablement(enabled: boolean): void {

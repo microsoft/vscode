@@ -69,6 +69,7 @@ import { OpenSearchEditorAction, createEditorFromSearchResult } from 'vs/workben
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 
 const $ = dom.$;
 
@@ -280,7 +281,7 @@ export class SearchView extends ViewPane {
 
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
-			$('.more.codicon.codicon-ellipsis', { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
+			$('.more' + searchDetailsIcon.cssSelector, { tabindex: 0, role: 'button', title: nls.localize('moreSearch', "Toggle Search Details") }));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -1656,7 +1657,7 @@ export class SearchView extends ViewPane {
 				revealIfVisible: true
 			}
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
-			if (editor && element instanceof Match && preserveFocus) {
+			if (element instanceof Match && preserveFocus && isCodeEditor(editor)) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
 					(<ICodeEditor>editor.getControl()).getModel()!,
 					element.range()

@@ -420,12 +420,12 @@ export class ProgressService extends Disposable implements IProgressService {
 		// show in viewlet
 		const promise = this.withCompositeProgress(this.viewsService.getProgressIndicator(viewId), task, options);
 
-		const location = this.viewDescriptorService.getViewLocation(viewId);
+		const location = this.viewDescriptorService.getViewLocationById(viewId);
 		if (location !== ViewContainerLocation.Sidebar) {
 			return promise;
 		}
 
-		const viewletId = this.viewDescriptorService.getViewContainer(viewId)?.id;
+		const viewletId = this.viewDescriptorService.getViewContainerByViewId(viewId)?.id;
 		if (viewletId === undefined) {
 			return promise;
 		}
@@ -440,7 +440,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		let activityProgress: IDisposable;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-			const handle = this.activityService.showActivity(viewletId, new ProgressBadge(() => ''), 'progress-badge', 100);
+			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), clazz: 'progress-badge', priority: 100 });
 			const startTimeVisible = Date.now();
 			const minTimeVisible = 300;
 			activityProgress = {

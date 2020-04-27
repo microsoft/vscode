@@ -90,30 +90,24 @@ export namespace TokenStyle {
 	export function fromData(data: { foreground?: Color, bold?: boolean, underline?: boolean, italic?: boolean }): TokenStyle {
 		return new TokenStyle(data.foreground, data.bold, data.underline, data.italic);
 	}
-	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined): TokenStyle {
+	export function fromSettings(foreground: string | undefined, fontStyle: string | undefined, bold?: boolean, underline?: boolean, italic?: boolean): TokenStyle {
 		let foregroundColor = undefined;
 		if (foreground !== undefined) {
 			foregroundColor = Color.fromHex(foreground);
 		}
-		let bold, underline, italic;
 		if (fontStyle !== undefined) {
-			fontStyle = fontStyle.trim();
-			if (fontStyle.length === 0) {
-				bold = italic = underline = false;
-			} else {
-				const expression = /-?italic|-?bold|-?underline/g;
-				let match;
-				while ((match = expression.exec(fontStyle))) {
-					switch (match[0]) {
-						case 'bold': bold = true; break;
-						case 'italic': italic = true; break;
-						case 'underline': underline = true; break;
-					}
+			bold = italic = underline = false;
+			const expression = /italic|bold|underline/g;
+			let match;
+			while ((match = expression.exec(fontStyle))) {
+				switch (match[0]) {
+					case 'bold': bold = true; break;
+					case 'italic': italic = true; break;
+					case 'underline': underline = true; break;
 				}
 			}
 		}
 		return new TokenStyle(foregroundColor, bold, underline, italic);
-
 	}
 }
 
@@ -289,11 +283,24 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 					},
 					fontStyle: {
 						type: 'string',
-						description: nls.localize('schema.token.fontStyle', 'Font style of the rule: \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets inherited settings.'),
+						description: nls.localize('schema.token.fontStyle', 'Sets the all font styles of the rule: \'italic\', \'bold\' or \'underline\' or a combination. All styles that are not listed are unset. The empty string unsets all styles.'),
 						pattern: fontStylePattern,
 						patternErrorMessage: nls.localize('schema.fontStyle.error', 'Font style must be \'italic\', \'bold\' or \'underline\' or a combination. The empty string unsets all styles.'),
 						defaultSnippets: [{ label: nls.localize('schema.token.fontStyle.none', 'None (clear inherited style)'), bodyText: '""' }, { body: 'italic' }, { body: 'bold' }, { body: 'underline' }, { body: 'italic underline' }, { body: 'bold underline' }, { body: 'italic bold underline' }]
+					},
+					bold: {
+						type: 'boolean',
+						description: nls.localize('schema.token.bold', 'Sets or unsets the font style to bold. Note, the presence of \'fontStyle\' overrides this setting.'),
+					},
+					italic: {
+						type: 'boolean',
+						description: nls.localize('schema.token.italic', 'Sets or unsets the font style to italic. Note, the presence of \'fontStyle\' overrides this setting.'),
+					},
+					underline: {
+						type: 'boolean',
+						description: nls.localize('schema.token.underline', 'Sets or unsets the font style to underline. Note, the presence of \'fontStyle\' overrides this setting.'),
 					}
+
 				},
 				defaultSnippets: [{ body: { foreground: '${1:#FF0000}', fontStyle: '${2:bold}' } }]
 			}

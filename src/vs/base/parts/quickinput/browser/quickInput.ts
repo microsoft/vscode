@@ -27,6 +27,7 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
+import { registerIcon, Codicon } from 'vs/base/common/codicons';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -67,8 +68,11 @@ const $ = dom.$;
 
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
+
+const backButtonIcon = registerIcon('quick-input-back', Codicon.arrowLeft);
+
 const backButton = {
-	iconClass: 'codicon-arrow-left',
+	iconClass: backButtonIcon.classNames,
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
@@ -669,7 +673,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
 						if (this.ui.list.getFocusedElements().length) {
@@ -680,21 +684,21 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.PageDown:
 						this.ui.list.focus(QuickInputListFocus.NextPage);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.PageUp:
 						this.ui.list.focus(QuickInputListFocus.PreviousPage);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.RightArrow:
 						if (!this._canAcceptInBackground) {
@@ -715,13 +719,13 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					case KeyCode.Home:
 						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
 							this.ui.list.focus(QuickInputListFocus.First);
-							event.preventDefault();
+							dom.EventHelper.stop(event, true);
 						}
 						break;
 					case KeyCode.End:
 						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
 							this.ui.list.focus(QuickInputListFocus.Last);
-							event.preventDefault();
+							dom.EventHelper.stop(event, true);
 						}
 						break;
 				}
@@ -849,7 +853,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
 		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step,
+			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description,
 			checkAll: this.canSelectMany,
 			inputBox: !hideInput,
@@ -1044,7 +1048,12 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, description: !!this.description || !!this.step, inputBox: true, message: true });
+		const visibilities: Visibilities = {
+			title: !!this.title || !!this.step || !!this.buttons.length,
+			description: !!this.description || !!this.step,
+			inputBox: true, message: true
+		};
+		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;

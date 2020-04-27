@@ -13,9 +13,10 @@ import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/wor
 import { CellEditState, CellFindMatch, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { FoldingRegionDelegate } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
+import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEventDispatcher, NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Markdown = CellKind.Markdown;
@@ -47,26 +48,35 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		readonly notebookHandle: number,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
-		readonly foldingDelegate: FoldingRegionDelegate,
+		readonly foldingDelegate: EditorFoldingStateDelegate,
+		readonly eventDispatcher: NotebookEventDispatcher,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _modelService: ITextModelService) {
 		super(viewType, notebookHandle, model, UUID.generateUuid());
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
-			editorWidth: initialNotebookLayoutInfo?.width || 0,
+			editorWidth: initialNotebookLayoutInfo?.width ? this.computeEditorWidth(initialNotebookLayoutInfo.width) : 0,
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
 			totalHeight: 0
 		};
+
+		this._register(this.onDidChangeState(e => {
+			eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this)]);
+		}));
 	}
 
 	triggerfoldingStateChange() {
 		this._onDidChangeState.fire({ foldingStateChanged: true });
 	}
 
+	private computeEditorWidth(outerWidth: number) {
+		return outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER * 2;
+	}
+
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
-		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : this._layoutInfo.editorWidth;
+		const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
 
 		this._layoutInfo = {
 			fontInfo: state.font || this._layoutInfo.fontInfo,

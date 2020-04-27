@@ -26,19 +26,6 @@ import { isArray, isString, isObject } from 'vs/base/common/types';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
 
-export interface ISyncConfiguration {
-	sync: {
-		enable: boolean,
-		enableSettings: boolean,
-		enableKeybindings: boolean,
-		enableUIState: boolean,
-		enableExtensions: boolean,
-		keybindingsPerPlatform: boolean,
-		ignoredExtensions: string[],
-		ignoredSettings: string[]
-	}
-}
-
 export function getDisallowedIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
 	return Object.keys(allSettings).filter(setting => !!allSettings[setting].disallowSyncIgnore);

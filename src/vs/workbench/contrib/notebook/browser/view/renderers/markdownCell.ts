@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hide, IDimension, show } from 'vs/base/browser/dom';
+import { hide, IDimension, show, toggleClass } from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { renderCodicons } from 'vs/base/common/codicons';
@@ -15,11 +15,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, INotebookEditor, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
-import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
+import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 
 export class StatefullMarkdownCell extends Disposable {
+
 	private editor: CodeEditorWidget | null = null;
+	private editorOptions: IEditorOptions;
 	private markdownContainer: HTMLElement;
 	private editingContainer: HTMLElement;
 
@@ -37,6 +39,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 		this.markdownContainer = templateData.cellContainer;
 		this.editingContainer = templateData.editingContainer;
+		this.editorOptions = editorOptions;
 		this.localDisposables = new DisposableStore();
 		this._register(this.localDisposables);
 
@@ -65,7 +68,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					this.editingContainer.innerHTML = '';
 					this.editor = instantiationService.createInstance(CodeEditorWidget, this.editingContainer, {
-						...editorOptions,
+						...this.editorOptions,
 						dimension: {
 							width: width,
 							height: totalHeight
@@ -146,6 +149,10 @@ export class StatefullMarkdownCell extends Disposable {
 							this.markdownContainer.appendChild(renderedHTML);
 						}
 					}));
+
+					const clientHeight = templateData.container.clientHeight;
+					this.viewCell.totalHeight = clientHeight;
+					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
 				}
 			}
 		};
@@ -157,15 +164,21 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		}));
 
+		const updateForFocusMode = () => {
+			if (viewCell.focusMode === CellFocusMode.Editor) {
+				this.editor?.focus();
+			}
+
+			toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+		};
 		this._register(viewCell.onDidChangeState((e) => {
 			if (!e.focusModeChanged) {
 				return;
 			}
 
-			if (viewCell.focusMode === CellFocusMode.Editor) {
-				this.editor?.focus();
-			}
+			updateForFocusMode();
 		}));
+		updateForFocusMode();
 
 		this.foldingState = viewCell.foldingState;
 		this.setFoldingIndicator();
@@ -184,6 +197,13 @@ export class StatefullMarkdownCell extends Disposable {
 		}));
 
 		viewUpdate();
+	}
+
+	updateEditorOptions(newValue: IEditorOptions): any {
+		this.editorOptions = newValue;
+		if (this.editor) {
+			this.editor.updateOptions(this.editorOptions);
+		}
 	}
 
 	setFoldingIndicator() {
@@ -277,6 +297,17 @@ export class StatefullMarkdownCell extends Disposable {
 				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			}));
 		}
+
+		const updateFocusMode = () => this.viewCell.focusMode = this.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
+		this.localDisposables.add(this.editor!.onDidFocusEditorWidget(() => {
+			updateFocusMode();
+		}));
+
+		this.localDisposables.add(this.editor!.onDidBlurEditorWidget(() => {
+			updateFocusMode();
+		}));
+
+		updateFocusMode();
 	}
 
 	dispose() {

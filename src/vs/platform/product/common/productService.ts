@@ -60,6 +60,7 @@ export interface IProductConfiguration {
 
 	readonly extensionTips?: { [id: string]: string; };
 	readonly extensionImportantTips?: { [id: string]: { name: string; pattern: string; isExtensionPack?: boolean }; };
+	readonly configBasedExtensionTips?: { [id: string]: IConfigBasedExtensionTip; };
 	readonly exeBasedExtensionTips?: { [id: string]: IExeBasedExtensionTip; };
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
@@ -117,6 +118,12 @@ export interface IProductConfiguration {
 	readonly linkProtectionTrustedDomains?: readonly string[];
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
+}
+
+export interface IConfigBasedExtensionTip {
+	configPath: string;
+	configName: string;
+	recommendations: IStringDictionary<{ name: string, remotes?: string[], important?: boolean, isExtensionPack?: boolean }>;
 }
 
 export interface IExeBasedExtensionTip {

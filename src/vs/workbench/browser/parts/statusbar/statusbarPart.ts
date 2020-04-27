@@ -7,7 +7,7 @@ import 'vs/css!./media/statusbarpart';
 import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { CodiconLabel } from 'vs/base/browser/ui/codiconLabel/codiconLabel';
+import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
@@ -695,6 +695,8 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
+			// Set the aria label on both elements so screen readers would read the correct thing without duplication #96210
+			this.container.setAttribute('aria-label', entry.ariaLabel);
 			this.labelContainer.setAttribute('aria-label', entry.ariaLabel);
 		}
 
@@ -703,7 +705,7 @@ class StatusbarEntryItem extends Disposable {
 			if (entry.tooltip) {
 				this.container.title = entry.tooltip;
 			} else {
-				delete this.container.title;
+				this.container.title = '';
 			}
 		}
 
