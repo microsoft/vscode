@@ -40,7 +40,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
 import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
-import { IActivityService, IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -179,6 +179,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private onDidChangeTurningOnState(): void {
 		this.turningOnSyncContext.set(this.storageService.getBoolean(UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY, StorageScope.GLOBAL, false));
+		this.updateBadge();
 	}
 
 	private onDidChangeAccountStatus(status: AccountStatus): void {
@@ -401,6 +402,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			badge = new NumberBadge(1, () => localize('sign in to sync preferences', "Sign in to Sync Preferences"));
 		} else if (this.userDataSyncService.conflicts.length) {
 			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, syncResourceConflict) => { return result + syncResourceConflict.conflicts.length; }, 0), () => localize('has conflicts', "Preferences Sync: Conflicts Detected"));
+		} else if (this.turningOnSyncContext.get()) {
+			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Preferences Sync..."));
+			clazz = 'progress-badge';
+			priority = 1;
 		}
 
 		if (badge) {
