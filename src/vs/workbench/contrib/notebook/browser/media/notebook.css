@@ -382,7 +382,7 @@
 	transition: opacity 0.2s ease-in-out;
 	position: absolute;
 	height: 2px;
-	top: 0px;
+	top: -15px;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
