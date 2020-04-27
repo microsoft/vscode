@@ -135,6 +135,7 @@ export interface MainThreadCommandsShape extends IDisposable {
 export interface CommentProviderFeatures {
 	reactionGroup?: modes.CommentReaction[];
 	reactionHandler?: boolean;
+	options?: modes.CommentOptions;
 }
 
 export type CommentThreadChanges = Partial<{

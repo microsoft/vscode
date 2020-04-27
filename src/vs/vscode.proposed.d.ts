@@ -2054,4 +2054,25 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Comment
+	export interface CommentOptions {
+		/**
+		 * An optional string to show on the comment input box when it's collapsed.
+		 */
+		prompt?: string;
+
+		/**
+		 * An optional string to show as placeholder in the comment input box when it's focused.
+		 */
+		placeHolder?: string;
+	}
+
+	export interface CommentController {
+		/**
+		 * Comment controller options
+		 */
+		options?: CommentOptions;
+	}
+
+	//#endregion
 }
