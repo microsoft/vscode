@@ -136,10 +136,19 @@ export class DeleteOperations {
 					);
 
 					if (position.column <= lastIndentationColumn) {
-						let fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
-						let toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
-						let toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
-						deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
+						if (config.deleteAllLeadingBlankCharacters) {
+							if (position.lineNumber === 1) {
+								deleteSelection = new Range(position.lineNumber, 1, position.lineNumber, lastIndentationColumn);
+							} else {
+								let lastLineEnd = model.getLineContent(position.lineNumber - 1).length + 1;
+								deleteSelection = new Range(position.lineNumber - 1, lastLineEnd, position.lineNumber, lastIndentationColumn);
+							}
+						} else {
+							let fromVisibleColumn = CursorColumns.visibleColumnFromColumn2(config, model, position);
+							let toVisibleColumn = CursorColumns.prevIndentTabStop(fromVisibleColumn, config.indentSize);
+							let toColumn = CursorColumns.columnFromVisibleColumn2(config, model, position.lineNumber, toVisibleColumn);
+							deleteSelection = new Range(position.lineNumber, toColumn, position.lineNumber, position.column);
+						}
 					} else {
 						deleteSelection = new Range(position.lineNumber, position.column - 1, position.lineNumber, position.column);
 					}

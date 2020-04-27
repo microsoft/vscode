@@ -589,6 +589,11 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	definitionLinkOpensInPeek?: boolean;
+	/**
+		 * Controls whether backspace deletes all the leading blank characters in a line.
+		 * Defaults to false.
+	*/
+	deleteAllLeadingBlankCharacters?: boolean;
 }
 
 export interface IEditorConstructionOptions extends IEditorOptions {
@@ -3357,6 +3362,7 @@ export const enum EditorOption {
 	cursorSurroundingLines,
 	cursorSurroundingLinesStyle,
 	cursorWidth,
+	deleteAllLeadingBlankCharacters,
 	disableLayerHinting,
 	disableMonospaceOptimizations,
 	dragAndDrop,
@@ -3626,6 +3632,10 @@ export const EditorOptions = {
 		EditorOption.cursorWidth, 'cursorWidth',
 		0, 0, Constants.MAX_SAFE_SMALL_INTEGER,
 		{ markdownDescription: nls.localize('cursorWidth', "Controls the width of the cursor when `#editor.cursorStyle#` is set to `line`.") }
+	)),
+	deleteAllLeadingBlankCharacters: register(new EditorBooleanOption(
+		EditorOption.deleteAllLeadingBlankCharacters, 'deleteAllLeadingBlankCharacters', false,
+		{ description: nls.localize('deleteAllLeadingBlankCharacters', "Controls whether backspace deletes all the leading blank characters in a line.") }
 	)),
 	disableLayerHinting: register(new EditorBooleanOption(
 		EditorOption.disableLayerHinting, 'disableLayerHinting', false,
