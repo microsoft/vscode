@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { ICommandQuickPick } from 'vs/platform/quickinput/browser/commandsQuickAccess';
+import { ICommandQuickPick, CommandsHistory } from 'vs/platform/quickinput/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -22,7 +22,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
+import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickaccess';
+import { stripCodicons } from 'vs/base/common/codicons';
+import { Action } from 'vs/base/common/actions';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -56,11 +60,17 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super({ showAlias: !Language.isDefaultVariant() }, instantiationService, keybindingService, commandService, telemetryService, notificationService);
+		super({
+			showAlias: !Language.isDefaultVariant(),
+			noResultsPick: {
+				label: localize('noCommandResults', "No matching commands"),
+				commandId: ''
+			}
+		}, instantiationService, keybindingService, commandService, telemetryService, notificationService);
 	}
 
 	private get configuration() {
-		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickOpenConfiguration>().workbench.commandPalette;
+		const commandPaletteConfig = this.configurationService.getValue<IWorkbenchQuickAccessConfiguration>().workbench.commandPalette;
 
 		return {
 			preserveInput: commandPaletteConfig.preserveInput
@@ -114,7 +124,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			globalCommandPicks.push({
 				commandId: action.item.id,
 				commandAlias,
-				label
+				label: stripCodicons(label)
 			});
 		}
 
@@ -125,3 +135,47 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		return globalCommandPicks;
 	}
 }
+
+//#region Actions
+
+export class ShowAllCommandsAction extends Action {
+
+	static readonly ID = 'workbench.action.showCommands';
+	static readonly LABEL = localize('showTriggerActions', "Show All Commands");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		this.quickInputService.quickAccess.show(CommandsQuickAccessProvider.PREFIX);
+	}
+}
+
+export class ClearCommandHistoryAction extends Action {
+
+	static readonly ID = 'workbench.action.clearCommandHistory';
+	static readonly LABEL = localize('clearCommandHistory', "Clear Command History");
+
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const commandHistoryLength = CommandsHistory.getConfiguredCommandHistoryLength(this.configurationService);
+		if (commandHistoryLength > 0) {
+			CommandsHistory.clearHistory(this.configurationService, this.storageService);
+		}
+	}
+}
+
+//#endregion

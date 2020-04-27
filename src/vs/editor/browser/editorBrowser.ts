@@ -333,6 +333,7 @@ export interface IOverviewRuler {
  */
 export interface IEditorAriaOptions {
 	activeDescendant: string | undefined;
+	role?: string;
 }
 
 /**
@@ -702,6 +703,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * Does not account for horizontal scrolling.
 	 */
 	getVisibleRanges(): Range[];
+
+	/**
+	 * @internal
+	 */
+	getVisibleRangesPlusViewportAboveBelow(): Range[];
 
 	/**
 	 * Get the view zones.

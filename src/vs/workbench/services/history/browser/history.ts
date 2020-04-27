@@ -339,7 +339,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const navigateToStackEntry = this.navigationStack[this.navigationStackIndex];
 
-		this.doNavigate(navigateToStackEntry).finally(() => this.navigatingInStack = false);
+		this.doNavigate(navigateToStackEntry).finally(() => { this.navigatingInStack = false; });
 	}
 
 	private doNavigate(location: IStackEntry): Promise<IEditorPane | undefined> {

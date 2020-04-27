@@ -121,7 +121,6 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 					case 'label':
 					case 'description':
 					case 'settingsId':
-					case 'extensionData':
 					case 'styleSheetContent':
 					case 'hasFileIcons':
 					case 'hidesExplorerArrows':
@@ -131,6 +130,9 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 						break;
 					case 'location':
 						theme.location = URI.revive(data.location);
+						break;
+					case 'extensionData':
+						theme.extensionData = ExtensionData.fromJSONObject(data.extensionData);
 						break;
 				}
 			}
@@ -146,11 +148,12 @@ export class FileIconThemeData implements IWorkbenchFileIconTheme {
 			label: this.label,
 			description: this.description,
 			settingsId: this.settingsId,
-			location: this.location,
+			location: this.location?.toJSON(),
 			styleSheetContent: this.styleSheetContent,
 			hasFileIcons: this.hasFileIcons,
 			hasFolderIcons: this.hasFolderIcons,
 			hidesExplorerArrows: this.hidesExplorerArrows,
+			extensionData: ExtensionData.toJSONObject(this.extensionData),
 			watch: this.watch
 		});
 		storageService.store(PERSISTED_FILE_ICON_THEME_STORAGE_KEY, data, StorageScope.GLOBAL);
@@ -237,8 +240,7 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 				qualifier = baseThemeClassName + ' ' + qualifier;
 			}
 
-			const expanded = '.monaco-tree-row.expanded'; // workaround for #11453
-			const expanded2 = '.monaco-tl-twistie.collapsible:not(.collapsed) + .monaco-tl-contents'; // new tree
+			const expanded = '.monaco-tl-twistie.collapsible:not(.collapsed) + .monaco-tl-contents';
 
 			if (associations.folder) {
 				addSelector(`${qualifier} .folder-icon::before`, associations.folder);
@@ -247,7 +249,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 
 			if (associations.folderExpanded) {
 				addSelector(`${qualifier} ${expanded} .folder-icon::before`, associations.folderExpanded);
-				addSelector(`${qualifier} ${expanded2} .folder-icon::before`, associations.folderExpanded);
 				result.hasFolderIcons = true;
 			}
 
@@ -261,7 +262,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 
 			if (rootFolderExpanded) {
 				addSelector(`${qualifier} ${expanded} .rootfolder-icon::before`, rootFolderExpanded);
-				addSelector(`${qualifier} ${expanded2} .rootfolder-icon::before`, rootFolderExpanded);
 				result.hasFolderIcons = true;
 			}
 
@@ -281,7 +281,6 @@ function _processIconThemeDocument(id: string, iconThemeDocumentLocation: URI, i
 			if (folderNamesExpanded) {
 				for (let folderName in folderNamesExpanded) {
 					addSelector(`${qualifier} ${expanded} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
-					addSelector(`${qualifier} ${expanded2} .${escapeCSS(folderName.toLowerCase())}-name-folder-icon.folder-icon::before`, folderNamesExpanded[folderName]);
 					result.hasFolderIcons = true;
 				}
 			}

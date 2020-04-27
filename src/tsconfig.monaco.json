@@ -22,8 +22,6 @@
 		"vs/editor/*",
 		"vs/base/common/*",
 		"vs/base/browser/*",
-		"vs/base/parts/tree/*",
-		"vs/base/parts/quickopen/*",
 		"vs/platform/*/common/*",
 		"vs/platform/*/browser/*"
 	],

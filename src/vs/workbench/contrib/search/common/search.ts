@@ -110,8 +110,8 @@ export interface IFilterAndRange {
 	range: IRange;
 }
 
-export function extractRangeFromFilter(filter: string): IFilterAndRange | undefined {
-	if (!filter) {
+export function extractRangeFromFilter(filter: string, unless?: string[]): IFilterAndRange | undefined {
+	if (!filter || unless?.some(value => filter.indexOf(value) !== -1)) {
 		return undefined;
 	}
 

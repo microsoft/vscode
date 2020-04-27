@@ -46,13 +46,13 @@
 	border-right-width: 0; /* no border when editor area is hiden */
 }
 
-.monaco-workbench .part.panel > .composite.tit > .title-actions .monaco-action-bar .action-item .action-label {
+.monaco-workbench .part.panel > .composite.title > .title-actions .monaco-action-bar .action-item .action-label {
 	outline-offset: -2px;
 }
 
 /** Panel Switcher */
 
-.monaco-workbench .part.panel > .composite.tit > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {
+.monaco-workbench .part.panel > .composite.title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.codicon-more {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -107,6 +107,11 @@
 	margin-left: 9px;
 }
 
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
+	margin-right: -10px;
+	margin-left: 8px;
+}
+
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::before,
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::after,
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
@@ -115,7 +120,8 @@
 }
 
 .monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.left::before,
-.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after {
+.monaco-workbench .part.panel > .composite.title> .panel-switcher-container > .monaco-action-bar .action-item.right::after,
+.monaco-workbench .part.panel > .composite.title.dragged-over > .panel-switcher-container > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
 
@@ -164,14 +170,14 @@
 
 /* Rotate icons when panel is on right */
 .monaco-workbench .part.panel.right .title-actions .codicon-split-horizontal,
-.monaco-workbench .part.panel.right .title-actions .codicon-chevron-up,
-.monaco-workbench .part.panel.right .title-actions .codicon-chevron-down {
+.monaco-workbench .part.panel.right .title-actions .codicon-panel-maximize,
+.monaco-workbench .part.panel.right .title-actions .codicon-panel-restore {
 	transform: rotate(-90deg);
 }
 
 /* Rotate icons when panel is on left */
 .monaco-workbench .part.panel.left .title-actions .codicon-split-horizontal,
-.monaco-workbench .part.panel.left .title-actions .codicon-chevron-up,
-.monaco-workbench .part.panel.left .title-actions .codicon-chevron-down {
+.monaco-workbench .part.panel.left .title-actions .codicon-panel-maximize,
+.monaco-workbench .part.panel.left .title-actions .codicon-panel-restore {
 	transform: rotate(90deg);
 }

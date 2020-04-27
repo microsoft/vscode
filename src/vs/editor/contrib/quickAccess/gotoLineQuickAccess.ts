@@ -134,10 +134,10 @@ export abstract class AbstractGotoLineQuickAccessProvider extends AbstractEditor
 		const position = editor.getPosition() || { lineNumber: 1, column: 1 };
 		const lineCount = this.lineCount(editor);
 		if (lineCount > 1) {
-			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Column: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);
+			return localize('gotoLineLabelEmptyWithLimit', "Current Line: {0}, Character: {1}. Type a line number between 1 and {2} to navigate to.", position.lineNumber, position.column, lineCount);
 		}
 
-		return localize('gotoLineLabelEmpty', "Current Line: {0}, Column: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
+		return localize('gotoLineLabelEmpty', "Current Line: {0}, Character: {1}. Type a line number to navigate to.", position.lineNumber, position.column);
 	}
 
 	private isValidLineNumber(editor: IEditor, lineNumber: number | undefined): boolean {

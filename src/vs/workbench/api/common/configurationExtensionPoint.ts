@@ -43,7 +43,7 @@ const configurationEntrySchema: IJSONSchema = {
 								default: 'window',
 								enumDescriptions: [
 									nls.localize('scope.application.description', "Configuration that can be configured only in the user settings."),
-									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings when the extension is running locally, or only in the remote settings when the extension is running remotely."),
+									nls.localize('scope.machine.description', "Configuration that can be configured only in the user settings or only in the remote settings."),
 									nls.localize('scope.window.description', "Configuration that can be configured in the user, remote or workspace settings."),
 									nls.localize('scope.resource.description', "Configuration that can be configured in the user, remote, workspace or folder settings."),
 									nls.localize('scope.language-overridable.description', "Resource configuration that can be configured in language specific settings."),

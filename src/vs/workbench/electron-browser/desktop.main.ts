@@ -53,12 +53,10 @@ import { IResourceIdentityService } from 'vs/platform/resource/common/resourceId
 
 class DesktopMain extends Disposable {
 
-	private readonly environmentService: NativeWorkbenchEnvironmentService;
+	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration, this.configuration.execPath);
 
 	constructor(private configuration: INativeWindowConfiguration) {
 		super();
-
-		this.environmentService = new NativeWorkbenchEnvironmentService(configuration, configuration.execPath);
 
 		this.init();
 	}
@@ -194,7 +192,7 @@ class DesktopMain extends Disposable {
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService.configuration, this.environmentService, remoteAuthorityResolverService, signService, logService));
+		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Files
@@ -340,7 +338,7 @@ class DesktopMain extends Disposable {
 }
 
 export function main(configuration: INativeWindowConfiguration): Promise<void> {
-	const renderer = new DesktopMain(configuration);
+	const workbench = new DesktopMain(configuration);
 
-	return renderer.open();
+	return workbench.open();
 }

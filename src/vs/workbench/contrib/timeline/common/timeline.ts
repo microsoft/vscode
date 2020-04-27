@@ -24,6 +24,7 @@ export interface TimelineItem {
 	id?: string;
 	timestamp: number;
 	label: string;
+	ariaLabel?: string;
 	icon?: URI,
 	iconDark?: URI,
 	themeIcon?: { id: string },
@@ -31,12 +32,15 @@ export interface TimelineItem {
 	detail?: string;
 	command?: Command;
 	contextValue?: string;
+
+	relativeTime?: string;
+	hideRelativeTime?: boolean;
 }
 
 export interface TimelineChangeEvent {
 	id: string;
-	uri?: URI;
-	reset?: boolean
+	uri: URI | undefined;
+	reset: boolean
 }
 
 export interface TimelineOptions {
@@ -54,8 +58,7 @@ export interface Timeline {
 	items: TimelineItem[];
 
 	paging?: {
-		cursor?: string
-		more?: boolean;
+		cursor: string | undefined;
 	}
 }
 

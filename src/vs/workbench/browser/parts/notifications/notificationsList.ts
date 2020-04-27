@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notificationsList';
+import { localize } from 'vs/nls';
 import { addClass, isAncestor, trackFocus } from 'vs/base/browser/dom';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -17,6 +18,7 @@ import { NotificationActionRunner, CopyNotificationMessageAction } from 'vs/work
 import { NotificationFocusedContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class NotificationsList extends Themable {
 	private listContainer: HTMLElement | undefined;
@@ -87,6 +89,21 @@ export class NotificationsList extends Themable {
 				horizontalScrolling: false,
 				overrideStyles: {
 					listBackground: NOTIFICATIONS_BACKGROUND
+				},
+				accessibilityProvider: {
+					getAriaLabel(element: INotificationViewItem): string {
+						if (!element.source) {
+							return localize('notificationAriaLabel', "{0}, notification", element.message.raw);
+						}
+
+						return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", element.message.raw, element.source);
+					},
+					getWidgetAriaLabel(): string {
+						return localize('notificationsList', "Notifications List");
+					},
+					getRole(): string {
+						return 'dialog'; // https://github.com/microsoft/vscode/issues/82728
+					}
 				}
 			}
 		));
@@ -280,9 +297,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	// Notification Error Icon
 	const notificationErrorIconForegroundColor = theme.getColor(NOTIFICATIONS_ERROR_ICON_FOREGROUND);
 	if (notificationErrorIconForegroundColor) {
+		const errorCodiconSelector = Codicon.error.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center .codicon-error,
-		.monaco-workbench .notifications-toasts .codicon-error {
+		.monaco-workbench .notifications-center ${errorCodiconSelector},
+		.monaco-workbench .notifications-toasts ${errorCodiconSelector} {
 			color: ${notificationErrorIconForegroundColor};
 		}`);
 	}
@@ -290,9 +308,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	// Notification Warning Icon
 	const notificationWarningIconForegroundColor = theme.getColor(NOTIFICATIONS_WARNING_ICON_FOREGROUND);
 	if (notificationWarningIconForegroundColor) {
+		const warningCodiconSelector = Codicon.warning.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center .codicon-warning,
-		.monaco-workbench .notifications-toasts .codicon-warning {
+		.monaco-workbench .notifications-center ${warningCodiconSelector},
+		.monaco-workbench .notifications-toasts ${warningCodiconSelector} {
 			color: ${notificationWarningIconForegroundColor};
 		}`);
 	}
@@ -300,9 +319,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	// Notification Info Icon
 	const notificationInfoIconForegroundColor = theme.getColor(NOTIFICATIONS_INFO_ICON_FOREGROUND);
 	if (notificationInfoIconForegroundColor) {
+		const infoCodiconSelector = Codicon.info.cssSelector;
 		collector.addRule(`
-		.monaco-workbench .notifications-center .codicon-info,
-		.monaco-workbench .notifications-toasts .codicon-info {
+		.monaco-workbench .notifications-center ${infoCodiconSelector},
+		.monaco-workbench .notifications-toasts ${infoCodiconSelector} {
 			color: ${notificationInfoIconForegroundColor};
 		}`);
 	}

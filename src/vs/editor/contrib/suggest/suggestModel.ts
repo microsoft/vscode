@@ -511,6 +511,8 @@ export class SuggestModel implements IDisposable {
 		if (!suggestOptions.showFolders) { result.add(CompletionItemKind.Folder); }
 		if (!suggestOptions.showTypeParameters) { result.add(CompletionItemKind.TypeParameter); }
 		if (!suggestOptions.showSnippets) { result.add(CompletionItemKind.Snippet); }
+		if (!suggestOptions.showUsers) { result.add(CompletionItemKind.User); }
+		if (!suggestOptions.showIssues) { result.add(CompletionItemKind.Issue); }
 
 		return result;
 	}

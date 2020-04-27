@@ -48,12 +48,10 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 		}
 
 		// Extension name typed: offer to search it
-		else {
-			return [genericSearchPickItem];
-		}
+		return [genericSearchPickItem];
 	}
 
-	protected async getPicksForExtensionId(filter: string, fallback: IPickerQuickAccessItem, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
+	private async getPicksForExtensionId(filter: string, fallback: IPickerQuickAccessItem, token: CancellationToken): Promise<Array<IPickerQuickAccessItem | IQuickPickSeparator>> {
 		try {
 			const galleryResult = await this.galleryService.query({ names: [filter], pageSize: 1 }, token);
 			if (token.isCancellationRequested) {
@@ -63,12 +61,12 @@ export class InstallExtensionQuickAccessProvider extends PickerQuickAccessProvid
 			const galleryExtension = galleryResult.firstPage[0];
 			if (!galleryExtension) {
 				return [fallback];
-			} else {
-				return [{
-					label: localize('install', "Press Enter to install extension '{0}'.", filter),
-					accept: () => this.installExtension(galleryExtension, filter)
-				}];
 			}
+
+			return [{
+				label: localize('install', "Press Enter to install extension '{0}'.", filter),
+				accept: () => this.installExtension(galleryExtension, filter)
+			}];
 		} catch (error) {
 			if (token.isCancellationRequested) {
 				return []; // expected error

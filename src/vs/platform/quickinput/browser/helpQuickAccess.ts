@@ -28,7 +28,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		disposables.add(picker.onDidAccept(() => {
 			const [item] = picker.selectedItems;
 			if (item) {
-				this.quickInputService.quickAccess.show(item.prefix);
+				this.quickInputService.quickAccess.show(item.prefix, { preserveValue: true });
 			}
 		}));
 
@@ -37,7 +37,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 		disposables.add(picker.onDidChangeValue(value => {
 			const providerDescriptor = this.registry.getQuickAccessProvider(value.substr(HelpQuickAccessProvider.PREFIX.length));
 			if (providerDescriptor && providerDescriptor.prefix && providerDescriptor.prefix !== HelpQuickAccessProvider.PREFIX) {
-				this.quickInputService.quickAccess.show(providerDescriptor.prefix);
+				this.quickInputService.quickAccess.show(providerDescriptor.prefix, { preserveValue: true });
 			}
 		}));
 
@@ -77,7 +77,7 @@ export class HelpQuickAccessProvider implements IQuickAccessProvider {
 				(helpEntry.needsEditor ? editorProviders : globalProviders).push({
 					prefix,
 					label,
-					ariaLabel: localize('entryAriaLabel', "{0}, quick access help picker", label),
+					ariaLabel: localize('helpPickAriaLabel', "{0}, {1}", label, helpEntry.description),
 					description: helpEntry.description
 				});
 			}

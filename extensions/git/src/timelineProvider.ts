@@ -4,18 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vscode-nls';
-import * as dayjs from 'dayjs';
-import * as advancedFormat from 'dayjs/plugin/advancedFormat';
-import { CancellationToken, Disposable, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
+import { CancellationToken, Disposable, env, Event, EventEmitter, ThemeIcon, Timeline, TimelineChangeEvent, TimelineItem, TimelineOptions, TimelineProvider, Uri, workspace } from 'vscode';
 import { Model } from './model';
 import { Repository, Resource } from './repository';
 import { debounce } from './decorators';
 
-dayjs.extend(advancedFormat);
-
 const localize = nls.loadMessageBundle();
-
-// TODO@eamodio: Localize or use a setting for date format
 
 export class GitTimelineItem extends TimelineItem {
 	static is(item: TimelineItem): item is GitTimelineItem {
@@ -80,7 +74,7 @@ export class GitTimelineProvider implements TimelineProvider {
 	constructor(private readonly _model: Model) {
 		this.disposable = Disposable.from(
 			_model.onDidOpenRepository(this.onRepositoriesChanged, this),
-			workspace.registerTimelineProvider(['file', 'git', 'gitlens-git'], this),
+			workspace.registerTimelineProvider(['file', 'git', 'vscode-remote', 'gitlens-git'], this),
 		);
 	}
 
@@ -136,10 +130,8 @@ export class GitTimelineProvider implements TimelineProvider {
 			// sortByAuthorDate: true
 		});
 
-		const more = limit === undefined ? false : commits.length >= limit;
 		const paging = commits.length ? {
-			more: more,
-			cursor: more ? commits[commits.length - 1]?.hash : undefined
+			cursor: limit === undefined ? undefined : (commits.length >= limit ? commits[commits.length - 1]?.hash : undefined)
 		} : undefined;
 
 		// If we asked for an extra commit, strip it off
@@ -147,16 +139,15 @@ export class GitTimelineProvider implements TimelineProvider {
 			commits.splice(commits.length - 1, 1);
 		}
 
-		let dateFormatter: dayjs.Dayjs;
-		const items = commits.map<GitTimelineItem>(c => {
+		const dateFormatter = new Intl.DateTimeFormat(env.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+
+		const items = commits.map<GitTimelineItem>((c, i) => {
 			const date = c.commitDate; // c.authorDate
 
-			dateFormatter = dayjs(date);
-
-			const item = new GitTimelineItem(c.hash, `${c.hash}^`, c.message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
+			const item = new GitTimelineItem(c.hash, commits[i + 1]?.hash ?? `${c.hash}^`, c.message, date?.getTime() ?? 0, c.hash, 'git:file:commit');
 			item.iconPath = new (ThemeIcon as any)('git-commit');
 			item.description = c.authorName;
-			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format('MMMM Do, YYYY h:mma')}\n\n${c.message}`;
+			item.detail = `${c.authorName} (${c.authorEmail}) \u2014 ${c.hash.substr(0, 8)}\n${dateFormatter.format(date)}\n\n${c.message}`;
 			item.command = {
 				title: 'Open Comparison',
 				command: 'git.timeline.openDiff',
@@ -172,13 +163,12 @@ export class GitTimelineProvider implements TimelineProvider {
 			const index = repo.indexGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
 			if (index) {
 				const date = this.repoStatusDate ?? new Date();
-				dateFormatter = dayjs(date);
 
 				const item = new GitTimelineItem('~', 'HEAD', localize('git.timeline.stagedChanges', 'Staged Changes'), date.getTime(), 'index', 'git:file:index');
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
 				item.description = '';
-				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format('MMMM Do, YYYY h:mma'), Resource.getStatusText(index.type));
+				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.index', 'Index'), dateFormatter.format(date), Resource.getStatusText(index.type));
 				item.command = {
 					title: 'Open Comparison',
 					command: 'git.timeline.openDiff',
@@ -191,13 +181,12 @@ export class GitTimelineProvider implements TimelineProvider {
 			const working = repo.workingTreeGroup.resourceStates.find(r => r.resourceUri.fsPath === uri.fsPath);
 			if (working) {
 				const date = new Date();
-				dateFormatter = dayjs(date);
 
 				const item = new GitTimelineItem('', index ? '~' : 'HEAD', localize('git.timeline.uncommitedChanges', 'Uncommited Changes'), date.getTime(), 'working', 'git:file:working');
 				// TODO@eamodio: Replace with a better icon -- reflecting its status maybe?
 				item.iconPath = new (ThemeIcon as any)('git-commit');
 				item.description = '';
-				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format('MMMM Do, YYYY h:mma'), Resource.getStatusText(working.type));
+				item.detail = localize('git.timeline.detail', '{0}  \u2014 {1}\n{2}\n\n{3}', you, localize('git.workingTree', 'Working Tree'), dateFormatter.format(date), Resource.getStatusText(working.type));
 				item.command = {
 					title: 'Open Comparison',
 					command: 'git.timeline.openDiff',
@@ -238,6 +227,6 @@ export class GitTimelineProvider implements TimelineProvider {
 
 	@debounce(500)
 	private fireChanged() {
-		this._onDidChange.fire({ reset: true });
+		this._onDidChange.fire(undefined);
 	}
 }

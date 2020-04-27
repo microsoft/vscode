@@ -15,7 +15,7 @@ import * as objects from 'vs/base/common/objects';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import * as strings from 'vs/base/common/strings';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/common/fuzzyScorer';
+import { compareItemsByFuzzyScore, IItemAccessor, prepareQuery, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { MAX_FILE_SIZE } from 'vs/base/node/pfs';
 import { ICachedSearchStats, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileQuery, IRawQuery, IRawTextQuery, ITextQuery, IFileSearchProgressItem, IRawFileMatch, IRawSearchService, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
@@ -179,11 +179,11 @@ export class SearchService implements IRawSearchService {
 		}
 
 		return allResultsPromise.then(([result, results]) => {
-			const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
+			const scorerCache: FuzzyScorerCache = cache ? cache.scorerCache : Object.create(null);
 			const sortSW = (typeof config.maxResults !== 'number' || config.maxResults > 0) && StopWatch.create(false);
 			return this.sortResults(config, results, scorerCache, token)
 				.then<[ISerializedSearchSuccess, IRawFileMatch[]]>(sortedResults => {
-					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickopen is opened.
+					// sortingTime: -1 indicates a "sorted" search that was not sorted, i.e. populating the cache when quickaccess is opened.
 					// Contrasting with findFiles which is not sorted and will have sortingTime: undefined
 					const sortingTime = sortSW ? sortSW.elapsed() : -1;
 
@@ -246,13 +246,13 @@ export class SearchService implements IRawSearchService {
 		return undefined;
 	}
 
-	private sortResults(config: IFileQuery, results: IRawFileMatch[], scorerCache: ScorerCache, token?: CancellationToken): Promise<IRawFileMatch[]> {
+	private sortResults(config: IFileQuery, results: IRawFileMatch[], scorerCache: FuzzyScorerCache, token?: CancellationToken): Promise<IRawFileMatch[]> {
 		// we use the same compare function that is used later when showing the results using fuzzy scoring
 		// this is very important because we are also limiting the number of results by config.maxResults
 		// and as such we want the top items to be included in this result set if the number of items
 		// exceeds config.maxResults.
 		const query = prepareQuery(config.filePattern || '');
-		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
+		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByFuzzyScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
 		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : Number.MAX_VALUE;
 		return arrays.topAsync(results, compare, maxResults, 10000, token);
@@ -312,7 +312,7 @@ export class SearchService implements IRawSearchService {
 
 			// Pattern match on results
 			const results: IRawFileMatch[] = [];
-			const normalizedSearchValueLowercase = prepareQuery(searchValue).lowercase;
+			const normalizedSearchValueLowercase = prepareQuery(searchValue).normalizedLowercase;
 			for (const entry of cachedEntries) {
 
 				// Check if this entry is a match for the search value
@@ -408,7 +408,7 @@ class Cache {
 
 	resultsToSearchCache: { [searchValue: string]: ICacheRow; } = Object.create(null);
 
-	scorerCache: ScorerCache = Object.create(null);
+	scorerCache: FuzzyScorerCache = Object.create(null);
 }
 
 const FileMatchItemAccessor = new class implements IItemAccessor<IRawFileMatch> {

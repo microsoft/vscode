@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!vs/workbench/contrib/debug/browser/media/repl';
+import 'vs/css!./media/repl';
 import { URI as uri } from 'vs/base/common/uri';
+import { Color } from 'vs/base/common/color';
 import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -20,7 +21,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -33,10 +34,10 @@ import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
-import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind } from 'vs/editor/common/modes';
+import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { first } from 'vs/base/common/arrays';
 import { ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -50,7 +51,6 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/textRe
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { ReplDelegate, ReplVariablesRenderer, ReplSimpleElementsRenderer, ReplEvaluationInputsRenderer, ReplEvaluationResultsRenderer, ReplRawObjectsRenderer, ReplDataSource, ReplAccessibilityProvider, ReplGroupRenderer } from 'vs/workbench/contrib/debug/browser/replViewer';
 import { localize } from 'vs/nls';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -59,6 +59,7 @@ import { IViewsService, IViewDescriptorService } from 'vs/workbench/common/views
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -76,7 +77,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	_serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
-	private static readonly REPL_INPUT_LINE_HEIGHT = 19;
+	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);
 
 	private history: HistoryNavigator<string>;
 	private tree!: WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>;
@@ -148,13 +149,24 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 								if (response && response.body && response.body.targets) {
 									response.body.targets.forEach(item => {
 										if (item && item.label) {
+											let insertTextRules: CompletionItemInsertTextRule | undefined = undefined;
+											let insertText = item.text || item.label;
+											if (typeof item.selectionStart === 'number') {
+												// If a debug completion item sets a selection we need to use snippets to make sure the selection is selected #90974
+												insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
+												const selectionLength = typeof item.selectionLength === 'number' ? item.selectionLength : 0;
+												const placeholder = selectionLength > 0 ? '${1:' + insertText.substr(item.selectionStart, selectionLength) + '}$0' : '$0';
+												insertText = insertText.substr(0, item.selectionStart) + placeholder + insertText.substr(item.selectionStart + selectionLength);
+											}
+
 											suggestions.push({
 												label: item.label,
-												insertText: item.text || item.label,
+												insertText,
 												kind: completionKindFromString(item.type || 'property'),
 												filterText: (item.start && item.length) ? text.substr(item.start, item.length).concat(item.label) : undefined,
 												range: computeRange(item.length || overwriteBefore),
-												sortText: item.sortText
+												sortText: item.sortText,
+												insertTextRules
 											});
 										}
 									});
@@ -200,7 +212,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			if (!visible) {
 				dispose(this.model);
 			} else {
-				this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
+				this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
 				this.setMode();
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
@@ -209,9 +221,20 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.console.lineHeight') || e.affectsConfiguration('debug.console.fontSize') || e.affectsConfiguration('debug.console.fontFamily')) {
-				this.onDidFontChange();
+				this.onDidStyleChange();
 			}
 		}));
+
+		this._register(this.themeService.onDidColorThemeChange(e => {
+			this.onDidStyleChange();
+		}));
+
+		this._register(this.viewDescriptorService.onDidChangeLocation(e => {
+			if (e.views.some(v => v.id === this.id)) {
+				this.onDidStyleChange();
+			}
+		}));
+
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this.setMode();
 		}));
@@ -254,14 +277,23 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 	}
 
-	private onDidFontChange(): void {
+	private onDidStyleChange(): void {
 		if (this.styleElement) {
 			const debugConsole = this.configurationService.getValue<IDebugConfiguration>('debug').console;
 			const fontSize = debugConsole.fontSize;
 			const fontFamily = debugConsole.fontFamily === 'default' ? 'var(--monaco-monospace-font)' : debugConsole.fontFamily;
 			const lineHeight = debugConsole.lineHeight ? `${debugConsole.lineHeight}px` : '1.4em';
+			const backgroundColor = this.themeService.getColorTheme().getColor(this.getBackgroundColor());
 
-			// Set the font size, font family, line height and align the twistie to be centered
+			this.replInput.updateOptions({
+				fontSize,
+				lineHeight: debugConsole.lineHeight,
+				fontFamily: debugConsole.fontFamily === 'default' ? EDITOR_FONT_DEFAULTS.fontFamily : debugConsole.fontFamily
+			});
+
+			const replInputLineHeight = this.replInput.getOption(EditorOption.lineHeight);
+
+			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.innerHTML = `
 				.repl .repl-tree .expression {
 					font-size: ${fontSize}px;
@@ -275,9 +307,21 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				.repl .repl-tree .monaco-tl-twistie {
 					background-position-y: calc(100% - ${fontSize * 1.4 / 2 - 8}px);
 				}
+
+				.repl .repl-input-wrapper .repl-input-chevron {
+					line-height: ${replInputLineHeight}px
+				}
+
+				.repl .repl-input-wrapper .monaco-editor .lines-content {
+					background-color: ${backgroundColor};
+				}
 			`;
 
 			this.tree.rerender();
+
+			if (this.dimension) {
+				this.layoutBody(this.dimension.height, this.dimension.width);
+			}
 		}
 	}
 
@@ -368,8 +412,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.dimension = new dom.Dimension(width, height);
-		const replInputHeight = Repl.REPL_INPUT_LINE_HEIGHT * this.replInputLineCount;
+		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
 		if (this.tree) {
 			const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight;
 			const treeHeight = height - replInputHeight;
@@ -381,7 +426,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		}
 		this.replInputContainer.style.height = `${replInputHeight}px`;
 
-		this.replInput.layout({ width: width - 20, height: replInputHeight });
+		this.replInput.layout({ width: width - 30, height: replInputHeight });
 	}
 
 	focus(): void {
@@ -486,7 +531,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			// https://github.com/microsoft/TypeScript/issues/32526
 			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
 			{
-				ariaLabel: localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
@@ -495,7 +539,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap,
 				overrideStyles: {
-					listBackground: PANEL_BACKGROUND
+					listBackground: this.getBackgroundColor()
 				}
 			});
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
@@ -511,11 +555,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		// Make sure to select the session if debugging is already active
 		this.selectSession();
 		this.styleElement = dom.createStyleSheet(this.container);
-		this.onDidFontChange();
+		this.onDidStyleChange();
 	}
 
 	private createReplInput(container: HTMLElement): void {
 		this.replInputContainer = dom.append(container, $('.repl-input-wrapper'));
+		dom.append(this.replInputContainer, $('.repl-input-chevron.codicon.codicon-chevron-right'));
 
 		const { scopedContextKeyService, historyNavigationEnablement } = createAndBindHistoryNavigationWidgetScopedContextKeyService(this.contextKeyService, { target: this.replInputContainer, historyNavigator: this });
 		this.historyNavigationEnablement = historyNavigationEnablement;
@@ -767,3 +812,13 @@ export class ClearReplAction extends Action {
 function getReplView(viewsService: IViewsService): Repl | undefined {
 	return viewsService.getActiveViewWithId(REPL_VIEW_ID) as Repl ?? undefined;
 }
+
+registerThemingParticipant((theme, collector) => {
+	const inputBorderColor = theme.getColor(inputBorder) || Color.fromHex('#80808060');
+
+	collector.addRule(`
+		.repl .repl-input-wrapper {
+			border-top: 1px solid ${inputBorderColor};
+		}
+	`);
+});

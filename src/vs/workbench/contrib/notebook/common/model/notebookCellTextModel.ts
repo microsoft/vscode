@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, IOutput, NotebookCellOutputsSplice, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, IOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { PieceTreeTextBufferFactory, PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
 
@@ -14,6 +14,12 @@ export class NotebookCellTextModel implements ICell {
 
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
+	private _onDidChangeMetadata = new Emitter<void>();
+	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
+
+	private _onDidChangeLanguage = new Emitter<string>();
+	onDidChangeLanguage: Event<string> = this._onDidChangeLanguage.event;
 
 	private _outputs: IOutput[];
 
@@ -30,17 +36,39 @@ export class NotebookCellTextModel implements ICell {
 		this._buffer = null;
 	}
 
+	private _metadata: NotebookCellMetadata | undefined;
+
+	get metadata() {
+		return this._metadata;
+	}
+
+	set metadata(newMetadata: NotebookCellMetadata | undefined) {
+		this._metadata = newMetadata;
+		this._onDidChangeMetadata.fire();
+	}
+
+	get language() {
+		return this._language;
+	}
+
+	set language(newLanguage: string) {
+		this._language = newLanguage;
+		this._onDidChangeLanguage.fire(newLanguage);
+	}
+
 	private _buffer: PieceTreeTextBufferFactory | null = null;
 
 	constructor(
 		readonly uri: URI,
 		public handle: number,
 		private _source: string[],
-		public language: string,
+		private _language: string,
 		public cellKind: CellKind,
-		outputs: IOutput[]
+		outputs: IOutput[],
+		metadata: NotebookCellMetadata | undefined
 	) {
 		this._outputs = outputs;
+		this._metadata = metadata;
 	}
 
 	contentChange() {

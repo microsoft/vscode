@@ -49,7 +49,7 @@ class OriginDocumentMergeConflictTracker implements interfaces.IDocumentMergeCon
 
 export default class DocumentMergeConflictTracker implements vscode.Disposable, interfaces.IDocumentMergeConflictTrackerService {
 	private cache: Map<string, ScanTask> = new Map();
-	private delayExpireTime: number = 250;
+	private delayExpireTime: number = 0;
 
 	getConflicts(document: vscode.TextDocument, origin: string): PromiseLike<interfaces.IDocumentMergeConflict[]> {
 		// Attempt from cache

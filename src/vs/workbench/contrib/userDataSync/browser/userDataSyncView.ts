@@ -17,8 +17,9 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
-import { pad } from 'vs/base/common/strings';
+import { pad, uppercaseFirstLetter } from 'vs/base/common/strings';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class UserDataSyncViewContribution implements IWorkbenchContribution {
 
@@ -36,12 +37,12 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: 'workbench.view.sync',
-				name: localize('sync', "Sync"),
+				name: localize('sync preferences', "Preferences Sync"),
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					['workbench.view.sync', `workbench.view.sync.state`, { mergeViewWithContainerWhenSingleView: true }]
+					['workbench.view.sync', { mergeViewWithContainerWhenSingleView: true }]
 				),
-				icon: 'codicon-sync',
+				icon: Codicon.sync.classNames,
 				hideIfEmpty: true,
 			}, ViewContainerLocation.Sidebar);
 	}
@@ -80,7 +81,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 					title: remote ?
 						{ value: localize('workbench.action.showSyncRemoteBackup', "Show Remote Backup"), original: `Show Remote Backup` }
 						: { value: localize('workbench.action.showSyncLocalBackup', "Show Local Backup"), original: `Show Local Backup` },
-					category: { value: localize('sync', "Sync"), original: `Sync` },
+					category: { value: localize('sync preferences', "Preferences Sync"), original: `Preferences Sync` },
 					menu: {
 						id: MenuId.CommandPalette,
 						when: CONTEXT_SYNC_ENABLEMENT
@@ -101,7 +102,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.resolveResource`,
-					title: localize('workbench.actions.sync.resolveResourceRef', "Show full content"),
+					title: localize('workbench.actions.sync.resolveResourceRef', "Show raw JSON sync data"),
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i))
@@ -156,7 +157,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 			return ALL_SYNC_RESOURCES.map(resourceKey => ({
 				handle: resourceKey,
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: resourceKey },
+				label: { label: uppercaseFirstLetter(resourceKey) },
 				themeIcon: FolderThemeIcon,
 			}));
 		}

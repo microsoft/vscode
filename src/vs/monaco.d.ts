@@ -179,11 +179,11 @@ declare namespace monaco {
 		/**
 		 * Join a Uri path with path fragments and normalizes the resulting path.
 		 *
-		 * @param resource The input Uri.
+		 * @param uri The input Uri.
 		 * @param pathFragment The path fragment to add to the Uri path.
 		 * @returns The resulting Uri.
 		 */
-		static joinPaths(resource: Uri, ...pathFragment: string[]): Uri;
+		static joinPath(uri: Uri, ...pathFragment: string[]): Uri;
 		/**
 		 * Creates a string representation for this Uri. It's guaranteed that calling
 		 * `Uri.parse` with the result of this function creates an Uri which is equal
@@ -1552,14 +1552,9 @@ declare namespace monaco.editor {
 		 */
 		range: Range;
 		/**
-		 * The text to replace with. This can be null to emulate a simple delete.
+		 * The text to replace with. This can be empty to emulate a simple delete.
 		 */
-		text: string | null;
-		/**
-		 * This indicates that this operation has "insert" semantics.
-		 * i.e. forceMoveMarkers = true => if `range` is collapsed, all markers at the position will be moved.
-		 */
-		forceMoveMarkers: boolean;
+		text: string;
 	}
 
 	/**
@@ -1907,9 +1902,11 @@ declare namespace monaco.editor {
 		 * Edit the model without adding the edits to the undo stack.
 		 * This can have dire consequences on the undo stack! See @pushEditOperations for the preferred way.
 		 * @param operations The edit operations.
-		 * @return The inverse edit operations, that, when applied, will bring the model back to the previous state.
+		 * @return If desired, the inverse edit operations, that, when applied, will bring the model back to the previous state.
 		 */
-		applyEdits(operations: IIdentifiedSingleEditOperation[]): IValidEditOperation[];
+		applyEdits(operations: IIdentifiedSingleEditOperation[]): void;
+		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: false): void;
+		applyEdits(operations: IIdentifiedSingleEditOperation[], computeUndoEdits: true): IValidEditOperation[];
 		/**
 		 * Change the end of line sequence without recording in the undo stack.
 		 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
@@ -3085,6 +3082,11 @@ declare namespace monaco.editor {
 		 */
 		renderLineHighlight?: 'none' | 'gutter' | 'line' | 'all';
 		/**
+		 * Control if the current line highlight should be rendered only the editor is focused.
+		 * Defaults to false.
+		 */
+		renderLineHighlightOnlyWhenFocus?: boolean;
+		/**
 		 * Inserting and deleting whitespace follows tab stops.
 		 */
 		useTabStops?: boolean;
@@ -3273,6 +3275,10 @@ declare namespace monaco.editor {
 		 */
 		autoFindInSelection?: 'never' | 'always' | 'multiline';
 		addExtraSpaceOnTop?: boolean;
+		/**
+		 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+		 */
+		loop?: boolean;
 	}
 
 	export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
@@ -3644,10 +3650,6 @@ declare namespace monaco.editor {
 		 */
 		insertMode?: 'insert' | 'replace';
 		/**
-		 * Show a highlight when suggestion replaces or keep text after the cursor. Defaults to false.
-		 */
-		insertHighlight?: boolean;
-		/**
 		 * Enable graceful matching. Defaults to true.
 		 */
 		filterGraceful?: boolean;
@@ -3900,43 +3902,44 @@ declare namespace monaco.editor {
 		renderIndentGuides = 75,
 		renderFinalNewline = 76,
 		renderLineHighlight = 77,
-		renderValidationDecorations = 78,
-		renderWhitespace = 79,
-		revealHorizontalRightPadding = 80,
-		roundedSelection = 81,
-		rulers = 82,
-		scrollbar = 83,
-		scrollBeyondLastColumn = 84,
-		scrollBeyondLastLine = 85,
-		scrollPredominantAxis = 86,
-		selectionClipboard = 87,
-		selectionHighlight = 88,
-		selectOnLineNumbers = 89,
-		showFoldingControls = 90,
-		showUnused = 91,
-		snippetSuggestions = 92,
-		smoothScrolling = 93,
-		stopRenderingLineAfter = 94,
-		suggest = 95,
-		suggestFontSize = 96,
-		suggestLineHeight = 97,
-		suggestOnTriggerCharacters = 98,
-		suggestSelection = 99,
-		tabCompletion = 100,
-		useTabStops = 101,
-		wordSeparators = 102,
-		wordWrap = 103,
-		wordWrapBreakAfterCharacters = 104,
-		wordWrapBreakBeforeCharacters = 105,
-		wordWrapColumn = 106,
-		wordWrapMinified = 107,
-		wrappingIndent = 108,
-		wrappingStrategy = 109,
-		editorClassName = 110,
-		pixelRatio = 111,
-		tabFocusMode = 112,
-		layoutInfo = 113,
-		wrappingInfo = 114
+		renderLineHighlightOnlyWhenFocus = 78,
+		renderValidationDecorations = 79,
+		renderWhitespace = 80,
+		revealHorizontalRightPadding = 81,
+		roundedSelection = 82,
+		rulers = 83,
+		scrollbar = 84,
+		scrollBeyondLastColumn = 85,
+		scrollBeyondLastLine = 86,
+		scrollPredominantAxis = 87,
+		selectionClipboard = 88,
+		selectionHighlight = 89,
+		selectOnLineNumbers = 90,
+		showFoldingControls = 91,
+		showUnused = 92,
+		snippetSuggestions = 93,
+		smoothScrolling = 94,
+		stopRenderingLineAfter = 95,
+		suggest = 96,
+		suggestFontSize = 97,
+		suggestLineHeight = 98,
+		suggestOnTriggerCharacters = 99,
+		suggestSelection = 100,
+		tabCompletion = 101,
+		useTabStops = 102,
+		wordSeparators = 103,
+		wordWrap = 104,
+		wordWrapBreakAfterCharacters = 105,
+		wordWrapBreakBeforeCharacters = 106,
+		wordWrapColumn = 107,
+		wordWrapMinified = 108,
+		wrappingIndent = 109,
+		wrappingStrategy = 110,
+		editorClassName = 111,
+		pixelRatio = 112,
+		tabFocusMode = 113,
+		layoutInfo = 114,
+		wrappingInfo = 115
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4017,6 +4020,7 @@ declare namespace monaco.editor {
 		renderIndentGuides: IEditorOption<EditorOption.renderIndentGuides, boolean>;
 		renderFinalNewline: IEditorOption<EditorOption.renderFinalNewline, boolean>;
 		renderLineHighlight: IEditorOption<EditorOption.renderLineHighlight, 'all' | 'line' | 'none' | 'gutter'>;
+		renderLineHighlightOnlyWhenFocus: IEditorOption<EditorOption.renderLineHighlightOnlyWhenFocus, boolean>;
 		renderValidationDecorations: IEditorOption<EditorOption.renderValidationDecorations, 'on' | 'off' | 'editable'>;
 		renderWhitespace: IEditorOption<EditorOption.renderWhitespace, 'all' | 'none' | 'boundary' | 'selection'>;
 		revealHorizontalRightPadding: IEditorOption<EditorOption.revealHorizontalRightPadding, number>;
@@ -5408,9 +5412,9 @@ declare namespace monaco.languages {
 		 */
 		name: string;
 		/**
-		 * The signature without the return type. Render after `name`.
+		 * The parameters without the return type. Render after `name`.
 		 */
-		signature?: string;
+		parameters?: string;
 		/**
 		 * The fully qualified name, like package name or file path. Rendered after `signature`.
 		 */
@@ -5636,6 +5640,12 @@ declare namespace monaco.languages {
 		 * The parameters of this signature.
 		 */
 		parameters: ParameterInformation[];
+		/**
+		 * Index of the active parameter.
+		 *
+		 * If provided, this is used in place of `SignatureHelp.activeSignature`.
+		 */
+		activeParameter?: number;
 	}
 
 	/**

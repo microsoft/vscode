@@ -92,6 +92,7 @@ export class MenuId {
 	static readonly MenubarSwitchGroupMenu = new MenuId('MenubarSwitchGroupMenu');
 	static readonly MenubarTerminalMenu = new MenuId('MenubarTerminalMenu');
 	static readonly MenubarViewMenu = new MenuId('MenubarViewMenu');
+	static readonly MenubarWebNavigationMenu = new MenuId('MenubarWebNavigationMenu');
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
@@ -337,6 +338,17 @@ export class SyncActionDescriptor {
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	): SyncActionDescriptor {
 		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
+	}
+
+	public static from<Services extends BrandedService[]>(
+		ctor: {
+			new(id: string, label: string, ...services: Services): Action;
+			readonly ID: string;
+			readonly LABEL: string;
+		},
+		keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
+	): SyncActionDescriptor {
+		return SyncActionDescriptor.create(ctor, ctor.ID, ctor.LABEL, keybindings, keybindingContext, keybindingWeight);
 	}
 
 	private constructor(ctor: IConstructorSignature2<string, string | undefined, Action>,

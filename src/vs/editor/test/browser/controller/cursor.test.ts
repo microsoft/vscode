@@ -1348,7 +1348,7 @@ suite('Editor Controller - Regression tests', () => {
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world ');
-			assertCursor(cursor, new Position(1, 13));
+			assertCursor(cursor, new Selection(1, 12, 1, 13));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
@@ -5616,4 +5616,24 @@ suite('Undo stops', () => {
 		});
 	});
 
+	test('issue #93585: Undo multi cursor edit corrupts document', () => {
+		let model = createTextModel(
+			[
+				'hello world',
+				'hello world',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			cursor.setSelections('test', [
+				new Selection(2, 7, 2, 12),
+				new Selection(1, 7, 1, 12),
+			]);
+			cursorCommand(cursor, H.Type, { text: 'no' }, 'keyboard');
+			assert.equal(model.getValue(), 'hello no\nhello no');
+
+			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+			assert.equal(model.getValue(), 'hello world\nhello world');
+		});
+	});
 });

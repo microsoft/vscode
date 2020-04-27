@@ -17,10 +17,11 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 		@IDebugService private readonly debugService: IDebugService,
 		@IProgressService private readonly progressService: IProgressService
 	) {
-		let progressListener: IDisposable;
-		const onFocusSession = (session: IDebugSession | undefined) => {
+		let progressListener: IDisposable | undefined;
+		const listenOnProgress = (session: IDebugSession | undefined) => {
 			if (progressListener) {
 				progressListener.dispose();
+				progressListener = undefined;
 			}
 			if (session) {
 				progressListener = session.onDidProgressStart(async progressStartEvent => {
@@ -34,7 +35,7 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 					});
 
 					this.progressService.withProgress({ location: VIEWLET_ID }, () => promise);
-					const source = this.debugService.getConfigurationManager().getDebuggerLabel(session);
+					const source = this.debugService.getConfigurationManager().getDebuggerLabel(session.configuration.type);
 					this.progressService.withProgress({
 						location: ProgressLocation.Notification,
 						title: progressStartEvent.body.title,
@@ -43,17 +44,26 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 						source,
 						delay: 500
 					}, progressStep => {
-						let increment = 0;
+						let total = 0;
+						const reportProgress = (progress: { message?: string, percentage?: number }) => {
+							let increment = undefined;
+							if (typeof progress.percentage === 'number') {
+								increment = progress.percentage - total;
+								total += increment;
+							}
+							progressStep.report({
+								message: progress.message,
+								increment,
+								total: typeof increment === 'number' ? 100 : undefined,
+							});
+						};
+
+						if (progressStartEvent.body.message) {
+							reportProgress(progressStartEvent.body);
+						}
 						const progressUpdateListener = session.onDidProgressUpdate(e => {
 							if (e.body.progressId === progressStartEvent.body.progressId) {
-								if (typeof e.body.percentage === 'number') {
-									increment = e.body.percentage - increment;
-								}
-								progressStep.report({
-									message: e.body.message,
-									increment: typeof e.body.percentage === 'number' ? increment : undefined,
-									total: typeof e.body.percentage === 'number' ? 100 : undefined,
-								});
+								reportProgress(e.body);
 							}
 						});
 
@@ -62,8 +72,13 @@ export class DebugProgressContribution implements IWorkbenchContribution {
 				});
 			}
 		};
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(onFocusSession));
-		onFocusSession(this.debugService.getViewModel().focusedSession);
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusSession(listenOnProgress));
+		listenOnProgress(this.debugService.getViewModel().focusedSession);
+		this.toDispose.push(this.debugService.onWillNewSession(session => {
+			if (!progressListener) {
+				listenOnProgress(session);
+			}
+		}));
 	}
 
 	dispose(): void {

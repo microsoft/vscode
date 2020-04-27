@@ -182,6 +182,13 @@ export interface IQuickPickAcceptEvent {
 	inBackground: boolean;
 }
 
+export enum ItemActivation {
+	NONE,
+	FIRST,
+	SECOND,
+	LAST
+}
+
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	value: string;
@@ -237,19 +244,16 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	autoFocusOnList: boolean;
 
-	/**
-	 * If enabled, will try to select the second entry of the picks
-	 * once they appear instead of the first one. This is useful
-	 * e.g. when `quickNavigate` is enabled to be able to select
-	 * a previous entry by just releasing the quick nav keys.
-	 */
-	autoFocusSecondEntry: boolean;
-
 	quickNavigate: IQuickNavigateConfiguration | undefined;
 
 	activeItems: ReadonlyArray<T>;
 
 	readonly onDidChangeActive: Event<T[]>;
+
+	/**
+	 * Allows to control which entry should be activated by default.
+	 */
+	itemActivation: ItemActivation;
 
 	selectedItems: ReadonlyArray<T>;
 
@@ -323,7 +327,7 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 //region Fuzzy Scorer Support
 
-export type IQuickPickItemWithResource = IQuickPickItem & { resource: URI | undefined };
+export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 
 export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
 

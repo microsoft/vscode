@@ -18,7 +18,7 @@ import { CopyValueAction } from 'vs/workbench/contrib/debug/browser/debugActions
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeMouseEvent, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -80,8 +80,11 @@ export class VariablesView extends ViewPane {
 				if (stackFrame) {
 					const scopes = await stackFrame.getScopes();
 					// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
-					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0 && !scopes[0].expensive) {
-						this.tree.expand(scopes[0]);
+					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0) {
+						const toExpand = scopes.filter(s => !s.expensive).shift();
+						if (toExpand) {
+							this.tree.expand(toExpand);
+						}
 					}
 				}
 
@@ -99,7 +102,6 @@ export class VariablesView extends ViewPane {
 		this.tree = <WorkbenchAsyncDataTree<IViewModel | IExpression | IScope, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[this.instantiationService.createInstance(VariablesRenderer), new ScopesRenderer(), new ScopeErrorRenderer()],
 			new VariablesDataSource(), {
-			ariaLabel: nls.localize('variablesAriaTreeLabel', "Debug Variables"),
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e },
@@ -149,10 +151,11 @@ export class VariablesView extends ViewPane {
 	}
 
 	getActions(): IAction[] {
-		return [new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all')];
+		return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
 	}
 
 	layoutBody(width: number, height: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(width, height);
 	}
 
@@ -345,7 +348,12 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 }
 
-class VariablesAccessibilityProvider implements IAccessibilityProvider<IExpression | IScope> {
+class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpression | IScope> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('variablesAriaTreeLabel', "Debug Variables");
+	}
+
 	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
 			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);

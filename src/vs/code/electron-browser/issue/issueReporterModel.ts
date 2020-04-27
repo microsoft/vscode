@@ -168,6 +168,13 @@ ${this.getInfos()}
 |Screen Reader|${this._data.systemInfo.screenReader}|
 |VM|${this._data.systemInfo.vmHint}|`;
 
+			if (this._data.systemInfo.linuxEnv) {
+				md += `\n|DESKTOP_SESSION|${this._data.systemInfo.linuxEnv.desktopSession}|
+|XDG_CURRENT_DESKTOP|${this._data.systemInfo.linuxEnv.xdgCurrentDesktop}|
+|XDG_SESSION_DESKTOP|${this._data.systemInfo.linuxEnv.xdgSessionDesktop}|
+|XDG_SESSION_TYPE|${this._data.systemInfo.linuxEnv.xdgSessionType}|`;
+			}
+
 			this._data.systemInfo.remoteData.forEach(remote => {
 				if (isRemoteDiagnosticError(remote)) {
 					md += `\n\n${remote.errorMessage}`;

@@ -13,8 +13,8 @@ import { computeStyles } from 'vs/platform/theme/common/styler';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { QuickInputController, IQuickInputStyles, IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { List, IListOptions } from 'vs/base/browser/ui/list/listWidget';
+import { WorkbenchList, IWorkbenchListOptions } from 'vs/platform/list/browser/listService';
+import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
 import { QuickAccessController } from 'vs/platform/quickinput/browser/quickAccess';
@@ -52,7 +52,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@ILayoutService protected readonly layoutService: ILayoutService
@@ -74,7 +74,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 				container: HTMLElement,
 				delegate: IListVirtualDelegate<T>,
 				renderers: IListRenderer<T, any>[],
-				options: IListOptions<T>,
+				options: IWorkbenchListOptions<T>,
 			) => this.instantiationService.createInstance(WorkbenchList, user, container, delegate, renderers, options) as List<T>,
 			styles: this.computeStyles()
 		};
@@ -126,11 +126,11 @@ export class QuickInputService extends Themable implements IQuickInputService {
 		});
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<O extends { canPickMany: true } ? T[] : T> {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
 		return this.controller.pick(picks, options, token);
 	}
 
-	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string> {
+	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 		return this.controller.input(options, token);
 	}
 
@@ -164,10 +164,6 @@ export class QuickInputService extends Themable implements IQuickInputService {
 
 	cancel() {
 		return this.controller.cancel();
-	}
-
-	hide(focusLost?: boolean): void {
-		return this.controller.hide(focusLost);
 	}
 
 	protected updateStyles() {

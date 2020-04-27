@@ -15,6 +15,7 @@ import { ITextResourcePropertiesService } from 'vs/editor/common/services/textRe
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { InMemoryStorageService, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -127,3 +128,5 @@ export function mock<T>(): Ctor<T> {
 export interface Ctor<T> {
 	new(): T;
 }
+
+export class TestExtensionService extends NullExtensionService { }

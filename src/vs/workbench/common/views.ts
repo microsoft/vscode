@@ -43,7 +43,11 @@ export interface IViewContainerDescriptor {
 
 	readonly ctorDescriptor: SyncDescriptor<IViewPaneContainer>;
 
+	readonly storageId?: string;
+
 	readonly icon?: string | URI;
+
+	readonly alwaysUseContainerInfo?: boolean;
 
 	readonly order?: number;
 
@@ -135,7 +139,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 			return existing;
 		}
 
-		const viewContainer: ViewContainer = { ...viewContainerDescriptor };
+		const viewContainer: ViewContainer = viewContainerDescriptor;
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
 		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
@@ -207,11 +211,43 @@ export interface IViewDescriptor {
 	readonly remoteAuthority?: string | string[];
 }
 
-export interface IViewDescriptorCollection extends IDisposable {
-	readonly onDidChangeViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
-	readonly onDidChangeActiveViews: Event<{ added: IViewDescriptor[], removed: IViewDescriptor[] }>;
-	readonly activeViewDescriptors: IViewDescriptor[];
-	readonly allViewDescriptors: IViewDescriptor[];
+export interface IViewDescriptorRef {
+	viewDescriptor: IViewDescriptor;
+	index: number;
+}
+
+export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
+	collapsed: boolean;
+	size?: number;
+}
+
+export interface IViewContainerModel {
+
+	readonly title: string;
+	readonly icon: string | URI | undefined;
+	readonly onDidChangeContainerInfo: Event<{ title?: boolean, icon?: boolean }>;
+
+	readonly allViewDescriptors: ReadonlyArray<IViewDescriptor>;
+	readonly onDidChangeAllViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
+
+	readonly activeViewDescriptors: ReadonlyArray<IViewDescriptor>;
+	readonly onDidChangeActiveViewDescriptors: Event<{ added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor> }>;
+
+	readonly visibleViewDescriptors: ReadonlyArray<IViewDescriptor>;
+	readonly onDidAddVisibleViewDescriptors: Event<IAddedViewDescriptorRef[]>;
+	readonly onDidRemoveVisibleViewDescriptors: Event<IViewDescriptorRef[]>
+	readonly onDidMoveVisibleViewDescriptors: Event<{ from: IViewDescriptorRef; to: IViewDescriptorRef; }>
+
+	isVisible(id: string): boolean;
+	setVisible(id: string, visible: boolean, size?: number): void;
+
+	isCollapsed(id: string): boolean;
+	setCollapsed(id: string, collapsed: boolean): void;
+
+	getSize(id: string): number | undefined;
+	setSize(id: string, size: number): void
+
+	move(from: string, to: string): void;
 }
 
 export enum ViewContentPriority {
@@ -446,22 +482,33 @@ export interface IViewDescriptorService {
 
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
 	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
+	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
+
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void;
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
 
 	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	getViewDescriptors(container: ViewContainer): IViewDescriptorCollection;
+	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
-	getViewDescriptor(viewId: string): IViewDescriptor | null;
+	getViewDescriptorById(id: string): IViewDescriptor | null;
 
-	getViewContainer(viewId: string): ViewContainer | null;
+	getViewContainerByViewId(id: string): ViewContainer | null;
 
-	getViewContainerLocation(viewContainr: ViewContainer): ViewContainerLocation | null;
+	getViewContainerById(id: string): ViewContainer | null;
 
-	getDefaultContainer(viewId: string): ViewContainer | null;
+	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 
-	getViewLocation(viewId: string): ViewContainerLocation | null;
+	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
+
+	getDefaultContainerById(id: string): ViewContainer | null;
+
+	getViewLocationById(id: string): ViewContainerLocation | null;
+
+	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
+
+	getViewContainers(): ViewContainer[];
 }
 
 // Custom views
@@ -587,7 +634,7 @@ export interface IEditableData {
 	validationMessage: (value: string) => { content: string, severity: Severity } | null;
 	placeholder?: string | null;
 	startingValue?: string | null;
-	onFinish: (value: string, success: boolean) => void;
+	onFinish: (value: string, success: boolean) => Promise<void>;
 }
 
 export interface IViewPaneContainer {

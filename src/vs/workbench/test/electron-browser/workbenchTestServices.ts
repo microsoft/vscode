@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestLifecycleService, TestFilesConfigurationService, TestFileService, TestFileDialogService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { NativeWorkbenchEnvironmentService, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
@@ -25,10 +25,10 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { LogLevel } from 'vs/platform/log/common/log';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { LogLevel, ILogService } from 'vs/platform/log/common/log';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/base/node/encoding';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -37,7 +37,7 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
+import { INativeWindowConfiguration, IOpenedWindow } from 'vs/platform/windows/node/window';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export const TestWindowConfiguration: INativeWindowConfiguration = {
@@ -73,8 +73,9 @@ export class TestTextFileService extends NativeTextFileService {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IRemotePathService remotePathService: IRemotePathService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
+		@IPathService athService: IPathService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
+		@ILogService logService: ILogService
 	) {
 		super(
 			fileService,
@@ -90,8 +91,9 @@ export class TestTextFileService extends NativeTextFileService {
 			filesConfigurationService,
 			textModelService,
 			codeEditorService,
-			remotePathService,
-			workingCopyFileService
+			athService,
+			workingCopyFileService,
+			logService
 		);
 	}
 
@@ -217,7 +219,8 @@ export class TestElectronService implements IElectronService {
 
 export function workbenchInstantiationService(): ITestInstantiationService {
 	const instantiationService = browserWorkbenchInstantiationService({
-		textFileService: insta => <ITextFileService>insta.createInstance(TestTextFileService)
+		textFileService: insta => <ITextFileService>insta.createInstance(TestTextFileService),
+		pathService: insta => <IPathService>insta.createInstance(TestNativePathService)
 	});
 
 	instantiationService.stub(IElectronService, new TestElectronService());
@@ -239,5 +242,14 @@ export class TestServiceAccessor {
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
 		@IEditorService public editorService: IEditorService
 	) {
+	}
+}
+
+export class TestNativePathService extends TestPathService {
+
+	_serviceBrand: undefined;
+
+	constructor(@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService) {
+		super(environmentService.userHome);
 	}
 }

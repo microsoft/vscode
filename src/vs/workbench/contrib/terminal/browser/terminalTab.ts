@@ -2,16 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import * as nls from 'vs/nls';
-import { IShellLaunchConfig, ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+
+import { IShellLaunchConfig, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalInstance, Direction, ITerminalTab, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 
 const SPLIT_PANE_MIN_SIZE = 120;
 
@@ -215,8 +214,10 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	private _splitPaneContainer: SplitPaneContainer | undefined;
 	private _tabElement: HTMLElement | undefined;
 	private _panelPosition: Position = Position.BOTTOM;
+	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
 
 	private _activeInstanceIndex: number;
+	private _isVisible: boolean = false;
 
 	public get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
 
@@ -226,12 +227,11 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	public readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
 
 	constructor(
-		terminalFocusContextKey: IContextKey<boolean>,
-		configHelper: ITerminalConfigHelper,
 		private _container: HTMLElement | undefined,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
@@ -270,10 +270,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	private _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
-		instance.addDisposable(instance.onFocused(instance => {
-			aria.alert(nls.localize('terminalFocus', "Terminal {0}", this._terminalService.activeTabIndex + 1));
-			this._setActiveInstance(instance);
-		}));
+		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
 	}
 
 	private _onInstanceDisposed(instance: ITerminalInstance): void {
@@ -340,16 +337,24 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 
 	public attachToElement(element: HTMLElement): void {
 		this._container = element;
-		this._tabElement = document.createElement('div');
-		this._tabElement.classList.add('terminal-tab');
+
+		// If we already have a tab element, we can reparent it
+		if (!this._tabElement) {
+			this._tabElement = document.createElement('div');
+			this._tabElement.classList.add('terminal-tab');
+		}
+
 		this._container.appendChild(this._tabElement);
 		if (!this._splitPaneContainer) {
 			this._panelPosition = this._layoutService.getPanelPosition();
-			const orientation = this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			this._terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
+			const orientation = this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._tabElement, orientation);
 			this._splitPaneContainer = newLocal;
 			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
 		}
+
+		this.setVisible(this._isVisible);
 	}
 
 	public get title(): string {
@@ -363,6 +368,7 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 	}
 
 	public setVisible(visible: boolean): void {
+		this._isVisible = visible;
 		if (this._tabElement) {
 			this._tabElement.style.display = visible ? '' : 'none';
 		}
@@ -394,11 +400,14 @@ export class TerminalTab extends Disposable implements ITerminalTab {
 		if (this._splitPaneContainer) {
 			// Check if the panel position changed and rotate panes if so
 			const newPanelPosition = this._layoutService.getPanelPosition();
-			const panelPositionChanged = newPanelPosition !== this._panelPosition;
-			if (panelPositionChanged) {
-				const newOrientation = newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			const newTerminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
+			const terminalPositionChanged = newPanelPosition !== this._panelPosition || newTerminalLocation !== this._terminalLocation;
+
+			if (terminalPositionChanged) {
+				const newOrientation = newTerminalLocation === ViewContainerLocation.Panel && newPanelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 				this._splitPaneContainer.setOrientation(newOrientation);
 				this._panelPosition = newPanelPosition;
+				this._terminalLocation = newTerminalLocation;
 			}
 
 			this._splitPaneContainer.layout(width, height);

@@ -6,9 +6,9 @@
 import { IQuickPick, IQuickPickItem, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { first, coalesce } from 'vs/base/common/arrays';
-import { startsWith } from 'vs/base/common/strings';
+import { coalesce } from 'vs/base/common/arrays';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ItemActivation } from 'vs/base/parts/quickinput/common/quickInput';
 
 export interface IQuickAccessOptions {
 
@@ -18,9 +18,16 @@ export interface IQuickAccessOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 
 	/**
-	 * Wether to select the second pick item by default instead of the first.
+	 * Allows to configure a different item activation strategy.
+	 * By default the first item in the list will get activated.
 	 */
-	autoFocus?: { autoFocusSecondEntry?: boolean }
+	itemActivation?: ItemActivation;
+
+	/**
+	 * Wether to take the input value as is and not restore it
+	 * from any existing value if quick access is visible.
+	 */
+	preserveValue?: boolean;
 }
 
 export interface IQuickAccessController {
@@ -175,7 +182,7 @@ export class QuickAccessRegistry implements IQuickAccessRegistry {
 	}
 
 	getQuickAccessProvider(prefix: string): IQuickAccessProviderDescriptor | undefined {
-		const result = prefix ? (first(this.providers, provider => startsWith(prefix, provider.prefix)) || undefined) : undefined;
+		const result = prefix ? (this.providers.find(provider => prefix.startsWith(provider.prefix)) || undefined) : undefined;
 
 		return result || this.defaultProvider;
 	}

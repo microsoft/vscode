@@ -5,7 +5,7 @@
 
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
-import { URI, originalFSPath as uriOriginalFSPath } from 'vs/base/common/uri';
+import { URI, uriToFsPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -13,7 +13,9 @@ import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
 
-export const originalFSPath = uriOriginalFSPath;
+export function originalFSPath(uri: URI): string {
+	return uriToFsPath(uri, true);
+}
 
 /**
  * Creates a key from a resource URI to be used to resource comparison and for resource maps.
@@ -24,7 +26,7 @@ export function getComparisonKey(resource: URI, caseInsensitivePath = hasToIgnor
 	if (caseInsensitivePath) {
 		path = path.toLowerCase();
 	}
-	return `${resource.scheme}://${resource.authority.toLowerCase()}/${path}?${resource.query}`;
+	return resource.with({ authority: resource.authority.toLowerCase(), path: path, fragment: null }).toString();
 }
 
 export function hasToIgnoreCase(resource: URI | undefined): boolean {
@@ -123,7 +125,15 @@ export function dirname(resource: URI): URI {
  * @returns The resulting URI.
  */
 export function joinPath(resource: URI, ...pathFragment: string[]): URI {
-	return URI.joinPaths(resource, ...pathFragment);
+	let joinedPath: string;
+	if (resource.scheme === 'file') {
+		joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
+	} else {
+		joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
+	}
+	return resource.with({
+		path: joinedPath
+	});
 }
 
 /**
@@ -307,7 +317,7 @@ export namespace DataUri {
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<{ root: URI, expression: ParsedExpression }> = TernarySearchTree.forPaths<{ root: URI, expression: ParsedExpression }>();
+	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI, expression: ParsedExpression }> = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>();
 
 	constructor(
 		globalExpression: IExpression,
@@ -315,12 +325,12 @@ export class ResourceGlobMatcher {
 	) {
 		this.globalExpression = parse(globalExpression);
 		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root.toString(), { root: expression.root, expression: parse(expression.expression) });
+			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
 		}
 	}
 
 	matches(resource: URI): boolean {
-		const rootExpression = this.expressionsByRoot.findSubstr(resource.toString());
+		const rootExpression = this.expressionsByRoot.findSubstr(resource);
 		if (rootExpression) {
 			const path = relativePath(rootExpression.root, resource);
 			if (path && !!rootExpression.expression(path)) {

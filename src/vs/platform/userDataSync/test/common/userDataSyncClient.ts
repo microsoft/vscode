@@ -32,10 +32,11 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IAuthenticationTokenService, IUserDataSyncAuthToken } from 'vs/platform/authentication/common/authentication';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
+import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export class UserDataSyncClient extends Disposable {
 
@@ -54,8 +55,7 @@ export class UserDataSyncClient extends Disposable {
 			settingsResource: joinPath(userDataDirectory, 'settings.json'),
 			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
 			snippetsHome: joinPath(userDataDirectory, 'snippets'),
-			argvResource: joinPath(userDataDirectory, 'argv.json'),
-			args: {}
+			argvResource: joinPath(userDataDirectory, 'argv.json')
 		});
 
 		const logService = new NullLogService();
@@ -65,7 +65,7 @@ export class UserDataSyncClient extends Disposable {
 			_serviceBrand: undefined, ...product, ...{
 				'configurationSync.store': {
 					url: this.testServer.url,
-					authenticationProviderId: 'test'
+					authenticationProviders: { 'test': { scopes: [] } }
 				}
 			}
 		});
@@ -82,8 +82,8 @@ export class UserDataSyncClient extends Disposable {
 
 		this.instantiationService.stub(IRequestService, this.testServer);
 		this.instantiationService.stub(IAuthenticationTokenService, <Partial<IAuthenticationTokenService>>{
-			onDidChangeToken: new Emitter<string | undefined>().event,
-			async getToken() { return 'token'; }
+			onDidChangeToken: new Emitter<IUserDataSyncAuthToken | undefined>().event,
+			async getToken() { return { authenticationProviderId: 'id', token: 'token' }; }
 		});
 
 		this.instantiationService.stub(IUserDataSyncLogService, logService);
@@ -92,6 +92,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IUserDataSyncBackupStoreService, this.instantiationService.createInstance(UserDataSyncBackupStoreService));
 		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
 		this.instantiationService.stub(IUserDataSyncEnablementService, this.instantiationService.createInstance(UserDataSyncEnablementService));
+		this.instantiationService.stub(IStorageKeysSyncRegistryService, this.instantiationService.createInstance(StorageKeysSyncRegistryService));
 
 		this.instantiationService.stub(IGlobalExtensionEnablementService, this.instantiationService.createInstance(GlobalExtensionEnablementService));
 		this.instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{

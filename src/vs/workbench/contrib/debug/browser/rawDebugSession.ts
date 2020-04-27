@@ -670,7 +670,7 @@ export class RawDebugSession implements IDisposable {
 			});
 		}
 		if (error && error.format && error.showUser) {
-			this.notificationService.error(error.format);
+			this.notificationService.error(userMessage);
 		}
 
 		return new Error(userMessage);
@@ -706,7 +706,7 @@ export class RawDebugSession implements IDisposable {
 				The message is sent in the name of the adapter but the adapter doesn't know about it.
 				However, since adapters are an open-ended set, we can not declared the events statically either.
 			*/
-			this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
+			this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage }, true);
 		}
 	}
 

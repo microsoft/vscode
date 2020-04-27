@@ -509,8 +509,10 @@ export function containsDragType(event: DragEvent, ...dragTypesToFind: string[])
 	return false;
 }
 
+export type Before2D = { verticallyBefore: boolean; horizontallyBefore: boolean; };
+
 export interface ICompositeDragAndDrop {
-	drop(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent, before?: boolean): void;
+	drop(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent, before?: Before2D): void;
 	onDragOver(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
 	onDragEnter(data: IDragAndDropData, target: string | undefined, originalEvent: DragEvent): boolean;
 }

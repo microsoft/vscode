@@ -68,7 +68,14 @@ export class ProgressService extends Disposable implements IProgressService {
 			case ProgressLocation.Notification:
 				return this.withNotificationProgress({ ...options, location }, task, onDidCancel);
 			case ProgressLocation.Window:
-				return this.withWindowProgress({ ...options, location }, task);
+				if ((options as IProgressWindowOptions).command) {
+					// Window progress with command get's shown in the status bar
+					return this.withWindowProgress({ ...options, location }, task);
+				}
+				// Window progress without command can be shown as silent notification
+				// which will first appear in the status bar and can then be brought to
+				// the front when clicking.
+				return this.withNotificationProgress({ ...options, silent: true, location: ProgressLocation.Notification }, task, onDidCancel);
 			case ProgressLocation.Explorer:
 				return this.withViewletProgress('workbench.view.explorer', task, { ...options, location });
 			case ProgressLocation.Scm:
@@ -145,6 +152,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 			const statusEntryProperties: IStatusbarEntry = {
 				text: `$(sync~spin) ${text}`,
+				ariaLabel: text,
 				tooltip: title,
 				command: progressCommand
 			};
@@ -373,11 +381,25 @@ export class ProgressService extends Disposable implements IProgressService {
 		const listener = progressStateModel.onDidReport(step => updateNotification(step));
 		Event.once(progressStateModel.onDispose)(() => listener.dispose());
 
-		// Show progress for at least 800ms and then hide once done or canceled
-		Promise.all([timeout(800), progressStateModel.promise]).finally(() => {
-			clearTimeout(notificationTimeout);
-			notificationHandle?.close();
-		});
+		// Clean up eventually
+		(async () => {
+			try {
+
+				// with a delay we only wait for the finish of the promise
+				if (typeof options.delay === 'number' && options.delay > 0) {
+					await progressStateModel.promise;
+				}
+
+				// without a delay we show the notification for at least 800ms
+				// to reduce the chance of the notification flashing up and hiding
+				else {
+					await Promise.all([timeout(800), progressStateModel.promise]);
+				}
+			} finally {
+				clearTimeout(notificationTimeout);
+				notificationHandle?.close();
+			}
+		})();
 
 		return progressStateModel.promise;
 	}
@@ -398,12 +420,12 @@ export class ProgressService extends Disposable implements IProgressService {
 		// show in viewlet
 		const promise = this.withCompositeProgress(this.viewsService.getProgressIndicator(viewId), task, options);
 
-		const location = this.viewDescriptorService.getViewLocation(viewId);
+		const location = this.viewDescriptorService.getViewLocationById(viewId);
 		if (location !== ViewContainerLocation.Sidebar) {
 			return promise;
 		}
 
-		const viewletId = this.viewDescriptorService.getViewContainer(viewId)?.id;
+		const viewletId = this.viewDescriptorService.getViewContainerByViewId(viewId)?.id;
 		if (viewletId === undefined) {
 			return promise;
 		}
@@ -418,7 +440,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		let activityProgress: IDisposable;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-			const handle = this.activityService.showActivity(viewletId, new ProgressBadge(() => ''), 'progress-badge', 100);
+			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), clazz: 'progress-badge', priority: 100 });
 			const startTimeVisible = Date.now();
 			const minTimeVisible = 300;
 			activityProgress = {

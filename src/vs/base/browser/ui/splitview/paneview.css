@@ -68,6 +68,24 @@
 	color: inherit;
 }
 
+.monaco-pane-view .pane > .pane-header .monaco-action-bar .action-item.select-container {
+	cursor: default;
+}
+
+.monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
+	cursor: pointer;
+	min-width: 110px;
+	min-height: 18px;
+	padding: 2px 23px 2px 8px;
+	background-color: inherit !important;
+	color: inherit !important;
+}
+
+.linux .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box,
+.windows .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
+	padding: 0px 23px 2px 8px;
+}
+
 /* Bold font style does not go well with CJK fonts */
 .monaco-pane-view:lang(zh-Hans) .pane > .pane-header,
 .monaco-pane-view:lang(zh-Hant) .pane > .pane-header,

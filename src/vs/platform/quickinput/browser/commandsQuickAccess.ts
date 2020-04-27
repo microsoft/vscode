@@ -21,13 +21,14 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	commandId: string;
-	commandAlias: string | undefined;
+	commandAlias?: string;
 }
 
-export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions {
+export interface ICommandsQuickAccessOptions extends IPickerQuickAccessProviderOptions<ICommandQuickPick> {
 	showAlias: boolean;
 }
 
@@ -55,18 +56,28 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		// Ask subclass for all command picks
 		const allCommandPicks = await this.getCommandPicks(disposables, token);
 
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
 		// Filter
 		const filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
 			const labelHighlights = withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.label));
 			const aliasHighlights = commandPick.commandAlias ? withNullAsUndefined(AbstractCommandsQuickAccessProvider.WORD_FILTER(filter, commandPick.commandAlias)) : undefined;
 
+			// Add if matching in label or alias
 			if (labelHighlights || aliasHighlights) {
 				commandPick.highlights = {
 					label: labelHighlights,
 					detail: this.options.showAlias ? aliasHighlights : undefined
 				};
 
+				filteredCommandPicks.push(commandPick);
+			}
+
+			// Also add if we have a 100% command ID match
+			else if (filter === commandPick.commandId) {
 				filteredCommandPicks.push(commandPick);
 			}
 		}
@@ -111,8 +122,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			const commandPick = filteredCommandPicks[i];
 			const keybinding = this.keybindingService.lookupKeybinding(commandPick.commandId);
 			const ariaLabel = keybinding ?
-				localize('commandPickAriaLabelWithKeybinding', "{0}, {1}, commands picker", commandPick.label, keybinding.getAriaLabel()) :
-				localize('commandPickAriaLabel', "{0}, commands picker", commandPick.label);
+				localize('commandPickAriaLabelWithKeybinding', "{0}, {1}", commandPick.label, keybinding.getAriaLabel()) :
+				commandPick.label;
 
 			// Separator: recently used
 			if (i === 0 && this.commandsHistory.peek(commandPick.commandId)) {
@@ -130,7 +141,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			commandPicks.push({
 				...commandPick,
 				ariaLabel,
-				detail: this.options.showAlias ? commandPick.commandAlias : undefined,
+				detail: this.options.showAlias && commandPick.commandAlias !== commandPick.label ? commandPick.commandAlias : undefined,
 				keybinding,
 				accept: async () => {
 
@@ -192,9 +203,14 @@ export class CommandsHistory extends Disposable {
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
+
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: CommandsHistory.PREF_KEY_CACHE, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: CommandsHistory.PREF_KEY_COUNTER, version: 1 });
 
 		this.updateConfiguration();
 		this.load();

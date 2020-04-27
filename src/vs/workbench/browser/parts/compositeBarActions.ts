@@ -18,8 +18,9 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Emitter } from 'vs/base/common/event';
-import { LocalSelectionTransfer, DraggedCompositeIdentifier, DraggedViewIdentifier, CompositeDragAndDropObserver, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
+import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -69,6 +70,7 @@ export class ActivityAction extends Action {
 	}
 
 	set activity(activity: IActivity) {
+		this._label = activity.name;
 		this._activity = activity;
 		this._onDidChangeActivity.fire(this);
 	}
@@ -138,7 +140,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 	constructor(
 		action: ActivityAction,
 		options: IActivityActionViewItemOptions,
-		@IThemeService protected themeService: IThemeService
+		@IThemeService protected readonly themeService: IThemeService
 	) {
 		super(null, action, options);
 
@@ -161,9 +163,11 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 				if (this.activity.iconUrl) {
 					// Apply background color to activity bar item provided with iconUrls
 					this.label.style.backgroundColor = foreground ? foreground.toString() : '';
+					this.label.style.color = '';
 				} else {
 					// Apply foreground color to activity bar items provided with codicons
 					this.label.style.color = foreground ? foreground.toString() : '';
+					this.label.style.backgroundColor = '';
 				}
 
 				const dragColor = colors.activeBackgroundColor || colors.activeForegroundColor;
@@ -321,7 +325,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.label.className = 'action-label';
 
 		if (this.activity.cssClass) {
-			dom.addClass(this.label, this.activity.cssClass);
+			dom.addClasses(this.label, this.activity.cssClass);
 		}
 
 		if (this.options.icon && !this.activity.iconUrl) {
@@ -362,7 +366,7 @@ export class CompositeOverflowActivityAction extends ActivityAction {
 		super({
 			id: 'additionalComposites.action',
 			name: nls.localize('additionalViews', "Additional Views"),
-			cssClass: 'codicon-more'
+			cssClass: Codicon.more.classNames
 		});
 	}
 
@@ -452,7 +456,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 	private static manageExtensionAction: ManageExtensionAction;
 
 	private compositeActivity: IActivity | undefined;
-	private compositeTransfer: LocalSelectionTransfer<DraggedCompositeIdentifier | DraggedViewIdentifier>;
 
 	constructor(
 		private compositeActivityAction: ActivityAction,
@@ -469,8 +472,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		@IThemeService themeService: IThemeService
 	) {
 		super(compositeActivityAction, { draggable: true, colors, icon }, themeService);
-
-		this.compositeTransfer = LocalSelectionTransfer.getInstance<DraggedCompositeIdentifier | DraggedViewIdentifier>();
 
 		if (!CompositeActionViewItem.manageExtensionAction) {
 			CompositeActionViewItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
@@ -516,7 +517,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			this.showContextMenu(container);
 		}));
 
-		let insertDropBefore: boolean | undefined = undefined;
+		let insertDropBefore: Before2D | undefined = undefined;
 		// Allow to drag
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.container, () => { return { type: 'composite', id: this.activity.id }; }, {
 			onDragOver: e => {
@@ -533,7 +534,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			},
 
 			onDrop: e => {
-				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData, !!insertDropBefore);
+				dom.EventHelper.stop(e.eventData, true);
+				this.dndHandler.drop(e.dragAndDropData, this.activity.id, e.eventData, insertDropBefore);
 				insertDropBefore = this.updateFromDragging(container, false, e.eventData);
 			},
 			onDragStart: e => {
@@ -562,7 +564,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		this.updateStyles();
 	}
 
-	private updateFromDragging(element: HTMLElement, showFeedback: boolean, event: DragEvent): boolean | undefined {
+	private updateFromDragging(element: HTMLElement, showFeedback: boolean, event: DragEvent): Before2D | undefined {
 		const rect = element.getBoundingClientRect();
 		const posX = event.clientX;
 		const posY = event.clientY;
@@ -597,7 +599,7 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 			return undefined;
 		}
 
-		return top || left;
+		return { verticallyBefore: top, horizontallyBefore: left };
 	}
 
 	private showContextMenu(container: HTMLElement): void {
@@ -669,9 +671,6 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 
 	dispose(): void {
 		super.dispose();
-
-		this.compositeTransfer.clearData(DraggedCompositeIdentifier.prototype);
-
 		this.label.remove();
 	}
 }

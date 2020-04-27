@@ -26,6 +26,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ReadableStreamEvents, transform } from 'vs/base/common/stream';
 import { createReadStream } from 'vs/platform/files/common/io';
+import { insert } from 'vs/base/common/arrays';
 
 export interface IWatcherOptions {
 	pollingInterval?: number;
@@ -524,7 +525,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 		// Add to list of folders to watch recursively
 		const folderToWatch = { path: this.toFilePath(resource), excludes };
-		this.recursiveFoldersToWatch.push(folderToWatch);
+		const remove = insert(this.recursiveFoldersToWatch, folderToWatch);
 
 		// Trigger update
 		this.refreshRecursiveWatchers();
@@ -532,7 +533,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		return toDisposable(() => {
 
 			// Remove from list of folders to watch recursively
-			this.recursiveFoldersToWatch.splice(this.recursiveFoldersToWatch.indexOf(folderToWatch), 1);
+			remove();
 
 			// Trigger update
 			this.refreshRecursiveWatchers();
@@ -543,10 +544,8 @@ export class DiskFileSystemProvider extends Disposable implements
 
 		// Buffer requests for recursive watching to decide on right watcher
 		// that supports potentially watching more than one folder at once
-		this.recursiveWatchRequestDelayer.trigger(() => {
+		this.recursiveWatchRequestDelayer.trigger(async () => {
 			this.doRefreshRecursiveWatchers();
-
-			return Promise.resolve();
 		});
 	}
 
@@ -667,6 +666,9 @@ export class DiskFileSystemProvider extends Disposable implements
 				break;
 			case 'EISDIR':
 				code = FileSystemProviderErrorCode.FileIsADirectory;
+				break;
+			case 'ENOTDIR':
+				code = FileSystemProviderErrorCode.FileNotADirectory;
 				break;
 			case 'EEXIST':
 				code = FileSystemProviderErrorCode.FileExists;

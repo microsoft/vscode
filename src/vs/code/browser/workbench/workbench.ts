@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchConstructionOptions, create, URI, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace, IApplicationLink } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, create, URI, Emitter, UriComponents, ICredentialsProvider, IURLCallbackProvider, IWorkspaceProvider, IWorkspace } from 'vs/workbench/workbench.web.api';
 import { generateUuid } from 'vs/base/common/uuid';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { streamToBuffer } from 'vs/base/common/buffer';
@@ -12,10 +12,6 @@ import { request } from 'vs/base/parts/request/browser/request';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/windows/common/windows';
 import { isEqual } from 'vs/base/common/resources';
 import { isStandalone } from 'vs/base/browser/browser';
-import product from 'vs/platform/product/common/product';
-import { Schemas } from 'vs/base/common/network';
-import { posix } from 'vs/base/common/path';
-import { localize } from 'vs/nls';
 
 interface ICredential {
 	service: string;
@@ -326,7 +322,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 
 			// Payload
 			case WorkspaceProvider.QUERY_PARAM_PAYLOAD:
-				payload = JSON.parse(value);
+				try {
+					payload = JSON.parse(value);
+				} catch (error) {
+					console.error(error); // possible invalid JSON
+				}
 				break;
 		}
 	});
@@ -342,30 +342,11 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		}
 	}
 
-	// Application links ("Open in Desktop")
-	let applicationLinks: IApplicationLink[] | undefined = undefined;
-	if (workspace) {
-		const workspaceUri = isWorkspaceToOpen(workspace) ? workspace.workspaceUri : isFolderToOpen(workspace) ? workspace.folderUri : undefined;
-		if (workspaceUri) {
-			applicationLinks = [{
-				uri: URI.from({
-					scheme: product.quality === 'stable' ? 'vscode' : 'vscode-insiders',
-					authority: Schemas.vscodeRemote,
-					path: posix.join(posix.sep, workspaceUri.authority, workspaceUri.path),
-					query: workspaceUri.query,
-					fragment: workspaceUri.fragment,
-				}),
-				label: localize('openInDesktop', "Open in Desktop")
-			}];
-		}
-	}
-
 	// Finally create workbench
 	create(document.body, {
 		...config,
 		workspaceProvider: new WorkspaceProvider(workspace, payload),
 		urlCallbackProvider: new PollingURLCallbackProvider(),
-		credentialsProvider: new LocalStorageCredentialsProvider(),
-		applicationLinks: applicationLinks
+		credentialsProvider: new LocalStorageCredentialsProvider()
 	});
 })();
