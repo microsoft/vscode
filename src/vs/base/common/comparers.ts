@@ -34,7 +34,7 @@ const intlFileNameCollator: IdleValue<{ collator: Intl.Collator }> = new IdleVal
 	};
 });
 
-// A collabor with numeric sorting disabled and sensitivity to accents but not case.
+// A collator with numeric sorting disabled and sensitivity to accents but not case.
 const intlFileNameCollatorCaseInsensitive: IdleValue<{ collator: Intl.Collator }> = new IdleValue(() => {
 	const collator = new Intl.Collator(undefined, { numeric: false, sensitivity: 'accent' });
 	return {
@@ -245,9 +245,9 @@ export function compareFileExtensionsUpper(one: string | null, other: string | n
 	}
 
 	// Check for case differences in names.
-	let caseResult = compareCaseUpperFirst(oneName, otherName);
-	if (caseResult !== 0) {
-		return caseResult;
+	result = compareCaseUpperFirst(oneName, otherName);
+	if (result !== 0) {
+		return result;
 	}
 
 	// Check for other differences in names.
@@ -278,9 +278,9 @@ export function compareFileExtensionsLower(one: string | null, other: string | n
 	}
 
 	// Check for case differences in names.
-	let caseResult = compareCaseLowerFirst(oneName, otherName);
-	if (caseResult !== 0) {
-		return caseResult;
+	result = compareCaseLowerFirst(oneName, otherName);
+	if (result !== 0) {
+		return result;
 	}
 
 	// Check for other differences in names.
@@ -345,7 +345,7 @@ export function compareFileExtensionsUnicode(one: string | null, other: string |
 const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
 /** Extracts the name and extension from a full filename, with special handling for dotfiles */
-export function extractNameAndExtension(str?: string | null): [string, string] {
+function extractNameAndExtension(str?: string | null): [string, string] {
 	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
 
 	let result: [string, string] = [(match && match[1]) || '', (match && match[3]) || ''];
@@ -358,7 +358,7 @@ export function extractNameAndExtension(str?: string | null): [string, string] {
 	return result;
 }
 
-export function comparePathComponents(one: string, other: string, caseSensitive = false): number {
+function comparePathComponents(one: string, other: string, caseSensitive = false): number {
 	if (!caseSensitive) {
 		one = one && one.toLowerCase();
 		other = other && other.toLowerCase();

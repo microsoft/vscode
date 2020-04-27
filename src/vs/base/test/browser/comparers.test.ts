@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
+	compareFileNames,
 	compareFileNamesUnicode,
 	compareFileNamesNumeric,
 	compareFileNamesUpper,
@@ -20,6 +21,10 @@ import {
 import * as assert from 'assert';
 
 suite('Comparers', () => {
+
+	test('compareFileNames', () => {
+		assert(compareFileNames === compareFileNamesNumeric, 'export alias is working as expected');
+	});
 
 	test('compareFileNamesUnicode', () => {
 
