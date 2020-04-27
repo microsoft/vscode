@@ -23,8 +23,7 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .monaco-editor-hover {
-	z-index: 600; /* @rebornix: larger than the editor title bar */
-	position: fixed;
+	z-index: 600 !important; /* @rebornix: larger than the editor title bar */
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .monaco-list-rows {
@@ -144,10 +143,6 @@
 	overflow: visible !important;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:focus-within {
-	z-index: 10;
-}
-
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu {
 	position: absolute;
 	left: 0;
@@ -179,10 +174,10 @@
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu:hover {
 	cursor: pointer;
 }
-
+/*
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
 	margin-top: 16px;
-}
+} */
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-toolbar {
 	visibility: hidden;

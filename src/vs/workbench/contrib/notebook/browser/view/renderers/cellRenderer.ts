@@ -117,7 +117,7 @@ export class CellEditorOptions {
 		lineNumbers: 'off',
 		lineDecorationsWidth: 0,
 		glyphMargin: false,
-		fixedOverflowWidgets: false,
+		fixedOverflowWidgets: true,
 		minimap: { enabled: false },
 	};
 
