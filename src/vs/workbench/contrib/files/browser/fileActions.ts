@@ -785,7 +785,7 @@ export function validateFileName(item: ExplorerItem, name: string): { content: s
 		};
 	}
 
-	const names = coalesce(name.split(/[\\/]/));
+	const names = coalesce(name.split(/\.\.\/|\\|(?<!\.)\//));
 	const parent = item.parent;
 
 	if (name !== item.name) {
