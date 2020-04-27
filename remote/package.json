@@ -19,7 +19,7 @@
     "vscode-oniguruma": "1.3.0",
     "vscode-proxy-agent": "^0.5.2",
     "vscode-ripgrep": "^1.5.8",
-    "vscode-textmate": "5.0.2",
+    "vscode-textmate": "5.1.1",
     "xterm": "4.6.0-beta.25",
     "xterm-addon-search": "0.6.0",
     "xterm-addon-unicode11": "0.2.0-beta.2",
