@@ -222,13 +222,14 @@ suite('Files - View Model', function () {
 		const d = new Date().getTime();
 		const wsFolder = createStat.call(this, '/', 'workspaceFolder', true, false, 8096, d);
 
-		assert(validateFileName(wsFolder, './foo/bar') === null);
-		assert(validateFileName(wsFolder, '../foo/bar') !== null);
+
 		assert(validateFileName(wsFolder, 'foo/bar') === null);
 		assert(validateFileName(wsFolder, 'foo\\bar') === null);
 		assert(validateFileName(wsFolder, 'all/slashes/are/same') === null);
 		assert(validateFileName(wsFolder, 'theres/one/different\\slash') === null);
 		assert(validateFileName(wsFolder, '/slashAtBeginning') !== null);
+		assert(validateFileName(wsFolder, './foo/bar') === null);
+		assert(validateFileName(wsFolder, '../foo/bar') !== null);
 
 		// attempting to add a child to a deeply nested file
 		const s1 = createStat.call(this, '/path', 'path', true, false, 8096, d);
