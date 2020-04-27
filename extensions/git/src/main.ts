@@ -22,6 +22,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
+import { GitHubCredentialProvider } from './github';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
 
@@ -37,6 +38,7 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 
 	const askpass = await Askpass.create(outputChannel);
 	disposables.push(askpass);
+	context.subscriptions.push(askpass.registerCredentialsProvider(new GitHubCredentialProvider()));
 
 	const git = new Git({ gitPath: info.path, version: info.version, env: askpass.getEnv() });
 	const model = new Model(git, askpass, context.globalState, outputChannel);
