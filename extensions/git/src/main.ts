@@ -22,7 +22,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
-import { GitHubCredentialProvider, GithubCredentialProviderManager } from './github';
+import { GithubCredentialProviderManager } from './github';
 import { TerminalEnvironmentManager } from './terminal';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
