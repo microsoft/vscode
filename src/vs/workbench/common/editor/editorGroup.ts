@@ -499,10 +499,6 @@ export class EditorGroup extends Disposable {
 			return false; // editor not found
 		}
 
-		if (!this.preview) {
-			return true; // no preview editor
-		}
-
 		return !this.matches(this.preview, editor);
 	}
 
