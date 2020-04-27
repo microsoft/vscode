@@ -14,7 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { VIEWLET_ID, SortOrder, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, SortOrder, SortOrderOption, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -397,6 +397,19 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
 			],
 			'description': nls.localize('sortOrder', "Controls sorting order of files and folders in the explorer.")
+		},
+		'explorer.sortOrderOption': {
+			'type': 'string',
+			'enum': [SortOrderOption.Numeric, SortOrderOption.Upper, SortOrderOption.Lower, SortOrderOption.Mixed, SortOrderOption.Unicode],
+			'default': SortOrderOption.Numeric,
+			'enumDescriptions': [
+				nls.localize('sortOrderOption.numeric', 'Mixes uppercase and lowercase names together. Numbers are sorted numerically, not alphabetically.'),
+				nls.localize('sortOrderOption.upper', 'Groups uppercase names before lowercase names. Numbers are sorted alphabetically.'),
+				nls.localize('sortOrderOption.lower', 'Groups lowercase names before uppercase names. Numbers are sorted alphabetically.'),
+				nls.localize('sortOrderOption.mixed', 'Mixes uppercase and lowercase names together. Numbers are sorted alphabetically.'),
+				nls.localize('sortOrderOption.unicode', 'Sorts names in unicode order.')
+			],
+			'description': nls.localize('SortOrderOption', "Further specifies the file and directory sort order.")
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',

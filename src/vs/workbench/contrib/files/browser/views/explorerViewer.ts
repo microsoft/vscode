@@ -29,7 +29,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
+import { compareFileExtensionsNumeric, compareFileNamesUnicode, compareFileExtensionsUnicode, compareFileExtensionsUpper, compareFileExtensionsLower, compareFileExtensionsMixed, compareFileNamesNumeric, compareFileNamesUpper, compareFileNamesLower, compareFileNamesMixed } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
@@ -641,6 +641,33 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		}
 
 		const sortOrder = this.explorerService.sortOrder;
+		const sortOrderOption = this.explorerService.sortOrderOption;
+
+		let compareFileNames;
+		let compareFileExtensions;
+		switch (sortOrderOption) {
+			case 'upper':
+				compareFileNames = compareFileNamesUpper;
+				compareFileExtensions = compareFileExtensionsUpper;
+				break;
+			case 'lower':
+				compareFileNames = compareFileNamesLower;
+				compareFileExtensions = compareFileExtensionsLower;
+				break;
+			case 'mixed':
+				compareFileNames = compareFileNamesMixed;
+				compareFileExtensions = compareFileExtensionsMixed;
+				break;
+			case 'unicode':
+				compareFileNames = compareFileNamesUnicode;
+				compareFileExtensions = compareFileExtensionsUnicode;
+				break;
+			default:
+				// 'numeric'
+				compareFileNames = compareFileNamesNumeric;
+				compareFileExtensions = compareFileExtensionsNumeric;
+
+		}
 
 		// Sort Directories
 		switch (sortOrder) {

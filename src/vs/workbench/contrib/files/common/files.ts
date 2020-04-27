@@ -37,6 +37,7 @@ export interface IExplorerService {
 	_serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
+	readonly sortOrderOption: SortOrderOption;
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
@@ -120,6 +121,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
+		sortOrderOption: SortOrderOption;
 		decorations: {
 			colors: boolean;
 			badges: boolean;
@@ -140,6 +142,14 @@ export const enum SortOrder {
 	FilesFirst = 'filesFirst',
 	Type = 'type',
 	Modified = 'modified'
+}
+
+export const enum SortOrderOption {
+	Numeric = 'numeric',
+	Upper = 'upper',
+	Lower = 'lower',
+	Mixed = 'mixed',
+	Unicode = 'unicode',
 }
 
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {

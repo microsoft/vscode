@@ -29,7 +29,7 @@ import { editorMatchesToTextSearchResults, addContextToEditorMatches } from 'vs/
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { compareFileNames, compareFileExtensions, comparePaths } from 'vs/base/common/comparers';
+import { compareFileNamesNumeric, compareFileExtensionsNumeric, comparePaths } from 'vs/base/common/comparers';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class Match {
@@ -666,9 +666,9 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 			case SearchSortOrder.CountAscending:
 				return elementA.count() - elementB.count();
 			case SearchSortOrder.Type:
-				return compareFileExtensions(elementA.name(), elementB.name());
+				return compareFileExtensionsNumeric(elementA.name(), elementB.name());
 			case SearchSortOrder.FileNames:
-				return compareFileNames(elementA.name(), elementB.name());
+				return compareFileNamesNumeric(elementA.name(), elementB.name());
 			case SearchSortOrder.Modified:
 				const fileStatA = elementA.fileStat;
 				const fileStatB = elementB.fileStat;
@@ -677,7 +677,7 @@ export function searchMatchComparer(elementA: RenderableMatch, elementB: Rendera
 				}
 			// Fall through otherwise
 			default:
-				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNames(elementA.name(), elementB.name());
+				return comparePaths(elementA.resource.fsPath, elementB.resource.fsPath) || compareFileNamesNumeric(elementA.name(), elementB.name());
 		}
 	}
 

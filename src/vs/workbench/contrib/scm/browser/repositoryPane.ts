@@ -39,7 +39,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
-import { compareFileNames } from 'vs/base/common/comparers';
+import { compareFileNamesNumeric } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
@@ -352,7 +352,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		const oneName = ResourceTree.isResourceNode(one) ? one.name : basename((one as ISCMResource).sourceUri);
 		const otherName = ResourceTree.isResourceNode(other) ? other.name : basename((other as ISCMResource).sourceUri);
 
-		return compareFileNames(oneName, otherName);
+		return compareFileNamesNumeric(oneName, otherName);
 	}
 }
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { compareFileNames } from 'vs/base/common/comparers';
+import { compareFileNamesNumeric } from 'vs/base/common/comparers';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
@@ -351,7 +351,7 @@ export class FileSorter implements ITreeSorter<IFileStat | IWorkspaceFolder> {
 		}
 		if ((a as IFileStat).isDirectory === (b as IFileStat).isDirectory) {
 			// same type -> compare on names
-			return compareFileNames(a.name, b.name);
+			return compareFileNamesNumeric(a.name, b.name);
 		} else if ((a as IFileStat).isDirectory) {
 			return -1;
 		} else {
