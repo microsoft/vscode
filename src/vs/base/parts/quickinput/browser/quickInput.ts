@@ -853,7 +853,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
 		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step,
+			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description,
 			checkAll: this.canSelectMany,
 			inputBox: !hideInput,
@@ -1048,7 +1048,12 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, description: !!this.description || !!this.step, inputBox: true, message: true });
+		const visibilities: Visibilities = {
+			title: !!this.title || !!this.step || !!this.buttons.length,
+			description: !!this.description || !!this.step,
+			inputBox: true, message: true
+		};
+		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
