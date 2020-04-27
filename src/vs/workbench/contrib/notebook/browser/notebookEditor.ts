@@ -92,6 +92,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private _rootElement!: HTMLElement;
 	private body!: HTMLElement;
+	private titleBar: HTMLElement | null = null;
 	private webview: BackLayerWebView | null = null;
 	private webviewTransparentCover: HTMLElement | null = null;
 	private list: INotebookCellList | undefined;
@@ -199,6 +200,43 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
+	populateEditorTitlebar() {
+		for (let element: HTMLElement | null = this._rootElement.parentElement; element; element = element.parentElement) {
+			if (DOM.hasClass(element, 'editor-group-container')) {
+				// elemnet is editor group container
+				for (let i = 0; i < element.childElementCount; i++) {
+					const child = element.childNodes.item(i) as HTMLElement;
+
+					if (DOM.hasClass(child, 'title')) {
+						this.titleBar = child;
+						break;
+					}
+				}
+				break;
+			}
+		}
+	}
+
+	clearEditorTitlebarZindex() {
+		if (this.titleBar === null) {
+			this.populateEditorTitlebar();
+		}
+
+		if (this.titleBar) {
+			this.titleBar.style.zIndex = 'auto';
+		}
+	}
+
+	increaseEditorTitlebarZindex() {
+		if (this.titleBar === null) {
+			this.populateEditorTitlebar();
+		}
+
+		if (this.titleBar) {
+			this.titleBar.style.zIndex = '500';
+		}
+	}
+
 	private generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this.fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel());
@@ -237,6 +275,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				multipleSelectionSupport: false,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
+				transformOptimization: false,
 				styleController: (_suffix: string) => { return this.list!; },
 				overrideStyles: {
 					listBackground: editorBackground,
@@ -319,6 +358,16 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return this.webview?.webview;
 	}
 
+	setVisible(visible: boolean, group?: IEditorGroup): void {
+		if (visible) {
+			this.increaseEditorTitlebarZindex();
+		} else {
+			this.clearEditorTitlebarZindex();
+		}
+
+		super.setVisible(visible, group);
+	}
+
 	onWillHide() {
 		if (this.input && this.input instanceof NotebookEditorInput && !this.input.isDisposed()) {
 			this.saveEditorViewState(this.input);
@@ -348,6 +397,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		if (editor === this.input) {
+			this.clearEditorTitlebarZindex();
 			this.saveEditorViewState(editor);
 		}
 	}
