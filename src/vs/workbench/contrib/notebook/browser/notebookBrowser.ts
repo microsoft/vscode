@@ -390,19 +390,20 @@ export interface BaseCellRenderTemplate {
 	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
+	statusBarContainer: HTMLElement;
+	languageStatusBarItem: CellLanguageStatusBarItem;
 	toJSON: () => any;
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editingContainer: HTMLElement;
+	editorPart: HTMLElement;
+	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	statusBarContainer: HTMLElement;
 	cellRunStatusContainer: HTMLElement;
 	cellStatusMessageContainer: HTMLElement;
-	languageStatusBarItem: CellLanguageStatusBarItem;
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;

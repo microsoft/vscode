@@ -437,26 +437,26 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 	changeCellToKind(kind, { cell: activeCell, notebookEditor: editor });
 }
 
-export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string): Promise<void> {
+export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string): Promise<ICellViewModel | null> {
 	const { cell, notebookEditor } = context;
 
 	if (cell.cellKind === kind) {
-		return;
+		return null;
 	}
 
 	const text = cell.getText();
 	if (!notebookEditor.insertNotebookCell(cell, kind, 'below', text)) {
-		return;
+		return null;
 	}
 
 	const idx = notebookEditor.viewModel?.getCellIndex(cell);
 	if (typeof idx !== 'number') {
-		return;
+		return null;
 	}
 
 	const newCell = notebookEditor.viewModel?.viewCells[idx + 1];
 	if (!newCell) {
-		return;
+		return null;
 	}
 
 	if (language) {
@@ -465,6 +465,8 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 
 	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing);
 	notebookEditor.deleteNotebookCell(cell);
+
+	return newCell;
 }
 
 export interface INotebookCellActionContext {

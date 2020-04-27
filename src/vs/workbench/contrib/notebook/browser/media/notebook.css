@@ -199,19 +199,40 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container {
-	height: 22px;
+	height: 21px;
 	font-size: 12px;
 	display: flex;
 	position: relative;
-	box-sizing: border-box;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-left {
+	display: flex;
 	flex-grow: 1;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-right {
 	padding-right: 12px;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-language-picker {
+	padding: 0px 6px;
+	cursor: pointer;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-language-picker:hover {
+	background-color: rgba(255, 255, 255, 0.6);
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-language-picker:hover {
+	background-color: rgba(255, 255, 255, 0.9);
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-language-picker:hover {
+	background-color: rgba(255, 255, 255, 0.15);
+}
+
+.vs-dark .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-language-picker:active {
+	background-color: rgba(255, 255, 255, 0.2);
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container .cell-status-message {
@@ -570,6 +591,10 @@
 	top: 8px;
 	left: 26px;
 	cursor: pointer;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.markdown-cell-row .cell-editor-part {
+	width: 100%;
 }
 
 /** Theming */

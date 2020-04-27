@@ -715,7 +715,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		const newLanguages = this.notebookViewModel!.languages;
-		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
+		const language = (type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown';
 		const index = cell ? this.notebookViewModel!.getCellIndex(cell) : 0;
 		const insertIndex = cell ?
 			(direction === 'above' ? index : index + 1) :
