@@ -138,11 +138,6 @@
 	max-width: 100%;
 }
 
-
-.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row {
-	overflow: visible !important;
-}
-
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .menu {
 	position: absolute;
 	left: 0;
