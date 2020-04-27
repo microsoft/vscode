@@ -23,7 +23,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 
 	async function assertLink(text: string, expected: { text: string, range: [number, number][] }) {
 		const xterm = new Terminal();
-		const provider = instantiationService.createInstance(TerminalWordLinkProvider, xterm, () => { }, () => { }, () => { });
+		const provider = instantiationService.createInstance(TerminalWordLinkProvider, xterm, () => { }, () => { });
 
 		// Write the text and wait for the parser to finish
 		await new Promise<void>(r => xterm.write(text, r));

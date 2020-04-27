@@ -195,7 +195,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			'iframe': ['allowfullscreen', 'frameborder', 'src'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
 			'div': ['class', 'data-code'],
-			'span': ['class']
+			'span': ['class'],
+			// https://github.com/microsoft/vscode/issues/95937
+			'th': ['align'],
+			'td': ['align']
 		}
 	});
 

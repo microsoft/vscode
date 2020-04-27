@@ -3,15 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator } from 'vscode';
+import { window, Pseudoterminal, EventEmitter, TerminalDimensions, workspace, ConfigurationTarget, Disposable, UIKind, env, EnvironmentVariableMutatorType, EnvironmentVariableMutator, extensions, ExtensionContext } from 'vscode';
 import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 
-// TODO@Daniel flaky tests (https://github.com/microsoft/vscode/issues/92826)
-((env.uiKind === UIKind.Web) ? suite.skip : suite)('vscode API - terminal', () => {
+// Disable terminal tests:
+// - Web https://github.com/microsoft/vscode/issues/92826
+// - Remote https://github.com/microsoft/vscode/issues/96057
+((env.uiKind === UIKind.Web || typeof env.remoteName !== 'undefined') ? suite.skip : suite)('vscode API - terminal', () => {
+	let extensionContext: ExtensionContext;
+
 	suiteSetup(async () => {
+		// Trigger extension activation and grab the context as some tests depend on it
+		await extensions.getExtension('vscode.vscode-api-tests')?.activate();
+		extensionContext = (global as any).testExtensionContext;
+
+		const config = workspace.getConfiguration('terminal.integrated');
 		// Disable conpty in integration tests because of https://github.com/microsoft/vscode/issues/76548
-		await workspace.getConfiguration('terminal.integrated').update('windowsEnableConpty', false, ConfigurationTarget.Global);
+		await config.update('windowsEnableConpty', false, ConfigurationTarget.Global);
+		// Disable exit alerts as tests may trigger then and we're not testing the notifications
+		await config.update('showExitAlert', false, ConfigurationTarget.Global);
 	});
+
 	suite('Terminal', () => {
 		let disposables: Disposable[] = [];
 
@@ -19,7 +31,6 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
 		});
-
 
 		test('sendText immediately after createTerminal should not throw', (done) => {
 			disposables.push(window.onDidOpenTerminal(term => {
@@ -562,7 +573,12 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidClose: closeEmitter.event,
-					open: () => closeEmitter.fire(22),
+					open: () => {
+						// Wait 500ms as any exits that occur within 500ms of terminal launch are
+						// are counted as "exiting during launch" which triggers a notification even
+						// when showExitAlerts is true
+						setTimeout(() => closeEmitter.fire(22), 500);
+					},
 					close: () => { }
 				};
 				const terminal = window.createTerminal({ name: 'foo', pty });
@@ -597,7 +613,7 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			});
 		});
 
-		suite('getEnvironmentVariableCollection', () => {
+		suite('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [
@@ -622,8 +638,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						}
 					}
 				}));
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
@@ -668,8 +684,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						}
 					}
 				}));
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
@@ -713,8 +729,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						}
 					}
 				}));
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.replace('B', '~a2~');
 				collection.clear();
@@ -755,8 +771,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 						}
 					}
 				}));
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.replace('B', '~b2~');
 				collection.delete('A');
@@ -775,8 +791,8 @@ import { doesNotThrow, equal, ok, deepEqual, throws } from 'assert';
 			});
 
 			test('get and forEach should work', () => {
-				const collection = window.getEnvironmentVariableCollection();
-				disposables.push(collection);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');

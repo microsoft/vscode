@@ -254,7 +254,7 @@ registerNotebookContribution(NotebookFindWidget.id, NotebookFindWidget);
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.hideFind',
+			id: 'notebook.hideFind',
 			title: localize('notebookActions.hideFind', "Hide Find in Notebook"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
@@ -281,7 +281,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.find',
+			id: 'notebook.find',
 			title: localize('notebookActions.findInNotebook', "Find in Notebook"),
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,

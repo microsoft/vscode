@@ -7,6 +7,8 @@ import 'vs/css!./aria';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 
+// Use a max length since we are inserting the whole msg in the DOM and that can cause browsers to freeze for long messages #94233
+const MAX_MESSAGE_LENGTH = 20000;
 let ariaContainer: HTMLElement;
 let alertContainer: HTMLElement;
 let statusContainer: HTMLElement;
@@ -54,6 +56,9 @@ function insertMessage(target: HTMLElement, msg: string): void {
 	}
 
 	dom.clearNode(target);
+	if (msg.length > MAX_MESSAGE_LENGTH) {
+		msg = msg.substr(0, MAX_MESSAGE_LENGTH);
+	}
 	target.textContent = msg;
 
 	// See https://www.paciellogroup.com/blog/2012/06/html5-accessibility-chops-aria-rolealert-browser-support/

@@ -31,10 +31,10 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, 'test');
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 
-		await vscode.commands.executeCommand('workbench.notebook.code.insertCellBelow');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
 
-		await vscode.commands.executeCommand('workbench.notebook.code.insertCellAbove');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.notEqual(vscode.notebook.activeNotebookEditor!.selection, undefined);
 		assert.equal(activeCell!.source, '');
@@ -46,7 +46,7 @@ suite('notebook workflow', () => {
 	});
 
 	test('notebook cell actions', async function () {
-		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './second.vsctestnb'));
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
 		await waitFor(500);
@@ -55,11 +55,11 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 
 		// ---- insert cell below and focus ---- //
-		await vscode.commands.executeCommand('workbench.notebook.code.insertCellBelow');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
 
 		// ---- insert cell above and focus ---- //
-		await vscode.commands.executeCommand('workbench.notebook.code.insertCellAbove');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
 		let activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.notEqual(vscode.notebook.activeNotebookEditor!.selection, undefined);
 		assert.equal(activeCell!.source, '');
@@ -67,28 +67,28 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 
 		// ---- focus bottom ---- //
-		await vscode.commands.executeCommand('workbench.action.notebook.focusBottom');
+		await vscode.commands.executeCommand('notebook.focusBottom');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2);
 
 		// ---- focus top and then copy down ---- //
-		await vscode.commands.executeCommand('workbench.action.notebook.focusTop');
+		await vscode.commands.executeCommand('notebook.focusTop');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
 
-		await vscode.commands.executeCommand('workbench.notebook.cell.copyDown');
+		await vscode.commands.executeCommand('notebook.cell.copyDown');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 		assert.equal(activeCell?.source, 'test');
 
-		await vscode.commands.executeCommand('workbench.notebook.cell.delete');
+		await vscode.commands.executeCommand('notebook.cell.delete');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
 		assert.equal(activeCell?.source, '');
 
 		// ---- focus top and then copy up ---- //
-		await vscode.commands.executeCommand('workbench.action.notebook.focusTop');
-		await vscode.commands.executeCommand('workbench.notebook.cell.copyUp');
+		await vscode.commands.executeCommand('notebook.focusTop');
+		await vscode.commands.executeCommand('notebook.cell.copyUp');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 4);
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[0].source, 'test');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[1].source, 'test');
@@ -100,8 +100,8 @@ suite('notebook workflow', () => {
 
 		// ---- move up and down ---- //
 
-		await vscode.commands.executeCommand('workbench.notebook.cell.moveDown');
-		await vscode.commands.executeCommand('workbench.notebook.cell.moveDown');
+		await vscode.commands.executeCommand('notebook.cell.moveDown');
+		await vscode.commands.executeCommand('notebook.cell.moveDown');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2);
@@ -111,6 +111,77 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[3].source, '');
 
 		// ---- ---- //
+
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+
+	// test.only('document metadata is respected', async function () {
+	// 	const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+	// 	await waitFor(500);
+
+	// 	assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+	// 	const editor = vscode.notebook.activeNotebookEditor!;
+
+	// 	assert.equal(editor.document.cells.length, 1);
+	// 	editor.document.metadata.editable = false;
+	// 	await editor.edit(builder => builder.delete(0));
+	// 	assert.equal(editor.document.cells.length, 1, 'should not delete cell'); // Not editable, no effect
+	// 	await editor.edit(builder => builder.insert(0, 'test', 'python', vscode.CellKind.Code, [], undefined));
+	// 	assert.equal(editor.document.cells.length, 1, 'should not insert cell'); // Not editable, no effect
+
+	// 	editor.document.metadata.editable = true;
+	// 	await editor.edit(builder => builder.delete(0));
+	// 	assert.equal(editor.document.cells.length, 0, 'should delete cell'); // Editable, it worked
+	// 	await editor.edit(builder => builder.insert(0, 'test', 'python', vscode.CellKind.Code, [], undefined));
+	// 	assert.equal(editor.document.cells.length, 1, 'should insert cell'); // Editable, it worked
+
+	// 	// await vscode.commands.executeCommand('workbench.action.files.save');
+	// 	await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	// });
+
+	test('cell runnable metadata is respected', async () => {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		const editor = vscode.notebook.activeNotebookEditor!;
+
+		await vscode.commands.executeCommand('notebook.focusTop');
+		const cell = editor.document.cells[0];
+		assert.equal(cell.outputs.length, 0);
+		cell.metadata.runnable = false;
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		assert.equal(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
+
+		cell.metadata.runnable = true;
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+
+	test('document runnable metadata is respected', async () => {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		const editor = vscode.notebook.activeNotebookEditor!;
+
+		const cell = editor.document.cells[0];
+		assert.equal(cell.outputs.length, 0);
+		editor.document.metadata.runnable = false;
+		await vscode.commands.executeCommand('notebook.execute');
+		assert.equal(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
+
+		editor.document.metadata.runnable = true;
+		await vscode.commands.executeCommand('notebook.execute');
+		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});

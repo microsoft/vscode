@@ -18,33 +18,47 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
 
-const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.code.insertCellAbove';
-const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'workbench.notebook.code.insertCellBelow';
-const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.markdown.insertCellAbove';
-const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'workbench.notebook.markdown.insertCellBelow';
+// Notebook Commands
+const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
+const CANCEL_NOTEBOOK_COMMAND_ID = 'notebook.cancelExecution';
+const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
+const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
+const NOTEBOOK_REDO = 'notebook.redo';
+const NOTEBOOK_UNDO = 'notebook.undo';
+const NOTEBOOK_CURSOR_UP = 'notebook.cursorUp';
+const NOTEBOOK_CURSOR_DOWN = 'notebook.cursorDown';
+const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
 
-const EDIT_CELL_COMMAND_ID = 'workbench.notebook.cell.edit';
-const SAVE_CELL_COMMAND_ID = 'workbench.notebook.cell.save';
-const DELETE_CELL_COMMAND_ID = 'workbench.notebook.cell.delete';
+// Cell Commands
+const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
+const INSERT_CODE_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertCodeCellBelow';
+const INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertMarkdownCellAbove';
+const INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID = 'notebook.cell.insertMarkdownCellBelow';
+const CHANGE_CELL_TO_CODE_COMMAND_ID = 'notebook.cell.changeToCode';
+const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
 
-const MOVE_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.moveUp';
-const MOVE_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.moveDown';
-const COPY_CELL_COMMAND_ID = 'workbench.notebook.cell.copy';
-const CUT_CELL_COMMAND_ID = 'workbench.notebook.cell.cut';
-const PASTE_CELL_COMMAND_ID = 'workbench.notebook.cell.paste';
-const PASTE_CELL_ABOVE_COMMAND_ID = 'workbench.notebook.cell.pasteAbove';
-const COPY_CELL_UP_COMMAND_ID = 'workbench.notebook.cell.copyUp';
-const COPY_CELL_DOWN_COMMAND_ID = 'workbench.notebook.cell.copyDown';
+const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
+const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
+const SAVE_CELL_COMMAND_ID = 'notebook.cell.save';
+const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 
-const EXECUTE_CELL_COMMAND_ID = 'workbench.notebook.cell.execute';
-const CANCEL_CELL_COMMAND_ID = 'workbench.notebook.cell.cancelExecution';
-const EXECUTE_NOTEBOOK_COMMAND_ID = 'workbench.notebook.executeNotebook';
-const CANCEL_NOTEBOOK_COMMAND_ID = 'workbench.notebook.cancelExecution';
+const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
+const MOVE_CELL_DOWN_COMMAND_ID = 'notebook.cell.moveDown';
+const COPY_CELL_COMMAND_ID = 'notebook.cell.copy';
+const CUT_CELL_COMMAND_ID = 'notebook.cell.cut';
+const PASTE_CELL_COMMAND_ID = 'notebook.cell.paste';
+const PASTE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.pasteAbove';
+const COPY_CELL_UP_COMMAND_ID = 'notebook.cell.copyUp';
+const COPY_CELL_DOWN_COMMAND_ID = 'notebook.cell.copyDown';
 
-const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'workbench.action.notebook.clearCellOutputs';
-const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'workbench.action.notebook.clearAllCellsOutputs';
+const EXECUTE_CELL_COMMAND_ID = 'notebook.cell.execute';
+const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
+const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
+const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
+const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 
-const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
+
+export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
 const EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
 
@@ -85,7 +99,7 @@ registerAction2(class extends Action2 {
 			}
 		}
 
-		runCell(context);
+		return runCell(context);
 	}
 });
 
@@ -152,8 +166,9 @@ export class CancelCellAction extends MenuItemAction {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.executeNotebookCellSelectBelow',
+			id: EXECUTE_CELL_SELECT_BELOW,
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.Shift | KeyCode.Enter,
@@ -195,8 +210,9 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.executeNotebookCellInsertBelow',
+			id: EXECUTE_CELL_INSERT_BELOW,
 			title: localize('notebookActions.executeAndInsertBelow', "Execute Notebook Cell and Insert Below"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.Alt | KeyCode.Enter,
@@ -269,8 +285,9 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.quitNotebookEdit',
+			id: QUIT_EDIT_CELL_COMMAND_ID,
 			title: localize('notebookActions.quitEditing', "Quit Notebook Cell Editing"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
 				primary: KeyCode.Escape,
@@ -302,6 +319,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: EXECUTE_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.executeNotebook', "Execute Notebook (Run all cells)"),
+		category: NOTEBOOK_ACTIONS_CATEGORY,
 		icon: { id: 'codicon/run-all' }
 	},
 	order: -1,
@@ -313,6 +331,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: CANCEL_NOTEBOOK_COMMAND_ID,
 		title: localize('notebookActions.menu.cancelNotebook', "Stop Notebook Execution"),
+		category: NOTEBOOK_ACTIONS_CATEGORY,
 		icon: { id: 'codicon/primitive-square' }
 	},
 	order: -1,
@@ -325,6 +344,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: EXECUTE_CELL_COMMAND_ID,
 		title: localize('notebookActions.menu.execute', "Execute Notebook Cell"),
+		category: NOTEBOOK_ACTIONS_CATEGORY,
 		icon: { id: 'codicon/run' }
 	},
 	order: 0,
@@ -335,7 +355,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.changeCellToCode',
+			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
 			title: localize('notebookActions.changeCellToCode', "Change Cell to Code"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -355,7 +375,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.changeCellToMarkdown',
+			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
 			title: localize('notebookActions.changeCellToMarkdown', "Change Cell to Markdown"),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -414,27 +434,39 @@ async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor
 		return;
 	}
 
-	if (activeCell.cellKind === kind) {
-		return;
+	changeCellToKind(kind, { cell: activeCell, notebookEditor: editor });
+}
+
+export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string): Promise<ICellViewModel | null> {
+	const { cell, notebookEditor } = context;
+
+	if (cell.cellKind === kind) {
+		return null;
 	}
 
-	const text = activeCell.getText();
-	if (!editor.insertNotebookCell(activeCell, kind, 'below', text)) {
-		return;
+	const text = cell.getText();
+	if (!notebookEditor.insertNotebookCell(cell, kind, 'below', text)) {
+		return null;
 	}
 
-	const idx = editor.viewModel?.getCellIndex(activeCell);
+	const idx = notebookEditor.viewModel?.getCellIndex(cell);
 	if (typeof idx !== 'number') {
-		return;
+		return null;
 	}
 
-	const newCell = editor.viewModel?.viewCells[idx + 1];
+	const newCell = notebookEditor.viewModel?.viewCells[idx + 1];
 	if (!newCell) {
-		return;
+		return null;
 	}
 
-	editor.focusNotebookCell(newCell, activeCell.editState === CellEditState.Editing);
-	editor.deleteNotebookCell(activeCell);
+	if (language) {
+		newCell.model.language = language;
+	}
+
+	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing);
+	notebookEditor.deleteNotebookCell(cell);
+
+	return newCell;
 }
 
 export interface INotebookCellActionContext {
@@ -968,8 +1000,9 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.cursorDown',
-			title: 'Notebook Cursor Move Down',
+			id: NOTEBOOK_CURSOR_DOWN,
+			title: localize('cursorMoveDown', 'Cursor Move Down'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('top'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.DownArrow,
@@ -1007,8 +1040,9 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.cursorUp',
-			title: 'Notebook Cursor Move Up',
+			id: NOTEBOOK_CURSOR_UP,
+			title: localize('cursorMoveUp', 'Cursor Move Up'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.has(InputFocusedContextKey), EditorContextKeys.editorTextFocus, NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('bottom'), NOTEBOOK_EDITOR_CURSOR_BOUNDARY.notEqualsTo('none')),
 				primary: KeyCode.UpArrow,
@@ -1051,8 +1085,9 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.undo',
-			title: 'Notebook Undo',
+			id: NOTEBOOK_UNDO,
+			title: localize('undo', 'Undo'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_Z,
@@ -1082,8 +1117,9 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.redo',
-			title: 'Notebook Redo',
+			id: NOTEBOOK_REDO,
+			title: localize('redo', 'Redo'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z,
@@ -1113,8 +1149,9 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.focusTop',
-			title: 'Notebook Focus First Cell',
+			id: NOTEBOOK_FOCUS_TOP,
+			title: localize('focusFirstCell', 'Focus First Cell'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.Home,
@@ -1146,8 +1183,9 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.notebook.focusBottom',
-			title: 'Notebook Focus Last Cell',
+			id: NOTEBOOK_FOCUS_BOTTOM,
+			title: localize('focusLastCell', 'Focus Last Cell'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
 				primary: KeyMod.CtrlCmd | KeyCode.End,
@@ -1180,7 +1218,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
-			title: 'Notebook Clear Active Cell Outputs',
+			title: localize('clearActiveCellOutputs', 'Clear Active Cell Outputs'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: {
 				id: MenuId.NotebookCellTitle,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_RUNNABLE),
@@ -1212,7 +1251,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
-			title: 'Notebook Clear All Cells Outputs',
+			title: localize('clearAllCellsOutputs', 'Clear All Cells Outputs'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: {
 				id: MenuId.EditorTitle,
 				when: NOTEBOOK_EDITOR_FOCUSED,
@@ -1240,4 +1280,3 @@ registerAction2(class extends Action2 {
 		editor.viewModel.notebookDocument.clearAllCellOutputs();
 	}
 });
-

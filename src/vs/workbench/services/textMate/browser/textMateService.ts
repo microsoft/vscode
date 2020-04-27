@@ -13,6 +13,7 @@ import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/work
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export class TextMateService extends AbstractTextMateService {
 
@@ -23,13 +24,14 @@ export class TextMateService extends AbstractTextMateService {
 		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IProgressService progressService: IProgressService
 	) {
-		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService);
+		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService, progressService);
 	}
 
 	protected async _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer> {
-		const wasmPath = require.toUrl('vscode-oniguruma-wasm/../onig.wasm');
+		const wasmPath = require.toUrl('vscode-oniguruma/../onig.wasm');
 		const response = await fetch(wasmPath);
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.

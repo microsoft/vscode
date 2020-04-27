@@ -377,6 +377,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
 			default: false
 		},
+		'task.quickOpen.showAll': {
+			type: 'boolean',
+			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
+			default: false
+		},
 		'task.saveBeforeRun': {
 			markdownDescription: nls.localize(
 				'task.saveBeforeRun',

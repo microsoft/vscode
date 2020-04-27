@@ -513,10 +513,10 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.list!.layout();
 
 		// restore list state at last, it must be after list layout
-		this.restoreTextEditorViewState(viewState);
+		this.restoreListViewState(viewState);
 	}
 
-	private restoreTextEditorViewState(viewState: INotebookEditorViewState | undefined): void {
+	private restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
 		if (viewState?.scrollPosition !== undefined) {
 			this.list!.scrollTop = viewState!.scrollPosition.top;
 			this.list!.scrollLeft = viewState!.scrollPosition.left;
@@ -526,8 +526,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		const focusIdx = typeof viewState?.focus === 'number' ? viewState.focus : 0;
-		this.list!.setFocus([focusIdx]);
-		this.list!.setSelection([focusIdx]);
+		if (focusIdx < this.list!.length) {
+			this.list!.setFocus([focusIdx]);
+			this.list!.setSelection([focusIdx]);
+		} else if (this.list!.length > 0) {
+			this.list!.setFocus([0]);
+		}
 
 		if (viewState?.editorFocused) {
 			this.list?.focusView();
@@ -711,7 +715,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		const newLanguages = this.notebookViewModel!.languages;
-		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
+		const language = (type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown';
 		const index = cell ? this.notebookViewModel!.getCellIndex(cell) : 0;
 		const insertIndex = cell ?
 			(direction === 'above' ? index : index + 1) :
@@ -1018,7 +1022,7 @@ export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
 	dark: new Color(new RGBA(255, 255, 255, 0.06)),
-	light: new Color(new RGBA(228, 230, 241)),
+	light: new Color(new RGBA(237, 239, 249)),
 	hc: null
 }
 	, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
@@ -1106,7 +1110,7 @@ registerThemingParticipant((theme, collector) => {
 	// Cell Margin
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .markdown-cell-row .cell .cell-editor-part { margin-left: ${CELL_RUN_GUTTER}px; }`);
@@ -1114,4 +1118,5 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-insertion-indicator-top { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-focus-indicator { left: ${CELL_MARGIN}px; }`);
 });

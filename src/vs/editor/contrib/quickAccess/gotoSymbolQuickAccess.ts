@@ -257,7 +257,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 				// case we want to skip the container query altogether.
 				let skipContainerQuery = false;
 				if (symbolQuery !== query) {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, { ...query, values: undefined /* disable multi-query support */ }, filterPos, symbolLabelIconOffset);
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, { ...query, values: undefined /* disable multi-query support */ }, filterPos, symbolLabelIconOffset);
 					if (typeof symbolScore === 'number') {
 						skipContainerQuery = true; // since we consumed the query, skip any container matching
 					}
@@ -265,7 +265,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 				// Otherwise: score on the symbol query and match on the container later
 				if (typeof symbolScore !== 'number') {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, filterPos, symbolLabelIconOffset);
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, symbolQuery, filterPos, symbolLabelIconOffset);
 					if (typeof symbolScore !== 'number') {
 						continue;
 					}

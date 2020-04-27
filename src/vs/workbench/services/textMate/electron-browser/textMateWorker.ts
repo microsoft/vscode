@@ -141,12 +141,12 @@ export class TextMateWorker {
 		require.config({
 			paths: {
 				'vscode-textmate': '../node_modules/vscode-textmate/release/main',
-				'vscode-oniguruma-wasm': '../node_modules/vscode-oniguruma-wasm/release/main',
+				'vscode-oniguruma': '../node_modules/vscode-oniguruma/release/main',
 			}
 		});
 		const vscodeTextmate = await import('vscode-textmate');
-		const vscodeOniguruma = await import('vscode-oniguruma-wasm');
-		const wasmPath = require.toUrl('vscode-oniguruma-wasm/../onig.wasm');
+		const vscodeOniguruma = await import('vscode-oniguruma');
+		const wasmPath = require.toUrl('vscode-oniguruma/../onig.wasm');
 		const response = await fetch(wasmPath);
 		// Using the response directly only works if the server sets the MIME type 'application/wasm'.
 		// Otherwise, a TypeError is thrown when using the streaming compiler.

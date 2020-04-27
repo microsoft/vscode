@@ -112,6 +112,9 @@ declare module 'vscode' {
 		 * Get existing authentication sessions. Rejects if a provider with providerId is not
 		 * registered, or if the user does not consent to sharing authentication information with
 		 * the extension.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		 * provider
 		 */
 		export function getSessions(providerId: string, scopes: string[]): Thenable<readonly AuthenticationSession[]>;
 
@@ -119,6 +122,9 @@ declare module 'vscode' {
 		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
 		* providerId is not registered, or if the user does not consent to sharing authentication
 		* information with the extension.
+		* @param providerId The id of the provider to use
+		* @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		* provider
 		*/
 		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
 
@@ -720,17 +726,18 @@ declare module 'vscode' {
 	//#region debug: https://github.com/microsoft/vscode/issues/88230
 
 	/**
-	 * VS Code can call the `provideDebugConfigurations` method of a `DebugConfigurationProvider` in two situations (aka 'scopes'):
-	 * to provide the initial debug configurations for a newly created launch.json or to provide debug configurations dynamically based on context.
-	 * A scope can be used when registering a `DebugConfigurationProvider` with #debug.registerDebugConfigurationProvider.
+	 * A DebugConfigurationProviderTriggerKind specifies when the `provideDebugConfigurations` method of a `DebugConfigurationProvider` is triggered.
+	 * Currently there are two situations: to provide the initial debug configurations for a newly created launch.json or
+	 * to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+	 * A trigger kind is used when registering a `DebugConfigurationProvider` with #debug.registerDebugConfigurationProvider.
 	 */
-	export enum DebugConfigurationProviderScope {
+	export enum DebugConfigurationProviderTriggerKind {
 		/**
-		 * The 'initial' scope is used to ask for debug configurations to be copied into a newly created launch.json.
+		 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
 		 */
 		Initial = 1,
 		/**
-		 * The 'dynamic' scope is used to ask for additional dynamic debug configurations to be presented to the user (in addition to the static configurations from the launch.json).
+		 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
 		 */
 		Dynamic = 2
 	}
@@ -738,19 +745,19 @@ declare module 'vscode' {
 	export namespace debug {
 		/**
 		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specific debug type.
-		 * The optional [scope](#DebugConfigurationProviderScope) argument can be used to bind the `provideDebugConfigurations` method of the provider to a specific context (aka scope).
-		 * Currently two scopes are possible: with the value `Initial` (or if no scope argument is given) the `provideDebugConfigurations` method is used to find the initial debug configurations to be copied into a newly created launch.json.
-		 * With a scope value `Dynamic` the `provideDebugConfigurations` method is used to dynamically determine debug configurations to be presented to the user in addition to the static configurations from the launch.json.
-		 * Please note that the scope argument only applies to the `provideDebugConfigurations` method: so the `resolveDebugConfiguration` methods are not affected at all.
-		 * Registering a single provider with resolve methods for different scopes, results in the same resolve methods called multiple times.
+		 * The optional [triggerKind](#DebugConfigurationProviderTriggerKind) can be used to specify when the `provideDebugConfigurations` method of the provider is triggered.
+		 * Currently two trigger kinds are possible: with the value `Initial` (or if no trigger kind argument is given) the `provideDebugConfigurations` method is used to provide the initial debug configurations to be copied into a newly created launch.json.
+		 * With the trigger kind `Dynamic` the `provideDebugConfigurations` method is used to dynamically determine debug configurations to be presented to the user (in addition to the static configurations from the launch.json).
+		 * Please note that the `triggerKind` argument only applies to the `provideDebugConfigurations` method: so the `resolveDebugConfiguration` methods are not affected at all.
+		 * Registering a single provider with resolve methods for different trigger kinds, results in the same resolve methods called multiple times.
 		 * More than one provider can be registered for the same type.
 		 *
 		 * @param type The debug type for which the provider is registered.
 		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
-		 * @param scope The [scope](#DebugConfigurationProviderScope) for which the 'provideDebugConfiguration' method of the provider is registered.
+		 * @param triggerKind The [trigger](#DebugConfigurationProviderTrigger) for which the 'provideDebugConfiguration' method of the provider is registered.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, scope?: DebugConfigurationProviderScope): Disposable;
+		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, triggerKind?: DebugConfigurationProviderTriggerKind): Disposable;
 	}
 
 	// deprecated debug API
@@ -984,6 +991,15 @@ declare module 'vscode' {
 	 */
 	export interface EnvironmentVariableCollection {
 		/**
+		 * Whether the collection should be cached for the workspace and applied to the terminal
+		 * across window reloads. When true the collection will be active immediately such when the
+		 * window reloads. Additionally, this API will return the cached version if it exists. The
+		 * collection will be invalidated when the extension is uninstalled or when the collection
+		 * is cleared. Defaults to true.
+		 */
+		persistent: boolean;
+
+		/**
 		 * Replace an environment variable with a value.
 		 *
 		 * Note that an extension can only make a single change to any one variable, so this will
@@ -1026,26 +1042,14 @@ declare module 'vscode' {
 		 * Clears all mutators from this collection.
 		 */
 		clear(): void;
-
-		/**
-		 * Disposes the collection, if the collection was persisted it will no longer be retained
-		 * across reloads.
-		 */
-		dispose(): void;
 	}
 
-	export namespace window {
+	export interface ExtensionContext {
 		/**
-		 * Creates or returns the extension's environment variable collection for this workspace,
-		 * enabling changes to be applied to terminal environment variables.
-		 *
-		 * @param persistent Whether the collection should be cached for the workspace and applied
-		 * to the terminal across window reloads. When true the collection will be active
-		 * immediately such when the window reloads. Additionally, this API will return the cached
-		 * version if it exists. The collection will be invalidated when the extension is
-		 * uninstalled or when the collection is disposed. Defaults to false.
+		 * Gets the extension's environment variable collection for this workspace, enabling changes
+		 * to be applied to terminal environment variables.
 		 */
-		export function getEnvironmentVariableCollection(persistent?: boolean): EnvironmentVariableCollection;
+		readonly environmentVariableCollection: EnvironmentVariableCollection;
 	}
 
 	//#endregion
@@ -1239,11 +1243,17 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`CustomEditableDocument`](#CustomEditableDocument).
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`CustomDocument`](#CustomDocument).
 	 *
-	 * @see [`CustomEditableDocument.onDidChange`](#CustomEditableDocument.onDidChange).
+	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
 	 */
 	interface CustomDocumentEditEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: CustomDocument;
+
 		/**
 		 * Undo the edit operation.
 		 *
@@ -1267,17 +1277,20 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Event triggered by extensions to signal to VS Code that the content of a [`CustomEditableDocument`](#CustomEditableDocument)
+	 * Event triggered by extensions to signal to VS Code that the content of a [`CustomDocument`](#CustomDocument)
 	 * has changed.
 	 *
-	 * @see [`CustomEditableDocument.onDidChange`](#CustomEditableDocument.onDidChange).
+	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
 	 */
 	interface CustomDocumentContentChangeEvent {
-		// marker interface
+		/**
+		 * The document that the change is for.
+		 */
+		readonly document: CustomDocument;
 	}
 
 	/**
-	 * A backup for an [`CustomEditableDocument`](#CustomEditableDocument).
+	 * A backup for an [`CustomDocument`](#CustomDocument).
 	 */
 	interface CustomDocumentBackup {
 		/**
@@ -1285,7 +1298,7 @@ declare module 'vscode' {
 		 *
 		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
 		 */
-		readonly backupId: string;
+		readonly id: string;
 
 		/**
 		 * Delete the current backup.
@@ -1301,113 +1314,13 @@ declare module 'vscode' {
 	 */
 	interface CustomDocumentBackupContext {
 		/**
-		 * Uri of a workspace specific directory in which the extension can store backup data.
+		 * Suggested file location to write the new backup.
 		 *
-		 * The directory might not exist on disk and creation is up to the extension.
+		 * Note that your extension is free to ignore this and use its own strategy for backup.
+		 *
+		 * For editors for workspace resource, this destination will be in the workspace storage. The path may not
 		 */
-		readonly workspaceStorageUri: Uri | undefined;
-	}
-
-	/**
-	 * Represents an editable custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
-	 *
-	 * `CustomEditableDocument` is how custom editors hook into standard VS Code operations such as save and undo. The
-	 * document is also how custom editors notify VS Code that an edit has taken place.
-	 */
-	interface CustomEditableDocument extends CustomDocument {
-
-		/**
-		 * Signal that an edit has occurred inside a custom editor.
-		 *
-		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
-		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
-		 * define what an edit is and what data is stored on each edit.
-		 *
-		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
-		 * saves or reverts the file.
-		 *
-		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
-		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
-		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
-		 *
-		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
-		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
-		 * `save` or `revert` the file.
-		 *
-		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
-		 */
-		readonly onDidChange: Event<CustomDocumentEditEvent> | Event<CustomDocumentContentChangeEvent>;
-
-		/**
-		 * Save the resource for a custom editor.
-		 *
-		 * This method is invoked by VS Code when the user saves a custom editor. This can happen when the user
-		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
-		 *
-		 * To implement `save`, the implementer must persist the custom editor. This usually means writing the
-		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
-		 * no longer be marked as dirty.
-		 *
-		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
-		 *
-		 * @return Thenable signaling that saving has completed.
-		 */
-		save(cancellation: CancellationToken): Thenable<void>;
-
-		/**
-		 * Save the resource for a custom editor to a different location.
-		 *
-		 * This method is invoked by VS Code when the user triggers save as on a custom editor. The implementer must
-		 * persist the custom editor to `targetResource`.
-		 *
-		 * When the user accepts save as, the current editor is be replaced by an editor for the newly saved file.
-		 *
-		 * @param uri Location to save to.
-		 * @param cancellation Token that signals the save is no longer required.
-		 *
-		 * @return Thenable signaling that saving has completed.
-		 */
-		saveAs(uri: Uri, cancellation: CancellationToken): Thenable<void>;
-
-		/**
-		 * Revert a custom editor to its last saved state.
-		 *
-		 * This method is invoked by VS Code when the user triggers `File: Revert File` in a custom editor. (Note that
-		 * this is only used using VS Code's `File: Revert File` command and not on a `git revert` of the file).
-		 *
-		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
-		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
-		 * workspace.
-		 *
-		 * During `revert`, your extension should also clear any backups for the custom editor. Backups are only needed
-		 * when there is a difference between an editor's state in VS Code and its save state on disk.
-		 *
-		 * @param cancellation Token that signals the revert is no longer required.
-		 *
-		 * @return Thenable signaling that the change has completed.
-		 */
-		revert(cancellation: CancellationToken): Thenable<void>;
-
-		/**
-		 * Back up the resource in its current state.
-		 *
-		 * Backups are used for hot exit and to prevent data loss. Your `backup` method should persist the resource in
-		 * its current state, i.e. with the edits applied. Most commonly this means saving the resource to disk in
-		 * the `ExtensionContext.storagePath`. When VS Code reloads and your custom editor is opened for a resource,
-		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
-		 * extension should load the file contents from there instead of from the resource in the workspace.
-		 *
-		 * `backup` is triggered whenever an edit it made. Calls to `backup` are debounced so that if multiple edits are
-		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
-		 * `auto save` is enabled (since auto save already persists resource ).
-		 *
-		 * @param context Information that can be used to backup the document.
-		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
-		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
-		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
-		 * than cancelling it to ensure that VS Code has some valid backup.
-		 */
-		backup(context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+		readonly destination: Uri;
 	}
 
 	/**
@@ -1434,7 +1347,7 @@ declare module 'vscode' {
 	 *
 	 * @param T Type of the custom document returned by this provider.
 	 */
-	export interface CustomEditorProvider<T extends CustomDocument = CustomDocument> {
+	export interface CustomReadonlyEditorProvider<T extends CustomDocument = CustomDocument> {
 
 		/**
 		 * Create a new document for a given resource.
@@ -1470,17 +1383,118 @@ declare module 'vscode' {
 		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
 	}
 
+	export interface CustomEditorProvider<T extends CustomDocument = CustomDocument> extends CustomReadonlyEditorProvider<T> {
+		/**
+		 * Signal that an edit has occurred inside a custom editor.
+		 *
+		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
+		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
+		 * define what an edit is and what data is stored on each edit.
+		 *
+		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
+		 * saves or reverts the file.
+		 *
+		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
+		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
+		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
+		 *
+		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
+		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
+		 * `save` or `revert` the file.
+		 *
+		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
+		 */
+		readonly onDidChangeCustomDocument: Event<CustomDocumentEditEvent> | Event<CustomDocumentContentChangeEvent>;
+
+		/**
+		 * Save a custom document.
+		 *
+		 * This method is invoked by VS Code when the user saves a custom editor. This can happen when the user
+		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
+		 *
+		 * To implement `save`, the implementer must persist the custom editor. This usually means writing the
+		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
+		 * no longer be marked as dirty.
+		 *
+		 * @param document Document to save.
+		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
+		 *
+		 * @return Thenable signaling that saving has completed.
+		 */
+		saveCustomDocument(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+
+		/**
+		 * Save a custom document to a different location.
+		 *
+		 * This method is invoked by VS Code when the user triggers 'save as' on a custom editor. The implementer must
+		 * persist the custom editor to `destination`.
+		 *
+		 * When the user accepts save as, the current editor is be replaced by an editor for the newly saved file.
+		 *
+		 * @param document Document to save.
+		 * @param destination Location to save to.
+		 * @param cancellation Token that signals the save is no longer required.
+		 *
+		 * @return Thenable signaling that saving has completed.
+		 */
+		saveCustomDocumentAs(document: CustomDocument, destination: Uri, cancellation: CancellationToken): Thenable<void>;
+
+		/**
+		 * Revert a custom document to its last saved state.
+		 *
+		 * This method is invoked by VS Code when the user triggers `File: Revert File` in a custom editor. (Note that
+		 * this is only used using VS Code's `File: Revert File` command and not on a `git revert` of the file).
+		 *
+		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
+		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
+		 * workspace.
+		 *
+		 * During `revert`, your extension should also clear any backups for the custom editor. Backups are only needed
+		 * when there is a difference between an editor's state in VS Code and its save state on disk.
+		 *
+		 * @param document Document to revert.
+		 * @param cancellation Token that signals the revert is no longer required.
+		 *
+		 * @return Thenable signaling that the change has completed.
+		 */
+		revertCustomDocument(document: CustomDocument, cancellation: CancellationToken): Thenable<void>;
+
+		/**
+		 * Back up a dirty custom document.
+		 *
+		 * Backups are used for hot exit and to prevent data loss. Your `backup` method should persist the resource in
+		 * its current state, i.e. with the edits applied. Most commonly this means saving the resource to disk in
+		 * the `ExtensionContext.storagePath`. When VS Code reloads and your custom editor is opened for a resource,
+		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
+		 * extension should load the file contents from there instead of from the resource in the workspace.
+		 *
+		 * `backup` is triggered whenever an edit it made. Calls to `backup` are debounced so that if multiple edits are
+		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
+		 * `auto save` is enabled (since auto save already persists resource ).
+		 *
+		 * @param document Document to backup.
+		 * @param context Information that can be used to backup the document.
+		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
+		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
+		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
+		 * than cancelling it to ensure that VS Code has some valid backup.
+		 */
+		backupCustomDocument(document: CustomDocument, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+	}
+
 	namespace window {
 		/**
 		 * Temporary overload for `registerCustomEditorProvider` that takes a `CustomEditorProvider`.
 		 */
 		export function registerCustomEditorProvider2(
 			viewType: string,
-			provider: CustomEditorProvider,
+			provider: CustomReadonlyEditorProvider | CustomEditorProvider,
 			options?: {
 				readonly webviewOptions?: WebviewPanelOptions;
 
 				/**
+				 * Only applies to `CustomReadonlyEditorProvider | CustomEditorProvider`.
+				 *
 				 * Indicates that the provider allows multiple editor instances to be open at the same time for
 				 * the same resource.
 				 *

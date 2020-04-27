@@ -39,13 +39,13 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private readonly viewContainersRegistry: IViewContainersRegistry;
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
+	private readonly viewPaneContainers: Map<string, { viewPaneContainer: ViewPaneContainer, disposable: IDisposable }>;
 
 	private readonly _onDidChangeViewVisibility: Emitter<{ id: string, visible: boolean }> = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }> = this._onDidChangeViewVisibility.event;
 
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
 
-	private readonly viewPaneContainers: Map<string, ViewPaneContainer>;
 
 	constructor(
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
@@ -59,7 +59,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewDisposable = new Map<IViewDescriptor, IDisposable>();
 		this.visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
-		this.viewPaneContainers = new Map<string, ViewPaneContainer>();
+		this.viewPaneContainers = new Map<string, { viewPaneContainer: ViewPaneContainer, disposable: IDisposable }>();
 
 		this._register(toDisposable(() => {
 			this.viewDisposable.forEach(disposable => disposable.dispose());
@@ -68,16 +68,26 @@ export class ViewsService extends Disposable implements IViewsService {
 
 		this.viewDescriptorService.getViewContainers().forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewDescriptorService.getViewContainerLocation(viewContainer)!));
 		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => this.onDidRegisterViewContainer(viewContainer, viewContainerLocation)));
-		this._register(this.viewContainersRegistry.onDidDeregister(e => this.viewPaneContainers.delete(e.viewContainer.id)));
+		this._register(this.viewContainersRegistry.onDidDeregister(e => this.deregisterViewPaneContainer(e.viewContainer.id)));
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeContainerLocation(viewContainer, from, to)));
 	}
 
 	private registerViewPaneContainer(viewPaneContainer: ViewPaneContainer): void {
-		this._register(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
-		this._register(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
-		this._register(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
+		const disposable = new DisposableStore();
+		disposable.add(viewPaneContainer);
+		disposable.add(viewPaneContainer.onDidAddViews(views => this.onViewsAdded(views)));
+		disposable.add(viewPaneContainer.onDidChangeViewVisibility(view => this.onViewsVisibilityChanged(view, view.isBodyVisible())));
+		disposable.add(viewPaneContainer.onDidRemoveViews(views => this.onViewsRemoved(views)));
 
-		this.viewPaneContainers.set(viewPaneContainer.getId(), viewPaneContainer);
+		this.viewPaneContainers.set(viewPaneContainer.getId(), { viewPaneContainer, disposable });
+	}
+
+	private deregisterViewPaneContainer(id: string): void {
+		const viewPaneContainerItem = this.viewPaneContainers.get(id);
+		if (viewPaneContainerItem) {
+			viewPaneContainerItem.disposable.dispose();
+			this.viewPaneContainers.delete(id);
+		}
 	}
 
 	private onViewsAdded(added: IView[]): void {
@@ -139,6 +149,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						category: composite ? composite.name : localize('view category', "View"),
 						menu: [{
 							id: MenuId.CommandPalette,
+							when: viewDescriptor.when,
 						}],
 						keybinding: {
 							when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
@@ -233,16 +244,22 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	async openView<T extends IView>(id: string, focus: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
-		if (viewContainer) {
-			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			const compositeDescriptor = this.getComposite(viewContainer.id, location!);
-			if (compositeDescriptor) {
-				const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
-				if (paneComposite && paneComposite.openView) {
-					return paneComposite.openView(id, focus) as T;
-				} else if (focus) {
-					paneComposite?.focus();
-				}
+		if (!viewContainer) {
+			return null;
+		}
+
+		if (!this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === id)) {
+			return null;
+		}
+
+		const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+		const compositeDescriptor = this.getComposite(viewContainer.id, location!);
+		if (compositeDescriptor) {
+			const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
+			if (paneComposite && paneComposite.openView) {
+				return paneComposite.openView<T>(id, focus) || null;
+			} else if (focus) {
+				paneComposite?.focus();
 			}
 		}
 
@@ -295,7 +312,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			return undefined;
 		}
 
-		const view = this.viewPaneContainers.get(viewContainer.id)?.getView(id);
+		const view = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer?.getView(id);
 		return view?.getProgressIndicator();
 	}
 
@@ -307,6 +324,19 @@ export class ViewsService extends Disposable implements IViewsService {
 			case ViewContainerLocation.Sidebar:
 				if (viewContainer.ctorDescriptor) {
 					this.registerViewlet(viewContainer);
+				}
+				break;
+		}
+	}
+
+	private deregisterViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
+		switch (viewContainerLocation) {
+			case ViewContainerLocation.Panel:
+				this.deregisterPanel(viewContainer);
+				break;
+			case ViewContainerLocation.Sidebar:
+				if (viewContainer.ctorDescriptor) {
+					this.deregisterViewlet(viewContainer);
 				}
 				break;
 		}
@@ -340,6 +370,11 @@ export class ViewsService extends Disposable implements IViewsService {
 		));
 	}
 
+	private deregisterPanel(viewContainer: ViewContainer): void {
+		this.deregisterViewPaneContainer(viewContainer.id);
+		Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(viewContainer.id);
+	}
+
 	private registerViewlet(viewContainer: ViewContainer): void {
 		const that = this;
 		class PaneContainerViewlet extends Viewlet {
@@ -370,24 +405,8 @@ export class ViewsService extends Disposable implements IViewsService {
 		));
 	}
 
-	private deregisterViewletOrPanel(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
-		switch (viewContainerLocation) {
-			case ViewContainerLocation.Panel:
-				this.deregisterPanel(viewContainer);
-				break;
-			case ViewContainerLocation.Sidebar:
-				if (viewContainer.ctorDescriptor) {
-					this.deregisterViewlet(viewContainer);
-				}
-				break;
-		}
-	}
-
-	private deregisterPanel(viewContainer: ViewContainer): void {
-		Registry.as<PanelRegistry>(PanelExtensions.Panels).deregisterPanel(viewContainer.id);
-	}
-
 	private deregisterViewlet(viewContainer: ViewContainer): void {
+		this.deregisterViewPaneContainer(viewContainer.id);
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
 	}
 }
