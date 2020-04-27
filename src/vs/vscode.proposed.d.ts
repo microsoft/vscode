@@ -112,6 +112,9 @@ declare module 'vscode' {
 		 * Get existing authentication sessions. Rejects if a provider with providerId is not
 		 * registered, or if the user does not consent to sharing authentication information with
 		 * the extension.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		 * provider
 		 */
 		export function getSessions(providerId: string, scopes: string[]): Thenable<readonly AuthenticationSession[]>;
 
@@ -119,6 +122,9 @@ declare module 'vscode' {
 		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
 		* providerId is not registered, or if the user does not consent to sharing authentication
 		* information with the extension.
+		* @param providerId The id of the provider to use
+		* @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		* provider
 		*/
 		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
 
