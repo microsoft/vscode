@@ -149,6 +149,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						category: composite ? composite.name : localize('view category', "View"),
 						menu: [{
 							id: MenuId.CommandPalette,
+							when: viewDescriptor.when,
 						}],
 						keybinding: {
 							when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
