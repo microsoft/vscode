@@ -11,7 +11,7 @@ import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALL
 import { Thread, StackFrame, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -21,7 +21,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { createAndFillInContextMenuActions, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
@@ -40,6 +40,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const $ = dom.$;
 
@@ -171,8 +172,9 @@ export class CallStackView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
+		const sessionsRenderer = this.instantiationService.createInstance(SessionsRenderer, this.menu);
 		this.tree = <WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
-			new SessionsRenderer(this.menu, this.instantiationService, this.debugService),
+			sessionsRenderer,
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
@@ -382,7 +384,7 @@ export class CallStackView extends ViewPane {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -435,8 +437,11 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 
 	constructor(
 		private menu: IMenu,
-		private readonly instantiationService: IInstantiationService,
-		private readonly debugService: IDebugService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) { }
 
 	get templateId(): string {
@@ -450,7 +455,16 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		const state = dom.append(session, $('.state'));
 		const stateLabel = dom.append(state, $('span.label'));
 		const label = new HighlightedLabel(name, false);
-		const actionBar = new ActionBar(session);
+		const actionBar = new ActionBar(session, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					// We need the MenuEntryActionViewItem so the icon would get rendered
+					return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+				}
+
+				return undefined;
+			}
+		});
 
 		return { session, name, state, stateLabel, label, actionBar, elementDisposable: [] };
 	}
@@ -462,14 +476,14 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		const thread = session.getAllThreads().filter(t => t.stopped).pop();
 
 		const setActionBar = () => {
-			data.actionBar.clear();
 			const actions = getActions(this.instantiationService, element.element);
 
 			const primary: IAction[] = actions;
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
-			data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => g === 'inline'));
+			data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => /^inline/.test(g)));
 
+			data.actionBar.clear();
 			data.actionBar.push(primary, { icon: true, label: false });
 		};
 		setActionBar();
