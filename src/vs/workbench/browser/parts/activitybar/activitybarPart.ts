@@ -87,6 +87,9 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private content: HTMLElement | undefined;
 
+	private homeBar: ActionBar | undefined;
+	private homeBarContainer: HTMLElement | undefined;
+
 	private menuBar: CustomMenubarControl | undefined;
 	private menuBarContainer: HTMLElement | undefined;
 
@@ -353,20 +356,20 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	private createHomeBar(command: string, title: string, icon: Codicon): void {
-		const homeBarContainer = document.createElement('div');
-		homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
-		homeBarContainer.setAttribute('role', 'toolbar');
-		addClass(homeBarContainer, 'home-bar');
+		this.homeBarContainer = document.createElement('div');
+		this.homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
+		this.homeBarContainer.setAttribute('role', 'toolbar');
+		addClass(this.homeBarContainer, 'home-bar');
 
-		const homeActionBar = this._register(new ActionBar(homeBarContainer, {
+		this.homeBar = this._register(new ActionBar(this.homeBarContainer, {
 			orientation: ActionsOrientation.VERTICAL,
 			animated: false
 		}));
 
-		homeActionBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
+		this.homeBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
 
 		const content = assertIsDefined(this.content);
-		content.prepend(homeBarContainer);
+		content.prepend(this.homeBarContainer);
 	}
 
 	updateStyles(): void {
@@ -582,11 +585,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// Layout composite bar
 		let availableHeight = contentAreaSize.height;
-		if (this.globalActivityActionBar) {
-			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
+		if (this.homeBarContainer) {
+			availableHeight -= this.homeBarContainer.clientHeight;
 		}
 		if (this.menuBarContainer) {
 			availableHeight -= this.menuBarContainer.clientHeight;
+		}
+		if (this.globalActivityActionBar) {
+			availableHeight -= (this.globalActivityActionBar.viewItems.length * ActivitybarPart.ACTION_HEIGHT); // adjust height for global actions showing
 		}
 		this.compositeBar.layout(new Dimension(width, availableHeight));
 	}
