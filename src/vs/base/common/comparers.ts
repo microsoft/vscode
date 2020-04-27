@@ -42,10 +42,15 @@ const intlFileNameCollatorCaseInsensitive: IdleValue<{ collator: Intl.Collator }
 	};
 });
 
-// Export compareFileNamesNumeric by its old name too for backwards compatibility.
-// Also keeping a placeholder parameter for the same reason. The parameter was sometimes supplied but was
-// not used in the original code.
-export { compareFileNamesNumeric as compareFileNames };
+/**
+ * Compare two filenames using a fullname numeric locale-based comparison that
+ * falls back to a unicode comparison.
+ *
+ * @deprecated Use compareFileNamesNumeric instead.
+ */
+export function compareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
+	return compareFileNamesNumeric(one, other);
+}
 
 /** Compares filenames by name then extension, sorting numbers numerically instead of alphabetically. */
 export function compareFileNamesNumeric(one: string | null, other: string | null, placeholder = false): number {
@@ -190,8 +195,15 @@ export function noIntlCompareFileNames(one: string | null, other: string | null,
 	return 0;
 }
 
-// Export compareFileExtensionsNumeric by its old name too for backwards compatibility
-export { compareFileExtensionsNumeric as compareFileExtensions };
+/**
+ * Compare file names using a numeric locale-based comparison, first by extension, then by name.
+ * Falls back to a unicode comparison when extensions or names are otherwise equal.
+ *
+ * @deprecated Use compareFileExtensionsNumeric instead.
+ */
+export function compareFileExtensions(one: string | null, other: string | null): number {
+	return compareFileExtensionsNumeric(one, other);
+}
 
 /** Compares filenames by extenson, then by name. Sorts numbers numerically, not alphabetically. */
 export function compareFileExtensionsNumeric(one: string | null, other: string | null): number {
