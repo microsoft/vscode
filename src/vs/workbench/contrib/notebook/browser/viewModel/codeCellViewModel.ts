@@ -14,6 +14,7 @@ import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayout
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { BaseCellViewModel } from './baseCellViewModel';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Code = CellKind.Code;
@@ -48,6 +49,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._editorHeight;
 	}
 
+	private _hoveringOutput: boolean = false;
+	public get outputIsHovered(): boolean {
+		return this._hoveringOutput;
+	}
+
+	public set outputIsHovered(v: boolean) {
+		this._hoveringOutput = v;
+		this._onDidChangeState.fire({ outputIsHoveredChanged: true });
+	}
+
 	private _layoutInfo: CodeCellLayoutInfo;
 
 	get layoutInfo() {
@@ -59,6 +70,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		readonly notebookHandle: number,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
+		readonly eventDispatcher: NotebookEventDispatcher,
 		@ITextModelService private readonly _modelService: ITextModelService,
 	) {
 		super(viewType, notebookHandle, model, UUID.generateUuid());
@@ -74,7 +86,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorHeight: 0,
-			editorWidth: initialNotebookLayoutInfo ? initialNotebookLayoutInfo!.width - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0,
+			editorWidth: initialNotebookLayoutInfo ? initialNotebookLayoutInfo!.width - (CELL_MARGIN * 2) + CELL_RUN_GUTTER : 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
 			totalHeight: 0,
@@ -91,7 +103,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const indicatorHeight = this.editorHeight + CELL_STATUSBAR_HEIGHT + outputTotalHeight;
 		const outputContainerOffset = EDITOR_TOOLBAR_HEIGHT + EDITOR_TOP_MARGIN + this.editorHeight + CELL_STATUSBAR_HEIGHT;
 		const bottomToolbarOffset = totalHeight - BOTTOM_CELL_TOOLBAR_HEIGHT;
-		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : this._layoutInfo?.editorWidth;
+		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - (CELL_MARGIN * 2 + CELL_RUN_GUTTER) : this._layoutInfo?.editorWidth;
 		this._layoutInfo = {
 			fontInfo: state.font || null,
 			editorHeight: this._editorHeight,

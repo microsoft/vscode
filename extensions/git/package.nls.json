@@ -144,6 +144,8 @@
 	"config.untrackedChanges.separate": "Untracked changes appear separately in the Source Control view. They are also excluded from several actions.",
 	"config.untrackedChanges.hidden": "Untracked changes are hidden and excluded from several actions.",
 	"config.showCommitInput": "Controls whether to show the commit input in the Git source control panel.",
+	"config.terminalAuthentication": "Controls whether to enable VS Code to be the authentication handler for git processes spawned in the integrated terminal.",
+	"config.githubAuthentication": "Controls whether to enable automatic GitHub authentication for git commands within VS Code.",
 	"colors.added": "Color for added resources.",
 	"colors.modified": "Color for modified resources.",
 	"colors.deleted": "Color for deleted resources.",

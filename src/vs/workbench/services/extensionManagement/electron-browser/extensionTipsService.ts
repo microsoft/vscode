@@ -6,7 +6,8 @@
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionTipsService, IExecutableBasedExtensionTip, IWorkspaceTips } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, IExecutableBasedExtensionTip, IWorkspaceTips, IConfigBasedExtensionTip } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { URI } from 'vs/base/common/uri';
 
 class NativeExtensionTipsService implements IExtensionTipsService {
 
@@ -18,6 +19,10 @@ class NativeExtensionTipsService implements IExtensionTipsService {
 		@ISharedProcessService sharedProcessService: ISharedProcessService
 	) {
 		this.channel = sharedProcessService.getChannel('extensionTipsService');
+	}
+
+	getConfigBasedTips(folder: URI): Promise<IConfigBasedExtensionTip[]> {
+		return this.channel.call<IConfigBasedExtensionTip[]>('getConfigBasedTips', [folder]);
 	}
 
 	getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {

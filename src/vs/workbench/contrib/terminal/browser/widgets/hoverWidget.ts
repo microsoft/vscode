@@ -13,6 +13,7 @@ import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLin
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const $ = dom.$;
 
@@ -47,6 +48,13 @@ export class HoverWidget extends Widget {
 		// not be selected.
 		this.onmousedown(this._domNode, e => e.stopPropagation());
 
+		// Hide hover on escape
+		this.onkeydown(this._domNode, e => {
+			if (e.equals(KeyCode.Escape)) {
+				this.dispose();
+			}
+		});
+
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
 		const markdownElement = renderMarkdown(this._text, {
@@ -79,6 +87,8 @@ export class HoverWidget extends Widget {
 	private _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
 		const actionContainer = dom.append(parent, $('div.action-container'));
 		const action = dom.append(actionContainer, $('a.action'));
+		action.setAttribute('href', '#');
+		action.setAttribute('role', 'button');
 		if (actionOptions.iconClass) {
 			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
 		}
@@ -125,6 +135,10 @@ export class HoverWidget extends Widget {
 				this._domNode.style.top = `${anchor.y}px`;
 			}
 		}
+	}
+
+	public focus() {
+		this._domNode.focus();
 	}
 
 	public dispose(): void {

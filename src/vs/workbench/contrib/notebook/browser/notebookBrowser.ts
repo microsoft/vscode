@@ -17,19 +17,33 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { NOTEBOOK_EDITABLE_CONTEXT_KEY, NOTEBOOK_EXECUTING_KEY } from 'vs/workbench/contrib/notebook/browser/constants';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
+// Is Notebook
+export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', 'workbench.editor.notebook');
+
+// Editor keys
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
-export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>(NOTEBOOK_EDITABLE_CONTEXT_KEY, true);
-export const NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK = new RawContextKey<boolean>(NOTEBOOK_EXECUTING_KEY, false);
+export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
+export const NOTEBOOK_EDITOR_RUNNABLE = new RawContextKey<boolean>('notebookRunnable', true);
+export const NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK = new RawContextKey<boolean>('notebookExecuting', false);
+
+// Cell keys
+export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookViewType', undefined);
+export const NOTEBOOK_CELL_TYPE = new RawContextKey<string>('notebookCellType', undefined); // code, markdown
+export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEditable', false); // bool
+export const NOTEBOOK_CELL_RUNNABLE = new RawContextKey<boolean>('notebookCellRunnable', false); // bool
+export const NOTEBOOK_CELL_MARKDOWN_EDIT_MODE = new RawContextKey<boolean>('notebookCellMarkdownEditMode', false); // bool
+export const NOTEBOOK_CELL_RUN_STATE = new RawContextKey<string>('notebookCellRunState', undefined); // idle, running
+export const NOTEBOOK_CELL_HAS_OUTPUTS = new RawContextKey<boolean>('notebookCellHasOutputs', false); // bool
 
 export interface NotebookLayoutInfo {
 	width: number;
@@ -96,6 +110,21 @@ export interface INotebookEditorMouseEvent {
 	readonly target: CellViewModel;
 }
 
+export interface INotebookEditorContribution {
+	/**
+	 * Dispose this contribution.
+	 */
+	dispose(): void;
+	/**
+	 * Store view state.
+	 */
+	saveViewState?(): any;
+	/**
+	 * Restore view state.
+	 */
+	restoreViewState?(state: any): void;
+}
+
 export interface INotebookEditor {
 
 	/**
@@ -103,8 +132,14 @@ export interface INotebookEditor {
 	 */
 	viewModel: NotebookViewModel | undefined;
 
+	/**
+	 * An event emitted when the model of this editor has changed.
+	 * @event
+	 */
+	readonly onDidChangeModel: Event<void>;
 	isNotebookEditor: boolean;
 
+	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 
 	/**
@@ -129,27 +164,27 @@ export interface INotebookEditor {
 	/**
 	 * Insert a new cell around `cell`
 	 */
-	insertNotebookCell(cell: ICellViewModel, type: CellKind, direction: 'above' | 'below', initialText?: string): Promise<void>;
+	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction?: 'above' | 'below', initialText?: string): CellViewModel | null;
 
 	/**
 	 * Delete a cell from the notebook
 	 */
-	deleteNotebookCell(cell: ICellViewModel): void;
+	deleteNotebookCell(cell: ICellViewModel): Promise<boolean>;
 
 	/**
 	 * Move a cell up one spot
 	 */
-	moveCellUp(cell: ICellViewModel): void;
+	moveCellUp(cell: ICellViewModel): Promise<boolean>;
 
 	/**
 	 * Move a cell down one spot
 	 */
-	moveCellDown(cell: ICellViewModel): void;
+	moveCellDown(cell: ICellViewModel): Promise<boolean>;
 
 	/**
 	 * Move a cell above or below another cell
 	 */
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void>;
+	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean>;
 
 	/**
 	 * Switch the cell into editing mode.
@@ -278,18 +313,6 @@ export interface INotebookEditor {
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
 
 	/**
-	 * Show Find Widget.
-	 *
-	 * Currently Find is still part of the NotebookEditor core
-	 */
-	showFind(): void;
-
-	/**
-	 * Hide Find Widget
-	 */
-	hideFind(): void;
-
-	/**
 	 * An event emitted on a "mouseup".
 	 * @event
 	 */
@@ -300,6 +323,13 @@ export interface INotebookEditor {
 	 * @event
 	 */
 	onMouseDown(listener: (e: INotebookEditorMouseEvent) => void): IDisposable;
+
+	/**
+	 * Get a contribution of this editor.
+	 * @id Unique identifier of the contribution.
+	 * @return The contribution or null if contribution not found.
+	 */
+	getContribution<T extends INotebookEditorContribution>(id: string): T;
 }
 
 export interface INotebookCellList {
@@ -312,11 +342,13 @@ export interface INotebookCellList {
 	length: number;
 	rowsContainer: HTMLElement;
 	readonly onDidRemoveOutput: Event<IOutput>;
+	readonly onDidHideOutput: Event<IOutput>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	detachViewModel(): void;
 	attachViewModel(viewModel: NotebookViewModel): void;
 	clear(): void;
+	getViewIndex(cell: ICellViewModel): number | undefined;
 	focusElement(element: ICellViewModel): void;
 	selectElement(element: ICellViewModel): void;
 	getFocusedElements(): ICellViewModel[];
@@ -329,7 +361,7 @@ export interface INotebookCellList {
 	revealElementRangeInView(element: ICellViewModel, range: Range): void;
 	revealElementRangeInCenter(element: ICellViewModel, range: Range): void;
 	revealElementRangeInCenterIfOutsideViewport(element: ICellViewModel, range: Range): void;
-	setHiddenAreas(_ranges: ICellRange[]): boolean;
+	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;
 	focusView(): void;
 	getAbsoluteTopOfElement(element: ICellViewModel): number;
@@ -351,26 +383,27 @@ export interface INotebookCellList {
 export interface BaseCellRenderTemplate {
 	container: HTMLElement;
 	cellContainer: HTMLElement;
-	dragHandle: HTMLElement;
 	toolbar: ToolBar;
 	focusIndicator: HTMLElement;
 	insertionIndicatorTop: HTMLElement;
 	disposables: DisposableStore;
+	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
+	statusBarContainer: HTMLElement;
+	languageStatusBarItem: CellLanguageStatusBarItem;
 	toJSON: () => any;
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editingContainer: HTMLElement;
+	editorPart: HTMLElement;
+	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	statusBarContainer: HTMLElement;
 	cellRunStatusContainer: HTMLElement;
 	cellStatusMessageContainer: HTMLElement;
-	cellStatusPlaceholderContainer: HTMLElement;
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
@@ -444,6 +477,7 @@ export interface CellViewModelStateChangeEvent {
 	languageChanged?: boolean;
 	foldingStateChanged?: boolean;
 	contentChanged?: boolean;
+	outputIsHoveredChanged?: boolean;
 }
 
 /**

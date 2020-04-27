@@ -165,12 +165,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 		const draggedItemProvider = (): { type: 'view' | 'composite', id: string } => {
 			const activeViewlet = this.getActiveViewlet()!;
-			const visibleViews = activeViewlet.getViewPaneContainer().views.filter(v => v.isVisible());
-			if (visibleViews.length === 1) {
-				return { type: 'view', id: visibleViews[0].id };
-			} else {
-				return { type: 'composite', id: activeViewlet.getId() };
-			}
+			return { type: 'composite', id: activeViewlet.getId() };
 		};
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
@@ -331,7 +326,7 @@ class FocusSideBarAction extends Action {
 }
 
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(FocusSideBarAction, FocusSideBarAction.ID, FocusSideBarAction.LABEL, {
+registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusSideBarAction, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_0
 }), 'View: Focus into Side Bar', nls.localize('viewCategory', "View"));
 

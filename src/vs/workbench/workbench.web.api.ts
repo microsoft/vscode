@@ -119,7 +119,7 @@ interface IDefaultSideBarLayout {
 		}[];
 	} | {
 		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false | undefined;
+		active?: false;
 		order?: number;
 		visible?: boolean;
 		views?: {
@@ -140,15 +140,24 @@ interface IDefaultPanelLayout {
 	} | {
 		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
 		order?: number;
-		active?: false | undefined;
+		active?: false;
 		visible?: boolean;
 	})[];
+}
+
+interface IDefaultEditor {
+	path: string;
+	scheme: string;
+	active?: boolean;
 }
 
 interface IDefaultLayout {
 	sidebar?: IDefaultSideBarLayout;
 	panel?: IDefaultPanelLayout;
-	// editors?: IDefaultWorkspaceEditorsLayout
+	editors?: IDefaultEditor[];
+
+	// Internal only
+	firstRun?: boolean;
 }
 
 interface IWorkbenchConstructionOptions {
@@ -212,6 +221,16 @@ interface IWorkbenchConstructionOptions {
 	 * state like settings, keybindings, UI state (e.g. opened editors) and snippets.
 	 */
 	userDataProvider?: IFileSystemProvider;
+
+	/**
+	 * Session id of the current authenticated user
+	 */
+	readonly authenticationSessionId?: string;
+
+	/**
+	 * Enables user data sync by default and syncs into the current authenticated user account using the provided [authenticationSessionId}(#authenticationSessionId).
+	 */
+	readonly enableSyncByDefault?: boolean;
 
 	/**
 	 * The credentials provider to store and retrieve secrets.
@@ -399,7 +418,12 @@ export {
 	commands,
 
 	// Home Indicator
-	IHomeIndicator
+	IHomeIndicator,
+
+	// Default layout
+	IDefaultLayout,
+	IDefaultPanelLayout,
+	IDefaultSideBarLayout,
 };
 
 //#endregion

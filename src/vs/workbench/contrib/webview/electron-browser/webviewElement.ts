@@ -100,7 +100,7 @@ class WebviewSession extends Disposable {
 						return;
 					}
 				}
-				callback({ cancel: false, responseHeaders: details.responseHeaders });
+				callback({ cancel: false });
 			});
 		}));
 	}
@@ -215,7 +215,9 @@ class WebviewKeyboardHandler {
 	private setIgnoreMenuShortcutsForWebview(webview: WebviewTagHandle, value: boolean) {
 		if (this.shouldToggleMenuShortcutsEnablement) {
 			const contents = webview.webContents;
-			contents?.setIgnoreMenuShortcuts(value);
+			if (!contents?.isDestroyed()) {
+				contents?.setIgnoreMenuShortcuts(value);
+			}
 		}
 	}
 }

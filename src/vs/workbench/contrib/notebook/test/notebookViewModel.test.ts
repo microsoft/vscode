@@ -155,7 +155,7 @@ suite('NotebookViewModel', () => {
 				[['var e = 5;'], 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
 			],
 			(editor, viewModel) => {
-				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: true, cellEditable: true, hasExecutionOrder: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, hasExecutionOrder: true };
 
 				const defaults = {
 					runState: undefined,
@@ -193,7 +193,7 @@ suite('NotebookViewModel', () => {
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: false, cellEditable: true, hasExecutionOrder: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: true, hasExecutionOrder: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
@@ -225,7 +225,7 @@ suite('NotebookViewModel', () => {
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, cellRunnable: false, cellEditable: false, hasExecutionOrder: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: false, hasExecutionOrder: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,

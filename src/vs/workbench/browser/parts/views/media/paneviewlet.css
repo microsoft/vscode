@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-pane-view .split-view-view:first-of-type > .pane > .pane-header {
+	border-top: none !important; /* less clutter: do not show any border for first views in a pane */
+}
+
 .monaco-pane-view .split-view-view:first-of-type > .pane {
 	border-left: none !important; /* less clutter: do not show any border for first views in a pane */
 }

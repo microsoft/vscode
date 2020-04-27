@@ -397,6 +397,8 @@ export enum TitleEventSource {
 }
 
 export interface IWindowsShellHelper extends IDisposable {
+	readonly onShellNameChange: Event<string>;
+
 	getShellName(): Promise<string>;
 }
 
@@ -488,7 +490,8 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE_FIND_CASE_SENSITIVE = 'workbench.action.terminal.toggleFindCaseSensitive',
 	NAVIGATION_MODE_EXIT = 'workbench.action.terminal.navigationModeExit',
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
-	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious'
+	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious',
+	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

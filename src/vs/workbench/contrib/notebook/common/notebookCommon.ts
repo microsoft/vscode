@@ -38,6 +38,7 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 
 export const notebookDocumentMetadataDefaults: NotebookDocumentMetadata = {
 	editable: true,
+	runnable: true,
 	cellEditable: true,
 	cellRunnable: true,
 	hasExecutionOrder: true
@@ -45,6 +46,7 @@ export const notebookDocumentMetadataDefaults: NotebookDocumentMetadata = {
 
 export interface NotebookDocumentMetadata {
 	editable: boolean;
+	runnable: boolean;
 	cellEditable: boolean;
 	cellRunnable: boolean;
 	hasExecutionOrder: boolean;
@@ -177,7 +179,7 @@ export interface INotebookTextModel {
 	languages: string[];
 	cells: ICell[];
 	renderers: Set<number>;
-	onDidChangeCells?: Event<NotebookCellsSplice[]>;
+	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
 	onDidChangeContent: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
@@ -187,9 +189,9 @@ export interface IRenderOutput {
 	hasDynamicHeight: boolean;
 }
 
-export type NotebookCellsSplice = [
+export type NotebookCellTextModelSplice = [
 	number /* start */,
-	number /* delete count */,
+	number,
 	ICell[]
 ];
 
@@ -215,11 +217,38 @@ export type NotebookCellsSplice2 = [
 	IMainCellDto[]
 ];
 
-export interface NotebookCellsChangedEvent {
+export enum NotebookCellsChangeType {
+	ModelChange = 1,
+	Move = 2,
+	CellClearOutput = 3,
+	CellsClearOutput = 4
+}
+
+export interface NotebookCellsModelChangedEvent {
+	readonly kind: NotebookCellsChangeType.ModelChange;
 	readonly changes: NotebookCellsSplice2[];
 	readonly versionId: number;
 }
 
+export interface NotebookCellsModelMoveEvent {
+	readonly kind: NotebookCellsChangeType.Move;
+	readonly index: number;
+	readonly newIdx: number;
+	readonly versionId: number;
+}
+
+export interface NotebookCellClearOutputEvent {
+	readonly kind: NotebookCellsChangeType.CellClearOutput;
+	readonly index: number;
+	readonly versionId: number;
+}
+
+export interface NotebookCellsClearOutputEvent {
+	readonly kind: NotebookCellsChangeType.CellsClearOutput;
+	readonly versionId: number;
+}
+
+export type NotebookCellsChangedEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2

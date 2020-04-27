@@ -49,6 +49,7 @@ export interface INotebookService {
 	executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void>;
 
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
+	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
@@ -271,6 +272,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[] {
 		return this.notebookProviderInfoStore.getContributedNotebook(resource);
+	}
+
+	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined {
+		return this.notebookProviderInfoStore.get(viewType);
 	}
 
 	getContributedNotebookOutputRenderers(mimeType: string): readonly NotebookOutputRendererInfo[] {

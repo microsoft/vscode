@@ -519,7 +519,8 @@ export class TunnelPanel extends ViewPane {
 						} else {
 							return item.label;
 						}
-					}
+					},
+					getWidgetAriaLabel: () => nls.localize('tunnelView', "Tunnel View")
 				}
 			}
 		);
@@ -692,7 +693,7 @@ namespace LabelTunnelAction {
 			if (context instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
 				remoteExplorerService.setEditable(context, {
-					onFinish: (value, success) => {
+					onFinish: async (value, success) => {
 						if (success) {
 							remoteExplorerService.tunnelModel.name(context.remoteHost, context.remotePort, value);
 						}
@@ -751,7 +752,7 @@ namespace ForwardPortAction {
 				remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }).then(tunnel => error(notificationService, tunnel, arg.remoteHost, arg.remotePort));
 			} else {
 				remoteExplorerService.setEditable(undefined, {
-					onFinish: (value, success) => {
+					onFinish: async (value, success) => {
 						let parsed: { host: string, port: number } | undefined;
 						if (success && (parsed = parseInput(value))) {
 							remoteExplorerService.forward({ host: parsed.host, port: parsed.port }).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));

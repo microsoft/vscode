@@ -9,7 +9,7 @@ import { CellKind, IOutput, CellUri, NotebookCellMetadata } from 'vs/workbench/c
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
@@ -21,6 +21,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -50,6 +51,15 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	getDomNode(): HTMLElement {
+		throw new Error('Method not implemented.');
+	}
+
+	private _onDidChangeModel = new Emitter<void>();
+	onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+	getContribution<T extends INotebookEditorContribution>(id: string): T {
+		throw new Error('Method not implemented.');
+	}
 	onMouseUp(listener: (e: INotebookEditorMouseEvent) => void): IDisposable {
 		throw new Error('Method not implemented.');
 	}
@@ -95,15 +105,15 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCellDown(cell: CellViewModel): void {
+	moveCellDown(cell: CellViewModel): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCellUp(cell: CellViewModel): void {
+	moveCellUp(cell: CellViewModel): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 
-	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<void> {
+	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -150,11 +160,11 @@ export class TestNotebookEditor implements INotebookEditor {
 	revealInCenterIfOutsideViewport(cell: CellViewModel): void {
 		throw new Error('Method not implemented.');
 	}
-	async insertNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): Promise<void> {
-		// throw new Error('Method not implemented.');
+	insertNotebookCell(cell: CellViewModel, type: CellKind, direction: 'above' | 'below'): CellViewModel {
+		throw new Error('Method not implemented.');
 	}
-	deleteNotebookCell(cell: CellViewModel): void {
-		// throw new Error('Method not implemented.');
+	deleteNotebookCell(cell: CellViewModel): Promise<boolean> {
+		throw new Error('Method not implemented.');
 	}
 	editNotebookCell(cell: CellViewModel): void {
 		// throw new Error('Method not implemented.');
@@ -201,7 +211,7 @@ export class TestNotebookEditor implements INotebookEditor {
 // 	return createCellViewModel(instantiationService, viewType, notebookHandle, mockCell);
 // }
 
-export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel) => void) {
+export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
 	const notebook = new NotebookTextModel(0, viewType, URI.parse('test'));
@@ -212,7 +222,7 @@ export function withTestNotebook(instantiationService: IInstantiationService, bl
 	const eventDispatcher = new NotebookEventDispatcher();
 	const viewModel = new NotebookViewModel(viewType, model, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
 
-	callback(editor, viewModel);
+	callback(editor, viewModel, notebook);
 
 	viewModel.dispose();
 	return;

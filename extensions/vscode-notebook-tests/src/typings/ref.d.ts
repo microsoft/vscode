@@ -3,12 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-@keyframes codicon-spin {
-	100% {
-		transform:rotate(360deg);
-	}
-}
+/// <reference path="../../../../src/vs/vscode.d.ts" />
+/// <reference path="../../../../src/vs/vscode.proposed.d.ts" />
+/// <reference types='@types/node'/>
 
-.codicon-animation-spin {
-	animation: codicon-spin 1.5s linear infinite;
-}

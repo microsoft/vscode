@@ -19,6 +19,7 @@ import { values } from 'vs/base/common/map';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { flatten } from 'vs/base/common/arrays';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -28,12 +29,16 @@ type UserAccountEvent = {
 	id: string;
 };
 
-type AccountQuickPickItem = { label: string, authenticationProvider: IAuthenticationProvider, account?: IUserDataSyncAccount, detail?: string };
+type AccountQuickPickItem = { label: string, authenticationProvider: IAuthenticationProvider, account?: UserDataSyncAccount, detail?: string };
 
-export interface IUserDataSyncAccount {
-	readonly providerId: string;
-	readonly sessionId: string;
-	readonly accountName: string;
+export class UserDataSyncAccount {
+
+	constructor(readonly authenticationProviderId: string, private readonly session: AuthenticationSession) { }
+
+	get sessionId(): string { return this.session.id; }
+	get accountName(): string { return this.session.account.displayName; }
+	get accountId(): string { return this.session.account.id; }
+	getToken(): Thenable<string> { return this.session.getAccessToken(); }
 }
 
 export const enum AccountStatus {
@@ -44,6 +49,7 @@ export const enum AccountStatus {
 
 export class UserDataSyncAccounts extends Disposable {
 
+	private static DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY = 'userDataSyncAccount.donotUseWorkbenchSession';
 	private static CACHED_SESSION_STORAGE_KEY = 'userDataSyncAccountPreference';
 
 	_serviceBrand: any;
@@ -58,10 +64,10 @@ export class UserDataSyncAccounts extends Disposable {
 	private readonly _onDidSignOut = this._register(new Emitter<void>());
 	readonly onDidSignOut = this._onDidSignOut.event;
 
-	private _all: Map<string, IUserDataSyncAccount[]> = new Map<string, IUserDataSyncAccount[]>();
-	get all(): IUserDataSyncAccount[] { return flatten(values(this._all)); }
+	private _all: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
+	get all(): UserDataSyncAccount[] { return flatten(values(this._all)); }
 
-	get current(): IUserDataSyncAccount | undefined { return this.all.filter(({ sessionId }) => sessionId === this.currentSessionId)[0]; }
+	get current(): UserDataSyncAccount | undefined { return this.all.filter(account => this.isCurrentAccount(account))[0]; }
 
 	constructor(
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
@@ -74,21 +80,32 @@ export class UserDataSyncAccounts extends Disposable {
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.authenticationProviders = getUserDataSyncStore(productService, configurationService)?.authenticationProviders || [];
 		if (this.authenticationProviders.length) {
 			extensionService.whenInstalledExtensionsRegistered().then(() => {
-				if (this.authenticationProviders.some(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
+				if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
 					this.initialize();
 				} else {
-					this._register(Event.once(Event.filter(this.authenticationService.onDidRegisterAuthenticationProvider, providerId => this.isSupportedAuthenticationProviderId(providerId)))(() => this.initialize()));
+					const disposable = this.authenticationService.onDidRegisterAuthenticationProvider(() => {
+						if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
+							disposable.dispose();
+							this.initialize();
+						}
+					});
 				}
 			});
 		}
 	}
 
 	private async initialize(): Promise<void> {
+		if (this.currentSessionId === undefined && this.useWorkbenchSessionId && this.environmentService.options?.authenticationSessionId) {
+			this.currentSessionId = this.environmentService.options.authenticationSessionId;
+			this.useWorkbenchSessionId = false;
+		}
+
 		await this.update();
 
 		this._register(
@@ -97,7 +114,7 @@ export class UserDataSyncAccounts extends Disposable {
 					Event.any(
 						this.authenticationService.onDidRegisterAuthenticationProvider,
 						this.authenticationService.onDidUnregisterAuthenticationProvider,
-					), providerId => this.isSupportedAuthenticationProviderId(providerId)),
+					), authenticationProviderId => this.isSupportedAuthenticationProviderId(authenticationProviderId)),
 				this.authenticationTokenService.onTokenFailed)
 				(() => this.update()));
 
@@ -110,14 +127,55 @@ export class UserDataSyncAccounts extends Disposable {
 	}
 
 	private async update(): Promise<void> {
-		const allAccounts: Map<string, IUserDataSyncAccount[]> = new Map<string, IUserDataSyncAccount[]>();
+		const allAccounts: Map<string, UserDataSyncAccount[]> = new Map<string, UserDataSyncAccount[]>();
 		for (const { id } of this.authenticationProviders) {
 			const accounts = await this.getAccounts(id);
 			allAccounts.set(id, accounts);
 		}
 
 		this._all = allAccounts;
-		const status = this.current ? AccountStatus.Available : AccountStatus.Unavailable;
+		const current = this.current;
+		await this.updateToken(current);
+		this.updateStatus(current);
+	}
+
+	private async getAccounts(authenticationProviderId: string): Promise<UserDataSyncAccount[]> {
+		let accounts: Map<string, UserDataSyncAccount> = new Map<string, UserDataSyncAccount>();
+		let currentAccount: UserDataSyncAccount | null = null;
+
+		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
+		for (const session of sessions) {
+			const account: UserDataSyncAccount = new UserDataSyncAccount(authenticationProviderId, session);
+			accounts.set(account.accountName, account);
+			if (this.isCurrentAccount(account)) {
+				currentAccount = account;
+			}
+		}
+
+		if (currentAccount) {
+			// Always use current account if available
+			accounts.set(currentAccount.accountName, currentAccount);
+		}
+
+		return values(accounts);
+	}
+
+	private async updateToken(current: UserDataSyncAccount | undefined): Promise<void> {
+		let value: { token: string, authenticationProviderId: string } | undefined = undefined;
+		if (current) {
+			try {
+				const token = await current.getToken();
+				value = { token, authenticationProviderId: current.authenticationProviderId };
+			} catch (e) {
+				this.logService.error(e);
+			}
+		}
+		await this.authenticationTokenService.setToken(value);
+	}
+
+	private updateStatus(current: UserDataSyncAccount | undefined): void {
+		// set status
+		const status: AccountStatus = current ? AccountStatus.Available : AccountStatus.Unavailable;
 
 		if (this._status !== status) {
 			const previous = this._status;
@@ -132,38 +190,8 @@ export class UserDataSyncAccounts extends Disposable {
 		}
 	}
 
-	private async getAccounts(authenticationProviderId: string): Promise<IUserDataSyncAccount[]> {
-
-		let accounts: Map<string, IUserDataSyncAccount> = new Map<string, IUserDataSyncAccount>();
-		let currentAccount: IUserDataSyncAccount | null = null;
-		let currentSession: AuthenticationSession | undefined = undefined;
-
-		const sessions = await this.authenticationService.getSessions(authenticationProviderId) || [];
-		for (const session of sessions) {
-			const account: IUserDataSyncAccount = { providerId: authenticationProviderId, sessionId: session.id, accountName: session.accountName };
-			accounts.set(account.accountName, account);
-			if (session.id === this.currentSessionId) {
-				currentSession = session;
-				currentAccount = account;
-			}
-		}
-
-		if (currentAccount) {
-			// Always use current account if available
-			accounts.set(currentAccount.accountName, currentAccount);
-		}
-
-		// update access token
-		if (currentSession) {
-			try {
-				const token = await currentSession.getAccessToken();
-				await this.authenticationTokenService.setToken(token);
-			} catch (e) {
-				this.logService.error(e);
-			}
-		}
-
-		return values(accounts);
+	private isCurrentAccount(account: UserDataSyncAccount): boolean {
+		return account.sessionId === this.currentSessionId;
 	}
 
 	async pick(): Promise<boolean> {
@@ -171,20 +199,22 @@ export class UserDataSyncAccounts extends Disposable {
 		if (!result) {
 			return false;
 		}
-		let sessionId: string, accountName: string;
+		let sessionId: string, accountName: string, accountId: string;
 		if (isAuthenticationProvider(result)) {
 			const session = await this.authenticationService.login(result.id, result.scopes);
 			sessionId = session.id;
-			accountName = session.accountName;
+			accountName = session.account.displayName;
+			accountId = session.account.id;
 		} else {
 			sessionId = result.sessionId;
 			accountName = result.accountName;
+			accountId = result.accountId;
 		}
-		await this.switch(sessionId, accountName);
+		await this.switch(sessionId, accountName, accountId);
 		return true;
 	}
 
-	private async doPick(): Promise<IUserDataSyncAccount | IAuthenticationProvider | undefined> {
+	private async doPick(): Promise<UserDataSyncAccount | IAuthenticationProvider | undefined> {
 		if (this.authenticationProviders.length === 0) {
 			return undefined;
 		}
@@ -196,13 +226,13 @@ export class UserDataSyncAccounts extends Disposable {
 			return this.authenticationProviders[0];
 		}
 
-		return new Promise<IUserDataSyncAccount | IAuthenticationProvider | undefined>(async (c, e) => {
-			let result: IUserDataSyncAccount | IAuthenticationProvider | undefined;
+		return new Promise<UserDataSyncAccount | IAuthenticationProvider | undefined>(async (c, e) => {
+			let result: UserDataSyncAccount | IAuthenticationProvider | undefined;
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<AccountQuickPickItem>();
 			disposables.add(quickPick);
 
-			quickPick.title = localize('pick an account', "Preferences Sync: Pick an account");
+			quickPick.title = localize('pick an account', "Preferences Sync");
 			quickPick.ok = false;
 			quickPick.placeholder = localize('choose account placeholder', "Select an account");
 			quickPick.ignoreFocusOut = true;
@@ -222,34 +252,38 @@ export class UserDataSyncAccounts extends Disposable {
 
 	private createQuickpickItems(): (AccountQuickPickItem | IQuickPickSeparator)[] {
 		const quickPickItems: (AccountQuickPickItem | IQuickPickSeparator)[] = [];
-		const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.providerId ? -1 : 1);
+		const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
 		for (const authenticationProvider of authenticationProviders) {
 			const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
-			quickPickItems.push({ type: 'separator', label: providerName });
-			const accounts = this._all.get(authenticationProvider.id) || [];
-			for (const account of accounts) {
+			if (this.all.length) {
+				quickPickItems.push({ type: 'separator', label: providerName });
+				const accounts = this._all.get(authenticationProvider.id) || [];
+				for (const account of accounts) {
+					quickPickItems.push({
+						label: account.accountName,
+						detail: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used") : undefined,
+						account,
+						authenticationProvider,
+					});
+				}
 				quickPickItems.push({
-					label: account.accountName,
-					detail: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used") : undefined,
-					account,
+					label: accounts.length ? localize('use another', "Use another {0} Account", providerName) : localize('use provider account', "Use {0} Account", providerName),
 					authenticationProvider,
 				});
+			} else {
+				quickPickItems.push({ label: providerName, authenticationProvider });
 			}
-			quickPickItems.push({
-				label: accounts.length ? localize('choose another', "Use another {0} Account", providerName) : localize('choose', "Use {0} Account", providerName),
-				authenticationProvider,
-			});
 		}
 		return quickPickItems;
 	}
 
-	private async switch(sessionId: string, accountName: string): Promise<void> {
+	private async switch(sessionId: string, accountName: string, accountId: string): Promise<void> {
 		const currentAccount = this.current;
 		if (this.userDataSyncEnablementService.isEnabled() && (currentAccount && currentAccount.accountName !== accountName)) {
 			// accounts are switched while sync is enabled.
 		}
 		this.currentSessionId = sessionId;
-		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: sessionId.split('/')[1] });
+		this.telemetryService.publicLog2<UserAccountEvent, UserAccountClassification>('sync.userAccount', { id: accountId });
 		await this.update();
 	}
 
@@ -277,7 +311,7 @@ export class UserDataSyncAccounts extends Disposable {
 	}
 
 	private set currentSessionId(cachedSessionId: string | undefined) {
-		if (this.currentSessionId !== cachedSessionId) {
+		if (this._cachedCurrentSessionId !== cachedSessionId) {
 			this._cachedCurrentSessionId = cachedSessionId;
 			if (cachedSessionId === undefined) {
 				this.storageService.remove(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
@@ -289,5 +323,13 @@ export class UserDataSyncAccounts extends Disposable {
 
 	private getStoredCachedSessionId(): string | undefined {
 		return this.storageService.get(UserDataSyncAccounts.CACHED_SESSION_STORAGE_KEY, StorageScope.GLOBAL);
+	}
+
+	private get useWorkbenchSessionId(): boolean {
+		return !this.storageService.getBoolean(UserDataSyncAccounts.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, StorageScope.GLOBAL, false);
+	}
+
+	private set useWorkbenchSessionId(useWorkbenchSession: boolean) {
+		this.storageService.store(UserDataSyncAccounts.DONOT_USE_WORKBENCH_SESSION_STORAGE_KEY, !useWorkbenchSession, StorageScope.GLOBAL);
 	}
 }

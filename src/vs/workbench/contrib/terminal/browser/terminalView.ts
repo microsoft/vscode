@@ -310,6 +310,7 @@ export class TerminalViewPane extends ViewPane {
 				if (terminal) {
 					const preparedPath = await this._terminalService.preparePathForTerminalAsync(path, terminal.shellLaunchConfig.executable, terminal.title, terminal.shellType);
 					terminal.sendText(preparedPath, false);
+					terminal.focus();
 				}
 			}
 		}));

@@ -623,6 +623,10 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 
 	constructor(private readonly debugService: IDebugService) { }
 
+	getWidgetAriaLabel(): string {
+		return nls.localize('breakpoints', "Breakpoints");
+	}
+
 	getRole() {
 		return 'checkbox';
 	}

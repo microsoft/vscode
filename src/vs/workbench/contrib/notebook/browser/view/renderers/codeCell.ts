@@ -69,15 +69,21 @@ export class CodeCell extends Disposable {
 			}
 		});
 
+		const updateForFocusMode = () => {
+			if (viewCell.focusMode === CellFocusMode.Editor) {
+				templateData.editor?.focus();
+			}
+
+			DOM.toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
+		};
 		this._register(viewCell.onDidChangeState((e) => {
 			if (!e.focusModeChanged) {
 				return;
 			}
 
-			if (viewCell.focusMode === CellFocusMode.Editor) {
-				templateData.editor?.focus();
-			}
+			updateForFocusMode();
 		}));
+		updateForFocusMode();
 
 		templateData.editor?.updateOptions({ readOnly: !(viewCell.getEvaluatedMetadata(notebookEditor.viewModel?.metadata).editable) });
 		this._register(viewCell.onDidChangeState((e) => {
@@ -190,6 +196,17 @@ export class CodeCell extends Disposable {
 				this.relayoutCellDebounced();
 			}
 		}));
+
+		const updateFocusMode = () => viewCell.focusMode = templateData.editor!.hasWidgetFocus() ? CellFocusMode.Editor : CellFocusMode.Container;
+		this._register(templateData.editor!.onDidFocusEditorWidget(() => {
+			updateFocusMode();
+		}));
+
+		this._register(templateData.editor!.onDidBlurEditorWidget(() => {
+			updateFocusMode();
+		}));
+
+		updateFocusMode();
 
 		if (viewCell.outputs.length > 0) {
 			let layoutCache = false;
