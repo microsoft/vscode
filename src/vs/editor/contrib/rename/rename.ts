@@ -169,7 +169,7 @@ class RenameController implements IEditorContribution {
 			return undefined;
 		}
 		this._cts.dispose();
-		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, undefined, loc.range);
+		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range);
 
 		// do rename at location
 		let selection = this.editor.getSelection();

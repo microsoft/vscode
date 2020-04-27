@@ -93,19 +93,19 @@ export class EditorStateCancellationTokenSource extends EditorKeybindingCancella
 
 	private readonly _listener = new DisposableStore();
 
-	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, parent?: CancellationToken, readonly range?: IRange) {
+	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, range?: IRange, parent?: CancellationToken) {
 		super(editor, parent);
 
 		if (flags & CodeEditorStateFlag.Position) {
 			this._listener.add(editor.onDidChangeCursorPosition(e => {
-				if (!this.range || !Range.containsPosition(this.range, e.position)) {
+				if (!range || !Range.containsPosition(range, e.position)) {
 					this.cancel();
 				}
 			}));
 		}
 		if (flags & CodeEditorStateFlag.Selection) {
 			this._listener.add(editor.onDidChangeCursorSelection(e => {
-				if (!this.range || !Range.containsRange(this.range, e.selection)) {
+				if (!range || !Range.containsRange(range, e.selection)) {
 					this.cancel();
 				}
 			}));
