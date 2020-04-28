@@ -345,6 +345,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
+				sendErrorTelemetry: false,
 				commonProperties: resolveCommonProperties(product.commit, product.version, stateService.getItem('telemetry.machineId'), product.msftInternalDomains, installSourcePath),
 				piiPaths: extensionsPath ? [appRoot, extensionsPath] : [appRoot]
 			};

@@ -186,6 +186,14 @@ class TestTelemetryService implements ITelemetryService {
 		return this.publicLog(eventName, data as any);
 	}
 
+	public publicLogError(eventName: string, data?: any): Promise<void> {
+		return this.publicLog(eventName, data);
+	}
+
+	public publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>) {
+		return this.publicLogError(eventName, data as any);
+	}
+
 	public getTelemetryInfo(): Promise<ITelemetryInfo> {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',

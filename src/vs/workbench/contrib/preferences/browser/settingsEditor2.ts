@@ -1358,7 +1358,7 @@ export class SettingsEditor2 extends BaseEditor {
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('settingsEditor.searchError', { message }, true);
+						this.telemetryService.publicLogError('settingsEditor.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
