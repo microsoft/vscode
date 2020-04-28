@@ -69,6 +69,20 @@ suite('Replace Pattern test', () => {
 		testParse('hello$\'', [ReplacePiece.staticValue('hello$\'')]);
 	});
 
+	test('parse replace string with case modifiers', () => {
+		let testParse = (input: string, expectedPieces: ReplacePiece[]) => {
+			let actual = parseReplaceString(input);
+			let expected = new ReplacePattern(expectedPieces);
+			assert.deepEqual(actual, expected, 'Parsing ' + input);
+		};
+		// \U, \u => uppercase  \L, \l => lowercase  \E => cancel
+		testParse('hello\\U$1', [ReplacePiece.staticValue('hello'), ReplacePiece.caseOps(1, ['U'])]);
+		testParse('hello\\u$1', [ReplacePiece.staticValue('hello'), ReplacePiece.caseOps(1, ['u'])]);
+		testParse('hello\\L$1', [ReplacePiece.staticValue('hello'), ReplacePiece.caseOps(1, ['L'])]);
+		testParse('hello\\l$1', [ReplacePiece.staticValue('hello'), ReplacePiece.caseOps(1, ['l'])]);
+		testParse('hello$1\\u\\u\\U$4goodbye', [ReplacePiece.staticValue('hello'), ReplacePiece.matchIndex(1), ReplacePiece.caseOps(4, ['u', 'u', 'U']), ReplacePiece.staticValue('goodbye')]);
+	});
+
 	test('replace has JavaScript semantics', () => {
 		let testJSReplaceSemantics = (target: string, search: RegExp, replaceString: string, expected: string) => {
 			let replacePattern = parseReplaceString(replaceString);

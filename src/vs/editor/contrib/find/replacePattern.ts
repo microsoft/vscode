@@ -69,39 +69,37 @@ export class ReplacePattern {
 
 			// match index ReplacePiece
 			let match: string = ReplacePattern._substitute(piece.matchIndex, matches);
-			if (piece.caseOps != null && piece.caseOps.length > 0) {
+			if (piece.caseOps !== null && piece.caseOps.length > 0) {
 				let repl: string[] = [];
 				let lenOps: number = piece.caseOps.length;
 				let opIdx: number = 0;
 				for (let idx: number = 0, len: number = match.length; idx < len; idx++) {
 					if (opIdx >= lenOps) {
-						repl.push(match.slice(idx))
-						break
+						repl.push(match.slice(idx));
+						break;
 					}
 					switch (piece.caseOps[opIdx]) {
-						case "U":
+						case 'U':
 							repl.push(match[idx].toUpperCase());
 							break;
-						case "u":
+						case 'u':
 							repl.push(match[idx].toUpperCase());
 							opIdx++;
 							break;
-						case "L":
+						case 'L':
 							repl.push(match[idx].toLowerCase());
 							break;
-						case "l":
+						case 'l':
 							repl.push(match[idx].toLowerCase());
 							opIdx++;
 							break;
-						case "E":
-							opIdx++;
 						default:
-							repl.push(match[idx])
+							repl.push(match[idx]);
 					}
 				}
-				match = repl.join("")
+				match = repl.join('');
 			}
-			result += match
+			result += match;
 		}
 
 		return result;
@@ -199,10 +197,6 @@ class ReplacePieceBuilder {
 		this._lastCharIndex = toCharIndex;
 	}
 
-	public skipStatic(length: number): void {
-		this._lastCharIndex += length
-	}
-
 
 	public finalize(): ReplacePattern {
 		this.emitUnchanged(this._source.length);
@@ -219,10 +213,9 @@ class ReplacePieceBuilder {
  * \t			=> inserts a TAB
  * \\			=> inserts a "\".
  * \u			=> upper-cases one character in a match.
- * \U			=> upper-cases remaining characters in a match.
+ * \U			=> upper-cases ALL remaining characters in a match.
  * \l			=> lower-cases one character in a match.
- * \L			=> lower-cases remaining characters in a match.
- * \E			=> ends case manipulation.
+ * \L			=> lower-cases ALL remaining characters in a match.
  * $$			=> inserts a "$".
  * $& and $0	=> inserts the matched substring.
  * $n			=> Where n is a non-negative integer lesser than 100, inserts the nth parenthesized submatch string
@@ -270,31 +263,19 @@ export function parseReplaceString(replaceString: string): ReplacePattern {
 					result.emitUnchanged(i - 1);
 					result.emitStatic('\t', i + 1);
 					break;
-				// Case modification of string replacements, patterned after Boost.
+				// Case modification of string replacements, patterned after Boost, but only applied
+				// to the replacement text, not subsequent content.
 				case CharCode.u:
-					// \u => upper-cases one character
-					result.skipStatic(2);
-					caseOps.push("u")
-					break;
+				// \u => upper-cases one character.
 				case CharCode.U:
-					// \U => upper-cases all following characters until another escape.
-					result.skipStatic(2);
-					caseOps.push("U")
-					break;
+				// \U => upper-cases ALL following characters.
 				case CharCode.l:
-					// \l => lower-cases one character
-					result.skipStatic(2);
-					caseOps.push("l")
-					break;
+				// \l => lower-cases one character.
 				case CharCode.L:
-					// \L => lower-cases all following characters until another escape.
-					result.skipStatic(2);
-					caseOps.push("L")
-					break;
-				case CharCode.E:
-					// \E => cancels case conversions until another escape.
-					result.skipStatic(2);
-					caseOps.push("E")
+					// \L => lower-cases ALL following characters.
+					result.emitUnchanged(i - 1);
+					result.emitStatic('', i + 1);
+					caseOps.push(String.fromCharCode(nextChCode));
 					break;
 			}
 
