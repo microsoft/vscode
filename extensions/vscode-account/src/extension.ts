@@ -5,10 +5,7 @@
 
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
-import * as nls from 'vscode-nls';
 import TelemetryReporter from 'vscode-extension-telemetry';
-
-const localize = nls.loadMessageBundle();
 
 export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
 
