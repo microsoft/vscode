@@ -106,8 +106,6 @@ const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStat
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
-	private static TURNING_ON_SYNC_KEY = 'userDataSync.turningOn';
-
 	private readonly turningOnSyncContext: IContextKey<boolean>;
 	private readonly syncEnablementContext: IContextKey<boolean>;
 	private readonly syncStatusContext: IContextKey<string>;
@@ -152,13 +150,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (this.userDataSyncAccounts.authenticationProviders.length) {
 			registerConfiguration();
 
-			this.onDidChangeTurningOnState();
 			this.onDidChangeSyncStatus(this.userDataSyncService.status);
 			this.onDidChangeConflicts(this.userDataSyncService.conflicts);
 			this.onDidChangeEnablement(this.userDataSyncEnablementService.isEnabled());
 			this.onDidChangeAccountStatus(this.userDataSyncAccounts.status);
 
-			this._register(Event.filter(storageService.onDidChangeStorage, e => e.scope === StorageScope.GLOBAL && e.key === UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY)(() => this.onDidChangeTurningOnState()));
 			this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
 			this._register(userDataSyncService.onSyncErrors(errors => this.onSyncErrors(errors)));
@@ -175,11 +171,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => userDataAutoSyncService.triggerAutoSync([source])));
 			}
 		}
-	}
-
-	private onDidChangeTurningOnState(): void {
-		this.turningOnSyncContext.set(this.storageService.getBoolean(UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY, StorageScope.GLOBAL, false));
-		this.updateBadge();
 	}
 
 	private onDidChangeAccountStatus(status: AccountStatus): void {
@@ -402,7 +393,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			badge = new NumberBadge(1, () => localize('sign in to sync preferences', "Sign in to Sync Preferences"));
 		} else if (this.userDataSyncService.conflicts.length) {
 			badge = new NumberBadge(this.userDataSyncService.conflicts.reduce((result, syncResourceConflict) => { return result + syncResourceConflict.conflicts.length; }, 0), () => localize('has conflicts', "Preferences Sync: Conflicts Detected"));
-		} else if (this.turningOnSyncContext.get()) {
+		} else if (this.turningOnSync) {
 			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Preferences Sync..."));
 			clazz = 'progress-badge';
 			priority = 1;
@@ -413,8 +404,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
+	private get turningOnSync(): boolean {
+		return !!this.turningOnSyncContext.get();
+	}
+
+	private set turningOnSync(turningOn: boolean) {
+		this.turningOnSyncContext.set(turningOn);
+		this.updateBadge();
+	}
+
 	private async turnOn(): Promise<void> {
-		this.storageService.store(UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY, true, StorageScope.GLOBAL);
+		this.turningOnSync = true;
 		try {
 			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
 				if (!await this.askForConfirmation()) {
@@ -428,7 +428,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			await this.doTurnOn();
 			this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
 		} finally {
-			this.storageService.store(UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY, false, StorageScope.GLOBAL);
+			this.turningOnSync = false;
 		}
 	}
 
