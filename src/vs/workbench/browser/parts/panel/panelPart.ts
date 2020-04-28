@@ -222,14 +222,27 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	private onDidDeregisterPanel(panelId: string): void {
+	private async onDidDeregisterPanel(panelId: string): Promise<void> {
 		const disposable = this.panelDisposables.get(panelId);
 		if (disposable) {
 			disposable.dispose();
 		}
-
 		this.panelDisposables.delete(panelId);
-		this.hideComposite(panelId);
+
+		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Panel)
+			.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+
+		if (activeContainers.length) {
+			if (this.getActivePanel()?.getId() === panelId) {
+				const defaultPanelId = this.panelRegistry.getDefaultPanelId();
+				const containerToOpen = activeContainers.filter(c => c.id === defaultPanelId)[0] || activeContainers[0];
+				await this.openPanel(containerToOpen.id);
+			}
+		} else {
+			this.layoutService.setPanelHidden(true);
+		}
+
+		this.removeComposite(panelId);
 	}
 
 	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
@@ -287,6 +300,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			this.compositeBar.onDidChange(() => this.saveCachedPanels(), this, disposables);
 			this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e), this, disposables);
 		}));
+
 	}
 
 	private onDidRegisterExtensions(): void {
@@ -537,6 +551,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	protected removeComposite(compositeId: string): boolean {
 		if (super.removeComposite(compositeId)) {
+			this.compositeBar.removeComposite(compositeId);
 			const compositeActions = this.compositeActions.get(compositeId);
 			if (compositeActions) {
 				compositeActions.activityAction.dispose();
