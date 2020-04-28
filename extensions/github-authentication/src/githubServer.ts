@@ -89,16 +89,18 @@ export class GitHubServer {
 
 		vscode.env.openExternal(uri);
 
-		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state, AUTH_RELAY_SERVER, (code) => {
-			if (scopes === 'vso') {
-				const clientDetails = ClientRegistrar.getGitHubAppDetails();
-				return `/login/oauth/access_token?client_id=${clientDetails.id}&client_secret=${clientDetails.secret}&state=${state}&code=${code}&authServer=github.com`;
-			} else {
-				return `/token?code=${code}&state=${state}`;
-			}
-		})).finally(() => {
-			this.updateStatusBarItem(false);
-		});
+		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state,
+			scopes === 'vso' ? 'github.com' : AUTH_RELAY_SERVER,
+			(code) => {
+				if (scopes === 'vso') {
+					const clientDetails = ClientRegistrar.getGitHubAppDetails();
+					return `/login/oauth/access_token?client_id=${clientDetails.id}&client_secret=${clientDetails.secret}&state=${state}&code=${code}`;
+				} else {
+					return `/token?code=${code}&state=${state}`;
+				}
+			})).finally(() => {
+				this.updateStatusBarItem(false);
+			});
 	}
 
 	private updateStatusBarItem(isStart?: boolean) {
