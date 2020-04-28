@@ -238,7 +238,7 @@ export class BreakpointsView extends ViewPane {
 			if (this.list) {
 				const lastFocusIndex = this.list.getFocus()[0];
 				// Check whether focused element was removed
-				const needsRefocus = lastFocusIndex !== -1 && !this.elements.includes(this.list.element(lastFocusIndex));
+				const needsRefocus = lastFocusIndex && !this.elements.includes(this.list.element(lastFocusIndex));
 				this.list.splice(0, this.list.length, this.elements);
 				this.needsRefresh = false;
 				if (needsRefocus) {
