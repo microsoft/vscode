@@ -1219,7 +1219,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.FIND_NEXT,
-				title: localize('workbench.action.terminal.findNext', "Find next"),
+				title: localize('workbench.action.terminal.findNext', "Find Next"),
 				f1: true,
 				category,
 				keybinding: [
@@ -1245,7 +1245,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.FIND_PREVIOUS,
-				title: localize('workbench.action.terminal.findPrevious', "Find previous"),
+				title: localize('workbench.action.terminal.findPrevious', "Find Previous"),
 				f1: true,
 				category,
 				keybinding: [
