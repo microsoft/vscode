@@ -38,7 +38,7 @@ export class TypeScriptServerError extends Error {
 		/* __GDPR__FRAGMENT__
 			"TypeScriptRequestErrorProperties" : {
 				"command" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"sanitizedstack" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+				"sanitizedstack" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
 			}
 		*/
 		return {
