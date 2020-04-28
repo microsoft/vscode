@@ -5,7 +5,7 @@
 
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, IViewsService, TreeViewItemHandleArg, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
+import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, IViewsService, TreeViewItemHandleArg, IViewContainersRegistry, ViewContainerLocation, ViewContainer, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
@@ -17,8 +17,9 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
-import { pad } from 'vs/base/common/strings';
+import { pad, uppercaseFirstLetter } from 'vs/base/common/strings';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class UserDataSyncViewContribution implements IWorkbenchContribution {
 
@@ -39,9 +40,9 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				name: localize('sync preferences', "Preferences Sync"),
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					['workbench.view.sync', `workbench.view.sync.state`, { mergeViewWithContainerWhenSingleView: true }]
+					['workbench.view.sync', { mergeViewWithContainerWhenSingleView: true }]
 				),
-				icon: 'codicon-sync',
+				icon: Codicon.sync.classNames,
 				hideIfEmpty: true,
 			}, ViewContainerLocation.Sidebar);
 	}
@@ -88,8 +89,24 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
+				const viewDescriptorService = accessor.get(IViewDescriptorService);
+				const viewsService = accessor.get(IViewsService);
 				viewEnablementContext.set(true);
-				accessor.get(IViewsService).openView(id, true);
+				const viewContainer = viewDescriptorService.getViewContainerByViewId(id);
+				if (viewContainer) {
+					const model = viewDescriptorService.getViewContainerModel(viewContainer);
+					if (model.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === id)) {
+						viewsService.openView(id, true);
+					} else {
+						const disposable = model.onDidChangeActiveViewDescriptors(e => {
+							if (e.added.some(viewDescriptor => viewDescriptor.id === id)) {
+								disposable.dispose();
+								viewsService.openView(id, true);
+							}
+						});
+					}
+
+				}
 			}
 		});
 
@@ -101,7 +118,7 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.resolveResource`,
-					title: localize('workbench.actions.sync.resolveResourceRef', "Show full content"),
+					title: localize('workbench.actions.sync.resolveResourceRef', "Show raw JSON sync data"),
 					menu: {
 						id: MenuId.ViewItemContext,
 						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i))
@@ -156,7 +173,7 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 			return ALL_SYNC_RESOURCES.map(resourceKey => ({
 				handle: resourceKey,
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: resourceKey },
+				label: { label: uppercaseFirstLetter(resourceKey) },
 				themeIcon: FolderThemeIcon,
 			}));
 		}

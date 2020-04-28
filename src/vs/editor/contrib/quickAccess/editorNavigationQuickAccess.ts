@@ -52,6 +52,11 @@ export abstract class AbstractEditorNavigationQuickAccessProvider implements IQu
 
 		// Re-create whenever the active editor changes
 		disposables.add(this.onDidActiveTextEditorControlChange(() => {
+
+			// Clear old
+			pickerDisposable.value = undefined;
+
+			// Add new
 			pickerDisposable.value = this.doProvide(picker, token);
 		}));
 

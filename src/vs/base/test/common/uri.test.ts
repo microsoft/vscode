@@ -538,7 +538,7 @@ suite('URI', () => {
 		assert.throws(() => assertJoined(('foo:'), 'bazz', ''));
 		assert.throws(() => new URL('bazz', 'foo:'));
 		assert.throws(() => assertJoined(('foo://bar'), 'bazz', ''));
-		// assert.throws(() => new URL('bazz', 'foo://bar')); Edge,Chrome => throw, Safari => foo://bar/bazz, Firefox ??
+		// assert.throws(() => new URL('bazz', 'foo://bar')); Edge, Chrome => THROW, Firefox, Safari => foo://bar/bazz
 	});
 
 	test('URI#joinPath (posix)', function () {
@@ -549,8 +549,8 @@ suite('URI', () => {
 		assertJoined(('file://server/share/c:/'), '../../bazz', 'file://server/bazz', false);
 		assertJoined(('file://server/share/c:'), '../../bazz', 'file://server/bazz', false);
 
-		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/bazz');
-		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/bazz');
+		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/bazz', false); // Firefox -> Different, Edge, Chrome, Safar -> OK
+		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/bazz', false); // Firefox -> Different, Edge, Chrome, Safar -> OK
 	});
 
 	test('URI#joinPath (windows)', function () {
@@ -563,5 +563,8 @@ suite('URI', () => {
 
 		assertJoined(('file://ser/foo/'), '../../bazz', 'file://ser/foo/bazz', false);
 		assertJoined(('file://ser/foo'), '../../bazz', 'file://ser/foo/bazz', false);
+
+		//https://github.com/microsoft/vscode/issues/93831
+		assertJoined('file:///c:/foo/bar', './other/foo.img', 'file:///c:/foo/bar/other/foo.img', false);
 	});
 });

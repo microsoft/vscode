@@ -2,7 +2,7 @@ name: Needs More Info Closer
 on:
   schedule:
     - cron: 20 11 * * * # 4:20am Redmond
-# on: repository_dispatch
+  repository_dispatch:
 
 jobs:
   main:
@@ -11,11 +11,16 @@ jobs:
       - name: Checkout Actions
         uses: actions/checkout@v2
         with:
-          repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v16
+          repository: 'microsoft/vscode-github-triage-actions'
+          path: ./actions
+          ref: v9
+      - name: Install Actions
+        run: npm install --production --prefix ./actions
       - name: Run Needs More Info Closer
-        uses: ./needs-more-info-closer
+        uses: ./actions/needs-more-info-closer
         with:
           label: needs more info
-          days: 7
-          comment: "This issue has been closed automatically because it needs more information and has not had recent activity. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+          closeDays: 7
+          closeComment: "This issue has been closed automatically because it needs more information and has not had recent activity. See also our [issue reporting](https://aka.ms/vscodeissuereporting) guidelines.\n\nHappy Coding!"
+          pingDays: 160
+          pingComment: "Hey @${assignee}, this issue might need further attention.\n\n@${author}, you can help us out by closing this issue if the problem no longer exists, or adding more information."

@@ -3,10 +3,94 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as minimist from 'vscode-minimist';
+import * as minimist from 'minimist';
 import * as os from 'os';
 import { localize } from 'vs/nls';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+
+export interface ParsedArgs {
+	_: string[];
+	'folder-uri'?: string[]; // undefined or array of 1 or more
+	'file-uri'?: string[]; // undefined or array of 1 or more
+	_urls?: string[];
+	help?: boolean;
+	version?: boolean;
+	telemetry?: boolean;
+	status?: boolean;
+	wait?: boolean;
+	waitMarkerFilePath?: string;
+	diff?: boolean;
+	add?: boolean;
+	goto?: boolean;
+	'new-window'?: boolean;
+	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
+	'reuse-window'?: boolean;
+	locale?: string;
+	'user-data-dir'?: string;
+	'prof-startup'?: boolean;
+	'prof-startup-prefix'?: string;
+	'prof-append-timers'?: string;
+	verbose?: boolean;
+	trace?: boolean;
+	'trace-category-filter'?: string;
+	'trace-options'?: string;
+	log?: string;
+	logExtensionHostCommunication?: boolean;
+	'extensions-dir'?: string;
+	'extensions-download-dir'?: string;
+	'builtin-extensions-dir'?: string;
+	extensionDevelopmentPath?: string[]; // // undefined or array of 1 or more local paths or URIs
+	extensionTestsPath?: string; // either a local path or a URI
+	'inspect-extensions'?: string;
+	'inspect-brk-extensions'?: string;
+	debugId?: string;
+	'inspect-search'?: string;
+	'inspect-brk-search'?: string;
+	'disable-extensions'?: boolean;
+	'disable-extension'?: string[]; // undefined or array of 1 or more
+	'list-extensions'?: boolean;
+	'show-versions'?: boolean;
+	'category'?: string;
+	'state'?: string;
+	'install-extension'?: string[]; // undefined or array of 1 or more
+	'uninstall-extension'?: string[]; // undefined or array of 1 or more
+	'locate-extension'?: string[]; // undefined or array of 1 or more
+	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
+	'open-url'?: boolean;
+	'skip-getting-started'?: boolean;
+	'disable-restore-windows'?: boolean;
+	'disable-telemetry'?: boolean;
+	'export-default-configuration'?: string;
+	'install-source'?: string;
+	'disable-updates'?: boolean;
+	'disable-crash-reporter'?: boolean;
+	'skip-add-to-recently-opened'?: boolean;
+	'max-memory'?: string;
+	'file-write'?: boolean;
+	'file-chmod'?: boolean;
+	'driver'?: string;
+	'driver-verbose'?: boolean;
+	remote?: string;
+	'disable-user-env-probe'?: boolean;
+	'force'?: boolean;
+	'force-user-env'?: boolean;
+	'sync'?: 'on' | 'off';
+
+	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches
+	'no-proxy-server'?: boolean;
+	'proxy-server'?: string;
+	'proxy-bypass-list'?: string;
+	'proxy-pac-url'?: string;
+	'inspect'?: string;
+	'inspect-brk'?: string;
+	'js-flags'?: string;
+	'disable-gpu'?: boolean;
+	'nolazy'?: boolean;
+	'force-device-scale-factor'?: string;
+	'force-renderer-accessibility'?: boolean;
+	'ignore-certificate-errors'?: boolean;
+	'allow-insecure-localhost'?: boolean;
+	'log-net-log'?: string;
+}
 
 /**
  * This code is also used by standalone cli's. Avoid adding any other dependencies.
@@ -52,6 +136,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 
 	'extensions-dir': { type: 'string', deprecates: 'extensionHomePath', cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
+	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
@@ -89,8 +174,6 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'driver': { type: 'string' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-getting-started': { type: 'boolean' },
-	'skip-release-notes': { type: 'boolean' },
-	'sticky-quickinput': { type: 'boolean' },
 	'disable-restore-windows': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
@@ -119,8 +202,9 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'nolazy': { type: 'boolean' }, // node inspect
 	'force-device-scale-factor': { type: 'string' },
 	'force-renderer-accessibility': { type: 'boolean' },
-	'ignore-certificate-error': { type: 'boolean' },
+	'ignore-certificate-errors': { type: 'boolean' },
 	'allow-insecure-localhost': { type: 'boolean' },
+	'log-net-log': { type: 'string' },
 	'_urls': { type: 'string[]' },
 
 	_: { type: 'string[]' } // main arguments
@@ -166,23 +250,25 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const parsedArgs = minimist(args, { string, boolean, alias });
 
 	const cleanedArgs: any = {};
+	const remainingArgs: any = parsedArgs;
 
 	// https://github.com/microsoft/vscode/issues/58177
 	cleanedArgs._ = parsedArgs._.filter(arg => arg.length > 0);
-	delete parsedArgs._;
+
+	delete remainingArgs._;
 
 	for (let optionId in options) {
 		const o = options[optionId];
 		if (o.alias) {
-			delete parsedArgs[o.alias];
+			delete remainingArgs[o.alias];
 		}
 
-		let val = parsedArgs[optionId];
-		if (o.deprecates && parsedArgs.hasOwnProperty(o.deprecates)) {
+		let val = remainingArgs[optionId];
+		if (o.deprecates && remainingArgs.hasOwnProperty(o.deprecates)) {
 			if (!val) {
-				val = parsedArgs[o.deprecates];
+				val = remainingArgs[o.deprecates];
 			}
-			delete parsedArgs[o.deprecates];
+			delete remainingArgs[o.deprecates];
 		}
 
 		if (typeof val !== 'undefined') {
@@ -198,10 +284,10 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 			}
 			cleanedArgs[optionId] = val;
 		}
-		delete parsedArgs[optionId];
+		delete remainingArgs[optionId];
 	}
 
-	for (let key in parsedArgs) {
+	for (let key in remainingArgs) {
 		errorReporter.onUnknownOption(key);
 	}
 

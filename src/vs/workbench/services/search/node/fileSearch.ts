@@ -77,7 +77,7 @@ export class FileWalker {
 		this.errors = [];
 
 		if (this.filePattern) {
-			this.normalizedFilePatternLowercase = prepareQuery(this.filePattern).valueLowercase;
+			this.normalizedFilePatternLowercase = prepareQuery(this.filePattern).normalizedLowercase;
 		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);

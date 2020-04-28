@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { distinct, deepClone, assign } from 'vs/base/common/objects';
+import { distinct, deepClone } from 'vs/base/common/objects';
 import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
@@ -93,7 +93,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 
 		// Specific editor options always overwrite user configuration
 		const editorConfiguration: IEditorOptions = isObject(configuration.editor) ? deepClone(configuration.editor) : Object.create(null);
-		assign(editorConfiguration, this.getConfigurationOverrides());
+		Object.assign(editorConfiguration, this.getConfigurationOverrides());
 
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();

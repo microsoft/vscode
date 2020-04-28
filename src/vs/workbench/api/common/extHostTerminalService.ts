@@ -644,12 +644,18 @@ export abstract class BaseExtHostTerminalService implements IExtHostTerminalServ
 
 export class EnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
 	readonly map: Map<string, vscode.EnvironmentVariableMutator> = new Map();
+	private _persistent: boolean = true;
+
+	public get persistent(): boolean { return this._persistent; }
+	public set persistent(value: boolean) {
+		this._persistent = value;
+		this._onDidChangeCollection.fire();
+	}
 
 	protected readonly _onDidChangeCollection: Emitter<void> = new Emitter<void>();
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
 
 	constructor(
-		readonly persistent: boolean,
 		serialized?: ISerializableEnvironmentVariableCollection
 	) {
 		this.map = new Map(serialized);
@@ -684,7 +690,7 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 	}
 
 	forEach(callback: (variable: string, mutator: vscode.EnvironmentVariableMutator, collection: vscode.EnvironmentVariableCollection) => any, thisArg?: any): void {
-		this.map.forEach((value, key) => callback(key, value, this));
+		this.map.forEach((value, key) => callback.call(thisArg, key, value, this));
 	}
 
 	delete(variable: string): void {
@@ -693,11 +699,6 @@ export class EnvironmentVariableCollection implements vscode.EnvironmentVariable
 	}
 
 	clear(): void {
-		this.map.clear();
-		this._onDidChangeCollection.fire();
-	}
-
-	dispose(): void {
 		this.map.clear();
 		this._onDidChangeCollection.fire();
 	}

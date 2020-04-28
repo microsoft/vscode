@@ -1,19 +1,26 @@
 name: Test Plan Item Validator
 on:
   issues:
-    types: [edited, labeled]
+    types: [edited]
 
+# also edit in ./on-label.yml
 jobs:
   main:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
+        if: contains(github.event.issue.labels.*.name, 'testplan-item') || contains(github.event.issue.labels.*.name, 'invalid-testplan-item')
         uses: actions/checkout@v2
         with:
-          repository: 'JacksonKearl/vscode-triage-github-actions'
-          ref: v16
+          repository: 'microsoft/vscode-github-triage-actions'
+          path: ./actions
+          ref: v9
+      - name: Install Actions
+        if: contains(github.event.issue.labels.*.name, 'testplan-item') || contains(github.event.issue.labels.*.name, 'invalid-testplan-item')
+        run: npm install --production --prefix ./actions
       - name: Run Test Plan Item Validator
-        uses: ./test-plan-item-validator
+        if: contains(github.event.issue.labels.*.name, 'testplan-item') || contains(github.event.issue.labels.*.name, 'invalid-testplan-item')
+        uses: ./actions/test-plan-item-validator
         with:
           label: testplan-item
           invalidLabel: invalid-testplan-item

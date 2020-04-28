@@ -13,16 +13,16 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { AbstractEditorNavigationQuickAccessProvider, IEditorNavigationQuickAccessOptions } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
 import { DocumentSymbol, SymbolKinds, SymbolTag, DocumentSymbolProviderRegistry, SymbolKind } from 'vs/editor/common/modes';
 import { OutlineModel, OutlineElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { values } from 'vs/base/common/collections';
 import { trim, format } from 'vs/base/common/strings';
-import { fuzzyScore, FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { assign } from 'vs/base/common/objects';
-import { prepareQuery, IPreparedQuery } from 'vs/base/common/fuzzyScorer';
+import { prepareQuery, IPreparedQuery, pieceToQuery, scoreFuzzy2 } from 'vs/base/common/fuzzyScorer';
+import { IMatch } from 'vs/base/common/filters';
+import { Iterable } from 'vs/base/common/iterator';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IGotoSymbolQuickPickItem extends IQuickPickItem {
 	kind: SymbolKind,
 	index: number,
-	score?: FuzzyScore;
+	score?: number;
 	range?: { decoration: IRange, selection: IRange }
 }
 
@@ -36,15 +36,14 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	static SCOPE_PREFIX = ':';
 	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
 
-	constructor(protected options?: IGotoSymbolQuickAccessProviderOptions) {
-		super(assign(options, { canAcceptInBackground: true }));
+	constructor(protected options: IGotoSymbolQuickAccessProviderOptions = Object.create(null)) {
+		super(options);
+
+		options.canAcceptInBackground = true;
 	}
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		const label = localize('cannotRunGotoSymbolWithoutEditor', "Open a text editor first to go to a symbol.");
-
-		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
-		picker.ariaLabel = label;
+		this.provideLabelPick(picker, localize('cannotRunGotoSymbolWithoutEditor', "To go to a symbol, first open a text editor with symbol information."));
 
 		return Disposable.None;
 	}
@@ -70,9 +69,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const disposables = new DisposableStore();
 
 		// Generic pick for not having any symbol information
-		const label = localize('cannotRunGotoSymbolWithoutSymbolProvider', "Open a text editor with symbol information first to go to a symbol.");
-		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
-		picker.ariaLabel = label;
+		this.provideLabelPick(picker, localize('cannotRunGotoSymbolWithoutSymbolProvider', "The active text editor does not provide symbol information."));
 
 		// Wait for changes to the registry and see if eventually
 		// we do get symbols. This can happen if the picker is opened
@@ -89,6 +86,11 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		})();
 
 		return disposables;
+	}
+
+	private provideLabelPick(picker: IQuickPick<IGotoSymbolQuickPickItem>, label: string): void {
+		picker.items = [{ label, index: 0, kind: SymbolKind.String }];
+		picker.ariaLabel = label;
 	}
 
 	protected async waitForLanguageSymbolRegistry(model: ITextModel, disposables: DisposableStore): Promise<boolean> {
@@ -156,12 +158,21 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			// Collect symbol picks
 			picker.busy = true;
 			try {
-				const items = await this.doGetSymbolPicks(symbolsPromise, prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim()), undefined, picksCts.token);
+				const query = prepareQuery(picker.value.substr(AbstractGotoSymbolQuickAccessProvider.PREFIX.length).trim());
+				const items = await this.doGetSymbolPicks(symbolsPromise, query, undefined, picksCts.token);
 				if (token.isCancellationRequested) {
 					return;
 				}
 
-				picker.items = items;
+				if (items.length > 0) {
+					picker.items = items;
+				} else {
+					if (query.original.length > 0) {
+						this.provideLabelPick(picker, localize('noMatchingSymbolResults', "No matching editor symbols"));
+					} else {
+						this.provideLabelPick(picker, localize('noSymbolResults', "No editor symbols"));
+					}
+				}
 			} finally {
 				if (!token.isCancellationRequested) {
 					picker.busy = false;
@@ -204,12 +215,12 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		const filterBySymbolKind = query.original.indexOf(AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX) === 0;
 		const filterPos = filterBySymbolKind ? 1 : 0;
 
-		// Split between symbol and container query if separated by space
+		// Split between symbol and container query
 		let symbolQuery: IPreparedQuery;
 		let containerQuery: IPreparedQuery | undefined;
 		if (query.values && query.values.length > 1) {
-			symbolQuery = prepareQuery(query.values[0].original);
-			containerQuery = prepareQuery(query.values[1].original);
+			symbolQuery = pieceToQuery(query.values[0]); 		  // symbol: only match on first part
+			containerQuery = pieceToQuery(query.values.slice(1)); // container: match on all but first parts
 		} else {
 			symbolQuery = query;
 		}
@@ -220,69 +231,94 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 			const symbol = symbols[index];
 
 			const symbolLabel = trim(symbol.name);
+			const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
+			const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
 
 			let containerLabel = symbol.containerName;
-			if (containerLabel && options?.extraContainerLabel) {
-				containerLabel = `${options.extraContainerLabel} • ${containerLabel}`;
-			} else {
-				containerLabel = options?.extraContainerLabel;
-			}
-
-			let symbolScore: FuzzyScore | undefined = undefined;
-			let containerScore: FuzzyScore | undefined = undefined;
-
-			let includeSymbol = true;
-			if (query.original.length > filterPos) {
-
-				// Score by symbol
-				symbolScore = fuzzyScore(symbolQuery.original, symbolQuery.originalLowercase, filterPos, symbolLabel, symbolLabel.toLowerCase(), 0, true);
-				includeSymbol = !!symbolScore;
-
-				// Score by container if specified
-				if (includeSymbol && containerQuery) {
-					if (containerLabel) {
-						containerScore = fuzzyScore(containerQuery.original, containerQuery.originalLowercase, filterPos, containerLabel, containerLabel.toLowerCase(), 0, true);
-					}
-
-					includeSymbol = !!containerScore;
+			if (options?.extraContainerLabel) {
+				if (containerLabel) {
+					containerLabel = `${options.extraContainerLabel} • ${containerLabel}`;
+				} else {
+					containerLabel = options.extraContainerLabel;
 				}
 			}
 
-			if (includeSymbol) {
-				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
-				const deprecated = symbol.tags && symbol.tags.indexOf(SymbolTag.Deprecated) >= 0;
+			let symbolScore: number | undefined = undefined;
+			let symbolMatches: IMatch[] | undefined = undefined;
 
-				filteredSymbolPicks.push({
-					index,
-					kind: symbol.kind,
-					score: symbolScore,
-					label: symbolLabelWithIcon,
-					ariaLabel: localize('symbolsAriaLabel', "{0}, symbols picker", symbolLabel),
-					description: containerLabel,
-					highlights: deprecated ? undefined : {
-						label: createMatches(symbolScore, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */),
-						description: createMatches(containerScore)
-					},
-					range: {
-						selection: Range.collapseToStart(symbol.selectionRange),
-						decoration: symbol.range
-					},
-					strikethrough: deprecated,
-					buttons: (() => {
-						const openSideBySideDirection = this.options?.openSideBySideDirection();
-						if (!openSideBySideDirection) {
-							return undefined;
-						}
+			let containerScore: number | undefined = undefined;
+			let containerMatches: IMatch[] | undefined = undefined;
 
-						return [
-							{
-								iconClass: openSideBySideDirection === 'right' ? 'codicon-split-horizontal' : 'codicon-split-vertical',
-								tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
-							}
-						];
-					})()
-				});
+			if (query.original.length > filterPos) {
+
+				// First: try to score on the entire query, it is possible that
+				// the symbol matches perfectly (e.g. searching for "change log"
+				// can be a match on a markdown symbol "change log"). In that
+				// case we want to skip the container query altogether.
+				let skipContainerQuery = false;
+				if (symbolQuery !== query) {
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, { ...query, values: undefined /* disable multi-query support */ }, filterPos, symbolLabelIconOffset);
+					if (typeof symbolScore === 'number') {
+						skipContainerQuery = true; // since we consumed the query, skip any container matching
+					}
+				}
+
+				// Otherwise: score on the symbol query and match on the container later
+				if (typeof symbolScore !== 'number') {
+					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, symbolQuery, filterPos, symbolLabelIconOffset);
+					if (typeof symbolScore !== 'number') {
+						continue;
+					}
+				}
+
+				// Score by container if specified
+				if (!skipContainerQuery && containerQuery) {
+					if (containerLabel && containerQuery.original.length > 0) {
+						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
+					}
+
+					if (typeof containerScore !== 'number') {
+						continue;
+					}
+
+					if (typeof symbolScore === 'number') {
+						symbolScore += containerScore; // boost symbolScore by containerScore
+					}
+				}
 			}
+
+			const deprecated = symbol.tags && symbol.tags.indexOf(SymbolTag.Deprecated) >= 0;
+
+			filteredSymbolPicks.push({
+				index,
+				kind: symbol.kind,
+				score: symbolScore,
+				label: symbolLabelWithIcon,
+				ariaLabel: symbolLabel,
+				description: containerLabel,
+				highlights: deprecated ? undefined : {
+					label: symbolMatches,
+					description: containerMatches
+				},
+				range: {
+					selection: Range.collapseToStart(symbol.selectionRange),
+					decoration: symbol.range
+				},
+				strikethrough: deprecated,
+				buttons: (() => {
+					const openSideBySideDirection = this.options?.openSideBySideDirection();
+					if (!openSideBySideDirection) {
+						return undefined;
+					}
+
+					return [
+						{
+							iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
+							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
+						}
+					];
+				})()
+			});
 		}
 
 		// Sort by score
@@ -333,7 +369,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 			// Update last separator with number of symbols we found for kind
 			updateLastSeparatorLabel();
-		} else {
+		} else if (sortedFilteredSymbolPicks.length > 0) {
 			symbolPicks = [
 				{ label: localize('symbols', "symbols ({0})", filteredSymbolPicks.length), type: 'separator' },
 				...sortedFilteredSymbolPicks
@@ -344,16 +380,16 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 	}
 
 	private compareByScore(symbolA: IGotoSymbolQuickPickItem, symbolB: IGotoSymbolQuickPickItem): number {
-		if (!symbolA.score && symbolB.score) {
+		if (typeof symbolA.score !== 'number' && typeof symbolB.score === 'number') {
 			return 1;
-		} else if (symbolA.score && !symbolB.score) {
+		} else if (typeof symbolA.score === 'number' && typeof symbolB.score !== 'number') {
 			return -1;
 		}
 
-		if (symbolA.score && symbolB.score) {
-			if (symbolA.score[0] > symbolB.score[0]) {
+		if (typeof symbolA.score === 'number' && typeof symbolB.score === 'number') {
+			if (symbolA.score > symbolB.score) {
 				return -1;
-			} else if (symbolA.score[0] < symbolB.score[0]) {
+			} else if (symbolA.score < symbolB.score) {
 				return 1;
 			}
 		}
@@ -387,11 +423,11 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 		}
 
 		const roots: DocumentSymbol[] = [];
-		for (const child of values(model.children)) {
+		for (const child of model.children.values()) {
 			if (child instanceof OutlineElement) {
 				roots.push(child.symbol);
 			} else {
-				roots.push(...values(child.children).map(child => child.symbol));
+				roots.push(...Iterable.map(child.children.values(), child => child.symbol));
 			}
 		}
 

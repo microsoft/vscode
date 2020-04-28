@@ -183,7 +183,8 @@ export interface IQuickPickAcceptEvent {
 }
 
 export enum ItemActivation {
-	FIRST = 1,
+	NONE,
+	FIRST,
 	SECOND,
 	LAST
 }
@@ -326,7 +327,7 @@ export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 //region Fuzzy Scorer Support
 
-export type IQuickPickItemWithResource = IQuickPickItem & { resource: URI | undefined };
+export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 
 export class QuickPickItemScorerAccessor implements IItemAccessor<IQuickPickItemWithResource> {
 

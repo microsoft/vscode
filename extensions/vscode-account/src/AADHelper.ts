@@ -7,6 +7,7 @@ import * as crypto from 'crypto';
 import * as https from 'https';
 import * as querystring from 'querystring';
 import * as vscode from 'vscode';
+import * as uuid from 'uuid';
 import { createServer, startServer } from './authServer';
 import { keychain } from './keychain';
 import Logger from './logger';
@@ -24,7 +25,10 @@ interface IToken {
 	expiresAt?: number; // UNIX epoch time at which token will expire
 	refreshToken: string;
 
-	accountName: string;
+	account: {
+		displayName: string;
+		id: string;
+	};
 	scope: string;
 	sessionId: string; // The account id + the scope
 }
@@ -43,7 +47,10 @@ interface IStoredSession {
 	id: string;
 	refreshToken: string;
 	scope: string; // Scopes are alphabetized and joined with a space
-	accountName: string;
+	account: {
+		displayName: string,
+		id: string
+	}
 }
 
 function parseQuery(uri: vscode.Uri) {
@@ -75,13 +82,16 @@ export class AzureActiveDirectoryService {
 	}
 
 	public async initialize(): Promise<void> {
+		// TODO remove, temporary migration
+		await keychain.migrateToken();
+
 		const storedData = await keychain.getToken();
 		if (storedData) {
 			try {
 				const sessions = this.parseStoredData(storedData);
 				const refreshes = sessions.map(async session => {
 					try {
-						await this.refreshToken(session.refreshToken, session.scope);
+						await this.refreshToken(session.refreshToken, session.scope, session.id);
 					} catch (e) {
 						if (e.message === REFRESH_NETWORK_FAILURE) {
 							const didSucceedOnRetry = await this.handleRefreshNetworkError(session.id, session.refreshToken, session.scope);
@@ -89,7 +99,10 @@ export class AzureActiveDirectoryService {
 								this._tokens.push({
 									accessToken: undefined,
 									refreshToken: session.refreshToken,
-									accountName: session.accountName,
+									account: {
+										displayName: session.account.displayName,
+										id: session.account.id
+									},
 									scope: session.scope,
 									sessionId: session.id
 								});
@@ -121,7 +134,7 @@ export class AzureActiveDirectoryService {
 				id: token.sessionId,
 				refreshToken: token.refreshToken,
 				scope: token.scope,
-				accountName: token.accountName
+				account: token.account
 			};
 		});
 
@@ -140,7 +153,7 @@ export class AzureActiveDirectoryService {
 						const matchesExisting = this._tokens.some(token => token.scope === session.scope && token.sessionId === session.id);
 						if (!matchesExisting) {
 							try {
-								await this.refreshToken(session.refreshToken, session.scope);
+								await this.refreshToken(session.refreshToken, session.scope, session.id);
 								addedIds.push(session.id);
 							} catch (e) {
 								if (e.message === REFRESH_NETWORK_FAILURE) {
@@ -169,10 +182,17 @@ export class AzureActiveDirectoryService {
 				}
 			} else {
 				if (this._tokens.length) {
-					// Log out all
+					// Log out all, remove all local data
 					removedIds = this._tokens.map(token => token.sessionId);
-					Logger.info('No tokens in memory, clearing keychain data');
-					await this.clearSessions();
+					Logger.info('No stored keychain data, clearing local data');
+
+					this._tokens = [];
+
+					this._refreshTimeouts.forEach(timeout => {
+						clearTimeout(timeout);
+					});
+
+					this._refreshTimeouts.clear();
 				}
 			}
 
@@ -188,7 +208,7 @@ export class AzureActiveDirectoryService {
 		return {
 			id: token.sessionId,
 			getAccessToken: () => this.resolveAccessToken(token),
-			accountName: token.accountName,
+			account: token.account,
 			scopes: token.scope.split(' ')
 		};
 	}
@@ -203,7 +223,7 @@ export class AzureActiveDirectoryService {
 
 		try {
 			Logger.info('Token expired or unavailable, trying refresh');
-			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope);
+			const refreshedToken = await this.refreshToken(token.refreshToken, token.scope, token.sessionId);
 			if (refreshedToken.accessToken) {
 				return refreshedToken.accessToken;
 			} else {
@@ -212,8 +232,6 @@ export class AzureActiveDirectoryService {
 		} catch (e) {
 			throw new Error('Unavailable due to network problems');
 		}
-
-		throw new Error('Unavailable due to network problems');
 	}
 
 	private getTokenClaims(accessToken: string): ITokenClaims {
@@ -379,7 +397,7 @@ export class AzureActiveDirectoryService {
 		if (token.expiresIn) {
 			this._refreshTimeouts.set(token.sessionId, setTimeout(async () => {
 				try {
-					await this.refreshToken(token.refreshToken, scope);
+					await this.refreshToken(token.refreshToken, scope, token.sessionId);
 					onDidChangeSessions.fire({ added: [], removed: [], changed: [token.sessionId] });
 				} catch (e) {
 					if (e.message === REFRESH_NETWORK_FAILURE) {
@@ -398,7 +416,7 @@ export class AzureActiveDirectoryService {
 		this.storeTokenData();
 	}
 
-	private getTokenFromResponse(buffer: Buffer[], scope: string): IToken {
+	private getTokenFromResponse(buffer: Buffer[], scope: string, existingId?: string): IToken {
 		const json = JSON.parse(Buffer.concat(buffer).toString());
 		const claims = this.getTokenClaims(json.access_token);
 		return {
@@ -407,8 +425,11 @@ export class AzureActiveDirectoryService {
 			accessToken: json.access_token,
 			refreshToken: json.refresh_token,
 			scope,
-			sessionId: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${scope}`,
-			accountName: claims.email || claims.unique_name || 'user@example.com'
+			sessionId: existingId || `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}/${uuid()}`,
+			account: {
+				displayName: claims.email || claims.unique_name || 'user@example.com',
+				id: `${claims.tid}/${(claims.oid || (claims.altsecid || '' + claims.ipd || ''))}`
+			}
 		};
 	}
 
@@ -465,7 +486,7 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
-	private async refreshToken(refreshToken: string, scope: string): Promise<IToken> {
+	private async refreshToken(refreshToken: string, scope: string, sessionId: string): Promise<IToken> {
 		return new Promise((resolve: (value: IToken) => void, reject) => {
 			Logger.info('Refreshing token...');
 			const postData = querystring.stringify({
@@ -490,7 +511,7 @@ export class AzureActiveDirectoryService {
 				});
 				result.on('end', async () => {
 					if (result.statusCode === 200) {
-						const token = this.getTokenFromResponse(buffer, scope);
+						const token = this.getTokenFromResponse(buffer, scope, sessionId);
 						this.setToken(token, scope);
 						Logger.info('Token refresh success');
 						resolve(token);
@@ -533,7 +554,7 @@ export class AzureActiveDirectoryService {
 
 		this._refreshTimeouts.set(sessionId, setTimeout(async () => {
 			try {
-				await this.refreshToken(refreshToken, scope);
+				await this.refreshToken(refreshToken, scope, sessionId);
 			} catch (e) {
 				this.pollForReconnect(sessionId, refreshToken, scope);
 			}
@@ -561,7 +582,7 @@ export class AzureActiveDirectoryService {
 
 			this._refreshTimeouts.set(sessionId, setTimeout(async () => {
 				try {
-					await this.refreshToken(refreshToken, scope);
+					await this.refreshToken(refreshToken, scope, sessionId);
 					return resolve(true);
 				} catch (e) {
 					return resolve(await this.handleRefreshNetworkError(sessionId, refreshToken, scope, attempts + 1));

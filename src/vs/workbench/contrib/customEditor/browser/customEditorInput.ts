@@ -27,7 +27,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	public static typeId = 'workbench.editors.webviewEditor';
 
 	private readonly _editorResource: URI;
-	private readonly _fromBackup: boolean;
+	private _defaultDirtyState: boolean | undefined;
+
+	public readonly backupId: string | undefined;
 
 	get resource() { return this._editorResource; }
 
@@ -38,7 +40,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		viewType: string,
 		id: string,
 		webview: Lazy<WebviewOverlay>,
-		fromBackup: boolean,
+		options: { startsDirty?: boolean, backupId?: string },
 		@IWebviewService webviewService: IWebviewService,
 		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -51,7 +53,8 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	) {
 		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
-		this._fromBackup = fromBackup;
+		this._defaultDirtyState = options.startsDirty;
+		this.backupId = options.backupId;
 	}
 
 	public getTypeId(): string {
@@ -110,7 +113,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public isDirty(): boolean {
 		if (!this._modelRef) {
-			return this._fromBackup;
+			return !!this._defaultDirtyState;
 		}
 		return this._modelRef.object.isDirty();
 	}
@@ -128,8 +131,11 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		const modelRef = assertIsDefined(this._modelRef);
-		const target = await modelRef.object.saveCustomEditor(options);
+		if (!this._modelRef) {
+			return undefined;
+		}
+
+		const target = await this._modelRef.object.saveCustomEditor(options);
 		if (!target) {
 			return undefined; // save cancelled
 		}
@@ -142,7 +148,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		const modelRef = assertIsDefined(this._modelRef);
+		if (!this._modelRef) {
+			return undefined;
+		}
 
 		const dialogPath = this._editorResource;
 		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
@@ -150,7 +158,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return undefined; // save cancelled
 		}
 
-		if (!await modelRef.object.saveCustomEditorAs(this._editorResource, target, options)) {
+		if (!await this._modelRef.object.saveCustomEditorAs(this._editorResource, target, options)) {
 			return undefined;
 		}
 
@@ -158,11 +166,19 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		return assertIsDefined(this._modelRef).object.revert(options);
+		if (this._modelRef) {
+			return this._modelRef.object.revert(options);
+		}
+		this._defaultDirtyState = false;
+		this._onDidChangeDirty.fire();
 	}
 
 	public async resolve(): Promise<null> {
 		await super.resolve();
+
+		if (this.isDisposed()) {
+			return null;
+		}
 
 		if (!this._modelRef) {
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
@@ -177,31 +193,30 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+		// See if we can keep using the same custom editor provider
 		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
 		if (editorInfo?.matches(newResource)) {
-			// We can keep using the same custom editor provider
-
-			if (!this._moveHandler) {
-				return {
-					editor: this.customEditorService.createInput(newResource, this.viewType, group),
-				};
-			}
-
-			this._moveHandler(newResource);
-			const newEditor = this.instantiationService.createInstance(CustomEditorInput,
-				newResource,
-				this.viewType,
-				this.id,
-				new Lazy(() => undefined!), // this webview is replaced in the transfer call
-				this._fromBackup,
-			);
-			this.transfer(newEditor);
-			newEditor.updateGroup(group);
-			return { editor: newEditor };
-		} else {
-			// const possible = this.customEditorService.getContributedCustomEditors(newResource);
-			return { editor: this.editorService.createEditorInput({ resource: newResource, forceFile: true }) };
+			return { editor: this.doMove(group, newResource) };
 		}
+
+		return { editor: this.editorService.createEditorInput({ resource: newResource, forceFile: true }) };
+	}
+
+	private doMove(group: GroupIdentifier, newResource: URI): IEditorInput {
+		if (!this._moveHandler) {
+			return this.customEditorService.createInput(newResource, this.viewType, group);
+		}
+
+		this._moveHandler(newResource);
+		const newEditor = this.instantiationService.createInstance(CustomEditorInput,
+			newResource,
+			this.viewType,
+			this.id,
+			new Lazy(() => undefined!),
+			{ startsDirty: this._defaultDirtyState, backupId: this.backupId }); // this webview is replaced in the transfer call
+		this.transfer(newEditor);
+		newEditor.updateGroup(group);
+		return newEditor;
 	}
 
 	public undo(): void {

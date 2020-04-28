@@ -39,20 +39,22 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
 		}
 
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const orderedScopes = scopes.sort().join(' ');
+
 		return (await provider.getSessions())
 			.filter(session => session.scopes.sort().join(' ') === orderedScopes)
 			.map(session => {
 				return {
 					id: session.id,
-					accountName: session.accountName,
+					account: session.account,
 					scopes: session.scopes,
 					getAccessToken: async () => {
 						const isAllowed = await this._proxy.$getSessionsPrompt(
 							provider.id,
-							session.accountName,
+							session.account.displayName,
 							provider.displayName,
-							ExtensionIdentifier.toKey(requestingExtension.identifier),
+							extensionId,
 							requestingExtension.displayName || requestingExtension.name);
 
 						if (!isAllowed) {
@@ -77,9 +79,36 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			throw new Error('User did not consent to login.');
 		}
 
-		const newSession = await provider.login(scopes);
-		await this._proxy.$setTrustedExtension(provider.id, newSession.accountName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
-		return newSession;
+		const session = await provider.login(scopes);
+		await this._proxy.$setTrustedExtension(provider.id, session.account.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
+		return {
+			id: session.id,
+			account: session.account,
+			scopes: session.scopes,
+			getAccessToken: async () => {
+				const isAllowed = await this._proxy.$getSessionsPrompt(
+					provider.id,
+					session.account.displayName,
+					provider.displayName,
+					ExtensionIdentifier.toKey(requestingExtension.identifier),
+					requestingExtension.displayName || requestingExtension.name);
+
+				if (!isAllowed) {
+					throw new Error('User did not consent to token access.');
+				}
+
+				return session.getAccessToken();
+			}
+		};
+	}
+
+	async logout(providerId: string, sessionId: string): Promise<void> {
+		const provider = this._authenticationProviders.get(providerId);
+		if (!provider) {
+			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
+		}
+
+		return provider.logout(sessionId);
 	}
 
 	registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {

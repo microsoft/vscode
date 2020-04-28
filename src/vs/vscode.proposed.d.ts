@@ -21,7 +21,10 @@ declare module 'vscode' {
 	export interface AuthenticationSession {
 		id: string;
 		getAccessToken(): Thenable<string>;
-		accountName: string;
+		account: {
+			displayName: string;
+			id: string;
+		};
 		scopes: string[]
 	}
 
@@ -109,6 +112,9 @@ declare module 'vscode' {
 		 * Get existing authentication sessions. Rejects if a provider with providerId is not
 		 * registered, or if the user does not consent to sharing authentication information with
 		 * the extension.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		 * provider
 		 */
 		export function getSessions(providerId: string, scopes: string[]): Thenable<readonly AuthenticationSession[]>;
 
@@ -116,8 +122,19 @@ declare module 'vscode' {
 		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
 		* providerId is not registered, or if the user does not consent to sharing authentication
 		* information with the extension.
+		* @param providerId The id of the provider to use
+		* @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		* provider
 		*/
 		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
+
+		/**
+		* Logout of a specific session.
+		* @param providerId The id of the provider to use
+		* @param sessionId The session id to remove
+		* provider
+		*/
+		export function logout(providerId: string, sessionId: string): Thenable<void>;
 
 		/**
 		* An [event](#Event) which fires when the array of sessions has changed, or data
@@ -714,7 +731,44 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region deprecated debug API
+	//#region debug: https://github.com/microsoft/vscode/issues/88230
+
+	/**
+	 * A DebugConfigurationProviderTriggerKind specifies when the `provideDebugConfigurations` method of a `DebugConfigurationProvider` is triggered.
+	 * Currently there are two situations: to provide the initial debug configurations for a newly created launch.json or
+	 * to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+	 * A trigger kind is used when registering a `DebugConfigurationProvider` with #debug.registerDebugConfigurationProvider.
+	 */
+	export enum DebugConfigurationProviderTriggerKind {
+		/**
+		 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
+		 */
+		Initial = 1,
+		/**
+		 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+		 */
+		Dynamic = 2
+	}
+
+	export namespace debug {
+		/**
+		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specific debug type.
+		 * The optional [triggerKind](#DebugConfigurationProviderTriggerKind) can be used to specify when the `provideDebugConfigurations` method of the provider is triggered.
+		 * Currently two trigger kinds are possible: with the value `Initial` (or if no trigger kind argument is given) the `provideDebugConfigurations` method is used to provide the initial debug configurations to be copied into a newly created launch.json.
+		 * With the trigger kind `Dynamic` the `provideDebugConfigurations` method is used to dynamically determine debug configurations to be presented to the user (in addition to the static configurations from the launch.json).
+		 * Please note that the `triggerKind` argument only applies to the `provideDebugConfigurations` method: so the `resolveDebugConfiguration` methods are not affected at all.
+		 * Registering a single provider with resolve methods for different trigger kinds, results in the same resolve methods called multiple times.
+		 * More than one provider can be registered for the same type.
+		 *
+		 * @param type The debug type for which the provider is registered.
+		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
+		 * @param triggerKind The [trigger](#DebugConfigurationProviderTrigger) for which the 'provideDebugConfiguration' method of the provider is registered.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, triggerKind?: DebugConfigurationProviderTriggerKind): Disposable;
+	}
+
+	// deprecated debug API
 
 	export interface DebugConfigurationProvider {
 		/**
@@ -729,7 +783,7 @@ declare module 'vscode' {
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
 	/**
-	 * The severity level of a log message
+	 * @deprecated DO NOT USE, will be removed
 	 */
 	export enum LogLevel {
 		Trace = 1,
@@ -743,12 +797,12 @@ declare module 'vscode' {
 
 	export namespace env {
 		/**
-		 * Current logging level.
+		 * @deprecated DO NOT USE, will be removed
 		 */
 		export const logLevel: LogLevel;
 
 		/**
-		 * An [event](#Event) that fires when the log level has changed.
+		 * @deprecated DO NOT USE, will be removed
 		 */
 		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
@@ -822,21 +876,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: SCM Input Box
-
-	/**
-	 * Represents the input box in the Source Control viewlet.
-	 */
-	export interface SourceControlInputBox {
-
-		/**
-		 * Controls whether the input box is visible (default is `true`).
-		 */
-		visible: boolean;
-	}
-
-	//#endregion
-
 	//#region Terminal data write event https://github.com/microsoft/vscode/issues/78502
 
 	export interface TerminalDataWriteEvent {
@@ -895,21 +934,30 @@ declare module 'vscode' {
 
 	//#endregion
 
+
+
 	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
 
 	export namespace window {
 		/**
 		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
 		 * handle links that are activated within terminals.
+		 * @param handler The link handler being registered.
+		 * @return A disposable that unregisters the link handler.
 		 */
 		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
 	}
 
+	/**
+	 * Describes how to handle terminal links.
+	 */
 	export interface TerminalLinkHandler {
 		/**
 		 * Handles a link that is activated within the terminal.
 		 *
-		 * @return Whether the link was handled, the link was handled this link will not be
+		 * @param terminal The terminal the link was activated on.
+		 * @param link The text of the link activated.
+		 * @return Whether the link was handled, if the link was handled this link will not be
 		 * considered by any other extension or by the default built-in link handler.
 		 */
 		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
@@ -950,6 +998,15 @@ declare module 'vscode' {
 	 * A collection of mutations that an extension can apply to a process environment.
 	 */
 	export interface EnvironmentVariableCollection {
+		/**
+		 * Whether the collection should be cached for the workspace and applied to the terminal
+		 * across window reloads. When true the collection will be active immediately such when the
+		 * window reloads. Additionally, this API will return the cached version if it exists. The
+		 * collection will be invalidated when the extension is uninstalled or when the collection
+		 * is cleared. Defaults to true.
+		 */
+		persistent: boolean;
+
 		/**
 		 * Replace an environment variable with a value.
 		 *
@@ -993,26 +1050,14 @@ declare module 'vscode' {
 		 * Clears all mutators from this collection.
 		 */
 		clear(): void;
-
-		/**
-		 * Disposes the collection, if the collection was persisted it will no longer be retained
-		 * across reloads.
-		 */
-		dispose(): void;
 	}
 
-	export namespace window {
+	export interface ExtensionContext {
 		/**
-		 * Creates or returns the extension's environment variable collection for this workspace,
-		 * enabling changes to be applied to terminal environment variables.
-		 *
-		 * @param persistent Whether the collection should be cached for the workspace and applied
-		 * to the terminal across window reloads. When true the collection will be active
-		 * immediately such when the window reloads. Additionally, this API will return the cached
-		 * version if it exists. The collection will be invalidated when the extension is
-		 * uninstalled or when the collection is disposed. Defaults to false.
+		 * Gets the extension's environment variable collection for this workspace, enabling changes
+		 * to be applied to terminal environment variables.
 		 */
-		export function getEnvironmentVariableCollection(persistent?: boolean): EnvironmentVariableCollection;
+		readonly environmentVariableCollection: EnvironmentVariableCollection;
 	}
 
 	//#endregion
@@ -1182,76 +1227,255 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
+	//#region Custom editor https://github.com/microsoft/vscode/issues/77131
 
 	/**
-	 * Defines the editing capability of a custom webview editor. This allows the webview editor to hook into standard
-	 * editor events such as `undo` or `save`.
+	 * Represents a custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
 	 *
-	 * @param EditType Type of edits used for the documents this delegate handles.
+	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
+	 * managed by VS Code. When no more references remain to a `CustomDocument`, it is disposed of.
 	 */
-	interface CustomEditorEditingDelegate<EditType = unknown> {
+	interface CustomDocument {
 		/**
-		 * Save the resource.
+		 * The associated uri for this document.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Dispose of the custom document.
+		 *
+		 * This is invoked by VS Code when there are no more references to a given `CustomDocument` (for example when
+		 * all editors associated with the document have been closed.)
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`CustomDocument`](#CustomDocument).
+	 *
+	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
+	 */
+	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: T;
+
+		/**
+		 * Undo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user triggers an undo.
+		 */
+		undo(): Thenable<void> | void;
+
+		/**
+		 * Redo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user triggers a redo.
+		 */
+		redo(): Thenable<void> | void;
+
+		/**
+		 * Display name describing the edit.
+		 *
+		 * This is shown in the UI to users.
+		 */
+		readonly label?: string;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that the content of a [`CustomDocument`](#CustomDocument)
+	 * has changed.
+	 *
+	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
+	 */
+	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
+		/**
+		 * The document that the change is for.
+		 */
+		readonly document: T;
+	}
+
+	/**
+	 * A backup for an [`CustomDocument`](#CustomDocument).
+	 */
+	interface CustomDocumentBackup {
+		/**
+		 * Unique identifier for the backup.
+		 *
+		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 */
+		readonly id: string;
+
+		/**
+		 * Delete the current backup.
+		 *
+		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
+		 * is made or when the file is saved.
+		 */
+		delete(): void;
+	}
+
+	/**
+	 * Additional information used to implement [`CustomEditableDocument.backup`](#CustomEditableDocument.backup).
+	 */
+	interface CustomDocumentBackupContext {
+		/**
+		 * Suggested file location to write the new backup.
+		 *
+		 * Note that your extension is free to ignore this and use its own strategy for backup.
+		 *
+		 * For editors for workspace resource, this destination will be in the workspace storage. The path may not
+		 */
+		readonly destination: Uri;
+	}
+
+	/**
+	 * Additional information about the opening custom document.
+	 */
+	interface CustomDocumentOpenContext {
+		/**
+		 * The id of the backup to restore the document from or `undefined` if there is no backup.
+		 *
+		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
+		 * the user's workspace.
+		 */
+		readonly backupId?: string;
+	}
+
+	/**
+	 * Provider for readonly custom editors that use a custom document model.
+	 *
+	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
+	 *
+	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
+	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
+	 *
+	 * @param T Type of the custom document returned by this provider.
+	 */
+	export interface CustomReadonlyEditorProvider<T extends CustomDocument = CustomDocument> {
+
+		/**
+		 * Create a new document for a given resource.
+		 *
+		 * `openCustomDocument` is called when the first editor for a given resource is opened, and the resolve document
+		 * is passed to `resolveCustomEditor`. The resolved `CustomDocument` is re-used for subsequent editor opens.
+		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
+		 * this point will trigger another call to `openCustomDocument`.
+		 *
+		 * @param uri Uri of the document to open.
+		 * @param openContext Additional information about the opening custom document.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 *
+		 * @return The custom document.
+		 */
+		openCustomDocument(uri: Uri, openContext: CustomDocumentOpenContext, token: CancellationToken): Thenable<T> | T;
+
+		/**
+		 * Resolve a custom editor for a given resource.
+		 *
+		 * This is called whenever the user opens a new editor for this `CustomEditorProvider`.
+		 *
+		 * To resolve a custom editor, the provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
+		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
+		 *
+		 * @param document Document for the resource being resolved.
+		 * @param webviewPanel Webview to resolve.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 *
+		 * @return Optional thenable indicating that the custom editor has been resolved.
+		 */
+		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
+	}
+
+	/**
+	 * Provider for editiable custom editors that use a custom document model.
+	 *
+	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
+	 * This gives extensions full control over actions such as edit, save, and backup.
+	 *
+	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
+	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
+	 *
+	 * @param T Type of the custom document returned by this provider.
+	 */
+	export interface CustomEditorProvider<T extends CustomDocument = CustomDocument> extends CustomReadonlyEditorProvider<T> {
+		/**
+		 * Signal that an edit has occurred inside a custom editor.
+		 *
+		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
+		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
+		 * define what an edit is and what data is stored on each edit.
+		 *
+		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
+		 * saves or reverts the file.
+		 *
+		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
+		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
+		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
+		 *
+		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
+		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
+		 * `save` or `revert` the file.
+		 *
+		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
+		 */
+		readonly onDidChangeCustomDocument: Event<CustomDocumentEditEvent<T>> | Event<CustomDocumentContentChangeEvent<T>>;
+
+		/**
+		 * Save a custom document.
+		 *
+		 * This method is invoked by VS Code when the user saves a custom editor. This can happen when the user
+		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
+		 *
+		 * To implement `save`, the implementer must persist the custom editor. This usually means writing the
+		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
+		 * no longer be marked as dirty.
 		 *
 		 * @param document Document to save.
 		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
 		 *
-		 * @return Thenable signaling that the save has completed.
+		 * @return Thenable signaling that saving has completed.
 		 */
-		save(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
+		saveCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
 
 		/**
-		 * Save the existing resource at a new path.
+		 * Save a custom document to a different location.
+		 *
+		 * This method is invoked by VS Code when the user triggers 'save as' on a custom editor. The implementer must
+		 * persist the custom editor to `destination`.
+		 *
+		 * When the user accepts save as, the current editor is be replaced by an editor for the newly saved file.
 		 *
 		 * @param document Document to save.
-		 * @param targetResource Location to save to.
+		 * @param destination Location to save to.
+		 * @param cancellation Token that signals the save is no longer required.
 		 *
-		 * @return Thenable signaling that the save has completed.
+		 * @return Thenable signaling that saving has completed.
 		 */
-		saveAs(document: CustomDocument<EditType>, targetResource: Uri): Thenable<void>;
+		saveCustomDocumentAs(document: T, destination: Uri, cancellation: CancellationToken): Thenable<void>;
 
 		/**
-		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
-		 */
-		readonly onDidEdit: Event<CustomDocumentEditEvent<EditType>>;
-
-		/**
-		 * Apply a set of edits.
+		 * Revert a custom document to its last saved state.
 		 *
-		 * Note that is not invoked when `onDidEdit` is called because `onDidEdit` implies also updating the view to reflect the edit.
+		 * This method is invoked by VS Code when the user triggers `File: Revert File` in a custom editor. (Note that
+		 * this is only used using VS Code's `File: Revert File` command and not on a `git revert` of the file).
 		 *
-		 * @param document Document to apply edits to.
-		 * @param edit Array of edits. Sorted from oldest to most recent.
-		 *
-		 * @return Thenable signaling that the change has completed.
-		 */
-		applyEdits(document: CustomDocument<EditType>, edits: readonly EditType[]): Thenable<void>;
-
-		/**
-		 * Undo a set of edits.
-		 *
-		 * This is triggered when a user undoes an edit.
-		 *
-		 * @param document Document to undo edits from.
-		 * @param edit Array of edits. Sorted from most recent to oldest.
-		 *
-		 * @return Thenable signaling that the change has completed.
-		 */
-		undoEdits(document: CustomDocument<EditType>, edits: readonly EditType[]): Thenable<void>;
-
-		/**
-		 * Revert the file to its last saved state.
+		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
+		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
+		 * workspace.
 		 *
 		 * @param document Document to revert.
-		 * @param edits Added or applied edits.
+		 * @param cancellation Token that signals the revert is no longer required.
 		 *
 		 * @return Thenable signaling that the change has completed.
 		 */
-		revert(document: CustomDocument<EditType>, edits: CustomDocumentRevert<EditType>): Thenable<void>;
+		revertCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
 
 		/**
-		 * Back up the resource in its current state.
+		 * Back up a dirty custom document.
 		 *
 		 * Backups are used for hot exit and to prevent data loss. Your `backup` method should persist the resource in
 		 * its current state, i.e. with the edits applied. Most commonly this means saving the resource to disk in
@@ -1263,207 +1487,54 @@ declare module 'vscode' {
 		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
 		 * `auto save` is enabled (since auto save already persists resource ).
 		 *
-		 * @param document Document to revert.
+		 * @param document Document to backup.
+		 * @param context Information that can be used to backup the document.
 		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
 		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
 		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
 		 * than cancelling it to ensure that VS Code has some valid backup.
 		 */
-		backup(document: CustomDocument<EditType>, cancellation: CancellationToken): Thenable<void>;
+		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 	}
 
-	/**
-	 * Event triggered by extensions to signal to VS Code that an edit has occurred on a `CustomDocument`.
-	 *
-	 * @param EditType Type of edits used for the document.
-	 */
-	interface CustomDocumentEditEvent<EditType = unknown> {
+	namespace window {
 		/**
-		 * Document the edit is for.
+		 * Temporary overload for `registerCustomEditorProvider` that takes a `CustomEditorProvider`.
 		 */
-		readonly document: CustomDocument<EditType>;
+		export function registerCustomEditorProvider2(
+			viewType: string,
+			provider: CustomReadonlyEditorProvider | CustomEditorProvider,
+			options?: {
+				readonly webviewOptions?: WebviewPanelOptions;
 
-		/**
-		 * Object that describes the edit.
-		 *
-		 * Edit objects are passed back to your extension in `CustomEditorEditingDelegate.undoEdits`,
-		 * `CustomEditorEditingDelegate.applyEdits`, and `CustomEditorEditingDelegate.revert`.
-		 */
-		readonly edit: EditType;
-
-		/**
-		 * Display name describing the edit.
-		 */
-		readonly label?: string;
+				/**
+				 * Only applies to `CustomReadonlyEditorProvider | CustomEditorProvider`.
+				 *
+				 * Indicates that the provider allows multiple editor instances to be open at the same time for
+				 * the same resource.
+				 *
+				 * If not set, VS Code only allows one editor instance to be open at a time for each resource. If the
+				 * user tries to open a second editor instance for the resource, the first one is instead moved to where
+				 * the second one was to be opened.
+				 *
+				 * When set, users can split and create copies of the custom editor. The custom editor must make sure it
+				 * can properly synchronize the states of all editor instances for a resource so that they are consistent.
+				 */
+				readonly supportsMultipleEditorsPerDocument?: boolean;
+			}
+		): Disposable;
 	}
 
-	/**
-	 * Data about a revert for a `CustomDocument`.
-	 */
-	interface CustomDocumentRevert<EditType = unknown> {
-		/**
-		 * List of edits that were undone to get the document back to its on disk state.
-		 */
-		readonly undoneEdits: readonly EditType[];
+	// #endregion
 
-		/**
-		 * List of edits that were reapplied to get the document back to its on disk state.
-		 */
-		readonly appliedEdits: readonly EditType[];
-	}
+	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
 
-	/**
-	 * Represents a custom document used by a `CustomEditorProvider`.
-	 *
-	 * All custom documents must subclass `CustomDocument`. Custom documents are only used within a given
-	 * `CustomEditorProvider`. The lifecycle of a `CustomDocument` is managed by VS Code. When no more references
-	 * remain to a `CustomDocument`, it is disposed of.
-	 *
-	 * @param EditType Type of edits used in this document.
-	 */
-	class CustomDocument<EditType = unknown> {
-		/**
-		 * @param viewType The associated uri for this document.
-		 * @param uri The associated viewType for this document.
-		 */
-		constructor(viewType: string, uri: Uri);
+	// TODO: Also for custom editor
 
-		/**
-		 * The associated viewType for this document.
-		 */
-		readonly viewType: string;
-
-		/**
-		 * The associated uri for this document.
-		 */
-		readonly uri: Uri;
-
-		/**
-		 * Is this document representing an untitled file which has never been saved yet.
-		 */
-		readonly isUntitled: boolean;
-
-		/**
-		 * The version number of this document (it will strictly increase after each
-		 * change, including undo/redo).
-		 */
-		readonly version: number;
-
-		/**
-		 * `true` if there are unpersisted changes.
-		 */
-		readonly isDirty: boolean;
-
-		/**
-		 * List of edits from document open to the document's current state.
-		 */
-		readonly appliedEdits: ReadonlyArray<EditType>;
-
-		/**
-		 * List of edits from document open to the document's last saved point.
-		 *
-		 * The save point will be behind `appliedEdits` if the user saves and then continues editing,
-		 * or in front of the last entry in `appliedEdits` if the user saves and then hits undo.
-		 */
-		readonly savedEdits: ReadonlyArray<EditType>;
-
-		/**
-		 * `true` if the document has been closed. A closed document isn't synchronized anymore
-		 * and won't be re-used when the same resource is opened again.
-		 */
-		readonly isClosed: boolean;
-
-		/**
-		 * Event fired when there are no more references to the `CustomDocument`.
-		 */
-		readonly onDidDispose: Event<void>;
-	}
-
-	/**
-	 * Provider for webview editors that use a custom data model.
-	 *
-	 * Custom webview editors use [`CustomDocument`](#CustomDocument) as their data model.
-	 * This gives extensions full control over actions such as edit, save, and backup.
-	 *
-	 * You should use custom text based editors when dealing with binary files or more complex scenarios. For simple text
-	 * based documents, use [`WebviewTextEditorProvider`](#WebviewTextEditorProvider) instead.
-	 */
-	export interface CustomEditorProvider<EditType = unknown> {
-
-		/**
-		 * Resolve the model for a given resource.
-		 *
-		 * `resolveCustomDocument` is called when the first editor for a given resource is opened, and the resolve document
-		 * is passed to `resolveCustomEditor`. The resolved `CustomDocument` is re-used for subsequent editor opens.
-		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
-		 * this point will trigger another call to `resolveCustomDocument`.
-		 *
-		 * @param uri Uri of the document to open.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 *
-		 * @return The custom document.
-		 */
-		openCustomDocument(uri: Uri, token: CancellationToken): Thenable<CustomDocument<EditType>>;
-
-		/**
-		 * Resolve a webview editor for a given resource.
-		 *
-		 * This is called when a user first opens a resource for a `CustomEditorProvider`, or if they reopen an
-		 * existing editor using this `CustomEditorProvider`.
-		 *
-		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
-		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details
-		 *
-		 * @param document Document for the resource being resolved.
-		 * @param webviewPanel Webview to resolve.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 *
-		 * @return Thenable indicating that the webview editor has been resolved.
-		 */
-		resolveCustomEditor(document: CustomDocument<EditType>, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
-
-		/**
-		 * Defines the editing capability of a custom webview document.
-		 *
-		 * When not provided, the document is considered readonly.
-		 */
-		readonly editingDelegate?: CustomEditorEditingDelegate<EditType>;
-	}
-
-	/**
-	 * Provider for text based webview editors.
-	 *
-	 * Text based webview editors use a [`TextDocument`](#TextDocument) as their data model. This considerably simplifies
-	 * implementing a webview editor as it allows VS Code to handle many common operations such as
-	 * undo and backup. The provider is responsible for synchronizing text changes between the webview and the `TextDocument`.
-	 *
-	 * You should use text based webview editors when dealing with text based file formats, such as `xml` or `json`.
-	 * For binary files or more specialized use cases, see [CustomEditorProvider](#CustomEditorProvider).
-	 */
 	export interface CustomTextEditorProvider {
 
-		/**
-		 * Resolve a webview editor for a given text resource.
-		 *
-		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
-		 * existing editor using this `CustomTextEditorProvider`.
-		 *
-		 * To resolve a webview editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
-		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
-		 *
-		 * @param document Document for the resource to resolve.
-		 * @param webviewPanel Webview to resolve.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 *
-		 * @return Thenable indicating that the webview editor has been resolved.
-		 */
-		resolveCustomTextEditor(document: TextDocument, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 
 		/**
-		 * TODO: discuss this at api sync.
-		 *
 		 * Handle when the underlying resource for a custom editor is renamed.
 		 *
 		 * This allows the webview for the editor be preserved throughout the rename. If this method is not implemented,
@@ -1476,26 +1547,6 @@ declare module 'vscode' {
 		 * @return Thenable indicating that the webview editor has been moved.
 		 */
 		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
-	}
-
-	namespace window {
-		/**
-		 * Register a new provider for a custom editor.
-		 *
-		 * @param viewType Type of the webview editor provider. This should match the `viewType` from the
-		 *   `package.json` contributions.
-		 * @param provider Provider that resolves editors.
-		 * @param options Options for the provider
-		 *
-		 * @return Disposable that unregisters the provider.
-		 */
-		export function registerCustomEditorProvider(
-			viewType: string,
-			provider: CustomEditorProvider | CustomTextEditorProvider,
-			options?: {
-				readonly webviewOptions?: WebviewPanelOptions;
-			}
-		): Disposable;
 	}
 
 	//#endregion
@@ -1582,6 +1633,13 @@ declare module 'vscode' {
 
 	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
 
+	export enum NotebookCellRunState {
+		Running = 1,
+		Idle = 2,
+		Success = 3,
+		Error = 4
+	}
+
 	export interface NotebookCellMetadata {
 		/**
 		 * Controls if the content of a cell is editable or not.
@@ -1595,14 +1653,26 @@ declare module 'vscode' {
 		runnable?: boolean;
 
 		/**
-		 * Execution order information of the cell
+		 * The order in which this cell was executed.
 		 */
 		executionOrder?: number;
+
+		/**
+		 * A status message to be shown in the cell's status bar
+		 */
+		statusMessage?: string;
+
+		/**
+		 * The cell's current run state
+		 */
+		runState?: NotebookCellRunState;
 	}
 
 	export interface NotebookCell {
 		readonly uri: Uri;
 		readonly cellKind: CellKind;
+		readonly document: TextDocument;
+		// API remove `source` or doc it as shorthand for document.getText()
 		readonly source: string;
 		language: string;
 		outputs: CellOutput[];
@@ -1612,22 +1682,33 @@ declare module 'vscode' {
 	export interface NotebookDocumentMetadata {
 		/**
 		 * Controls if users can add or delete cells
-		 * Default to true
+		 * Defaults to true
 		 */
-		editable: boolean;
+		editable?: boolean;
+
+		/**
+		 * Controls whether the full notebook can be run at once.
+		 * Defaults to true
+		 */
+		runnable?: boolean;
 
 		/**
 		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
-		 * Default to true.
+		 * Defaults to true.
 		 */
-		cellEditable: boolean;
+		cellEditable?: boolean;
 
 		/**
 		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
-		 * Default to true.
+		 * Defaults to true.
 		 */
-		cellRunnable: boolean;
+		cellRunnable?: boolean;
 
+		/**
+		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Defaults to true.
+		 */
+		hasExecutionOrder?: boolean;
 	}
 
 	export interface NotebookDocument {
@@ -1637,16 +1718,37 @@ declare module 'vscode' {
 		readonly cells: NotebookCell[];
 		languages: string[];
 		displayOrder?: GlobPattern[];
-		metadata?: NotebookDocumentMetadata;
+		metadata: NotebookDocumentMetadata;
+	}
+
+	export interface NotebookConcatTextDocument {
+		isClosed: boolean;
+		dispose(): void;
+		onDidChange: Event<void>;
+		version: number;
+		getText(): string;
+		getText(range: Range): string;
+		offsetAt(position: Position): number;
+		positionAt(offset: number): Position;
+		locationAt(positionOrRange: Position | Range): Location;
+		positionAt(location: Location): Position;
 	}
 
 	export interface NotebookEditorCellEdit {
-		insert(index: number, content: string, language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
+		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
 		delete(index: number): void;
 	}
 
 	export interface NotebookEditor {
+		/**
+		 * The document associated with this notebook editor.
+		 */
 		readonly document: NotebookDocument;
+
+		/**
+		 * The primary selected cell on this notebook editor.
+		 */
+		readonly selection?: NotebookCell;
 		viewColumn?: ViewColumn;
 		/**
 		 * Fired when the output hosting webview posts a message.
@@ -1666,7 +1768,7 @@ declare module 'vscode' {
 
 	export interface NotebookProvider {
 		resolveNotebook(editor: NotebookEditor): Promise<void>;
-		executeCell(document: NotebookDocument, cell: NotebookCell | undefined): Promise<void>;
+		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
 		save(document: NotebookDocument): Promise<boolean>;
 	}
 
@@ -1681,7 +1783,7 @@ declare module 'vscode' {
 		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
 		 *
 		 */
-		render(document: NotebookDocument, output: CellOutput, mimeType: string): string;
+		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
 		preloads?: Uri[];
 	}
 
@@ -1706,50 +1808,24 @@ declare module 'vscode' {
 
 		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
 
+		// remove activeNotebookDocument, now that there is activeNotebookEditor.document
 		export let activeNotebookDocument: NotebookDocument | undefined;
 
-		// export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+		export let activeNotebookEditor: NotebookEditor | undefined;
+
+		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+
+		/**
+		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
+		 * but a selector can be provided to narrow to down the set of cells.
+		 *
+		 * @param notebook
+		 * @param selector
+		 */
+		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 	}
 
 	//#endregion
-
-	//#region color theme access
-
-	/**
-	 * Represents a color theme kind.
-	 */
-	export enum ColorThemeKind {
-		Light = 1,
-		Dark = 2,
-		HighContrast = 3
-	}
-
-	/**
-	 * Represents a color theme.
-	 */
-	export interface ColorTheme {
-
-		/**
-		 * The kind of this color theme: light, dark or high contrast.
-		 */
-		readonly kind: ColorThemeKind;
-	}
-
-	export namespace window {
-		/**
-		 * The currently active color theme as configured in the settings. The active
-		 * theme can be changed via the `workbench.colorTheme` setting.
-		 */
-		export let activeColorTheme: ColorTheme;
-
-		/**
-		 * An [event](#Event) which fires when the active theme changes or one of it's colors chnage.
-		 */
-		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
-	}
-
-	//#endregion
-
 
 	//#region https://github.com/microsoft/vscode/issues/39441
 
@@ -1855,9 +1931,8 @@ declare module 'vscode' {
 	export interface TimelineChangeEvent {
 		/**
 		 * The [uri](#Uri) of the resource for which the timeline changed.
-		 * If the [uri](#Uri) is `undefined` that signals that the timeline source for all resources changed.
 		 */
-		uri?: Uri;
+		uri: Uri;
 
 		/**
 		 * A flag which indicates whether the entire timeline should be reset.
@@ -1898,7 +1973,7 @@ declare module 'vscode' {
 		 * An optional event to signal that the timeline for a source has changed.
 		 * To signal that the timeline for all resources (uris) has changed, do not pass any argument or pass `undefined`.
 		 */
-		onDidChange?: Event<TimelineChangeEvent>;
+		onDidChange?: Event<TimelineChangeEvent | undefined>;
 
 		/**
 		 * An identifier of the source of the timeline items. This can be used to filter sources.
@@ -1994,59 +2069,25 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/90208
-
-	export interface ExtensionContext {
+	//#region Comment
+	export interface CommentOptions {
 		/**
-		 * @deprecated THIS API PROPOSAL WILL BE DROPPED
+		 * An optional string to show on the comment input box when it's collapsed.
 		 */
-		asExtensionUri(relativePath: string): Uri;
+		prompt?: string;
 
 		/**
-		 * The uri of the directory containing the extension.
+		 * An optional string to show as placeholder in the comment input box when it's focused.
 		 */
-		readonly extensionUri: Uri;
+		placeHolder?: string;
 	}
 
-	export interface Extension<T> {
+	export interface CommentController {
 		/**
-		 * @deprecated THIS API PROPOSAL WILL BE DROPPED
+		 * Comment controller options
 		 */
-		asExtensionUri(relativePath: string): Uri;
-
-		/**
-		 * The uri of the directory containing the extension.
-		 */
-		readonly extensionUri: Uri;
-	}
-
-	export namespace Uri {
-
-		/**
-		 * Create a new uri which path is the result of joining
-		 * the path of the base uri with the provided path fragments.
-		 *
-		 * * Note that `joinPath` only affects the path component
-		 * and all other components (scheme, authority, query, and fragment) are
-		 * left as they are.
-		 * * Note that the base uri must have a path; an error is thrown otherwise.
-		 *
-		 * @param base An uri. Must have a path.
-		 * @param pathFragments One more more path fragments
-		 * @returns A new uri which path is joined with the given fragments
-		 */
-		export function joinPath(base: Uri, ...pathFragments: string[]): Uri;
+		options?: CommentOptions;
 	}
 
 	//#endregion
-
-	//#region https://github.com/microsoft/vscode/issues/91541
-
-	export enum CompletionItemKind {
-		User = 25,
-		Issue = 26,
-	}
-
-	//#endregion
-
 }

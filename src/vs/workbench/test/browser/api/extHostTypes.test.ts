@@ -587,6 +587,18 @@ suite('ExtHostTypes', function () {
 		]);
 	});
 
+	test('SemanticTokensBuilder no modifier', () => {
+		const builder = new types.SemanticTokensBuilder();
+		builder.push(1, 0, 5, 1);
+		builder.push(1, 10, 4, 2);
+		builder.push(2, 2, 3, 2);
+		assert.deepEqual(toArr(builder.build().data), [
+			1, 0, 5, 1, 0,
+			0, 10, 4, 2, 0,
+			1, 2, 3, 2, 0
+		]);
+	});
+
 	test('SemanticTokensBuilder out of order 1', () => {
 		const builder = new types.SemanticTokensBuilder();
 		builder.push(2, 0, 5, 1, 1);

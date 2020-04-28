@@ -99,7 +99,6 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private onTitleClick(e: MouseEvent | GestureEvent): void {
-
 		if (e instanceof MouseEvent) {
 			// Close editor on middle mouse click
 			if (e.button === 1 /* Middle Button */) {

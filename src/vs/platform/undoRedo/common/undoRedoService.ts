@@ -6,13 +6,16 @@
 import * as nls from 'vs/nls';
 import { IUndoRedoService, IResourceUndoRedoElement, IWorkspaceUndoRedoElement, UndoRedoElementType, IUndoRedoElement, IPastFutureElements } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
-import { getComparisonKey as uriGetComparisonKey } from 'vs/base/common/resources';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+
+function uriGetComparisonKey(resource: URI): string {
+	return resource.toString();
+}
 
 class ResourceStackElement {
 	public readonly type = UndoRedoElementType.Resource;

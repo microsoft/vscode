@@ -15,6 +15,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TaskQuickPick, TaskTwoLevelQuickPickEntry } from 'vs/workbench/contrib/tasks/browser/taskQuickPick';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isString } from 'vs/base/common/types';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -26,9 +27,14 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 		@IExtensionService extensionService: IExtensionService,
 		@ITaskService private taskService: ITaskService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IQuickInputService private quickInputService: IQuickInputService
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@INotificationService private notificationService: INotificationService
 	) {
-		super(TasksQuickAccessProvider.PREFIX);
+		super(TasksQuickAccessProvider.PREFIX, {
+			noResultsPick: {
+				label: localize('noTaskResults', "No matching tasks")
+			}
+		});
 
 		this.activationPromise = extensionService.activateByEvent('onCommand:workbench.action.tasks.runTask');
 	}
@@ -41,21 +47,22 @@ export class TasksQuickAccessProvider extends PickerQuickAccessProvider<IPickerQ
 			return [];
 		}
 
-		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService);
+		const taskQuickPick = new TaskQuickPick(this.taskService, this.configurationService, this.quickInputService, this.notificationService);
 		const topLevelPicks = await taskQuickPick.getTopLevelEntries();
 		const taskPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 		for (const entry of topLevelPicks.entries) {
-			if (entry.type === 'separator') {
-				taskPicks.push(entry);
-			}
-			const highlights = matchesFuzzy(filter, entry.label!, true);
+			const highlights = matchesFuzzy(filter, entry.label!);
 			if (!highlights) {
 				continue;
 			}
+
+			if (entry.type === 'separator') {
+				taskPicks.push(entry);
+			}
+
 			const task: Task | ConfiguringTask | string = (<TaskTwoLevelQuickPickEntry>entry).task!;
 			const quickAccessEntry: IPickerQuickAccessItem = <TaskTwoLevelQuickPickEntry>entry;
-			quickAccessEntry.ariaLabel = localize('entryAriaLabel', "{0}, tasks picker", entry.label!);
 			quickAccessEntry.highlights = { label: highlights };
 			quickAccessEntry.trigger = () => {
 				if (ContributedTask.is(task)) {

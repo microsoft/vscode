@@ -2089,4 +2089,165 @@ suite('FindModel', () => {
 		findModel.dispose();
 		findState.dispose();
 	});
+
+	findTest('issue #3516: Control behavior of "Next" operations (not looping back to beginning)', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello', loop: false }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assert.equal(findState.matchesCount, 5);
+
+		// Test next operations
+		assert.equal(findState.matchesPosition, 0);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 1);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), false);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 2);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 3);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 4);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 5);
+		assert.equal(findState.canNavigateForward(), false);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 5);
+		assert.equal(findState.canNavigateForward(), false);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 5);
+		assert.equal(findState.canNavigateForward(), false);
+		assert.equal(findState.canNavigateBack(), true);
+
+		// Test previous operations
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 4);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 3);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 2);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 1);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), false);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 1);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), false);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 1);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), false);
+
+	});
+
+	findTest('issue #3516: Control behavior of "Next" operations (looping back to beginning)', (editor, cursor) => {
+		let findState = new FindReplaceState();
+		findState.change({ searchString: 'hello' }, false);
+		let findModel = new FindModelBoundToEditorModel(editor, findState);
+
+		assert.equal(findState.matchesCount, 5);
+
+		// Test next operations
+		assert.equal(findState.matchesPosition, 0);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 1);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 2);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 3);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 4);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 5);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 1);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToNextMatch();
+		assert.equal(findState.matchesPosition, 2);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		// Test previous operations
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 1);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 5);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 4);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 3);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 2);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+		findModel.moveToPrevMatch();
+		assert.equal(findState.matchesPosition, 1);
+		assert.equal(findState.canNavigateForward(), true);
+		assert.equal(findState.canNavigateBack(), true);
+
+	});
+
 });

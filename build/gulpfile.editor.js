@@ -43,7 +43,7 @@ let editorEntryPoints = [
 ];
 
 let editorResources = [
-	'out-editor-build/vs/base/browser/ui/codiconLabel/**/*.ttf'
+	'out-editor-build/vs/base/browser/ui/codicons/**/*.ttf'
 ];
 
 let BUNDLED_FILE_HEADER = [
@@ -455,10 +455,8 @@ function createTscCompileTask(watch) {
 						// e.g. src/vs/base/common/strings.ts(663,5): error TS2322: Type '1234' is not assignable to type 'string'.
 						let fullpath = path.join(root, match[1]);
 						let message = match[3];
-						// @ts-ignore
 						reporter(fullpath + message);
 					} else {
-						// @ts-ignore
 						reporter(str);
 					}
 				}

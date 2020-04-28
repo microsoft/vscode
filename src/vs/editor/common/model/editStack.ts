@@ -10,9 +10,12 @@ import { EndOfLineSequence, ICursorStateComputer, IIdentifiedSingleEditOperation
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
-import { getComparisonKey as uriGetComparisonKey } from 'vs/base/common/resources';
 import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/model/textChange';
 import * as buffer from 'vs/base/common/buffer';
+
+function uriGetComparisonKey(resource: URI): string {
+	return resource.toString();
+}
 
 class SingleModelEditStackData {
 

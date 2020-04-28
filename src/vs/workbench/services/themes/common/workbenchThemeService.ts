@@ -9,6 +9,7 @@ import { Color } from 'vs/base/common/color';
 import { IColorTheme, IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
+import { isBoolean, isString } from 'vs/base/common/types';
 
 export const IWorkbenchThemeService = createDecorator<IWorkbenchThemeService>('themeService');
 
@@ -20,27 +21,30 @@ export const HC_THEME_ID = 'Default High Contrast';
 
 export enum ThemeSettings {
 	COLOR_THEME = 'workbench.colorTheme',
-	ICON_THEME = 'workbench.iconTheme',
+	FILE_ICON_THEME = 'workbench.iconTheme',
+	PRODUCT_ICON_THEME = 'workbench.productIconTheme',
 	COLOR_CUSTOMIZATIONS = 'workbench.colorCustomizations',
 	TOKEN_COLOR_CUSTOMIZATIONS = 'editor.tokenColorCustomizations',
+	SEMANTIC_TOKEN_COLOR_CUSTOMIZATIONS = 'editor.semanticTokenColorCustomizations',
 	TOKEN_COLOR_CUSTOMIZATIONS_EXPERIMENTAL = 'editor.tokenColorCustomizationsExperimental',
 
 	PREFERRED_DARK_THEME = 'workbench.preferredDarkColorTheme',
 	PREFERRED_LIGHT_THEME = 'workbench.preferredLightColorTheme',
 	PREFERRED_HC_THEME = 'workbench.preferredHighContrastColorTheme',
 	DETECT_COLOR_SCHEME = 'window.autoDetectColorScheme',
-	DETECT_HC = 'window.autoDetectHighContrast',
-
-	PRODUCT_ICON_THEME = 'workbench.productIconTheme'
+	DETECT_HC = 'window.autoDetectHighContrast'
 }
 
-export interface IWorkbenchColorTheme extends IColorTheme {
+export interface IWorkbenchTheme {
 	readonly id: string;
 	readonly label: string;
-	readonly settingsId: string;
 	readonly extensionData?: ExtensionData;
 	readonly description?: string;
-	readonly isLoaded: boolean;
+	readonly settingsId: string | null;
+}
+
+export interface IWorkbenchColorTheme extends IWorkbenchTheme, IColorTheme {
+	readonly settingsId: string;
 	readonly tokenColors: ITextMateThemingRule[];
 }
 
@@ -48,44 +52,28 @@ export interface IColorMap {
 	[id: string]: Color;
 }
 
-export interface IWorkbenchFileIconTheme extends IFileIconTheme {
-	readonly id: string;
-	readonly label: string;
-	readonly settingsId: string | null;
-	readonly description?: string;
-	readonly extensionData?: ExtensionData;
-
-	readonly isLoaded: boolean;
-	readonly hasFileIcons: boolean;
-	readonly hasFolderIcons: boolean;
-	readonly hidesExplorerArrows: boolean;
+export interface IWorkbenchFileIconTheme extends IWorkbenchTheme, IFileIconTheme {
 }
 
-export interface IWorkbenchProductIconTheme {
-	readonly id: string;
-	readonly label: string;
+export interface IWorkbenchProductIconTheme extends IWorkbenchTheme {
 	readonly settingsId: string;
-	readonly description?: string;
-	readonly extensionData?: ExtensionData;
-
-	readonly isLoaded: boolean;
 }
 
 
 export interface IWorkbenchThemeService extends IThemeService {
 	_serviceBrand: undefined;
-	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IWorkbenchColorTheme | null>;
+	setColorTheme(themeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchColorTheme | null>;
 	getColorTheme(): IWorkbenchColorTheme;
 	getColorThemes(): Promise<IWorkbenchColorTheme[]>;
 	onDidColorThemeChange: Event<IWorkbenchColorTheme>;
 	restoreColorTheme(): void;
 
-	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IWorkbenchFileIconTheme>;
+	setFileIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchFileIconTheme>;
 	getFileIconTheme(): IWorkbenchFileIconTheme;
 	getFileIconThemes(): Promise<IWorkbenchFileIconTheme[]>;
 	onDidFileIconThemeChange: Event<IWorkbenchFileIconTheme>;
 
-	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined): Promise<IWorkbenchProductIconTheme>;
+	setProductIconTheme(iconThemeId: string | undefined, settingsTarget: ConfigurationTarget | undefined | 'auto'): Promise<IWorkbenchProductIconTheme>;
 	getProductIconTheme(): IWorkbenchProductIconTheme;
 	getProductIconThemes(): Promise<IWorkbenchProductIconTheme[]>;
 	onDidProductIconThemeChange: Event<IWorkbenchProductIconTheme>;
@@ -106,11 +94,21 @@ export interface ITokenColorCustomizations {
 	functions?: string | ITokenColorizationSetting;
 	variables?: string | ITokenColorizationSetting;
 	textMateRules?: ITextMateThemingRule[];
-	semanticHighlighting?: boolean;
+	semanticHighlighting?: boolean; // deprecated, use ISemanticTokenColorCustomizations.enabled instead
 }
 
-export interface IExperimentalTokenStyleCustomizations {
-	[styleRuleOrThemeSettingsId: string]: string | ITokenColorizationSetting | IExperimentalTokenStyleCustomizations | undefined;
+export interface ISemanticTokenColorCustomizations {
+	enabled?: boolean;
+	rules?: ISemanticTokenRules;
+	[styleRuleOrThemeSettingsId: string]: ISemanticTokenRules | ISemanticTokenColorCustomizations | boolean | undefined;
+}
+
+export interface IExperimentalSemanticTokenColorCustomizations {
+	[styleRuleOrThemeSettingsId: string]: ISemanticTokenRules | IExperimentalSemanticTokenColorCustomizations | undefined;
+}
+
+export interface ISemanticTokenRules {
+	[selector: string]: string | ISemanticTokenColorizationSetting | undefined;
 }
 
 export interface ITextMateThemingRule {
@@ -125,12 +123,32 @@ export interface ITokenColorizationSetting {
 	fontStyle?: string; /* [italic|underline|bold] */
 }
 
+export interface ISemanticTokenColorizationSetting {
+	foreground?: string;
+	fontStyle?: string; /* [italic|underline|bold] */
+	bold?: boolean;
+	underline?: boolean;
+	italic?: boolean;
+}
+
 export interface ExtensionData {
 	extensionId: string;
 	extensionPublisher: string;
 	extensionName: string;
 	extensionIsBuiltin: boolean;
 	extensionLocation: URI;
+}
+
+export namespace ExtensionData {
+	export function toJSONObject(d: ExtensionData | undefined): any {
+		return d && { _extensionId: d.extensionId, _extensionIsBuiltin: d.extensionIsBuiltin, _extensionLocation: d.extensionLocation.toJSON(), _extensionName: d.extensionName, _extensionPublisher: d.extensionPublisher };
+	}
+	export function fromJSONObject(o: any): ExtensionData | undefined {
+		if (o && isString(o._extensionId) && isBoolean(o._extensionIsBuiltin) && isString(o._extensionLocation) && isString(o._extensionName) && isString(o._extensionPublisher)) {
+			return { extensionId: o._extensionId, extensionIsBuiltin: o._extensionIsBuiltin, extensionLocation: URI.revive(o._extensionLocation), extensionName: o._extensionName, extensionPublisher: o._extensionPublisher };
+		}
+		return undefined;
+	}
 }
 
 export interface IThemeExtensionPoint {

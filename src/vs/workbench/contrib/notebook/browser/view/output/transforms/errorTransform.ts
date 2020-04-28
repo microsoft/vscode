@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRenderOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IRenderOutput, CellOutputKind, IErrorOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { registerOutputTransform } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
 import { RGBA, Color } from 'vs/base/common/color';
@@ -18,7 +18,15 @@ class ErrorTransform implements IOutputTransformContribution {
 	) {
 	}
 
-	render(output: any, container: HTMLElement): IRenderOutput {
+	render(output: IErrorOutput, container: HTMLElement): IRenderOutput {
+		const header = document.createElement('div');
+		const headerMessage = output.ename && output.evalue
+			? `${output.ename}: ${output.evalue}`
+			: output.ename || output.evalue;
+		if (headerMessage) {
+			header.innerText = headerMessage;
+			container.appendChild(header);
+		}
 		const traceback = document.createElement('pre');
 		DOM.addClasses(traceback, 'traceback');
 		if (output.traceback) {

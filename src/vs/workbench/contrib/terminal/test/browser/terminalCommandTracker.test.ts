@@ -61,24 +61,24 @@ suite('Workbench - TerminalCommandTracker', () => {
 			for (let i = 0; i < 20; i++) {
 				await writePromise(xterm, `\r\n`);
 			}
-			assert.equal(xterm.buffer.baseY, 20);
-			assert.equal(xterm.buffer.viewportY, 20);
+			assert.equal(xterm.buffer.active.baseY, 20);
+			assert.equal(xterm.buffer.active.viewportY, 20);
 
 			// Scroll to marker
 			commandTracker.scrollToPreviousCommand();
-			assert.equal(xterm.buffer.viewportY, 9);
+			assert.equal(xterm.buffer.active.viewportY, 9);
 
 			// Scroll to top boundary
 			commandTracker.scrollToPreviousCommand();
-			assert.equal(xterm.buffer.viewportY, 0);
+			assert.equal(xterm.buffer.active.viewportY, 0);
 
 			// Scroll to marker
 			commandTracker.scrollToNextCommand();
-			assert.equal(xterm.buffer.viewportY, 9);
+			assert.equal(xterm.buffer.active.viewportY, 9);
 
 			// Scroll to bottom boundary
 			commandTracker.scrollToNextCommand();
-			assert.equal(xterm.buffer.viewportY, 20);
+			assert.equal(xterm.buffer.active.viewportY, 20);
 		});
 		test('should select to the next and previous commands', async () => {
 			(<any>window).matchMedia = () => {
@@ -99,8 +99,8 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.equal(xterm.markers[1].line, 11);
 			await writePromise(xterm, '\n\r3');
 
-			assert.equal(xterm.buffer.baseY, 3);
-			assert.equal(xterm.buffer.viewportY, 3);
+			assert.equal(xterm.buffer.active.baseY, 3);
+			assert.equal(xterm.buffer.active.viewportY, 3);
 
 			assert.equal(xterm.getSelection(), '');
 			commandTracker.selectToPreviousCommand();
@@ -133,8 +133,8 @@ suite('Workbench - TerminalCommandTracker', () => {
 			assert.equal(xterm.markers[1].line, 11);
 			await writePromise(xterm, '\n\r3');
 
-			assert.equal(xterm.buffer.baseY, 3);
-			assert.equal(xterm.buffer.viewportY, 3);
+			assert.equal(xterm.buffer.active.baseY, 3);
+			assert.equal(xterm.buffer.active.viewportY, 3);
 
 			assert.equal(xterm.getSelection(), '');
 			commandTracker.selectToPreviousLine();

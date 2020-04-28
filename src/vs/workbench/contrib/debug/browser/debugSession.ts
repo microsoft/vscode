@@ -34,6 +34,7 @@ import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
+import { canceled } from 'vs/base/common/errors';
 
 export class DebugSession implements IDebugSession {
 
@@ -249,6 +250,9 @@ export class DebugSession implements IDebugSession {
 	async launchOrAttach(config: IConfig): Promise<void> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'launch or attach'));
+		}
+		if (this.parentSession && this.parentSession.state === State.Inactive) {
+			throw canceled();
 		}
 
 		// __sessionID only used for EH debugging (but we add it always for now...)

@@ -40,7 +40,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineConfigKeys, OutlineViewFocused, OutlineViewFiltered } from 'vs/editor/contrib/documentSymbols/outline';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter } from 'vs/editor/contrib/documentSymbols/outlineTree';
+import { OutlineDataSource, OutlineItemComparator, OutlineSortOrder, OutlineVirtualDelegate, OutlineGroupRenderer, OutlineElementRenderer, OutlineItem, OutlineIdentityProvider, OutlineNavigationLabelProvider, OutlineFilter, OutlineAccessibilityProvider } from 'vs/editor/contrib/documentSymbols/outlineTree';
 import { IDataTreeViewState } from 'vs/base/browser/ui/tree/dataTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { basename } from 'vs/base/common/resources';
@@ -51,7 +51,6 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 class RequestState {
 
@@ -177,13 +176,6 @@ class OutlineViewState {
 	private readonly _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
 	readonly onDidChange = this._onDidChange.event;
 
-	constructor(
-		@IStorageService private readonly _storageService: IStorageService,
-		@IStorageKeysSyncRegistryService storageKeysSyncService: IStorageKeysSyncRegistryService
-	) {
-		storageKeysSyncService.registerStorageKey({ key: 'outline/state', version: 1 });
-	}
-
 	set followCursor(value: boolean) {
 		if (value !== this._followCursor) {
 			this._followCursor = value;
@@ -217,16 +209,16 @@ class OutlineViewState {
 		return this._sortBy;
 	}
 
-	persist(): void {
-		this._storageService.store('outline/state', JSON.stringify({
+	persist(storageService: IStorageService): void {
+		storageService.store('outline/state', JSON.stringify({
 			followCursor: this.followCursor,
 			sortBy: this.sortBy,
 			filterOnType: this.filterOnType,
 		}), StorageScope.WORKSPACE);
 	}
 
-	restore(): void {
-		let raw = this._storageService.get('outline/state', StorageScope.WORKSPACE);
+	restore(storageService: IStorageService): void {
+		let raw = storageService.get('outline/state', StorageScope.WORKSPACE);
 		if (!raw) {
 			return;
 		}
@@ -249,7 +241,7 @@ export class OutlinePane extends ViewPane {
 	private _disposables = new Array<IDisposable>();
 
 	private _editorDisposables = new DisposableStore();
-	private _outlineViewState: OutlineViewState;
+	private _outlineViewState = new OutlineViewState();
 	private _requestOracle?: RequestOracle;
 	private _domNode!: HTMLElement;
 	private _message!: HTMLDivElement;
@@ -270,6 +262,7 @@ export class OutlinePane extends ViewPane {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IStorageService private readonly _storageService: IStorageService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@IMarkerDecorationsService private readonly _markerDecorationService: IMarkerDecorationsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -281,7 +274,7 @@ export class OutlinePane extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, _configurationService, contextKeyService, viewDescriptorService, _instantiationService, openerService, themeService, telemetryService);
-		this._outlineViewState = this.instantiationService.createInstance(OutlineViewState);
+		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
 		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
@@ -347,6 +340,7 @@ export class OutlinePane extends ViewPane {
 				filter: this._treeFilter,
 				identityProvider: new OutlineIdentityProvider(),
 				keyboardNavigationLabelProvider: new OutlineNavigationLabelProvider(),
+				accessibilityProvider: new OutlineAccessibilityProvider(localize('outline', "Outline")),
 				hideTwistiesOfChildlessElements: true,
 				overrideStyles: {
 					listBackground: this.getBackgroundColor()
@@ -410,13 +404,14 @@ export class OutlinePane extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this._tree.layout(height, width);
 	}
 
 	getActions(): IAction[] {
 		return [
 			new Action('collapse', localize('collapse', "Collapse All"), 'explorer-action codicon-collapse-all', true, () => {
-				return new CollapseAction(this._tree, true, undefined).run();
+				return new CollapseAction(() => this._tree, true, undefined).run();
 			})
 		];
 	}
@@ -441,7 +436,7 @@ export class OutlinePane extends ViewPane {
 	}
 
 	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
-		this._outlineViewState.persist();
+		this._outlineViewState.persist(this._storageService);
 		if (e.followCursor) {
 			// todo@joh update immediately
 		}
@@ -482,7 +477,7 @@ export class OutlinePane extends ViewPane {
 
 		// persist state
 		if (oldModel) {
-			this._treeStates.set(oldModel.textModel.uri.toString(), this._tree.getViewState());
+			this._treeStates.set(oldModel.uri.toString(), this._tree.getViewState());
 		}
 
 		if (!editor || !editor.hasModel() || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
@@ -551,7 +546,7 @@ export class OutlinePane extends ViewPane {
 			this._tree.updateChildren();
 			newModel = oldModel;
 		} else {
-			let state = this._treeStates.get(newModel.textModel.uri.toString());
+			let state = this._treeStates.get(newModel.uri.toString());
 			this._tree.setInput(newModel, state);
 		}
 
@@ -589,12 +584,12 @@ export class OutlinePane extends ViewPane {
 
 		// feature: reveal editor selection in outline
 		this._revealEditorSelection(newModel, editor.getSelection());
-		const versionIdThen = newModel.textModel.getVersionId();
+		const versionIdThen = textModel.getVersionId();
 		this._editorDisposables.add(editor.onDidChangeCursorSelection(e => {
 			// first check if the document has changed and stop revealing the
 			// cursor position iff it has -> we will update/recompute the
 			// outline view then anyways
-			if (!newModel.textModel.isDisposed() && newModel.textModel.getVersionId() === versionIdThen) {
+			if (!textModel.isDisposed() && textModel.getVersionId() === versionIdThen) {
 				this._revealEditorSelection(newModel, e.selection);
 			}
 		}));
@@ -641,7 +636,7 @@ export class OutlinePane extends ViewPane {
 	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): Promise<void> {
 		await this._editorService.openCodeEditor(
 			{
-				resource: model.textModel.uri,
+				resource: model.uri,
 				options: {
 					preserveFocus: !focus,
 					selection: Range.collapseToStart(element.symbol.selectionRange),

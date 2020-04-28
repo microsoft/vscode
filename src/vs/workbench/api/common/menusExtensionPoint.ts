@@ -41,10 +41,10 @@ namespace schema {
 			case 'menuBar/webNavigation': return MenuId.MenubarWebNavigationMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
-			case 'scm/resourceState/context': return MenuId.SCMResourceContext;
+			case 'scm/resourceState/context': return MenuId.SCMResourceContext;//
 			case 'scm/resourceFolder/context': return MenuId.SCMResourceFolderContext;
 			case 'scm/resourceGroup/context': return MenuId.SCMResourceGroupContext;
-			case 'scm/change/title': return MenuId.SCMChangeContext;
+			case 'scm/change/title': return MenuId.SCMChangeContext;//
 			case 'statusBar/windowIndicator': return MenuId.StatusBarWindowIndicatorMenu;
 			case 'view/title': return MenuId.ViewTitle;
 			case 'view/item/context': return MenuId.ViewItemContext;
@@ -165,6 +165,11 @@ namespace schema {
 				type: 'array',
 				items: menuItem
 			},
+			'menuBar/webNavigation': {
+				description: localize('menus.webNavigation', "The top level navigational menu (web only)"),
+				type: 'array',
+				items: menuItem
+			},
 			'scm/title': {
 				description: localize('menus.scmTitle', "The Source Control title menu"),
 				type: 'array',
@@ -182,6 +187,16 @@ namespace schema {
 			},
 			'scm/resourceState/context': {
 				description: localize('menus.resourceStateContext', "The Source Control resource state context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/resourceFolder/context': {
+				description: localize('menus.resourceFolderContext', "The Source Control resource folder context menu"),
+				type: 'array',
+				items: menuItem
+			},
+			'scm/change/title': {
+				description: localize('menus.changeTitle', "The Source Control inline change menu"),
 				type: 'array',
 				items: menuItem
 			},
