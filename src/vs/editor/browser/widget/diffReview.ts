@@ -114,6 +114,7 @@ export class DiffReview extends Disposable {
 
 		this._content = createFastDomNode(document.createElement('div'));
 		this._content.setClassName('diff-review-content');
+		this._content.setAttribute('role', 'code');
 		this.scrollbar = this._register(new DomScrollableElement(this._content.domNode, {}));
 		this.domNode.domNode.appendChild(this.scrollbar.getDomNode());
 
