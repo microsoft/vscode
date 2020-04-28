@@ -100,7 +100,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 							});
 					} else {
 						const options: IEditorOptions = editorService.activeEditor
-							? { pinned: false, inactive: true, index: 0 }
+							? { pinned: false, index: 0 }
 							: { pinned: false };
 						return instantiationService.createInstance(WelcomePage).openEditor(options);
 					}
