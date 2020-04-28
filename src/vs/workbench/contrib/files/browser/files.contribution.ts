@@ -320,6 +320,11 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: platform.isNative
 		},
+		'files.maxMemoryForClosedFilesUndoStackMB': {
+			'type': 'number',
+			'default': 20,
+			'markdownDescription': nls.localize('maxMemoryForClosedFilesUndoStackMB', "Controls the maximum ammount of memory the undo stack should hold for files that have been closed.")
+		},
 		'files.saveConflictResolution': {
 			'type': 'string',
 			'enum': [
