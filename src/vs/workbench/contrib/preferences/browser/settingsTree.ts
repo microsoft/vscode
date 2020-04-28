@@ -26,7 +26,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { isIOS } from 'vs/base/common/platform';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { escapeRegExpCharacters, startsWith } from 'vs/base/common/strings';
@@ -193,7 +193,7 @@ function getFlatSettings(settingsGroups: ISettingsGroup[]) {
 }
 
 interface IDisposableTemplate {
-	toDispose: IDisposable[];
+	toDispose: DisposableStore;
 }
 
 interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
@@ -209,7 +209,7 @@ interface ISettingItemTemplate<T = any> extends IDisposableTemplate {
 	otherOverridesElement: HTMLElement;
 	syncIgnoredElement: HTMLElement;
 	toolbar: ToolBar;
-	elementDisposables: IDisposable[];
+	elementDisposables: DisposableStore;
 }
 
 interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
@@ -370,14 +370,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
-		const toDispose: IDisposable[] = [];
+		const toDispose = new DisposableStore();
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
 		const toolbar = this.renderSettingToolbar(toolbarContainer);
 
 		const template: ISettingItemTemplate = {
 			toDispose,
-			elementDisposables: [],
+			elementDisposables: new DisposableStore(),
 
 			containerElement: container,
 			categoryElement,
@@ -391,17 +391,17 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		};
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', e => e.stopPropagation()));
+		toDispose.add(DOM.addDisposableListener(controlElement, 'mousedown', e => e.stopPropagation()));
 
-		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
-		toDispose.push(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
+		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_ENTER, e => container.classList.add('mouseover')));
+		toDispose.add(DOM.addDisposableListener(titleElement, DOM.EventType.MOUSE_LEAVE, e => container.classList.remove('mouseover')));
 
 		return template;
 	}
 
 	protected addSettingElementFocusHandler(template: ISettingItemTemplate): void {
 		const focusTracker = DOM.trackFocus(template.containerElement);
-		template.toDispose.push(focusTracker);
+		template.toDispose.add(focusTracker);
 		focusTracker.onDidBlur(() => {
 			if (template.containerElement.classList.contains('focused')) {
 				template.containerElement.classList.remove('focused');
@@ -446,7 +446,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.context = element;
 		template.toolbar.context = element;
 		const actions = this.disposableActionFactory(element.setting);
-		template.elementDisposables?.push(...actions);
+		actions.forEach(a => template.elementDisposables?.add(a));
 		template.toolbar.setActions([], [...this.settingActions, ...actions])();
 		this.fixToolbarIcon(template.toolbar);
 
@@ -466,8 +466,8 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		template.descriptionElement.innerHTML = '';
 		if (element.setting.descriptionIsMarkdown) {
 			const disposables = new DisposableStore();
-			template.toDispose.push(disposables);
-			const renderedDescription = this.renderDescriptionMarkdown(element, element.description, disposables);
+			template.toDispose.add(disposables);
+			const renderedDescription = this.renderSettingMarkdown(element, element.description, disposables);
 			template.descriptionElement.appendChild(renderedDescription);
 		} else {
 			template.descriptionElement.innerText = element.description;
@@ -496,7 +496,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 					DOM.append(template.otherOverridesElement, $('span', undefined, ')'));
 				}
 
-				template.elementDisposables.push(
+				template.elementDisposables.add(
 					DOM.addStandardDisposableListener(view, DOM.EventType.CLICK, (e: IMouseEvent) => {
 						this._onDidClickOverrideElement.fire({
 							targetKey: element.setting.key,
@@ -510,7 +510,14 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const onChange = (value: any) => this._onDidChangeSetting.fire({ key: element.setting.key, value, type: template.context!.valueType });
 		const deprecationText = element.setting.deprecationMessage || '';
-		template.deprecationWarningElement.innerText = deprecationText;
+		if (deprecationText && element.setting.deprecationMessageIsMarkdown) {
+			const disposables = new DisposableStore();
+			template.elementDisposables.add(disposables);
+			template.deprecationWarningElement.innerHTML = '';
+			template.deprecationWarningElement.appendChild(this.renderSettingMarkdown(element, element.setting.deprecationMessage!, template.elementDisposables));
+		} else {
+			template.deprecationWarningElement.innerText = deprecationText;
+		}
 		DOM.toggleClass(template.containerElement, 'is-deprecated', !!deprecationText);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
@@ -519,12 +526,12 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			template.syncIgnoredElement.style.display = this.ignoredSettings.includes(element.setting.key) ? 'inline' : 'none';
 		};
 		update();
-		template.elementDisposables.push(this.onDidChangeIgnoredSettings(() => {
+		template.elementDisposables.add(this.onDidChangeIgnoredSettings(() => {
 			update();
 		}));
 	}
 
-	private renderDescriptionMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
+	private renderSettingMarkdown(element: SettingsTreeSettingElement, text: string, disposeables: DisposableStore): HTMLElement {
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
@@ -545,7 +552,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 			}
 		});
 
-		renderedMarkdown.classList.add('setting-item-description-markdown');
+		renderedMarkdown.classList.add('setting-item-markdown');
 		cleanRenderedMarkdown(renderedMarkdown);
 		return renderedMarkdown;
 	}
@@ -615,7 +622,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 	disposeElement(_element: ITreeNode<SettingsTreeElement>, _index: number, template: IDisposableTemplate, _height: number | undefined): void {
 		if ((template as ISettingItemTemplate).elementDisposables) {
-			dispose((template as ISettingItemTemplate).elementDisposables);
+			(template as ISettingItemTemplate).elementDisposables.clear();
 		}
 	}
 }
@@ -626,10 +633,9 @@ export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElem
 	renderTemplate(container: HTMLElement): IGroupTitleTemplate {
 		DOM.addClass(container, 'group-title');
 
-		const toDispose: IDisposable[] = [];
 		const template: IGroupTitleTemplate = {
 			parent: container,
-			toDispose
+			toDispose: new DisposableStore()
 		};
 
 		return template;
@@ -660,20 +666,20 @@ export class SettingNewExtensionsRenderer implements ITreeRenderer<SettingsTreeN
 	}
 
 	renderTemplate(container: HTMLElement): ISettingNewExtensionsTemplate {
-		const toDispose: IDisposable[] = [];
+		const toDispose = new DisposableStore();
 
 		container.classList.add('setting-item-new-extensions');
 
 		const button = new Button(container, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
-		toDispose.push(button);
-		toDispose.push(button.onDidClick(() => {
+		toDispose.add(button);
+		toDispose.add(button.onDidClick(() => {
 			if (template.context) {
 				this._commandService.executeCommand('workbench.extensions.action.showExtensionsWithIds', template.context.extensionIds);
 			}
 		}));
 		button.label = localize('newExtensionsButtonLabel', "Show matching extensions");
 		button.element.classList.add('settings-new-extensions-button');
-		toDispose.push(attachButtonStyler(button, this._themeService));
+		toDispose.add(attachButtonStyler(button, this._themeService));
 
 		const template: ISettingNewExtensionsTemplate = {
 			button,
@@ -699,12 +705,12 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 		const common = this.renderCommonTemplate(null, container, 'complex');
 
 		const openSettingsButton = new Button(common.controlElement, { title: true, buttonBackground: undefined, buttonHoverBackground: undefined });
-		common.toDispose.push(openSettingsButton);
-		common.toDispose.push(openSettingsButton.onDidClick(() => template.onChange!()));
+		common.toDispose.add(openSettingsButton);
+		common.toDispose.add(openSettingsButton.onDidClick(() => template.onChange!()));
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
 
-		common.toDispose.push(attachButtonStyler(openSettingsButton, this._themeService, {
+		common.toDispose.add(attachButtonStyler(openSettingsButton, this._themeService, {
 			buttonBackground: Color.transparent.toString(),
 			buttonHoverBackground: Color.transparent.toString(),
 			buttonForeground: 'foreground'
@@ -756,7 +762,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 		const listWidget = this._instantiationService.createInstance(ListSettingWidget, common.controlElement);
 		listWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		common.toDispose.push(listWidget);
+		common.toDispose.add(listWidget);
 
 		const template: ISettingListItemTemplate = {
 			...common,
@@ -766,7 +772,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.push(
+		common.toDispose.add(
 			listWidget.onDidChangeList(e => {
 				const newList = this.computeNewList(template, e);
 				this.onDidChangeList(template, newList);
@@ -862,7 +868,7 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 
 		const excludeWidget = this._instantiationService.createInstance(ExcludeSettingWidget, common.controlElement);
 		excludeWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		common.toDispose.push(excludeWidget);
+		common.toDispose.add(excludeWidget);
 
 		const template: ISettingExcludeItemTemplate = {
 			...common,
@@ -871,7 +877,7 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 
 		this.addSettingElementFocusHandler(template);
 
-		common.toDispose.push(excludeWidget.onDidChangeList(e => this.onDidChangeExclude(template, e)));
+		common.toDispose.add(excludeWidget.onDidChangeList(e => this.onDidChangeExclude(template, e)));
 
 		return template;
 	}
@@ -938,19 +944,19 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
 		const inputBox = new InputBox(common.controlElement, this._contextViewService);
-		common.toDispose.push(inputBox);
-		common.toDispose.push(attachInputBoxStyler(inputBox, this._themeService, {
+		common.toDispose.add(inputBox);
+		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
 			inputBackground: settingsTextInputBackground,
 			inputForeground: settingsTextInputForeground,
 			inputBorder: settingsTextInputBorder
 		}));
-		common.toDispose.push(
+		common.toDispose.add(
 			inputBox.onDidChange(e => {
 				if (template.onChange) {
 					template.onChange(e);
 				}
 			}));
-		common.toDispose.push(inputBox);
+		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 
 		const template: ISettingTextItemTemplate = {
@@ -989,8 +995,8 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
 		});
 
-		common.toDispose.push(selectBox);
-		common.toDispose.push(attachSelectBoxStyler(selectBox, this._themeService, {
+		common.toDispose.add(selectBox);
+		common.toDispose.add(attachSelectBoxStyler(selectBox, this._themeService, {
 			selectBackground: settingsSelectBackground,
 			selectForeground: settingsSelectForeground,
 			selectBorder: settingsSelectBorder,
@@ -1002,7 +1008,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 			selectElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		}
 
-		common.toDispose.push(
+		common.toDispose.add(
 			selectBox.onDidSelect(e => {
 				if (template.onChange) {
 					template.onChange(e.index);
@@ -1031,7 +1037,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
 		const disposables = new DisposableStore();
-		template.toDispose.push(disposables);
+		template.toDispose.add(disposables);
 
 		const displayOptions = dataElement.setting.enum!
 			.map(String)
@@ -1078,19 +1084,19 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
 		const inputBox = new InputBox(common.controlElement, this._contextViewService, { type: 'number' });
-		common.toDispose.push(inputBox);
-		common.toDispose.push(attachInputBoxStyler(inputBox, this._themeService, {
+		common.toDispose.add(inputBox);
+		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
 			inputBackground: settingsNumberInputBackground,
 			inputForeground: settingsNumberInputForeground,
 			inputBorder: settingsNumberInputBorder
 		}));
-		common.toDispose.push(
+		common.toDispose.add(
 			inputBox.onDidChange(e => {
 				if (template.onChange) {
 					template.onChange(e);
 				}
 			}));
-		common.toDispose.push(inputBox);
+		common.toDispose.add(inputBox);
 		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 
 		const template: ISettingNumberItemTemplate = {
@@ -1184,8 +1190,8 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		toDispose.add(toolbar);
 
 		const template: ISettingBoolItemTemplate = {
-			toDispose: [toDispose],
-			elementDisposables: [],
+			toDispose,
+			elementDisposables: new DisposableStore(),
 
 			containerElement: container,
 			categoryElement,
@@ -1627,7 +1633,7 @@ export class SettingsTree extends ObjectTree<SettingsTreeElement> {
 
 			const focusBorderColor = theme.getColor(focusBorder);
 			if (focusBorderColor) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown a:focus { outline-color: ${focusBorderColor} }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus { outline-color: ${focusBorderColor} }`);
 			}
 		}));
 

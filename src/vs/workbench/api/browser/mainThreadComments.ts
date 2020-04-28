@@ -177,6 +177,10 @@ export class MainThreadCommentController {
 		this._reactions = reactions;
 	}
 
+	get options() {
+		return this._features.options;
+	}
+
 	private readonly _threads: Map<number, MainThreadCommentThread> = new Map<number, MainThreadCommentThread>();
 	public activeCommentThread?: MainThreadCommentThread;
 

@@ -8,7 +8,6 @@ import { UriComponents, URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { RawContextKey, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -441,12 +440,6 @@ export interface IView {
 	setExpanded(expanded: boolean): boolean;
 
 	getProgressIndicator(): IProgressIndicator | undefined;
-}
-
-export interface IViewsViewlet extends IViewlet {
-
-	openView(id: string, focus?: boolean): IView;
-
 }
 
 export const IViewsService = createDecorator<IViewsService>('viewsService');

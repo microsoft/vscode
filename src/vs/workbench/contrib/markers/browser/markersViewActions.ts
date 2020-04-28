@@ -335,6 +335,10 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox!)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.CLICK, (e) => {
+			e.stopPropagation();
+			e.preventDefault();
+		}));
 
 		const focusTracker = this._register(DOM.trackFocus(this.filterInputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this.focusContextKey.set(true)));

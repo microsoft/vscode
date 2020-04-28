@@ -990,6 +990,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				]
 			}
 		*/
-		this.telemetryService.publicLog(eventName, assign(extensionData, { success: !error, duration, errorcode }));
+		this.telemetryService.publicLogError(eventName, assign(extensionData, { success: !error, duration, errorcode }));
 	}
 }

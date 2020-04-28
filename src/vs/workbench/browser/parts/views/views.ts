@@ -149,6 +149,7 @@ export class ViewsService extends Disposable implements IViewsService {
 						category: composite ? composite.name : localize('view category', "View"),
 						menu: [{
 							id: MenuId.CommandPalette,
+							when: viewDescriptor.when,
 						}],
 						keybinding: {
 							when: ContextKeyExpr.has(`${viewDescriptor.id}.active`),
@@ -243,16 +244,22 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	async openView<T extends IView>(id: string, focus: boolean): Promise<T | null> {
 		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
-		if (viewContainer) {
-			const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
-			const compositeDescriptor = this.getComposite(viewContainer.id, location!);
-			if (compositeDescriptor) {
-				const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
-				if (paneComposite && paneComposite.openView) {
-					return paneComposite.openView(id, focus) as T;
-				} else if (focus) {
-					paneComposite?.focus();
-				}
+		if (!viewContainer) {
+			return null;
+		}
+
+		if (!this.viewDescriptorService.getViewContainerModel(viewContainer).activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === id)) {
+			return null;
+		}
+
+		const location = this.viewDescriptorService.getViewContainerLocation(viewContainer);
+		const compositeDescriptor = this.getComposite(viewContainer.id, location!);
+		if (compositeDescriptor) {
+			const paneComposite = await this.openComposite(compositeDescriptor.id, location!) as IPaneComposite | undefined;
+			if (paneComposite && paneComposite.openView) {
+				return paneComposite.openView<T>(id, focus) || null;
+			} else if (focus) {
+				paneComposite?.focus();
 			}
 		}
 

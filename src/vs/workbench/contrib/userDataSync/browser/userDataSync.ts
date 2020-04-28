@@ -29,7 +29,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
-	CONTEXT_SYNC_STATE, ISyncConfiguration, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
+	CONTEXT_SYNC_STATE, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT,
 	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview
 } from 'vs/platform/userDataSync/common/userDataSync';
@@ -101,10 +101,14 @@ const showSyncActivityCommand = {
 };
 const showSyncSettingsCommand = { id: 'workbench.userData.actions.syncSettings', title: localize('sync settings', "Preferences Sync: Show Settings"), };
 
+const CONTEXT_TURNING_ON_STATE = new RawContextKey<false>('userDataSyncTurningOn', false);
 const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
 
 export class UserDataSyncWorkbenchContribution extends Disposable implements IWorkbenchContribution {
 
+	private static TURNING_ON_SYNC_KEY = 'userDataSync.turningOn';
+
+	private readonly turningOnSyncContext: IContextKey<boolean>;
 	private readonly syncEnablementContext: IContextKey<boolean>;
 	private readonly syncStatusContext: IContextKey<string>;
 	private readonly accountStatusContext: IContextKey<string>;
@@ -137,6 +141,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 
+		this.turningOnSyncContext = CONTEXT_TURNING_ON_STATE.bindTo(contextKeyService);
 		this.syncEnablementContext = CONTEXT_SYNC_ENABLEMENT.bindTo(contextKeyService);
 		this.syncStatusContext = CONTEXT_SYNC_STATE.bindTo(contextKeyService);
 		this.accountStatusContext = CONTEXT_ACCOUNT_STATE.bindTo(contextKeyService);
@@ -147,11 +152,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (this.userDataSyncAccounts.authenticationProviders.length) {
 			registerConfiguration();
 
+			this.onDidChangeTurningOnState();
 			this.onDidChangeSyncStatus(this.userDataSyncService.status);
 			this.onDidChangeConflicts(this.userDataSyncService.conflicts);
 			this.onDidChangeEnablement(this.userDataSyncEnablementService.isEnabled());
 			this.onDidChangeAccountStatus(this.userDataSyncAccounts.status);
 
+			this._register(Event.filter(storageService.onDidChangeStorage, e => e.scope === StorageScope.GLOBAL && e.key === UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY)(() => this.onDidChangeTurningOnState()));
 			this._register(Event.debounce(userDataSyncService.onDidChangeStatus, () => undefined, 500)(() => this.onDidChangeSyncStatus(this.userDataSyncService.status)));
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
 			this._register(userDataSyncService.onSyncErrors(errors => this.onSyncErrors(errors)));
@@ -168,6 +175,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => userDataAutoSyncService.triggerAutoSync([source])));
 			}
 		}
+	}
+
+	private onDidChangeTurningOnState(): void {
+		this.turningOnSyncContext.set(this.storageService.getBoolean(UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY, StorageScope.GLOBAL, false));
 	}
 
 	private onDidChangeAccountStatus(status: AccountStatus): void {
@@ -398,26 +409,46 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private async turnOn(): Promise<void> {
-		if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
-			const result = await this.dialogService.show(
-				Severity.Info,
-				localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
-				[
-					localize('open doc', "Open Documentation"),
-					localize('turn on', "Turn On"),
-					localize('cancel', "Cancel"),
-				],
-				{
-					cancelId: 2
+		this.storageService.store(UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY, true, StorageScope.GLOBAL);
+		try {
+			if (!this.storageService.getBoolean('sync.donotAskPreviewConfirmation', StorageScope.GLOBAL, false)) {
+				if (!await this.askForConfirmation()) {
+					return;
 				}
-			);
-			switch (result.choice) {
-				case 0: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return;
-				case 2: return;
 			}
+			const turnOn = await this.askToConfigure();
+			if (!turnOn) {
+				return;
+			}
+			await this.doTurnOn();
+			this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
+		} finally {
+			this.storageService.store(UserDataSyncWorkbenchContribution.TURNING_ON_SYNC_KEY, false, StorageScope.GLOBAL);
 		}
+	}
 
-		return new Promise((c, e) => {
+	private async askForConfirmation(): Promise<boolean> {
+		const result = await this.dialogService.show(
+			Severity.Info,
+			localize('sync preview message', "Synchronizing your preferences is a preview feature, please read the documentation before turning it on."),
+			[
+				localize('open doc', "Open Documentation"),
+				localize('turn on', "Turn On"),
+				localize('cancel', "Cancel"),
+			],
+			{
+				cancelId: 2
+			}
+		);
+		switch (result.choice) {
+			case 0: this.openerService.open(URI.parse('https://aka.ms/vscode-settings-sync-help')); return false;
+			case 2: return false;
+		}
+		return true;
+	}
+
+	private async askToConfigure(): Promise<boolean> {
+		return new Promise<boolean>((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
 			disposables.add(quickPick);
@@ -440,14 +471,23 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const items = this.getConfigureSyncQuickPickItems();
 			quickPick.items = items;
 			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
-			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(async () => {
-				if (quickPick.selectedItems.length) {
-					this.updateConfiguration(items, quickPick.selectedItems);
-					this.doTurnOn().then(c, e);
-					quickPick.hide();
+			let accepted: boolean = false;
+			disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
+				accepted = true;
+				quickPick.hide();
+			}));
+			disposables.add(quickPick.onDidHide(() => {
+				try {
+					if (accepted) {
+						this.updateConfiguration(items, quickPick.selectedItems);
+					}
+					c(accepted);
+				} catch (error) {
+					e(error);
+				} finally {
+					disposables.dispose();
 				}
 			}));
-			disposables.add(quickPick.onDidHide(() => disposables.dispose()));
 			quickPick.show();
 		});
 	}
@@ -466,7 +506,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		await this.handleFirstTimeSync();
 		this.userDataSyncEnablementService.setEnablement(true);
 		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
-		this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
 	}
 
 	private getConfigureSyncQuickPickItems(): ConfigureSyncQuickPickItem[] {
@@ -498,7 +537,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private async configureSyncOptions(): Promise<ISyncConfiguration> {
+	private async configureSyncOptions(): Promise<void> {
 		return new Promise((c, e) => {
 			const disposables: DisposableStore = new DisposableStore();
 			const quickPick = this.quickInputService.createQuickPick<ConfigureSyncQuickPickItem>();
@@ -513,7 +552,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			quickPick.selectedItems = items.filter(item => this.userDataSyncEnablementService.isResourceEnabled(item.id));
 			disposables.add(quickPick.onDidAccept(async () => {
 				if (quickPick.selectedItems.length) {
-					await this.updateConfiguration(items, quickPick.selectedItems);
+					this.updateConfiguration(items, quickPick.selectedItems);
 					quickPick.hide();
 				}
 			}));
@@ -655,6 +694,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			this.registerTurnOnSyncAction();
 			this.registerTurnOffSyncAction();
 		}
+		this.registerTurninOnSyncAction();
 		this.registerSignInAction(); // When Sync is turned on from CLI
 		this.registerShowSettingsConflictsAction();
 		this.registerShowKeybindingsConflictsAction();
@@ -667,7 +707,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private registerTurnOnSyncAction(): void {
-		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized));
+		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE.negate());
 		CommandsRegistry.registerCommand(turnOnSyncCommand.id, async () => {
 			try {
 				await this.turnOn();
@@ -706,6 +746,30 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			},
 			when: turnOnSyncWhenContext
 		});
+	}
+
+	private registerTurninOnSyncAction(): void {
+		const when = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE);
+		this._register(registerAction2(class TurningOnSyncAction extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.userData.actions.turningOn',
+					title: localize('turnin on sync', "Turning on Preferences Sync..."),
+					precondition: ContextKeyExpr.false(),
+					menu: [{
+						group: '5_sync',
+						id: MenuId.GlobalActivity,
+						when,
+						order: 2
+					}, {
+						group: '1_sync',
+						id: MenuId.AccountsContext,
+						when,
+					}]
+				});
+			}
+			async run(): Promise<any> { }
+		}));
 	}
 
 	private registerSignInAction(): void {

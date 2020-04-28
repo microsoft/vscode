@@ -3221,7 +3221,7 @@ extglob@^2.0.4:
     snapdragon "^0.8.1"
     to-regex "^3.0.1"
 
-extract-zip@^1.0.3, extract-zip@^1.6.6:
+extract-zip@^1.0.3:
   version "1.6.7"
   resolved "https://registry.yarnpkg.com/extract-zip/-/extract-zip-1.6.7.tgz#a840b4b8af6403264c8db57f4f1a74333ef81fe9"
   integrity sha1-qEC0uK9kAyZMjbV/Txp0Mz74H+k=
@@ -3230,6 +3230,17 @@ extract-zip@^1.0.3, extract-zip@^1.6.6:
     debug "2.6.9"
     mkdirp "0.5.1"
     yauzl "2.4.1"
+
+extract-zip@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.yarnpkg.com/extract-zip/-/extract-zip-2.0.0.tgz#f53b71d44f4ff5a4527a2259ade000fb8b303492"
+  integrity sha512-i42GQ498yibjdvIhivUsRslx608whtGoFIhF26Z7O4MYncBxp8CwalOs1lnHy21A9sIohWO2+uiE4SRtC9JXDg==
+  dependencies:
+    debug "^4.1.1"
+    get-stream "^5.1.0"
+    yauzl "^2.10.0"
+  optionalDependencies:
+    "@types/yauzl" "^2.9.1"
 
 extsprintf@1.3.0, extsprintf@^1.2.0:
   version "1.3.0"
@@ -5199,10 +5210,10 @@ jade@0.26.3:
     commander "0.6.1"
     mkdirp "0.3.0"
 
-jpeg-js@^0.3.6:
-  version "0.3.6"
-  resolved "https://registry.yarnpkg.com/jpeg-js/-/jpeg-js-0.3.6.tgz#c40382aac9506e7d1f2d856eb02f6c7b2a98b37c"
-  integrity sha512-MUj2XlMB8kpe+8DJUGH/3UJm4XpI8XEgZQ+CiHDeyrGoKPdW/8FJv6ku+3UiYm5Fz3CWaL+iXmD8Q4Ap6aC1Jw==
+jpeg-js@^0.3.7:
+  version "0.3.7"
+  resolved "https://registry.yarnpkg.com/jpeg-js/-/jpeg-js-0.3.7.tgz#471a89d06011640592d314158608690172b1028d"
+  integrity sha512-9IXdWudL61npZjvLuVe/ktHiA41iE8qFyLB+4VDTblEsWBzeg8WQTlktdUK4CdncUqtUgUg0bbOmTE2bKBKaBQ==
 
 js-base64@^2.1.9:
   version "2.3.2"
@@ -5949,6 +5960,11 @@ mime@^1.4.1:
   resolved "https://registry.yarnpkg.com/mime/-/mime-1.6.0.tgz#32cd9e5c64553bd58d19a568af452acff04981b1"
   integrity sha512-x0Vn8spI+wuJ1O6S7gnbaQg8Pxh4NNHb7KSINmEWKiPE4RKOplvijn+NkmYmmRgP68mc70j2EbeTFRsrswaQeg==
 
+mime@^2.4.4:
+  version "2.4.4"
+  resolved "https://registry.yarnpkg.com/mime/-/mime-2.4.4.tgz#bd7b91135fc6b01cde3e9bae33d659b63d8857e5"
+  integrity sha512-LRxmNwziLPT828z+4YkNzloCFC2YM4wrB99k+AV5ZbEyfGNWfG8SO1FUXLmLDBSo89NrJZ4DIWeLjy1CHGhMGA==
+
 mimic-fn@^1.0.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/mimic-fn/-/mimic-fn-1.1.0.tgz#e667783d92e89dbd342818b5230b9d62a672ad18"
@@ -6205,10 +6221,10 @@ native-is-elevated@0.4.1:
   resolved "https://registry.yarnpkg.com/native-is-elevated/-/native-is-elevated-0.4.1.tgz#f6391aafb13441f5b949b39ae0b466b06e7f3986"
   integrity sha512-2vBXCXCXYKLDjP0WzrXs/AFjDb2njPR31EbGiZ1mR2fMJg211xClK1Xm19RXve35kvAL4dBKOFGCMIyc2+pPsw==
 
-native-keymap@2.1.1:
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-2.1.1.tgz#8b6ba2d4e81b5fe44948ebe3ff88e3777b70d4d6"
-  integrity sha512-8ACRLXS9xMmRQVWK8YYp0zUSW4PjXuF2VGYu1kq0WYcND9yyr3BASyhopn+VXP3nDehS3Ct5FjDtsOiLEhBvmQ==
+native-keymap@2.1.2:
+  version "2.1.2"
+  resolved "https://registry.yarnpkg.com/native-keymap/-/native-keymap-2.1.2.tgz#9773313f619d4c2b66b452cf036310a145523b59"
+  integrity sha512-n+oe+sxaauCFxomkl9Xrw1iUp88jTamMaGJSHNSGZ8rkIN9N+Wi6KIvBO8x3nmFxLI27KWu1d8IrLBxFKPNQag==
 
 native-watchdog@1.3.0:
   version "1.3.0"
@@ -6996,27 +7012,28 @@ pkg-dir@^3.0.0:
   dependencies:
     find-up "^3.0.0"
 
-playwright-core@=0.12.1:
-  version "0.12.1"
-  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-0.12.1.tgz#07581d1cbe84bb1e438ecdb188de3ed6d5e81ee0"
-  integrity sha512-NZ8Qe/kqsgAmFBxWZnUeE+MoZ04UzNI0DHOKA+I1p/5rbpaWhe1Vx5zVNa05A1iEvOtnKV1PdIEe4IPumG2y2w==
+playwright-core@=0.15.0:
+  version "0.15.0"
+  resolved "https://registry.yarnpkg.com/playwright-core/-/playwright-core-0.15.0.tgz#c605c98a13c81d5a2e2691f15d04758cf302c20a"
+  integrity sha512-uTm4PoF2U3iXkLMMG9vlTxlGfO8atQGAHDxqi8xV7hEjNSYeLTU7c6HN5zwadeHRVuBbNsZ4yqu9u4hoqC7uxQ==
   dependencies:
-    debug "^4.1.0"
-    extract-zip "^1.6.6"
+    debug "^4.1.1"
+    extract-zip "^2.0.0"
     https-proxy-agent "^3.0.0"
-    jpeg-js "^0.3.6"
-    pngjs "^3.4.0"
+    jpeg-js "^0.3.7"
+    mime "^2.4.4"
+    pngjs "^5.0.0"
     progress "^2.0.3"
     proxy-from-env "^1.1.0"
     rimraf "^3.0.2"
     ws "^6.1.0"
 
-playwright@0.12.1:
-  version "0.12.1"
-  resolved "https://registry.yarnpkg.com/playwright/-/playwright-0.12.1.tgz#59445ede1aecec120091db7bc95b4e626451e0b0"
-  integrity sha512-icF4+I8y7A5HjhbTsa4Eqtl2fuGe3ECvW0Wrn6aRM5eL5/AqUIgIf2U/0e1S1bEsDfz1JVvClGl5Gqw4aI5H4w==
+playwright@0.15.0:
+  version "0.15.0"
+  resolved "https://registry.yarnpkg.com/playwright/-/playwright-0.15.0.tgz#bf5c3bb8404975aba78459310742388c08438431"
+  integrity sha512-UGHkQz8DT43uJ0KgMh2rmj8BI4FE5ReQJ9nm5mG68tt1Cj2sXPdM2b05qptfYYBPtQRetQqtJTauZ6rlCDemaQ==
   dependencies:
-    playwright-core "=0.12.1"
+    playwright-core "=0.15.0"
 
 plist@^3.0.1:
   version "3.0.1"
@@ -7048,10 +7065,10 @@ plugin-error@^1.0.1:
     arr-union "^3.1.0"
     extend-shallow "^3.0.2"
 
-pngjs@^3.4.0:
-  version "3.4.0"
-  resolved "https://registry.yarnpkg.com/pngjs/-/pngjs-3.4.0.tgz#99ca7d725965fb655814eaf65f38f12bbdbf555f"
-  integrity sha512-NCrCHhWmnQklfH4MtJMRjZ2a8c80qXeMlQMv2uVp9ISJMTt562SbGd6n2oq0PaPgKm7Z6pL9E2UlLIhC+SHL3w==
+pngjs@^5.0.0:
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/pngjs/-/pngjs-5.0.0.tgz#e79dd2b215767fd9c04561c01236df960bce7fbb"
+  integrity sha512-40QW5YalBNfQo5yRYmiw7Yz6TKKVr3h6970B2YE+3fQpsWcrbj1PzJgxeJ19DRQjhMbKPIuMY8rFaXc8moolVw==
 
 posix-character-classes@^0.1.0:
   version "0.1.1"
@@ -9253,10 +9270,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^3.9.0-dev.20200420:
-  version "3.9.0-dev.20200424"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200424.tgz#7f1be64ee9b9d75a5bf9ec55d900787b83c99023"
-  integrity sha512-dlfK6Mtv78aQhWs8Umtq+twEP051mnXStu+TwOYlvkqMF/hdG626I5PMonLx11gLL2NmOftLTjM/ebAiAZqx7g==
+typescript@^3.9.0-dev.20200427:
+  version "3.9.0-dev.20200427"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.0-dev.20200427.tgz#e42d606d938575dfb7b0b66f04a31b5f0eb0be57"
+  integrity sha512-ja/GhL7BHT+VQZiLoYMGJt2CP1Pdr0EhYefv4LLw4tVooSuCDB8SDKT/i/HwsoPgQ4ZaYfg1vPl+1RhiO3bwJg==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
@@ -9694,10 +9711,10 @@ vscode-nsfw@1.2.8:
     lodash.isundefined "^3.0.1"
     nan "^2.10.0"
 
-vscode-oniguruma@1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.1.1.tgz#81460d148e70668b7c1abfd78ab7fcb2e2c6b316"
-  integrity sha512-4bygPUQjD5o9nLxp8f0s2TbqLte+Kz3C/IZxheIwunos69jI6OOxAhXW06RgqFbnXAw9ggUydx5qIZ7LD6iNuw==
+vscode-oniguruma@1.3.0:
+  version "1.3.0"
+  resolved "https://registry.yarnpkg.com/vscode-oniguruma/-/vscode-oniguruma-1.3.0.tgz#6788a9db2f8b0781243b4eb8c7a1dd25f6c0e2c8"
+  integrity sha512-m4Br19v6XD4MRbVrgsLNSZgQrBzk1BCMCleL8+GrcoGxKEJJd62zOFcTaoQR3hCrSlLqoxWmJ7Cc0VieVV3iTQ==
 
 vscode-proxy-agent@^0.5.2:
   version "0.5.2"
@@ -9721,10 +9738,10 @@ vscode-sqlite3@4.0.10:
   dependencies:
     nan "^2.14.0"
 
-vscode-textmate@5.0.2:
-  version "5.0.2"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.0.2.tgz#db661c4a9d7aae5923030b4e3d55cf88b7ece0dd"
-  integrity sha512-ZkaXGGXvxinC7bVJT67MOQLdmXE3p3xqUbkhy7tmBRlsHWPKh3MP1zA/+NeFlu4JAGzyuT1Y5MPn7s64szvMpQ==
+vscode-textmate@5.1.1:
+  version "5.1.1"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-5.1.1.tgz#d88dbf271bee7cede455a21bd4894ba5724a4a7e"
+  integrity sha512-5VHjF+Fglf9d2JI5OyQ7FHutK6/29G0qYyD920K0SWO7uY8JTWbqyKAHEtfB/ZDk2fOe/E23n3wz9fHXKi63yg==
 
 vscode-windows-ca-certs@0.2.0:
   version "0.2.0"
@@ -10040,15 +10057,15 @@ xterm-addon-web-links@0.3.0:
   resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.3.0.tgz#88affe9235c928b41bab660a65330f46d91c940e"
   integrity sha512-vGXiIDqNMyxK5S1IzOjDqcgeQrrv7TDcSHiOeCNAoWCI2f+Rap9d18gjgnMKPyR+AbG0KoKnaKA6Dc1du1vs5A==
 
-xterm-addon-webgl@0.7.0-beta.6:
-  version "0.7.0-beta.6"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.7.0-beta.6.tgz#340d728bae7456a1d67a7cb8996dfd51d96721b0"
-  integrity sha512-IoR0hPtG5qBrcLG1B7GSzo4W2hYocP8UgG5LlyXkEkT/0BqVcGnICgR8Ck7EfMmU8ci4jNFiHYjK/Bgc4m2S4g==
+xterm-addon-webgl@0.7.0-beta.8:
+  version "0.7.0-beta.8"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.7.0-beta.8.tgz#546651958d740bf05d6a05555fbcacd2759b2ee7"
+  integrity sha512-2jxMtRR5zgAar1gPqt0iD/+GOlZ3cHyzzbIbC77EBIdZZFuhEDhJkucVPPS2KPcyqw3VROL1FgX7BSEV2rvdeA==
 
-xterm@4.6.0-beta.15:
-  version "4.6.0-beta.15"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.6.0-beta.15.tgz#93a0cb1ff047a452b03070499e2ccd0ba53e0678"
-  integrity sha512-5G+3QSM/GKN/Tdq/IIU7FDivzh0eXsv3sNmZFDdtvNggnu2K56l4N5P0KZo0HdFztDfTyW/FLfqsPAwhrK4Khg==
+xterm@4.6.0-beta.25:
+  version "4.6.0-beta.25"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.6.0-beta.25.tgz#2faea6cf8c677ed545792562165604ce7f314026"
+  integrity sha512-63FLAUdJ8Bw9SMgLU3/r353P1WAtLxupbfvfddi4nMcz1WEGRq07O1CbmJn/bKHHkJw7gQQw0n1I8xnjFlLlTA==
 
 y18n@^3.2.1:
   version "3.2.1"
@@ -10133,6 +10150,14 @@ yauzl@2.4.1:
   dependencies:
     fd-slicer "~1.0.1"
 
+yauzl@^2.10.0, yauzl@^2.9.2:
+  version "2.10.0"
+  resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-2.10.0.tgz#c7eb17c93e112cb1086fa6d8e51fb0667b79a5f9"
+  integrity sha1-x+sXyT4RLLEIb6bY5R+wZnt5pfk=
+  dependencies:
+    buffer-crc32 "~0.2.3"
+    fd-slicer "~1.1.0"
+
 yauzl@^2.2.1, yauzl@^2.3.1:
   version "2.9.1"
   resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-2.9.1.tgz#a81981ea70a57946133883f029c5821a89359a7f"
@@ -10140,14 +10165,6 @@ yauzl@^2.2.1, yauzl@^2.3.1:
   dependencies:
     buffer-crc32 "~0.2.3"
     fd-slicer "~1.0.1"
-
-yauzl@^2.9.2:
-  version "2.10.0"
-  resolved "https://registry.yarnpkg.com/yauzl/-/yauzl-2.10.0.tgz#c7eb17c93e112cb1086fa6d8e51fb0667b79a5f9"
-  integrity sha1-x+sXyT4RLLEIb6bY5R+wZnt5pfk=
-  dependencies:
-    buffer-crc32 "~0.2.3"
-    fd-slicer "~1.1.0"
 
 yazl@^2.2.1, yazl@^2.2.2, yazl@^2.4.3:
   version "2.4.3"

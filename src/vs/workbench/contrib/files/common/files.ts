@@ -29,6 +29,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 export const VIEWLET_ID = 'workbench.view.explorer';
 
 /**
+ * Explorer file view id.
+ */
+export const VIEW_ID = 'workbench.explorer.fileView';
+
+/**
  * Id of the default editor for open with.
  */
 export const DEFAULT_EDITOR_ID = 'default';

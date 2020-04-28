@@ -10,8 +10,7 @@ import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkey
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
-import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 
@@ -67,51 +66,3 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 	}
 }).register();
 
-(new class ToggleCustomEditorCommand extends Command {
-	public static readonly ID = 'editor.action.customEditor.toggle';
-
-	constructor() {
-		super({
-			id: ToggleCustomEditorCommand.ID,
-			precondition: CONTEXT_CUSTOM_EDITORS,
-		});
-	}
-
-	public runCommand(accessor: ServicesAccessor): void {
-		const editorService = accessor.get<IEditorService>(IEditorService);
-		const activeEditorPane = editorService.activeEditorPane;
-		if (!activeEditorPane) {
-			return;
-		}
-
-		const activeGroup = activeEditorPane.group;
-		const activeEditor = activeEditorPane.input;
-		const targetResource = activeEditor.resource;
-
-		if (!targetResource) {
-			return;
-		}
-
-		const customEditorService = accessor.get<ICustomEditorService>(ICustomEditorService);
-
-		let toggleView = defaultCustomEditor.id;
-		if (!(activeEditor instanceof CustomEditorInput)) {
-			const bestAvailableEditor = customEditorService.getContributedCustomEditors(targetResource).bestAvailableEditor;
-			if (bestAvailableEditor) {
-				toggleView = bestAvailableEditor.id;
-			} else {
-				return;
-			}
-		}
-
-		const newEditorInput = customEditorService.createInput(targetResource, toggleView, activeGroup.id);
-
-		editorService.replaceEditors([{
-			editor: activeEditor,
-			replacement: newEditorInput,
-			options: {
-				ignoreOverrides: true,
-			}
-		}], activeGroup);
-	}
-}).register();

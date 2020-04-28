@@ -8173,6 +8173,7 @@ declare module 'vscode' {
 		 *   }
 		 * };
 		 * vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * ```
 		 */
 		onDidClose?: Event<void | number>;
 

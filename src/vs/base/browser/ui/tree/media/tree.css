@@ -61,5 +61,6 @@
 }
 
 .monaco-tl-twistie.codicon-tree-item-loading::before {
-	animation: codicon-spin 1.25s linear infinite;
+	/* Use steps to throttle FPS to reduce CPU usage */
+	animation: codicon-spin 1.25s steps(30) infinite;
 }

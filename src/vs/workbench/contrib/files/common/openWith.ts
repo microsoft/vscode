@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { basename, extname, isEqual } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { DEFAULT_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverrideEntry, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 
 const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
 
@@ -31,23 +32,26 @@ export async function openEditorWith(
 	editorService: IEditorService,
 	configurationService: IConfigurationService,
 	quickInputService: IQuickInputService,
-): Promise<void> {
+): Promise<IEditorPane | undefined> {
 	const resource = input.resource;
 	if (!resource) {
 		return;
 	}
 
-	const resourceExt = extname(resource);
-	const overrides = editorService.getEditorOverrides(input, options, group);
-
-	const overrideToUse = overrides.find(([_, entry]) => entry.id === id);
-	if (overrideToUse) {
-		overrideToUse[0].open(input, options, group, id);
+	const allEditorOverrides = getAllAvailableEditors(input, resource, options, group, editorService);
+	if (!allEditorOverrides.length) {
 		return;
 	}
 
+	const overrideToUse = typeof id === 'string' && allEditorOverrides.find(([_, entry]) => entry.id === id);
+	if (overrideToUse) {
+		return overrideToUse[0].open(input, options, group, id)?.override;
+	}
+
 	// Prompt
-	const items: (IQuickPickItem & { handler?: IOpenEditorOverrideHandler })[] = overrides.map((override) => {
+	const resourceExt = extname(resource);
+
+	const items: (IQuickPickItem & { handler: IOpenEditorOverrideHandler })[] = allEditorOverrides.map((override) => {
 		return {
 			handler: override[0],
 			id: override[1].id,
@@ -61,31 +65,14 @@ export async function openEditorWith(
 		};
 	});
 
-	if (!items.length) {
-		return;
-	}
-
-	if (!items.find(item => item.id === DEFAULT_EDITOR_ID)) {
-		items.unshift({
-			id: DEFAULT_EDITOR_ID,
-			label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-			description: editorService.activeEditor instanceof FileEditorInput && isEqual(editorService.activeEditor.resource, resource) ? nls.localize('promptOpenWith.currentlyActive', 'Currently Active') : undefined,
-			detail: builtinProviderDisplayName,
-			buttons: resourceExt ? [{
-				iconClass: 'codicon-settings-gear',
-				tooltip: nls.localize('promptOpenWith.setDefaultTooltip', "Set as default editor for '{0}' files", resourceExt)
-			}] : undefined
-		});
-	}
-
-	const picker = quickInputService.createQuickPick<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler })>();
+	const picker = quickInputService.createQuickPick<(IQuickPickItem & { handler: IOpenEditorOverrideHandler })>();
 	picker.items = items;
 	if (items.length) {
 		picker.selectedItems = [items[0]];
 	}
 	picker.placeholder = nls.localize('promptOpenWith.placeHolder', "Select editor for '{0}'", basename(resource));
 
-	const pickedItem = await new Promise<(IQuickPickItem & { handler?: IOpenEditorOverrideHandler }) | undefined>(resolve => {
+	const pickedItem = await new Promise<(IQuickPickItem & { handler: IOpenEditorOverrideHandler }) | undefined>(resolve => {
 		picker.onDidAccept(() => {
 			resolve(picker.selectedItems.length === 1 ? picker.selectedItems[0] : undefined);
 			picker.dispose();
@@ -121,18 +108,40 @@ export async function openEditorWith(
 		picker.show();
 	});
 
-	if (!pickedItem) {
-		return;
-	}
-
-	if (pickedItem.id === DEFAULT_EDITOR_ID) {
-		const fileEditorInput = editorService.createEditorInput({ resource: resource!, forceFile: true });
-		const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
-
-		await editorService.openEditor(fileEditorInput, textOptions, group);
-		return;
-	}
-
-	pickedItem.handler!.open(input!, options, group, pickedItem.id);
-	return;
+	return pickedItem?.handler.open(input!, options, group, pickedItem.id)?.override;
 }
+
+/**
+ * Get a list of all available editors, including the default text editor.
+ */
+export function getAllAvailableEditors(
+	input: IEditorInput,
+	resource: URI,
+	options: IEditorOptions | ITextEditorOptions | undefined,
+	group: IEditorGroup,
+	editorService: IEditorService,
+): Array<[IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]> {
+	const overrides = editorService.getEditorOverrides(input, options, group);
+	if (!overrides.some(([_, entry]) => entry.id === DEFAULT_EDITOR_ID)) {
+		overrides.unshift([
+			{
+				open: (input: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => {
+					if (!input.resource) {
+						return;
+					}
+
+					const fileEditorInput = editorService.createEditorInput({ resource: input.resource, forceFile: true });
+					const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+					return { override: editorService.openEditor(fileEditorInput, textOptions, group) };
+				}
+			},
+			{
+				id: DEFAULT_EDITOR_ID,
+				active: editorService.activeEditor instanceof FileEditorInput && isEqual(editorService.activeEditor.resource, resource),
+				label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+				detail: builtinProviderDisplayName,
+			}]);
+	}
+	return overrides;
+}
+

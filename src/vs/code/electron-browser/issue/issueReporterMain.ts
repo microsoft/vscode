@@ -341,7 +341,7 @@ export class IssueReporter extends Disposable {
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(logService));
 			const commonProperties = resolveCommonProperties(product.commit || 'Commit unknown', product.version, configuration.machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
-			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths };
+			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, sendErrorTelemetry: true };
 
 			const telemetryService = instantiationService.createInstance(TelemetryService, config);
 			this._register(telemetryService);
@@ -716,7 +716,7 @@ export class IssueReporter extends Disposable {
 		type IssueReporterSearchError = {
 			message: string;
 		};
-		this.telemetryService.publicLog2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message }, true);
+		this.telemetryService.publicLogError2<IssueReporterSearchError, IssueReporterSearchErrorClassification>('issueReporterSearchError', { message: error.message });
 	}
 
 	private setUpTypes(): void {

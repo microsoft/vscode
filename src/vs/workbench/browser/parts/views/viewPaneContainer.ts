@@ -1140,15 +1140,17 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 	}
 
-	openView(id: string, focus?: boolean): IView {
+	openView(id: string, focus?: boolean): IView | undefined {
 		let view = this.getView(id);
 		if (!view) {
 			this.toggleViewVisibility(id);
 		}
-		view = this.getView(id)!;
-		view.setExpanded(true);
-		if (focus) {
-			view.focus();
+		view = this.getView(id);
+		if (view) {
+			view.setExpanded(true);
+			if (focus) {
+				view.focus();
+			}
 		}
 		return view;
 	}
@@ -1202,13 +1204,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	protected toggleViewVisibility(viewId: string): void {
-		const visible = !this.viewContainerModel.isVisible(viewId);
-		type ViewsToggleVisibilityClassification = {
-			viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			visible: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		};
-		this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
-		this.viewContainerModel.setVisible(viewId, visible);
+		// Check if view is active
+		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
+			const visible = !this.viewContainerModel.isVisible(viewId);
+			type ViewsToggleVisibilityClassification = {
+				viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				visible: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
+			this.viewContainerModel.setVisible(viewId, visible);
+		}
 	}
 
 	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {

@@ -13,7 +13,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
@@ -50,7 +50,8 @@ import { once } from 'vs/base/common/functional';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Codicon } from 'vs/base/common/codicons';
-import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
+import { IViewsService } from 'vs/workbench/common/views';
+import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -93,7 +94,6 @@ export class NewFileAction extends Action {
 	static readonly LABEL = nls.localize('createNewFile', "New File");
 
 	constructor(
-		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFile', NEW_FILE_LABEL);
@@ -111,7 +111,6 @@ export class NewFolderAction extends Action {
 	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
 	constructor(
-		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFolder', NEW_FOLDER_LABEL);
@@ -540,7 +539,44 @@ export class ReopenResourcesAction extends Action {
 
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
-		return openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
+		await openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
+	}
+}
+
+export class ToggleEditorTypeCommand extends Action {
+
+	static readonly ID = 'workbench.files.action.toggleEditorType';
+	static readonly LABEL = nls.localize('workbench.files.action.toggleEditorType', "Toggle Editor Type");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const input = activeEditorPane.input;
+		if (!input.resource) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+
+		const overrides = getAllAvailableEditors(input, input.resource, options, group, this.editorService);
+		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
+		if (!firstNonActiveOverride) {
+			return;
+		}
+
+		await firstNonActiveOverride[0].open(input, options, group, firstNonActiveOverride[1].id)?.override;
 	}
 }
 
@@ -707,6 +743,11 @@ export class CollapseExplorerView extends Action {
 		const explorerView = explorerViewlet.getExplorerView();
 		if (explorerView) {
 			explorerView.collapseAll();
+			// If there is something being edited via input box make sure to close it #96198
+			const editable = this.explorerService.getEditable();
+			if (editable) {
+				await this.explorerService.setEditable(editable.stat, null);
+			}
 		}
 	}
 }
@@ -915,10 +956,10 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
-	const viewletService = accessor.get(IViewletService);
+	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
 
-	await viewletService.openViewlet(VIEWLET_ID, true);
+	await viewsService.openView(VIEW_ID, true);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;

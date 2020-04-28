@@ -255,6 +255,8 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			this.$clearCellOutputs(event.index);
 		} else if (event.kind === NotebookCellsChangeType.CellsClearOutput) {
 			this.$clearAllCellOutputs();
+		} else if (event.kind === NotebookCellsChangeType.ChangeLanguage) {
+			this.$changeCellLanguage(event.index, event.language);
 		}
 
 		this._versionId = event.versionId;
@@ -310,6 +312,11 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 	private $clearAllCellOutputs() {
 		this.cells.forEach(cell => cell.outputs = []);
+	}
+
+	private $changeCellLanguage(index: number, language: string) {
+		const cell = this.cells[index];
+		cell.language = language;
 	}
 
 	eventuallyUpdateCellOutputs(cell: ExtHostCell, diffs: ISplice<vscode.CellOutput>[]) {

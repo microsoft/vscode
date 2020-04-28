@@ -17,14 +17,18 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
+
+// Is Notebook
+export const NOTEBOOK_IS_ACTIVE_EDITOR = ContextKeyExpr.equals('activeEditor', 'workbench.editor.notebook');
 
 // Editor keys
 export const NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookEditorFocused', false);
@@ -91,6 +95,7 @@ export interface ICellViewModel {
 	dragging: boolean;
 	handle: number;
 	uri: URI;
+	language: string;
 	cellKind: CellKind;
 	editState: CellEditState;
 	readonly runState: CellRunState;
@@ -386,19 +391,20 @@ export interface BaseCellRenderTemplate {
 	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
 	currentRenderedCell?: ICellViewModel;
+	statusBarContainer: HTMLElement;
+	languageStatusBarItem: CellLanguageStatusBarItem;
 	toJSON: () => any;
 }
 
 export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
-	editingContainer: HTMLElement;
+	editorPart: HTMLElement;
+	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
-	statusBarContainer: HTMLElement;
 	cellRunStatusContainer: HTMLElement;
 	cellStatusMessageContainer: HTMLElement;
-	cellStatusPlaceholderContainer: HTMLElement;
 	runToolbar: ToolBar;
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;

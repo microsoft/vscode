@@ -123,7 +123,6 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 }
 
 export class ExplorerView extends ViewPane {
-	static readonly ID: string = 'workbench.explorer.fileView';
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
 	private tree!: WorkbenchCompressibleAsyncDataTree<ExplorerItem | ExplorerItem[], ExplorerItem, FuzzyScore>;

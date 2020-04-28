@@ -844,8 +844,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeBreakpoints(listener, thisArgs?, disposables?) {
 				return extHostDebugService.onDidChangeBreakpoints(listener, thisArgs, disposables);
 			},
-			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, scope?: vscode.DebugConfigurationProviderScope) {
-				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider, scope || extHostTypes.DebugConfigurationProviderScope.Initial);
+			registerDebugConfigurationProvider(debugType: string, provider: vscode.DebugConfigurationProvider, triggerKind?: vscode.DebugConfigurationProviderTriggerKind) {
+				return extHostDebugService.registerDebugConfigurationProvider(debugType, provider, triggerKind || extHostTypes.DebugConfigurationProviderTriggerKind.Initial);
 			},
 			registerDebugAdapterDescriptorFactory(debugType: string, factory: vscode.DebugAdapterDescriptorFactory) {
 				return extHostDebugService.registerDebugAdapterDescriptorFactory(extension, debugType, factory);
@@ -1045,7 +1045,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CallHierarchyIncomingCall: extHostTypes.CallHierarchyIncomingCall,
 			CallHierarchyItem: extHostTypes.CallHierarchyItem,
 			DebugConsoleMode: extHostTypes.DebugConsoleMode,
-			DebugConfigurationProviderScope: extHostTypes.DebugConfigurationProviderScope,
+			DebugConfigurationProviderTriggerKind: extHostTypes.DebugConfigurationProviderTriggerKind,
 			Decoration: extHostTypes.Decoration,
 			UIKind: UIKind,
 			ColorThemeKind: extHostTypes.ColorThemeKind,

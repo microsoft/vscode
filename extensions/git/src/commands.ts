@@ -2560,6 +2560,14 @@ export class CommandCenter {
 						type = 'warning';
 						options.modal = false;
 						break;
+					case GitErrorCodes.AuthenticationFailed:
+						const regex = /Authentication failed for '(.*)'/i;
+						const match = regex.exec(err.stderr || String(err));
+
+						message = match
+							? localize('auth failed specific', "Failed to authenticate to git remote:\n\n{0}", match[1])
+							: localize('auth failed', "Failed to authenticate to git remote.");
+						break;
 					case GitErrorCodes.NoUserNameConfigured:
 					case GitErrorCodes.NoUserEmailConfigured:
 						message = localize('missing user info', "Make sure you configure your 'user.name' and 'user.email' in git.");

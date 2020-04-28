@@ -391,10 +391,12 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			if (code === null || typeof code === 'undefined') {
 				this.info('TSServer exited');
 			} else {
+				// In practice, the exit code is an integer with no ties to any identity,
+				// so it can be classified as SystemMetaData, rather than CallstackOrException.
 				this.error(`TSServer exited with code: ${code}`);
 				/* __GDPR__
 					"tsserver.exitWithCode" : {
-						"code" : { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+						"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]

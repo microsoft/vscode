@@ -489,7 +489,7 @@ export class CodeApplication extends Disposable {
 			const appender = combinedAppender(new TelemetryAppenderClient(channel), new LogAppender(this.logService));
 			const commonProperties = resolveCommonProperties(product.commit, product.version, machineId, product.msftInternalDomains, this.environmentService.installSourcePath);
 			const piiPaths = this.environmentService.extensionsPath ? [this.environmentService.appRoot, this.environmentService.extensionsPath] : [this.environmentService.appRoot];
-			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, trueMachineId };
+			const config: ITelemetryServiceConfig = { appender, commonProperties, piiPaths, trueMachineId, sendErrorTelemetry: true };
 
 			services.set(ITelemetryService, new SyncDescriptor(TelemetryService, [config]));
 		} else {

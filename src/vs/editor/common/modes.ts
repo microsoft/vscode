@@ -1534,6 +1534,21 @@ export interface CommentReaction {
 /**
  * @internal
  */
+export interface CommentOptions {
+	/**
+	 * An optional string to show on the comment input box when it's collapsed.
+	 */
+	prompt?: string;
+
+	/**
+	 * An optional string to show as placeholder in the comment input box when it's focused.
+	 */
+	placeHolder?: string;
+}
+
+/**
+ * @internal
+ */
 export enum CommentMode {
 	Editing = 0,
 	Preview = 1

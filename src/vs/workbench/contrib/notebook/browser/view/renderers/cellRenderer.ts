@@ -7,48 +7,49 @@
 import 'vs/css!vs/workbench/contrib/notebook/browser/media/notebook';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
+import { domEvent } from 'vs/base/browser/event';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, ActionRunner } from 'vs/base/common/actions';
-import { Range } from 'vs/editor/common/core/range';
-import { escape } from 'vs/base/common/strings';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import * as modes from 'vs/editor/common/modes';
-import * as platform from 'vs/base/common/platform';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { renderCodicons } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
+import * as platform from 'vs/base/common/platform';
+import { escape } from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import * as nls from 'vs/nls';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOptions, EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
+import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import * as modes from 'vs/editor/common/modes';
+import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import * as nls from 'vs/nls';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
-import { ExecuteCellAction, INotebookCellActionContext, CancelCellAction, InsertCodeCellAction, InsertMarkdownCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellEditState, CellRunState, CodeCellRenderTemplate, ICellViewModel, INotebookEditor, MarkdownCellRenderTemplate, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_VIEW_TYPE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CancelCellAction, ChangeCellLanguageAction, ExecuteCellAction, INotebookCellActionContext, InsertCodeCellAction, InsertMarkdownCellAction } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { BaseCellRenderTemplate, CellEditState, CellRunState, CodeCellRenderTemplate, ICellViewModel, INotebookEditor, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_RUN_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_VIEW_TYPE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
+import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { renderCodicons } from 'vs/base/common/codicons';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { domEvent } from 'vs/base/browser/event';
-import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ITextModel } from 'vs/editor/common/model';
-import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = DOM.$;
 
@@ -117,7 +118,7 @@ export class CellEditorOptions {
 		lineNumbers: 'off',
 		lineDecorationsWidth: 0,
 		glyphMargin: false,
-		fixedOverflowWidgets: false,
+		fixedOverflowWidgets: true,
 		minimap: { enabled: false },
 	};
 
@@ -342,9 +343,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		focusIndicator.setAttribute('draggable', 'true');
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
-		const cellEditorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
-		const editingContainer = DOM.append(cellEditorPart, $('.markdown-editor-container'));
-		editingContainer.style.display = 'none';
+		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
+		const editorContainer = DOM.append(editorPart, $('.markdown-editor-container'));
+		editorPart.style.display = 'none';
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
 		const insertionIndicatorTop = DOM.append(container, DOM.$('.notebook-cell-insertion-indicator-top'));
@@ -352,17 +353,22 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
+		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
+
 		const templateData: MarkdownCellRenderTemplate = {
 			insertionIndicatorTop,
 			container,
 			cellContainer: innerContent,
-			editingContainer,
+			editorPart,
+			editorContainer,
 			focusIndicator,
 			foldingIndicator,
 			disposables,
 			elementDisposables: new DisposableStore(),
 			toolbar,
 			bottomCellContainer,
+			statusBarContainer: statusBar.statusBarContainer,
+			languageStatusBarItem: statusBar.languageStatusBarItem,
 			toJSON: () => { return {}; }
 		};
 		this.dndController.addListeners(templateData, () => this.getDragImage(templateData));
@@ -380,7 +386,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		this.commonRenderElement(element, index, templateData);
 
 		templateData.currentRenderedCell = element;
-		templateData.editingContainer!.style.display = 'none';
+		templateData.editorPart!.style.display = 'none';
 		templateData.cellContainer.innerHTML = '';
 		let renderedHTML = element.getHTML();
 		if (renderedHTML) {
@@ -433,8 +439,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			}));
 
 			element.totalHeight = height;
-		}
 
+			templateData.languageStatusBarItem.update(element, this.notebookEditor);
+		}
 	}
 
 	disposeTemplate(templateData: MarkdownCellRenderTemplate): void {
@@ -523,6 +530,45 @@ export class CellDragAndDropController {
 				container.classList.remove(DRAGOVER_CLASS);
 			}
 		}));
+	}
+}
+
+export class CellLanguageStatusBarItem extends Disposable {
+	private labelElement: HTMLElement;
+
+	private _cell: BaseCellViewModel | undefined;
+	private _editor: INotebookEditor | undefined;
+
+	private cellDisposables: DisposableStore;
+
+	constructor(
+		readonly container: HTMLElement,
+		@IModeService private readonly modeService: IModeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+		this.labelElement = DOM.append(container, $('.cell-language-picker'));
+		this.labelElement.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
+
+		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
+			this.instantiationService.invokeFunction(accessor => {
+				new ChangeCellLanguageAction().run(accessor, { notebookEditor: this._editor!, cell: this._cell! });
+			});
+		}));
+		this._register(this.cellDisposables = new DisposableStore());
+	}
+
+	update(cell: BaseCellViewModel, editor: INotebookEditor): void {
+		this.cellDisposables.clear();
+		this._cell = cell;
+		this._editor = editor;
+
+		this.render();
+		this.cellDisposables.add(this._cell.model.onDidChangeLanguage(() => this.render()));
+	}
+
+	private render(): void {
+		this.labelElement.textContent = this.modeService.getLanguageName(this._cell!.language!);
 	}
 }
 
@@ -626,6 +672,25 @@ class CodeCellDragImageRenderer {
 	}
 }
 
+class CellEditorStatusBar {
+	readonly cellStatusMessageContainer: HTMLElement;
+	readonly cellRunStatusContainer: HTMLElement;
+	readonly statusBarContainer: HTMLElement;
+	readonly languageStatusBarItem: CellLanguageStatusBarItem;
+
+	constructor(
+		container: HTMLElement,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		this.statusBarContainer = DOM.append(container, $('.cell-statusbar-container'));
+		const leftStatusBarItems = DOM.append(this.statusBarContainer, $('.cell-status-left'));
+		const rightStatusBarItems = DOM.append(this.statusBarContainer, $('.cell-status-right'));
+		this.cellRunStatusContainer = DOM.append(leftStatusBarItems, $('.cell-run-status'));
+		this.cellStatusMessageContainer = DOM.append(leftStatusBarItems, $('.cell-status-message'));
+		this.languageStatusBarItem = instantiationService.createInstance(CellLanguageStatusBarItem, rightStatusBarItems);
+	}
+}
+
 export class CodeCellRenderer extends AbstractCellRenderer implements IListRenderer<CodeCellViewModel, CodeCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'code_cell';
 
@@ -678,10 +743,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		progressBar.hide();
 		disposables.add(progressBar);
 
-		const statusBarContainer = DOM.append(editorPart, $('.cell-statusbar-container'));
-		const cellRunStatusContainer = DOM.append(statusBarContainer, $('.cell-run-status'));
-		const cellStatusMessageContainer = DOM.append(statusBarContainer, $('.cell-status-message'));
-		const cellStatusPlaceholderContainer = DOM.append(statusBarContainer, $('.cell-status-placeholder'));
+		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 
 		const insertionIndicatorTop = DOM.append(container, DOM.$('.notebook-cell-insertion-indicator-top'));
 		const outputContainer = DOM.append(container, $('.output'));
@@ -691,10 +753,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			insertionIndicatorTop,
 			container,
 			cellContainer,
-			statusBarContainer,
-			cellRunStatusContainer,
-			cellStatusMessageContainer,
-			cellStatusPlaceholderContainer,
+			statusBarContainer: statusBar.statusBarContainer,
+			cellRunStatusContainer: statusBar.cellRunStatusContainer,
+			cellStatusMessageContainer: statusBar.cellStatusMessageContainer,
+			languageStatusBarItem: statusBar.languageStatusBarItem,
 			progressBar,
 			focusIndicator,
 			toolbar,
@@ -748,12 +810,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(sync~spin)');
 		} else {
 			templateData.cellRunStatusContainer.innerHTML = '';
-		}
-
-		if (!metadata.statusMessage && (typeof metadata.runState === 'undefined' || metadata.runState === NotebookCellRunState.Idle)) {
-			templateData.cellStatusPlaceholderContainer.textContent = platform.isWindows ? 'Ctrl + Alt + Enter to run' : 'Ctrl + Enter to run';
-		} else {
-			templateData.cellStatusPlaceholderContainer.textContent = '';
 		}
 	}
 
@@ -840,6 +896,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.runToolbar.context = toolbarContext;
 
 		this.setupBetweenCellToolbarActions(element, templateData, elementDisposables, toolbarContext);
+
+		templateData.languageStatusBarItem.update(element, this.notebookEditor);
 	}
 
 	disposeTemplate(templateData: CodeCellRenderTemplate): void {

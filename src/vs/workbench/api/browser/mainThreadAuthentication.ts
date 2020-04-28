@@ -321,14 +321,14 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
-			nls.localize('confirmAuthenticationAccess', "The extension '{0}' is trying to access authentication information for the {1} account '{2}'.", extensionName, providerName, accountName),
-			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow")],
+			nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
+			[nls.localize('allow', "Allow"), nls.localize('cancel', "Cancel")],
 			{
-				cancelId: 0
+				cancelId: 1
 			}
 		);
 
-		const allow = choice === 1;
+		const allow = choice === 0;
 		if (allow) {
 			allowList.push({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
@@ -341,13 +341,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
 			nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName),
-			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow")],
+			[nls.localize('allow', "Allow"), nls.localize('cancel', "Cancel")],
 			{
-				cancelId: 0
+				cancelId: 1
 			}
 		);
 
-		return choice === 1;
+		return choice === 0;
 	}
 
 	async $setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void> {
