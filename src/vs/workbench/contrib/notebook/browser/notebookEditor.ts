@@ -830,11 +830,19 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const originalIdx = this.notebookViewModel!.getCellIndex(cell);
 		const relativeToIndex = this.notebookViewModel!.getCellIndex(relativeToCell);
 
-		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+		let newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+		if (originalIdx < newIdx) {
+			newIdx--;
+		}
+
 		return this.moveCellToIndex(originalIdx, newIdx);
 	}
 
 	private async moveCellToIndex(index: number, newIdx: number): Promise<boolean> {
+		if (index === newIdx) {
+			return false;
+		}
+
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
