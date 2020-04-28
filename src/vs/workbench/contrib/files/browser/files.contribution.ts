@@ -84,7 +84,7 @@ const openViewletKb: IKeybindings = {
 // Register Action to Open Viewlet
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 registry.registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenExplorerViewletAction, OpenExplorerViewletAction.ID, OpenExplorerViewletAction.LABEL, openViewletKb),
+	SyncActionDescriptor.from(OpenExplorerViewletAction, openViewletKb),
 	'View: Show Explorer',
 	nls.localize('view', "View")
 );
@@ -319,6 +319,11 @@ configurationRegistry.registerConfiguration({
 			'default': 4096,
 			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
 			included: platform.isNative
+		},
+		'files.maxMemoryForClosedFilesUndoStackMB': {
+			'type': 'number',
+			'default': 20,
+			'markdownDescription': nls.localize('maxMemoryForClosedFilesUndoStackMB', "Controls the maximum ammount of memory the undo stack should hold for files that have been closed.")
 		},
 		'files.saveConflictResolution': {
 			'type': 'string',

@@ -43,9 +43,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 				const headers: IHeaders = {
 					'X-Sync-Client-Id': productService.version,
 				};
-				if (uuid) {
-					headers['X-Sync-Machine-Id'] = uuid;
-				}
+				headers['X-Sync-Machine-Id'] = uuid;
 				return headers;
 			});
 	}
@@ -197,7 +195,8 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 		const commonHeaders = await this.commonHeadersPromise;
 		options.headers = assign(options.headers || {}, commonHeaders, {
-			'authorization': `Bearer ${authToken}`,
+			'X-Account-Type': authToken.authenticationProviderId,
+			'authorization': `Bearer ${authToken.token}`,
 		});
 
 		this.logService.trace('Sending request to server', { url: options.url, type: options.type, headers: { ...options.headers, ...{ authorization: undefined } } });

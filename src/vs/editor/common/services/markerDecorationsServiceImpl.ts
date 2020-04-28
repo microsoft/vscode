@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkerService, IMarker, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IModelDeltaDecoration, ITextModel, IModelDecorationOptions, TrackedRangeStickiness, OverviewRulerLane, IModelDecoration, MinimapPosition, IModelDecorationMinimapOptions } from 'vs/editor/common/model';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
@@ -35,6 +35,10 @@ class MarkerDecorations extends Disposable {
 			this.model.deltaDecorations(keys(this._markersData), []);
 			this._markersData.clear();
 		}));
+	}
+
+	register<T extends IDisposable>(t: T): T {
+		return super._register(t);
 	}
 
 	public update(markers: IMarker[], newDecorations: IModelDeltaDecoration[]): void {
@@ -110,6 +114,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private _onModelAdded(model: ITextModel): void {
 		const markerDecorations = new MarkerDecorations(model);
 		this._markerDecorations.set(MODEL_ID(model.uri), markerDecorations);
+		markerDecorations.register(model.onDidChangeContent(() => this._updateDecorations(markerDecorations)));
 		this._updateDecorations(markerDecorations);
 	}
 

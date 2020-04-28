@@ -14,19 +14,18 @@ import { TokenType, TokenModifier, TokenEncodingConsts, VersionRequirement } fro
 
 const minTypeScriptVersion = API.fromVersionString(`${VersionRequirement.major}.${VersionRequirement.minor}`);
 
+// as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
+const CONTENT_LENGTH_LIMIT = 100000;
+
 export function register(selector: vscode.DocumentSelector, client: ITypeScriptServiceClient) {
 	return new VersionDependentRegistration(client, minTypeScriptVersion, () => {
 		const provider = new DocumentSemanticTokensProvider(client);
 		return vscode.Disposable.from(
-			vscode.languages.registerDocumentSemanticTokensProvider(selector, provider, provider.getLegend()),
+			// register only as a range provider
 			vscode.languages.registerDocumentRangeSemanticTokensProvider(selector, provider, provider.getLegend()),
 		);
 	});
 }
-
-
-// as we don't do deltas, for performance reasons, don't compute semantic tokens for documents above that limit
-const CONTENT_LENGTH_LIMIT = 100000;
 
 /**
  * Prototype of a DocumentSemanticTokensProvider, relying on the experimental `encodedSemanticClassifications-full` request from the TypeScript server.
@@ -52,9 +51,10 @@ class DocumentSemanticTokensProvider implements vscode.DocumentSemanticTokensPro
 
 	async provideDocumentRangeSemanticTokens(document: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.SemanticTokens | null> {
 		const file = this.client.toOpenedFilePath(document);
-		if (!file || document.getText().length > CONTENT_LENGTH_LIMIT) {
+		if (!file || (document.offsetAt(range.end) - document.offsetAt(range.start) > CONTENT_LENGTH_LIMIT)) {
 			return null;
 		}
+
 		const start = document.offsetAt(range.start);
 		const length = document.offsetAt(range.end) - start;
 		return this._provideSemanticTokens(document, { file, start, length }, token);

@@ -127,6 +127,25 @@ const htmlSnippet3 = `{
 	}
 }`;
 
+const globalSnippet = `{
+	// Place your global snippets here. Each snippet is defined under a snippet name and has a scope, prefix, body and
+	// description. Add comma separated ids of the languages where the snippet is applicable in the scope field. If scope
+	// is left empty or omitted, the snippet gets applied to all languages. The prefix is what is
+	// used to trigger the snippet and the body will be expanded and inserted. Possible variables are:
+	// $1, $2 for tab stops, $0 for the final cursor position, and {1: label}, { 2: another } for placeholders.
+	// Placeholders with the same ids are connected.
+	// Example:
+	// "Print to console": {
+	// 	"scope": "javascript,typescript",
+	// 	"prefix": "log",
+	// 	"body": [
+	// 		"console.log('$1');",
+	// 		"$2"
+	// 	],
+	// 	"description": "Log output to console"
+	// }
+}`;
+
 suite('SnippetsSync', () => {
 
 	const disposableStore = new DisposableStore();
@@ -575,6 +594,49 @@ suite('SnippetsSync', () => {
 		assert.equal(actual1, htmlSnippet1);
 		const actual2 = await readSnippet('typescript.json', testClient);
 		assert.equal(actual2, tsSnippet1);
+	});
+
+	test('sync global and language snippet', async () => {
+		await updateSnippet('global.code-snippet', globalSnippet, client2);
+		await updateSnippet('html.json', htmlSnippet1, client2);
+		await client2.sync();
+
+		await testObject.sync();
+		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.deepEqual(testObject.conflicts, []);
+
+		const actual1 = await readSnippet('html.json', testClient);
+		assert.equal(actual1, htmlSnippet1);
+		const actual2 = await readSnippet('global.code-snippet', testClient);
+		assert.equal(actual2, globalSnippet);
+
+		const { content } = await testClient.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseSnippets(content!);
+		assert.deepEqual(actual, { 'html.json': htmlSnippet1, 'global.code-snippet': globalSnippet });
+	});
+
+	test('sync should ignore non snippets', async () => {
+		await updateSnippet('global.code-snippet', globalSnippet, client2);
+		await updateSnippet('html.html', htmlSnippet1, client2);
+		await updateSnippet('typescript.json', tsSnippet1, client2);
+		await client2.sync();
+
+		await testObject.sync();
+		assert.equal(testObject.status, SyncStatus.Idle);
+		assert.deepEqual(testObject.conflicts, []);
+
+		const actual1 = await readSnippet('typescript.json', testClient);
+		assert.equal(actual1, tsSnippet1);
+		const actual2 = await readSnippet('global.code-snippet', testClient);
+		assert.equal(actual2, globalSnippet);
+		const actual3 = await readSnippet('html.html', testClient);
+		assert.equal(actual3, null);
+
+		const { content } = await testClient.read(testObject.resource);
+		assert.ok(content !== null);
+		const actual = parseSnippets(content!);
+		assert.deepEqual(actual, { 'typescript.json': tsSnippet1, 'global.code-snippet': globalSnippet });
 	});
 
 	function parseSnippets(content: string): IStringDictionary<string> {

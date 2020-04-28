@@ -14,7 +14,7 @@ import { Delayer, ThrottledDelayer, timeout, IntervalTimer } from 'vs/base/commo
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -54,11 +54,10 @@ import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEdit
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { fromNow } from 'vs/base/common/date';
+import { Emitter } from 'vs/base/common/event';
 
-function createGroupIterator(group: SettingsTreeGroupElement): Iterator<ITreeElement<SettingsTreeGroupChild>> {
-	const groupsIt = Iterator.fromArray(group.children);
-
-	return Iterator.map(groupsIt, g => {
+function createGroupIterator(group: SettingsTreeGroupElement): Iterable<ITreeElement<SettingsTreeGroupChild>> {
+	return Iterable.map(group.children, g => {
 		return {
 			element: g,
 			children: g instanceof SettingsTreeGroupElement ?
@@ -73,6 +72,8 @@ const $ = DOM.$;
 interface IFocusEventFromScroll extends KeyboardEvent {
 	fromScroll: true;
 }
+
+const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 
 const SETTINGS_AUTOSAVE_NOTIFIED_KEY = 'hasNotifiedOfSettingsAutosave';
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
@@ -407,6 +408,13 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.setValue(query.trim());
 	}
 
+	private updateInputAriaLabel(lastSyncedLabel: string) {
+		const label = lastSyncedLabel ?
+			`${searchBoxLabel}. ${lastSyncedLabel}` :
+			searchBoxLabel;
+		this.searchWidget.updateAriaLabel(label);
+	}
+
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
@@ -414,7 +422,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		const clearInputAction = new Action(SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, localize('clearInput', "Clear Settings Search Input"), 'codicon-clear-all', false, () => { this.clearSearchResults(); return Promise.resolve(null); });
 
-		const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 		this.searchWidget = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${SettingsEditor2.ID}.searchbox`, searchContainer, {
 			triggerCharacters: ['@'],
 			provideResults: (query: string) => {
@@ -462,7 +469,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
 		if (syncAllowed(this.productService, this.configurationService)) {
-			this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
+			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => this.updateInputAriaLabel(lastSyncedLabel)));
 		}
 
 		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
@@ -485,14 +493,14 @@ export class SettingsEditor2 extends BaseEditor {
 	private onDidClickSetting(evt: ISettingLinkClickEvent, recursed?: boolean): void {
 		const elements = this.currentSettingsModel.getElementsByName(evt.targetKey);
 		if (elements && elements[0]) {
-			let sourceTop = this.settingsTree.getRelativeTop(evt.source);
-			if (typeof sourceTop !== 'number') {
-				return;
-			}
-
-			if (sourceTop < 0) {
+			let sourceTop = 0.5;
+			try {
+				const _sourceTop = this.settingsTree.getRelativeTop(evt.source);
+				if (_sourceTop !== null) {
+					sourceTop = _sourceTop;
+				}
+			} catch {
 				// e.g. clicked a searched element, now the search has been cleared
-				sourceTop = 0.5;
 			}
 
 			this.settingsTree.reveal(elements[0], sourceTop);
@@ -1350,7 +1358,7 @@ export class SettingsEditor2 extends BaseEditor {
 					const message = getErrorMessage(err).trim();
 					if (message && message !== 'Error') {
 						// "Error" = any generic network error
-						this.telemetryService.publicLog('settingsEditor.searchError', { message });
+						this.telemetryService.publicLogError('settingsEditor.searchError', { message });
 						this.logService.info('Setting search error: ' + message);
 					}
 					return null;
@@ -1385,6 +1393,9 @@ export class SettingsEditor2 extends BaseEditor {
 class SyncControls extends Disposable {
 	private readonly lastSyncedLabel!: HTMLElement;
 	private readonly turnOnSyncButton!: Button;
+
+	private readonly _onDidChangeLastSyncedLabel = this._register(new Emitter<string>());
+	public readonly onDidChangeLastSyncedLabel = this._onDidChangeLastSyncedLabel.event;
 
 	constructor(
 		container: HTMLElement,
@@ -1428,12 +1439,16 @@ class SyncControls extends Disposable {
 
 	private updateLastSyncedTime(): void {
 		const last = this.userDataSyncService.lastSyncTime;
+		let label: string;
 		if (typeof last === 'number') {
 			const d = fromNow(last, true);
-			this.lastSyncedLabel.textContent = localize('lastSyncedLabel', "Last synced: {0}", d);
+			label = localize('lastSyncedLabel', "Last synced: {0}", d);
 		} else {
-			this.lastSyncedLabel.textContent = '';
+			label = '';
 		}
+
+		this.lastSyncedLabel.textContent = label;
+		this._onDidChangeLastSyncedLabel.fire(label);
 	}
 
 	private update(): void {

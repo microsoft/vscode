@@ -27,7 +27,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ResourceNavigator } from 'vs/platform/list/browser/listService';
+import { TreeResourceNavigator } from 'vs/platform/list/browser/listService';
 
 
 export class CommentsPanel extends ViewPane {
@@ -129,6 +129,7 @@ export class CommentsPanel extends ViewPane {
 	}
 
 	public layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
@@ -151,7 +152,7 @@ export class CommentsPanel extends ViewPane {
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
 		this.tree = this._register(this.instantiationService.createInstance(CommentsList, this.treeLabels, this.treeContainer, { overrideStyles: { listBackground: this.getBackgroundColor() } }));
 
-		const commentsNavigator = this._register(ResourceNavigator.createTreeResourceNavigator(this.tree, { openOnFocus: true }));
+		const commentsNavigator = this._register(new TreeResourceNavigator(this.tree, { openOnFocus: true }));
 		this._register(commentsNavigator.onDidOpenResource(e => {
 			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
 		}));

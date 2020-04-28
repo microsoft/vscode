@@ -29,6 +29,11 @@ export interface IStatusbarEntry {
 	readonly text: string;
 
 	/**
+	 * Text to be read out by the screen reader.
+	 */
+	readonly ariaLabel: string;
+
+	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
 	readonly tooltip?: string;

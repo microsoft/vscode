@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISequence } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { AbstractTree, IAbstractTreeOptions, IAbstractTreeOptionsUpdate } from 'vs/base/browser/ui/tree/abstractTree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, ICollapseStateChangeEvent } from 'vs/base/browser/ui/tree/tree';
@@ -33,7 +33,7 @@ export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends 
 		super(user, container, delegate, renderers, options as IObjectTreeOptions<T | null, TFilterData>);
 	}
 
-	setChildren(element: T | null, children?: ISequence<ITreeElement<T>>): void {
+	setChildren(element: T | null, children: Iterable<ITreeElement<T>> = Iterable.empty()): void {
 		this.model.setChildren(element, children);
 	}
 
@@ -184,7 +184,7 @@ export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = vo
 		super(user, container, delegate, compressibleRenderers, asObjectTreeOptions<T, TFilterData>(compressedTreeNodeProvider, options));
 	}
 
-	setChildren(element: T | null, children?: ISequence<ICompressedTreeElement<T>>): void {
+	setChildren(element: T | null, children: Iterable<ICompressedTreeElement<T>> = Iterable.empty()): void {
 		this.model.setChildren(element, children);
 	}
 

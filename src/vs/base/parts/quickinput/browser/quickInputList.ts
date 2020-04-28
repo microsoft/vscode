@@ -25,8 +25,9 @@ import { Action } from 'vs/base/common/actions';
 import { getIconClass } from 'vs/base/parts/quickinput/browser/quickInputUtils';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IQuickInputOptions } from 'vs/base/parts/quickinput/browser/quickInput';
-import { IListOptions, List, IListStyles, IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, List, IListStyles, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
+import { localize } from 'vs/nls';
 
 const $ = dom.$;
 
@@ -45,7 +46,7 @@ interface IListElement {
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
 }
 
-class ListElement implements IListElement {
+class ListElement implements IListElement, IDisposable {
 	index!: number;
 	item!: IQuickPickItem;
 	saneLabel!: string;
@@ -73,6 +74,10 @@ class ListElement implements IListElement {
 
 	constructor(init: IListElement) {
 		assign(this, init);
+	}
+
+	dispose() {
+		this._onChecked.dispose();
 	}
 }
 
@@ -259,6 +264,8 @@ export class QuickInputList {
 	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
 	private readonly _onButtonTriggered = new Emitter<IQuickPickItemButtonEvent<IQuickPickItem>>();
 	onButtonTriggered = this._onButtonTriggered.event;
+	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
+	onKeyDown: Event<StandardKeyboardEvent> = this._onKeyDown.event;
 	private readonly _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
@@ -280,13 +287,7 @@ export class QuickInputList {
 			setRowLineHeight: false,
 			multipleSelectionSupport: false,
 			horizontalScrolling: false,
-			accessibilityProvider,
-			ariaProvider: {
-				getRole: () => 'option',
-				getSetSize: (_: ListElement, _index: number, listLength: number) => listLength,
-				getPosInSet: (_: ListElement, index: number) => index
-			},
-			ariaRole: 'listbox'
+			accessibilityProvider
 		} as IListOptions<ListElement>);
 		this.list.getHTMLElement().id = id;
 		this.disposables.push(this.list);
@@ -314,6 +315,8 @@ export class QuickInputList {
 					}
 					break;
 			}
+
+			this._onKeyDown.fire(event);
 		}));
 		this.disposables.push(this.list.onMouseDown(e => {
 			if (e.browserEvent.button !== 2) {
@@ -341,6 +344,15 @@ export class QuickInputList {
 				this.list.setSelection([e.index]);
 			}
 		}));
+		this.disposables.push(
+			this._onChangedAllVisibleChecked,
+			this._onChangedCheckedCount,
+			this._onChangedVisibleCount,
+			this._onChangedCheckedElements,
+			this._onButtonTriggered,
+			this._onLeave,
+			this._onKeyDown
+		);
 	}
 
 	@memoize
@@ -439,6 +451,7 @@ export class QuickInputList {
 			}
 			return result;
 		}, [] as ListElement[]);
+		this.elementDisposables.push(...this.elements);
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 
 		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
@@ -692,11 +705,28 @@ function compareEntries(elementA: ListElement, elementB: ListElement, lookFor: s
 		return 1;
 	}
 
+	if (labelHighlightsA.length === 0 && labelHighlightsB.length === 0) {
+		return 0;
+	}
+
 	return compareAnything(elementA.saneLabel, elementB.saneLabel, lookFor);
 }
 
-class QuickInputAccessibilityProvider implements IAccessibilityProvider<ListElement> {
+class QuickInputAccessibilityProvider implements IListAccessibilityProvider<ListElement> {
+
+	getWidgetAriaLabel(): string {
+		return localize('quickInput', "Quick Input");
+	}
+
 	getAriaLabel(element: ListElement): string | null {
 		return element.saneAriaLabel;
+	}
+
+	getWidgetRole() {
+		return 'listbox';
+	}
+
+	getRole() {
+		return 'option';
 	}
 }

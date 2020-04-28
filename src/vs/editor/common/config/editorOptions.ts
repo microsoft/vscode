@@ -1067,7 +1067,7 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, EditorComme
 	}
 
 	public validate(_input: any): EditorCommentsOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorCommentsOptions;
@@ -1253,6 +1253,10 @@ export interface IEditorFindOptions {
 	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
 	 */
 	globalFindClipboard?: boolean;
+	/**
+	 * Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found
+	 */
+	loop?: boolean;
 }
 
 export type EditorFindOptions = Readonly<Required<IEditorFindOptions>>;
@@ -1264,7 +1268,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 			seedSearchStringFromSelection: true,
 			autoFindInSelection: 'never',
 			globalFindClipboard: false,
-			addExtraSpaceOnTop: true
+			addExtraSpaceOnTop: true,
+			loop: true
 		};
 		super(
 			EditorOption.find, 'find', defaults,
@@ -1295,13 +1300,19 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 					type: 'boolean',
 					default: defaults.addExtraSpaceOnTop,
 					description: nls.localize('find.addExtraSpaceOnTop', "Controls whether the Find Widget should add extra lines on top of the editor. When true, you can scroll beyond the first line when the Find Widget is visible.")
-				}
+				},
+				'editor.find.loop': {
+					type: 'boolean',
+					default: defaults.loop,
+					description: nls.localize('find.loop', "Controls whether the search automatically restarts from the beginning (or the end) when no further matches can be found.")
+				},
+
 			}
 		);
 	}
 
 	public validate(_input: any): EditorFindOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorFindOptions;
@@ -1311,7 +1322,8 @@ class EditorFind extends BaseEditorOption<EditorOption.find, EditorFindOptions> 
 				? (_input.autoFindInSelection ? 'always' : 'never')
 				: EditorStringEnumOption.stringSet<'never' | 'always' | 'multiline'>(input.autoFindInSelection, this.defaultValue.autoFindInSelection, ['never', 'always', 'multiline']),
 			globalFindClipboard: EditorBooleanOption.boolean(input.globalFindClipboard, this.defaultValue.globalFindClipboard),
-			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop)
+			addExtraSpaceOnTop: EditorBooleanOption.boolean(input.addExtraSpaceOnTop, this.defaultValue.addExtraSpaceOnTop),
+			loop: EditorBooleanOption.boolean(input.loop, this.defaultValue.loop),
 		};
 	}
 }
@@ -1526,7 +1538,7 @@ class EditorGoToLocation extends BaseEditorOption<EditorOption.gotoLocation, GoT
 	}
 
 	public validate(_input: any): GoToLocationOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IGotoLocationOptions;
@@ -1604,7 +1616,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, EditorHoverOption
 	}
 
 	public validate(_input: any): EditorHoverOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorHoverOptions;
@@ -2030,7 +2042,7 @@ class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, EditorLig
 	}
 
 	public validate(_input: any): EditorLightbulbOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorLightbulbOptions;
@@ -2174,7 +2186,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, EditorMinimap
 	}
 
 	public validate(_input: any): EditorMinimapOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorMinimapOptions;
@@ -2249,7 +2261,7 @@ class EditorPadding extends BaseEditorOption<EditorOption.padding, InternalEdito
 	}
 
 	public validate(_input: any): InternalEditorPaddingOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorPaddingOptions;
@@ -2307,7 +2319,7 @@ class EditorParameterHints extends BaseEditorOption<EditorOption.parameterHints,
 	}
 
 	public validate(_input: any): InternalParameterHintOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorParameterHintOptions;
@@ -2397,7 +2409,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 		if (typeof _input === 'boolean') {
 			return _input;
 		}
-		if (typeof _input === 'object') {
+		if (_input && typeof _input === 'object') {
 			const input = _input as IQuickSuggestionsOptions;
 			const opts = {
 				other: EditorBooleanOption.boolean(input.other, this.defaultValue.other),
@@ -2547,7 +2559,7 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, IRulerOption[]>
 						column: EditorIntOption.clampedInt(_element, 0, 0, 10000),
 						color: null
 					});
-				} else if (typeof _element === 'object') {
+				} else if (_element && typeof _element === 'object') {
 					const element = _element as IRulerOption;
 					rulers.push({
 						column: EditorIntOption.clampedInt(element.column, 0, 0, 10000),
@@ -2681,7 +2693,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 	}
 
 	public validate(_input: any): InternalEditorScrollbarOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as IEditorScrollbarOptions;
@@ -3102,7 +3114,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 	}
 
 	public validate(_input: any): InternalSuggestOptions {
-		if (typeof _input !== 'object') {
+		if (!_input || typeof _input !== 'object') {
 			return this.defaultValue;
 		}
 		const input = _input as ISuggestOptions;

@@ -22,6 +22,7 @@ import { ResourceContextKey } from 'vs/workbench/common/resources';
 export class TimelinePaneDescriptor implements IViewDescriptor {
 	readonly id = TimelinePaneId;
 	readonly name = TimelinePane.TITLE;
+	readonly containerIcon = 'codicon-history';
 	readonly ctorDescriptor = new SyncDescriptor(TimelinePane);
 	readonly order = 2;
 	readonly weight = 30;
@@ -43,8 +44,18 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		'timeline.excludeSources': {
 			type: 'array',
-			description: localize('timeline.excludeSources', "Experimental: An array of Timeline sources that should be excluded from the Timeline view"),
+			description: localize('timeline.excludeSources', "An array of Timeline sources that should be excluded from the Timeline view"),
 			default: null
+		},
+		'timeline.pageSize': {
+			type: 'number',
+			markdownDescription: localize('timeline.pageSize', "The number of items to show in the Timeline view by default and when loading more items. Setting to `null` (the default) will automatically choose a page size based on the visible area of the Timeline view"),
+			default: null
+		},
+		'timeline.pageOnScroll': {
+			type: 'boolean',
+			description: localize('timeline.pageOnScroll', "Experimental. Controls whether the Timeline view will load the next page of items when you scroll to the end of the list"),
+			default: false
 		},
 	}
 });
