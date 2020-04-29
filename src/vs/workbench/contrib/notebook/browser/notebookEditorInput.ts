@@ -13,6 +13,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { isEqual } from 'vs/base/common/resources';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -122,7 +123,8 @@ export class NotebookEditorInput extends EditorInput {
 		public name: string,
 		public readonly viewType: string | undefined,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -153,6 +155,18 @@ export class NotebookEditorInput extends EditorInput {
 
 	isDirty() {
 		return this.textModel?.isDirty() || false;
+	}
+
+	public isSaving(): boolean {
+		if (!this.isDirty()) {
+			return false; // the editor needs to be dirty for being saved
+		}
+
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // a short auto save is configured, treat this as being saved
+		}
+
+		return false;
 	}
 
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
