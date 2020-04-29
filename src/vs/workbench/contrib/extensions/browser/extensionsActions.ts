@@ -2895,7 +2895,7 @@ export class InstallVSIXAction extends Action {
 		super(id, label, 'extension-action install-vsix', true);
 	}
 
-	async run(vsixPaths?: URI[]): Promise<any> {
+	async run(vsixPaths?: URI[]): Promise<void> {
 		if (!vsixPaths) {
 			vsixPaths = await this.fileDialogService.showOpenDialog({
 				title: localize('installFromVSIX', "Install from VSIX"),
@@ -2905,12 +2905,13 @@ export class InstallVSIXAction extends Action {
 			});
 
 			if (!vsixPaths) {
-				return Promise.resolve();
+				return;
 			}
 		}
 
-		return Promise.all(vsixPaths.map(vsix => this.extensionsWorkbenchService.install(vsix)))
-			.then(extensions => {
+		// Install extension(s), display notification(s), display @installed extensions
+		await Promise.all(vsixPaths.map(async (vsix) => await this.extensionsWorkbenchService.install(vsix)))
+			.then(async (extensions) => {
 				for (const extension of extensions) {
 					const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));
 					const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.displayName || extension.name)
@@ -2926,7 +2927,7 @@ export class InstallVSIXAction extends Action {
 						{ sticky: true }
 					);
 				}
-				return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
+				await this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
 			});
 	}
 }

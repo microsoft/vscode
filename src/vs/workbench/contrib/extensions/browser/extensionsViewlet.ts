@@ -59,7 +59,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { URI } from 'vs/base/common/uri';
-import { PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 
 const NonEmptyWorkspaceContext = new RawContextKey<boolean>('nonEmptyWorkspace', false);
 const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
@@ -400,7 +400,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		this.root = parent;
 
 		const overlay = append(this.root, $('.overlay'));
-		const overlayBackgroundColor = this.getColor(PANEL_DRAG_AND_DROP_BACKGROUND) ?? '';
+		const overlayBackgroundColor = this.getColor(SIDE_BAR_DRAG_AND_DROP_BACKGROUND) ?? '';
 		overlay.style.backgroundColor = overlayBackgroundColor;
 		hide(overlay);
 
