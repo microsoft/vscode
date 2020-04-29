@@ -426,17 +426,19 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 			open: (editor, options, group, id) => {
 				return this.onEditorOpening(editor, options, group, id);
 			},
-			getEditorOverrides: (editor: IEditorInput, _options: IEditorOptions | undefined, _group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
+			getEditorOverrides: (editor: IEditorInput, _options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {
 				const resource = editor.resource;
 				if (!resource) {
 					return [];
 				}
 
+				const matchedEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
+
 				const customEditors = this.customEditorService.getAllCustomEditors(resource);
 				return customEditors.allEditors.map(entry => {
 					return {
 						id: entry.id,
-						active: editor instanceof CustomEditorInput && editor.viewType === entry.id,
+						active: matchedEditor instanceof CustomEditorInput && matchedEditor.viewType === entry.id,
 						label: entry.displayName,
 						detail: entry.providerDisplayName,
 					};
