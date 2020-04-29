@@ -87,7 +87,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 			if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
 				return undefined;
 			}
-			return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType);
+			return NotebookEditorInput.getOrCreate(instantiationService, resource, name, viewType);
 		}
 	}
 );
@@ -190,7 +190,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 				const info = id === undefined ? infos[0] : (infos.find(info => info.id === id) || infos[0]);
 				// cell-uri -> open (container) notebook
 				const name = basename(data.notebook);
-				const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
+				const input = NotebookEditorInput.getOrCreate(this.instantiationService, data.notebook, name, info.id);
 				this._resourceMapping.set(resource, input);
 				return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
 			}
@@ -203,7 +203,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 			return undefined;
 		}
 
-		const input = this.instantiationService.createInstance(NotebookEditorInput, resource, originalInput.getName(), info.id);
+		const input = NotebookEditorInput.getOrCreate(this.instantiationService, resource, originalInput.getName(), info.id);
 		this._resourceMapping.set(resource, input);
 
 		return { override: this.editorService.openEditor(input, options, group) };

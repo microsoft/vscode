@@ -12,6 +12,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { isEqual } from 'vs/base/common/resources';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -91,6 +92,25 @@ export class NotebookEditorModel extends EditorModel {
 }
 
 export class NotebookEditorInput extends EditorInput {
+
+	private static readonly _instances = new Map<string, NotebookEditorInput>();
+
+	static getOrCreate(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined) {
+		const key = name + viewType;
+		let input = NotebookEditorInput._instances.get(key);
+		if (!input) {
+			input = instantiationService.createInstance(class extends NotebookEditorInput {
+				dispose() {
+					NotebookEditorInput._instances.delete(key);
+					super.dispose();
+				}
+			}, resource, name, viewType);
+
+			NotebookEditorInput._instances.set(key, input);
+		}
+		return input;
+	}
+
 	static readonly ID: string = 'workbench.input.notebook';
 	private promise: Promise<NotebookEditorModel> | null = null;
 	private textModel: NotebookEditorModel | null = null;
