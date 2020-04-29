@@ -1451,7 +1451,7 @@ declare module 'vscode' {
 		 * This method is invoked by VS Code when the user triggers 'save as' on a custom editor. The implementer must
 		 * persist the custom editor to `destination`.
 		 *
-		 * When the user accepts save as, the current editor is be replaced by an editor for the newly saved file.
+		 * When the user accepts save as, the current editor is be replaced by an non-dirty editor for the newly saved file.
 		 *
 		 * @param document Document to save.
 		 * @param destination Location to save to.
