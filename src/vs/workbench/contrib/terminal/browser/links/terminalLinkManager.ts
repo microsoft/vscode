@@ -37,7 +37,8 @@ const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
 const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
 
-const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
+// Valid absolute formats: C:, \\?\C: and \\?\%VAR%
+const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?([a-zA-Z]:|%)';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
 const winExcludedPathCharactersClause = '[^\\0<>\\?\\|\\/\\s!$`&*()\\[\\]+\'":;]';
