@@ -13,6 +13,11 @@
 	display: flex;
 	flex-direction: column;
 	justify-content: space-between;
+	overflow-y: hidden;
+}
+
+.monaco-workbench.safari .activitybar > .content {
+	overflow-y: unset;
 }
 
 /*
