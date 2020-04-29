@@ -19,7 +19,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	}
 
 	getInfo(): string {
-		let info = localize('extensionEnvironmentContribution', "Extensions want to make the follow changes to the terminal's environment:");
+		let info = localize('extensionEnvironmentContribution', "Extensions want to make the following changes to the terminal's environment:");
 		info += `\n\n${this._summarizeDiff()}`;
 		return info;
 	}
