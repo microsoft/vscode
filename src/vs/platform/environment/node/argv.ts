@@ -50,7 +50,6 @@ export interface ParsedArgs {
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
 	'category'?: string;
-	'state'?: string;
 	'install-extension'?: string[]; // undefined or array of 1 or more
 	'uninstall-extension'?: string[]; // undefined or array of 1 or more
 	'locate-extension'?: string[]; // undefined or array of 1 or more
