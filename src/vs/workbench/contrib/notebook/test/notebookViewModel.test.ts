@@ -425,4 +425,8 @@ suite('NotebookViewModel Decorations', () => {
 			return original.indexOf(a) >= 0;
 		}), [{ start: 1, deleteCount: 1, toInsert: [2, 6] }]);
 	});
+
+	test('hidden ranges', function () {
+
+	});
 });

@@ -320,4 +320,92 @@ suite('Notebook Folding', () => {
 			}
 		);
 	});
+
+	test('View Index', function () {
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
+				[['body'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+			],
+			(editor, viewModel) => {
+				const foldingModel = new FoldingModel();
+				foldingModel.attachViewModel(viewModel);
+				foldingModel.applyMemento([{ start: 2, end: 6 }]);
+				viewModel.updateFoldingRanges(foldingModel.regions);
+
+				// Note that hidden ranges !== folding ranges
+				assert.deepEqual(viewModel.getHiddenRanges(), [
+					{ start: 3, end: 6 }
+				]);
+
+				assert.equal(viewModel.getNextVisibleCellIndex(1), 2);
+				assert.equal(viewModel.getNextVisibleCellIndex(2), 7);
+				assert.equal(viewModel.getNextVisibleCellIndex(3), 7);
+				assert.equal(viewModel.getNextVisibleCellIndex(4), 7);
+				assert.equal(viewModel.getNextVisibleCellIndex(5), 7);
+				assert.equal(viewModel.getNextVisibleCellIndex(6), 7);
+				assert.equal(viewModel.getNextVisibleCellIndex(7), 8);
+			}
+		);
+
+		withTestNotebook(
+			instantiationService,
+			blukEditService,
+			undoRedoService,
+			[
+				[['# header 1'], 'markdown', CellKind.Markdown, [], {}],
+				[['body'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+				[['# header 2.1\n'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 2'], 'markdown', CellKind.Markdown, [], {}],
+				[['body 3'], 'markdown', CellKind.Markdown, [], {}],
+				[['## header 2.2'], 'markdown', CellKind.Markdown, [], {}],
+				[['var e = 7;'], 'markdown', CellKind.Markdown, [], {}],
+			],
+			(editor, viewModel) => {
+				const foldingModel = new FoldingModel();
+				foldingModel.attachViewModel(viewModel);
+				foldingModel.applyMemento([
+					{ start: 5, end: 6 },
+					{ start: 10, end: 11 },
+				]);
+
+				viewModel.updateFoldingRanges(foldingModel.regions);
+
+				// Note that hidden ranges !== folding ranges
+				assert.deepEqual(viewModel.getHiddenRanges(), [
+					{ start: 6, end: 6 },
+					{ start: 11, end: 11 }
+				]);
+
+				// folding ranges
+				// [5, 6]
+				// [10, 11]
+				assert.equal(viewModel.getNextVisibleCellIndex(4), 5);
+				assert.equal(viewModel.getNextVisibleCellIndex(5), 7);
+				assert.equal(viewModel.getNextVisibleCellIndex(6), 7);
+
+				assert.equal(viewModel.getNextVisibleCellIndex(9), 10);
+				assert.equal(viewModel.getNextVisibleCellIndex(10), 12);
+				assert.equal(viewModel.getNextVisibleCellIndex(11), 12);
+			}
+		);
+	});
 });

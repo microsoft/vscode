@@ -678,7 +678,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	//#region Editor Features
 
 	selectElement(cell: ICellViewModel) {
-		this.list?.selectElement(cell);
+		this.viewModel!.selectionHandles = [cell.handle];
 	}
 
 	revealInView(cell: ICellViewModel) {
@@ -761,7 +761,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = ''): CellViewModel | null {
+	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = '', ui: boolean = false): CellViewModel | null {
 		if (!this.notebookViewModel!.metadata.editable) {
 			return null;
 		}
@@ -769,8 +769,9 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const newLanguages = this.notebookViewModel!.languages;
 		const language = (type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown';
 		const index = cell ? this.notebookViewModel!.getCellIndex(cell) : 0;
+		const nextIndex = ui ? this.notebookViewModel!.getNextVisibleCellIndex(index) : index + 1;
 		const insertIndex = cell ?
-			(direction === 'above' ? index : index + 1) :
+			(direction === 'above' ? index : nextIndex) :
 			index;
 		const newCell = this.notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, true);
 
