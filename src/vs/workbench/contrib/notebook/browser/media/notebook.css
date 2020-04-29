@@ -125,11 +125,15 @@
 	color: red;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .output pre.traceback {
+.monaco-workbench .part.editor > .content .notebook-editor .output .error > div {
+	white-space: normal;
+}
+
+.monaco-workbench .part.editor > .content .notebook-editor .output .error pre.traceback {
 	margin: 8px 0;
 }
 
-.monaco-workbench .part.editor > .content .notebook-editor .output .traceback > span {
+.monaco-workbench .part.editor > .content .notebook-editor .output .error .traceback > span {
 	display: block;
 }
 
