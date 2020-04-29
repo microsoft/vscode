@@ -13,17 +13,12 @@
 	display: flex;
 	flex-direction: column;
 	justify-content: space-between;
-	overflow-y: hidden;
-}
-
-.monaco-workbench.safari .activitybar > .content {
-	overflow-y: unset;
 }
 
 /*
  * Fix menu jumping and background inheritance in Safari
  */
-.monaco-workbench .activitybar > .content {
+.monaco-workbench.safari .activitybar > .content {
 	position: absolute;
 	background-color: inherit;
 }
