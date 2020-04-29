@@ -37,21 +37,21 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 		const end: IBufferCellPosition = { x: position.x, y: position.y };
 
 		// TODO: Support wrapping
-
 		// Expand to the left until a word separator is hit
 		const line = this._xterm.buffer.active.getLine(position.y - 1)!;
 		let text = '';
 		start.x++; // The hovered cell is considered first
 		for (let x = position.x; x > 0; x--) {
-			const char = line.getCell(x - 1)?.getChars();
-			if (!char) {
+			const cell = line.getCell(x - 1);
+			if (!cell) {
 				break;
 			}
+			const char = cell.getChars();
 			const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-			if (config.wordSeparators.indexOf(char) >= 0) {
+			if (cell.getWidth() !== 0 && config.wordSeparators.indexOf(char) >= 0) {
 				break;
 			}
-			start.x--;
+			start.x = x;
 			text = char + text;
 		}
 
@@ -62,17 +62,17 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 		}
 
 		// Expand to the right until a word separator is hit
-		// end.x++; // The hovered cell is considered first
 		for (let x = position.x + 1; x <= line.length; x++) {
-			const char = line.getCell(x - 1)?.getChars();
-			if (!char) {
+			const cell = line.getCell(x - 1);
+			if (!cell) {
 				break;
 			}
+			const char = cell.getChars();
 			const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-			if (config.wordSeparators.indexOf(char) >= 0) {
+			if (cell.getWidth() !== 0 && config.wordSeparators.indexOf(char) >= 0) {
 				break;
 			}
-			end.x++;
+			end.x = x;
 			text += char;
 		}
 
