@@ -255,7 +255,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const dndController = new CellDragAndDropController(this);
 		const renders = [
 			this.instantiationService.createInstance(CodeCellRenderer, this, this.contextKeyService, this.renderedEditors, dndController),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this, dndController),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this, dndController, this.renderedEditors),
 		];
 
 		this.list = this.instantiationService.createInstance(

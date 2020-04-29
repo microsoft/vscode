@@ -7,16 +7,17 @@ import { hide, IDimension, show, toggleClass } from 'vs/base/browser/dom';
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { renderCodicons } from 'vs/base/common/codicons';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, INotebookEditor, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, INotebookEditor, MarkdownCellRenderTemplate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class StatefullMarkdownCell extends Disposable {
 
@@ -33,6 +34,7 @@ export class StatefullMarkdownCell extends Disposable {
 		private viewCell: MarkdownCellViewModel,
 		private templateData: MarkdownCellRenderTemplate,
 		editorOptions: IEditorOptions,
+		renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		instantiationService: IInstantiationService
 	) {
 		super();
@@ -42,6 +44,7 @@ export class StatefullMarkdownCell extends Disposable {
 		this.editorOptions = editorOptions;
 		this.localDisposables = new DisposableStore();
 		this._register(this.localDisposables);
+		this._register(toDisposable(() => renderedEditors.delete(this.viewCell)));
 
 		const viewUpdate = () => {
 			if (viewCell.editState === CellEditState.Editing) {
@@ -115,10 +118,12 @@ export class StatefullMarkdownCell extends Disposable {
 				this.viewCell.totalHeight = totalHeight;
 				notebookEditor.layoutNotebookCell(viewCell, totalHeight);
 				this.editor.focus();
+				renderedEditors.set(this.viewCell, this.editor!);
 			} else {
 				this.viewCell.detachTextEditor();
 				hide(this.editorPart);
 				show(this.markdownContainer);
+				renderedEditors.delete(this.viewCell);
 				if (this.editor) {
 					// switch from editing mode
 					const clientHeight = templateData.container.clientHeight;
