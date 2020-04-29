@@ -15,6 +15,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
@@ -39,7 +41,8 @@ export class HoverWidget extends Widget {
 		private _text: IMarkdownString,
 		private _linkHandler: (url: string) => void,
 		private _actions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] | undefined,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._containerDomNode = document.createElement('div');
@@ -71,6 +74,14 @@ export class HoverWidget extends Widget {
 			actionHandler: {
 				callback: (content) => this._linkHandler(content),
 				disposeables: this._messageListeners
+			},
+			codeBlockRenderer: async (_, value) => {
+				const fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+				return `<span style="font-family: ${fontFamily}; white-space: nowrap">${value.replace(/\n/g, '<br>')}</span>`;
+			},
+			codeBlockRenderCallback: () => {
+				contentsElement.classList.add('code-hover-contents');
+				this.layout();
 			}
 		});
 		contentsElement.appendChild(markdownElement);
