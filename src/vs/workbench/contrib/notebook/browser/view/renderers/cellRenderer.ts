@@ -208,8 +208,13 @@ abstract class AbstractCellRenderer {
 		addCodeCell.tabIndex = 0;
 		const insertCellBelow = this.instantiationService.createInstance(InsertCodeCellAction);
 
+		const toolbarContext = {
+			...context,
+			ui: true
+		};
+
 		disposables.add(DOM.addDisposableListener(addCodeCell, DOM.EventType.CLICK, e => {
-			this.actionRunner.run(insertCellBelow, context);
+			this.actionRunner.run(insertCellBelow, toolbarContext);
 			e.stopPropagation();
 		}));
 
@@ -218,7 +223,7 @@ abstract class AbstractCellRenderer {
 			if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
 				e.preventDefault();
 				e.stopPropagation();
-				this.actionRunner.run(insertCellBelow, context);
+				this.actionRunner.run(insertCellBelow, toolbarContext);
 			}
 		})));
 

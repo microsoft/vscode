@@ -354,8 +354,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	selectElement(cell: ICellViewModel) {
-		const index = this._getViewIndexUpperBound(cell);
+		if (this._viewModel) {
+			this._viewModel.selectionHandles = [cell.handle];
+		}
 
+		const index = this._getViewIndexUpperBound(cell);
 		if (index !== undefined) {
 			this.setSelection([index]);
 			this.setFocus([index]);

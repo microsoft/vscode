@@ -67,7 +67,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		}));
 
 		this.viewDescriptorService.getViewContainers().forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer, this.viewDescriptorService.getViewContainerLocation(viewContainer)!));
-		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer, viewContainerLocation }) => this.onDidRegisterViewContainer(viewContainer, viewContainerLocation)));
+		this._register(this.viewContainersRegistry.onDidRegister(({ viewContainer }) => this.onDidRegisterViewContainer(viewContainer, this.viewDescriptorService.getViewContainerLocation(viewContainer)!)));
 		this._register(this.viewContainersRegistry.onDidDeregister(e => this.deregisterViewPaneContainer(e.viewContainer.id)));
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeContainerLocation(viewContainer, from, to)));
 	}

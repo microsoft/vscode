@@ -479,6 +479,7 @@ export interface INotebookCellActionContext {
 	cellTemplate?: BaseCellRenderTemplate;
 	cell: ICellViewModel;
 	notebookEditor: INotebookEditor;
+	ui?: boolean;
 }
 
 function isCellActionContext(context: any): context is INotebookCellActionContext {
@@ -521,7 +522,7 @@ abstract class InsertCellCommand extends Action2 {
 			}
 		}
 
-		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction);
+		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, context.ui);
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, true);
 		}

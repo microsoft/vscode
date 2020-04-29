@@ -158,7 +158,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				(id: string, focus?: boolean) => this.viewletService.openViewlet(id, focus),
 				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.verticallyBefore)
 			),
-			compositeSize: 50,
+			compositeSize: 52,
 			colors: (theme: IColorTheme) => this.getActivitybarItemColors(theme),
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		}));

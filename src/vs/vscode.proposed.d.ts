@@ -1265,14 +1265,18 @@ declare module 'vscode' {
 		/**
 		 * Undo the edit operation.
 		 *
-		 * This is invoked by VS Code when the user triggers an undo.
+		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
+		 * extension should restore the document and editor to the state they were in just before this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
 		 */
 		undo(): Thenable<void> | void;
 
 		/**
 		 * Redo the edit operation.
 		 *
-		 * This is invoked by VS Code when the user triggers a redo.
+		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
+		 * extension should restore the document and editor to the state they were in just after this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
 		 */
 		redo(): Thenable<void> | void;
 
@@ -1447,7 +1451,7 @@ declare module 'vscode' {
 		 * This method is invoked by VS Code when the user triggers 'save as' on a custom editor. The implementer must
 		 * persist the custom editor to `destination`.
 		 *
-		 * When the user accepts save as, the current editor is be replaced by an editor for the newly saved file.
+		 * When the user accepts save as, the current editor is be replaced by an non-dirty editor for the newly saved file.
 		 *
 		 * @param document Document to save.
 		 * @param destination Location to save to.

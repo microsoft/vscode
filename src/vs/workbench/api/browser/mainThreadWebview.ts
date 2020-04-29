@@ -610,8 +610,9 @@ namespace HotExitState {
 
 class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
 
-	private _hotExitState: HotExitState.State = HotExitState.Allowed;
 	private readonly _fromBackup: boolean = false;
+	private _hotExitState: HotExitState.State = HotExitState.Allowed;
+	private _backupId: string | undefined;
 
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
@@ -714,6 +715,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 	public get viewType() {
 		return this._viewType;
+	}
+
+	public get backupId() {
+		return this._backupId;
 	}
 
 	public pushEdit(editId: number, label: string | undefined) {
@@ -902,6 +907,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			if (this._hotExitState === pendingState) {
 				this._hotExitState = HotExitState.Allowed;
 				backupData.meta!.backupId = backupId;
+				this._backupId = backupId;
 			}
 		} catch (e) {
 			// Make sure state has not changed in the meantime
