@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Database, Statement, OPEN_READWRITE, OPEN_CREATE, OPEN_READONLY } from 'vscode-sqlite3';
+import { Database, Statement } from 'vscode-sqlite3';
 import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { mapToString, setToString } from 'vs/base/common/map';
@@ -20,7 +20,6 @@ interface IDatabaseConnection {
 }
 
 export interface ISQLiteStorageDatabaseOptions {
-	readonly intent?: number;
 	readonly logging?: ISQLiteStorageDatabaseLoggingOptions;
 }
 
@@ -35,7 +34,6 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 
 	get onDidChangeItemsExternal(): Event<IStorageItemsChangeEvent> { return Event.None; } // since we are the only client, there can be no external changes
 
-	private static readonly DEFAULT_MODE = OPEN_READWRITE | OPEN_CREATE; // default mode when connecting to the DB
 	private static readonly BUSY_OPEN_TIMEOUT = 2000; // timeout in ms to retry when opening DB fails with SQLITE_BUSY
 	private static readonly MAX_HOST_PARAMETERS = 256; // maximum number of parameters within a statement
 
@@ -299,14 +297,9 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 		return new Promise((resolve, reject) => {
 			import('vscode-sqlite3').then(sqlite3 => {
 				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, this.options.intent ?? SQLiteStorageDatabase.DEFAULT_MODE, error => {
+					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, error => {
 						if (error) {
 							return connection.db ? connection.db.close(() => reject(error)) : reject(error);
-						}
-
-						// Return the connection when using OPEN_READONLY
-						if (this.options && this.options.intent && (this.options.intent & OPEN_READONLY) === OPEN_READONLY) {
-							resolve(connection);
 						}
 
 						// The following exec() statement serves two purposes:
