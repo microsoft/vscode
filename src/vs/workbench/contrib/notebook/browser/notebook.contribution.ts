@@ -6,7 +6,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
@@ -164,6 +164,12 @@ export class NotebookContribution implements IWorkbenchContribution {
 		}
 
 		if (id === undefined) {
+			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, resource));
+
+			if (existingEditors.length) {
+				return;
+			}
+
 			const userAssociatedEditors = this.getUserAssociatedEditors(resource);
 			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
 
