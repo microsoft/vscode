@@ -464,7 +464,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 						let vsixPaths: URI[] = [];
 						for (let index = 0; index < e.dataTransfer.files.length; index++) {
 							const path = e.dataTransfer.files.item(index)!.path;
-							if (path.endsWith('.vsix')) {
+							if (path.indexOf('.vsix') !== -1) {
 								vsixPaths.push(URI.parse(path));
 							}
 						}
