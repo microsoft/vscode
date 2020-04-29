@@ -185,7 +185,7 @@
 	height: 26px;
 	right: 36px;
 	top: -14px; /* this lines up the bottom toolbar border with the current line when on line 01 */
-	z-index: 10;
+	z-index: 30;
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-toolbar .action-item {
@@ -361,7 +361,7 @@
 }
 
 .monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.cell-editor-focus .cell-editor-part:before {
-	z-index: 5;
+	z-index: 20;
 	content: "";
 	right: 0px;
 	left: 0px;
