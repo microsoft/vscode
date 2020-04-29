@@ -430,7 +430,7 @@ export class NextMarkerAction extends MarkerNavigationAction {
 			id: NextMarkerAction.ID,
 			label: NextMarkerAction.LABEL,
 			alias: 'Go to Next Problem (Error, Warning, Info)',
-			precondition: EditorContextKeys.writable,
+			precondition: undefined,
 			kbOpts: { kbExpr: EditorContextKeys.focus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -444,7 +444,7 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			id: PrevMarkerAction.ID,
 			label: PrevMarkerAction.LABEL,
 			alias: 'Go to Previous Problem (Error, Warning, Info)',
-			precondition: EditorContextKeys.writable,
+			precondition: undefined,
 			kbOpts: { kbExpr: EditorContextKeys.focus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
 		});
 	}
@@ -456,7 +456,7 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 			id: 'editor.action.marker.nextInFiles',
 			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
 			alias: 'Go to Next Problem in Files (Error, Warning, Info)',
-			precondition: EditorContextKeys.writable,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F8,
@@ -472,7 +472,7 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 			id: 'editor.action.marker.prevInFiles',
 			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
 			alias: 'Go to Previous Problem in Files (Error, Warning, Info)',
-			precondition: EditorContextKeys.writable,
+			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F8,
