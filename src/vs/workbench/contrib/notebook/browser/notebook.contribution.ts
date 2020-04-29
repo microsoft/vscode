@@ -164,10 +164,10 @@ export class NotebookContribution implements IWorkbenchContribution {
 		}
 
 		if (id === undefined) {
-			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, resource));
+			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, resource) && !(editor instanceof NotebookEditorInput));
 
 			if (existingEditors.length) {
-				return;
+				return undefined;
 			}
 
 			const userAssociatedEditors = this.getUserAssociatedEditors(resource);
