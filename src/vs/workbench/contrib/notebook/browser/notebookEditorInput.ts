@@ -173,6 +173,10 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async resolve(): Promise<NotebookEditorModel> {
+		if (this.textModel) {
+			return this.textModel;
+		}
+
 		if (!this.promise) {
 			if (!await this.notebookService.canResolve(this.viewType!)) {
 				throw new Error(`Cannot open notebook of type '${this.viewType}'`);

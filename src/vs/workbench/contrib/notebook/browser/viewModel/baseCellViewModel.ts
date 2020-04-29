@@ -199,6 +199,8 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		return this.model.source.join('\n');
 	}
 
+	abstract save(): void;
+
 	private saveViewState(): editorCommon.ICodeEditorViewState | null {
 		if (!this._textEditor) {
 			return null;
