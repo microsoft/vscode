@@ -23,7 +23,6 @@ import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/term
 import { BaseExtHostTerminalService, ExtHostTerminal, EnvironmentVariableCollection } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { dispose } from 'vs/base/common/lifecycle';
 import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
@@ -227,22 +226,12 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._isWorkspaceShellAllowed = isAllowed;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription, persistent: boolean = false): vscode.EnvironmentVariableCollection {
-		let collection: EnvironmentVariableCollection | undefined;
-		if (persistent) {
-			// If persistent is specified, return the current collection if it exists
-			collection = this._environmentVariableCollections.get(extension.identifier.value);
-
-			// If persistence changed then create a new collection
-			if (collection && !collection.persistent) {
-				collection = undefined;
-			}
-		}
+	public getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection {
+		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 
 		if (!collection) {
-			// If not persistent, clear out the current collection and create a new one
-			dispose(this._environmentVariableCollections.get(extension.identifier.value));
-			collection = new EnvironmentVariableCollection(persistent);
+			// TODO: Disable dispose
+			collection = new EnvironmentVariableCollection();
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
 
@@ -257,7 +246,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
 		collections.forEach(entry => {
 			const extensionIdentifier = entry[0];
-			const collection = new EnvironmentVariableCollection(true, entry[1]);
+			const collection = new EnvironmentVariableCollection(entry[1]);
 			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
 		});
 	}

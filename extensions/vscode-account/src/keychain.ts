@@ -28,7 +28,7 @@ export type Keytar = {
 	deletePassword: typeof keytarType['deletePassword'];
 };
 
-const SERVICE_ID = `${vscode.env.uriScheme}-vscode.login`;
+const SERVICE_ID = `${vscode.env.uriScheme}-microsoft.login`;
 const ACCOUNT_ID = 'account';
 
 export class Keychain {
@@ -43,13 +43,38 @@ export class Keychain {
 		this.keytar = keytar;
 	}
 
+	// TODO remove, temporary migration
+	async migrateToken(): Promise<void> {
+		const oldServiceId = `${vscode.env.uriScheme}-vscode.login`;
+		try {
+			const data = await this.keytar.getPassword(oldServiceId, ACCOUNT_ID);
+			if (data) {
+				Logger.info('Migrating token...');
+				this.setToken(data);
+				await this.keytar.deletePassword(oldServiceId, ACCOUNT_ID);
+				Logger.info('Migration successful');
+			}
+		} catch (e) {
+			Logger.error(`Migrating token failed: ${e}`);
+		}
+	}
+
+
 	async setToken(token: string): Promise<void> {
 		try {
 			Logger.trace('Writing to keychain', token);
 			return await this.keytar.setPassword(SERVICE_ID, ACCOUNT_ID, token);
 		} catch (e) {
-			// Ignore
 			Logger.error(`Setting token failed: ${e}`);
+
+			// Temporary fix for #94005
+			// This happens when processes write simulatenously to the keychain, most
+			// likely when trying to refresh the token. Ignore the error since additional
+			// writes after the first one do not matter. Should actually be fixed upstream.
+			if (e.message === 'The specified item already exists in the keychain.') {
+				return;
+			}
+
 			const troubleshooting = localize('troubleshooting', "Troubleshooting Guide");
 			const result = await vscode.window.showErrorMessage(localize('keychainWriteError', "Writing login information to the keychain failed with error '{0}'.", e.message), troubleshooting);
 			if (result === troubleshooting) {

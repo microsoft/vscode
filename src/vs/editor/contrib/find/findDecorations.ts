@@ -86,7 +86,8 @@ export class FindDecorations implements IDisposable {
 				return this._getDecorationIndex(candidate.id);
 			}
 		}
-		return 1;
+		// We don't know the current match position, so returns zero to show '?' in find widget
+		return 0;
 	}
 
 	public setCurrentFindMatch(nextMatch: Range | null): number {

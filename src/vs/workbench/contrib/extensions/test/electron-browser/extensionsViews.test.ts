@@ -14,10 +14,9 @@ import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, SortBy
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionTipsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService, ExtensionRecommendationReason } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -49,7 +48,6 @@ import { IMenuService } from 'vs/platform/actions/common/actions';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 
-
 suite('ExtensionsListView Tests', () => {
 
 	let instantiationService: TestInstantiationService;
@@ -69,6 +67,7 @@ suite('ExtensionsListView Tests', () => {
 
 	const workspaceRecommendationA = aGalleryExtension('workspace-recommendation-A');
 	const workspaceRecommendationB = aGalleryExtension('workspace-recommendation-B');
+	const configBasedRecommendationA = aGalleryExtension('configbased-recommendation-A');
 	const fileBasedRecommendationA = aGalleryExtension('filebased-recommendation-A');
 	const fileBasedRecommendationB = aGalleryExtension('filebased-recommendation-B');
 	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
@@ -110,27 +109,40 @@ suite('ExtensionsListView Tests', () => {
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
-		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
-		instantiationService.stub(IURLService, URLService);
-
-		instantiationService.stubPromise(IExtensionTipsService, 'getWorkspaceRecommendations', [
-			{ extensionId: workspaceRecommendationA.identifier.id },
-			{ extensionId: workspaceRecommendationB.identifier.id }]);
-		instantiationService.stub(IExtensionTipsService, 'getFileBasedRecommendations', [
-			{ extensionId: fileBasedRecommendationA.identifier.id },
-			{ extensionId: fileBasedRecommendationB.identifier.id }]);
-		instantiationService.stubPromise(IExtensionTipsService, 'getOtherRecommendations', [
-			{ extensionId: otherRecommendationA.identifier.id }
-		]);
 		const reasons: { [key: string]: any } = {};
 		reasons[workspaceRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
 		reasons[workspaceRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
 		reasons[fileBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
 		reasons[fileBasedRecommendationB.identifier.id] = { reasonId: ExtensionRecommendationReason.File };
 		reasons[otherRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Executable };
-
-		instantiationService.stub(IExtensionTipsService, 'getAllRecommendationsWithReason', reasons);
-
+		reasons[configBasedRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.WorkspaceConfig };
+		instantiationService.stub(IExtensionRecommendationsService, <Partial<IExtensionRecommendationsService>>{
+			getWorkspaceRecommendations() {
+				return Promise.resolve([
+					{ extensionId: workspaceRecommendationA.identifier.id },
+					{ extensionId: workspaceRecommendationB.identifier.id }]);
+			},
+			getConfigBasedRecommendations() {
+				return Promise.resolve([
+					{ extensionId: configBasedRecommendationA.identifier.id }
+				]);
+			},
+			getFileBasedRecommendations() {
+				return [
+					{ extensionId: fileBasedRecommendationA.identifier.id },
+					{ extensionId: fileBasedRecommendationB.identifier.id }
+				];
+			},
+			getOtherRecommendations() {
+				return Promise.resolve([
+					{ extensionId: otherRecommendationA.identifier.id }
+				]);
+			},
+			getAllRecommendationsWithReason() {
+				return reasons;
+			}
+		});
+		instantiationService.stub(IURLService, URLService);
 	});
 
 	setup(async () => {
@@ -140,7 +152,7 @@ suite('ExtensionsListView Tests', () => {
 		instantiationService.stubPromise(IExperimentService, 'getExperimentsByType', []);
 
 		instantiationService.stub(IViewDescriptorService, {
-			getViewLocation(): ViewContainerLocation {
+			getViewLocationById(): ViewContainerLocation {
 				return ViewContainerLocation.Sidebar;
 			}
 		});
@@ -336,6 +348,7 @@ suite('ExtensionsListView Tests', () => {
 
 	test('Test @recommended query', () => {
 		const allRecommendedExtensions = [
+			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
 			otherRecommendationA
@@ -360,6 +373,7 @@ suite('ExtensionsListView Tests', () => {
 		const allRecommendedExtensions = [
 			workspaceRecommendationA,
 			workspaceRecommendationB,
+			configBasedRecommendationA,
 			fileBasedRecommendationA,
 			fileBasedRecommendationB,
 			otherRecommendationA

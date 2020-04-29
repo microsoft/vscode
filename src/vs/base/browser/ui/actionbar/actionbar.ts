@@ -136,7 +136,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 		if (platform.isMacintosh) {
 			// macOS: allow to trigger the button when holding Ctrl+key and pressing the
-			//  main mouse button. This is for scenarios where e.g. some interaction forces
+			// main mouse button. This is for scenarios where e.g. some interaction forces
 			// the Ctrl+key to be pressed and hold but the user still wants to interact
 			// with the actions (for example quick access in quick navigation mode).
 			this._register(DOM.addDisposableListener(element, DOM.EventType.CONTEXT_MENU, e => {
@@ -275,7 +275,6 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.element) {
 			this.label = DOM.append(this.element, DOM.$('a.action-label'));
 		}
-
 
 		if (this.label) {
 			if (this._action.id === Separator.ID) {

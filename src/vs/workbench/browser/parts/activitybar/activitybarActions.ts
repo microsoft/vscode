@@ -28,6 +28,9 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Codicon } from 'vs/base/common/codicons';
+import { isString } from 'vs/base/common/types';
 
 export class ViewletActivityAction extends ActivityAction {
 
@@ -249,13 +252,17 @@ export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
 		id: string,
-		name: string,
-		iconUrl: URI | undefined,
+		icon: URI | string | undefined,
 		@IViewletService viewletService: IViewletService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		super({ id, name: id, iconUrl }, viewletService, layoutService, telemetryService);
+		super({
+			id,
+			name: id,
+			iconUrl: URI.isUri(icon) ? icon : undefined,
+			cssClass: isString(icon) ? icon : undefined
+		}, viewletService, layoutService, telemetryService);
 	}
 }
 
@@ -338,9 +345,21 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 	}
 }
 
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(PreviousSideBarViewAction, PreviousSideBarViewAction.ID, PreviousSideBarViewAction.LABEL), 'View: Previous Side Bar View', nls.localize('view', "View"));
-registry.registerWorkbenchAction(SyncActionDescriptor.create(NextSideBarViewAction, NextSideBarViewAction.ID, NextSideBarViewAction.LABEL), 'View: Next Side Bar View', nls.localize('view', "View"));
+export class HomeAction extends Action {
+
+	constructor(
+		private readonly command: string,
+		name: string,
+		icon: Codicon,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super('workbench.action.home', name, icon.classNames);
+	}
+
+	async run(): Promise<void> {
+		this.commandService.executeCommand(this.command);
+	}
+}
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
@@ -352,6 +371,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon) {
 				background-color: ${activeForegroundColor} !important;
 			}
+			.monaco-workbench .activitybar > .content .home-bar > .monaco-action-bar .action-item .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
 			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
@@ -443,3 +463,7 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		}
 	}
 });
+
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', nls.localize('view', "View"));

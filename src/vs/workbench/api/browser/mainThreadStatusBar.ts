@@ -26,7 +26,9 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 	}
 
 	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined): void {
-		const entry: IStatusbarEntry = { text, tooltip, command, color };
+		// if there are icons in the text use the tooltip for the aria label
+		const ariaLabel = text.indexOf('$(') === -1 ? text : tooltip || text;
+		const entry: IStatusbarEntry = { text, tooltip, command, color, ariaLabel };
 
 		if (typeof priority === 'undefined') {
 			priority = 0;

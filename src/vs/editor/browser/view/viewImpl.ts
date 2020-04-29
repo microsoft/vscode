@@ -136,6 +136,8 @@ export class View extends ViewEventHandler {
 
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName(this.getEditorClassName());
+		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
+		this.domNode.setAttribute('role', 'code');
 
 		this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);

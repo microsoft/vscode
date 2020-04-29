@@ -318,7 +318,6 @@ export class Workbench extends Layout {
 
 		// ARIA
 		setARIAContainer(this.container);
-		this.container.setAttribute('role', 'application');
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -350,7 +349,7 @@ export class Workbench extends Layout {
 			{ id: Parts.SIDEBAR_PART, role: 'complementary', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
 			{ id: Parts.PANEL_PART, role: 'complementary', classes: ['panel', positionToString(this.state.panel.position)] },
-			{ id: Parts.STATUSBAR_PART, role: 'contentinfo', classes: ['statusbar'] }
+			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);
 
@@ -369,6 +368,9 @@ export class Workbench extends Layout {
 		addClasses(part, 'part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);
+		if (role === 'status') {
+			part.setAttribute('aria-live', 'off');
+		}
 
 		return part;
 	}

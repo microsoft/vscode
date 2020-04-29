@@ -26,8 +26,16 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
+export interface IOpenEditorOverrideEntry {
+	id: string;
+	label: string;
+	active: boolean;
+	detail?: string;
+}
+
 export interface IOpenEditorOverrideHandler {
-	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined;
+	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id?: string): IOpenEditorOverride | undefined;
+	getEditorOverrides?(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
 }
 
 export interface IOpenEditorOverride {
@@ -58,6 +66,18 @@ export interface IBaseSaveRevertAllEditorOptions {
 export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }
 
 export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
+
+export interface ICustomEditorInfo {
+
+	readonly id: string;
+	readonly displayName: string;
+	readonly providerDisplayName: string;
+}
+
+export interface ICustomEditorViewTypesHandler {
+	readonly onDidChangeViewTypes: Event<void>;
+	getViewTypes(): ICustomEditorInfo[];
+}
 
 export interface IEditorService {
 
@@ -202,11 +222,18 @@ export interface IEditorService {
 	isOpen(editor: IEditorInput): boolean;
 
 	/**
+	 * Get all available editor overrides for the editor input.
+	 */
+	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
+
+	/**
 	 * Allows to override the opening of editors by installing a handler that will
 	 * be called each time an editor is about to open allowing to override the
 	 * operation to open a different editor.
 	 */
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
+
+	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
 	 * Invoke a function in the context of the services of the active editor.

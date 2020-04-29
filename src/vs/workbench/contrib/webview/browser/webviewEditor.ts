@@ -86,11 +86,10 @@ export class WebviewEditor extends BaseEditor {
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
-				this.webview.claim(this);
+				this.claimWebview(this.input);
 			} else {
 				this.webview.release(this);
 			}
-			this.claimWebview(this.input);
 		}
 		super.setEditorVisible(visible, group);
 	}

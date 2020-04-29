@@ -66,6 +66,11 @@ export class OpenDocumentLinkCommand implements Command {
 			}
 		}
 
+		const stat = await vscode.workspace.fs.stat(resource);
+		if (stat.type === vscode.FileType.Directory) {
+			return vscode.commands.executeCommand('revealInExplorer', resource);
+		}
+
 		return vscode.workspace.openTextDocument(resource)
 			.then(document => vscode.window.showTextDocument(document, column))
 			.then(editor => this.tryRevealLine(editor, args.fragment));

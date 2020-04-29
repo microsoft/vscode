@@ -22,6 +22,8 @@ import { Schemas } from 'vs/base/common/network';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
+import { NativeSimpleFileDialog } from 'vs/workbench/services/dialogs/electron-browser/simpleFileDialog';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -189,6 +191,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		// Include File schema unless the schema is web
 		// Don't allow untitled schema through.
 		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
+	}
+
+	protected createSimpleFileDialog(): SimpleFileDialog {
+		return this.instantiationService.createInstance(NativeSimpleFileDialog);
 	}
 }
 

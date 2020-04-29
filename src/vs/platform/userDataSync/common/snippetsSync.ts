@@ -416,7 +416,8 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 		for (const entry of stat.children || []) {
 			const resource = entry.resource;
-			if (extname(resource) === '.json') {
+			const extension = extname(resource);
+			if (extension === '.json' || extension === '.code-snippet') {
 				const key = relativePath(this.snippetsFolder, resource)!;
 				const content = await this.fileService.readFile(resource);
 				snippets[key] = content;

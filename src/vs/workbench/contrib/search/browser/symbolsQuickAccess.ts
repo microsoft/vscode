@@ -23,6 +23,7 @@ import { getSelectionSearchString } from 'vs/editor/contrib/find/findController'
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { prepareQuery, IPreparedQuery, scoreFuzzy2, pieceToQuery } from 'vs/base/common/fuzzyScorer';
 import { IMatch } from 'vs/base/common/filters';
+import { Codicon } from 'vs/base/common/codicons';
 
 interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	score?: number;
@@ -130,15 +131,31 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 				const symbolLabel = symbol.name;
 				const symbolLabelWithIcon = `$(symbol-${SymbolKinds.toString(symbol.kind) || 'property'}) ${symbolLabel}`;
-
+				const symbolLabelIconOffset = symbolLabelWithIcon.length - symbolLabel.length;
 
 				// Score by symbol label if searching
 				let symbolScore: number | undefined = undefined;
 				let symbolMatches: IMatch[] | undefined = undefined;
+				let skipContainerQuery = false;
 				if (symbolQuery.original.length > 0) {
-					[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabel, symbolQuery, 0, symbolLabelWithIcon.length - symbolLabel.length /* Readjust matches to account for codicons in label */);
-					if (!symbolScore) {
-						continue;
+
+					// First: try to score on the entire query, it is possible that
+					// the symbol matches perfectly (e.g. searching for "change log"
+					// can be a match on a markdown symbol "change log"). In that
+					// case we want to skip the container query altogether.
+					if (symbolQuery !== query) {
+						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, { ...query, values: undefined /* disable multi-query support */ }, 0, symbolLabelIconOffset);
+						if (typeof symbolScore === 'number') {
+							skipContainerQuery = true; // since we consumed the query, skip any container matching
+						}
+					}
+
+					// Otherwise: score on the symbol query and match on the container later
+					if (typeof symbolScore !== 'number') {
+						[symbolScore, symbolMatches] = scoreFuzzy2(symbolLabelWithIcon, symbolQuery, 0, symbolLabelIconOffset);
+						if (typeof symbolScore !== 'number') {
+							continue;
+						}
 					}
 				}
 
@@ -156,16 +173,16 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				// Score by container if specified and searching
 				let containerScore: number | undefined = undefined;
 				let containerMatches: IMatch[] | undefined = undefined;
-				if (containerQuery && containerQuery.original.length > 0) {
+				if (!skipContainerQuery && containerQuery && containerQuery.original.length > 0) {
 					if (containerLabel) {
 						[containerScore, containerMatches] = scoreFuzzy2(containerLabel, containerQuery);
 					}
 
-					if (!containerScore) {
+					if (typeof containerScore !== 'number') {
 						continue;
 					}
 
-					if (symbolScore) {
+					if (typeof symbolScore === 'number') {
 						symbolScore += containerScore; // boost symbolScore by containerScore
 					}
 				}
@@ -186,7 +203,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 					strikethrough: deprecated,
 					buttons: [
 						{
-							iconClass: openSideBySideDirection === 'right' ? 'codicon-split-horizontal' : 'codicon-split-vertical',
+							iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
 							tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
 						}
 					],
@@ -195,7 +212,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 						return TriggerAction.CLOSE_PICKER;
 					},
-					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground }),
+					accept: async (keyMods, event) => this.openSymbol(provider, symbol, token, { keyMods, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
 				});
 			}
 		}
@@ -208,7 +225,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 		return symbolPicks;
 	}
 
-	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods, forceOpenSideBySide?: boolean, preserveFocus?: boolean }): Promise<void> {
+	private async openSymbol(provider: IWorkspaceSymbolProvider, symbol: IWorkspaceSymbol, token: CancellationToken, options: { keyMods: IKeyMods, forceOpenSideBySide?: boolean, preserveFocus?: boolean, forcePinned?: boolean }): Promise<void> {
 
 		// Resolve actual symbol to open for providers that can resolve
 		let symbolToOpen = symbol;
@@ -231,7 +248,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 				resource: symbolToOpen.location.uri,
 				options: {
 					preserveFocus: options?.preserveFocus,
-					pinned: options.keyMods.alt || this.configuration.openEditorPinned,
+					pinned: options.keyMods.alt || options.forcePinned || this.configuration.openEditorPinned,
 					selection: symbolToOpen.location.range ? Range.collapseToStart(symbolToOpen.location.range) : undefined
 				}
 			}, options.keyMods.ctrlCmd || options?.forceOpenSideBySide ? SIDE_GROUP : ACTIVE_GROUP);
@@ -241,7 +258,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 	private compareSymbols(symbolA: ISymbolQuickPickItem, symbolB: ISymbolQuickPickItem): number {
 
 		// By score
-		if (symbolA.score && symbolB.score) {
+		if (typeof symbolA.score === 'number' && typeof symbolB.score === 'number') {
 			if (symbolA.score > symbolB.score) {
 				return -1;
 			}
