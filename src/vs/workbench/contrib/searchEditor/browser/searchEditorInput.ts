@@ -311,8 +311,8 @@ export const getOrMakeSearchEditorInput = (
 
 	const modelUri = existingData.modelUri ?? URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
 
-
-	const existing = inputs.get(modelUri.toString() + existingData.backingUri?.toString());
+	const cacheKey = existingData.backingUri?.toString() ?? modelUri.toString();
+	const existing = inputs.get(cacheKey);
 	if (existing) {
 		return existing;
 	}
@@ -341,8 +341,8 @@ export const getOrMakeSearchEditorInput = (
 
 	const input = instantiationService.createInstance(SearchEditorInput, modelUri, existingData.backingUri, config, getModel);
 
-	inputs.set(modelUri.toString(), input);
-	input.onDispose(() => inputs.delete(modelUri.toString()));
+	inputs.set(cacheKey, input);
+	input.onDispose(() => inputs.delete(cacheKey));
 
 	return input;
 };
