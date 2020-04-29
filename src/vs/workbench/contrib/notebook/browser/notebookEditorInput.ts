@@ -96,7 +96,7 @@ export class NotebookEditorInput extends EditorInput {
 	private static readonly _instances = new Map<string, NotebookEditorInput>();
 
 	static getOrCreate(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined) {
-		const key = name + viewType;
+		const key = resource.toString() + viewType;
 		let input = NotebookEditorInput._instances.get(key);
 		if (!input) {
 			input = instantiationService.createInstance(class extends NotebookEditorInput {
