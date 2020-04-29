@@ -92,11 +92,7 @@ export interface IEnvironmentVariableService {
 	delete(extensionIdentifier: string): void;
 }
 
-/**
- * First: Variable
- * Second: Value
- * Third: Type
- */
+/** [variable, mutator] */
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
 
 export interface IEnvironmentVariableInfo {
