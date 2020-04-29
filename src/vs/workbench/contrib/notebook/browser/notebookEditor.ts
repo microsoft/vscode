@@ -678,7 +678,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	//#region Editor Features
 
 	selectElement(cell: ICellViewModel) {
-		this.viewModel!.selectionHandles = [cell.handle];
+		this.list?.selectElement(cell);
+		// this.viewModel!.selectionHandles = [cell.handle];
 	}
 
 	revealInView(cell: ICellViewModel) {
