@@ -102,6 +102,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		};
 	}
 
+	async logout(providerId: string, sessionId: string): Promise<void> {
+		const provider = this._authenticationProviders.get(providerId);
+		if (!provider) {
+			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
+		}
+
+		return provider.logout(sessionId);
+	}
+
 	registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {
 		if (this._authenticationProviders.get(provider.id)) {
 			throw new Error(`An authentication provider with id '${provider.id}' is already registered.`);
