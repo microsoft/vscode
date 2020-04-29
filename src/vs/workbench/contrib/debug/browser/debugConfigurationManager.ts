@@ -247,16 +247,22 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	async getDynamicProviders(): Promise<{ label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
-		await this.activateDebuggers('onDebugDynamicConfigurations');
-		const dynamicProviders = this.configProviders.filter(p => p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations);
-		return dynamicProviders.map(provider => {
+		const extensions = await this.extensionService.getExtensions();
+		const debugDynamicExtensions = extensions.filter(e => {
+			return e.activationEvents && e.activationEvents.filter(e => e.includes('onDebugDynamicConfigurations')).length && e.contributes?.debuggers;
+		});
+
+		return debugDynamicExtensions.map(e => {
+			const type = e.contributes?.debuggers![0].type!;
 			return {
-				label: this.getDebuggerLabel(provider.type)!,
+				label: this.getDebuggerLabel(type)!,
 				pick: async () => {
+					await this.activateDebuggers('onDebugDynamicConfigurations', type);
 					const token = new CancellationTokenSource();
 					const picks: Promise<{ label: string, launch: ILaunch, config: IConfig }[]>[] = [];
+					const provider = this.configProviders.filter(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations)[0];
 					this.getLaunches().forEach(launch => {
-						if (launch.workspace) {
+						if (launch.workspace && provider) {
 							picks.push(provider.provideDebugConfigurations!(launch.workspace.uri, token.token).then(configurations => configurations.map(config => ({
 								label: config.name,
 								config,
