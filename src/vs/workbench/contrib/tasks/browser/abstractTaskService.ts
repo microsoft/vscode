@@ -2139,7 +2139,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
 	}
 
-	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, includeRecents: boolean = true): TaskQuickPickEntry[] {
+	private async createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, includeRecents: boolean = true): Promise<TaskQuickPickEntry[]> {
 		let count: { [key: string]: number; } = {};
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
@@ -2175,26 +2175,31 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (tasks.length === 1) {
 				entries.push(TaskQuickPickEntry(tasks[0]));
 			} else {
-				let recentlyUsedTasks = this.getRecentlyUsedTasks();
+				let recentlyUsedTasks = await this.readRecentTasks();
 				let recent: Task[] = [];
+				let recentSet: Set<string> = new Set();
 				let configured: Task[] = [];
 				let detected: Task[] = [];
 				let taskMap: IStringDictionary<Task> = Object.create(null);
 				tasks.forEach(task => {
-					let key = task.getRecentlyUsedKey();
+					let key = task.getCommonTaskId();
 					if (key) {
 						taskMap[key] = task;
 					}
 				});
-				recentlyUsedTasks.keys().reverse().forEach(key => {
-					let task = taskMap[key];
-					if (task) {
-						recent.push(task);
+				recentlyUsedTasks.reverse().forEach(recentTask => {
+					const key = recentTask.getCommonTaskId();
+					if (key) {
+						recentSet.add(key);
+						let task = taskMap[key];
+						if (task) {
+							recent.push(task);
+						}
 					}
 				});
 				for (let task of tasks) {
-					let key = task.getRecentlyUsedKey();
-					if (!key || !recentlyUsedTasks.has(key)) {
+					let key = task.getCommonTaskId();
+					if (!key || !recentSet.has(key)) {
 						if ((task._source.kind === TaskSourceKind.Workspace) || (task._source.kind === TaskSourceKind.User)) {
 							configured.push(task);
 						} else {
