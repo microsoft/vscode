@@ -50,7 +50,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		});
 		this._diff.removed.forEach((mutators, variable) => {
 			mutators.forEach(mutator => {
-				const removePrefixText = localize('removeEnvironmentVariableChange', "Remove the change {0}", mutatorTypeLabel(mutator.type, mutator.value, variable));
+				const removePrefixText = localize('removeEnvironmentVariableChange', "Remove: {0}", mutatorTypeLabel(mutator.type, mutator.value, variable));
 				summary.push(`- ${removePrefixText}`);
 			});
 		});
