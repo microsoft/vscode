@@ -106,13 +106,19 @@ export class HoverWidget extends Widget {
 	public layout(): void {
 		const anchor = this._target.anchor;
 
+		this._domNode.classList.remove('right-aligned');
 		if (anchor.horizontalAnchorSide === HorizontalAnchorSide.Left) {
 			if (anchor.x + this._domNode.clientWidth * 0.75 > document.documentElement.clientWidth) {
 				// Shift the hover to the left when > 25% would be cut off
 				const width = Math.round(this._domNode.clientWidth * 0.75);
 				this._domNode.style.width = `${width - 1}px`;
 				this._domNode.style.maxWidth = '';
-				this._domNode.style.left = `${document.documentElement.clientWidth - width - 1}px`;
+				const left = document.documentElement.clientWidth - width - 1;
+				this._domNode.style.left = `${left}px`;
+				// Right align if the right edge is closer to the anchor than the left edge
+				if (left + width / 2 < anchor.x) {
+					this._domNode.classList.add('right-aligned');
+				}
 			} else {
 				this._domNode.style.width = '';
 				this._domNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;

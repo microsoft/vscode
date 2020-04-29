@@ -26,6 +26,15 @@
 	color: #3794ff;
 }
 
+.monaco-workbench .terminal-hover-widget.right-aligned .hover-row.status-bar .actions {
+	flex-direction: row-reverse;
+}
+
+.monaco-workbench .terminal-hover-widget.right-aligned .hover-row.status-bar .actions .action-container {
+	margin-right: 0;
+	margin-left: 16px;
+}
+
 .monaco-workbench .terminal-overlay-widget {
 	position: absolute;
 	left: 0;
