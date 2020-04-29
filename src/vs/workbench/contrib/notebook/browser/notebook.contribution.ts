@@ -3,8 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceMap } from 'vs/base/common/map';
+import { parse } from 'vs/base/common/marshalling';
+import { basename } from 'vs/base/common/resources';
+import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -13,22 +23,26 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { IEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { NotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
-import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ITextModel } from 'vs/editor/common/model';
-import { URI } from 'vs/base/common/uri';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { assertType } from 'vs/base/common/types';
-import { parse } from 'vs/base/common/marshalling';
-import { CellUri, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ResourceMap } from 'vs/base/common/map';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
+import { coalesce, distinct } from 'vs/base/common/arrays';
+import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
+
+// Editor Contribution
+
+import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
+import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
+import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
+import 'vs/workbench/contrib/notebook/browser/contrib/toc/tocProvider';
 
 // Output renderers registration
 
@@ -36,10 +50,7 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTrans
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 
-// Actions
-import 'vs/workbench/contrib/notebook/browser/contrib/notebookActions';
-import { basename } from 'vs/base/common/resources';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+/*--------------------------------------------------------------------------------------------- */
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
@@ -91,10 +102,33 @@ export class NotebookContribution implements IWorkbenchContribution {
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 
 	) {
-		this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
+		this.editorService.overrideOpenEditor({
+			getEditorOverrides: (editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+				let resource = editor.resource;
+				if (!resource) {
+					return [];
+				}
+
+				const associatedEditors = distinct([
+					...this.getUserAssociatedNotebookEditors(resource),
+					...this.getContributedEditors(resource)
+				], editor => editor.id);
+
+				return associatedEditors.map(info => {
+					return {
+						label: info.displayName,
+						id: info.id,
+						active: editor instanceof NotebookEditorInput && editor.viewType === info.id,
+						detail: info.providerDisplayName
+					};
+				});
+			},
+			open: (editor, options, group, id) => this.onEditorOpening(editor, options, group, id)
+		});
 
 		this.editorService.onDidActiveEditorChange(() => {
 			if (this.editorService.activeEditor && this.editorService.activeEditor! instanceof NotebookEditorInput) {
@@ -104,25 +138,39 @@ export class NotebookContribution implements IWorkbenchContribution {
 		});
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
+	getUserAssociatedEditors(resource: URI) {
+		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+
+		return coalesce(rawAssociations
+			.filter(association => CustomEditorInfo.selectorMatches(association, resource)));
+	}
+
+	getUserAssociatedNotebookEditors(resource: URI) {
+		const rawAssociations = this.configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId) || [];
+
+		return coalesce(rawAssociations
+			.filter(association => CustomEditorInfo.selectorMatches(association, resource))
+			.map(association => this.notebookService.getContributedNotebookProvider(association.viewType)));
+	}
+
+	getContributedEditors(resource: URI) {
+		return this.notebookService.getContributedNotebookProviders(resource);
+	}
+
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id: string | undefined): IOpenEditorOverride | undefined {
 		let resource = originalInput.resource;
 		if (!resource) {
 			return undefined;
 		}
 
-		let info: NotebookProviderInfo | undefined;
-		const data = CellUri.parse(resource);
-		if (data && (info = getFirstNotebookInfo(this.notebookService, data.notebook))) {
-			// cell-uri -> open (container) notebook
-			const name = basename(data.notebook);
-			const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
-			this._resourceMapping.set(resource, input);
-			return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
-		}
+		if (id === undefined) {
+			const userAssociatedEditors = this.getUserAssociatedEditors(resource);
+			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
 
-		info = getFirstNotebookInfo(this.notebookService, resource);
-		if (!info) {
-			return undefined;
+			if (userAssociatedEditors.length && !notebookEditor.length) {
+				// user pick a non-notebook editor for this resource
+				return undefined;
+			}
 		}
 
 		if (this._resourceMapping.has(resource)) {
@@ -131,6 +179,28 @@ export class NotebookContribution implements IWorkbenchContribution {
 			if (!input!.isDisposed()) {
 				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
 			}
+		}
+
+		let info: NotebookProviderInfo | undefined;
+		const data = CellUri.parse(resource);
+		if (data) {
+			const infos = this.getContributedEditors(data.notebook);
+
+			if (infos.length) {
+				const info = id === undefined ? infos[0] : (infos.find(info => info.id === id) || infos[0]);
+				// cell-uri -> open (container) notebook
+				const name = basename(data.notebook);
+				const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
+				this._resourceMapping.set(resource, input);
+				return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
+			}
+		}
+
+		const infos = this.notebookService.getContributedNotebookProviders(resource);
+		info = id === undefined ? infos[0] : infos.find(info => info.id === id);
+
+		if (!info) {
+			return undefined;
 		}
 
 		const input = this.instantiationService.createInstance(NotebookEditorInput, resource, originalInput.getName(), info.id);

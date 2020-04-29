@@ -24,6 +24,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -73,7 +74,20 @@ export class WelcomeView extends ViewPane {
 			}
 			this.debuggerInterestedContext.set(false);
 		};
-		this._register(editorService.onDidActiveEditorChange(setContextKey));
+
+		const disposables = new DisposableStore();
+		this._register(disposables);
+
+		this._register(editorService.onDidActiveEditorChange(() => {
+			disposables.clear();
+
+			const editorControl = this.editorService.activeTextEditorControl;
+			if (isCodeEditor(editorControl)) {
+				disposables.add(editorControl.onDidChangeModelLanguage(setContextKey));
+			}
+
+			setContextKey();
+		}));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(setContextKey));
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {

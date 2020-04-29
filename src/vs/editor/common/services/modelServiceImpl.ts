@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -28,12 +27,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IUndoRedoService, IUndoRedoElement, IPastFutureElements } from 'vs/platform/undoRedo/common/undoRedo';
 import { StringSHA1 } from 'vs/base/common/hash';
 import { SingleModelEditStackElement, MultiModelEditStackElement, EditStackElement } from 'vs/editor/common/model/editStack';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
-
-export const MAINTAIN_UNDO_REDO_STACK = true;
 
 export interface IEditorSemanticHighlightingOptions {
 	enabled?: boolean;
@@ -143,6 +138,8 @@ function isEditStackElements(elements: IUndoRedoElement[]): elements is EditStac
 class DisposedModelInfo {
 	constructor(
 		public readonly uri: URI,
+		public readonly time: number,
+		public readonly heapSize: number,
 		public readonly sha1: string,
 		public readonly versionId: number,
 		public readonly alternativeVersionId: number,
@@ -150,8 +147,6 @@ class DisposedModelInfo {
 }
 
 export class ModelServiceImpl extends Disposable implements IModelService {
-
-	private static _PROMPT_UNDO_REDO_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
 
 	public _serviceBrand: undefined;
 
@@ -171,6 +166,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 	 */
 	private readonly _models: { [modelId: string]: ModelData; };
 	private readonly _disposedModels: Map<string, DisposedModelInfo>;
+	private _disposedModelsHeapSize: number;
 	private readonly _semanticStyling: SemanticStyling;
 
 	constructor(
@@ -179,12 +175,12 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		@IThemeService private readonly _themeService: IThemeService,
 		@ILogService private readonly _logService: ILogService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
-		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
 		this._models = {};
 		this._disposedModels = new Map<string, DisposedModelInfo>();
+		this._disposedModelsHeapSize = 0;
 		this._semanticStyling = this._register(new SemanticStyling(this._themeService, this._logService));
 
 		this._register(this._configurationService.onDidChangeConfiguration(() => this._updateModelOptions()));
@@ -267,6 +263,14 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return platform.OS === platform.OperatingSystem.Linux || platform.OS === platform.OperatingSystem.Macintosh ? '\n' : '\r\n';
 	}
 
+	private _getMaxMemoryForClosedFilesUndoStack(): number {
+		const result = this._configurationService.getValue<number>('files.maxMemoryForClosedFilesUndoStackMB');
+		if (typeof result === 'number') {
+			return result * 1024 * 1024;
+		}
+		return 20 * 1024 * 1024;
+	}
+
 	public getCreationOptions(language: string, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
 		let creationOptions = this._modelCreationOptionsByLanguageAndResource[language + resource];
 		if (!creationOptions) {
@@ -328,13 +332,40 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 
 	// --- begin IModelService
 
+	private _insertDisposedModel(disposedModelData: DisposedModelInfo): void {
+		this._disposedModels.set(MODEL_ID(disposedModelData.uri), disposedModelData);
+		this._disposedModelsHeapSize += disposedModelData.heapSize;
+	}
+
+	private _removeDisposedModel(resource: URI): DisposedModelInfo | undefined {
+		const disposedModelData = this._disposedModels.get(MODEL_ID(resource));
+		if (disposedModelData) {
+			this._disposedModelsHeapSize -= disposedModelData.heapSize;
+		}
+		this._disposedModels.delete(MODEL_ID(resource));
+		return disposedModelData;
+	}
+
+	private _ensureDisposedModelsHeapSize(maxModelsHeapSize: number): void {
+		if (this._disposedModelsHeapSize > maxModelsHeapSize) {
+			// we must remove some old undo stack elements to free up some memory
+			const disposedModels: DisposedModelInfo[] = [];
+			this._disposedModels.forEach(entry => disposedModels.push(entry));
+			disposedModels.sort((a, b) => a.time - b.time);
+			while (disposedModels.length > 0 && this._disposedModelsHeapSize > maxModelsHeapSize) {
+				const disposedModel = disposedModels.shift()!;
+				this._removeDisposedModel(disposedModel.uri);
+				this._undoRedoService.removeElements(disposedModel.uri);
+			}
+		}
+	}
+
 	private _createModelData(value: string | ITextBufferFactory, languageIdentifier: LanguageIdentifier, resource: URI | undefined, isForSimpleWidget: boolean): ModelData {
 		// create & save the model
 		const options = this.getCreationOptions(languageIdentifier.language, resource, isForSimpleWidget);
 		const model: TextModel = new TextModel(value, options, languageIdentifier, resource, this._undoRedoService);
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
-			const disposedModelData = this._disposedModels.get(MODEL_ID(resource))!;
-			this._disposedModels.delete(MODEL_ID(resource));
+			const disposedModelData = this._removeDisposedModel(resource)!;
 			const elements = this._undoRedoService.getElements(resource);
 			if (computeModelSha1(model) === disposedModelData.sha1 && isEditStackPastFutureElements(elements)) {
 				for (const element of elements.past) {
@@ -473,7 +504,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const model = modelData.model;
 		let maintainUndoRedoStack = false;
 		let heapSize = 0;
-		if (MAINTAIN_UNDO_REDO_STACK && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData)) {
+		if (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData) {
 			const elements = this._undoRedoService.getElements(resource);
 			if ((elements.past.length > 0 || elements.future.length > 0) && isEditStackPastFutureElements(elements)) {
 				maintainUndoRedoStack = true;
@@ -490,37 +521,27 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			}
 		}
 
-		if (maintainUndoRedoStack) {
-			// We only invalidate the elements, but they remain in the undo-redo service.
-			this._undoRedoService.setElementsIsValid(resource, false);
-			this._disposedModels.set(MODEL_ID(resource), new DisposedModelInfo(resource, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
-		} else {
+		if (!maintainUndoRedoStack) {
 			this._undoRedoService.removeElements(resource);
+			modelData.model.dispose();
+			return;
 		}
+
+		const maxMemory = this._getMaxMemoryForClosedFilesUndoStack();
+		if (heapSize > maxMemory) {
+			// the undo stack for this file would never fit in the configured memory, so don't bother with it.
+			this._undoRedoService.removeElements(resource);
+			modelData.model.dispose();
+			return;
+		}
+
+		this._ensureDisposedModelsHeapSize(maxMemory - heapSize);
+
+		// We only invalidate the elements, but they remain in the undo-redo service.
+		this._undoRedoService.setElementsIsValid(resource, false);
+		this._insertDisposedModel(new DisposedModelInfo(resource, Date.now(), heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
 
 		modelData.model.dispose();
-
-		// After disposing the model, prompt and ask if we should keep the undo-redo stack
-		if (maintainUndoRedoStack && heapSize > ModelServiceImpl._PROMPT_UNDO_REDO_SIZE_LIMIT) {
-			const mbSize = (heapSize / 1024 / 1024).toFixed(1);
-			this._dialogService.show(
-				Severity.Info,
-				nls.localize('undoRedoConfirm', "Keep the undo-redo stack for {0} in memory ({1} MB)?", (resource.scheme === Schemas.file ? resource.fsPath : resource.path), mbSize),
-				[
-					nls.localize('nok', "Discard"),
-					nls.localize('ok', "Keep"),
-				],
-				{
-					cancelId: 2
-				}
-			).then((result) => {
-				const discard = (result.choice === 2 || result.choice === 0);
-				if (discard) {
-					this._disposedModels.delete(MODEL_ID(resource));
-					this._undoRedoService.removeElements(resource);
-				}
-			});
-		}
 	}
 
 	public getModels(): ITextModel[] {

@@ -25,7 +25,7 @@ import { ActionBar, ActionViewItem } from 'vs/base/browser/ui/actionbar/actionba
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { Command } from 'vs/editor/common/modes';
-import { renderCodicons } from 'vs/base/common/codicons';
+import { renderCodicons, Codicon } from 'vs/base/common/codicons';
 import { escape } from 'vs/base/common/strings';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -203,13 +203,21 @@ export class MainPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(ProviderRenderer);
 		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
 
-		this.list = <WorkbenchList<ISCMRepository>>this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
+		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, container, delegate, [renderer], {
 			identityProvider,
 			horizontalScrolling: false,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
+			},
+			accessibilityProvider: {
+				getAriaLabel(r: ISCMRepository) {
+					return r.provider.label;
+				},
+				getWidgetAriaLabel() {
+					return MainPane.TITLE;
+				}
 			}
-		});
+		}) as WorkbenchList<ISCMRepository>;
 
 		this._register(renderer.onDidRenderElement(e => this.list.updateWidth(this.viewModel.repositories.indexOf(e)), null));
 		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
@@ -242,6 +250,7 @@ export class MainPane extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.list.layout(height, width);
 	}
 
@@ -328,6 +337,7 @@ export class MainPaneDescriptor implements IViewDescriptor {
 
 	readonly id = MainPane.ID;
 	readonly name = MainPane.TITLE;
+	readonly containerIcon = Codicon.sourceControl.classNames;
 	readonly ctorDescriptor: SyncDescriptor<MainPane>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;

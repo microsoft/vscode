@@ -560,7 +560,7 @@ export class InputBox extends Widget {
 
 		this.element.style.backgroundColor = background;
 		this.element.style.color = foreground;
-		this.input.style.backgroundColor = background;
+		this.input.style.backgroundColor = 'inherit';
 		this.input.style.color = foreground;
 
 		this.element.style.borderWidth = border ? '1px' : '';

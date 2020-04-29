@@ -18,7 +18,7 @@ For instance, `./scripts/test.sh --debug --glob **/extHost*.test.js` runs all te
 Unit tests from layers `common` and `browser` are run inside `chromium`, `webkit`, and (soon’ish) `firefox` (using playwright). This complements our electron-based unit test runner and adds more coverage of supported platforms. Notes:
 
 - these tests are part of the continuous build, that means you might have test failures that only happen with webkit on _windows_ or _chromium_ on linux
-- you can these tests locally via yarn `test-browser --browser chromium --browser webkit`
+- you can run these tests locally via yarn `test-browser --browser chromium --browser webkit`
 - to debug, open  `<vscode>/test/unit/browser/renderer.html` inside a browser and use the `?m=<amd_module>`-query to specify what AMD module to load, e.g `file:///Users/jrieken/Code/vscode/test/unit/browser/renderer.html?m=vs/base/test/common/strings.test` runs all tests from `strings.test.ts`
 - to run only a subset of tests use the `--run` or `--glob` options
 

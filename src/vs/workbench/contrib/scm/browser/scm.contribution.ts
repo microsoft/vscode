@@ -26,16 +26,24 @@ import { SCMService } from 'vs/workbench/contrib/scm/common/scmService';
 import { IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { SCMViewPaneContainer } from 'vs/workbench/contrib/scm/browser/scmViewlet';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 class OpenSCMViewletAction extends ShowViewletAction {
 
 	static readonly ID = VIEWLET_ID;
-	static readonly LABEL = localize('toggleGitViewlet', "Show Git");
+	static readonly LABEL = localize('toggleSCMViewlet', "Show SCM");
 
 	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService, @IWorkbenchLayoutService layoutService: IWorkbenchLayoutService) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService, layoutService);
 	}
 }
+
+ModesRegistry.registerLanguage({
+	id: 'scminput',
+	extensions: [],
+	mimetypes: ['text/x-scm-input']
+});
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(DirtyDiffWorkbenchController, LifecyclePhase.Restored);
@@ -44,7 +52,9 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	id: VIEWLET_ID,
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
-	icon: 'codicon-source-control',
+	storageId: 'workbench.scm.views.state',
+	icon: Codicon.sourceControl.classNames,
+	alwaysUseContainerInfo: true,
 	order: 2
 }, ViewContainerLocation.Sidebar);
 
@@ -53,7 +63,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 // Register Action to Open Viewlet
 Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions).registerWorkbenchAction(
-	SyncActionDescriptor.create(OpenSCMViewletAction, VIEWLET_ID, localize('toggleSCMViewlet', "Show SCM"), {
+	SyncActionDescriptor.from(OpenSCMViewletAction, {
 		primary: 0,
 		win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },
 		linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G },

@@ -120,7 +120,11 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
 
-	get sync(): 'on' | 'off' { return 'on'; }
+	@memoize
+	get sync(): 'on' | 'off' | undefined { return undefined; }
+
+	@memoize
+	get enableSyncByDefault(): boolean { return !!this.options.enableSyncByDefault; }
 
 	@memoize
 	get keybindingsResource(): URI { return joinPath(this.userRoamingDataHome, 'keybindings.json'); }
@@ -133,6 +137,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	@memoize
 	get untitledWorkspacesHome(): URI { return joinPath(this.userRoamingDataHome, 'Workspaces'); }
+
+	@memoize
+	get serviceMachineIdResource(): URI { return joinPath(this.userRoamingDataHome, 'machineid'); }
 
 	private _extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 	get debugExtensionHost(): IExtensionHostDebugParams {

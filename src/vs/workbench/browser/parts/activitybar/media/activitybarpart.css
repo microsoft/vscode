@@ -5,6 +5,7 @@
 
 .monaco-workbench .part.activitybar {
 	width: 48px;
+	height: 100%;
 }
 
 .monaco-workbench .activitybar > .content {
@@ -13,6 +14,27 @@
 	flex-direction: column;
 	justify-content: space-between;
 }
+
+/*
+ * Fix menu jumping and background inheritance in Safari
+ */
+.monaco-workbench .activitybar > .content {
+	position: absolute;
+	background-color: inherit;
+}
+
+/** Home Bar */
+
+.monaco-workbench .activitybar > .content > .home-bar {
+	width: 100%;
+	height: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	order: -1;
+}
+
+/** Viewlet Switcher */
 
 .monaco-workbench .activitybar > .content .monaco-action-bar {
 	text-align: left;
@@ -30,6 +52,8 @@
 .monaco-workbench .activitybar > .content > .composite-bar-excess {
 	height: 100%;
 }
+
+/** Menu Bar */
 
 .monaco-workbench .activitybar .menubar {
 	width: 100%;

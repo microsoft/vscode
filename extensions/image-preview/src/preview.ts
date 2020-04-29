@@ -13,7 +13,7 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 const localize = nls.loadMessageBundle();
 
 
-export class PreviewManager implements vscode.CustomEditorProvider {
+export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
@@ -28,7 +28,7 @@ export class PreviewManager implements vscode.CustomEditorProvider {
 	) { }
 
 	public async openCustomDocument(uri: vscode.Uri) {
-		return new vscode.CustomDocument(uri);
+		return { uri, dispose: () => { } };
 	}
 
 	public async resolveCustomEditor(
