@@ -1103,12 +1103,12 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .output a,
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output a,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown a { color: ${link};} `);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:hover,
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output a:hover,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:active { color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
