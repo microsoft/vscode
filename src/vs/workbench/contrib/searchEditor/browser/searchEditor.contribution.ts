@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding } from 'vs/editor/contrib/find/findModel';
 import { localize } from 'vs/nls';
-import { MenuId, MenuRegistry, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry, SyncActionDescriptor, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -209,11 +209,11 @@ registry.registerWorkbenchAction(
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(RerunSearchEditorSearchAction,
 	{ mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R } }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
-	'Search Editor: Search Again', category);
+	'Search Editor: Search Again', category, SearchEditorConstants.InSearchEditor);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusQueryEditorWidgetAction,
 	{ primary: KeyCode.Escape }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
-	'Search Editor: Focus Query Editor Widget', category);
+	'Search Editor: Focus Query Editor Widget', category, SearchEditorConstants.InSearchEditor);
 //#endregion
 
 
