@@ -175,7 +175,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	}
 
 	detachTextEditor() {
-		this._editorViewStates = this.saveViewState();
+		this.saveViewState();
 		// decorations need to be cleared first as editors can be resued.
 		this._resolvedDecorations.forEach(value => {
 			let resolvedid = value.id;
@@ -201,17 +201,17 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 
 	abstract save(): void;
 
-	private saveViewState(): editorCommon.ICodeEditorViewState | null {
+	private saveViewState(): void {
 		if (!this._textEditor) {
-			return null;
+			return;
 		}
 
-		return this._textEditor.saveViewState();
+		this._editorViewStates = this._textEditor.saveViewState();
 	}
 
 	saveEditorViewState() {
 		if (this._textEditor) {
-			this._editorViewStates = this.saveViewState();
+			this._editorViewStates = this._textEditor.saveViewState();
 		}
 
 		return this._editorViewStates;
