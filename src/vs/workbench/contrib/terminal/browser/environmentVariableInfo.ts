@@ -19,8 +19,37 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 	}
 
 	getInfo(): string {
-		let info = localize('extensionEnvironmentContribution', "Extensions want to make the follow changes to the terminal's environment:");
-		info += `\n\n${this._summarizeDiff()}`;
+		const addsAndChanges: string[] = [];
+		const removals: string[] = [];
+		this._diff.added.forEach((mutators, variable) => {
+			mutators.forEach(mutator => addsAndChanges.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
+		});
+		this._diff.changed.forEach((mutators, variable) => {
+			mutators.forEach(mutator => addsAndChanges.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
+		});
+		this._diff.removed.forEach((mutators, variable) => {
+			mutators.forEach(mutator => removals.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
+		});
+
+		let info: string = '';
+
+		if (addsAndChanges.length > 0) {
+			info = localize('extensionEnvironmentContributionChanges', "Extensions want to make the following changes to the terminal's environment:");
+			info += '\n\n';
+			info += '```\n';
+			info += addsAndChanges.join('\n');
+			info += '\n```';
+		}
+
+		if (removals.length > 0) {
+			info += info.length > 0 ? '\n\n' : '';
+			info += localize('extensionEnvironmentContributionRemoval', "Extensions want to remove these existing changes from the terminal's environment:");
+			info += '\n\n';
+			info += '```\n';
+			info += removals.join('\n');
+			info += '\n```';
+		}
+
 		return info;
 	}
 
@@ -35,27 +64,6 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 			commandId: TERMINAL_COMMAND_ID.RELAUNCH
 		}];
 	}
-
-	private _summarizeDiff(): string {
-		const summary: string[] = [];
-		this._diff.added.forEach((mutators, variable) => {
-			mutators.forEach(mutator => {
-				summary.push(`- ${mutatorTypeLabel(mutator.type, mutator.value, variable)}`);
-			});
-		});
-		this._diff.changed.forEach((mutators, variable) => {
-			mutators.forEach(mutator => {
-				summary.push(`- "${mutatorTypeLabel(mutator.type, mutator.value, variable)}"`);
-			});
-		});
-		this._diff.removed.forEach((mutators, variable) => {
-			mutators.forEach(mutator => {
-				const removePrefixText = localize('removeEnvironmentVariableChange', "Remove the change {0}", mutatorTypeLabel(mutator.type, mutator.value, variable));
-				summary.push(`- ${removePrefixText}`);
-			});
-		});
-		return summary.join('\n');
-	}
 }
 
 export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariableInfo {
@@ -67,13 +75,12 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 	}
 
 	getInfo(): string {
-		const info: string[] = ['Extensions have made changes to this terminal\'s environment:', ''];
+		const changes: string[] = [];
 		this._collection.map.forEach((mutators, variable) => {
-			mutators.forEach(mutator => {
-				info.push(`- ${mutatorTypeLabel(mutator.type, mutator.value, variable)}`);
-			});
+			mutators.forEach(mutator => changes.push(mutatorTypeLabel(mutator.type, mutator.value, variable)));
 		});
-		return info.join('\n');
+		const message = localize('extensionEnvironmentContributionInfo', "Extensions have made changes to this terminal's environment");
+		return message + '\n\n```\n' + changes.join('\n') + '\n```';
 	}
 
 	getIcon(): string {
@@ -83,8 +90,8 @@ export class EnvironmentVariableInfoChangesActive implements IEnvironmentVariabl
 
 function mutatorTypeLabel(type: EnvironmentVariableMutatorType, value: string, variable: string): string {
 	switch (type) {
-		case EnvironmentVariableMutatorType.Prepend: return localize('prependValueToEnvironmentVariableMarkdown', "Add `{0}` to the beginning of `{1}`", value, variable);
-		case EnvironmentVariableMutatorType.Append: return localize('appendValueToEnvironmentVariableMarkdown', "Add `{0}` to the end of `{1}`", value, variable);
-		default: return localize('replaceEnvironmentVariableWithValueMarkdown', "Replace `{1}`\'s value with `{0}`", value, variable);
+		case EnvironmentVariableMutatorType.Prepend: return `${variable}=${value}\${env:${variable}}`;
+		case EnvironmentVariableMutatorType.Append: return `${variable}=\${env:${variable}}${value}`;
+		default: return `${variable}=${value}`;
 	}
 }

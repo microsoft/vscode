@@ -209,11 +209,11 @@ registry.registerWorkbenchAction(
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(RerunSearchEditorSearchAction,
 	{ mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R } }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
-	'Search Editor: Search Again', category);
+	'Search Editor: Search Again', category, SearchEditorConstants.InSearchEditor);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusQueryEditorWidgetAction,
 	{ primary: KeyCode.Escape }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
-	'Search Editor: Focus Query Editor Widget', category);
+	'Search Editor: Focus Query Editor Widget', category, SearchEditorConstants.InSearchEditor);
 //#endregion
 
 

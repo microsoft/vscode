@@ -37,6 +37,7 @@ const excludedPathCharactersClause = '[^\\0\\s!$`&*()\\[\\]+\'":;\\\\]';
 /** A regex that matches paths in the form /foo, ~/foo, ./foo, ../foo, foo/bar */
 const unixLocalLinkClause = '((' + pathPrefix + '|(' + excludedPathCharactersClause + ')+)?(' + pathSeparatorClause + '(' + excludedPathCharactersClause + ')+)+)';
 
+// Valid absolute formats: C:, \\?\C: and \\?\%VAR%
 const winDrivePrefix = '(?:\\\\\\\\\\?\\\\)?[a-zA-Z]:';
 const winPathPrefix = '(' + winDrivePrefix + '|\\.\\.?|\\~)';
 const winPathSeparatorClause = '(\\\\|\\/)';
@@ -464,7 +465,7 @@ export class TerminalLinkManager extends DisposableStore {
 		} else if (link.charAt(0) !== '/' && link.charAt(0) !== '~') {
 			// Resolve workspace path . | .. | <relative_path> -> <path>/. | <path>/.. | <path>/<relative_path>
 			if (this._processManager.os === OperatingSystem.Windows) {
-				if (!link.match('^' + winDrivePrefix)) {
+				if (!link.match('^' + winDrivePrefix) && !link.startsWith('\\\\?\\')) {
 					if (!this._processCwd) {
 						// Abort if no workspace is open
 						return null;

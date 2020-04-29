@@ -75,28 +75,23 @@ type FirstTimeSyncClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
-const getActivityTitle = (label: string, userDataSyncService: IUserDataSyncService): string => {
-	if (userDataSyncService.status === SyncStatus.Syncing) {
-		return localize('sync is on with syncing', "{0} (syncing)", label);
-	}
-	if (userDataSyncService.lastSyncTime) {
-		return localize('sync is on with time', "{0} (synced {1})", label, fromNow(userDataSyncService.lastSyncTime, true));
-	}
-	return label;
-};
-const getIdentityTitle = (label: string, userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) => {
-	const account = userDataSyncAccountService.current;
-	return account ? `${label} (${authenticationService.getDisplayName(account.authenticationProviderId)}:${account.accountName})` : label;
-};
 const turnOnSyncCommand = { id: 'workbench.userData.actions.syncStart', title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
-const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title(userDataSyncAccountService: UserDataSyncAccounts, authenticationService: IAuthenticationService) { return getIdentityTitle(localize('stop sync', "Preferences Sync: Turn Off"), userDataSyncAccountService, authenticationService); } };
+const stopSyncCommand = { id: 'workbench.userData.actions.stopSync', title: localize('stop sync', "Preferences Sync: Turn Off") };
 const resolveSettingsConflictsCommand = { id: 'workbench.userData.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
 const resolveSnippetsConflictsCommand = { id: 'workbench.userData.actions.resolveSnippetsConflicts', title: localize('showSnippetsConflicts', "Preferences Sync: Show User Snippets Conflicts") };
 const configureSyncCommand = { id: 'workbench.userData.actions.configureSync', title: localize('configure sync', "Preferences Sync: Configure...") };
 const showSyncActivityCommand = {
-	id: 'workbench.userData.actions.showSyncActivity', title(userDataSyncService: IUserDataSyncService): string {
-		return getActivityTitle(localize('show sync log', "Preferences Sync: Show Log"), userDataSyncService);
+	id: 'workbench.userData.actions.showSyncActivity',
+	title: localize('show sync log', "Preferences Sync: Show Log"),
+	description(userDataSyncService: IUserDataSyncService): string | undefined {
+		if (userDataSyncService.status === SyncStatus.Syncing) {
+			return localize('sync is on with syncing', "syncing");
+		}
+		if (userDataSyncService.lastSyncTime) {
+			return localize('sync is on with time', "synced {0}", fromNow(userDataSyncService.lastSyncTime, true));
+		}
+		return undefined;
 	}
 };
 const showSyncSettingsCommand = { id: 'workbench.userData.actions.syncSettings', title: localize('sync settings', "Preferences Sync: Show Settings"), };
@@ -951,10 +946,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 					items.push({ id: configureSyncCommand.id, label: configureSyncCommand.title });
 					items.push({ id: showSyncSettingsCommand.id, label: showSyncSettingsCommand.title });
-					items.push({ id: showSyncActivityCommand.id, label: showSyncActivityCommand.title(that.userDataSyncService) });
+					items.push({ id: showSyncActivityCommand.id, label: showSyncActivityCommand.title, description: showSyncActivityCommand.description(that.userDataSyncService) });
 					items.push({ type: 'separator' });
 					if (that.userDataSyncEnablementService.canToggleEnablement()) {
-						items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title(that.userDataSyncAccounts, that.authenticationService) });
+						const account = that.userDataSyncAccounts.current;
+						items.push({ id: stopSyncCommand.id, label: stopSyncCommand.title, description: account ? `${account.accountName} (${that.authenticationService.getDisplayName(account.authenticationProviderId)})` : undefined });
 					}
 					quickPick.items = items;
 					disposables.add(quickPick.onDidAccept(() => {
@@ -979,7 +975,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: stopSyncCommand.id,
-					title: stopSyncCommand.title(that.userDataSyncAccounts, that.authenticationService),
+					title: stopSyncCommand.title,
 					menu: {
 						id: MenuId.CommandPalette,
 						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT),
@@ -1021,7 +1017,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			constructor() {
 				super({
 					id: showSyncActivityCommand.id,
-					get title() { return showSyncActivityCommand.title(that.userDataSyncService); },
+					title: showSyncActivityCommand.title,
 					menu: {
 						id: MenuId.CommandPalette,
 						when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized)),

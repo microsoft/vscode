@@ -254,4 +254,6 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 		return extensionHostDebugEnvironment;
 	}
+
+	get skipReleaseNotes(): boolean { return false; }
 }

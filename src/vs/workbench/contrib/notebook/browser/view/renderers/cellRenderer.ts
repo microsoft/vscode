@@ -120,6 +120,7 @@ export class CellEditorOptions {
 		glyphMargin: false,
 		fixedOverflowWidgets: true,
 		minimap: { enabled: false },
+		renderValidationDecorations: 'on'
 	};
 
 	private _value: IEditorOptions;
@@ -322,6 +323,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		contextKeyService: IContextKeyService,
 		notehookEditor: INotebookEditor,
 		dndController: CellDragAndDropController,
+		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -409,7 +411,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 			this.setupBetweenCellToolbarActions(element, templateData, elementDisposables, toolbarContext);
 
-			const markdownCell = new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions.value, this.instantiationService);
+			const markdownCell = new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors, this.instantiationService);
 			elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
 			elementDisposables.add(markdownCell);
 

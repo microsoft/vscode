@@ -102,6 +102,7 @@ export interface ICellViewModel {
 	currentTokenSource: CancellationTokenSource | undefined;
 	focusMode: CellFocusMode;
 	getText(): string;
+	save(): void;
 	metadata: NotebookCellMetadata | undefined;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 }

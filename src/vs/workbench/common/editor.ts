@@ -1304,7 +1304,7 @@ export interface IWorkbenchEditorConfiguration {
 
 interface IEditorPartConfiguration {
 	showTabs?: boolean;
-	scrollToSwitchTabs?: 'off' | 'natural' | 'reverse';
+	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
 	tabCloseButton?: 'left' | 'right' | 'off';
 	tabSizing?: 'fit' | 'shrink';

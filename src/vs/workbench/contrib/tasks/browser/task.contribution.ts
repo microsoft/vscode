@@ -385,7 +385,7 @@ configurationRegistry.registerConfiguration({
 		'task.saveBeforeRun': {
 			markdownDescription: nls.localize(
 				'task.saveBeforeRun',
-				'Configures whether all editor will be saved before running a task.'
+				'Save all dirty editors before running a task.'
 			),
 			type: 'string',
 			enum: ['always', 'never', 'prompt'],
