@@ -45,7 +45,7 @@ export class EnvironmentVariableInfoStale implements IEnvironmentVariableInfo {
 		});
 		this._diff.changed.forEach((mutators, variable) => {
 			mutators.forEach(mutator => {
-				summary.push(`- "${mutatorTypeLabel(mutator.type, mutator.value, variable)}"`);
+				summary.push(`- ${mutatorTypeLabel(mutator.type, mutator.value, variable)}`);
 			});
 		});
 		this._diff.removed.forEach((mutators, variable) => {
