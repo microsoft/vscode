@@ -129,6 +129,14 @@ declare module 'vscode' {
 		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
+		* Logout of a specific session.
+		* @param providerId The id of the provider to use
+		* @param sessionId The session id to remove
+		* provider
+		*/
+		export function logout(providerId: string, sessionId: string): Thenable<void>;
+
+		/**
 		* An [event](#Event) which fires when the array of sessions has changed, or data
 		* within a session has changed for a provider. Fires with the ids of the providers
 		* that have had session data change.
@@ -1458,9 +1466,6 @@ declare module 'vscode' {
 		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
 		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
 		 * workspace.
-		 *
-		 * During `revert`, your extension should also clear any backups for the custom editor. Backups are only needed
-		 * when there is a difference between an editor's state in VS Code and its save state on disk.
 		 *
 		 * @param document Document to revert.
 		 * @param cancellation Token that signals the revert is no longer required.

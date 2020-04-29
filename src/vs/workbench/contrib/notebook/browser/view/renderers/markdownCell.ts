@@ -235,7 +235,7 @@ export class StatefullMarkdownCell extends Disposable {
 				clientHeight = this.markdownContainer.clientHeight;
 			}
 
-			this.viewCell.totalHeight = this.editor!.getContentHeight() + 32 + clientHeight;
+			this.viewCell.totalHeight = this.editor!.getContentHeight() + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
 			this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 		}));
 

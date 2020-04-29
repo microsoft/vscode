@@ -99,9 +99,17 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 								return undefined;
 							});
 					} else {
-						const options: IEditorOptions = editorService.activeEditor
-							? { pinned: false, index: 0 }
-							: { pinned: false };
+						let options: IEditorOptions;
+						let editor = editorService.activeEditor;
+						if (editor) {
+							// Ensure that the welcome editor won't get opened more than once
+							if (editor.getTypeId() === welcomeInputTypeId || editorService.editors.some(e => e.getTypeId() === welcomeInputTypeId)) {
+								return undefined;
+							}
+							options = { pinned: false, index: 0 };
+						} else {
+							options = { pinned: false };
+						}
 						return instantiationService.createInstance(WelcomePage).openEditor(options);
 					}
 				}

@@ -164,7 +164,9 @@ export class UserDataSyncAccounts extends Disposable {
 		let value: { token: string, authenticationProviderId: string } | undefined = undefined;
 		if (current) {
 			try {
+				this.logService.trace('Preferences Sync: Updating the token for the account', current.accountName);
 				const token = await current.getToken();
+				this.logService.trace('Preferences Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);

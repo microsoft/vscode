@@ -34,6 +34,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -93,6 +94,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService
 	) {
@@ -134,9 +136,18 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 		// Viewlet deregister
 		this._register(this.registry.onDidDeregister(async (viewletDescriptor: ViewletDescriptor) => {
-			const activeViewlet = this.getActiveViewlet();
-			if (!activeViewlet || activeViewlet.getId() === viewletDescriptor.id) {
-				await this.openViewlet(this.getDefaultViewletId());
+
+			const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Sidebar)
+				.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+
+			if (activeContainers.length) {
+				if (this.getActiveComposite()?.getId() === viewletDescriptor.id) {
+					const defaultViewletId = this.getDefaultViewletId();
+					const containerToOpen = activeContainers.filter(c => c.id === defaultViewletId)[0] || activeContainers[0];
+					await this.openViewlet(containerToOpen.id);
+				}
+			} else {
+				this.layoutService.setSideBarHidden(true);
 			}
 
 			this.removeComposite(viewletDescriptor.id);

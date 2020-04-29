@@ -830,11 +830,19 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const originalIdx = this.notebookViewModel!.getCellIndex(cell);
 		const relativeToIndex = this.notebookViewModel!.getCellIndex(relativeToCell);
 
-		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+		let newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+		if (originalIdx < newIdx) {
+			newIdx--;
+		}
+
 		return this.moveCellToIndex(originalIdx, newIdx);
 	}
 
 	private async moveCellToIndex(index: number, newIdx: number): Promise<boolean> {
+		if (index === newIdx) {
+			return false;
+		}
+
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
@@ -1095,12 +1103,12 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .output a,
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output a,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown a { color: ${link};} `);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:hover,
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output a:hover,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:active { color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);

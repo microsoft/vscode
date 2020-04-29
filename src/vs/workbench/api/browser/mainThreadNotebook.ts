@@ -8,12 +8,13 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/browser/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, CellKind, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, CellKind, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -63,6 +64,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		@INotebookService private _notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 
 	) {
 		super();
@@ -85,22 +87,25 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			this._proxy.$updateActiveEditor(e.viewType, e.uri);
 		}));
 
-		let userOrder = this.configurationService.getValue<string[]>('notebook.displayOrder');
-		this._proxy.$acceptDisplayOrder({
-			defaultOrder: NOTEBOOK_DISPLAY_ORDER,
-			userOrder: userOrder
-		});
+		const updateOrder = () => {
+			let userOrder = this.configurationService.getValue<string[]>('notebook.displayOrder');
+			this._proxy.$acceptDisplayOrder({
+				defaultOrder: this.accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : NOTEBOOK_DISPLAY_ORDER,
+				userOrder: userOrder
+			});
+		};
 
-		this.configurationService.onDidChangeConfiguration(e => {
+		updateOrder();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectedKeys.indexOf('notebook.displayOrder') >= 0) {
-				let userOrder = this.configurationService.getValue<string[]>('notebook.displayOrder');
-
-				this._proxy.$acceptDisplayOrder({
-					defaultOrder: NOTEBOOK_DISPLAY_ORDER,
-					userOrder: userOrder
-				});
+				updateOrder();
 			}
-		});
+		}));
+
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			updateOrder();
+		}));
 	}
 
 	async $registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void> {
