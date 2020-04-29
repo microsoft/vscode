@@ -120,6 +120,7 @@ export class CellEditorOptions {
 		glyphMargin: false,
 		fixedOverflowWidgets: true,
 		minimap: { enabled: false },
+		renderValidationDecorations: 'on'
 	};
 
 	private _value: IEditorOptions;
