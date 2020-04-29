@@ -36,6 +36,16 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	'text/plain'
 ];
 
+export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
+	'text/markdown',
+	'application/json',
+	'text/plain',
+	'text/html',
+	'image/svg+xml',
+	'image/png',
+	'image/jpeg',
+];
+
 export const notebookDocumentMetadataDefaults: NotebookDocumentMetadata = {
 	editable: true,
 	runnable: true,
