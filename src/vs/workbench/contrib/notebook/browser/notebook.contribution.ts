@@ -190,8 +190,11 @@ export class NotebookContribution implements IWorkbenchContribution {
 				const info = id === undefined ? infos[0] : (infos.find(info => info.id === id) || infos[0]);
 				// cell-uri -> open (container) notebook
 				const name = basename(data.notebook);
-				const input = NotebookEditorInput.getOrCreate(this.instantiationService, data.notebook, name, info.id);
-				this._resourceMapping.set(resource, input);
+				let input = this._resourceMapping.get(data.notebook);
+				if (!input || input.isDisposed()) {
+					input = NotebookEditorInput.getOrCreate(this.instantiationService, data.notebook, name, info.id);
+					this._resourceMapping.set(data.notebook, input);
+				}
 				return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
 			}
 		}
