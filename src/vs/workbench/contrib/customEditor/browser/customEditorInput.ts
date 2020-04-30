@@ -119,6 +119,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
 		if (!this.isDirty()) {
 			return false; // the editor needs to be dirty for being saved
 		}
