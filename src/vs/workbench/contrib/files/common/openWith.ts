@@ -38,7 +38,7 @@ export async function openEditorWith(
 		return;
 	}
 
-	const allEditorOverrides = getAllAvailableEditors(input, resource, options, group, editorService);
+	const allEditorOverrides = getAllAvailableEditors(resource, options, group, editorService);
 	if (!allEditorOverrides.length) {
 		return;
 	}
@@ -115,13 +115,12 @@ export async function openEditorWith(
  * Get a list of all available editors, including the default text editor.
  */
 export function getAllAvailableEditors(
-	input: IEditorInput,
 	resource: URI,
 	options: IEditorOptions | ITextEditorOptions | undefined,
 	group: IEditorGroup,
 	editorService: IEditorService,
 ): Array<[IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]> {
-	const overrides = editorService.getEditorOverrides(input, options, group);
+	const overrides = editorService.getEditorOverrides(resource, options, group);
 	if (!overrides.some(([_, entry]) => entry.id === DEFAULT_EDITOR_ID)) {
 		overrides.unshift([
 			{

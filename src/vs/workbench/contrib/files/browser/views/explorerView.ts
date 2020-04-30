@@ -471,8 +471,7 @@ export class ExplorerView extends ViewPane {
 		this.rootContext.set(!stat || (stat && stat.isRoot));
 
 		if (resource) {
-			const fileEditorInput = this.editorService.createEditorInput({ resource, forceFile: true });
-			const overrides = this.editorService.getEditorOverrides(fileEditorInput, undefined, undefined);
+			const overrides = resource ? this.editorService.getEditorOverrides(resource, undefined, undefined) : [];
 			this.availableEditorIdsContext.set(overrides.map(([, entry]) => entry.id).join(','));
 		} else {
 			this.availableEditorIdsContext.reset();

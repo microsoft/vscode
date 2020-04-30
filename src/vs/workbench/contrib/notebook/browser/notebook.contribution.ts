@@ -107,11 +107,8 @@ export class NotebookContribution implements IWorkbenchContribution {
 
 	) {
 		this.editorService.overrideOpenEditor({
-			getEditorOverrides: (editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
-				let resource = editor.resource;
-				if (!resource) {
-					return [];
-				}
+			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+				const currentEditorForResource = group?.editors.find(editor => isEqual(editor.resource, resource));
 
 				const associatedEditors = distinct([
 					...this.getUserAssociatedNotebookEditors(resource),
@@ -122,7 +119,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 					return {
 						label: info.displayName,
 						id: info.id,
-						active: editor instanceof NotebookEditorInput && editor.viewType === info.id,
+						active: currentEditorForResource instanceof NotebookEditorInput && currentEditorForResource.viewType === info.id,
 						detail: info.providerDisplayName
 					};
 				});
