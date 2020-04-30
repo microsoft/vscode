@@ -287,8 +287,8 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 		});
 	}
 
-	if (!opts.web) {
-		describe(`Data Migration: This test MUST run before releasing by providing the --stable-build command line argument`, () => {
+	if (!opts.web && opts['stable-build']) {
+		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing by providing the --stable-build command line argument`, () => {
 			setupDataMigrationTests(opts['stable-build'], testDataPath);
 		});
 	}
