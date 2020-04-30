@@ -173,8 +173,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	save() {
 		if (this._textModel && !this._textModel.isDisposed() && this.editState === CellEditState.Editing) {
-			let cnt = this._textModel.getLineCount();
-			this.model.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
+			this.model.source = this._textModel.getLinesContent();
 		}
 	}
 
@@ -185,6 +184,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this._buffer = this._textModel.getTextBuffer();
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
+				this.editState = CellEditState.Editing;
 				this.model.contentChange();
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));
