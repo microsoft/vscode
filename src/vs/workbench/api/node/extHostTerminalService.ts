@@ -198,8 +198,10 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		);
 
 		// Apply extension environment variable collections to the environment
-		const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
-		mergedCollection.applyToProcessEnvironment(env);
+		if (!shellLaunchConfig.strictEnv) {
+			const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
+			mergedCollection.applyToProcessEnvironment(env);
+		}
 
 		this._proxy.$sendResolvedLaunchConfig(id, shellLaunchConfig);
 		// Fork the process and listen for messages
