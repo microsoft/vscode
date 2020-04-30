@@ -1159,7 +1159,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX,
-				title: localize('workbench.action.terminal.toggleFindRegex', "Toggle find using regex"),
+				title: localize('workbench.action.terminal.toggleFindRegex', "Toggle Find Using Regex"),
 				f1: true,
 				category,
 				keybinding: {
@@ -1179,7 +1179,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD,
-				title: localize('workbench.action.terminal.toggleFindWholeWord', "Toggle find using whole word"),
+				title: localize('workbench.action.terminal.toggleFindWholeWord', "Toggle Find Using Whole Word"),
 				f1: true,
 				category,
 				keybinding: {
@@ -1199,7 +1199,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE,
-				title: localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle find using case sensitive"),
+				title: localize('workbench.action.terminal.toggleFindCaseSensitive', "Toggle Find Using Case Sensitive"),
 				f1: true,
 				category,
 				keybinding: {
