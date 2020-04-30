@@ -6,7 +6,7 @@
 import { Action, IAction } from 'vs/base/common/actions';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TERMINAL_VIEW_ID, ITerminalConfigHelper, TitleEventSource, TERMINAL_COMMAND_ID, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, TERMINAL_ACTION_CATEGORY, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS } from 'vs/workbench/contrib/terminal/common/terminal';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -834,7 +834,7 @@ export function registerTerminalActions() {
 				category,
 				keybinding: {
 					primary: KeyCode.Escape,
-					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE),
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE),
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -883,13 +883,13 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
-				title: localize('workbench.action.terminal.focusFindWidget', "Focus Find Widget"),
+				id: TERMINAL_COMMAND_ID.FIND_FOCUS,
+				title: localize('workbench.action.terminal.focusFind', "Focus Find"),
 				f1: true,
 				category,
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FOCUS),
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FOCUS),
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -901,14 +901,14 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
-				title: localize('workbench.action.terminal.hideFindWidget', "Hide Find Widget"),
+				id: TERMINAL_COMMAND_ID.FIND_HIDE,
+				title: localize('workbench.action.terminal.hideFind', "Hide Find"),
 				f1: true,
 				category,
 				keybinding: {
 					primary: KeyCode.Escape,
 					secondary: [KeyMod.Shift | KeyCode.Escape],
-					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE),
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE),
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -1165,7 +1165,7 @@ export function registerTerminalActions() {
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_R,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R },
-					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -1185,7 +1185,7 @@ export function registerTerminalActions() {
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_W,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_W },
-					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 			});
@@ -1205,7 +1205,7 @@ export function registerTerminalActions() {
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.KEY_C,
 					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C },
-					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+					when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib
 				}
 			});
@@ -1226,12 +1226,12 @@ export function registerTerminalActions() {
 					{
 						primary: KeyCode.F3,
 						mac: { primary: KeyMod.CtrlCmd | KeyCode.KEY_G, secondary: [KeyCode.F3] },
-						when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+						when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED),
 						weight: KeybindingWeight.WorkbenchContrib
 					},
 					{
 						primary: KeyMod.Shift | KeyCode.Enter,
-						when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
+						when: KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED,
 						weight: KeybindingWeight.WorkbenchContrib
 					}
 				]
@@ -1252,12 +1252,12 @@ export function registerTerminalActions() {
 					{
 						primary: KeyMod.Shift | KeyCode.F3,
 						mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_G, secondary: [KeyMod.Shift | KeyCode.F3] },
-						when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED),
+						when: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED),
 						weight: KeybindingWeight.WorkbenchContrib
 					},
 					{
 						primary: KeyCode.Enter,
-						when: KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED,
+						when: KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED,
 						weight: KeybindingWeight.WorkbenchContrib
 					}
 				]
