@@ -1079,6 +1079,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Dispose the environment info widget if it exists
 		this._environmentInfo?.disposable.dispose();
+		this._environmentInfo = undefined;
 
 		if (!reset) {
 			// HACK: Force initialText to be non-falsy for reused terminals such that the
@@ -1410,6 +1411,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!info ||
 			this._configHelper.config.environmentChangesIndicator === 'off' ||
 			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction) {
+			this._environmentInfo = undefined;
 			return;
 		}
 
