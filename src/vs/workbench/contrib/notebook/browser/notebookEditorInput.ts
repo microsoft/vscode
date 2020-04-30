@@ -157,7 +157,15 @@ export class NotebookEditorInput extends EditorInput {
 		return this.textModel?.isDirty() || false;
 	}
 
+	isReadonly() {
+		return false;
+	}
+
 	public isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
 		if (!this.isDirty()) {
 			return false; // the editor needs to be dirty for being saved
 		}
