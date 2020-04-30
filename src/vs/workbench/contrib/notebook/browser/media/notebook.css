@@ -21,7 +21,7 @@
 	overflow: visible !important;
 } */
 
-.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .monaco-editor-hover {
+.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .overflowingContentWidgets > div {
 	z-index: 600 !important; /* @rebornix: larger than the editor title bar */
 }
 
