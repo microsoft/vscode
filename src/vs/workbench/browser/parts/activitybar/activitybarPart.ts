@@ -424,7 +424,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.globalActivityAction = new ActivityAction({
 			id: 'workbench.actions.manage',
 			name: nls.localize('manage', "Manage"),
-			cssClass: Codicon.gear.classNames
+			cssClass: Codicon.settingsGear.classNames
 		});
 
 		if (getUserDataSyncStore(this.productService, this.configurationService)) {
