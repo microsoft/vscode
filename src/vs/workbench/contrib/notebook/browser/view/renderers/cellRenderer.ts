@@ -233,7 +233,7 @@ abstract class AbstractCellRenderer {
 		addMarkdownCell.tabIndex = 0;
 		const insertMarkdownBelow = this.instantiationService.createInstance(InsertMarkdownCellAction);
 		disposables.add(DOM.addDisposableListener(addMarkdownCell, DOM.EventType.CLICK, e => {
-			this.actionRunner.run(insertMarkdownBelow, context);
+			this.actionRunner.run(insertMarkdownBelow, toolbarContext);
 			e.stopPropagation();
 		}));
 
@@ -242,7 +242,7 @@ abstract class AbstractCellRenderer {
 			if ((event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
 				e.preventDefault();
 				e.stopPropagation();
-				this.actionRunner.run(insertMarkdownBelow, context);
+				this.actionRunner.run(insertMarkdownBelow, toolbarContext);
 			}
 		})));
 
