@@ -26,6 +26,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { CONTEXT_CUSTOM_EDITORS, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, CustomEditorPriority, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { defaultEditorOverrideEntry } from 'vs/workbench/contrib/files/common/openWith';
 import { IWebviewService, webviewHasOwnEditFunctionsContext } from 'vs/workbench/contrib/webview/browser/webview';
 import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -430,14 +431,20 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				const currentEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
 
 				const customEditors = this.customEditorService.getAllCustomEditors(resource);
-				return customEditors.allEditors.map(entry => {
-					return {
-						id: entry.id,
-						active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
-						label: entry.displayName,
-						detail: entry.providerDisplayName,
-					};
-				});
+				return [
+					{
+						...defaultEditorOverrideEntry,
+						active: currentEditor instanceof FileEditorInput,
+					},
+					...customEditors.allEditors.map(entry => {
+						return {
+							id: entry.id,
+							active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
+							label: entry.displayName,
+							detail: entry.providerDisplayName,
+						};
+					})
+				];
 			}
 		}));
 

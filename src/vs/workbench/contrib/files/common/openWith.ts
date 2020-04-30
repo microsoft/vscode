@@ -111,6 +111,12 @@ export async function openEditorWith(
 	return pickedItem?.handler.open(input!, options, group, pickedItem.id)?.override;
 }
 
+export const defaultEditorOverrideEntry = Object.freeze({
+	id: DEFAULT_EDITOR_ID,
+	label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	detail: builtinProviderDisplayName,
+});
+
 /**
  * Get a list of all available editors, including the default text editor.
  */
@@ -135,10 +141,8 @@ export function getAllAvailableEditors(
 				}
 			},
 			{
-				id: DEFAULT_EDITOR_ID,
+				...defaultEditorOverrideEntry,
 				active: editorService.activeEditor instanceof FileEditorInput && isEqual(editorService.activeEditor.resource, resource),
-				label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-				detail: builtinProviderDisplayName,
 			}]);
 	}
 	return overrides;
