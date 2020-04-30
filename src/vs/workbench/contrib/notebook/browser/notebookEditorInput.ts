@@ -218,7 +218,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async backup(): Promise<IWorkingCopyBackup> {
-		return {};
+		throw new Error();
 	}
 
 	matches(otherInput: unknown): boolean {
