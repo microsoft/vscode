@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { CellKind, IOutput, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,7 +26,7 @@ export class TestCell extends NotebookCellTextModel {
 	constructor(
 		public viewType: string,
 		handle: number,
-		source: string[],
+		public source: string[],
 		language: string,
 		cellKind: CellKind,
 		outputs: IOutput[]
@@ -36,10 +35,6 @@ export class TestCell extends NotebookCellTextModel {
 	}
 	contentChange(): void {
 		// throw new Error('Method not implemented.');
-	}
-
-	resolveTextBufferFactory(): PieceTreeTextBufferFactory {
-		throw new Error('Method not implemented.');
 	}
 }
 

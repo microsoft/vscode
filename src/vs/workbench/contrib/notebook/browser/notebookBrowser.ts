@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch } from 'vs/editor/common/model';
+import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -92,6 +92,7 @@ export interface MarkdownCellLayoutChangeEvent {
 export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
+	readonly textBuffer: IReadonlyTextBuffer;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -102,7 +103,6 @@ export interface ICellViewModel {
 	currentTokenSource: CancellationTokenSource | undefined;
 	focusMode: CellFocusMode;
 	getText(): string;
-	save(): void;
 	metadata: NotebookCellMetadata | undefined;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 }

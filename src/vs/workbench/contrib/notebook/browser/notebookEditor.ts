@@ -636,8 +636,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 			state.contributionsState = contributionsState;
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
-
-			this.notebookViewModel.viewCells.forEach(cell => cell.save());
 		}
 	}
 
@@ -788,7 +786,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			return false;
 		}
 
-		(cell as CellViewModel).save();
 		const index = this.notebookViewModel!.getCellIndex(cell);
 		this.notebookViewModel!.deleteCell(index, true);
 		return true;

@@ -35,7 +35,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		return this.model.uri;
 	}
 	get lineCount() {
-		return this.model.source.length;
+		return this.model.textBuffer.getLineCount();
 	}
 	get metadata() {
 		return this.model.metadata;
@@ -192,14 +192,8 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	}
 
 	getText(): string {
-		if (this._textModel) {
-			return this._textModel.getValue();
-		}
-
-		return this.model.source.join('\n');
+		return this.model.getValue();
 	}
-
-	abstract save(): void;
 
 	private saveViewState(): void {
 		if (!this._textEditor) {
@@ -312,7 +306,9 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		return CursorAtBoundary.None;
 	}
 
-	protected _buffer: model.ITextBuffer | null = null;
+	get textBuffer() {
+		return this.model.textBuffer;
+	}
 
 	protected cellStartFind(value: string): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
@@ -320,12 +316,8 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		if (this.assertTextModelAttached()) {
 			cellMatches = this._textModel!.findMatches(value, false, false, false, null, false);
 		} else {
-			if (!this._buffer) {
-				this._buffer = this.model.resolveTextBufferFactory().create(model.DefaultEndOfLine.LF);
-			}
-
-			const lineCount = this._buffer.getLineCount();
-			const fullRange = new Range(1, 1, lineCount, this._buffer.getLineLength(lineCount) + 1);
+			const lineCount = this.textBuffer.getLineCount();
+			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 			const searchParams = new SearchParams(value, false, false, null);
 			const searchData = searchParams.parseSearchRequest();
 
@@ -333,7 +325,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 				return null;
 			}
 
-			cellMatches = this._buffer.findMatchesLineByLine(fullRange, searchData, false, 1000);
+			cellMatches = this.textBuffer.findMatchesLineByLine(fullRange, searchData, false, 1000);
 		}
 
 		return cellMatches;

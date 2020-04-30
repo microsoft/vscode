@@ -5,8 +5,10 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICell, IOutput, NotebookCellOutputsSplice, CellKind, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { PieceTreeTextBufferFactory, PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
+import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { URI } from 'vs/base/common/uri';
+import * as model from 'vs/editor/common/model';
+import { Range } from 'vs/editor/common/core/range';
 
 export class NotebookCellTextModel implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
@@ -25,15 +27,6 @@ export class NotebookCellTextModel implements ICell {
 
 	get outputs(): IOutput[] {
 		return this._outputs;
-	}
-
-	get source() {
-		return this._source;
-	}
-
-	set source(newValue: string[]) {
-		this._source = newValue;
-		this._buffer = null;
 	}
 
 	private _metadata: NotebookCellMetadata | undefined;
@@ -56,7 +49,19 @@ export class NotebookCellTextModel implements ICell {
 		this._onDidChangeLanguage.fire(newLanguage);
 	}
 
-	private _buffer: PieceTreeTextBufferFactory | null = null;
+	private _textBuffer!: model.IReadonlyTextBuffer;
+
+	get textBuffer() {
+		if (this._textBuffer) {
+			return this._textBuffer;
+		}
+
+		let builder = new PieceTreeTextBufferBuilder();
+		builder.acceptChunk(this._source.join('\n'));
+		const bufferFactory = builder.finish(true);
+		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF);
+		return this._textBuffer;
+	}
 
 	constructor(
 		readonly uri: URI,
@@ -71,9 +76,21 @@ export class NotebookCellTextModel implements ICell {
 		this._metadata = metadata;
 	}
 
+	getValue(): string {
+		const lineCount = this._textBuffer.getLineCount();
+		const fullRange = new Range(1, 1, lineCount, this._textBuffer.getLineLength(lineCount) + 1);
+
+		// todo@rebornix eol?
+		const eol = this._textBuffer.getEOL();
+		if (eol === '\n') {
+			return this._textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
+		} else {
+			return this._textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
+		}
+	}
+
 	contentChange() {
 		this._onDidChangeContent.fire();
-
 	}
 
 	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {
@@ -82,16 +99,5 @@ export class NotebookCellTextModel implements ICell {
 		});
 
 		this._onDidChangeOutputs.fire(splices);
-	}
-
-	resolveTextBufferFactory(): PieceTreeTextBufferFactory {
-		if (this._buffer) {
-			return this._buffer;
-		}
-
-		let builder = new PieceTreeTextBufferBuilder();
-		builder.acceptChunk(this.source.join('\n'));
-		this._buffer = builder.finish(true);
-		return this._buffer;
 	}
 }

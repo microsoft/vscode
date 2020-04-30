@@ -1276,7 +1276,7 @@ export class ValidAnnotatedEditOperation implements IIdentifiedSingleEditOperati
 /**
  * @internal
  */
-export interface ITextBuffer {
+export interface IReadonlyTextBuffer {
 	equals(other: ITextBuffer): boolean;
 	mightContainRTL(): boolean;
 	mightContainNonBasicASCII(): boolean;
@@ -1299,10 +1299,15 @@ export interface ITextBuffer {
 	getLineLength(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
+}
 
+/**
+ * @internal
+ */
+export interface ITextBuffer extends IReadonlyTextBuffer {
 	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
-	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
 }
 
 /**
