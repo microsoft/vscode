@@ -366,6 +366,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			animated: false
 		}));
 
+		const homeBarIconBadge = document.createElement('div');
+		addClass(homeBarIconBadge, 'home-bar-icon-badge');
+		this.homeBarContainer.appendChild(homeBarIconBadge);
+
 		this.homeBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
 
 		const content = assertIsDefined(this.content);

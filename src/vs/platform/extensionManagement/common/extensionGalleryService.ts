@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorMessage, isPromiseCanceledError, canceled } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation, IGalleryExtensionVersion, IGalleryExtensionAssets, isIExtensionIdentifier, DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -237,7 +237,7 @@ function getIconAsset(version: IRawGalleryExtensionVersion): IGalleryExtensionAs
 	if (asset) {
 		return asset;
 	}
-	const uri = require.toUrl('./media/defaultIcon.png');
+	const uri = DefaultIconPath;
 	return { uri, fallbackUri: uri };
 }
 
