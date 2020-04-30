@@ -2120,6 +2120,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
+
 	private canRunCommand(): boolean {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.prompt(
