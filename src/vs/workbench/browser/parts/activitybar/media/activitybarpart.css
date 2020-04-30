@@ -26,12 +26,26 @@
 /** Home Bar */
 
 .monaco-workbench .activitybar > .content > .home-bar {
+	position: relative;
 	width: 100%;
 	height: 48px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	order: -1;
+}
+
+.monaco-workbench .activitybar > .content > .home-bar > .home-bar-icon-badge {
+	position: absolute;
+	right: 10px;
+	bottom: 10px;
+	width: 16px;
+	height: 16px;
+	z-index: 1; /* on top of home indicator */
+	background-image: url('../../../media/code-icon.svg');
+	background-repeat: no-repeat;
+	background-position: center center;
+	background-size: 16px;
 }
 
 /** Viewlet Switcher */
