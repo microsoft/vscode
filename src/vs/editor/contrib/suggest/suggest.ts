@@ -33,12 +33,6 @@ export class CompletionItem {
 
 	_brand!: 'ISuggestionItem';
 
-	private static readonly _defaultResolve = () => Promise.resolve();
-
-	readonly resolve: (token: CancellationToken) => Promise<void>;
-	isResolved: boolean = false;
-
-
 	//
 	readonly editStart: IPosition;
 	readonly editInsertEnd: IPosition;
@@ -104,35 +98,35 @@ export class CompletionItem {
 		}
 
 		// create the suggestion resolver
-		const { resolveCompletionItem } = provider;
-		if (typeof resolveCompletionItem !== 'function') {
-			this.resolve = CompletionItem._defaultResolve;
-			this.isResolved = true;
-		} else {
-			let cached: Promise<void> | undefined;
-			this.resolve = (token) => {
-				if (!cached) {
-					cached = Promise.resolve(resolveCompletionItem.call(provider, model, Position.lift(position), completion, token)).then(value => {
-						Object.assign(completion, value);
-						this.isResolved = true;
-					}, err => {
-						if (isPromiseCanceledError(err)) {
-							// the IPC queue will reject the request with the
-							// cancellation error -> reset cached
-							cached = undefined;
-						}
-					});
-					token.onCancellationRequested(() => {
-						if (!this.isResolved) {
-							// cancellation after the request has been
-							// dispatched -> reset cache
-							cached = undefined;
-						}
-					});
-				}
-				return cached;
-			};
+		if (typeof provider.resolveCompletionItem !== 'function') {
+			this._resolveCache = Promise.resolve();
 		}
+	}
+
+	// resolving
+	get isResolved() {
+		return Boolean(this._resolveCache);
+	}
+
+	private _resolveCache?: Promise<void>;
+
+	async resolve(token: CancellationToken) {
+		if (!this._resolveCache) {
+			const sub = token.onCancellationRequested(() => {
+				this._resolveCache = undefined;
+			});
+			this._resolveCache = Promise.resolve(this.provider.resolveCompletionItem!(this.completion, token)).then(value => {
+				Object.assign(this.completion, value);
+				sub.dispose();
+			}, err => {
+				if (isPromiseCanceledError(err)) {
+					// the IPC queue will reject the request with the
+					// cancellation error -> reset cached
+					this._resolveCache = undefined;
+				}
+			});
+		}
+		return this._resolveCache;
 	}
 }
 
