@@ -305,7 +305,7 @@ export class OutlinePane extends ViewPane {
 
 		this._domNode = container;
 		this._domNode.tabIndex = 0;
-		dom.addClass(container, 'outline-pane');
+		container.classList.add('outline-pane');
 
 		let progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
@@ -452,7 +452,7 @@ export class OutlinePane extends ViewPane {
 	}
 
 	private _showMessage(message: string) {
-		dom.addClass(this._domNode, 'message');
+		this._domNode.classList.add('message');
 		this._tree.setInput(undefined!);
 		this._progressBar.stop().hide();
 		this._message.innerText = escape(message);
@@ -508,7 +508,7 @@ export class OutlinePane extends ViewPane {
 			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(textModel.uri)));
 		}
 
-		dom.removeClass(this._domNode, 'message');
+		this._domNode.classList.remove('message');
 
 		if (event && oldModel && textModel.getLineCount() >= 25) {
 			// heuristic: when the symbols-to-lines ratio changes by 50% between edits

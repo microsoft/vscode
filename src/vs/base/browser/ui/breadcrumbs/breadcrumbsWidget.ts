@@ -230,10 +230,10 @@ export class BreadcrumbsWidget {
 		for (let i = 0; i < this._nodes.length; i++) {
 			const node = this._nodes[i];
 			if (i !== nth) {
-				dom.removeClass(node, 'focused');
+				node.classList.remove('focused');
 			} else {
 				this._focusedItemIdx = i;
-				dom.addClass(node, 'focused');
+				node.classList.add('focused');
 				node.focus();
 			}
 		}
@@ -274,10 +274,10 @@ export class BreadcrumbsWidget {
 		for (let i = 0; i < this._nodes.length; i++) {
 			const node = this._nodes[i];
 			if (i !== nth) {
-				dom.removeClass(node, 'selected');
+				node.classList.remove('selected');
 			} else {
 				this._selectedItemIdx = i;
-				dom.addClass(node, 'selected');
+				node.classList.add('selected');
 			}
 		}
 		this._onDidSelectItem.fire({ type: 'select', item: this._items[this._selectedItemIdx], node: this._nodes[this._selectedItemIdx], payload });
