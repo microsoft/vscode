@@ -56,13 +56,18 @@ const schema: IJSONSchema = {
 					weight: {
 						type: 'string',
 						description: nls.localize('schema.font-weight', 'The weight of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-weight for valid values.'),
-						pattern: fontWeightRegex
-
+						anyOf: [
+							{ enum: ['normal', 'bold', 'lighter', 'bolder'] },
+							{ type: 'string', pattern: fontWeightRegex }
+						]
 					},
 					style: {
 						type: 'string',
 						description: nls.localize('schema.font-style', 'The style of the font. See https://developer.mozilla.org/en-US/docs/Web/CSS/font-style for valid values.'),
-						pattern: fontStyleRegex
+						anyOf: [
+							{ enum: ['normal', 'italic', 'oblique'] },
+							{ type: 'string', pattern: fontStyleRegex }
+						]
 					}
 				},
 				required: [
