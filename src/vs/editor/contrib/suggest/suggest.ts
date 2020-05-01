@@ -53,6 +53,9 @@ export class CompletionItem {
 	readonly sortTextLow?: string;
 	readonly filterTextLow?: string;
 
+	// validation
+	readonly isInvalid: boolean = false;
+
 	// sorting, filtering
 	score: FuzzyScore = FuzzyScore.Default;
 	distance: number = 0;
@@ -73,6 +76,9 @@ export class CompletionItem {
 		// ensure lower-variants (perf)
 		this.labelLow = this.textLabel.toLowerCase();
 
+		// validate label
+		this.isInvalid = !this.textLabel;
+
 		this.sortTextLow = completion.sortText && completion.sortText.toLowerCase();
 		this.filterTextLow = completion.filterText && completion.filterText.toLowerCase();
 
@@ -81,10 +87,21 @@ export class CompletionItem {
 			this.editStart = new Position(completion.range.startLineNumber, completion.range.startColumn);
 			this.editInsertEnd = new Position(completion.range.endLineNumber, completion.range.endColumn);
 			this.editReplaceEnd = new Position(completion.range.endLineNumber, completion.range.endColumn);
+
+			// validate range
+			this.isInvalid = this.isInvalid
+				|| Range.spansMultipleLines(completion.range) || completion.range.startLineNumber !== position.lineNumber;
+
 		} else {
 			this.editStart = new Position(completion.range.insert.startLineNumber, completion.range.insert.startColumn);
 			this.editInsertEnd = new Position(completion.range.insert.endLineNumber, completion.range.insert.endColumn);
 			this.editReplaceEnd = new Position(completion.range.replace.endLineNumber, completion.range.replace.endColumn);
+
+			// validate ranges
+			this.isInvalid = this.isInvalid
+				|| Range.spansMultipleLines(completion.range.insert) || Range.spansMultipleLines(completion.range.replace)
+				|| completion.range.insert.startLineNumber !== position.lineNumber || completion.range.replace.startLineNumber !== position.lineNumber
+				|| Range.compareRangesUsingStarts(completion.range.insert, completion.range.replace) !== 0;
 		}
 
 		// create the suggestion resolver
@@ -154,7 +171,7 @@ export function provideSuggestionItems(
 	context: modes.CompletionContext = { triggerKind: modes.CompletionTriggerKind.Invoke },
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItem[]> {
-
+	// const t1 = Date.now();
 	const word = model.getWordAtPosition(position);
 	const defaultReplaceRange = word ? new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn) : Range.fromPositions(position);
 	const defaultInsertRange = defaultReplaceRange.setEndPosition(position.lineNumber, position.column);
@@ -227,6 +244,7 @@ export function provideSuggestionItems(
 			disposables.dispose();
 			return Promise.reject<any>(canceled());
 		}
+		// console.log(`${allSuggestions.length} items AFTER ${Date.now() - t1}ms`);
 		return allSuggestions.sort(getSuggestionComparator(options.snippetSortOrder));
 	});
 

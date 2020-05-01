@@ -876,33 +876,30 @@ class SuggestAdapter {
 		for (let i = 0; i < list.items.length; i++) {
 			const item = list.items[i];
 			// check for bad completion item first
-			if (this._validateCompletionItem(item, pos)) {
-				const dto = this._convertCompletionItem(item, [pid, i], insertRange, replaceRange);
-				completions.push(dto);
-			}
+			const dto = this._convertCompletionItem(item, [pid, i], insertRange, replaceRange);
+			completions.push(dto);
 		}
 
 		return result;
 	}
 
-	async resolveCompletionItem(_resource: URI, position: IPosition, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ISuggestDataDto | undefined> {
+	async resolveCompletionItem(_resource: URI, _position: IPosition, id: extHostProtocol.ChainedCacheId, token: CancellationToken): Promise<extHostProtocol.ISuggestDataDto | undefined> {
 
 		if (typeof this._provider.resolveCompletionItem !== 'function') {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
 		const item = this._cache.get(...id);
 		if (!item) {
-			return Promise.resolve(undefined);
+			return undefined;
 		}
 
-		const pos = typeConvert.Position.to(position);
 		const _mustNotChange = SuggestAdapter._mustNotChangeHash(item);
 		const _mayNotChange = SuggestAdapter._mayNotChangeHash(item);
 
 		const resolvedItem = await asPromise(() => this._provider.resolveCompletionItem!(item, token));
 
-		if (!resolvedItem || !this._validateCompletionItem(resolvedItem, pos)) {
+		if (!resolvedItem) {
 			return undefined;
 		}
 
@@ -952,14 +949,14 @@ class SuggestAdapter {
 			//
 			x: id,
 			//
-			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
+			[extHostProtocol.ISuggestDataDtoField.label]: item.label ?? '',
 			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
 			[extHostProtocol.ISuggestDataDtoField.kind]: item.kind !== undefined ? typeConvert.CompletionItemKind.from(item.kind) : undefined,
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,
 			[extHostProtocol.ISuggestDataDtoField.documentation]: typeof item.documentation === 'undefined' ? undefined : typeConvert.MarkdownString.fromStrict(item.documentation),
-			[extHostProtocol.ISuggestDataDtoField.sortText]: item.sortText,
-			[extHostProtocol.ISuggestDataDtoField.filterText]: item.filterText,
+			[extHostProtocol.ISuggestDataDtoField.sortText]: item.sortText !== item.label ? item.sortText : undefined,
+			[extHostProtocol.ISuggestDataDtoField.filterText]: item.filterText !== item.label ? item.filterText : undefined,
 			[extHostProtocol.ISuggestDataDtoField.preselect]: item.preselect || undefined,
 			[extHostProtocol.ISuggestDataDtoField.insertTextRules]: item.keepWhitespace ? modes.CompletionItemInsertTextRule.KeepWhitespace : 0,
 			[extHostProtocol.ISuggestDataDtoField.commitCharacters]: item.commitCharacters,
@@ -1001,31 +998,6 @@ class SuggestAdapter {
 		}
 
 		return result;
-	}
-
-	private _validateCompletionItem(item: vscode.CompletionItem, position: vscode.Position): boolean {
-		if (typeof item.label !== 'string' || item.label.length === 0) {
-			this._logService.warn('INVALID text edit -> must have at least a label');
-			return false;
-		}
-
-		if (Range.isRange(item.range)) {
-			if (!item.range.isSingleLine || item.range.start.line !== position.line) {
-				this._logService.trace('INVALID range -> must be single line and on the same line');
-				return false;
-			}
-
-		} else if (item.range) {
-			if (!item.range.inserting.isSingleLine || item.range.inserting.start.line !== position.line
-				|| !item.range.replacing.isSingleLine || item.range.replacing.start.line !== position.line
-				|| !item.range.inserting.start.isEqual(item.range.replacing.start)
-				|| !item.range.replacing.contains(item.range.inserting)
-			) {
-				this._logService.trace('INVALID range -> must be single line, on the same line, insert range must be a prefix of replace range');
-				return false;
-			}
-		}
-		return true;
 	}
 
 	private static _mustNotChangeHash(item: vscode.CompletionItem) {

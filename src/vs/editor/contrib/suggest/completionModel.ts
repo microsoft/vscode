@@ -151,6 +151,10 @@ export class CompletionModel {
 
 			const item = source[i];
 
+			if (item.isInvalid) {
+				continue; // SKIP invalid items
+			}
+
 			// collect those supports that signaled having
 			// an incomplete result
 			if (item.container.incomplete) {
