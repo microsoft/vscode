@@ -214,13 +214,13 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	create(): void {
 
-		dom.addClass(this.domNode, 'zone-widget');
+		this.domNode.classList.add('zone-widget');
 		if (this.options.className) {
-			dom.addClass(this.domNode, this.options.className);
+			this.domNode.classList.add(this.options.className);
 		}
 
 		this.container = document.createElement('div');
-		dom.addClass(this.container, 'zone-widget-container');
+		this.container.classList.add('zone-widget-container');
 		this.domNode.appendChild(this.container);
 		if (this.options.showArrow) {
 			this._arrow = new Arrow(this.editor);

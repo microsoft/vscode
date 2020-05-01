@@ -102,7 +102,7 @@ export class OutlineGroupRenderer implements ITreeRenderer<OutlineGroup, FuzzySc
 
 	renderTemplate(container: HTMLElement): OutlineGroupTemplate {
 		const labelContainer = dom.$('.outline-element-label');
-		dom.addClass(container, 'outline-element');
+		container.classList.add('outline-element');
 		dom.append(container, labelContainer);
 		return new OutlineGroupTemplate(labelContainer, new HighlightedLabel(labelContainer, true));
 	}
@@ -129,7 +129,7 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 	) { }
 
 	renderTemplate(container: HTMLElement): OutlineElementTemplate {
-		dom.addClass(container, 'outline-element');
+		container.classList.add('outline-element');
 		const iconLabel = new IconLabel(container, { supportHighlights: true });
 		const iconClass = dom.$('.outline-element-icon');
 		const decoration = dom.$('.outline-element-decoration');
@@ -184,14 +184,14 @@ export class OutlineElementRenderer implements ITreeRenderer<OutlineElement, Fuz
 
 		} else if (count > 0) {
 			dom.show(template.decoration);
-			dom.removeClass(template.decoration, 'bubble');
+			template.decoration.classList.remove('bubble');
 			template.decoration.innerText = count < 10 ? count.toString() : '+9';
 			template.decoration.title = count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", count);
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 
 		} else {
 			dom.show(template.decoration);
-			dom.addClass(template.decoration, 'bubble');
+			template.decoration.classList.add('bubble');
 			template.decoration.innerText = '\uea71';
 			template.decoration.title = localize('deep.problem', "Contains elements with problems");
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
