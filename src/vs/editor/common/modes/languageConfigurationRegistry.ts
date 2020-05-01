@@ -630,14 +630,17 @@ export class LanguageConfigurationRegistryImpl {
 			return null;
 		}
 
-		const scopedLineText = scopedLineTokens.getLineContent();
-		const beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
-
 		// selection support
+		let scopedLineText: string;
+		let beforeTypeText: string;
 		let afterTypeText: string;
 		if (range.isEmpty()) {
-			afterTypeText = scopedLineText.substr(range.startColumn - 1 - scopedLineTokens.firstCharOffset);
+			scopedLineText = model.getLineContent(range.startLineNumber);
+			beforeTypeText = scopedLineText.substr(0, range.startColumn - 1);
+			afterTypeText = scopedLineText.substr(range.startColumn - 1);
 		} else {
+			scopedLineText = scopedLineTokens.getLineContent();
+			beforeTypeText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 			const endScopedLineTokens = this.getScopedLineTokens(model, range.endLineNumber, range.endColumn);
 			afterTypeText = endScopedLineTokens.getLineContent().substr(range.endColumn - 1 - scopedLineTokens.firstCharOffset);
 		}
