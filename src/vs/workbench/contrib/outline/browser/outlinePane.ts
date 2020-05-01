@@ -238,7 +238,7 @@ class OutlineViewState {
 
 export class OutlinePane extends ViewPane {
 
-	private _disposables = new Array<IDisposable>();
+	private _disposables = new DisposableStore();
 
 	private _editorDisposables = new DisposableStore();
 	private _outlineViewState = new OutlineViewState();
@@ -277,8 +277,8 @@ export class OutlinePane extends ViewPane {
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
-		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
-		this._disposables.push(this.onDidBlur(_ => this._contextKeyFocused.set(false)));
+		this._disposables.add(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
+		this._disposables.add(this.onDidBlur(_ => this._contextKeyFocused.set(false)));
 	}
 
 	dispose(): void {
@@ -349,9 +349,9 @@ export class OutlinePane extends ViewPane {
 		);
 
 
-		this._disposables.push(this._tree);
-		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
-		this._disposables.push(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
+		this._disposables.add(this._tree);
+		this._disposables.add(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
+		this._disposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
 				this._tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
@@ -526,7 +526,7 @@ export class OutlinePane extends ViewPane {
 						handle = undefined;
 						resolve(true);
 					}, 2000);
-					this._disposables.push({
+					this._disposables.add({
 						dispose() {
 							clearTimeout(handle);
 							resolve(false);
