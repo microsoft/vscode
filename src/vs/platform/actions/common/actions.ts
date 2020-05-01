@@ -14,6 +14,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { UriDto } from 'vs/base/common/types';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface ILocalizedString {
 	value: string;
@@ -153,30 +154,50 @@ export interface IMenuService {
 
 export type ICommandsMap = Map<string, ICommandAction>;
 
+export interface IMenuRegistryChangeEvent {
+	has(id: MenuId): boolean;
+}
+
 export interface IMenuRegistry {
+	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent>;
+	addCommands(newCommands: Iterable<ICommandAction>): IDisposable;
 	addCommand(userCommand: ICommandAction): IDisposable;
 	getCommand(id: string): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
+	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
-	readonly onDidChangeMenu: Event<MenuId>;
 }
 
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
 	private readonly _menuItems = new Map<MenuId, Array<IMenuItem | ISubmenuItem>>();
-	private readonly _onDidChangeMenu = new Emitter<MenuId>();
+	private readonly _onDidChangeMenu = new Emitter<IMenuRegistryChangeEvent>();
 
-	readonly onDidChangeMenu: Event<MenuId> = this._onDidChangeMenu.event;
+	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent> = this._onDidChangeMenu.event;
 
 	addCommand(command: ICommandAction): IDisposable {
-		this._commands.set(command.id, command);
-		this._onDidChangeMenu.fire(MenuId.CommandPalette);
+		return this.addCommands(Iterable.single(command));
+	}
+
+	private readonly _commandPaletteChangeEvent: IMenuRegistryChangeEvent = {
+		has: id => id === MenuId.CommandPalette
+	};
+
+	addCommands(commands: Iterable<ICommandAction>): IDisposable {
+		for (const command of commands) {
+			this._commands.set(command.id, command);
+		}
+		this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
 		return {
 			dispose: () => {
-				if (this._commands.delete(command.id)) {
-					this._onDidChangeMenu.fire(MenuId.CommandPalette);
+				let didChange = false;
+				for (const command of commands) {
+					didChange = this._commands.delete(command.id) || didChange;
+				}
+				if (didChange) {
+					this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
 				}
 			}
 		};
@@ -193,20 +214,37 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	}
 
 	appendMenuItem(id: MenuId, item: IMenuItem | ISubmenuItem): IDisposable {
-		let array = this._menuItems.get(id);
-		if (!array) {
-			array = [item];
-			this._menuItems.set(id, array);
-		} else {
-			array.push(item);
+		return this.appendMenuItems(Iterable.single({ id, item }));
+	}
+
+	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable {
+
+		const changedIds = new Set<MenuId>();
+
+		for (const { id, item } of items) {
+			let array = this._menuItems.get(id);
+			if (!array) {
+				array = [item];
+				this._menuItems.set(id, array);
+			} else {
+				array.push(item);
+			}
+			changedIds.add(id);
 		}
-		this._onDidChangeMenu.fire(id);
+
+		this._onDidChangeMenu.fire(changedIds);
+
 		return {
 			dispose: () => {
-				const idx = array!.indexOf(item);
-				if (idx >= 0) {
-					array!.splice(idx, 1);
-					this._onDidChangeMenu.fire(id);
+				const changedIds = new Set<MenuId>();
+				for (const { id, item } of items) {
+					const array = this._menuItems.get(id);
+					const idx = array?.indexOf(item) ?? -1;
+					if (idx >= 0) {
+						array!.splice(idx, 1);
+						changedIds.add(id);
+					}
+					this._onDidChangeMenu.fire(changedIds);
 				}
 			}
 		};
