@@ -398,6 +398,16 @@ export class DebugService implements IDebugService {
 		// a falsy config indicates an aborted launch
 		if (configByProviders && configByProviders.type) {
 			try {
+				// exec the preLaunchTask before resolving debug config #95162
+				if (configByProviders.preLaunchTask) {
+					const workspace = launch?.workspace || this.contextService.getWorkspace();
+					const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, configByProviders.preLaunchTask, (msg, actions) => this.showError(msg, actions));
+					if (taskResult !== TaskRunResult.Success) {
+						// preLaunchTask failed
+						return false;
+					}
+				}
+
 				let resolvedConfig = await this.substituteVariables(launch, configByProviders);
 				if (!resolvedConfig) {
 					// User cancelled resolving of interactive variables, silently return
@@ -433,12 +443,8 @@ export class DebugService implements IDebugService {
 					return false;
 				}
 
-				const workspace = launch?.workspace || this.contextService.getWorkspace();
-				const taskResult = await this.taskRunner.runTaskAndCheckErrors(workspace, resolvedConfig.preLaunchTask, (msg, actions) => this.showError(msg, actions));
-				if (taskResult === TaskRunResult.Success) {
-					return this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
-				}
-				return false;
+				return this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options);
+
 			} catch (err) {
 				if (err && err.message) {
 					await this.showError(err.message);
