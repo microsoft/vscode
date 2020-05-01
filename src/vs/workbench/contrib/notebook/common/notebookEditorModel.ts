@@ -56,7 +56,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		this._register(this.workingCopyService.registerWorkingCopy(this));
 	}
 
-	capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.Untitled;
+	capabilities = 0;
 
 	async backup(): Promise<IWorkingCopyBackup> {
 		return {};
