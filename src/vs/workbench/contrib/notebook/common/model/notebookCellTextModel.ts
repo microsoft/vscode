@@ -9,8 +9,9 @@ import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeText
 import { URI } from 'vs/base/common/uri';
 import * as model from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class NotebookCellTextModel implements ICell {
+export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
 
@@ -60,6 +61,11 @@ export class NotebookCellTextModel implements ICell {
 		builder.acceptChunk(this._source.join('\n'));
 		const bufferFactory = builder.finish(true);
 		this._textBuffer = bufferFactory.create(model.DefaultEndOfLine.LF);
+
+		this._register(this._textBuffer.onDidChangeContent(() => {
+			this._onDidChangeContent.fire();
+		}));
+
 		return this._textBuffer;
 	}
 
@@ -72,6 +78,7 @@ export class NotebookCellTextModel implements ICell {
 		outputs: IOutput[],
 		metadata: NotebookCellMetadata | undefined
 	) {
+		super();
 		this._outputs = outputs;
 		this._metadata = metadata;
 	}
@@ -80,17 +87,12 @@ export class NotebookCellTextModel implements ICell {
 		const lineCount = this.textBuffer.getLineCount();
 		const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 
-		// todo@rebornix eol?
 		const eol = this.textBuffer.getEOL();
 		if (eol === '\n') {
 			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
 		} else {
 			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
 		}
-	}
-
-	contentChange() {
-		this._onDidChangeContent.fire();
 	}
 
 	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {

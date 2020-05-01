@@ -13,7 +13,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { basename } from 'vs/base/common/resources';
 
 export interface INotebookEditorModelManager {
@@ -72,12 +72,13 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 		this._name = basename(this._notebook!.uri);
 
+		this._register(this._notebook.onDidChangeContent(() => {
+			this._dirty = true;
+			this._onDidChangeDirty.fire();
+			this._onDidChangeContent.fire();
+		}));
+
 		if (this._notebook.onDidChangeCells) {
-			this._register(this._notebook.onDidChangeContent(() => {
-				this._dirty = true;
-				this._onDidChangeDirty.fire();
-				this._onDidChangeContent.fire();
-			}));
 			this._register(this._notebook.onDidChangeCells((e) => {
 				this._onDidChangeCells.fire(e);
 			}));

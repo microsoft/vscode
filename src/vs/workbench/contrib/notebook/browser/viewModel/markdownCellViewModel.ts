@@ -134,7 +134,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 			this._textModel = ref.object.textEditorModel;
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
-				this.model.contentChange();
 				this._html = null;
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));

@@ -91,6 +91,11 @@ export class NotebookEditorInput extends EditorInput {
 		}
 
 		this.textModel = await this.notebookService.modelManager.resolve(this.resource, this.viewType!);
+
+		this._register(this.textModel.onDidChangeDirty(() => {
+			this._onDidChangeDirty.fire();
+		}));
+
 		return this.textModel;
 	}
 

@@ -167,8 +167,6 @@ export interface ICell {
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
 	onDidChangeMetadata: Event<void>;
-	// TODO@rebornix it should be later on replaced by moving textmodel resolution into CellTextModel
-	contentChange(): void;
 }
 
 export interface LanguageInfo {

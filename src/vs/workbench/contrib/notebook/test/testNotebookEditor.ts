@@ -32,9 +32,6 @@ export class TestCell extends NotebookCellTextModel {
 	) {
 		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined);
 	}
-	contentChange(): void {
-		// throw new Error('Method not implemented.');
-	}
 }
 
 export class TestNotebookEditor implements INotebookEditor {

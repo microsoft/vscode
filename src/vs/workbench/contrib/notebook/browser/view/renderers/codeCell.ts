@@ -217,7 +217,7 @@ export class CodeCell extends Disposable {
 
 			this.templateData.outputContainer!.style.display = 'block';
 			// there are outputs, we need to calcualte their sizes and trigger relayout
-			// @todo, if there is no resizable output, we should not check their height individually, which hurts the performance
+			// @TODO@rebornix, if there is no resizable output, we should not check their height individually, which hurts the performance
 			for (let index = 0; index < this.viewCell.outputs.length; index++) {
 				const currOutput = this.viewCell.outputs[index];
 
@@ -376,7 +376,7 @@ export class CodeCell extends Disposable {
 			} else {
 				// static output
 
-				// @TODO, if we stop checking output height, we need to evaluate it later when checking the height of output container
+				// @TODO@rebornix, if we stop checking output height, we need to evaluate it later when checking the height of output container
 				let clientHeight = outputItemDiv.clientHeight;
 				this.viewCell.updateOutputHeight(index, clientHeight);
 			}

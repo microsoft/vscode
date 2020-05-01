@@ -64,7 +64,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		}
 	}
 
-	// TODO - move any "run"/"status" concept to Code-specific places
+	// TODO@roblourens - move any "run"/"status" concept to Code-specific places
 	private _currentTokenSource: CancellationTokenSource | undefined;
 	public set currentTokenSource(v: CancellationTokenSource | undefined) {
 		this._currentTokenSource = v;
