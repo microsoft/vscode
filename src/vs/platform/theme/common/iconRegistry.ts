@@ -57,6 +57,11 @@ export interface IIconRegistry {
 	getIcons(): IconContribution[];
 
 	/**
+	 * Get the icon for the given id
+	 */
+	getIcon(id: string): IconContribution | undefined;
+
+	/**
 	 * JSON schema for an object to assign icon values to one of the color contributions.
 	 */
 	getIconSchema(): IJSONSchema;
@@ -128,6 +133,10 @@ class IconRegistry implements IIconRegistry {
 
 	public getIcons(): IconContribution[] {
 		return Object.keys(this.iconsById).map(id => this.iconsById[id]);
+	}
+
+	public getIcon(id: string): IconContribution | undefined {
+		return this.iconsById[id];
 	}
 
 	public getIconSchema(): IJSONSchema {
