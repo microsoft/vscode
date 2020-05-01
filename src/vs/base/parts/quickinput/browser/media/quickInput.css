@@ -95,6 +95,7 @@
 
 .quick-input-count {
 	align-self: center;
+	line-height: 11px;
 	position: absolute;
 	right: 4px;
 }
