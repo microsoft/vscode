@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { first } from 'vs/base/common/async';
 import { onUnexpectedExternalError, canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
@@ -164,98 +163,94 @@ export function setSnippetSuggestSupport(support: modes.CompletionItemProvider):
 	return old;
 }
 
-export function provideSuggestionItems(
+export async function provideSuggestionItems(
 	model: ITextModel,
 	position: Position,
 	options: CompletionOptions = CompletionOptions.default,
 	context: modes.CompletionContext = { triggerKind: modes.CompletionTriggerKind.Invoke },
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItem[]> {
+
 	// const t1 = Date.now();
-	const word = model.getWordAtPosition(position);
-	const defaultReplaceRange = word ? new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn) : Range.fromPositions(position);
-	const defaultInsertRange = defaultReplaceRange.setEndPosition(position.lineNumber, position.column);
-
-	// const wordUntil = model.getWordUntilPosition(position);
-	// const defaultRange = new Range(position.lineNumber, wordUntil.startColumn, position.lineNumber, wordUntil.endColumn);
-
 	position = position.clone();
 
-	// get provider groups, always add snippet suggestion provider
-	const supports = modes.CompletionProviderRegistry.orderedGroups(model);
+	const word = model.getWordAtPosition(position);
+	const defaultReplaceRange = word ? new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn) : Range.fromPositions(position);
+	const defaultRange = { replace: defaultReplaceRange, insert: defaultReplaceRange.setEndPosition(position.lineNumber, position.column) };
 
-	// add snippets provider unless turned off
-	if (!options.kindFilter.has(modes.CompletionItemKind.Snippet) && _snippetSuggestSupport) {
-		supports.unshift([_snippetSuggestSupport]);
-	}
-
-	const allSuggestions: CompletionItem[] = [];
+	const result: CompletionItem[] = [];
 	const disposables = new DisposableStore();
-	let hasResult = false;
+
+	const onCompletionList = (provider: modes.CompletionItemProvider, container: modes.CompletionList | null | undefined) => {
+		if (!container) {
+			return;
+		}
+		for (let suggestion of container.suggestions || []) {
+			if (!options.kindFilter.has(suggestion.kind)) {
+				// fill in default range when missing
+				if (!suggestion.range) {
+					suggestion.range = defaultRange;
+				}
+				// fill in default sortText when missing
+				if (!suggestion.sortText) {
+					suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
+				}
+				result.push(new CompletionItem(position, suggestion, container, provider, model));
+			}
+		}
+		if (isDisposable(container)) {
+			disposables.add(container);
+		}
+	};
+
+	// ask for snippets in parallel to asking "real" providers. Only do something if configured to
+	// do so - no snippet filter, no special-providers-only request
+	const snippetCompletions = new Promise<void>((resolve, reject) => {
+		if (!_snippetSuggestSupport || options.kindFilter.has(modes.CompletionItemKind.Snippet)) {
+			resolve();
+		}
+		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
+			resolve();
+		}
+		Promise.resolve(_snippetSuggestSupport.provideCompletionItems(model, position, context, token)).then(list => {
+			onCompletionList(_snippetSuggestSupport, list);
+			resolve();
+		}, reject);
+	});
 
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
-	const factory = supports.map(supports => () => {
+	// get provider groups, always add snippet suggestion provider
+	for (let providerGroup of modes.CompletionProviderRegistry.orderedGroups(model)) {
+
 		// for each support in the group ask for suggestions
-		return Promise.all(supports.map(provider => {
+		let lenBefore = result.length;
 
+		await Promise.all(providerGroup.map(async provider => {
 			if (options.providerFilter.size > 0 && !options.providerFilter.has(provider)) {
-				return undefined;
+				return;
 			}
-
-			return Promise.resolve(provider.provideCompletionItems(model, position, context, token)).then(container => {
-
-				const len = allSuggestions.length;
-
-				if (container) {
-					for (let suggestion of container.suggestions || []) {
-						if (!options.kindFilter.has(suggestion.kind)) {
-
-							// fill in default range when missing
-							if (!suggestion.range) {
-								suggestion.range = { insert: defaultInsertRange, replace: defaultReplaceRange };
-							}
-							// fill in default sortText when missing
-							if (!suggestion.sortText) {
-								suggestion.sortText = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
-							}
-
-							allSuggestions.push(new CompletionItem(position, suggestion, container, provider, model));
-						}
-					}
-					if (isDisposable(container)) {
-						disposables.add(container);
-					}
-				}
-
-				if (len !== allSuggestions.length && provider !== _snippetSuggestSupport) {
-					hasResult = true;
-				}
-
-			}, onUnexpectedExternalError);
+			try {
+				const list = await provider.provideCompletionItems(model, position, context, token);
+				onCompletionList(provider, list);
+			} catch (err) {
+				onUnexpectedExternalError(err);
+			}
 		}));
-	});
 
-	const result = first(factory, () => {
-		// stop on result or cancellation
-		return hasResult || token.isCancellationRequested;
-	}).then(() => {
-		if (token.isCancellationRequested) {
-			disposables.dispose();
-			return Promise.reject<any>(canceled());
+		if (lenBefore !== result.length || token.isCancellationRequested) {
+			break;
 		}
-		// console.log(`${allSuggestions.length} items AFTER ${Date.now() - t1}ms`);
-		return allSuggestions.sort(getSuggestionComparator(options.snippetSortOrder));
-	});
+	}
 
-	// result.then(items => {
-	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, type=${item.suggestion.type}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));
-	// 	return items;
-	// }, err => {
-	// 	console.warn(model.getWordUntilPosition(position), err);
-	// });
+	await snippetCompletions;
 
-	return result;
+	if (token.isCancellationRequested) {
+		disposables.dispose();
+		return Promise.reject<any>(canceled());
+	}
+	// console.log(`${result.length} items AFTER ${Date.now() - t1}ms`);
+	return result.sort(getSuggestionComparator(options.snippetSortOrder));
 }
 
 
