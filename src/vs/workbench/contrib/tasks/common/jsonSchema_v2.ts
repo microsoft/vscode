@@ -337,6 +337,13 @@ const runOptions: IJSONSchema = {
 		instancePolicy: {
 			type: 'string',
 			enum: ['terminateNewest', 'terminateOldest', 'prompt', 'warn', 'silent'],
+			enumDescriptions: [
+				nls.localize('JsonSchema.tasks.instancePolicy.terminateNewest', 'Terminates the newest instance.'),
+				nls.localize('JsonSchema.tasks.instancePolicy.terminateOldest', 'Terminates the oldest instance.'),
+				nls.localize('JsonSchema.tasks.instancePolicy.prompt', 'Asks which instance to terminate.'),
+				nls.localize('JsonSchema.tasks.instancePolicy.warn', 'Does nothing but warns that the instance limit has been reached.'),
+				nls.localize('JsonSchema.tasks.instancePolicy.silent', 'Does nothing.'),
+			],
 			description: nls.localize('JsonSchema.tasks.instancePolicy', 'Policy to apply when instance limit is reached.'),
 			default: 'prompt'
 		}
