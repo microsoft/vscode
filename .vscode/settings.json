@@ -16,7 +16,7 @@
 	"search.exclude": {
 		"**/node_modules": true,
 		"**/bower_components": true,
-		".build/**": true,
+		".build/**": true,lskdfjlskdjf
 		"out/**": true,
 		"out-build/**": true,
 		"out-vscode/**": true,
