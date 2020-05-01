@@ -12,6 +12,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 export enum CellKind {
 	Markdown = 1,
@@ -462,3 +464,15 @@ export interface ICellEditorViewState {
 }
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
+
+
+export interface INotebookEditorModel extends IEditorModel {
+	notebook: NotebookTextModel;
+	onDidChangeCells: Event<NotebookCellTextModelSplice[]>;
+	isDirty(): boolean;
+	getNotebook(): NotebookTextModel;
+	insertCell(cell: ICell, index: number): void;
+	deleteCell(index: number): void;
+	moveCellToIdx(index: number, newIdx: number): void;
+	save(): Promise<boolean>;
+}

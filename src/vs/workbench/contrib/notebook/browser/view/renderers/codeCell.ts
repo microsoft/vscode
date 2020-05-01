@@ -12,7 +12,7 @@ import * as nls from 'vs/nls';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellOutputKind, IOutput, IRenderOutput, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';

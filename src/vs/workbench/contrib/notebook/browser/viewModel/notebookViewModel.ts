@@ -18,15 +18,15 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { CellEditState, CellFindMatch, ICellRange, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 
 export interface INotebookEditorViewState {
@@ -241,7 +241,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	constructor(
 		public viewType: string,
-		private _model: NotebookEditorModel,
+		private _model: INotebookEditorModel,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		private _layoutInfo: NotebookLayoutInfo | null,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,

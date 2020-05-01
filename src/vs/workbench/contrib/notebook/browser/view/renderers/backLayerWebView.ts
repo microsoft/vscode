@@ -9,7 +9,7 @@ import * as path from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';

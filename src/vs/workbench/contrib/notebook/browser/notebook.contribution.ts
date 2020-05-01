@@ -26,7 +26,8 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { NotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -247,11 +248,13 @@ class CellContentProvider implements ITextModelContentProvider {
 		if (!info) {
 			return null;
 		}
-		const notebook = await this._notebookService.resolveNotebook(info.id, data.notebook);
-		if (!notebook) {
+
+		const editorModel = await this._notebookService.modelManager.get(data.notebook);
+		if (!editorModel) {
 			return null;
 		}
-		for (let cell of notebook.cells) {
+
+		for (let cell of editorModel.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
 				const bufferFactory: ITextBufferFactory = {
 					create: (defaultEOL) => {

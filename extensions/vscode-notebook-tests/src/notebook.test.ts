@@ -112,6 +112,7 @@ suite('notebook workflow', () => {
 
 		// ---- ---- //
 
+		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
@@ -161,6 +162,7 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 
+		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
@@ -183,6 +185,7 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('notebook.execute');
 		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 
+		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 });

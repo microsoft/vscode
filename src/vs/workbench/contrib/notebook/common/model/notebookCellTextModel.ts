@@ -77,15 +77,15 @@ export class NotebookCellTextModel implements ICell {
 	}
 
 	getValue(): string {
-		const lineCount = this._textBuffer.getLineCount();
-		const fullRange = new Range(1, 1, lineCount, this._textBuffer.getLineLength(lineCount) + 1);
+		const lineCount = this.textBuffer.getLineCount();
+		const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 
 		// todo@rebornix eol?
-		const eol = this._textBuffer.getEOL();
+		const eol = this.textBuffer.getEOL();
 		if (eol === '\n') {
-			return this._textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
+			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
 		} else {
-			return this._textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
+			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
 		}
 	}
 

@@ -17,13 +17,13 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
