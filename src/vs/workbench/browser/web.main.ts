@@ -38,7 +38,7 @@ import { FileUserDataProvider } from 'vs/workbench/services/userData/common/file
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
@@ -52,6 +52,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Settings } from 'vs/workbench/browser/layout';
 
 class BrowserMain extends Disposable {
 
@@ -65,12 +66,12 @@ class BrowserMain extends Disposable {
 	async open(): Promise<IWorkbench> {
 		const services = await this.initServices();
 
-		// const defaultLayout = this.configuration?.defaultLayout;
-		// if (defaultLayout) {
-		// 	defaultLayout.firstRun = services.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) === undefined;
-		// }
+		const firstOpen = services.storageService.getBoolean(Settings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
+		if (firstOpen === undefined || firstOpen) {
+			services.storageService.store(Settings.WORKSPACE_FIRST_OPEN, !(firstOpen ?? false), StorageScope.WORKSPACE);
+		}
 
-		await domContentLoaded();
+		{ await domContentLoaded(); }
 		mark('willStartWorkbench');
 
 		// Base Theme
