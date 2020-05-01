@@ -10,7 +10,7 @@ import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/base/common/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationPropertySchema, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
@@ -3635,7 +3635,10 @@ export const EditorOptions = {
 	)),
 	deleteAllLeadingBlankCharacters: register(new EditorBooleanOption(
 		EditorOption.deleteAllLeadingBlankCharacters, 'deleteAllLeadingBlankCharacters', false,
-		{ description: nls.localize('deleteAllLeadingBlankCharacters', "Controls whether backspace deletes all the leading blank characters in a line.") }
+		{
+			description: nls.localize('deleteAllLeadingBlankCharacters', "Controls whether backspace deletes all the leading blank characters in a line."),
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
+		}
 	)),
 	disableLayerHinting: register(new EditorBooleanOption(
 		EditorOption.disableLayerHinting, 'disableLayerHinting', false,
