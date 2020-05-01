@@ -17,6 +17,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 interface AllowedExtension {
 	id: string;
@@ -24,6 +25,8 @@ interface AllowedExtension {
 }
 
 const accountUsages = new Map<string, { [accountName: string]: string[] }>();
+
+const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git'];
 
 function addAccountUsage(providerId: string, accountName: string, extensionOrFeatureName: string) {
 	const providerAccountUsage = accountUsages.get(providerId);
@@ -290,7 +293,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
+		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -316,6 +320,11 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
 		const extensionData = allowList.find(extension => extension.id === extensionId);
 		if (extensionData) {
+			return true;
+		}
+
+		const remoteConnection = this.remoteAgentService.getConnection();
+		if (remoteConnection && remoteConnection.remoteAuthority === 'vsonline' && VSO_ALLOWED_EXTENSIONS.includes(extensionId)) {
 			return true;
 		}
 
