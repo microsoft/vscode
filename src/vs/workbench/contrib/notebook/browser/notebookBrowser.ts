@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
 import { FindMatch } from 'vs/editor/common/model';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -100,9 +101,10 @@ export interface ICellViewModel {
 	metadata: NotebookCellMetadata | undefined;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 
-	getSelectionOffsets(): number[] | undefined;
+	getSelectionsStartPosition(): IPosition[] | undefined;
 	language: string;
-	setText(value: string[]): void;
+	setLinesContent(value: string[]): void;
+	getLinesContent(): string[];
 }
 
 export interface INotebookEditorMouseEvent {

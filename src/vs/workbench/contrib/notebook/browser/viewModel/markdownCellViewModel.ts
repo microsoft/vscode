@@ -112,7 +112,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		}
 	}
 
-	setText(strs: string[]) {
+	setLinesContent(strs: string[]) {
 		this.model.source = strs;
 		this._html = null;
 	}

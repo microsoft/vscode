@@ -8,6 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
@@ -199,8 +200,17 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		return this.model.source.join('\n');
 	}
 
-	setText(value: string[]) {
+	getLinesContent(): string[] {
 		if (this._textModel) {
+			return this._textModel.getLinesContent();
+		}
+
+		return this.model.source;
+	}
+
+	setLinesContent(value: string[]) {
+		if (this._textModel) {
+			// TODO @rebornix we should avoid creating a new string here
 			return this._textModel.setValue(value.join('\n'));
 		} else {
 			this.model.source = value;
@@ -277,13 +287,14 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		this._textEditor?.setSelection(range);
 	}
 
-	getSelectionOffsets(): number[] | undefined {
-		const textModel = this._textEditor?.getModel();
-		const selections = this._textEditor?.getSelections();
-		if (textModel && selections) {
-			return selections.map(s => textModel.getOffsetAt(s.getStartPosition()));
+	getSelectionsStartPosition(): IPosition[] | undefined {
+		if (this._textEditor) {
+			const selections = this._textEditor.getSelections();
+			return selections?.map(s => s.getStartPosition());
+		} else {
+			const selections = this._editorViewStates?.cursorState;
+			return selections?.map(s => s.selectionStart);
 		}
-		return undefined;
 	}
 
 	getLineScrollTopOffset(line: number): number {

@@ -45,6 +45,7 @@ import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/w
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -729,29 +730,115 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return newCell;
 	}
 
+	private isAtEOL(p: IPosition, lines: string[]) {
+		const line = lines[p.lineNumber - 1];
+		return line.length + 1 === p.column;
+	}
+
+	private pushIfAbsent(positions: IPosition[], p: IPosition) {
+		const last = positions.length > 0 ? positions[positions.length - 1] : undefined;
+		if (!last || last.lineNumber !== p.lineNumber || last.column !== p.column) {
+			positions.push(p);
+		}
+	}
+
+	/**
+	 * Add split point at the beginning and the end;
+	 * Move end of line split points to the beginning of the next line;
+	 * Avoid duplicate split points
+	 */
+	private splitPointsToBoundaries(splitPoints: IPosition[], lines: string[]): IPosition[] | null {
+		const boundaries: IPosition[] = [];
+
+		// split points need to be sorted
+		splitPoints = splitPoints.sort((l, r) => {
+			const lineDiff = l.lineNumber - r.lineNumber;
+			const columnDiff = l.column - r.column;
+			return lineDiff !== 0 ? lineDiff : columnDiff;
+		});
+
+		// eat-up any split point at the beginning, i.e. we ignore the split point at the very beginning
+		this.pushIfAbsent(boundaries, new Position(1, 1));
+
+		for (let sp of splitPoints) {
+			if (this.isAtEOL(sp, lines) && sp.lineNumber < lines.length) {
+				sp = new Position(sp.lineNumber + 1, 1);
+			}
+			this.pushIfAbsent(boundaries, sp);
+		}
+
+		// eat-up any split point at the beginning, i.e. we ignore the split point at the very end
+		this.pushIfAbsent(boundaries, new Position(lines.length, lines[lines.length - 1].length + 1));
+
+		// if we only have two then they describe the whole range and nothing needs to be split
+		return boundaries.length > 2 ? boundaries : null;
+	}
+
+	private computeCellLinesContents(cell: ICellViewModel, splitPoints: IPosition[]): string[][] | null {
+		const lines = cell.getLinesContent();
+		const rangeBoundaries = this.splitPointsToBoundaries(splitPoints, lines);
+		if (!rangeBoundaries) {
+			return null;
+		}
+		const newLineModels: string[][] = [];
+		for (let i = 1; i < rangeBoundaries.length; i++) {
+			const start = rangeBoundaries[i - 1];
+			const end = rangeBoundaries[i];
+			// get the right lines
+			const newLines = lines.slice(start.lineNumber - 1, end.lineNumber);
+			if (start.lineNumber === end.lineNumber) {
+				// cut the line at the beginning and the end
+				let line = newLines[0];
+				line = line.slice(start.column - 1, end.column - 1);
+				newLines[0] = line;
+			}
+			else {
+				// cut last line at the end
+				let lastLine = newLines[newLines.length - 1];
+				lastLine = lastLine.slice(0, end.column - 1);
+				if (lastLine) {
+					newLines[newLines.length - 1] = lastLine;
+				} else {
+					newLines.pop();
+				}
+
+				// cut first line at the beginning
+				let firstLine = newLines[0];
+				firstLine = firstLine.slice(start.column - 1);
+				if (firstLine) {
+					newLines[0] = firstLine;
+				} else {
+					newLines.shift();
+				}
+			}
+			newLineModels.push(newLines);
+		}
+		return newLineModels;
+	}
+
 	splitNotebookCell(cell: ICellViewModel): CellViewModel[] | null {
 		if (!this.notebookViewModel!.metadata.editable) {
 			return null;
 		}
 
-		const splitPoints = cell.getSelectionOffsets();
+		let splitPoints = cell.getSelectionsStartPosition();
 		if (splitPoints && splitPoints.length > 0) {
-			const cellContent = cell.getText();
-			splitPoints.push(cellContent.length);
+			let newLinesContents = this.computeCellLinesContents(cell, splitPoints);
+			if (newLinesContents) {
 
-			// update the content of first cell
-			cell.setText(cellContent.substr(0, splitPoints[0]).split(/\r?\n/g));
+				// update the contents of the first cell
+				cell.setLinesContent(newLinesContents[0]);
 
-			const language = cell.model.language;
-			const kind = cell.cellKind;
-			let insertIndex = this.notebookViewModel!.getCellIndex(cell) + 1;
-			const newCells = [];
-			for (let i = 1, y = insertIndex; i < splitPoints.length; i++, y++) {
-				// create new cells containing the text chucks between starts of the selections
-				let initialText = cellContent.substring(splitPoints[i - 1], splitPoints[i]);
-				newCells.push(this.notebookViewModel!.createCell(y, initialText.split(/\r?\n/g), language, kind, true));
+				// create new cells based on the new text models
+				const language = cell.model.language;
+				const kind = cell.cellKind;
+				let insertIndex = this.notebookViewModel!.getCellIndex(cell) + 1;
+				const newCells = [];
+				for (let j = 1; j < newLinesContents.length; j++, insertIndex++) {
+					newCells.push(this.notebookViewModel!.createCell(insertIndex, newLinesContents[j], language, kind, true));
+				}
+				return newCells;
 			}
-			return newCells;
 		}
 
 		return null;
@@ -780,8 +867,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			if (constraint && above.cellKind !== constraint) {
 				return null;
 			}
-			const newContent = `${above.getText()}\n${cell.getText()}`;
-			above.setText(newContent.split(/\r?\n/g));
+			const newContent = above.getLinesContent().concat(cell.getLinesContent());
+			above.setLinesContent(newContent);
 			await this.deleteNotebookCell(cell);
 			return above;
 		} else {
@@ -789,8 +876,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			if (constraint && below.cellKind !== constraint) {
 				return null;
 			}
-			const newContent = `${cell.getText()}\n${below.getText()}`;
-			cell.setText(newContent.split(/\r?\n/g));
+			const newContent = cell.getLinesContent().concat(below.getLinesContent());
+			cell.setLinesContent(newContent);
 			await this.deleteNotebookCell(below);
 			return cell;
 		}
