@@ -1399,6 +1399,11 @@
           "markdownDescription": "%config.checkoutType%",
           "default": "all"
         },
+        "git.checkoutDetached": {
+          "type": "boolean",
+          "markdownDescription": "%config.checkoutDetached%",
+          "default": false
+        },
         "git.ignoreLegacyWarning": {
           "type": "boolean",
           "description": "%config.ignoreLegacyWarning%",

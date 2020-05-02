@@ -93,6 +93,7 @@
 	"config.checkoutType.local": "Show only local branches.",
 	"config.checkoutType.tags": "Show only tags.",
 	"config.checkoutType.remote": "Show only remote branches.",
+	"config.checkoutDetached": "Checkout with `--detach` by default.",
 	"config.branchValidationRegex": "A regular expression to validate new branch names.",
 	"config.branchWhitespaceChar": "The character to replace whitespace in new branch names.",
 	"config.ignoreLegacyWarning": "Ignores the legacy Git warning.",
