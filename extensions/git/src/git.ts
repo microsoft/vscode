@@ -12,7 +12,7 @@ import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
 import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent, splitInChunks, Limiter } from './util';
-import { CancellationToken, Progress, Uri } from 'vscode';
+import { CancellationToken, Progress, Uri, workspace } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
 import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions } from './api/git';
@@ -1278,6 +1278,7 @@ export class Repository {
 
 	async checkout(treeish: string, paths: string[], opts: { track?: boolean } = Object.create(null)): Promise<void> {
 		const args = ['checkout', '-q'];
+		const config = workspace.getConfiguration('git', Uri.file(this.repositoryRoot));
 
 		if (opts.track) {
 			args.push('--track');
@@ -1285,6 +1286,10 @@ export class Repository {
 
 		if (treeish) {
 			args.push(treeish);
+		}
+
+		if (config.get('checkoutDetached')) {
+			args.push('--detach');
 		}
 
 		try {
