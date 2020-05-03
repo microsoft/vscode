@@ -311,19 +311,13 @@ export class ExplorerView extends ViewPane {
 	}
 
 	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
-		let shouldRefresh = true;
 		if (isEditing) {
-			if (stat.parent && stat.parent !== this.tree.getInput()) {
-				shouldRefresh = stat.parent.isDirectoryResolved;
-				await this.tree.expand(stat.parent);
-			}
+			await this.tree.expand(stat.parent!);
 		} else {
 			DOM.removeClass(this.treeContainer, 'highlight');
 		}
 
-		if (shouldRefresh) {
-			await this.refresh(false, stat.parent);
-		}
+		await this.refresh(false, stat.parent, false);
 
 		if (isEditing) {
 			DOM.addClass(this.treeContainer, 'highlight');
@@ -558,14 +552,14 @@ export class ExplorerView extends ViewPane {
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
-	refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
+	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
 		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item))) {
 			// Tree node doesn't exist yet
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
 		}
 
-		if (this.explorerService.isEditable(undefined)) {
+		if (cancelEditing && this.explorerService.isEditable(undefined)) {
 			this.tree.domFocus();
 		}
 
@@ -709,6 +703,10 @@ export class ExplorerView extends ViewPane {
 	}
 
 	collapseAll(): void {
+		if (this.explorerService.isEditable(undefined)) {
+			this.tree.domFocus();
+		}
+
 		const treeInput = this.tree.getInput();
 		if (Array.isArray(treeInput)) {
 			if (hasExpandedRootChild(this.tree, treeInput)) {
