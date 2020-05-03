@@ -593,7 +593,7 @@
 .monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container .notebook-folding-indicator {
 	position: absolute;
 	top: 8px;
-	left: 26px;
+	left: 6px;
 	cursor: pointer;
 }
 
