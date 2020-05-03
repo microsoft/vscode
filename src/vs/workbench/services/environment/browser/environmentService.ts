@@ -115,7 +115,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get snippetsHome(): URI { return joinPath(this.userRoamingDataHome, 'snippets'); }
 
 	@memoize
-	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync'); }
+	get userDataSyncHome(): URI { return joinPath(this.userRoamingDataHome, 'sync', this.options.workspaceId); }
 
 	@memoize
 	get userDataSyncLogResource(): URI { return joinPath(this.options.logsPath, 'userDataSync.log'); }
