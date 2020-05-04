@@ -409,6 +409,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						name: item.name,
 						ctorDescriptor: new SyncDescriptor(TreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
+						containerIcon: viewContainer?.icon,
 						canToggleVisibility: true,
 						canMoveView: true,
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
