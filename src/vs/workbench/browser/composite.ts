@@ -255,7 +255,7 @@ export abstract class CompositeRegistry<T extends Composite> extends Disposable 
 	private readonly _onDidDeregister = this._register(new Emitter<CompositeDescriptor<T>>());
 	readonly onDidDeregister = this._onDidDeregister.event;
 
-	private composites: CompositeDescriptor<T>[] = [];
+	private readonly composites: CompositeDescriptor<T>[] = [];
 
 	protected registerComposite(descriptor: CompositeDescriptor<T>): void {
 		if (this.compositeById(descriptor.id)) {

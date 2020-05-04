@@ -441,7 +441,7 @@ suite('Disk File Service', function () {
 		assert.equal(resolved.isDirectory, true);
 		assert.equal(resolved.children!.length, 9);
 
-		const resolvedLink = resolved.children?.filter(child => child.name === 'bar' && child.isSymbolicLink)[0];
+		const resolvedLink = resolved.children?.find(child => child.name === 'bar' && child.isSymbolicLink);
 		assert.ok(resolvedLink);
 
 		assert.ok(!resolvedLink?.isDirectory);
