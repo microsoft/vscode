@@ -18,7 +18,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
+import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -105,9 +105,16 @@ export interface ICellViewModel {
 	focusMode: CellFocusMode;
 	getText(): string;
 	metadata: NotebookCellMetadata | undefined;
+	textModel: ITextModel | undefined;
+	hasModel(): this is IEditableCellViewModel;
+	resolveTextModel(): Promise<ITextModel>;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 	getSelectionsStartPosition(): IPosition[] | undefined;
 	getLinesContent(): string[];
+}
+
+export interface IEditableCellViewModel extends ICellViewModel {
+	textModel: ITextModel;
 }
 
 export interface INotebookEditorMouseEvent {
@@ -174,7 +181,7 @@ export interface INotebookEditor {
 	/**
 	 * Split a given cell into multiple cells of the same type using the selection start positions.
 	 */
-	splitNotebookCell(cell: ICellViewModel): CellViewModel[] | null;
+	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
 
 	/**
 	 * Joins the given cell either with the cell above or the one below depending on the given direction.

@@ -545,7 +545,7 @@ export class CellDragAndDropController {
 export class CellLanguageStatusBarItem extends Disposable {
 	private labelElement: HTMLElement;
 
-	private _cell: BaseCellViewModel | undefined;
+	private _cell: ICellViewModel | undefined;
 	private _editor: INotebookEditor | undefined;
 
 	private cellDisposables: DisposableStore;
@@ -567,7 +567,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 		this._register(this.cellDisposables = new DisposableStore());
 	}
 
-	update(cell: BaseCellViewModel, editor: INotebookEditor): void {
+	update(cell: ICellViewModel, editor: INotebookEditor): void {
 		this.cellDisposables.clear();
 		this._cell = cell;
 		this._editor = editor;

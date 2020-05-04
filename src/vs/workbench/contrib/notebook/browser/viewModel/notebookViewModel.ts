@@ -594,7 +594,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this.selectionHandles = selections;
 	}
 
-	createCell(index: number, source: string[], language: string, type: CellKind, synchronous: boolean) {
+	createCell(index: number, source: string | string[], language: string, type: CellKind, synchronous: boolean) {
 		const cell = this._notebook.createCellTextModel(source, language, type, [], undefined);
 		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);

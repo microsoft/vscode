@@ -108,7 +108,7 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	splitNotebookCell(cell: ICellViewModel): CellViewModel[] | null {
+	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
 		throw new Error('Method not implemented.');
 	}
 

@@ -1403,7 +1403,7 @@ registerAction2(class extends Action2 {
 
 async function splitCell(context: INotebookCellActionContext): Promise<void> {
 	if (context.cell.cellKind === CellKind.Code) {
-		const newCells = context.notebookEditor.splitNotebookCell(context.cell);
+		const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
 		if (newCells) {
 			context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], true);
 		}

@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, ICellViewModel, CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
@@ -22,7 +22,7 @@ export const NotebookCellMetadataDefaults = {
 	runnable: true
 };
 
-export abstract class BaseCellViewModel extends Disposable implements ICellViewModel {
+export abstract class BaseCellViewModel extends Disposable {
 	protected readonly _onDidChangeEditorAttachState = new Emitter<void>();
 	// Do not merge this event with `onDidChangeState` as we are using `Event.once(onDidChangeEditorAttachState)` elsewhere.
 	readonly onDidChangeEditorAttachState = this._onDidChangeEditorAttachState.event;
@@ -106,6 +106,14 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	private _lastDecorationId: number = 0;
 	protected _textModel?: model.ITextModel;
 
+	get textModel(): model.ITextModel | undefined {
+		return this._textModel;
+	}
+
+	hasModel(): this is IEditableCellViewModel {
+		return !!this._textModel;
+	}
+
 	private _dragging: boolean = false;
 	get dragging(): boolean {
 		return this._dragging;
@@ -127,6 +135,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		}));
 	}
 
+	// abstract resolveTextModel(): Promise<model.ITextModel>;
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
@@ -214,8 +223,6 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 	// 		this.model.source = value;
 	// 	}
 	// }
-
-	abstract save(): void;
 
 	private saveViewState(): void {
 		if (!this._textEditor) {

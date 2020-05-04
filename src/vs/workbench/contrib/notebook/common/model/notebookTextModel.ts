@@ -66,7 +66,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	createCellTextModel(
-		source: string[],
+		source: string | string[],
 		language: string,
 		cellKind: CellKind,
 		outputs: IOutput[],
