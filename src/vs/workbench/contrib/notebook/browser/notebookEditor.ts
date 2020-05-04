@@ -863,7 +863,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				// update the contents of the first cell
 				cell.textModel.applyEdits([
 					{ range: cell.textModel.getFullModelRange(), text: newLinesContents[0] }
-				]);
+				], true);
 
 				// create new cells based on the new text models
 				const language = cell.model.language;
