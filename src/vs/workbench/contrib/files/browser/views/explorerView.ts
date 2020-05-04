@@ -681,9 +681,12 @@ export class ExplorerView extends ViewPane {
 			}
 
 			try {
+				const autoRevealNoScroll = this.configurationService.getValue<IFilesConfiguration>().explorer.autoRevealNoScroll;
+
 				if (reveal) {
-					// Don't scroll to the item if it's already visible
-					if (this.tree.getRelativeTop(item) === null) {
+					// Don't scroll to the item if it's already visible,
+					// or if the settings deny it.
+					if (!autoRevealNoScroll && this.tree.getRelativeTop(item) === null) {
 						this.tree.reveal(item, 0.5);
 					}
 				}

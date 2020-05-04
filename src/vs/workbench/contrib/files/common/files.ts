@@ -122,6 +122,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			visible: number;
 		};
 		autoReveal: boolean;
+		autoRevealNoScroll: boolean;
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
