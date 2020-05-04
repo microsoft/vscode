@@ -141,7 +141,7 @@ export class NativeWindow extends Disposable {
 					}
 				}
 			} else {
-				args.push({ from: request.from }); // TODO@telemetry this is a bit weird to send this to every action?
+				args.push({ from: request.from });
 			}
 
 			try {

@@ -248,16 +248,22 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	async getDynamicProviders(): Promise<{ label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
 		const extensions = await this.extensionService.getExtensions();
-		const debugDynamicExtensions = extensions.filter(e => {
-			return e.activationEvents && e.activationEvents.filter(e => e.includes('onDebugDynamicConfigurations')).length && e.contributes?.debuggers;
-		});
+		const onDebugDynamicConfigurationsName = 'onDebugDynamicConfigurations';
+		const debugDynamicExtensionsTypes = extensions.map(e => {
+			const activationEvent = e.activationEvents && e.activationEvents.find(e => e.includes(onDebugDynamicConfigurationsName));
+			if (activationEvent) {
+				const type = activationEvent.substr(onDebugDynamicConfigurationsName.length);
+				return type || (e.contributes && e.contributes.debuggers && e.contributes.debuggers.length ? e.contributes.debuggers[0].type : undefined);
+			}
 
-		return debugDynamicExtensions.map(e => {
-			const type = e.contributes?.debuggers![0].type!;
+			return undefined;
+		}).filter(e => typeof e === 'string') as string[];
+
+		return debugDynamicExtensionsTypes.map(type => {
 			return {
 				label: this.getDebuggerLabel(type)!,
 				pick: async () => {
-					await this.activateDebuggers('onDebugDynamicConfigurations', type);
+					await this.activateDebuggers(onDebugDynamicConfigurationsName, type);
 					const token = new CancellationTokenSource();
 					const picks: Promise<{ label: string, launch: ILaunch, config: IConfig }[]>[] = [];
 					const provider = this.configProviders.filter(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations)[0];

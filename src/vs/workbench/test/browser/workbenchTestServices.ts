@@ -370,6 +370,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	_serviceBrand: undefined;
 
+	openedDefaultEditors = false;
+
 	dimension: IDimension = { width: 800, height: 600 };
 
 	container: HTMLElement = window.document.body;

@@ -40,7 +40,10 @@ export class CodeCell extends Disposable {
 		const width = this.viewCell.layoutInfo.editorWidth;
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-		const totalHeight = lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
+		const totalHeight = this.viewCell.layoutInfo.editorHeight === 0
+			? lineNum * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING
+			: this.viewCell.layoutInfo.editorHeight;
+
 		this.layoutEditor(
 			{
 				width: width,

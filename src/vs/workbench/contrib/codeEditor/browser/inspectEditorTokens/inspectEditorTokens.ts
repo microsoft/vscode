@@ -514,8 +514,18 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const line = lastLine + lineDelta; // 0-based
 			const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta; // 0-based
 			if (posLine === line && character <= posCharacter && posCharacter < character + len) {
-				const type = semanticTokens.legend.tokenTypes[typeIdx];
-				const modifiers = semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k);
+				const type = semanticTokens.legend.tokenTypes[typeIdx] || 'not in legend (ignored)';
+				const modifiers = [];
+				let modifierSet = modSet;
+				for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < semanticTokens.legend.tokenModifiers.length; modifierIndex++) {
+					if (modifierSet & 1) {
+						modifiers.push(semanticTokens.legend.tokenModifiers[modifierIndex]);
+					}
+					modifierSet = modifierSet >> 1;
+				}
+				if (modifierSet > 0) {
+					modifiers.push('not in legend (ignored)');
+				}
 				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
 				const definitions = {};
 				const colorMap = this._themeService.getColorTheme().tokenColorMap;

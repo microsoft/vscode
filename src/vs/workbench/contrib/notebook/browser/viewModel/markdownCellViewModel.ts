@@ -116,6 +116,11 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._html = null;
 	}
 
+	setLinesContent(strs: string[]) {
+		this.model.source = strs;
+		this._html = null;
+	}
+
 	getHTML(): HTMLElement | null {
 		if (this.cellKind === CellKind.Markdown) {
 			if (this._html) {

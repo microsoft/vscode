@@ -84,15 +84,18 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	getValue(): string {
-		const lineCount = this.textBuffer.getLineCount();
-		const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
-
+		const fullRange = this.getFullModelRange();
 		const eol = this.textBuffer.getEOL();
 		if (eol === '\n') {
 			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
 		} else {
 			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
 		}
+	}
+
+	getFullModelRange() {
+		const lineCount = this.textBuffer.getLineCount();
+		return new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 	}
 
 	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {

@@ -610,7 +610,7 @@ namespace HotExitState {
 
 class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
 
-	private readonly _fromBackup: boolean = false;
+	private _fromBackup: boolean = false;
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
 	private _backupId: string | undefined;
 
@@ -808,13 +808,14 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return;
 		}
 
-		if (this._currentEditIndex === this._savePoint && !this._isDirtyFromContentChange) {
+		if (this._currentEditIndex === this._savePoint && !this._isDirtyFromContentChange && !this._fromBackup) {
 			return;
 		}
 
 		this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
+			this._fromBackup = false;
 			this._currentEditIndex = this._savePoint;
 			this.spliceEdits();
 		});
@@ -837,6 +838,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
 			this._savePoint = this._currentEditIndex;
+			this._fromBackup = false;
 		});
 
 		try {
