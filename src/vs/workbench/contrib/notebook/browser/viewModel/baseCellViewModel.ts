@@ -325,24 +325,23 @@ export abstract class BaseCellViewModel extends Disposable {
 			return CursorAtBoundary.None;
 		}
 
-		// we don't allow attaching text editor without a model
-		const lineCnt = this._textEditor.getModel()!.getLineCount();
+		const firstViewLineTop = this._textEditor.getTopForPosition(1, 1);
+		const lastViewLineTop = this._textEditor.getTopForPosition(this._textModel!.getLineCount(), this._textModel!.getLineLength(this._textModel!.getLineCount()));
+		const selectionTop = this._textEditor.getTopForPosition(selection.startLineNumber, selection.startColumn);
 
-		if (selection.startLineNumber === lineCnt) {
-			// bottom
-			if (selection.startLineNumber === 1) {
+		if (selectionTop === lastViewLineTop) {
+			if (selectionTop === firstViewLineTop) {
 				return CursorAtBoundary.Both;
-			}
-			else {
+			} else {
 				return CursorAtBoundary.Bottom;
 			}
+		} else {
+			if (selectionTop === firstViewLineTop) {
+				return CursorAtBoundary.Top;
+			} else {
+				return CursorAtBoundary.None;
+			}
 		}
-
-		if (selection.startLineNumber === 1) {
-			return CursorAtBoundary.Top;
-		}
-
-		return CursorAtBoundary.None;
 	}
 
 	get textBuffer() {
