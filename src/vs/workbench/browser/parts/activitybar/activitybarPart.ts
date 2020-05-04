@@ -574,6 +574,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this.compositeBar.getPinnedComposites().map(v => v.id);
 	}
 
+	getVisibleViewletIds(): string[] {
+		return this.compositeBar.getVisibleComposites()
+			.filter(v => this.viewletService.getActiveViewlet()?.getId() === v.id || this.compositeBar.isPinned(v.id))
+			.map(v => v.id);
+	}
+
 	layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 			return;

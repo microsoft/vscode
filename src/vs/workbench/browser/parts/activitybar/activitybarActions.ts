@@ -289,16 +289,16 @@ class SwitchSideBarViewAction extends Action {
 	}
 
 	async run(offset: number): Promise<void> {
-		const pinnedViewletIds = this.activityBarService.getPinnedViewletIds();
+		const visibleViewletIds = this.activityBarService.getVisibleViewletIds();
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
 			return;
 		}
 		let targetViewletId: string | undefined;
-		for (let i = 0; i < pinnedViewletIds.length; i++) {
-			if (pinnedViewletIds[i] === activeViewlet.getId()) {
-				targetViewletId = pinnedViewletIds[(i + pinnedViewletIds.length + offset) % pinnedViewletIds.length];
+		for (let i = 0; i < visibleViewletIds.length; i++) {
+			if (visibleViewletIds[i] === activeViewlet.getId()) {
+				targetViewletId = visibleViewletIds[(i + visibleViewletIds.length + offset) % visibleViewletIds.length];
 				break;
 			}
 		}

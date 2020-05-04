@@ -21,4 +21,9 @@ export interface IActivityBarService {
 	 * Returns id of pinned viewlets following the visual order.
 	 */
 	getPinnedViewletIds(): string[];
+
+	/**
+	 * Returns id of visible viewlets following the visual order.
+	 */
+	getVisibleViewletIds(): string[];
 }
