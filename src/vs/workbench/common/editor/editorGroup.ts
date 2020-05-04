@@ -662,7 +662,7 @@ export class EditorGroup extends Disposable {
 			return null;
 		}));
 
-		this.mru = data.mru.map(i => this.editors[i]);
+		this.mru = coalesce(data.mru.map(i => this.editors[i]));
 
 		this.active = this.mru[0];
 
