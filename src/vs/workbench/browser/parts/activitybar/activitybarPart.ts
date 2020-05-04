@@ -571,12 +571,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	}
 
 	getPinnedViewletIds(): string[] {
-		const pinnedCompositeIds = this.compositeBar.getPinnedComposites().map(v => v.id);
-
-		return this.viewletService.getViewlets()
-			.filter(v => this.compositeBar.isPinned(v.id))
-			.sort((v1, v2) => pinnedCompositeIds.indexOf(v1.id) - pinnedCompositeIds.indexOf(v2.id))
-			.map(v => v.id);
+		return this.compositeBar.getPinnedComposites().map(v => v.id);
 	}
 
 	layout(width: number, height: number): void {
