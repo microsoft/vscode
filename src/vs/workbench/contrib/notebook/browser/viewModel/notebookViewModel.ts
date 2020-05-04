@@ -18,7 +18,6 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { CellEditState, CellFindMatch, ICellRange, ICellViewModel, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DeleteCellEdit, InsertCellEdit, MoveCellEdit, SpliceCellsEdit } from 'vs/workbench/contrib/notebook/browser/viewModel/cellEdit';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
@@ -26,8 +25,9 @@ import { NotebookEventDispatcher, NotebookMetadataChangedEvent } from 'vs/workbe
 import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -172,27 +172,27 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	get notebookDocument() {
-		return this._model.notebook;
+		return this._notebook;
 	}
 
 	get renderers() {
-		return this._model.notebook!.renderers;
+		return this._notebook!.renderers;
 	}
 
 	get handle() {
-		return this._model.notebook.handle;
+		return this._notebook.handle;
 	}
 
 	get languages() {
-		return this._model.notebook.languages;
+		return this._notebook.languages;
 	}
 
 	get uri() {
-		return this._model.notebook.uri;
+		return this._notebook.uri;
 	}
 
 	get metadata() {
-		return this._model.notebook.metadata;
+		return this._notebook.metadata;
 	}
 
 	private readonly _onDidChangeViewCells = new Emitter<INotebookViewCellsUpdateEvent>();
@@ -227,7 +227,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		}
 
 		this._selections = selections;
-		this._model.notebook.selections = selections;
+		this._notebook.selections = selections;
 		this._onDidChangeSelection.fire();
 	}
 
@@ -241,7 +241,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 	constructor(
 		public viewType: string,
-		private _model: INotebookEditorModel,
+		private _notebook: NotebookTextModel,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		private _layoutInfo: NotebookLayoutInfo | null,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -254,7 +254,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
 
-		this._register(this._model.onDidChangeCells(e => {
+		this._register(this._notebook.onDidChangeCells(e => {
 			const diffs = e.map(splice => {
 				return [splice[0], splice[1], splice[2].map(cell => {
 					return createCellViewModel(this.instantiationService, this, cell as NotebookCellTextModel);
@@ -315,7 +315,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this.selectionHandles = endSelectionHandles;
 		}));
 
-		this._register(this._model.notebook.onDidChangeMetadata(e => {
+		this._register(this._notebook.onDidChangeMetadata(e => {
 			this.eventDispatcher.emit([new NotebookMetadataChangedEvent(e)]);
 		}));
 
@@ -335,7 +335,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			});
 		}));
 
-		this._viewCells = this._model!.notebook!.cells.map(cell => {
+		this._viewCells = this._notebook!.cells.map(cell => {
 			return createCellViewModel(this.instantiationService, this, cell);
 		});
 
@@ -419,10 +419,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._hiddenRanges;
 	}
 
-	isDirty() {
-		return this._model.isDirty();
-	}
-
 	hide() {
 		this._viewCells.forEach(cell => {
 			if (cell.getText() !== '') {
@@ -465,7 +461,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	getVersionId() {
-		return this._model.notebook.versionId;
+		return this._notebook.versionId;
 	}
 
 	getTrackedRange(id: string): ICellRange | null {
@@ -580,7 +576,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private _insertCellDelegate(insertIndex: number, insertCell: CellViewModel) {
 		this._viewCells!.splice(insertIndex, 0, insertCell);
 		this._handleToViewCellMapping.set(insertCell.handle, insertCell);
-		this._model.insertCell(insertCell.model, insertIndex);
+		this._notebook.insertNewCell(insertIndex, [insertCell.model as NotebookCellTextModel]);
 		this._localStore.add(insertCell);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[insertIndex, 0, [insertCell]]] });
 	}
@@ -590,7 +586,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.splice(deleteIndex, 1);
 		this._handleToViewCellMapping.delete(deleteCell.handle);
 
-		this._model.deleteCell(deleteIndex);
+		this._notebook.removeCell(deleteIndex);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
 	}
 
@@ -599,11 +595,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	createCell(index: number, source: string[], language: string, type: CellKind, synchronous: boolean) {
-		const cell = this._model.notebook.createCellTextModel(source, language, type, [], undefined);
+		const cell = this._notebook.createCellTextModel(source, language, type, [], undefined);
 		let newCell: CellViewModel = createCellViewModel(this.instantiationService, this, cell);
 		this._viewCells!.splice(index, 0, newCell);
 		this._handleToViewCellMapping.set(newCell.handle, newCell);
-		this._model.insertCell(cell, index);
+		this._notebook.insertNewCell(index, [cell]);
 		this._localStore.add(newCell);
 
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
@@ -622,7 +618,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells!.splice(index, 0, newCell);
 		this._handleToViewCellMapping.set(newCell.handle, newCell);
 
-		this._model.insertCell(newCell.model, index);
+		this._notebook.insertNewCell(index, [newCell.model]);
 		this._localStore.add(newCell);
 		this.undoService.pushElement(new InsertCellEdit(this.uri, index, newCell, {
 			insertCell: this._insertCellDelegate.bind(this),
@@ -642,7 +638,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.splice(index, 1);
 		this._handleToViewCellMapping.delete(viewCell.handle);
 
-		this._model.deleteCell(index);
+		this._notebook.removeCell(index);
 
 		let endSelections: number[] = [];
 		if (this.selectionHandles.length) {
@@ -686,7 +682,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		this.viewCells.splice(index, 1);
 		this.viewCells!.splice(newIdx, 0, viewCell);
-		this._model.moveCellToIdx(index, newIdx);
+		this._notebook.moveCellToIdx(index, newIdx);
 
 		if (pushedToUndoStack) {
 			this.undoService.pushElement(new MoveCellEdit(this.uri, index, newIdx, {
@@ -869,8 +865,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this.undoService.redo(this.uri);
 	}
 
-	equal(model: NotebookEditorModel) {
-		return this._model === model;
+	equal(notebook: NotebookTextModel) {
+		return this._notebook === notebook;
 	}
 
 	dispose() {

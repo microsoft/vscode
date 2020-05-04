@@ -466,11 +466,6 @@ export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' 
 
 export interface INotebookEditorModel extends IEditorModel {
 	notebook: NotebookTextModel;
-	onDidChangeCells: Event<NotebookCellTextModelSplice[]>;
 	isDirty(): boolean;
-	getNotebook(): NotebookTextModel;
-	insertCell(cell: ICell, index: number): void;
-	deleteCell(index: number): void;
-	moveCellToIdx(index: number, newIdx: number): void;
 	save(): Promise<boolean>;
 }

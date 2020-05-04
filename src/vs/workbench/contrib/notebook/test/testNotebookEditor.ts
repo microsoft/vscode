@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { CellKind, IOutput, CellUri, NotebookCellMetadata, NotebookCellTextModelSplice, ICell, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, CellUri, NotebookCellMetadata, ICell, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -208,9 +208,6 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-	private readonly _onDidChangeCells = new Emitter<NotebookCellTextModelSplice[]>();
-	get onDidChangeCells(): Event<NotebookCellTextModelSplice[]> { return this._onDidChangeCells.event; }
-
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
@@ -230,9 +227,6 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 				this._onDidChangeDirty.fire();
 				this._onDidChangeContent.fire();
 			}));
-			this._register(_notebook.onDidChangeCells((e) => {
-				this._onDidChangeCells.fire(e);
-			}));
 		}
 	}
 
@@ -242,29 +236,6 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 
 	getNotebook(): NotebookTextModel {
 		return this._notebook;
-	}
-
-	insertCell(cell: ICell, index: number) {
-		let notebook = this.getNotebook();
-
-		if (notebook) {
-			this.notebook.insertNewCell(index, [cell as NotebookCellTextModel]);
-			this._dirty = true;
-			this._onDidChangeDirty.fire();
-
-		}
-	}
-
-	deleteCell(index: number) {
-		let notebook = this.getNotebook();
-
-		if (notebook) {
-			this.notebook.removeCell(index);
-		}
-	}
-
-	moveCellToIdx(index: number, newIdx: number) {
-		this.notebook.moveCellToIdx(index, newIdx);
 	}
 
 	async save(): Promise<boolean> {
@@ -288,7 +259,7 @@ export function withTestNotebook(instantiationService: IInstantiationService, bl
 	});
 	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
-	const viewModel = new NotebookViewModel(viewType, model, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
+	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
 
 	callback(editor, viewModel, notebook);
 

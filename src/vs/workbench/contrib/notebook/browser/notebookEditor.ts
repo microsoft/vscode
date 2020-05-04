@@ -417,7 +417,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		await super.setInput(input, options, token);
 		const model = await input.resolve();
 
-		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(model) || this.webview === null) {
+		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(model.notebook) || this.webview === null) {
 			this.detachModel();
 			await this.attachModel(input, model);
 		}
@@ -477,7 +477,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		await this.webview.waitForInitialization();
 
 		this.eventDispatcher = new NotebookEventDispatcher();
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher, this.getLayoutInfo());
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model.notebook, this.eventDispatcher, this.getLayoutInfo());
 		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
 		this.updateForMetadata();

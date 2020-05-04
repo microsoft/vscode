@@ -5,7 +5,7 @@
 
 import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICell, NotebookCellTextModelSplice, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICell, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -29,11 +29,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	private _dirty = false;
 	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
 	readonly onDidChangeDirty = this._onDidChangeDirty.event;
-	private readonly _onDidChangeCells = new Emitter<NotebookCellTextModelSplice[]>();
-	get onDidChangeCells(): Event<NotebookCellTextModelSplice[]> { return this._onDidChangeCells.event; }
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-
 	private _notebook!: NotebookTextModel;
 
 	get notebook() {
@@ -78,41 +75,11 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			this._onDidChangeContent.fire();
 		}));
 
-		if (this._notebook.onDidChangeCells) {
-			this._register(this._notebook.onDidChangeCells((e) => {
-				this._onDidChangeCells.fire(e);
-			}));
-		}
-
 		return this;
 	}
 
 	isDirty() {
 		return this._dirty;
-	}
-
-	getNotebook(): NotebookTextModel {
-		return this._notebook;
-	}
-
-	insertCell(cell: ICell, index: number) {
-		let notebook = this.getNotebook();
-		if (notebook) {
-			this.notebook.insertNewCell(index, [cell as NotebookCellTextModel]);
-			this._dirty = true;
-			this._onDidChangeDirty.fire();
-		}
-	}
-
-	deleteCell(index: number) {
-		let notebook = this.getNotebook();
-		if (notebook) {
-			this.notebook.removeCell(index);
-		}
-	}
-
-	moveCellToIdx(index: number, newIdx: number) {
-		this.notebook.moveCellToIdx(index, newIdx);
 	}
 
 	async save(): Promise<boolean> {
