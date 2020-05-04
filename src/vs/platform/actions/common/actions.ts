@@ -473,14 +473,13 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 
 	// menu
 	if (Array.isArray(menu)) {
-		for (let item of menu) {
-			disposables.add(MenuRegistry.appendMenuItem(item.id, { command: { ...command }, ...item }));
-		}
+		disposables.add(MenuRegistry.appendMenuItems(menu.map(item => ({ id: item.id, item: { command, ...item } }))));
+
 	} else if (menu) {
-		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command: { ...command }, ...menu }));
+		disposables.add(MenuRegistry.appendMenuItem(menu.id, { command, ...menu }));
 	}
 	if (f1) {
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: command }));
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command }));
 	}
 
 	// keybinding
