@@ -113,3 +113,12 @@
 	font-size: 14px;
 	color: inherit;
 }
+
+/* make leftmost item with background color flush with activity bar */
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.left.first-visible-item {
+	width: 48px;
+}
+
+.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-background-color.left.first-visible-item span.codicon {
+	margin: 0 auto;
+}
