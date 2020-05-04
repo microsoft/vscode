@@ -29,7 +29,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { registerCommands, ADD_CONFIGURATION_ID, TOGGLE_INLINE_BREAKPOINT_ID, COPY_STACK_TRACE_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, RESTART_SESSION_ID, TERMINATE_THREAD_ID, STEP_OVER_ID, STEP_INTO_ID, STEP_OUT_ID, PAUSE_ID, DISCONNECT_ID, STOP_ID, RESTART_FRAME_ID, CONTINUE_ID, FOCUS_REPL_ID, JUMP_TO_CURSOR_ID, RESTART_LABEL, STEP_INTO_LABEL, STEP_OVER_LABEL, STEP_OUT_LABEL, PAUSE_LABEL, DISCONNECT_LABEL, STOP_LABEL, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { StatusBarColorProvider } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { IViewsRegistry, Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, ViewContainer } from 'vs/workbench/common/views';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { DebugStatusContribution } from 'vs/workbench/contrib/debug/browser/debugStatus';
@@ -54,6 +54,7 @@ import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneCont
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { StartDebugQuickAccessProvider } from 'vs/workbench/contrib/debug/browser/debugQuickAccess';
 import { DebugProgressContribution } from 'vs/workbench/contrib/debug/browser/debugProgress';
+import { DebugTitleContribution } from 'vs/workbench/contrib/debug/browser/debugTitle';
 
 class OpenDebugViewletAction extends ShowViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -293,9 +294,12 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-// Register Debug Status
+// Register Debug Workbench Contributions
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugStatusContribution, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugProgressContribution, LifecyclePhase.Eventually);
+if (isWeb) {
+	Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugTitleContribution, LifecyclePhase.Eventually);
+}
 
 // Debug toolbar
 
