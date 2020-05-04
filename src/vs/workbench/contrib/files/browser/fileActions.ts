@@ -743,11 +743,6 @@ export class CollapseExplorerView extends Action {
 		const explorerView = explorerViewlet.getExplorerView();
 		if (explorerView) {
 			explorerView.collapseAll();
-			// If there is something being edited via input box make sure to close it #96198
-			const editable = this.explorerService.getEditable();
-			if (editable) {
-				await this.explorerService.setEditable(editable.stat, null);
-			}
 		}
 	}
 }
