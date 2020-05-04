@@ -15,7 +15,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, IActionOptions, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MarkerNavigationWidget } from './gotoErrorWidget';
@@ -24,12 +23,10 @@ import { binarySearch, find } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { Action } from 'vs/base/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isEqual } from 'vs/base/common/resources';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class MarkerModel {
 
@@ -192,9 +189,6 @@ class MarkerModel {
 	}
 }
 
-const markerNavigationNextIcon = registerIcon('marker-navigation-next', Codicon.chevronDown);
-const markerNavigationPreviousIcon = registerIcon('marker-navigation-previous', Codicon.chevronUp);
-
 export class MarkerController implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.markerController';
@@ -213,10 +207,8 @@ export class MarkerController implements IEditorContribution {
 		editor: ICodeEditor,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@ICodeEditorService private readonly _editorService: ICodeEditorService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IOpenerService private readonly _openerService: IOpenerService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -244,21 +236,13 @@ export class MarkerController implements IEditorContribution {
 		this._model = new MarkerModel(this._editor, markers);
 		this._markerService.onMarkerChanged(this._onMarkerChanged, this, this._disposeOnClose);
 
-		const prevMarkerKeybinding = this._keybindingService.lookupKeybinding(PrevMarkerAction.ID);
-		const nextMarkerKeybinding = this._keybindingService.lookupKeybinding(NextMarkerAction.ID);
-		const actions = [
-			new Action(NextMarkerAction.ID, NextMarkerAction.LABEL + (nextMarkerKeybinding ? ` (${nextMarkerKeybinding.getLabel()})` : ''), 'show-next-problem ' + markerNavigationNextIcon.classNames, this._model.canNavigate(), async () => { if (this._model) { this._model.move(true, true); } }),
-			new Action(PrevMarkerAction.ID, PrevMarkerAction.LABEL + (prevMarkerKeybinding ? ` (${prevMarkerKeybinding.getLabel()})` : ''), 'show-previous-problem ' + markerNavigationPreviousIcon.classNames, this._model.canNavigate(), async () => { if (this._model) { this._model.move(false, true); } })
-		];
-		this._widget = new MarkerNavigationWidget(this._editor, actions, this._themeService, this._openerService);
+		this._widget = this._instantiationService.createInstance(MarkerNavigationWidget, this._editor);
 		this._widgetVisible.set(true);
 		this._widget.onDidClose(() => this.closeMarkersNavigation(), this, this._disposeOnClose);
 
 		this._disposeOnClose.add(this._model);
 		this._disposeOnClose.add(this._widget);
-		for (const action of actions) {
-			this._disposeOnClose.add(action);
-		}
+
 		this._disposeOnClose.add(this._widget.onDidSelectRelatedInformation(related => {
 			this._editorService.openCodeEditor({
 				resource: related.resource,
@@ -431,7 +415,18 @@ export class NextMarkerAction extends MarkerNavigationAction {
 			label: NextMarkerAction.LABEL,
 			alias: 'Go to Next Problem (Error, Warning, Info)',
 			precondition: undefined,
-			kbOpts: { kbExpr: EditorContextKeys.focus, primary: KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.Alt | KeyCode.F8,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				menuId: MarkerNavigationWidget.TitleMenu,
+				title: NextMarkerAction.LABEL,
+				icon: registerIcon('marker-navigation-next', Codicon.chevronDown),
+				group: 'navigation',
+				order: 1
+			}
 		});
 	}
 }
@@ -445,7 +440,18 @@ class PrevMarkerAction extends MarkerNavigationAction {
 			label: PrevMarkerAction.LABEL,
 			alias: 'Go to Previous Problem (Error, Warning, Info)',
 			precondition: undefined,
-			kbOpts: { kbExpr: EditorContextKeys.focus, primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8, weight: KeybindingWeight.EditorContrib }
+			kbOpts: {
+				kbExpr: EditorContextKeys.focus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F8,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				menuId: MarkerNavigationWidget.TitleMenu,
+				title: NextMarkerAction.LABEL,
+				icon: registerIcon('marker-navigation-previous', Codicon.chevronUp),
+				group: 'navigation',
+				order: 2
+			}
 		});
 	}
 }
