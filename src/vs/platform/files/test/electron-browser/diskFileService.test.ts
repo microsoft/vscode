@@ -21,14 +21,13 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual, joinPath } from 'vs/base/common/resources';
 import { VSBuffer, VSBufferReadable, streamToBufferReadableStream, VSBufferReadableStream, bufferToReadable, bufferToStream, streamToBuffer } from 'vs/base/common/buffer';
-import { find } from 'vs/base/common/arrays';
 
 function getByName(root: IFileStat, name: string): IFileStat | undefined {
 	if (root.children === undefined) {
 		return undefined;
 	}
 
-	return find(root.children, child => child.name === name);
+	return root.children.find(child => child.name === name);
 }
 
 function toLineByLineReadable(content: string): VSBufferReadable {

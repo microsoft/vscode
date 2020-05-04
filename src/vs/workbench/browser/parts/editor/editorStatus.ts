@@ -50,7 +50,6 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
-import { find } from 'vs/base/common/arrays';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 
@@ -969,7 +968,7 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 		if (!position) {
 			return null;
 		}
-		return find(this.markers, marker => Range.containsPosition(marker, position)) || null;
+		return this.markers.find(marker => Range.containsPosition(marker, position)) || null;
 	}
 
 	private onMarkerChanged(changedResources: ReadonlyArray<URI>): void {
