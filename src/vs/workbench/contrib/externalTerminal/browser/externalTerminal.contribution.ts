@@ -26,6 +26,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { isWeb } from 'vs/base/common/platform';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
@@ -90,7 +91,7 @@ if (!isWeb) {
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C,
 		when: KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED,
 		weight: KeybindingWeight.WorkbenchContrib,
-		handler: (accessor) => {
+		handler: async (accessor) => {
 			const historyService = accessor.get(IHistoryService);
 			// Open external terminal in local workspaces
 			const terminalService = accessor.get(IExternalTerminalService);
@@ -102,6 +103,10 @@ if (!isWeb) {
 				const activeFile = historyService.getLastActiveFile(Schemas.file);
 				if (activeFile) {
 					terminalService.openTerminal(paths.dirname(activeFile.fsPath));
+				} else {
+					const pathService = accessor.get(IPathService);
+					const userHome = await pathService.userHome;
+					terminalService.openTerminal(userHome.fsPath);
 				}
 			}
 		}

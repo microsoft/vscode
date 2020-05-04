@@ -56,6 +56,11 @@ suite('Link protection domain matching', () => {
 
 	test('sub paths', () => {
 		linkAllowedByRules('https://x.org/foo', ['https://x.org/foo']);
+		linkAllowedByRules('https://x.org/foo/bar', ['https://x.org/foo']);
+
+		linkAllowedByRules('https://x.org/foo', ['https://x.org/foo/']);
+		linkAllowedByRules('https://x.org/foo/bar', ['https://x.org/foo/']);
+
 		linkAllowedByRules('https://x.org/foo', ['x.org/foo']);
 		linkAllowedByRules('https://x.org/foo', ['*.org/foo']);
 

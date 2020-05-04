@@ -25,6 +25,7 @@ import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvent
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/workbench/services/extensionResourceLoader/common/extensionResourceLoader';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 const RUN_TEXTMATE_IN_WORKER = false;
 
@@ -147,10 +148,11 @@ export class TextMateService extends AbstractTextMateService {
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
+		@IProgressService progressService: IProgressService,
 		@IModelService private readonly _modelService: IModelService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
-		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService);
+		super(modeService, themeService, extensionResourceLoaderService, notificationService, logService, configurationService, storageService, progressService);
 		this._worker = null;
 		this._workerProxy = null;
 		this._tokenizers = Object.create(null);

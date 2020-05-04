@@ -29,7 +29,7 @@ type UserAccountEvent = {
 	id: string;
 };
 
-type AccountQuickPickItem = { label: string, authenticationProvider: IAuthenticationProvider, account?: UserDataSyncAccount, detail?: string };
+type AccountQuickPickItem = { label: string, authenticationProvider: IAuthenticationProvider, account?: UserDataSyncAccount, description?: string };
 
 export class UserDataSyncAccount {
 
@@ -164,7 +164,9 @@ export class UserDataSyncAccounts extends Disposable {
 		let value: { token: string, authenticationProviderId: string } | undefined = undefined;
 		if (current) {
 			try {
+				this.logService.trace('Preferences Sync: Updating the token for the account', current.accountName);
 				const token = await current.getToken();
+				this.logService.trace('Preferences Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {
 				this.logService.error(e);
@@ -252,28 +254,32 @@ export class UserDataSyncAccounts extends Disposable {
 
 	private createQuickpickItems(): (AccountQuickPickItem | IQuickPickSeparator)[] {
 		const quickPickItems: (AccountQuickPickItem | IQuickPickSeparator)[] = [];
-		const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
-		for (const authenticationProvider of authenticationProviders) {
-			const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
-			if (this.all.length) {
-				quickPickItems.push({ type: 'separator', label: providerName });
-				const accounts = this._all.get(authenticationProvider.id) || [];
+
+		// Signed in Accounts
+		if (this.all.length) {
+			const authenticationProviders = [...this.authenticationProviders].sort(({ id }) => id === this.current?.authenticationProviderId ? -1 : 1);
+			quickPickItems.push({ type: 'separator', label: localize('signed in', "Signed in") });
+			for (const authenticationProvider of authenticationProviders) {
+				const accounts = (this._all.get(authenticationProvider.id) || []).sort(({ sessionId }) => sessionId === this.current?.sessionId ? -1 : 1);
+				const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
 				for (const account of accounts) {
 					quickPickItems.push({
-						label: account.accountName,
-						detail: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used") : undefined,
+						label: `${account.accountName} (${providerName})`,
+						description: account.sessionId === this.current?.sessionId ? localize('last used', "Last Used with Sync") : undefined,
 						account,
 						authenticationProvider,
 					});
 				}
-				quickPickItems.push({
-					label: accounts.length ? localize('use another', "Use another {0} Account", providerName) : localize('use provider account', "Use {0} Account", providerName),
-					authenticationProvider,
-				});
-			} else {
-				quickPickItems.push({ label: providerName, authenticationProvider });
 			}
+			quickPickItems.push({ type: 'separator', label: localize('others', "Others") });
 		}
+
+		// Account proviers
+		for (const authenticationProvider of this.authenticationProviders) {
+			const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
+			quickPickItems.push({ label: localize('sign in using account', "Sign in with {0}", providerName), authenticationProvider });
+		}
+
 		return quickPickItems;
 	}
 

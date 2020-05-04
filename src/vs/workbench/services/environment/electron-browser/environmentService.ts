@@ -55,6 +55,9 @@ export class NativeWorkbenchEnvironmentService extends EnvironmentService implem
 	@memoize
 	get extHostLogsPath(): URI { return URI.file(join(this.logsPath, `exthost${this.configuration.windowId}`)); }
 
+	@memoize
+	get skipReleaseNotes(): boolean { return !!this.args['skip-release-notes']; }
+
 	constructor(
 		readonly configuration: INativeEnvironmentConfiguration,
 		execPath: string

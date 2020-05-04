@@ -245,12 +245,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, lastActiveWorkspace, envFromConfigValue, this._configurationResolverService, isWorkspaceShellAllowed, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
 		// Fetch any extension environment additions and apply them
-		this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
-		this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
-		this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
-		if (this._extEnvironmentVariableCollection.map.size > 0) {
-			this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
-			this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
+		if (!shellLaunchConfig.strictEnv) {
+			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
+			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
+			this._extEnvironmentVariableCollection.applyToProcessEnvironment(env);
+			if (this._extEnvironmentVariableCollection.map.size > 0) {
+				this._environmentVariableInfo = new EnvironmentVariableInfoChangesActive(this._extEnvironmentVariableCollection);
+				this._onEnvironmentVariableInfoChange.fire(this._environmentVariableInfo);
+			}
 		}
 
 		const useConpty = this._configHelper.config.windowsEnableConpty && !isScreenReaderModeEnabled;

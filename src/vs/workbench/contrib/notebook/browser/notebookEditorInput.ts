@@ -12,6 +12,8 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { isEqual } from 'vs/base/common/resources';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class NotebookEditorModel extends EditorModel {
 	private _dirty = false;
@@ -91,6 +93,25 @@ export class NotebookEditorModel extends EditorModel {
 }
 
 export class NotebookEditorInput extends EditorInput {
+
+	private static readonly _instances = new Map<string, NotebookEditorInput>();
+
+	static getOrCreate(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined) {
+		const key = resource.toString() + viewType;
+		let input = NotebookEditorInput._instances.get(key);
+		if (!input) {
+			input = instantiationService.createInstance(class extends NotebookEditorInput {
+				dispose() {
+					NotebookEditorInput._instances.delete(key);
+					super.dispose();
+				}
+			}, resource, name, viewType);
+
+			NotebookEditorInput._instances.set(key, input);
+		}
+		return input;
+	}
+
 	static readonly ID: string = 'workbench.input.notebook';
 	private promise: Promise<NotebookEditorModel> | null = null;
 	private textModel: NotebookEditorModel | null = null;
@@ -102,7 +123,8 @@ export class NotebookEditorInput extends EditorInput {
 		public name: string,
 		public readonly viewType: string | undefined,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
 	) {
 		super();
 
@@ -135,6 +157,26 @@ export class NotebookEditorInput extends EditorInput {
 		return this.textModel?.isDirty() || false;
 	}
 
+	isReadonly() {
+		return false;
+	}
+
+	public isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
+		if (!this.isDirty()) {
+			return false; // the editor needs to be dirty for being saved
+		}
+
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // a short auto save is configured, treat this as being saved
+		}
+
+		return false;
+	}
+
 	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this.textModel) {
 			await this.notebookService.save(this.textModel.notebook.viewType, this.textModel.notebook.uri);
@@ -153,6 +195,10 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async resolve(): Promise<NotebookEditorModel> {
+		if (this.textModel) {
+			return this.textModel;
+		}
+
 		if (!this.promise) {
 			if (!await this.notebookService.canResolve(this.viewType!)) {
 				throw new Error(`Cannot open notebook of type '${this.viewType}'`);
@@ -172,7 +218,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async backup(): Promise<IWorkingCopyBackup> {
-		return {};
+		throw new Error();
 	}
 
 	matches(otherInput: unknown): boolean {

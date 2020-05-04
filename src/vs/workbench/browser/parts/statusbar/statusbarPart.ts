@@ -27,7 +27,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { coalesce, find } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ToggleStatusbarVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -181,7 +181,7 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	findEntry(container: HTMLElement): IStatusbarViewModelEntry | undefined {
-		return find(this._entries, entry => entry.container === container);
+		return this._entries.find(entry => entry.container === container);
 	}
 
 	getEntries(alignment: StatusbarAlignment): IStatusbarViewModelEntry[] {
@@ -695,6 +695,8 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		if (!this.entry || entry.ariaLabel !== this.entry.ariaLabel) {
+			// Set the aria label on both elements so screen readers would read the correct thing without duplication #96210
+			this.container.setAttribute('aria-label', entry.ariaLabel);
 			this.labelContainer.setAttribute('aria-label', entry.ariaLabel);
 		}
 

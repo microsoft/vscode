@@ -370,6 +370,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	_serviceBrand: undefined;
 
+	openedDefaultEditors = false;
+
 	dimension: IDimension = { width: 800, height: 600 };
 
 	container: HTMLElement = window.document.body;
@@ -632,7 +634,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	constructor(private editorGroupService?: IEditorGroupsService) { }
 	getEditors() { return []; }
-	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
+	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
 	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable { return toDisposable(() => undefined); }
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable {
 		throw new Error('Method not implemented.');

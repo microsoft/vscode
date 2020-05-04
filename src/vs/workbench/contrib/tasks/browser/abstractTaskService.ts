@@ -74,7 +74,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ITextEditorPane } from 'vs/workbench/common/editor';
+import { ITextEditorPane, SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
@@ -600,7 +600,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			let result: Task[] = [];
 			map.forEach((tasks) => {
 				for (let task of tasks) {
-					if (ContributedTask.is(task) && task.defines.type === filter.type) {
+					if (ContributedTask.is(task) && ((task.defines.type === filter.type) || (task._source.label === filter.type))) {
 						result.push(task);
 					} else if (CustomTask.is(task)) {
 						if (task.type === filter.type) {
@@ -1419,7 +1419,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 
 		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			return this.editorService.saveAll().then(() => {
+			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => {
 				return execTask(task, resolver);
 			});
 		};
@@ -1574,7 +1574,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					for (const [handle, provider] of this._providers) {
 						if ((type === undefined) || (type === this._providerTypes.get(handle))) {
 							counter++;
-							provider.provideTasks(validTypes).then(done, error);
+							provider.provideTasks(validTypes).then((taskSet: TaskSet) => {
+								// Check that the tasks provided are of the correct type
+								for (const task of taskSet.tasks) {
+									if (task.type !== this._providerTypes.get(handle)) {
+										this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
+										this.showOutput();
+										break;
+									}
+								}
+								return done(taskSet);
+							}, error);
 						}
 					}
 				} else {
@@ -2129,7 +2139,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return this.configurationService.getValue<boolean>(QUICKOPEN_DETAIL_CONFIG);
 	}
 
-	private createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, includeRecents: boolean = true): TaskQuickPickEntry[] {
+	private async createTaskQuickPickEntries(tasks: Task[], group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, includeRecents: boolean = true): Promise<TaskQuickPickEntry[]> {
 		let count: { [key: string]: number; } = {};
 		if (tasks === undefined || tasks === null || tasks.length === 0) {
 			return [];
@@ -2165,26 +2175,31 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (tasks.length === 1) {
 				entries.push(TaskQuickPickEntry(tasks[0]));
 			} else {
-				let recentlyUsedTasks = this.getRecentlyUsedTasks();
+				let recentlyUsedTasks = await this.readRecentTasks();
 				let recent: Task[] = [];
+				let recentSet: Set<string> = new Set();
 				let configured: Task[] = [];
 				let detected: Task[] = [];
 				let taskMap: IStringDictionary<Task> = Object.create(null);
 				tasks.forEach(task => {
-					let key = task.getRecentlyUsedKey();
+					let key = task.getCommonTaskId();
 					if (key) {
 						taskMap[key] = task;
 					}
 				});
-				recentlyUsedTasks.keys().reverse().forEach(key => {
-					let task = taskMap[key];
-					if (task) {
-						recent.push(task);
+				recentlyUsedTasks.reverse().forEach(recentTask => {
+					const key = recentTask.getCommonTaskId();
+					if (key) {
+						recentSet.add(key);
+						let task = taskMap[key];
+						if (task) {
+							recent.push(task);
+						}
 					}
 				});
 				for (let task of tasks) {
-					let key = task.getRecentlyUsedKey();
-					if (!key || !recentlyUsedTasks.has(key)) {
+					let key = task.getCommonTaskId();
+					if (!key || !recentSet.has(key)) {
 						if ((task._source.kind === TaskSourceKind.Workspace) || (task._source.kind === TaskSourceKind.User)) {
 							configured.push(task);
 						} else {
@@ -2213,7 +2228,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async showTwoLevelQuickPick(placeHolder: string, defaultEntry?: TaskQuickPickEntry) {
-		return TaskQuickPick.show(this, this.configurationService, this.quickInputService, placeHolder, defaultEntry);
+		return TaskQuickPick.show(this, this.configurationService, this.quickInputService, this.notificationService, placeHolder, defaultEntry);
 	}
 
 	private async showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
@@ -2446,7 +2461,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll().then(() => { // make sure all dirty editors are saved
+			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().rerun();
 				if (executeResult) {
 					return this.handleExecuteResult(executeResult);

@@ -36,6 +36,16 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	'text/plain'
 ];
 
+export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
+	'text/markdown',
+	'application/json',
+	'text/plain',
+	'text/html',
+	'image/svg+xml',
+	'image/png',
+	'image/jpeg',
+];
+
 export const notebookDocumentMetadataDefaults: NotebookDocumentMetadata = {
 	editable: true,
 	runnable: true,
@@ -221,7 +231,8 @@ export enum NotebookCellsChangeType {
 	ModelChange = 1,
 	Move = 2,
 	CellClearOutput = 3,
-	CellsClearOutput = 4
+	CellsClearOutput = 4,
+	ChangeLanguage = 5
 }
 
 export interface NotebookCellsModelChangedEvent {
@@ -248,7 +259,14 @@ export interface NotebookCellsClearOutputEvent {
 	readonly versionId: number;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent;
+export interface NotebookCellsChangeLanguageEvent {
+	readonly kind: NotebookCellsChangeType.ChangeLanguage;
+	readonly versionId: number;
+	readonly index: number;
+	readonly language: string;
+}
+
+export type NotebookCellsChangedEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2

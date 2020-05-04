@@ -184,6 +184,10 @@ export abstract class Pane extends Disposable implements IView {
 		}
 
 		this._orientation = orientation;
+
+		if (this.header) {
+			this.updateHeader();
+		}
 	}
 
 	render(): void {

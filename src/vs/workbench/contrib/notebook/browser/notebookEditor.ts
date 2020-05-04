@@ -93,6 +93,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private _rootElement!: HTMLElement;
 	private body!: HTMLElement;
+	private titleBar: HTMLElement | null = null;
 	private webview: BackLayerWebView | null = null;
 	private webviewTransparentCover: HTMLElement | null = null;
 	private list: INotebookCellList | undefined;
@@ -200,6 +201,43 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
+	populateEditorTitlebar() {
+		for (let element: HTMLElement | null = this._rootElement.parentElement; element; element = element.parentElement) {
+			if (DOM.hasClass(element, 'editor-group-container')) {
+				// elemnet is editor group container
+				for (let i = 0; i < element.childElementCount; i++) {
+					const child = element.childNodes.item(i) as HTMLElement;
+
+					if (DOM.hasClass(child, 'title')) {
+						this.titleBar = child;
+						break;
+					}
+				}
+				break;
+			}
+		}
+	}
+
+	clearEditorTitlebarZindex() {
+		if (this.titleBar === null) {
+			this.populateEditorTitlebar();
+		}
+
+		if (this.titleBar) {
+			this.titleBar.style.zIndex = 'auto';
+		}
+	}
+
+	increaseEditorTitlebarZindex() {
+		if (this.titleBar === null) {
+			this.populateEditorTitlebar();
+		}
+
+		if (this.titleBar) {
+			this.titleBar.style.zIndex = '500';
+		}
+	}
+
 	private generateFontInfo(): void {
 		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
 		this.fontInfo = BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel());
@@ -217,8 +255,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		const dndController = new CellDragAndDropController(this);
 		const renders = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this.contextKeyService, this.renderedEditors, dndController),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this, dndController),
+			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors, dndController),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this, dndController, this.renderedEditors),
 		];
 
 		this.list = this.instantiationService.createInstance(
@@ -238,6 +276,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				multipleSelectionSupport: false,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
+				transformOptimization: false,
 				styleController: (_suffix: string) => { return this.list!; },
 				overrideStyles: {
 					listBackground: editorBackground,
@@ -320,6 +359,16 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return this.webview?.webview;
 	}
 
+	setVisible(visible: boolean, group?: IEditorGroup): void {
+		if (visible) {
+			this.increaseEditorTitlebarZindex();
+		} else {
+			this.clearEditorTitlebarZindex();
+		}
+
+		super.setVisible(visible, group);
+	}
+
 	onWillHide() {
 		if (this.input && this.input instanceof NotebookEditorInput && !this.input.isDisposed()) {
 			this.saveEditorViewState(this.input);
@@ -349,6 +398,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		if (editor === this.input) {
+			this.clearEditorTitlebarZindex();
 			this.saveEditorViewState(editor);
 		}
 	}
@@ -587,6 +637,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 			state.contributionsState = contributionsState;
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
+
+			this.notebookViewModel.viewCells.forEach(cell => cell.save());
 		}
 	}
 
@@ -628,6 +680,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	selectElement(cell: ICellViewModel) {
 		this.list?.selectElement(cell);
+		// this.viewModel!.selectionHandles = [cell.handle];
 	}
 
 	revealInView(cell: ICellViewModel) {
@@ -710,16 +763,17 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return new Promise(resolve => { r = resolve; });
 	}
 
-	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = ''): CellViewModel | null {
+	insertNotebookCell(cell: ICellViewModel | undefined, type: CellKind, direction: 'above' | 'below' = 'above', initialText: string = '', ui: boolean = false): CellViewModel | null {
 		if (!this.notebookViewModel!.metadata.editable) {
 			return null;
 		}
 
 		const newLanguages = this.notebookViewModel!.languages;
-		const language = newLanguages && newLanguages.length ? newLanguages[0] : 'markdown';
+		const language = (type === CellKind.Code && newLanguages && newLanguages.length) ? newLanguages[0] : 'markdown';
 		const index = cell ? this.notebookViewModel!.getCellIndex(cell) : 0;
+		const nextIndex = ui ? this.notebookViewModel!.getNextVisibleCellIndex(index) : index + 1;
 		const insertIndex = cell ?
-			(direction === 'above' ? index : index + 1) :
+			(direction === 'above' ? index : nextIndex) :
 			index;
 		const newCell = this.notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, true);
 
@@ -934,11 +988,19 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		const originalIdx = this.notebookViewModel!.getCellIndex(cell);
 		const relativeToIndex = this.notebookViewModel!.getCellIndex(relativeToCell);
 
-		const newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+		let newIdx = direction === 'above' ? relativeToIndex : relativeToIndex + 1;
+		if (originalIdx < newIdx) {
+			newIdx--;
+		}
+
 		return this.moveCellToIndex(originalIdx, newIdx);
 	}
 
 	private async moveCellToIndex(index: number, newIdx: number): Promise<boolean> {
+		if (index === newIdx) {
+			return false;
+		}
+
 		if (!this.notebookViewModel!.moveCellToIdx(index, newIdx, true)) {
 			throw new Error('Notebook Editor move cell, index out of range');
 		}
@@ -1176,7 +1238,7 @@ export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
 	dark: new Color(new RGBA(255, 255, 255, 0.06)),
-	light: new Color(new RGBA(228, 230, 241)),
+	light: new Color(new RGBA(237, 239, 249)),
 	hc: null
 }
 	, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
@@ -1199,12 +1261,12 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .output a,
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output a,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown a { color: ${link};} `);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:hover,
+		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output a:hover,
 			.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:active { color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
@@ -1262,7 +1324,7 @@ registerThemingParticipant((theme, collector) => {
 	// }
 
 	// Cell Margin
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);

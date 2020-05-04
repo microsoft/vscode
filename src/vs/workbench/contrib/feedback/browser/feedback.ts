@@ -271,7 +271,7 @@ export class FeedbackDropdown extends Dropdown {
 
 		const hideButtonLabel = dom.append(hideButtonContainer, dom.$('label'));
 		hideButtonLabel.setAttribute('for', 'hide-button');
-		hideButtonLabel.textContent = nls.localize('showFeedback', "Show Feedback Smiley in Status Bar");
+		hideButtonLabel.textContent = nls.localize('showFeedback', "Show Feedback Icon in Status Bar");
 
 		// Button: Send Feedback
 		this.sendButton = new Button(buttonsContainer);

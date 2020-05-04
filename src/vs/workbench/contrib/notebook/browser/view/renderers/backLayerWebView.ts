@@ -120,7 +120,7 @@ export class BackLayerWebView extends Disposable {
 		super();
 		this.element = document.createElement('div');
 
-		this.element.style.width = `calc(100% - ${(CELL_MARGIN + CELL_RUN_GUTTER) * 2}px)`;
+		this.element.style.width = `calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px)`;
 		this.element.style.height = '1400px';
 		this.element.style.position = 'absolute';
 		this.element.style.margin = `0px 0 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px`;
@@ -170,7 +170,7 @@ ${loaderJs}
 						width: 100%;
 						padding: ${outputNodePadding}px;
 						box-sizing: border-box;
-						background-color: var(--vscode-list-inactiveSelectionBackground);
+						background-color: var(--vscode-notebook-outputContainerBackgroundColor);
 					}
 					body {
 						padding: 0px;

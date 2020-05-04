@@ -38,7 +38,7 @@ import { sequence } from 'vs/base/common/async';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { first } from 'vs/base/common/arrays';
 import { getVisibleAndSorted } from 'vs/workbench/contrib/debug/common/debugUtils';
-import { DebugConfigurationProviderScope } from 'vs/workbench/api/common/extHostTypes';
+import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 jsonRegistry.registerSchema(launchSchemaId, launchSchema);
@@ -195,14 +195,14 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	/**
-	 * if scope is not specified,a value of DebugConfigurationProviderScope.Initialization is assumed.
+	 * if scope is not specified,a value of DebugConfigurationProvideTrigger.Initial is assumed.
 	 */
-	hasDebugConfigurationProvider(debugType: string, scope?: DebugConfigurationProviderScope): boolean {
-		if (scope === undefined) {
-			scope = DebugConfigurationProviderScope.Initial;
+	hasDebugConfigurationProvider(debugType: string, triggerKind?: DebugConfigurationProviderTriggerKind): boolean {
+		if (triggerKind === undefined) {
+			triggerKind = DebugConfigurationProviderTriggerKind.Initial;
 		}
 		// check if there are providers for the given type that contribute a provideDebugConfigurations method
-		const providers = this.configProviders.filter(p => p.provideDebugConfigurations && (p.type === debugType) && (p.scope === scope));
+		const providers = this.configProviders.filter(p => p.provideDebugConfigurations && (p.type === debugType) && (p.triggerKind === triggerKind));
 		return providers.length > 0;
 	}
 
@@ -241,22 +241,34 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	async provideDebugConfigurations(folderUri: uri | undefined, type: string, token: CancellationToken): Promise<any[]> {
 		await this.activateDebuggers('onDebugInitialConfigurations');
-		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.scope === DebugConfigurationProviderScope.Initial && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
+		const results = await Promise.all(this.configProviders.filter(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Initial && p.provideDebugConfigurations).map(p => p.provideDebugConfigurations!(folderUri, token)));
 
 		return results.reduce((first, second) => first.concat(second), []);
 	}
 
 	async getDynamicProviders(): Promise<{ label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[]> {
-		await this.activateDebuggers('onDebugDynamicConfigurations');
-		const dynamicProviders = this.configProviders.filter(p => p.scope === DebugConfigurationProviderScope.Dynamic && p.provideDebugConfigurations);
-		return dynamicProviders.map(provider => {
+		const extensions = await this.extensionService.getExtensions();
+		const onDebugDynamicConfigurationsName = 'onDebugDynamicConfigurations';
+		const debugDynamicExtensionsTypes = extensions.map(e => {
+			const activationEvent = e.activationEvents && e.activationEvents.find(e => e.includes(onDebugDynamicConfigurationsName));
+			if (activationEvent) {
+				const type = activationEvent.substr(onDebugDynamicConfigurationsName.length);
+				return type || (e.contributes && e.contributes.debuggers && e.contributes.debuggers.length ? e.contributes.debuggers[0].type : undefined);
+			}
+
+			return undefined;
+		}).filter(e => typeof e === 'string') as string[];
+
+		return debugDynamicExtensionsTypes.map(type => {
 			return {
-				label: this.getDebuggerLabel(provider.type)!,
+				label: this.getDebuggerLabel(type)!,
 				pick: async () => {
+					await this.activateDebuggers(onDebugDynamicConfigurationsName, type);
 					const token = new CancellationTokenSource();
 					const picks: Promise<{ label: string, launch: ILaunch, config: IConfig }[]>[] = [];
+					const provider = this.configProviders.filter(p => p.type === type && p.triggerKind === DebugConfigurationProviderTriggerKind.Dynamic && p.provideDebugConfigurations)[0];
 					this.getLaunches().forEach(launch => {
-						if (launch.workspace) {
+						if (launch.workspace && provider) {
 							picks.push(provider.provideDebugConfigurations!(launch.workspace.uri, token.token).then(configurations => configurations.map(config => ({
 								label: config.name,
 								config,

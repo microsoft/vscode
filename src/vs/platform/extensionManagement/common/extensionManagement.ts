@@ -243,7 +243,7 @@ export interface IExtensionTipsService {
 }
 
 
-
+export const DefaultIconPath = require.toUrl('./media/defaultIcon.png');
 export const ExtensionsLabel = localize('extensions', "Extensions");
 export const ExtensionsChannelId = 'extensions';
 export const PreferencesLabel = localize('preferences', "Preferences");

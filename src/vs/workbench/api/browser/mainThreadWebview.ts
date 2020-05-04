@@ -610,8 +610,9 @@ namespace HotExitState {
 
 class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
 
+	private _fromBackup: boolean = false;
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
-	private readonly _fromBackup: boolean = false;
+	private _backupId: string | undefined;
 
 	private _currentEditIndex: number = -1;
 	private _savePoint: number = -1;
@@ -716,6 +717,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		return this._viewType;
 	}
 
+	public get backupId() {
+		return this._backupId;
+	}
+
 	public pushEdit(editId: number, label: string | undefined) {
 		if (!this._editable) {
 			throw new Error('Document is not editable');
@@ -803,13 +808,14 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return;
 		}
 
-		if (this._currentEditIndex === this._savePoint && !this._isDirtyFromContentChange) {
+		if (this._currentEditIndex === this._savePoint && !this._isDirtyFromContentChange && !this._fromBackup) {
 			return;
 		}
 
 		this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
+			this._fromBackup = false;
 			this._currentEditIndex = this._savePoint;
 			this.spliceEdits();
 		});
@@ -832,6 +838,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
 			this._savePoint = this._currentEditIndex;
+			this._fromBackup = false;
 		});
 
 		try {
@@ -902,6 +909,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			if (this._hotExitState === pendingState) {
 				this._hotExitState = HotExitState.Allowed;
 				backupData.meta!.backupId = backupId;
+				this._backupId = backupId;
 			}
 		} catch (e) {
 			// Make sure state has not changed in the meantime

@@ -75,7 +75,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				// Window progress without command can be shown as silent notification
 				// which will first appear in the status bar and can then be brought to
 				// the front when clicking.
-				return this.withNotificationProgress({ ...options, silent: true, location: ProgressLocation.Notification }, task, onDidCancel);
+				return this.withNotificationProgress({ delay: 150 /* default for ProgressLocation.Window */, ...options, silent: true, location: ProgressLocation.Notification }, task, onDidCancel);
 			case ProgressLocation.Explorer:
 				return this.withViewletProgress('workbench.view.explorer', task, { ...options, location });
 			case ProgressLocation.Scm:

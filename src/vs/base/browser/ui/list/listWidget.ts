@@ -838,6 +838,7 @@ export interface IListOptions<T> {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly additionalScrollHeight?: number;
+	readonly transformOptimization?: boolean;
 }
 
 export interface IListStyles {

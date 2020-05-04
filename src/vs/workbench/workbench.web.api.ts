@@ -146,18 +146,14 @@ interface IDefaultPanelLayout {
 }
 
 interface IDefaultEditor {
-	path: string;
-	scheme: string;
-	active?: boolean;
+	readonly uri: UriComponents;
+	readonly openOnlyIfExists?: boolean;
 }
 
 interface IDefaultLayout {
-	sidebar?: IDefaultSideBarLayout;
-	panel?: IDefaultPanelLayout;
-	editors?: IDefaultEditor[];
-
-	// Internal only
-	firstRun?: boolean;
+	readonly sidebar?: IDefaultSideBarLayout;
+	readonly panel?: IDefaultPanelLayout;
+	readonly editors?: IDefaultEditor[];
 }
 
 interface IWorkbenchConstructionOptions {
@@ -270,6 +266,11 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly homeIndicator?: IHomeIndicator;
 
+	/**
+	 * Optional default layout to apply on first time the workspace is opened.
+	 */
+	readonly defaultLayout?: IDefaultLayout;
+
 	//#endregion
 
 
@@ -286,8 +287,6 @@ interface IWorkbenchConstructionOptions {
 	readonly driver?: boolean;
 
 	//#endregion
-
-	defaultLayout?: IDefaultLayout;
 }
 
 interface IWorkbench {
@@ -421,6 +420,7 @@ export {
 	IHomeIndicator,
 
 	// Default layout
+	IDefaultEditor,
 	IDefaultLayout,
 	IDefaultPanelLayout,
 	IDefaultSideBarLayout,

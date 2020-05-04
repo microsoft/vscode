@@ -42,22 +42,15 @@
 
 .monaco-workbench .part > .title > .title-actions .start-debug-action-item .codicon {
 	line-height: inherit;
-	outline-offset: 0px;
 	flex-shrink: 0;
 	transition: transform 50ms ease;
-}
-
-.monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.select-container {
-	margin-left: 1px;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration .monaco-select-box {
 	border: none;
 	margin-top: 0px;
 	cursor: pointer;
-	font-size: inherit;
 	line-height: inherit;
-	outline-offset: 0px;
 }
 
 .monaco-workbench .monaco-action-bar .start-debug-action-item .configuration.disabled .monaco-select-box {
@@ -159,7 +152,9 @@
 	height: 100%;
 	line-height: 22px;
 	margin-right: 8px;
-	vertical-align: text-top;
+	background-size: 16px;
+	background-position: center center;
+	background-repeat: no-repeat;
 }
 
 .debug-pane .debug-call-stack .thread > .state > .label,

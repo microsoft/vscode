@@ -14,6 +14,16 @@ export function activate(context: vscode.ExtensionContext): any {
 			return;
 		},
 		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined, _token: vscode.CancellationToken) => {
+			if (!_cell) {
+				_cell = _document.cells[0];
+			}
+
+			_cell.outputs = [{
+				outputKind: vscode.CellOutputKind.Rich,
+				data: {
+					'text/plain': ['my output']
+				}
+			}];
 			return;
 		},
 		save: async (_document: vscode.NotebookDocument) => {

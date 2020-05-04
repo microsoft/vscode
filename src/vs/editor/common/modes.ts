@@ -608,7 +608,7 @@ export interface CompletionItemProvider {
 	 *
 	 * The editor will only resolve a completion item once.
 	 */
-	resolveCompletionItem?(model: model.ITextModel, position: Position, item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 }
 
 export interface CodeAction {
@@ -1529,6 +1529,21 @@ export interface CommentReaction {
 	readonly count?: number;
 	readonly hasReacted?: boolean;
 	readonly canEdit?: boolean;
+}
+
+/**
+ * @internal
+ */
+export interface CommentOptions {
+	/**
+	 * An optional string to show on the comment input box when it's collapsed.
+	 */
+	prompt?: string;
+
+	/**
+	 * An optional string to show as placeholder in the comment input box when it's focused.
+	 */
+	placeHolder?: string;
 }
 
 /**

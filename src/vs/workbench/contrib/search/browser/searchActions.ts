@@ -615,7 +615,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
-		this.element.parent().remove(<any>this.element);
+		this.element.parent().remove(<any>this.element, true);
 		this.viewer.domFocus();
 
 		return Promise.resolve();

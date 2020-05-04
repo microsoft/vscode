@@ -114,4 +114,75 @@ suite('notebook workflow', () => {
 
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
+
+	// test.only('document metadata is respected', async function () {
+	// 	const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+	// 	await waitFor(500);
+
+	// 	assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+	// 	const editor = vscode.notebook.activeNotebookEditor!;
+
+	// 	assert.equal(editor.document.cells.length, 1);
+	// 	editor.document.metadata.editable = false;
+	// 	await editor.edit(builder => builder.delete(0));
+	// 	assert.equal(editor.document.cells.length, 1, 'should not delete cell'); // Not editable, no effect
+	// 	await editor.edit(builder => builder.insert(0, 'test', 'python', vscode.CellKind.Code, [], undefined));
+	// 	assert.equal(editor.document.cells.length, 1, 'should not insert cell'); // Not editable, no effect
+
+	// 	editor.document.metadata.editable = true;
+	// 	await editor.edit(builder => builder.delete(0));
+	// 	assert.equal(editor.document.cells.length, 0, 'should delete cell'); // Editable, it worked
+	// 	await editor.edit(builder => builder.insert(0, 'test', 'python', vscode.CellKind.Code, [], undefined));
+	// 	assert.equal(editor.document.cells.length, 1, 'should insert cell'); // Editable, it worked
+
+	// 	// await vscode.commands.executeCommand('workbench.action.files.save');
+	// 	await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	// });
+
+	test('cell runnable metadata is respected', async () => {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		const editor = vscode.notebook.activeNotebookEditor!;
+
+		await vscode.commands.executeCommand('notebook.focusTop');
+		const cell = editor.document.cells[0];
+		assert.equal(cell.outputs.length, 0);
+		cell.metadata.runnable = false;
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		assert.equal(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
+
+		cell.metadata.runnable = true;
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+
+	test('document runnable metadata is respected', async () => {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		const editor = vscode.notebook.activeNotebookEditor!;
+
+		const cell = editor.document.cells[0];
+		assert.equal(cell.outputs.length, 0);
+		editor.document.metadata.runnable = false;
+		await vscode.commands.executeCommand('notebook.execute');
+		assert.equal(cell.outputs.length, 0, 'should not execute'); // not runnable, didn't work
+
+		editor.document.metadata.runnable = true;
+		await vscode.commands.executeCommand('notebook.execute');
+		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
+
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
 });

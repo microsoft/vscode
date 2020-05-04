@@ -17,6 +17,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 interface AllowedExtension {
 	id: string;
@@ -24,6 +25,8 @@ interface AllowedExtension {
 }
 
 const accountUsages = new Map<string, { [accountName: string]: string[] }>();
+
+const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git'];
 
 function addAccountUsage(providerId: string, accountName: string, extensionOrFeatureName: string) {
 	const providerAccountUsage = accountUsages.get(providerId);
@@ -290,7 +293,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
+		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -319,16 +323,21 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			return true;
 		}
 
+		const remoteConnection = this.remoteAgentService.getConnection();
+		if (remoteConnection && remoteConnection.remoteAuthority && remoteConnection.remoteAuthority.startsWith('vsonline') && VSO_ALLOWED_EXTENSIONS.includes(extensionId)) {
+			return true;
+		}
+
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
-			nls.localize('confirmAuthenticationAccess', "The extension '{0}' is trying to access authentication information for the {1} account '{2}'.", extensionName, providerName, accountName),
-			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow")],
+			nls.localize('confirmAuthenticationAccess', "The extension '{0}' wants to access the {1} account '{2}'.", extensionName, providerName, accountName),
+			[nls.localize('allow', "Allow"), nls.localize('cancel', "Cancel")],
 			{
-				cancelId: 0
+				cancelId: 1
 			}
 		);
 
-		const allow = choice === 1;
+		const allow = choice === 0;
 		if (allow) {
 			allowList.push({ id: extensionId, name: extensionName });
 			this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
@@ -341,13 +350,13 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		const { choice } = await this.dialogService.show(
 			Severity.Info,
 			nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName),
-			[nls.localize('cancel', "Cancel"), nls.localize('allow', "Allow")],
+			[nls.localize('allow', "Allow"), nls.localize('cancel', "Cancel")],
 			{
-				cancelId: 0
+				cancelId: 1
 			}
 		);
 
-		return choice === 1;
+		return choice === 0;
 	}
 
 	async $setTrustedExtension(providerId: string, accountName: string, extensionId: string, extensionName: string): Promise<void> {

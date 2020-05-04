@@ -459,6 +459,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 			setRowLineHeight: false,
 			horizontalScrolling: false,
 			accessibilityProvider: new AccessibilityProvider(),
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IKeybindingItemEntry) => e.keybindingItem.commandLabel || e.keybindingItem.command },
 			overrideStyles: {
 				listBackground: editorBackground
 			}

@@ -231,6 +231,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			onDragLeave: (e: IDraggedCompositeData) => {
 				toggleClass(parent, 'dragged-over', false);
 			},
+			onDragEnd: (e: IDraggedCompositeData) => {
+				toggleClass(parent, 'dragged-over', false);
+			},
 			onDrop: (e: IDraggedCompositeData) => {
 				const pinnedItems = this.getPinnedComposites();
 				this.options.dndHandler.drop(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData, { horizontallyBefore: false, verticallyBefore: false });

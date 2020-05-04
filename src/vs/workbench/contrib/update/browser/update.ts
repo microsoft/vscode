@@ -136,7 +136,7 @@ export class ProductContribution implements IWorkbenchContribution {
 
 			// was there an update? if so, open release notes
 			const releaseNotesUrl = productService.releaseNotesUrl;
-			if (shouldShowReleaseNotes && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
+			if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && releaseNotesUrl && lastVersion && productService.version !== lastVersion) {
 				showReleaseNotes(instantiationService, productService.version)
 					.then(undefined, () => {
 						notificationService.prompt(

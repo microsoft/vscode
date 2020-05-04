@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Cell sizing related
-export const CELL_MARGIN = 12;
+export const CELL_MARGIN = 20;
 export const CELL_RUN_GUTTER = 32;
 
 export const EDITOR_TOOLBAR_HEIGHT = 0;

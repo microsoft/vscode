@@ -16,7 +16,6 @@ import { GroupDirection, MergeGroupMode } from 'vs/workbench/services/editor/com
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { find } from 'vs/base/common/arrays';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -600,7 +599,7 @@ export class EditorDropTarget extends Themable {
 
 	private findTargetGroupView(child: HTMLElement): IEditorGroupView | undefined {
 		const groups = this.accessor.groups;
-		return find(groups, groupView => isAncestor(child, groupView.element) || this.delegate.groupContainsPredicate?.(groupView));
+		return groups.find(groupView => isAncestor(child, groupView.element) || this.delegate.groupContainsPredicate?.(groupView));
 	}
 
 	private updateContainer(isDraggedOver: boolean): void {

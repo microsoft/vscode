@@ -123,7 +123,7 @@ export class EditorControl extends Disposable {
 	private doInstantiateEditorPane(descriptor: IEditorDescriptor): BaseEditor {
 
 		// Return early if already instantiated
-		const existingEditorPane = this.editorPanes.filter(editorPane => descriptor.describes(editorPane))[0];
+		const existingEditorPane = this.editorPanes.find(editorPane => descriptor.describes(editorPane));
 		if (existingEditorPane) {
 			return existingEditorPane;
 		}

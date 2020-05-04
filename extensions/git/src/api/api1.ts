@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, GitExtension, RefType, RemoteSourceProvider } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, GitExtension, RefType, RemoteSourceProvider, CredentialsProvider } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
 import { mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -261,6 +261,10 @@ export class ApiImpl implements API {
 
 	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
 		return this._model.registerRemoteSourceProvider(provider);
+	}
+
+	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
+		return this._model.registerCredentialsProvider(provider);
 	}
 
 	constructor(private _model: Model) { }

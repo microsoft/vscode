@@ -10,6 +10,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import * as Codicons from 'vs/base/common/codicons';
 
 //  ------ API types
 
@@ -56,6 +57,11 @@ export interface IIconRegistry {
 	getIcons(): IconContribution[];
 
 	/**
+	 * Get the icon for the given id
+	 */
+	getIcon(id: string): IconContribution | undefined;
+
+	/**
 	 * JSON schema for an object to assign icon values to one of the color contributions.
 	 */
 	getIconSchema(): IJSONSchema;
@@ -96,7 +102,7 @@ class IconRegistry implements IIconRegistry {
 
 	public registerIcon(id: string, defaults: IconDefaults, description?: string, deprecationMessage?: string): ThemeIcon {
 		if (!description) {
-			description = localize('icon.defaultDescription', 'Icon with identifier {0}', id);
+			description = localize('icon.defaultDescription', 'Icon with identifier \'{0}\'', id);
 		}
 		let iconContribution: IconContribution = { id, description, defaults, deprecationMessage };
 		this.iconsById[id] = iconContribution;
@@ -127,6 +133,10 @@ class IconRegistry implements IIconRegistry {
 
 	public getIcons(): IconContribution[] {
 		return Object.keys(this.iconsById).map(id => this.iconsById[id]);
+	}
+
+	public getIcon(id: string): IconContribution | undefined {
+		return this.iconsById[id];
 	}
 
 	public getIconSchema(): IJSONSchema {
@@ -163,8 +173,13 @@ export function getIconRegistry(): IIconRegistry {
 	return iconRegistry;
 }
 
-
-
+function initialize() {
+	for (const icon of Codicons.iconRegistry.all) {
+		registerIcon(icon.id, icon.definition);
+	}
+	Codicons.iconRegistry.onDidRegister(icon => registerIcon(icon.id, icon.definition));
+}
+initialize();
 
 
 export const iconsSchemaId = 'vscode://schemas/icons';

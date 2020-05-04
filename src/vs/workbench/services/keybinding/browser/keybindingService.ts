@@ -709,10 +709,17 @@ let schema: IJSONSchema = {
 				'description': nls.localize('keybindings.json.key', "Key or key sequence (separated by space)"),
 			},
 			'command': {
-				'type': 'string',
-				'enum': commandsEnum,
-				'enumDescriptions': <any>commandsEnumDescriptions,
-				'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+				'anyOf': [
+					{
+						'type': 'string',
+						'enum': commandsEnum,
+						'enumDescriptions': <any>commandsEnumDescriptions,
+						'description': nls.localize('keybindings.json.command', "Name of the command to execute"),
+					},
+					{
+						'type': 'string'
+					}
+				]
 			},
 			'when': {
 				'type': 'string',
