@@ -179,7 +179,7 @@ class Preview extends Disposable {
 
 	private async render() {
 		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewEditor.webview.html = await this.getWebiewContents();
+			this.webviewEditor.webview.html = await this.getWebviewContents();
 		}
 	}
 
@@ -203,7 +203,7 @@ class Preview extends Disposable {
 		}
 	}
 
-	private async getWebiewContents(): Promise<string> {
+	private async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
 			isMac: process.platform === 'darwin',
