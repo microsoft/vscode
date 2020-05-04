@@ -553,7 +553,7 @@ export class CellDragAndDropController {
 
 			const location = this.getDropInsertLocation(templateData, event);
 			if (location) {
-				this.notebookEditor.moveCell(draggedCell, templateData.currentRenderedCell!, location);
+				this.moveCell(draggedCell, templateData.currentRenderedCell!, location);
 				container.classList.remove(DRAGOVER_TOP_CLASS, DRAGOVER_BOTTOM_CLASS);
 			}
 		}));
@@ -563,6 +563,12 @@ export class CellDragAndDropController {
 				container.classList.remove(DRAGOVER_TOP_CLASS, DRAGOVER_BOTTOM_CLASS);
 			}
 		}));
+	}
+
+	private moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, location: 'above' | 'below') {
+		const editState = draggedCell.editState;
+		this.notebookEditor.moveCell(draggedCell, ontoCell, location);
+		this.notebookEditor.focusNotebookCell(draggedCell, editState === CellEditState.Editing);
 	}
 
 	private getDropInsertLocation(templateData: BaseCellRenderTemplate, event: DragEvent): 'above' | 'below' | undefined {
