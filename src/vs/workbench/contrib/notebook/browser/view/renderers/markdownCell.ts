@@ -87,6 +87,7 @@ export class StatefullMarkdownCell extends Disposable {
 							height: editorHeight
 						}
 					}, {});
+					templateData.currentEditor = this.editor;
 
 					const cts = new CancellationTokenSource();
 					this._register({ dispose() { cts.dispose(true); } });

@@ -353,7 +353,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
-		const editorContainer = DOM.append(editorPart, $('.markdown-editor-container'));
+		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		editorPart.style.display = 'none';
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
@@ -385,16 +385,36 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private getDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+		if (templateData.currentRenderedCell!.editState === CellEditState.Editing) {
+			return this._getEditDragImage(templateData);
+		} else {
+			return this._getMarkdownDragImage(templateData);
+		}
+	}
+
+	private _getMarkdownDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
 		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.markdown-cell-row');
 		dragImageContainer.innerHTML = templateData.container.innerHTML;
+
+		// Remove all rendered content nodes after the
+		const markdownContent = dragImageContainer.querySelector('.cell.markdown')!;
+		const contentNodes = markdownContent.children[0].children;
+		for (let i = contentNodes.length - 1; i >= 1; i--) {
+			contentNodes.item(i)!.remove();
+		}
+
 		return dragImageContainer;
 	}
 
+	private _getEditDragImage(templateData: MarkdownCellRenderTemplate): HTMLElement {
+		return new CodeCellDragImageRenderer().getDragImage(templateData, templateData.currentEditor!, 'markdown');
+	}
 
 	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
 		this.commonRenderElement(element, index, templateData);
 
 		templateData.currentRenderedCell = element;
+		templateData.currentEditor = undefined;
 		templateData.editorPart!.style.display = 'none';
 		templateData.cellContainer.innerHTML = '';
 		let renderedHTML = element.getHTML();
@@ -519,8 +539,6 @@ export class CellDragAndDropController {
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_OVER)(event => {
 			event.preventDefault();
-
-
 
 			const location = this.getDropInsertLocation(templateData, event);
 			DOM.toggleClass(container, DRAGOVER_TOP_CLASS, location === 'above');
@@ -672,8 +690,8 @@ class EditorTextRenderer {
 }
 
 class CodeCellDragImageRenderer {
-	getDragImage(templateData: CodeCellRenderTemplate): HTMLElement {
-		let dragImage = this._getDragImage(templateData);
+	getDragImage(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement {
+		let dragImage = this._getDragImage(templateData, editor, type);
 		if (!dragImage) {
 			// TODO@roblourens I don't think this can happen
 			dragImage = document.createElement('div');
@@ -683,8 +701,8 @@ class CodeCellDragImageRenderer {
 		return dragImage;
 	}
 
-	private _getDragImage(templateData: CodeCellRenderTemplate): HTMLElement | null {
-		const dragImageContainer = DOM.$('.cell-drag-image.monaco-list-row.focused.code-cell-row');
+	private _getDragImage(templateData: BaseCellRenderTemplate, editor: ICodeEditor, type: 'code' | 'markdown'): HTMLElement | null {
+		const dragImageContainer = DOM.$(`.cell-drag-image.monaco-list-row.focused.${type}-cell-row`);
 		dragImageContainer.innerHTML = templateData.container.innerHTML;
 
 		const editorContainer = dragImageContainer.querySelector('.cell-editor-container');
@@ -697,7 +715,7 @@ class CodeCellDragImageRenderer {
 			focusIndicator.style.height = '40px';
 		}
 
-		const richEditorText = new EditorTextRenderer().getRichText(templateData.editor, new Range(1, 1, 1, 1000));
+		const richEditorText = new EditorTextRenderer().getRichText(editor, new Range(1, 1, 1, 1000));
 		if (!richEditorText) {
 			return null;
 		}
@@ -811,7 +829,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			toJSON: () => { return {}; }
 		};
 
-		this.dndController.addListeners(templateData, () => new CodeCellDragImageRenderer().getDragImage(templateData));
+		this.dndController.addListeners(templateData, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
 		return templateData;
 	}
 

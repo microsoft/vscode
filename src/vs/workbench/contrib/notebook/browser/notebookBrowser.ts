@@ -13,7 +13,7 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -420,6 +420,7 @@ export interface MarkdownCellRenderTemplate extends BaseCellRenderTemplate {
 	editorPart: HTMLElement;
 	editorContainer: HTMLElement;
 	foldingIndicator: HTMLElement;
+	currentEditor?: ICodeEditor;
 }
 
 export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
@@ -429,7 +430,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	runButtonContainer: HTMLElement;
 	executionOrderLabel: HTMLElement;
 	outputContainer: HTMLElement;
-	editor: CodeEditorWidget;
+	editor: ICodeEditor;
 	progressBar: ProgressBar;
 }
 
