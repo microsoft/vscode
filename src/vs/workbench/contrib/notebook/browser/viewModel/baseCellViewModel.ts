@@ -217,7 +217,7 @@ export abstract class BaseCellViewModel extends Disposable implements ICellViewM
 		}
 	}
 
-  abstract save(): void;
+	abstract save(): void;
 
 	private saveViewState(): void {
 		if (!this._textEditor) {
