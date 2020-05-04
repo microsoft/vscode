@@ -108,6 +108,7 @@ export class StatefullMarkdownCell extends Disposable {
 									height: realContentHeight
 								}
 							);
+							editorHeight = realContentHeight;
 						}
 
 						viewCell.attachTextEditor(this.editor!);
@@ -120,6 +121,12 @@ export class StatefullMarkdownCell extends Disposable {
 							width: width,
 							height: editorHeight
 						});
+
+
+						const clientHeight = this.markdownContainer.clientHeight;
+						const totalHeight = editorHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
+						this.viewCell.totalHeight = totalHeight;
+						notebookEditor.layoutNotebookCell(viewCell, totalHeight);
 					});
 				}
 
