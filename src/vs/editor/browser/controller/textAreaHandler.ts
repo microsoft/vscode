@@ -117,7 +117,7 @@ export class TextAreaHandler extends ViewPart {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
-		this.textArea.setClassName('inputarea');
+		this.textArea.setClassName('inputarea mouse-text');
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
@@ -279,7 +279,7 @@ export class TextAreaHandler extends ViewPart {
 			}
 
 			// Show the textarea
-			this.textArea.setClassName('inputarea ime-input');
+			this.textArea.setClassName('inputarea mouse-text ime-input');
 
 			this._viewController.compositionStart('keyboard');
 		}));
@@ -301,7 +301,7 @@ export class TextAreaHandler extends ViewPart {
 			this._visibleTextArea = null;
 			this._render();
 
-			this.textArea.setClassName('inputarea');
+			this.textArea.setClassName('inputarea mouse-text');
 			this._viewController.compositionEnd('keyboard');
 		}));
 

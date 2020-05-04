@@ -2095,7 +2095,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		maxCharsPerLine += this.modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
 
 		let domNode = document.createElement('div');
-		domNode.className = 'view-lines line-delete';
+		domNode.className = 'view-lines line-delete mouse-text';
 		domNode.innerHTML = sb.build();
 		Configuration.applyFontInfoSlow(domNode, fontInfo);
 

@@ -63,7 +63,7 @@ export class ViewCursor {
 
 		// Create the dom node
 		this._domNode = createFastDomNode(document.createElement('div'));
-		this._domNode.setClassName('cursor');
+		this._domNode.setClassName('cursor mouse-text');
 		this._domNode.setHeight(this._lineHeight);
 		this._domNode.setTop(0);
 		this._domNode.setLeft(0);
@@ -200,7 +200,7 @@ export class ViewCursor {
 			this._domNode.domNode.textContent = this._lastRenderedContent;
 		}
 
-		this._domNode.setClassName('cursor ' + this._renderData.textContentClassName);
+		this._domNode.setClassName('cursor mouse-text ' + this._renderData.textContentClassName);
 
 		this._domNode.setDisplay('block');
 		this._domNode.setTop(this._renderData.top);

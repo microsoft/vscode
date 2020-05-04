@@ -175,6 +175,10 @@ body.web {
 	cursor: default;
 }
 
+.monaco-workbench .mouse-text {
+	cursor: text;
+}
+
 /* Custom Dropdown (select) Arrows */
 
 .monaco-workbench select {

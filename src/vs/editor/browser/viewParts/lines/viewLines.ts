@@ -134,7 +134,7 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		this._viewLineOptions = new ViewLineOptions(conf, this._context.theme.type);
 
 		PartFingerprints.write(this.domNode, PartFingerprint.ViewLines);
-		this.domNode.setClassName('view-lines');
+		this.domNode.setClassName('view-lines mouse-text');
 		Configuration.applyFontInfo(this.domNode, fontInfo);
 
 		// --- width & height

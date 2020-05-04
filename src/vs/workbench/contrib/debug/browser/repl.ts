@@ -508,7 +508,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		super.renderBody(parent);
 
 		this.container = dom.append(parent, $('.repl'));
-		const treeContainer = dom.append(this.container, $('.repl-tree'));
+		const treeContainer = dom.append(this.container, $('.repl-tree.mouse-text'));
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);

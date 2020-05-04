@@ -100,7 +100,7 @@ export class CommentNode extends Disposable {
 
 		this.createHeader(this._commentDetailsContainer);
 
-		this._body = dom.append(this._commentDetailsContainer, dom.$('div.comment-body'));
+		this._body = dom.append(this._commentDetailsContainer, dom.$('div.comment-body.mouse-text'));
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
@@ -120,7 +120,7 @@ export class CommentNode extends Disposable {
 	}
 
 	private createHeader(commentDetailsContainer: HTMLElement): void {
-		const header = dom.append(commentDetailsContainer, dom.$('div.comment-title'));
+		const header = dom.append(commentDetailsContainer, dom.$('div.comment-title.mouse-text'));
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
 
