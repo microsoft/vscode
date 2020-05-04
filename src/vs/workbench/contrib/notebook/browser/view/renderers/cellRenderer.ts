@@ -488,16 +488,31 @@ const DRAGGING_CLASS = 'cell-dragging';
 const DRAGOVER_TOP_CLASS = 'cell-dragover-top';
 const DRAGOVER_BOTTOM_CLASS = 'cell-dragover-bottom';
 
+const GLOBAL_DRAG_CLASS = 'global-drag-active';
+
 type DragImageProvider = () => HTMLElement;
 
-export class CellDragAndDropController {
+export class CellDragAndDropController extends Disposable {
 	// TODO@roblourens - should probably use dataTransfer here, but any dataTransfer set makes the editor think I am dropping a file, need
 	// to figure out how to prevent that
 	private currentDraggedCell: ICellViewModel | undefined;
 
 	constructor(
 		private readonly notebookEditor: INotebookEditor
-	) { }
+	) {
+		super();
+
+		this._register(domEvent(document.body, DOM.EventType.DRAG_START, true)(this.onGlobalDragStart.bind(this)));
+		this._register(domEvent(document.body, DOM.EventType.DRAG_END, true)(this.onGlobalDragEnd.bind(this)));
+	}
+
+	private onGlobalDragStart() {
+		this.notebookEditor.getDomNode().classList.add(GLOBAL_DRAG_CLASS);
+	}
+
+	private onGlobalDragEnd() {
+		this.notebookEditor.getDomNode().classList.remove(GLOBAL_DRAG_CLASS);
+	}
 
 	addListeners(templateData: BaseCellRenderTemplate, dragImageProvider: DragImageProvider): void {
 		const container = templateData.container;
@@ -511,17 +526,12 @@ export class CellDragAndDropController {
 		};
 
 		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
-			// TODO@roblourens
-			(this.notebookEditor.getInnerWebview() as any)!.element.style['pointer-events'] = '';
-
 			// Note, templateData may have a different element rendered into it by now
 			container.classList.remove(DRAGGING_CLASS);
 			dragCleanup();
 		}));
 
 		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_START)(event => {
-			(this.notebookEditor.getInnerWebview() as any)!.element.style['pointer-events'] = 'none';
-
 			if (!event.dataTransfer) {
 				return;
 			}

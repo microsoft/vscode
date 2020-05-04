@@ -35,6 +35,10 @@
 	position: relative;
 }
 
+.monaco-workbench .part.editor > .content .notebook-editor.global-drag-active .webview {
+	pointer-events: none;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .webview-cover {
 	position: absolute;
 	top: 0;
@@ -457,13 +461,6 @@
 	text-align: center;
 	font-size: 14px;
 	color: inherit;
-}
-
-.notebook-webview {
-	position: absolute;
-	z-index: 1000000;
-	left: 373px;
-	top: 0px;
 }
 
 /* markdown */
