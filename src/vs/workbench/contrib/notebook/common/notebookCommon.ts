@@ -10,9 +10,10 @@ import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 export enum CellKind {
 	Markdown = 1,
@@ -159,7 +160,6 @@ export type IOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutpu
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
-	source: string[];
 	language: string;
 	cellKind: CellKind;
 	outputs: IOutput[];
@@ -167,9 +167,6 @@ export interface ICell {
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
 	onDidChangeMetadata: Event<void>;
-	resolveTextBufferFactory(): PieceTreeTextBufferFactory;
-	// TODO@rebornix it should be later on replaced by moving textmodel resolution into CellTextModel
-	contentChange(): void;
 }
 
 export interface LanguageInfo {
@@ -465,3 +462,10 @@ export interface ICellEditorViewState {
 }
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
+
+
+export interface INotebookEditorModel extends IEditorModel {
+	notebook: NotebookTextModel;
+	isDirty(): boolean;
+	save(): Promise<boolean>;
+}

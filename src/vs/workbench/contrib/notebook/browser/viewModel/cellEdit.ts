@@ -67,7 +67,8 @@ export class DeleteCellEdit implements IResourceUndoRedoElement {
 		this._rawCell = cell.model;
 
 		// save inmem text to `ICell`
-		this._rawCell.source = [cell.getText()];
+		// no needed any more as the text buffer is transfered to `raw_cell`
+		// this._rawCell.source = [cell.getText()];
 	}
 
 	undo(): void | Promise<void> {

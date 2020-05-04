@@ -17,14 +17,14 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
-import { FindMatch } from 'vs/editor/common/model';
-import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -93,6 +93,7 @@ export interface MarkdownCellLayoutChangeEvent {
 export interface ICellViewModel {
 	readonly model: NotebookCellTextModel;
 	readonly id: string;
+	readonly textBuffer: IReadonlyTextBuffer;
 	dragging: boolean;
 	handle: number;
 	uri: URI;
@@ -103,12 +104,17 @@ export interface ICellViewModel {
 	currentTokenSource: CancellationTokenSource | undefined;
 	focusMode: CellFocusMode;
 	getText(): string;
-	save(): void;
 	metadata: NotebookCellMetadata | undefined;
+	textModel: ITextModel | undefined;
+	hasModel(): this is IEditableCellViewModel;
+	resolveTextModel(): Promise<ITextModel>;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 	getSelectionsStartPosition(): IPosition[] | undefined;
-	setLinesContent(value: string[]): void;
 	getLinesContent(): string[];
+}
+
+export interface IEditableCellViewModel extends ICellViewModel {
+	textModel: ITextModel;
 }
 
 export interface INotebookEditorMouseEvent {
@@ -175,7 +181,7 @@ export interface INotebookEditor {
 	/**
 	 * Split a given cell into multiple cells of the same type using the selection start positions.
 	 */
-	splitNotebookCell(cell: ICellViewModel): CellViewModel[] | null;
+	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null>;
 
 	/**
 	 * Joins the given cell either with the cell above or the one below depending on the given direction.

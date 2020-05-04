@@ -9,7 +9,7 @@ import { parse } from 'vs/base/common/marshalling';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -26,7 +26,8 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { NotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -247,14 +248,25 @@ class CellContentProvider implements ITextModelContentProvider {
 		if (!info) {
 			return null;
 		}
-		const notebook = await this._notebookService.resolveNotebook(info.id, data.notebook);
-		if (!notebook) {
+
+		const editorModel = await this._notebookService.modelManager.get(data.notebook);
+		if (!editorModel) {
 			return null;
 		}
-		for (let cell of notebook.cells) {
+
+		for (let cell of editorModel.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
-				const bufferFactory = cell.resolveTextBufferFactory();
-				const language = cell.cellKind === CellKind.Markdown ? this._modeService.create('markdown') : (cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.source[0]));
+				const bufferFactory: ITextBufferFactory = {
+					create: (defaultEOL) => {
+						const newEOL = (defaultEOL === DefaultEndOfLine.CRLF ? '\r\n' : '\n');
+						(cell.textBuffer as ITextBuffer).setEOL(newEOL);
+						return cell.textBuffer as ITextBuffer;
+					},
+					getFirstLineText: (limit: number) => {
+						return cell.textBuffer.getLineContent(1).substr(0, limit);
+					}
+				};
+				const language = cell.cellKind === CellKind.Markdown ? this._modeService.create('markdown') : (cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
 				return this._modelService.createModel(
 					bufferFactory,
 					language,

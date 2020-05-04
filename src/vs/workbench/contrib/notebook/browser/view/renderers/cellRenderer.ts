@@ -470,7 +470,7 @@ const DRAGOVER_CLASS = 'cell-dragover';
 type DragImageProvider = () => HTMLElement;
 
 export class CellDragAndDropController {
-	// TODO roblou - should probably use dataTransfer here, but any dataTransfer set makes the editor think I am dropping a file, need
+	// TODO@roblourens - should probably use dataTransfer here, but any dataTransfer set makes the editor think I am dropping a file, need
 	// to figure out how to prevent that
 	private currentDraggedCell: ICellViewModel | undefined;
 
@@ -490,7 +490,7 @@ export class CellDragAndDropController {
 		};
 
 		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
-			// TODO
+			// TODO@roblourens
 			(this.notebookEditor.getInnerWebview() as any)!.element.style['pointer-events'] = '';
 
 			// Note, templateData may have a different element rendered into it by now
@@ -545,7 +545,7 @@ export class CellDragAndDropController {
 export class CellLanguageStatusBarItem extends Disposable {
 	private labelElement: HTMLElement;
 
-	private _cell: BaseCellViewModel | undefined;
+	private _cell: ICellViewModel | undefined;
 	private _editor: INotebookEditor | undefined;
 
 	private cellDisposables: DisposableStore;
@@ -567,7 +567,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 		this._register(this.cellDisposables = new DisposableStore());
 	}
 
-	update(cell: BaseCellViewModel, editor: INotebookEditor): void {
+	update(cell: ICellViewModel, editor: INotebookEditor): void {
 		this.cellDisposables.clear();
 		this._cell = cell;
 		this._editor = editor;
@@ -648,7 +648,7 @@ class CodeCellDragImageRenderer {
 	getDragImage(templateData: CodeCellRenderTemplate): HTMLElement {
 		let dragImage = this._getDragImage(templateData);
 		if (!dragImage) {
-			// TODO I don't think this can happen
+			// TODO@roblourens I don't think this can happen
 			dragImage = document.createElement('div');
 			dragImage.textContent = '1 cell';
 		}
@@ -819,7 +819,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		} else if (metadata.runState === NotebookCellRunState.Error) {
 			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(error)');
 		} else if (metadata.runState === NotebookCellRunState.Running) {
-			// TODO should extensions be able to customize the status message while running to show progress?
+			// TODO@roblourens should extensions be able to customize the status message while running to show progress?
 			templateData.cellStatusMessageContainer.textContent = nls.localize('cellRunningStatus', "Running");
 			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(sync~spin)');
 		} else {

@@ -16,7 +16,7 @@ import { BaseCellRenderTemplate, CellEditState, CellRunState, ICellViewModel, IN
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
@@ -1403,7 +1403,7 @@ registerAction2(class extends Action2 {
 
 async function splitCell(context: INotebookCellActionContext): Promise<void> {
 	if (context.cell.cellKind === CellKind.Code) {
-		const newCells = context.notebookEditor.splitNotebookCell(context.cell);
+		const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
 		if (newCells) {
 			context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], true);
 		}

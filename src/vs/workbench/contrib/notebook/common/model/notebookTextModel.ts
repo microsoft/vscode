@@ -66,7 +66,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	createCellTextModel(
-		source: string[],
+		source: string | string[],
 		language: string,
 		cellKind: CellKind,
 		outputs: IOutput[],
@@ -200,7 +200,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					[{
 						handle: cell.handle,
 						uri: cell.uri,
-						source: cell.source,
+						source: cell.textBuffer.getLinesContent(),
 						language: cell.language,
 						cellKind: cell.cellKind,
 						outputs: cell.outputs,
@@ -237,7 +237,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					cells.map(cell => ({
 						handle: cell.handle,
 						uri: cell.uri,
-						source: cell.source,
+						source: cell.textBuffer.getLinesContent(),
 						language: cell.language,
 						cellKind: cell.cellKind,
 						outputs: cell.outputs,

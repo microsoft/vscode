@@ -29,9 +29,10 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
 import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, INotebookEditorContribution, NOTEBOOK_EDITOR_RUNNABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { NotebookEditorInput, NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, INotebookCellList, INotebookEditor, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, INotebookEditorContribution, NOTEBOOK_EDITOR_RUNNABLE, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
+import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { BackLayerWebView } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
@@ -417,7 +418,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		await super.setInput(input, options, token);
 		const model = await input.resolve();
 
-		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(model) || this.webview === null) {
+		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(model.notebook) || this.webview === null) {
 			this.detachModel();
 			await this.attachModel(input, model);
 		}
@@ -477,7 +478,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		await this.webview.waitForInitialization();
 
 		this.eventDispatcher = new NotebookEventDispatcher();
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model, this.eventDispatcher, this.getLayoutInfo());
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, input.viewType!, model.notebook, this.eventDispatcher, this.getLayoutInfo());
 		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
 		this.updateForMetadata();
@@ -637,8 +638,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 			state.contributionsState = contributionsState;
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
-
-			this.notebookViewModel.viewCells.forEach(cell => cell.save());
 		}
 	}
 
@@ -828,60 +827,43 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return boundaries.length > 2 ? boundaries : null;
 	}
 
-	private computeCellLinesContents(cell: ICellViewModel, splitPoints: IPosition[]): string[][] | null {
+	private computeCellLinesContents(cell: IEditableCellViewModel, splitPoints: IPosition[]): string[] | null {
 		const lines = cell.getLinesContent();
 		const rangeBoundaries = this.splitPointsToBoundaries(splitPoints, lines);
 		if (!rangeBoundaries) {
 			return null;
 		}
-		const newLineModels: string[][] = [];
+		const newLineModels: string[] = [];
 		for (let i = 1; i < rangeBoundaries.length; i++) {
 			const start = rangeBoundaries[i - 1];
 			const end = rangeBoundaries[i];
-			// get the right lines
-			const newLines = lines.slice(start.lineNumber - 1, end.lineNumber);
-			if (start.lineNumber === end.lineNumber) {
-				// cut the line at the beginning and the end
-				let line = newLines[0];
-				line = line.slice(start.column - 1, end.column - 1);
-				newLines[0] = line;
-			}
-			else {
-				// cut last line at the end
-				let lastLine = newLines[newLines.length - 1];
-				lastLine = lastLine.slice(0, end.column - 1);
-				if (lastLine) {
-					newLines[newLines.length - 1] = lastLine;
-				} else {
-					newLines.pop();
-				}
 
-				// cut first line at the beginning
-				let firstLine = newLines[0];
-				firstLine = firstLine.slice(start.column - 1);
-				if (firstLine) {
-					newLines[0] = firstLine;
-				} else {
-					newLines.shift();
-				}
-			}
-			newLineModels.push(newLines);
+			newLineModels.push(cell.textModel.getValueInRange(new Range(start.lineNumber, start.column, end.lineNumber, end.column)));
 		}
+
 		return newLineModels;
 	}
 
-	splitNotebookCell(cell: ICellViewModel): CellViewModel[] | null {
+	async splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
 		if (!this.notebookViewModel!.metadata.editable) {
 			return null;
 		}
 
 		let splitPoints = cell.getSelectionsStartPosition();
 		if (splitPoints && splitPoints.length > 0) {
+			await cell.resolveTextModel();
+
+			if (!cell.hasModel()) {
+				return null;
+			}
+
 			let newLinesContents = this.computeCellLinesContents(cell, splitPoints);
 			if (newLinesContents) {
 
 				// update the contents of the first cell
-				cell.setLinesContent(newLinesContents[0]);
+				cell.textModel.applyEdits([
+					{ range: cell.textModel.getFullModelRange(), text: newLinesContents[0] }
+				], true);
 
 				// create new cells based on the new text models
 				const language = cell.model.language;
@@ -921,8 +903,19 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			if (constraint && above.cellKind !== constraint) {
 				return null;
 			}
-			const newContent = above.getLinesContent().concat(cell.getLinesContent());
-			above.setLinesContent(newContent);
+
+			await above.resolveTextModel();
+			if (!above.hasModel()) {
+				return null;
+			}
+
+			const insertContent = cell.getText();
+			const aboveCellLineCount = above.textModel.getLineCount();
+			const aboveCellLastLineEndColumn = above.textModel.getLineLength(aboveCellLineCount);
+			above.textModel.applyEdits([
+				{ range: new Range(aboveCellLineCount, aboveCellLastLineEndColumn + 1, aboveCellLineCount, aboveCellLastLineEndColumn + 1), text: insertContent }
+			]);
+
 			await this.deleteNotebookCell(cell);
 			return above;
 		} else {
@@ -930,8 +923,20 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			if (constraint && below.cellKind !== constraint) {
 				return null;
 			}
-			const newContent = cell.getLinesContent().concat(below.getLinesContent());
-			cell.setLinesContent(newContent);
+
+			await cell.resolveTextModel();
+			if (!cell.hasModel()) {
+				return null;
+			}
+
+			const insertContent = below.getText();
+
+			const cellLineCount = cell.textModel.getLineCount();
+			const cellLastLineEndColumn = cell.textModel.getLineLength(cellLineCount);
+			cell.textModel.applyEdits([
+				{ range: new Range(cellLineCount, cellLastLineEndColumn + 1, cellLineCount, cellLastLineEndColumn + 1), text: insertContent }
+			]);
+
 			await this.deleteNotebookCell(below);
 			return cell;
 		}
@@ -942,7 +947,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			return false;
 		}
 
-		(cell as CellViewModel).save();
 		const index = this.notebookViewModel!.getCellIndex(cell);
 		this.notebookViewModel!.deleteCell(index, true);
 		return true;
