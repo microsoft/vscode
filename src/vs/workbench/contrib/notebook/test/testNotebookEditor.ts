@@ -117,6 +117,14 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
+	splitNotebookCell(cell: ICellViewModel): CellViewModel[] | null {
+		throw new Error('Method not implemented.');
+	}
+
+	joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null> {
+		throw new Error('Method not implemented.');
+	}
+
 	setSelection(cell: CellViewModel, selection: Range): void {
 		throw new Error('Method not implemented.');
 	}

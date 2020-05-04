@@ -241,7 +241,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 	bindEditorListeners(model: ITextModel, dimension?: IDimension) {
 		this.localDisposables.add(model.onDidChangeContent(() => {
-			this.viewCell.setText(model.getLinesContent());
+			this.viewCell.setLinesContent(model.getLinesContent());
 			let clientHeight = this.markdownContainer.clientHeight;
 			this.markdownContainer.innerHTML = '';
 			let renderedHTML = this.viewCell.getHTML();
