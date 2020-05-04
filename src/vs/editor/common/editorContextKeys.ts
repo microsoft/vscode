@@ -36,6 +36,13 @@ export namespace EditorContextKeys {
 	export const canUndo = new RawContextKey<boolean>('canUndo', false);
 	export const canRedo = new RawContextKey<boolean>('canRedo', false);
 
+	/**
+	 * A context key that is set when an editor is part of a larger editor, like notebooks or
+	 * (future) a diff editor
+	 */
+	export const inCompositeEditor = new RawContextKey<boolean>('inCompositeEditor', undefined);
+	export const notInCompositeEditor = inCompositeEditor.toNegated();
+
 	// -- mode context keys
 	export const languageId = new RawContextKey<string>('editorLangId', '');
 	export const hasCompletionItemProvider = new RawContextKey<boolean>('editorHasCompletionItemProvider', false);

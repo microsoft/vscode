@@ -50,6 +50,8 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 const $ = DOM.$;
 
@@ -416,7 +418,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 			this.setupBetweenCellToolbarActions(element, templateData, elementDisposables, toolbarContext);
 
-			const markdownCell = new StatefullMarkdownCell(this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors, this.instantiationService);
+			const markdownCell = this.instantiationService.createInstance(StatefullMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors);
 			elementDisposables.add(this.editorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
 			elementDisposables.add(markdownCell);
 
@@ -703,9 +705,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	constructor(
 		protected notebookEditor: INotebookEditor,
-		protected contextKeyService: IContextKeyService,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		dndController: CellDragAndDropController,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -734,9 +736,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
 
+		// create a special context key service that set the inCompositeEditor-contextkey
+		const editorContextKeyService = this.contextKeyService.createScoped();
+		const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
+		EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
+
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, editorContainer, {
+		const editor = editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
 			...this.editorOptions.value,
 			dimension: {
 				width: 0,

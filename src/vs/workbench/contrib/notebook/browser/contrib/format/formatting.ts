@@ -3,38 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getActiveNotebookEditor, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/format';
+import { getDocumentFormattingEditsUntilResult, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/format';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Progress } from 'vs/platform/progress/common/progress';
 
+// format notebook
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.format',
 			title: localize('format.title', 'Format Notebook'),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR),
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE),
 			keybinding: {
 				when: EditorContextKeys.editorTextFocus.toNegated(),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
 				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			f1: true
+			f1: true,
+			menu: {
+				id: MenuId.EditorContext,
+				when: ContextKeyExpr.and(EditorContextKeys.inCompositeEditor, EditorContextKeys.hasDocumentFormattingProvider),
+				group: '1_modification',
+				order: 1.3
+			}
 		});
 	}
 
@@ -84,6 +94,34 @@ registerAction2(class extends Action2 {
 		} finally {
 			dispoables.dispose();
 		}
+	}
+});
 
+// format cell
+registerEditorAction(class FormatCellAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'notebook.formatCell',
+			label: localize('formatCell.label', "Format Cell"),
+			alias: 'Format Cell',
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, EditorContextKeys.inCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
+			kbOpts: {
+				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus),
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
+				linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_I },
+				weight: KeybindingWeight.EditorContrib
+			},
+			contextMenuOpts: {
+				group: '1_modification',
+				order: 1.301
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		if (editor.hasModel()) {
+			const instaService = accessor.get(IInstantiationService);
+			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None);
+		}
 	}
 });
