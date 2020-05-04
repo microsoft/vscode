@@ -106,9 +106,7 @@ export interface ICellViewModel {
 	save(): void;
 	metadata: NotebookCellMetadata | undefined;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
-
 	getSelectionsStartPosition(): IPosition[] | undefined;
-	language: string;
 	setLinesContent(value: string[]): void;
 	getLinesContent(): string[];
 }
