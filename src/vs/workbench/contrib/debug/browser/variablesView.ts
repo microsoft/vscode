@@ -356,10 +356,10 @@ class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpr
 
 	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
-			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);
+			return nls.localize('variableScopeAriaLabel', "Scope {0}", element.name);
 		}
 		if (element instanceof Variable) {
-			return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
+			return nls.localize('variableAriaLabel', "{0}, value {1}", element.name, element.value);
 		}
 
 		return null;

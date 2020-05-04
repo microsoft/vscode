@@ -649,7 +649,7 @@ class BreakpointsAccessibilityProvider implements IListAccessibilityProvider<Bre
 		const { message } = getBreakpointMessageAndClassName(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), element as IBreakpoint | IDataBreakpoint | IFunctionBreakpoint);
 		const toString = element.toString();
 
-		return message ? `${toString} ${message}` : toString;
+		return message ? `${toString}, ${message}` : toString;
 	}
 }
 

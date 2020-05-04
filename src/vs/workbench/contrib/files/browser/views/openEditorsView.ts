@@ -700,7 +700,7 @@ class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<Ope
 
 	getAriaLabel(element: OpenEditor | IEditorGroup): string | null {
 		if (element instanceof OpenEditor) {
-			return `${element.editor.getName()} ${element.editor.getDescription()}`;
+			return `${element.editor.getName()}, ${element.editor.getDescription()}`;
 		}
 
 		return element.ariaLabel;

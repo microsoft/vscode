@@ -855,7 +855,7 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", element.name, element.range.startLineNumber, element.getSpecificSourceName());
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}, callstack, debug", element.name, element.range.startLineNumber, element.getSpecificSourceName());
 		}
 		if (isDebugSession(element)) {
 			return nls.localize('sessionLabel', "Debug Session {0}", element.getLabel());
