@@ -32,7 +32,7 @@ export namespace EditorContextKeys {
 	export const hasSingleSelection = hasMultipleSelections.toNegated();
 	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false);
 	export const tabDoesNotMoveFocus = tabMovesFocus.toNegated();
-	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', false);
+	export const isInWalkThroughSnippet = new RawContextKey<boolean>('isInEmbeddedEditor', false);
 	export const canUndo = new RawContextKey<boolean>('canUndo', false);
 	export const canRedo = new RawContextKey<boolean>('canRedo', false);
 
