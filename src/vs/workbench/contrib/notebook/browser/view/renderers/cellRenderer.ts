@@ -357,7 +357,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		editorPart.style.display = 'none';
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
-		const insertionIndicatorTop = DOM.append(container, DOM.$('.notebook-cell-insertion-indicator-top'));
+		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-top'));
+		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-bottom'));
 		const foldingIndicator = DOM.append(focusIndicator, DOM.$('.notebook-folding-indicator'));
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
@@ -365,7 +366,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 
 		const templateData: MarkdownCellRenderTemplate = {
-			insertionIndicatorTop,
 			container,
 			cellContainer: innerContent,
 			editorPart,
@@ -465,7 +465,8 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 }
 
 const DRAGGING_CLASS = 'cell-dragging';
-const DRAGOVER_CLASS = 'cell-dragover';
+const DRAGOVER_TOP_CLASS = 'cell-dragover-top';
+const DRAGOVER_BOTTOM_CLASS = 'cell-dragover-bottom';
 
 type DragImageProvider = () => HTMLElement;
 
@@ -518,6 +519,12 @@ export class CellDragAndDropController {
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_OVER)(event => {
 			event.preventDefault();
+
+
+
+			const location = this.getDropInsertLocation(templateData, event);
+			DOM.toggleClass(container, DRAGOVER_TOP_CLASS, location === 'above');
+			DOM.toggleClass(container, DRAGOVER_BOTTOM_CLASS, location === 'below');
 		}));
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DROP)(event => {
@@ -525,20 +532,40 @@ export class CellDragAndDropController {
 
 			const draggedCell = this.currentDraggedCell!;
 			dragCleanup();
-			this.notebookEditor.moveCell(draggedCell, templateData.currentRenderedCell!, 'above');
-			container.classList.remove(DRAGOVER_CLASS);
-		}));
 
-		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_ENTER)(event => {
-			event.preventDefault();
-			container.classList.add(DRAGOVER_CLASS);
+			const location = this.getDropInsertLocation(templateData, event);
+			if (location) {
+				this.notebookEditor.moveCell(draggedCell, templateData.currentRenderedCell!, location);
+				container.classList.remove(DRAGOVER_TOP_CLASS, DRAGOVER_BOTTOM_CLASS);
+			}
 		}));
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_LEAVE)(event => {
 			if (!event.relatedTarget || !DOM.isAncestor(event.relatedTarget as HTMLElement, container)) {
-				container.classList.remove(DRAGOVER_CLASS);
+				container.classList.remove(DRAGOVER_TOP_CLASS, DRAGOVER_BOTTOM_CLASS);
 			}
 		}));
+	}
+
+	private getDropInsertLocation(templateData: BaseCellRenderTemplate, event: DragEvent): 'above' | 'below' | undefined {
+		if (templateData.currentRenderedCell === this.currentDraggedCell) {
+			return;
+		}
+
+		const dragOffset = this.getDragOffset(templateData.container, event);
+		if (dragOffset < 0.3) {
+			return 'above';
+		} else if (dragOffset >= 0.5) {
+			return 'below';
+		} else {
+			return;
+		}
+	}
+
+	private getDragOffset(container: HTMLElement, event: DragEvent): number {
+		const containerRect = container.getBoundingClientRect();
+		const dragoverContainerY = event.clientY - containerRect.top;
+		return dragoverContainerY / containerRect.height;
 	}
 }
 
@@ -759,12 +786,11 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 
-		const insertionIndicatorTop = DOM.append(container, DOM.$('.notebook-cell-insertion-indicator-top'));
+		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-top'));
 		const outputContainer = DOM.append(container, $('.output'));
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		const templateData: CodeCellRenderTemplate = {
-			insertionIndicatorTop,
 			container,
 			cellContainer,
 			statusBarContainer: statusBar.statusBarContainer,

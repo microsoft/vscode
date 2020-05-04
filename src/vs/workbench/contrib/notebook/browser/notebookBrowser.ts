@@ -407,7 +407,6 @@ export interface BaseCellRenderTemplate {
 	cellContainer: HTMLElement;
 	toolbar: ToolBar;
 	focusIndicator: HTMLElement;
-	insertionIndicatorTop: HTMLElement;
 	disposables: DisposableStore;
 	elementDisposables: DisposableStore;
 	bottomCellContainer: HTMLElement;
