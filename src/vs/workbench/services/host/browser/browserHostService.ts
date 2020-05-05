@@ -17,6 +17,7 @@ import { trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { domEvent } from 'vs/base/browser/event';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -83,7 +84,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 			const focusTracker = this._register(trackFocus(window));
 			this._onDidChangeFocus = Event.any(
 				Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-				Event.map(focusTracker.onDidBlur, () => this.hasFocus)
+				Event.map(focusTracker.onDidBlur, () => this.hasFocus),
+				Event.map(domEvent(window.document, 'visibilitychange'), () => this.hasFocus)
 			);
 		}
 
