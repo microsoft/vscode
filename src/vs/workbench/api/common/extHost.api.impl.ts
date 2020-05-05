@@ -902,9 +902,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: notebook
 		const notebook: typeof vscode.notebook = {
+			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidOpenNotebookDocument;
+			},
 			registerNotebookProvider: (viewType: string, provider: vscode.NotebookProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookProvider(extension, viewType, provider);
+			},
+			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider);
 			},
 			registerNotebookOutputRenderer: (type: string, outputFilter: vscode.NotebookOutputSelector, renderer: vscode.NotebookOutputRenderer) => {
 				checkProposedApiEnabled(extension);

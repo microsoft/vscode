@@ -14,6 +14,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { basename } from 'vs/base/common/resources';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export interface INotebookEditorModelManager {
 	models: NotebookEditorModel[];
@@ -82,7 +83,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	}
 
 	async save(): Promise<boolean> {
-		await this.notebookService.save(this.notebook.viewType, this.notebook.uri);
+		const tokenSource = new CancellationTokenSource();
+		await this.notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
 		this._dirty = false;
 		this._onDidChangeDirty.fire();
 		return true;

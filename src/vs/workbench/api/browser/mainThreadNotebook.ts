@@ -294,7 +294,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 	}
 
-	async save(uri: URI): Promise<boolean> {
-		return this._proxy.$saveNotebook(this._viewType, uri);
+	async save(uri: URI, token: CancellationToken): Promise<boolean> {
+		return this._proxy.$saveNotebook(this._viewType, uri, token);
 	}
 }
