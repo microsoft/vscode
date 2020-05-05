@@ -12,8 +12,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IViewsService } from 'vs/workbench/common/views';
-import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import { SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
 import * as Constants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
@@ -21,7 +19,7 @@ import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/cont
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
-import { searchRefreshIcon, searchNewEditorIcon, searchGotoFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { searchNewEditorIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -71,7 +69,6 @@ export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) 
 	}
 };
 
-
 export class OpenSearchEditorAction extends Action {
 
 	static readonly ID: string = Constants.OpenNewEditorCommandId;
@@ -96,88 +93,7 @@ export class OpenSearchEditorAction extends Action {
 	}
 }
 
-export class OpenSearchEditorToSideAction extends Action {
-
-	static readonly ID: string = Constants.OpenNewEditorToSideCommandId;
-	static readonly LABEL = localize('search.openNewEditorToSide', "Open New Search Editor to Side");
-
-	constructor(id: string, label: string,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super(id, label, searchNewEditorIcon.classNames);
-	}
-
-	async run() {
-		await this.instantiationService.invokeFunction(openNewSearchEditor, true);
-	}
-}
-
-export class OpenResultsInEditorAction extends Action {
-
-	static readonly ID: string = Constants.OpenInEditorCommandId;
-	static readonly LABEL = localize('search.openResultsInEditor', "Open Results in Editor");
-
-	constructor(id: string, label: string,
-		@IViewsService private viewsService: IViewsService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super(id, label, searchGotoFileIcon.classNames);
-	}
-
-	get enabled(): boolean {
-		const searchView = getSearchView(this.viewsService);
-		return !!searchView && searchView.hasSearchResults();
-	}
-
-	update() {
-		this._setEnabled(this.enabled);
-	}
-
-	async run() {
-		const searchView = getSearchView(this.viewsService);
-		if (searchView) {
-			await this.instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue());
-		}
-	}
-}
-
-export class RerunSearchEditorSearchAction extends Action {
-	static readonly ID: string = Constants.RerunSearchEditorSearchCommandId;
-	static readonly LABEL = localize('search.rerunSearchInEditor', "Search Again");
-
-	constructor(id: string, label: string,
-		@IEditorService private readonly editorService: IEditorService,
-	) {
-		super(id, label, searchRefreshIcon.classNames);
-	}
-
-	async run() {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			(this.editorService.activeEditorPane as SearchEditor).triggerSearch({ resetCursor: false });
-		}
-	}
-}
-
-export class FocusQueryEditorWidgetAction extends Action {
-	static readonly ID: string = Constants.FocusQueryEditorWidgetCommandId;
-	static readonly LABEL = localize('search.action.focusQueryEditorWidget', "Focus Search Editor Input");
-
-	constructor(id: string, label: string,
-		@IEditorService private readonly editorService: IEditorService,
-	) {
-		super(id, label);
-	}
-
-	async run() {
-		const input = this.editorService.activeEditor;
-		if (input instanceof SearchEditorInput) {
-			(this.editorService.activeEditorPane as SearchEditor).focusSearchInput();
-		}
-	}
-}
-
-const openNewSearchEditor =
+export const openNewSearchEditor =
 	async (accessor: ServicesAccessor, toSide = false) => {
 		const editorService = accessor.get(IEditorService);
 		const telemetryService = accessor.get(ITelemetryService);
