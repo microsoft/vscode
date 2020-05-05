@@ -720,7 +720,7 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	}
 
 	toString(): string {
-		return resources.basenameOrAuthority(this.uri);
+		return `${resources.basenameOrAuthority(this.uri)} ${this.lineNumber}`;
 	}
 
 	update(data: IBreakpointUpdateData): void {
