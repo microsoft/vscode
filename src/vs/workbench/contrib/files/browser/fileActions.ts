@@ -337,10 +337,10 @@ function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, 
 }
 
 function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
-	const directories = distinctElements.filter(element => element.isDirectory);
-	const files = distinctElements.filter(element => !element.isDirectory);
+	const directory = distinctElements.find(element => element.isDirectory);
+	const file = distinctElements.find(element => !element.isDirectory);
 
-	return directories.length > 0 && files.length > 0;
+	return !!directory && !!file;
 }
 
 

@@ -76,9 +76,9 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 
 		const explorerViewDescriptor = this.createExplorerViewDescriptor();
-		const registeredExplorerViewDescriptor = viewDescriptors.filter(v => v.id === explorerViewDescriptor.id)[0];
+		const registeredExplorerViewDescriptor = viewDescriptors.find(v => v.id === explorerViewDescriptor.id);
 		const emptyViewDescriptor = this.createEmptyViewDescriptor();
-		const registeredEmptyViewDescriptor = viewDescriptors.filter(v => v.id === emptyViewDescriptor.id)[0];
+		const registeredEmptyViewDescriptor = viewDescriptors.find(v => v.id === emptyViewDescriptor.id);
 
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.workspaceContextService.getWorkspace().folders.length === 0) {
 			if (registeredExplorerViewDescriptor) {
