@@ -687,7 +687,7 @@ export interface IComputedEditorOptions {
  * @internal
  */
 export interface IEnvironmentalOptions {
-	readonly memory: IComputeOptionsMemory | null;
+	readonly memory: ComputeOptionsMemory | null;
 	readonly outerWidth: number;
 	readonly outerHeight: number;
 	readonly fontInfo: FontInfo;
@@ -704,7 +704,15 @@ export interface IEnvironmentalOptions {
 /**
  * @internal
  */
-export interface IComputeOptionsMemory {
+export class ComputeOptionsMemory {
+
+	public lastInput: IEditorLayoutComputerInput | null;
+	public lastResult: EditorLayoutInfo | null;
+
+	constructor() {
+		this.lastInput = null;
+		this.lastResult = null;
+	}
 }
 
 export interface IEditorOption<K1 extends EditorOption, V> {
@@ -1767,7 +1775,7 @@ export interface EditorLayoutInfo {
  * @internal
  */
 export interface EditorLayoutInfoComputerEnv {
-	readonly memory: IComputeOptionsMemory | null;
+	readonly memory: ComputeOptionsMemory | null;
 	readonly outerWidth: number;
 	readonly outerHeight: number;
 	readonly isDominatedByLongLines: boolean
@@ -1782,6 +1790,77 @@ export interface EditorLayoutInfoComputerEnv {
 /**
  * @internal
  */
+export interface IEditorLayoutComputerInput {
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+	readonly isDominatedByLongLines: boolean
+	readonly lineHeight: number;
+	readonly lineNumbersDigitCount: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
+	readonly pixelRatio: number;
+	readonly glyphMargin: boolean;
+	readonly lineDecorationsWidth: string | number;
+	readonly folding: boolean;
+	readonly minimap: Readonly<Required<IEditorMinimapOptions>>;
+	readonly scrollbar: InternalEditorScrollbarOptions;
+	readonly lineNumbers: InternalEditorRenderLineNumbersOptions;
+	readonly lineNumbersMinChars: number;
+	readonly scrollBeyondLastLine: boolean;
+	readonly wordWrap: 'wordWrapColumn' | 'on' | 'off' | 'bounded';
+	readonly wordWrapColumn: number;
+	readonly wordWrapMinified: boolean;
+	readonly accessibilitySupport: AccessibilitySupport;
+}
+
+/**
+ * @internal
+ */
+function editorLayoutComputerInputSoftEquals(a: IEditorLayoutComputerInput, b: IEditorLayoutComputerInput): boolean {
+	return (
+		a.outerWidth === b.outerWidth
+		&& a.outerHeight === b.outerHeight
+		&& a.isDominatedByLongLines === b.isDominatedByLongLines
+		&& a.lineHeight === b.lineHeight
+		&& a.lineNumbersDigitCount === b.lineNumbersDigitCount
+		&& a.typicalHalfwidthCharacterWidth === b.typicalHalfwidthCharacterWidth
+		&& a.maxDigitWidth === b.maxDigitWidth
+		&& a.pixelRatio === b.pixelRatio
+		&& a.glyphMargin === b.glyphMargin
+		&& a.lineDecorationsWidth === b.lineDecorationsWidth
+		&& a.folding === b.folding
+		&& a.minimap.enabled === b.minimap.enabled
+		&& a.minimap.side === b.minimap.side
+		&& a.minimap.size === b.minimap.size
+		&& a.minimap.showSlider === b.minimap.showSlider
+		&& a.minimap.renderCharacters === b.minimap.renderCharacters
+		&& a.minimap.maxColumn === b.minimap.maxColumn
+		&& a.minimap.scale === b.minimap.scale
+		&& a.scrollbar.arrowSize === b.scrollbar.arrowSize
+		&& a.scrollbar.vertical === b.scrollbar.vertical
+		&& a.scrollbar.horizontal === b.scrollbar.horizontal
+		&& a.scrollbar.useShadows === b.scrollbar.useShadows
+		&& a.scrollbar.verticalHasArrows === b.scrollbar.verticalHasArrows
+		&& a.scrollbar.horizontalHasArrows === b.scrollbar.horizontalHasArrows
+		&& a.scrollbar.handleMouseWheel === b.scrollbar.handleMouseWheel
+		&& a.scrollbar.alwaysConsumeMouseWheel === b.scrollbar.alwaysConsumeMouseWheel
+		&& a.scrollbar.horizontalScrollbarSize === b.scrollbar.horizontalScrollbarSize
+		&& a.scrollbar.horizontalSliderSize === b.scrollbar.horizontalSliderSize
+		&& a.scrollbar.verticalScrollbarSize === b.scrollbar.verticalScrollbarSize
+		&& a.scrollbar.verticalSliderSize === b.scrollbar.verticalSliderSize
+		&& a.lineNumbers.renderType === b.lineNumbers.renderType
+		&& a.lineNumbersMinChars === b.lineNumbersMinChars
+		&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
+		&& a.wordWrap === b.wordWrap
+		&& a.wordWrapColumn === b.wordWrapColumn
+		&& a.wordWrapMinified === b.wordWrapMinified
+		&& a.accessibilitySupport === b.accessibilitySupport
+	);
+}
+
+/**
+ * @internal
+ */
 export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.layoutInfo, EditorLayoutInfo> {
 
 	constructor() {
@@ -1790,6 +1869,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			[
 				EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding,
 				EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers,
+				EditorOption.lineNumbersMinChars, EditorOption.scrollBeyondLastLine,
 				EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified,
 				EditorOption.accessibilitySupport
 			]
@@ -1826,39 +1906,68 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	}
 
 	public static computeLayout(options: IComputedEditorOptions, env: EditorLayoutInfoComputerEnv): EditorLayoutInfo {
-		const outerWidth = env.outerWidth | 0;
-		const outerHeight = env.outerHeight | 0;
-		const lineHeight = env.lineHeight | 0;
-		const lineNumbersDigitCount = env.lineNumbersDigitCount | 0;
-		const typicalHalfwidthCharacterWidth = env.typicalHalfwidthCharacterWidth;
-		const maxDigitWidth = env.maxDigitWidth;
-		const pixelRatio = env.pixelRatio;
+		return EditorLayoutInfoComputer.doComputeLayout({
+			outerWidth: env.outerWidth | 0,
+			outerHeight: env.outerHeight | 0,
+			isDominatedByLongLines: env.isDominatedByLongLines,
+			lineHeight: env.lineHeight | 0,
+			lineNumbersDigitCount: env.lineNumbersDigitCount | 0,
+			typicalHalfwidthCharacterWidth: env.typicalHalfwidthCharacterWidth,
+			maxDigitWidth: env.maxDigitWidth,
+			pixelRatio: env.pixelRatio,
+			glyphMargin: options.get(EditorOption.glyphMargin),
+			lineDecorationsWidth: options.get(EditorOption.lineDecorationsWidth),
+			folding: options.get(EditorOption.folding),
+			minimap: options.get(EditorOption.minimap),
+			scrollbar: options.get(EditorOption.scrollbar),
+			lineNumbers: options.get(EditorOption.lineNumbers),
+			lineNumbersMinChars: options.get(EditorOption.lineNumbersMinChars),
+			scrollBeyondLastLine: options.get(EditorOption.scrollBeyondLastLine),
+			wordWrap: options.get(EditorOption.wordWrap),
+			wordWrapColumn: options.get(EditorOption.wordWrapColumn),
+			wordWrapMinified: options.get(EditorOption.wordWrapMinified),
+			accessibilitySupport: options.get(EditorOption.accessibilitySupport)
+		}, env.viewLineCount, env.memory);
+	}
 
-		const wordWrap = options.get(EditorOption.wordWrap);
-		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
-		const wordWrapMinified = options.get(EditorOption.wordWrapMinified);
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
+	public static doComputeLayout(input: IEditorLayoutComputerInput, viewLineCount: number, memory: ComputeOptionsMemory | null): EditorLayoutInfo {
 
-		const showGlyphMargin = options.get(EditorOption.glyphMargin);
-		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
-		const lineNumbersMinChars = options.get(EditorOption.lineNumbersMinChars) | 0;
-		const scrollBeyondLastLine = options.get(EditorOption.scrollBeyondLastLine);
-		const minimap = options.get(EditorOption.minimap);
-		const minimapEnabled = minimap.enabled;
-		const minimapSide = minimap.side;
-		const minimapRenderCharacters = minimap.renderCharacters;
-		let minimapScale = (pixelRatio >= 2 ? Math.round(minimap.scale * 2) : minimap.scale);
-		const minimapMaxColumn = minimap.maxColumn | 0;
-		const minimapSize = minimap.size;
+		if (memory && memory.lastInput && memory.lastResult && editorLayoutComputerInputSoftEquals(memory.lastInput, input)) {
+			return memory.lastResult;
+		}
 
-		const scrollbar = options.get(EditorOption.scrollbar);
-		const verticalScrollbarWidth = scrollbar.verticalScrollbarSize | 0;
-		const verticalScrollbarHasArrows = scrollbar.verticalHasArrows;
-		const scrollbarArrowSize = scrollbar.arrowSize | 0;
-		const horizontalScrollbarHeight = scrollbar.horizontalScrollbarSize | 0;
+		const outerWidth = input.outerWidth;
+		const outerHeight = input.outerHeight;
+		const lineHeight = input.lineHeight;
+		const lineNumbersDigitCount = input.lineNumbersDigitCount;
+		const typicalHalfwidthCharacterWidth = input.typicalHalfwidthCharacterWidth;
+		const maxDigitWidth = input.maxDigitWidth;
+		const pixelRatio = input.pixelRatio;
 
-		const rawLineDecorationsWidth = options.get(EditorOption.lineDecorationsWidth);
-		const folding = options.get(EditorOption.folding);
+		const wordWrap = input.wordWrap;
+		const wordWrapColumn = input.wordWrapColumn;
+		const wordWrapMinified = input.wordWrapMinified;
+		const accessibilitySupport = input.accessibilitySupport;
+		const isDominatedByLongLines = input.isDominatedByLongLines;
+
+		const showGlyphMargin = input.glyphMargin;
+		const showLineNumbers = (input.lineNumbers.renderType !== RenderLineNumbersType.Off);
+		const lineNumbersMinChars = input.lineNumbersMinChars;
+		const scrollBeyondLastLine = input.scrollBeyondLastLine;
+		const minimapEnabled = input.minimap.enabled;
+		const minimapSide = input.minimap.side;
+		const minimapRenderCharacters = input.minimap.renderCharacters;
+		let minimapScale = (pixelRatio >= 2 ? Math.round(input.minimap.scale * 2) : input.minimap.scale);
+		const minimapMaxColumn = input.minimap.maxColumn;
+		const minimapSize = input.minimap.size;
+
+		const verticalScrollbarWidth = input.scrollbar.verticalScrollbarSize;
+		const verticalScrollbarHasArrows = input.scrollbar.verticalHasArrows;
+		const scrollbarArrowSize = input.scrollbar.arrowSize;
+		const horizontalScrollbarHeight = input.scrollbar.horizontalScrollbarSize;
+
+		const rawLineDecorationsWidth = input.lineDecorationsWidth;
+		const folding = input.folding;
 
 		let lineDecorationsWidth: number;
 		if (typeof rawLineDecorationsWidth === 'string' && /^\d+(\.\d+)?ch$/.test(rawLineDecorationsWidth)) {
@@ -1889,7 +1998,28 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const remainingWidth = outerWidth - glyphMarginWidth - lineNumbersWidth - lineDecorationsWidth;
 
+		let isWordWrapMinified = false;
+		let isViewportWrapping = false;
+		let wrappingColumn = -1;
+
+		if (accessibilitySupport !== AccessibilitySupport.Enabled) {
+			// See https://github.com/Microsoft/vscode/issues/27766
+			// Never enable wrapping when a screen reader is attached
+			// because arrow down etc. will not move the cursor in the way
+			// a screen reader expects.
+			if (wordWrapMinified && isDominatedByLongLines) {
+				// Force viewport width wrapping if model is dominated by long lines
+				isWordWrapMinified = true;
+				isViewportWrapping = true;
+			} else if (wordWrap === 'on' || wordWrap === 'bounded') {
+				isViewportWrapping = true;
+			} else if (wordWrap === 'wordWrapColumn') {
+				wrappingColumn = wordWrapColumn;
+			}
+		}
+
 		const baseCharHeight = minimapRenderCharacters ? 2 : 3;
+		let storeResultInMemory = false;
 		let renderMinimap: RenderMinimap;
 		let minimapLeft: number;
 		let minimapWidth: number;
@@ -1914,7 +2044,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			let minimapWidthMultiplier: number = 1;
 
 			if (minimapSize === 'fill' || minimapSize === 'fit') {
-				const viewLineCount = env.viewLineCount;
 				const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
 					viewLineCount: viewLineCount,
 					scrollBeyondLastLine: scrollBeyondLastLine,
@@ -1935,6 +2064,13 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				} else {
 					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
 					if (minimapSize === 'fill' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
+						if (minimapSize === 'fit' && isViewportWrapping) {
+							// `fit` becomes `fill`: this can cause the `minimapScale` to change, which causes `minimapWidth` to change.
+							// With viewport wrapping, this can cause the `viewLineCount` to change, which can lead to a new result
+							// where `fit` would not become `fill`... and so on...
+							// to break the loop, we store the result in memory and then reuse the same result on the next call.
+							storeResultInMemory = true;
+						}
 						minimapHeightIsEditorHeight = true;
 						const configuredFontScale = minimapScale;
 						minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
@@ -1990,53 +2126,15 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
-		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } | null = null;
-		{
-			if (accessibilitySupport === AccessibilitySupport.Enabled) {
-				// See https://github.com/Microsoft/vscode/issues/27766
-				// Never enable wrapping when a screen reader is attached
-				// because arrow down etc. will not move the cursor in the way
-				// a screen reader expects.
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
-			} else if (wordWrapMinified && env.isDominatedByLongLines) {
-				// Force viewport width wrapping if model is dominated by long lines
-				bareWrappingInfo = {
-					isWordWrapMinified: true,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, viewportColumn)
-				};
-			} else if (wordWrap === 'on') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, viewportColumn)
-				};
-			} else if (wordWrap === 'bounded') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.min(Math.max(1, viewportColumn), wordWrapColumn)
-				};
-			} else if (wordWrap === 'wordWrapColumn') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: wordWrapColumn
-				};
-			} else {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
+		if (isViewportWrapping) {
+			// compute the actual wrappingColumn
+			wrappingColumn = Math.max(1, viewportColumn);
+			if (wordWrap === 'bounded') {
+				wrappingColumn = Math.min(wrappingColumn, wordWrapColumn);
 			}
 		}
 
-		return {
+		const result: EditorLayoutInfo = {
 			width: outerWidth,
 			height: outerHeight,
 
@@ -2066,9 +2164,9 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 			viewportColumn: viewportColumn,
 
-			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
-			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
-			wrappingColumn: bareWrappingInfo.wrappingColumn,
+			isWordWrapMinified: isWordWrapMinified,
+			isViewportWrapping: isViewportWrapping,
+			wrappingColumn: wrappingColumn,
 
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			horizontalScrollbarHeight: horizontalScrollbarHeight,
@@ -2080,6 +2178,18 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				right: 0
 			}
 		};
+
+		if (memory) {
+			if (storeResultInMemory) {
+				memory.lastInput = input;
+				memory.lastResult = result;
+			} else {
+				memory.lastInput = null;
+				memory.lastResult = null;
+			}
+		}
+
+		return result;
 	}
 }
 
