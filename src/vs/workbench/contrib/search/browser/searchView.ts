@@ -874,7 +874,7 @@ export class SearchView extends ViewPane {
 					selectedText = strings.escapeRegExpCharacters(selectedText);
 				}
 
-				if (allowSearchOnType && !this.viewModel.searchResult.hasRemovedResults) {
+				if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
 					this.searchWidget.setValue(selectedText);
 				} else {
 					this.pauseSearching = true;
