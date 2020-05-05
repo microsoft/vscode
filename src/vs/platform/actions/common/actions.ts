@@ -244,8 +244,8 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 						array!.splice(idx, 1);
 						changedIds.add(id);
 					}
-					this._onDidChangeMenu.fire(changedIds);
 				}
+				this._onDidChangeMenu.fire(changedIds);
 			}
 		};
 	}
