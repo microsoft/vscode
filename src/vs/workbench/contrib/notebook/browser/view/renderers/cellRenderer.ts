@@ -550,7 +550,7 @@ export class CellDragAndDropController extends Disposable {
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_OVER)(event => {
 			event.preventDefault();
 
-			const location = this.getDropInsertLocation(templateData, event);
+			const location = this.getDropInsertDirection(templateData, event);
 			DOM.toggleClass(container, DRAGOVER_TOP_CLASS, location === 'above');
 			DOM.toggleClass(container, DRAGOVER_BOTTOM_CLASS, location === 'below');
 		}));
@@ -561,11 +561,19 @@ export class CellDragAndDropController extends Disposable {
 			const draggedCell = this.currentDraggedCell!;
 			dragCleanup();
 
-			const location = this.getDropInsertLocation(templateData, event);
-			if (location) {
-				this.moveCell(draggedCell, templateData.currentRenderedCell!, location);
-				container.classList.remove(DRAGOVER_TOP_CLASS, DRAGOVER_BOTTOM_CLASS);
+			const isCopy = (event.ctrlKey && !platform.isMacintosh) || (event.altKey && platform.isMacintosh);
+
+			const direction = this.getDropInsertDirection(templateData, event);
+			if (direction) {
+				const dropTarget = templateData.currentRenderedCell!;
+				if (isCopy) {
+					this.copyCell(draggedCell, dropTarget, direction);
+				} else {
+					this.moveCell(draggedCell, dropTarget, direction);
+				}
 			}
+
+			container.classList.remove(DRAGOVER_TOP_CLASS, DRAGOVER_BOTTOM_CLASS);
 		}));
 
 		templateData.disposables.add(domEvent(container, DOM.EventType.DRAG_LEAVE)(event => {
@@ -575,13 +583,22 @@ export class CellDragAndDropController extends Disposable {
 		}));
 	}
 
-	private moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, location: 'above' | 'below') {
+	private moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
 		const editState = draggedCell.editState;
-		this.notebookEditor.moveCell(draggedCell, ontoCell, location);
+		this.notebookEditor.moveCell(draggedCell, ontoCell, direction);
 		this.notebookEditor.focusNotebookCell(draggedCell, editState === CellEditState.Editing);
 	}
 
-	private getDropInsertLocation(templateData: BaseCellRenderTemplate, event: DragEvent): 'above' | 'below' | undefined {
+	private copyCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
+		const editState = draggedCell.editState;
+		const newCell = this.notebookEditor.insertNotebookCell(ontoCell, draggedCell.cellKind, direction, draggedCell.getText());
+		if (newCell) {
+			this.notebookEditor.focusNotebookCell(newCell, false);
+			this.notebookEditor.focusNotebookCell(newCell, editState === CellEditState.Editing);
+		}
+	}
+
+	private getDropInsertDirection(templateData: BaseCellRenderTemplate, event: DragEvent): 'above' | 'below' | undefined {
 		if (templateData.currentRenderedCell === this.currentDraggedCell) {
 			return;
 		}

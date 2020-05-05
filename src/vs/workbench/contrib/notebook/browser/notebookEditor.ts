@@ -775,11 +775,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			(direction === 'above' ? index : nextIndex) :
 			index;
 		const newCell = this.notebookViewModel!.createCell(insertIndex, initialText.split(/\r?\n/g), language, type, true);
-
-		if (type === CellKind.Markdown) {
-			newCell.editState = CellEditState.Editing;
-		}
-
 		return newCell;
 	}
 
