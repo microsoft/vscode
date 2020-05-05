@@ -18,6 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { Emitter, Event } from 'vs/base/common/event';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { minimapWarning, minimapError } from 'vs/platform/theme/common/colorRegistry';
+import { Delayer } from 'vs/base/common/async';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -115,7 +116,8 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private _onModelAdded(model: ITextModel): void {
 		const markerDecorations = new MarkerDecorations(model);
 		this._markerDecorations.set(MODEL_ID(model.uri), markerDecorations);
-		markerDecorations.register(Event.debounce(model.onDidChangeContent, () => undefined, 100)(() => this._updateDecorations(markerDecorations)));
+		const delayer = markerDecorations.register(new Delayer(100));
+		markerDecorations.register(model.onDidChangeContent(() => delayer.trigger(() => this._updateDecorations(markerDecorations))));
 		this._updateDecorations(markerDecorations);
 	}
 
