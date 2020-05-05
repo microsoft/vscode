@@ -97,6 +97,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		if (!this.container || !this.container.parentElement) {
 			return;
 		}
+
+		// Workaround for #94805
+		if (element.classList.contains('details-editor-container') || element.classList.contains('master-editor-container') && !element.style.height) {
+			element.style.height = '100%';
+		}
+
 		const frameRect = element.getBoundingClientRect();
 		const containerRect = this.container.parentElement.getBoundingClientRect();
 		this.container.style.position = 'absolute';
