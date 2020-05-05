@@ -231,7 +231,7 @@ export class ConfigurationModelParser {
 	}
 
 	public parseContent(content: string | null | undefined): void {
-		if (content) {
+		if (!types.isUndefinedOrNull(content)) {
 			const raw = this.doParseContent(content);
 			this.parseRaw(raw);
 		}
