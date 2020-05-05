@@ -146,7 +146,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - resolvers
+	//#region @alexr00 - resolvers
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -248,7 +248,7 @@ declare module 'vscode' {
 
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
-		// TODO@isi
+		// TODO@isidorn
 		// eslint-disable-next-line vscode-dts-literal-or-types
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
@@ -326,7 +326,7 @@ declare module 'vscode' {
 
 	/**
 	 * A file glob pattern to match file paths against.
-	 * TODO@roblou - merge this with the GlobPattern docs/definition in vscode.d.ts.
+	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
 	 * @see [GlobPattern](#GlobPattern)
 	 */
 	export type GlobString = string;
@@ -809,7 +809,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: SCM validation
+	//#region @joaomoreno: SCM validation
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -859,7 +859,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: SCM selected provider
+	//#region @joaomoreno: SCM selected provider
 
 	export interface SourceControl {
 
@@ -1062,7 +1062,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh -> exclusive document filters
+	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
@@ -1070,7 +1070,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - OnEnter enhancement
+	//#region @alexdima - OnEnter enhancement
 	export interface OnEnterRule {
 		/**
 		 * This rule will only execute if the text above the this line matches this regular expression.
@@ -1579,7 +1579,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Peng: Notebook
+	//#region @rebornix: Notebook
 
 	export enum CellKind {
 		Markdown = 1,
@@ -1898,7 +1898,7 @@ declare module 'vscode' {
 	//#endregion
 
 
-	//#region eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
+	//#region @eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
 
 	export class TimelineItem {
 		/**
