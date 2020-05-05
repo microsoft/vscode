@@ -10899,6 +10899,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a [comment controller](#CommentController)'s [options](#CommentController.options).
+	 */
+	export interface CommentOptions {
+		/**
+		 * An optional string to show on the comment input box when it's collapsed.
+		 */
+		prompt?: string;
+
+		/**
+		 * An optional string to show as placeholder in the comment input box when it's focused.
+		 */
+		placeHolder?: string;
+	}
+
+	/**
 	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
 	 * provide users various ways to interact with comments.
 	 */
@@ -10912,6 +10927,11 @@ declare module 'vscode' {
 		 * The human-readable label of this comment controller.
 		 */
 		readonly label: string;
+
+		/**
+		 * Comment controller options
+		 */
+		options?: CommentOptions;
 
 		/**
 		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.
