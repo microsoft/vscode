@@ -457,24 +457,24 @@ export interface IView {
 }
 
 export const IViewsService = createDecorator<IViewsService>('viewsService');
-
 export interface IViewsService {
 
 	_serviceBrand: undefined;
 
+	// View Container APIs
 	readonly onDidChangeViewContainerVisibility: Event<{ id: string, visible: boolean, location: ViewContainerLocation }>;
 	isViewContainerVisible(id: string): boolean;
 	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
 	closeViewContainer(id: string): void;
 	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
 
+	// View APIs
 	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }>;
 	isViewVisible(id: string): boolean;
 	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
 	closeView(id: string): void;
 	getActiveViewWithId<T extends IView>(id: string): T | null;
-
-	getProgressIndicator(id: string): IProgressIndicator | undefined;
+	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
 /**

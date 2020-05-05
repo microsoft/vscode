@@ -376,13 +376,13 @@ export class ViewsService extends Disposable implements IViewsService {
 		return null;
 	}
 
-	getProgressIndicator(id: string): IProgressIndicator | undefined {
-		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(id);
+	getViewProgressIndicator(viewId: string): IProgressIndicator | undefined {
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(viewId);
 		if (viewContainer === null) {
 			return undefined;
 		}
 
-		const view = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer?.getView(id);
+		const view = this.viewPaneContainers.get(viewContainer.id)?.viewPaneContainer?.getView(viewId);
 		return view?.getProgressIndicator();
 	}
 

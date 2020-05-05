@@ -57,7 +57,7 @@ export class ProgressService extends Disposable implements IProgressService {
 				return this.withPanelProgress(location, task, { ...options, location });
 			}
 
-			if (this.viewsService.getProgressIndicator(location)) {
+			if (this.viewsService.getViewProgressIndicator(location)) {
 				return this.withViewProgress(location, task, { ...options, location });
 			}
 
@@ -418,7 +418,7 @@ export class ProgressService extends Disposable implements IProgressService {
 	private withViewProgress<P extends Promise<R>, R = unknown>(viewId: string, task: (progress: IProgress<IProgressStep>) => P, options: IProgressCompositeOptions): P {
 
 		// show in viewlet
-		const promise = this.withCompositeProgress(this.viewsService.getProgressIndicator(viewId), task, options);
+		const promise = this.withCompositeProgress(this.viewsService.getViewProgressIndicator(viewId), task, options);
 
 		const location = this.viewDescriptorService.getViewLocationById(viewId);
 		if (location !== ViewContainerLocation.Sidebar) {
