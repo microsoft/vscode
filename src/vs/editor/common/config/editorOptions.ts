@@ -1947,6 +1947,9 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	}
 
 	private static _computeMinimapLayout(input: IMinimapLayoutInput) {
+		const outerHeight = input.outerHeight;
+		const pixelRatio = input.pixelRatio;
+
 		if (!input.minimap.enabled) {
 			return {
 				storeResultInMemory: false,
@@ -1956,16 +1959,14 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				minimapScale: 1,
 				minimapLineHeight: 1,
 				minimapCanvasInnerWidth: 0,
-				minimapCanvasInnerHeight: 0,
+				minimapCanvasInnerHeight: Math.floor(pixelRatio * outerHeight),
 				minimapCanvasOuterWidth: 0,
-				minimapCanvasOuterHeight: 0,
+				minimapCanvasOuterHeight: outerHeight,
 			};
 		}
 
-		const outerHeight = input.outerHeight;
 		const lineHeight = input.lineHeight;
 		const typicalHalfwidthCharacterWidth = input.typicalHalfwidthCharacterWidth;
-		const pixelRatio = input.pixelRatio;
 		const scrollBeyondLastLine = input.scrollBeyondLastLine;
 		const minimapRenderCharacters = input.minimap.renderCharacters;
 		let minimapScale = (pixelRatio >= 2 ? Math.round(input.minimap.scale * 2) : input.minimap.scale);
@@ -1978,10 +1979,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const baseCharHeight = minimapRenderCharacters ? 2 : 3;
 		let storeResultInMemory = false;
-		let minimapWidth: number;
-		let minimapCanvasInnerWidth: number;
 		let minimapCanvasInnerHeight = Math.floor(pixelRatio * outerHeight);
-		let minimapCanvasOuterWidth: number;
 		const minimapCanvasOuterHeight = minimapCanvasInnerHeight / pixelRatio;
 		let minimapHeightIsEditorHeight = false;
 		let minimapIsSampling = false;
@@ -2043,14 +2041,11 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth
 		// minimapWidth = ((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
 
-		minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth))) + MINIMAP_GUTTER_WIDTH;
-		let minimapColumns = minimapWidth / minimapCharWidth;
-		if (minimapColumns > minimapMaxColumn) {
-			minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
-		}
+		const minimapMaxWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
+		const minimapWidth = Math.min(minimapMaxWidth, Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth))) + MINIMAP_GUTTER_WIDTH);
 
-		minimapCanvasInnerWidth = Math.floor(pixelRatio * minimapWidth);
-		minimapCanvasOuterWidth = minimapCanvasInnerWidth / pixelRatio;
+		let minimapCanvasInnerWidth = Math.floor(pixelRatio * minimapWidth);
+		const minimapCanvasOuterWidth = minimapCanvasInnerWidth / pixelRatio;
 		minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
 
 		return {
