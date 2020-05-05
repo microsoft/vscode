@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDebugModel, IDebugSession, AdapterEndEvent, IBreakpoint, IGlobalConfig } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IDebugModel, IDebugSession, AdapterEndEvent, IBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 
 export class DebugTelemetry {
@@ -14,10 +12,9 @@ export class DebugTelemetry {
 	constructor(
 		private readonly model: IDebugModel,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-	logDebugSessionStart(dbgr: Debugger, root: IWorkspaceFolder | undefined): Promise<void> {
+	logDebugSessionStart(dbgr: Debugger, launchJsonExists: boolean): Promise<void> {
 		const extension = dbgr.getMainExtensionDescriptor();
 		/* __GDPR__
 			"debugSessionStart" : {
@@ -37,7 +34,7 @@ export class DebugTelemetry {
 			watchExpressionsCount: this.model.getWatchExpressions().length,
 			extensionName: extension.identifier.value,
 			isBuiltin: extension.isBuiltin,
-			launchJsonExists: root && !!this.configurationService.getValue<IGlobalConfig>('launch', { resource: root.uri })
+			launchJsonExists
 		});
 	}
 
