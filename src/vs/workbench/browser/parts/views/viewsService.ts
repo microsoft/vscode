@@ -15,7 +15,6 @@ import { isString } from 'vs/base/common/types';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { toggleClass, addClass } from 'vs/base/browser/dom';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -23,7 +22,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { PaneCompositePanel, PanelRegistry, PanelDescriptor, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -480,19 +479,6 @@ export class ViewsService extends Disposable implements IViewsService {
 		this.deregisterViewPaneContainer(viewContainer.id);
 		Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).deregisterViewlet(viewContainer.id);
 	}
-}
-
-export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
-	addClass(container, 'file-icon-themable-tree');
-	addClass(container, 'show-file-icons');
-
-	const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
-		toggleClass(container, 'align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
-		toggleClass(container, 'hide-arrows', theme.hidesExplorerArrows === true);
-	};
-
-	onDidChangeFileIconTheme(themeService.getFileIconTheme());
-	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }
 
 registerSingleton(IViewsService, ViewsService);
