@@ -23,6 +23,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextEditorPane } from 'vs/workbench/common/editor';
 import { mixin } from 'vs/base/common/objects';
+import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 
 export class ExpressionContainer implements IExpressionContainer {
 
@@ -848,15 +849,21 @@ export class DebugModel implements IDebugModel {
 	private readonly _onDidChangeBreakpoints = new Emitter<IBreakpointsChangeEvent | undefined>();
 	private readonly _onDidChangeCallStack = new Emitter<void>();
 	private readonly _onDidChangeWatchExpressions = new Emitter<IExpression | undefined>();
+	private breakpoints: Breakpoint[];
+	private functionBreakpoints: FunctionBreakpoint[];
+	private exceptionBreakpoints: ExceptionBreakpoint[];
+	private dataBreakopints: DataBreakpoint[];
+	private watchExpressions: Expression[];
 
 	constructor(
-		private breakpoints: Breakpoint[],
-		private functionBreakpoints: FunctionBreakpoint[],
-		private exceptionBreakpoints: ExceptionBreakpoint[],
-		private dataBreakopints: DataBreakpoint[],
-		private watchExpressions: Expression[],
-		private textFileService: ITextFileService
+		debugStorage: DebugStorage,
+		@ITextFileService private readonly textFileService: ITextFileService
 	) {
+		this.breakpoints = debugStorage.loadBreakpoints();
+		this.functionBreakpoints = debugStorage.loadFunctionBreakpoints();
+		this.exceptionBreakpoints = debugStorage.loadExceptionBreakpoints();
+		this.dataBreakopints = debugStorage.loadDataBreakpoints();
+		this.watchExpressions = debugStorage.loadWatchExpressions();
 		this.sessions = [];
 	}
 

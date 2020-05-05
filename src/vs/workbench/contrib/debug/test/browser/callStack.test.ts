@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import * as sinon from 'sinon';
-import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { MockRawSession, createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { Range } from 'vs/editor/common/core/range';
@@ -53,7 +53,7 @@ suite('Debug - CallStack', () => {
 	let rawSession: MockRawSession;
 
 	setup(() => {
-		model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
+		model = createMockDebugModel();
 		rawSession = new MockRawSession();
 	});
 
