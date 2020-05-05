@@ -405,7 +405,7 @@ namespace CompletionConfiguration {
 	}
 }
 
-class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
+class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<MyCompletionItem> {
 
 	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<', '#'];
 
@@ -428,9 +428,9 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		position: vscode.Position,
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
-	): Promise<vscode.CompletionList | null> {
+	): Promise<vscode.CompletionList<MyCompletionItem> | null> {
 		if (this.typingsStatus.isAcquiringTypings) {
-			return Promise.reject<vscode.CompletionList>({
+			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
 				label: localize(
 					{ key: 'acquiringTypingsLabel', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
 					'Acquiring typings...'),
@@ -535,7 +535,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
 		};
 
-		const items: vscode.CompletionItem[] = [];
+		const items: MyCompletionItem[] = [];
 		for (let entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
 				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
@@ -565,13 +565,9 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	}
 
 	public async resolveCompletionItem(
-		item: vscode.CompletionItem,
+		item: MyCompletionItem,
 		token: vscode.CancellationToken
-	): Promise<vscode.CompletionItem | undefined> {
-		if (!(item instanceof MyCompletionItem)) {
-			return undefined;
-		}
-
+	): Promise<MyCompletionItem | undefined> {
 		const filepath = this.client.toOpenedFilePath(item.document);
 		if (!filepath) {
 			return undefined;
