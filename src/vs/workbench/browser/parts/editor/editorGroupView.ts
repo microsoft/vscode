@@ -1604,7 +1604,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to controls
 		this.layoutTitleAreaControl(width);
-		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - this.titleAreaControl.getPreferredHeight()));
+		this.editorControl.layout(new Dimension(this.dimension.width, Math.max(0, this.dimension.height - this.titleAreaControl.getPreferredHeight())));
 	}
 
 	private layoutTitleAreaControl(width: number): void {
