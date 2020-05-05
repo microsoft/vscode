@@ -11,6 +11,7 @@ import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/brow
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isMacintosh } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export const OPEN_FILE_LABEL = localize('openFile', 'Open file in editor');
 export const FOLDER_IN_WORKSPACE_LABEL = localize('focusFolder', 'Focus folder in explorer');
@@ -18,6 +19,9 @@ export const FOLDER_NOT_IN_WORKSPACE_LABEL = localize('openFolder', 'Open folder
 
 export class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;
+
+	private readonly _onLeave = new Emitter<void>();
+	public get onLeave(): Event<void> { return this._onLeave.event; }
 
 	constructor(
 		public readonly range: IBufferRange,
@@ -85,6 +89,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 	}
 
 	leave(): void {
+		this._onLeave.fire();
 		this.dispose();
 	}
 
