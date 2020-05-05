@@ -1822,8 +1822,8 @@ declare module 'vscode' {
 
 	export interface NotebookContentProvider {
 		open(uri: Uri): NotebookData | Promise<NotebookData>;
-		save(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
-		saveAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
+		save(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		saveAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		readonly onDidChange: Event<void>;
 		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
