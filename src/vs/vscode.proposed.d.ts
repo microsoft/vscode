@@ -146,7 +146,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @alexr00 - resolvers
+	//#region @alexdima - resolvers
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
