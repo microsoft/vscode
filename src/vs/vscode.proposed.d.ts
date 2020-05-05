@@ -1817,6 +1817,7 @@ declare module 'vscode' {
 		): Disposable;
 
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 		// export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
 
 		// remove activeNotebookDocument, now that there is activeNotebookEditor.document

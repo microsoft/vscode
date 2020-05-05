@@ -654,6 +654,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
+	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
+	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 
 	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
@@ -898,6 +900,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (document) {
 			document.dispose();
 			this._documents.delete(URI.revive(uri).toString());
+			this._onDidCloseNotebookDocument.fire(document);
 		}
 
 		let editor = this._editors.get(URI.revive(uri).toString());
