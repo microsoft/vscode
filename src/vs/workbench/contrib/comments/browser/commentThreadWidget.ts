@@ -771,7 +771,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			const placeholder = valueLength > 0
 				? ''
 				: hasExistingComments
-					? (this._commentOptions?.prompt || nls.localize('reply', "Reply..."))
+					? (this._commentOptions?.placeHolder || nls.localize('reply', "Reply..."))
 					: (this._commentOptions?.placeHolder || nls.localize('newComment', "Type a new comment"));
 			const decorations = [{
 				range: {

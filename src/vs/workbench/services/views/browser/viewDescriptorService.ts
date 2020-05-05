@@ -84,6 +84,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		}
 	}
 
+	readonly onDidChangeViewContainers: Event<{ added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }> }>;
+	get viewContainers(): ReadonlyArray<ViewContainer> { return this.viewContainersRegistry.all; }
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -107,7 +110,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.cachedViewContainerInfo = this.getCachedViewContainerLocations();
 
 		// Register all containers that were registered before this ctor
-		this.getViewContainers().forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
+		this.viewContainers.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
+		this.onDidChangeViewContainers = Event.any<{ added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }> }>(
+			Event.map(this.viewContainersRegistry.onDidRegister, e => ({ added: [{ container: e.viewContainer, location: e.viewContainerLocation }], removed: [] })),
+			Event.map(this.viewContainersRegistry.onDidDeregister, e => ({ added: [], removed: [{ container: e.viewContainer, location: e.viewContainerLocation }] }))
+		);
 
 		// Try generating all generated containers that don't need extensions
 		this.tryGenerateContainers();
@@ -293,11 +300,13 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	getViewContainerById(id: string): ViewContainer | null {
 		return this.viewContainersRegistry.get(id) || null;
 	}
+
 	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[] {
-		return this.getViewContainers().filter(v => this.getViewContainerLocation(v) === location);
+		return this.viewContainers.filter(v => this.getViewContainerLocation(v) === location);
 	}
-	getViewContainers(): ViewContainer[] {
-		return this.viewContainersRegistry.all;
+
+	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
+		return this.viewContainersRegistry.getDefaultViewContainer(location);
 	}
 
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void {
@@ -453,7 +462,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			}
 
 			// If a value is not present in the cache, it must be reset to default
-			this.getViewContainers().forEach(viewContainer => {
+			this.viewContainers.forEach(viewContainer => {
 				const viewContainerModel = this.getViewContainerModel(viewContainer);
 				viewContainerModel.allViewDescriptors.forEach(viewDescriptor => {
 					if (!newCachedPositions.has(viewDescriptor.id)) {
@@ -486,7 +495,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				}
 			}
 
-			this.getViewContainers().forEach(viewContainer => {
+			this.viewContainers.forEach(viewContainer => {
 				if (!newCachedLocations.has(viewContainer.id)) {
 					const currentLocation = this.getViewContainerLocation(viewContainer);
 					const defaultLocation = this.getDefaultViewContainerLocation(viewContainer);
@@ -526,7 +535,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private saveViewPositionsToCache(): void {
-		this.getViewContainers().forEach(viewContainer => {
+		this.viewContainers.forEach(viewContainer => {
 			const viewContainerModel = this.getViewContainerModel(viewContainer);
 			viewContainerModel.allViewDescriptors.forEach(viewDescriptor => {
 				const containerLocation = this.getViewContainerLocation(viewContainer);

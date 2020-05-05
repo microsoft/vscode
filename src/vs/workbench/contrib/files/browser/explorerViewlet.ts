@@ -76,9 +76,9 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		}
 
 		const explorerViewDescriptor = this.createExplorerViewDescriptor();
-		const registeredExplorerViewDescriptor = viewDescriptors.filter(v => v.id === explorerViewDescriptor.id)[0];
+		const registeredExplorerViewDescriptor = viewDescriptors.find(v => v.id === explorerViewDescriptor.id);
 		const emptyViewDescriptor = this.createEmptyViewDescriptor();
-		const registeredEmptyViewDescriptor = viewDescriptors.filter(v => v.id === emptyViewDescriptor.id)[0];
+		const registeredEmptyViewDescriptor = viewDescriptors.find(v => v.id === emptyViewDescriptor.id);
 
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.workspaceContextService.getWorkspace().folders.length === 0) {
 			if (registeredExplorerViewDescriptor) {
@@ -254,10 +254,12 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 	}
 }
 
+const viewContainerRegistry = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry);
+
 /**
  * Explorer viewlet container.
  */
-export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({
+export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewContainer({
 	id: VIEWLET_ID,
 	name: localize('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
@@ -265,7 +267,7 @@ export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry
 	icon: Codicon.files.classNames,
 	alwaysUseContainerInfo: true,
 	order: 0
-}, ViewContainerLocation.Sidebar);
+}, ViewContainerLocation.Sidebar, true);
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {

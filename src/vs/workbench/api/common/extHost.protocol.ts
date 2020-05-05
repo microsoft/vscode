@@ -1313,7 +1313,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$releaseDocumentSemanticTokens(handle: number, semanticColoringResultId: number): void;
 	$provideDocumentRangeSemanticTokens(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<VSBuffer | null>;
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<ISuggestResultDto | undefined>;
-	$resolveCompletionItem(handle: number, resource: UriComponents, position: IPosition, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
+	$resolveCompletionItem(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
@@ -1541,7 +1541,7 @@ export interface INotebookEditorPropertiesChangeData {
 export interface ExtHostNotebookShape {
 	$resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
 	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void>;
-	$saveNotebook(viewType: string, uri: UriComponents): Promise<boolean>;
+	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$updateActiveEditor(viewType: string, uri: UriComponents): Promise<void>;
 	$destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;

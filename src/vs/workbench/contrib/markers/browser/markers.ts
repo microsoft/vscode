@@ -40,7 +40,7 @@ export class MarkersWorkbenchService extends Disposable implements IMarkersWorkb
 			resourcesMap = resourcesMap ? resourcesMap : new ResourceMap<URI>();
 			resources.forEach(resource => resourcesMap!.set(resource, resource));
 			return resourcesMap;
-		}, 0)(resourcesMap => this.onMarkerChanged(resourcesMap.values())));
+		}, 0)(resourcesMap => this.onMarkerChanged([...resourcesMap.values()])));
 	}
 
 	private onMarkerChanged(resources: URI[]): void {

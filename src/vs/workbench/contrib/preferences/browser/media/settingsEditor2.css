@@ -414,21 +414,21 @@
 	-moz-appearance: textfield !important;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown * {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown * {
 	margin: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown a:focus {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:focus {
 	outline: 1px solid -webkit-focus-ring-color;
 	outline-offset: -1px;
 	text-decoration: underline;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown a:hover {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown a:hover {
 	text-decoration: underline;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-description-markdown code {
+.settings-editor > .settings-body > .settings-tree-container .setting-item-contents .setting-item-markdown code {
 	line-height: 15px;
 	/** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: var(--monaco-monospace-font);

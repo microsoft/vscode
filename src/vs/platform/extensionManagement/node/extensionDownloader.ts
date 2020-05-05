@@ -72,8 +72,6 @@ export class ExtensionsDownloader extends Disposable {
 					const extension = this.parse(stat.name);
 					if (extension) {
 						all.push([extension, stat]);
-					} else {
-						toDelete.push(stat.resource); // Delete those which are not an extension
 					}
 				}
 				const byExtension = groupByExtension(all, ([extension]) => extension.identifier);

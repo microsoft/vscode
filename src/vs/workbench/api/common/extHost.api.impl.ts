@@ -202,6 +202,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			login(providerId: string, scopes: string[]): Thenable<vscode.AuthenticationSession> {
 				return extHostAuthentication.login(extension, providerId, scopes);
 			},
+			logout(providerId: string, sessionId: string): Thenable<void> {
+				return extHostAuthentication.logout(providerId, sessionId);
+			},
 			get onDidChangeSessions(): Event<{ [providerId: string]: vscode.AuthenticationSessionsChangeEvent }> {
 				return extHostAuthentication.onDidChangeSessions;
 			},
@@ -321,7 +324,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: languages
 		const languages: typeof vscode.languages = {
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
-				return extHostDiagnostics.createDiagnosticCollection(name);
+				return extHostDiagnostics.createDiagnosticCollection(extension.identifier, name);
 			},
 			get onDidChangeDiagnostics() {
 				return extHostDiagnostics.onDidChangeDiagnostics;
@@ -899,9 +902,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: notebook
 		const notebook: typeof vscode.notebook = {
+			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidOpenNotebookDocument;
+			},
 			registerNotebookProvider: (viewType: string, provider: vscode.NotebookProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookProvider(extension, viewType, provider);
+			},
+			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider);
 			},
 			registerNotebookOutputRenderer: (type: string, outputFilter: vscode.NotebookOutputSelector, renderer: vscode.NotebookOutputRenderer) => {
 				checkProposedApiEnabled(extension);

@@ -148,6 +148,8 @@ class DisposedModelInfo {
 
 export class ModelServiceImpl extends Disposable implements IModelService {
 
+	public static MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK = 20 * 1024 * 1024;
+
 	public _serviceBrand: undefined;
 
 	private readonly _onModelAdded: Emitter<ITextModel> = this._register(new Emitter<ITextModel>());
@@ -263,12 +265,12 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		return platform.OS === platform.OperatingSystem.Linux || platform.OS === platform.OperatingSystem.Macintosh ? '\n' : '\r\n';
 	}
 
-	private _getMaxMemoryForClosedFilesUndoStack(): number {
-		const result = this._configurationService.getValue<number>('files.maxMemoryForClosedFilesUndoStackMB');
-		if (typeof result === 'number') {
-			return result * 1024 * 1024;
+	private _shouldRestoreUndoStack(): boolean {
+		const result = this._configurationService.getValue<boolean>('files.restoreUndoStack');
+		if (typeof result === 'boolean') {
+			return result;
 		}
-		return 20 * 1024 * 1024;
+		return true;
 	}
 
 	public getCreationOptions(language: string, resource: URI | undefined, isForSimpleWidget: boolean): ITextModelCreationOptions {
@@ -504,7 +506,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		const model = modelData.model;
 		let maintainUndoRedoStack = false;
 		let heapSize = 0;
-		if (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData) {
+		if (this._shouldRestoreUndoStack() && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData)) {
 			const elements = this._undoRedoService.getElements(resource);
 			if ((elements.past.length > 0 || elements.future.length > 0) && isEditStackPastFutureElements(elements)) {
 				maintainUndoRedoStack = true;
@@ -516,8 +518,6 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 					heapSize += element.heapSize(resource);
 					element.setModel(resource); // remove reference from text buffer instance
 				}
-			} else {
-				maintainUndoRedoStack = false;
 			}
 		}
 
@@ -527,7 +527,7 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			return;
 		}
 
-		const maxMemory = this._getMaxMemoryForClosedFilesUndoStack();
+		const maxMemory = ModelServiceImpl.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
 		if (heapSize > maxMemory) {
 			// the undo stack for this file would never fit in the configured memory, so don't bother with it.
 			this._undoRedoService.removeElements(resource);

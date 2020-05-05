@@ -329,23 +329,18 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// Shift-key enables or disables this behaviour depending on the setting
-			if (this.accessor.partOptions.scrollToSwitchTabs === 'off') {
-				if (!e.shiftKey) {
-					return; // 'off': only enable this when Shift-key is pressed
-				}
-			} else {
+			if (this.accessor.partOptions.scrollToSwitchTabs === true) {
 				if (e.shiftKey) {
 					return; // 'on': only enable this when Shift-key is not pressed
+				}
+			} else {
+				if (!e.shiftKey) {
+					return; // 'off': only enable this when Shift-key is pressed
 				}
 			}
 
 			// Figure out scrolling direction
-			let scrollingUp = e.deltaX < 0 || e.deltaY < 0;
-			if (this.accessor.partOptions.scrollToSwitchTabs === 'reverse') {
-				scrollingUp = !scrollingUp;
-			}
-
-			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + (scrollingUp ? -1 : 1));
+			const nextEditor = this.group.getEditorByIndex(this.group.getIndexOfEditor(activeEditor) + (e.deltaX < 0 || e.deltaY < 0 /* scrolling up */ ? -1 : 1));
 			if (!nextEditor) {
 				return;
 			}

@@ -502,7 +502,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private onWindowError(error: WindowError): void {
-		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: render process crashed!' : '[VS Code]: detected unresponsive');
+		this.logService.error(error === WindowError.CRASHED ? '[VS Code]: renderer process crashed!' : '[VS Code]: detected unresponsive');
 
 		// If we run extension tests from CLI, showing a dialog is not
 		// very helpful in this case. Rather, we bring down the test run
@@ -937,7 +937,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Multi Montior (fullscreen): try to find the previously used display
 		if (state.display && state.mode === WindowMode.Fullscreen) {
-			const display = displays.filter(d => d.id === state.display)[0];
+			const display = displays.find(d => d.id === state.display);
 			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {
 				this.logService.trace('window#validateWindowState: restoring fullscreen to previous display');
 

@@ -457,10 +457,11 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		const fileNames: string[] = [];
 		const globPatterns: string[] = [];
 
+		const localWithRemote = !this._initData.remote.isRemote && !!this._initData.remote.authority;
 		for (const activationEvent of activationEvents) {
 			if (/^workspaceContains:/.test(activationEvent)) {
 				const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
-				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0 || localWithRemote) {
 					globPatterns.push(fileNameOrGlob);
 				} else {
 					fileNames.push(fileNameOrGlob);

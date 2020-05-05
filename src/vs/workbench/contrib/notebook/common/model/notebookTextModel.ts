@@ -66,7 +66,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	createCellTextModel(
-		source: string[],
+		source: string | string[],
 		language: string,
 		cellKind: CellKind,
 		outputs: IOutput[],
@@ -74,7 +74,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	) {
 		const cellHandle = NotebookTextModel._cellhandlePool++;
 		const cellUri = CellUri.generate(this.uri, cellHandle);
-		return new NotebookCellTextModel(URI.revive(cellUri), cellHandle, source, language, cellKind, outputs || [], metadata);
+		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata);
 	}
 
 	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[]): boolean {
@@ -122,7 +122,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					const mainCells = insertEdit.cells.map(cell => {
 						const cellHandle = NotebookTextModel._cellhandlePool++;
 						const cellUri = CellUri.generate(this.uri, cellHandle);
-						return new NotebookCellTextModel(URI.revive(cellUri), cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
+						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 					});
 					this.insertNewCell(insertEdit.index, mainCells);
 					break;
@@ -200,7 +200,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					[{
 						handle: cell.handle,
 						uri: cell.uri,
-						source: cell.source,
+						source: cell.textBuffer.getLinesContent(),
 						language: cell.language,
 						cellKind: cell.cellKind,
 						outputs: cell.outputs,
@@ -237,7 +237,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					cells.map(cell => ({
 						handle: cell.handle,
 						uri: cell.uri,
-						source: cell.source,
+						source: cell.textBuffer.getLinesContent(),
 						language: cell.language,
 						cellKind: cell.cellKind,
 						outputs: cell.outputs,

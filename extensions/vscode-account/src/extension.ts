@@ -5,10 +5,7 @@
 
 import * as vscode from 'vscode';
 import { AzureActiveDirectoryService, onDidChangeSessions } from './AADHelper';
-import * as nls from 'vscode-nls';
 import TelemetryReporter from 'vscode-extension-telemetry';
-
-const localize = nls.loadMessageBundle();
 
 export const DEFAULT_SCOPES = 'https://management.core.windows.net/.default offline_access';
 
@@ -45,39 +42,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			} catch (e) {
 				telemetryReporter.sendTelemetryEvent('logoutFailed');
 			}
-		}
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('microsoft.signin', () => {
-		return loginService.login(DEFAULT_SCOPES);
-	}));
-
-	context.subscriptions.push(vscode.commands.registerCommand('microsoft.signout', async () => {
-		const sessions = loginService.sessions;
-		if (sessions.length === 0) {
-			return;
-		}
-
-		if (sessions.length === 1) {
-			const id = loginService.sessions[0].id;
-			await loginService.logout(id);
-			onDidChangeSessions.fire({ added: [], removed: [id], changed: [] });
-			vscode.window.showInformationMessage(localize('signedOut', "Successfully signed out."));
-			return;
-		}
-
-		const selectedSession = await vscode.window.showQuickPick(sessions.map(session => {
-			return {
-				id: session.id,
-				label: session.account.displayName
-			};
-		}));
-
-		if (selectedSession) {
-			await loginService.logout(selectedSession.id);
-			onDidChangeSessions.fire({ added: [], removed: [selectedSession.id], changed: [] });
-			vscode.window.showInformationMessage(localize('signedOut', "Successfully signed out."));
-			return;
 		}
 	}));
 

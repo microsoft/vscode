@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { PieceTreeTextBufferFactory } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, IOutput, CellUri, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, CellUri, NotebookCellMetadata, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
@@ -22,24 +20,17 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
-
+import { EditorModel } from 'vs/workbench/common/editor';
 export class TestCell extends NotebookCellTextModel {
 	constructor(
 		public viewType: string,
 		handle: number,
-		source: string[],
+		public source: string[],
 		language: string,
 		cellKind: CellKind,
 		outputs: IOutput[]
 	) {
 		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined);
-	}
-	contentChange(): void {
-		// throw new Error('Method not implemented.');
-	}
-
-	resolveTextBufferFactory(): PieceTreeTextBufferFactory {
-		throw new Error('Method not implemented.');
 	}
 }
 
@@ -114,6 +105,14 @@ export class TestNotebookEditor implements INotebookEditor {
 	}
 
 	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
+
+	splitNotebookCell(cell: ICellViewModel): Promise<CellViewModel[] | null> {
+		throw new Error('Method not implemented.');
+	}
+
+	joinNotebookCells(cell: ICellViewModel, direction: 'above' | 'below', constraint?: CellKind): Promise<ICellViewModel | null> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -211,6 +210,54 @@ export class TestNotebookEditor implements INotebookEditor {
 // 	return createCellViewModel(instantiationService, viewType, notebookHandle, mockCell);
 // }
 
+export class NotebookEditorTestModel extends EditorModel implements INotebookEditorModel {
+	private _dirty = false;
+
+	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
+
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
+
+	get notebook() {
+		return this._notebook;
+	}
+
+	constructor(
+		private _notebook: NotebookTextModel
+	) {
+		super();
+
+		if (_notebook && _notebook.onDidChangeCells) {
+			this._register(_notebook.onDidChangeContent(() => {
+				this._dirty = true;
+				this._onDidChangeDirty.fire();
+				this._onDidChangeContent.fire();
+			}));
+		}
+	}
+
+	isDirty() {
+		return this._dirty;
+	}
+
+	getNotebook(): NotebookTextModel {
+		return this._notebook;
+	}
+
+	async save(): Promise<boolean> {
+		if (this._notebook) {
+			this._dirty = false;
+			this._onDidChangeDirty.fire();
+			// todo, flush all states
+			return true;
+		}
+
+		return false;
+	}
+}
+
 export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
@@ -218,9 +265,9 @@ export function withTestNotebook(instantiationService: IInstantiationService, bl
 	notebook.cells = cells.map((cell, index) => {
 		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3], cell[4]);
 	});
-	const model = new NotebookEditorModel(notebook);
+	const model = new NotebookEditorTestModel(notebook);
 	const eventDispatcher = new NotebookEventDispatcher();
-	const viewModel = new NotebookViewModel(viewType, model, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
+	const viewModel = new NotebookViewModel(viewType, model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
 
 	callback(editor, viewModel, notebook);
 

@@ -114,6 +114,7 @@ export class DiffReview extends Disposable {
 
 		this._content = createFastDomNode(document.createElement('div'));
 		this._content.setClassName('diff-review-content');
+		this._content.setAttribute('role', 'code');
 		this.scrollbar = this._register(new DomScrollableElement(this._content.domNode, {}));
 		this.domNode.domNode.appendChild(this.scrollbar.getDomNode());
 
@@ -748,7 +749,11 @@ export class DiffReview extends Disposable {
 			let ariaLabel: string = '';
 			switch (type) {
 				case DiffEntryType.Equal:
-					ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
+					if (originalLine === modifiedLine) {
+						ariaLabel = nls.localize('unchangedLine', "{0} unchanged line {1}", lineContent, originalLine);
+					} else {
+						ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
+					}
 					break;
 				case DiffEntryType.Insert:
 					ariaLabel = nls.localize('insertLine', "+ {0} modified line {1}", lineContent, modifiedLine);

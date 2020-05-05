@@ -55,7 +55,7 @@ export interface ParsedArgs {
 	'locate-extension'?: string[]; // undefined or array of 1 or more
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
-	'skip-getting-started'?: boolean;
+	'skip-release-notes'?: boolean;
 	'disable-restore-windows'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
@@ -172,7 +172,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'install-source': { type: 'string' },
 	'driver': { type: 'string' },
 	'logExtensionHostCommunication': { type: 'boolean' },
-	'skip-getting-started': { type: 'boolean' },
+	'skip-release-notes': { type: 'boolean' },
 	'disable-restore-windows': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },

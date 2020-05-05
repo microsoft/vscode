@@ -6,10 +6,10 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
-import { basename } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ITextModel } from 'vs/editor/common/model';
+import { ITextModel, ITextBufferFactory, DefaultEndOfLine, ITextBuffer } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -26,7 +26,8 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { NotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
-import { INotebookService, NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -87,7 +88,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 			if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
 				return undefined;
 			}
-			return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType);
+			return NotebookEditorInput.getOrCreate(instantiationService, resource, name, viewType);
 		}
 	}
 );
@@ -107,11 +108,8 @@ export class NotebookContribution implements IWorkbenchContribution {
 
 	) {
 		this.editorService.overrideOpenEditor({
-			getEditorOverrides: (editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
-				let resource = editor.resource;
-				if (!resource) {
-					return [];
-				}
+			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+				const currentEditorForResource = group?.editors.find(editor => isEqual(editor.resource, resource));
 
 				const associatedEditors = distinct([
 					...this.getUserAssociatedNotebookEditors(resource),
@@ -122,7 +120,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 					return {
 						label: info.displayName,
 						id: info.id,
-						active: editor instanceof NotebookEditorInput && editor.viewType === info.id,
+						active: currentEditorForResource instanceof NotebookEditorInput && currentEditorForResource.viewType === info.id,
 						detail: info.providerDisplayName
 					};
 				});
@@ -164,6 +162,12 @@ export class NotebookContribution implements IWorkbenchContribution {
 		}
 
 		if (id === undefined) {
+			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, resource) && !(editor instanceof NotebookEditorInput));
+
+			if (existingEditors.length) {
+				return undefined;
+			}
+
 			const userAssociatedEditors = this.getUserAssociatedEditors(resource);
 			const notebookEditor = userAssociatedEditors.filter(association => this.notebookService.getContributedNotebookProvider(association.viewType));
 
@@ -190,8 +194,11 @@ export class NotebookContribution implements IWorkbenchContribution {
 				const info = id === undefined ? infos[0] : (infos.find(info => info.id === id) || infos[0]);
 				// cell-uri -> open (container) notebook
 				const name = basename(data.notebook);
-				const input = this.instantiationService.createInstance(NotebookEditorInput, data.notebook, name, info.id);
-				this._resourceMapping.set(resource, input);
+				let input = this._resourceMapping.get(data.notebook);
+				if (!input || input.isDisposed()) {
+					input = NotebookEditorInput.getOrCreate(this.instantiationService, data.notebook, name, info.id);
+					this._resourceMapping.set(data.notebook, input);
+				}
 				return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
 			}
 		}
@@ -203,7 +210,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 			return undefined;
 		}
 
-		const input = this.instantiationService.createInstance(NotebookEditorInput, resource, originalInput.getName(), info.id);
+		const input = NotebookEditorInput.getOrCreate(this.instantiationService, resource, originalInput.getName(), info.id);
 		this._resourceMapping.set(resource, input);
 
 		return { override: this.editorService.openEditor(input, options, group) };
@@ -241,14 +248,25 @@ class CellContentProvider implements ITextModelContentProvider {
 		if (!info) {
 			return null;
 		}
-		const notebook = await this._notebookService.resolveNotebook(info.id, data.notebook);
-		if (!notebook) {
+
+		const editorModel = await this._notebookService.modelManager.get(data.notebook);
+		if (!editorModel) {
 			return null;
 		}
-		for (let cell of notebook.cells) {
+
+		for (let cell of editorModel.notebook.cells) {
 			if (cell.uri.toString() === resource.toString()) {
-				const bufferFactory = cell.resolveTextBufferFactory();
-				const language = cell.cellKind === CellKind.Markdown ? this._modeService.create('markdown') : (cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.source[0]));
+				const bufferFactory: ITextBufferFactory = {
+					create: (defaultEOL) => {
+						const newEOL = (defaultEOL === DefaultEndOfLine.CRLF ? '\r\n' : '\n');
+						(cell.textBuffer as ITextBuffer).setEOL(newEOL);
+						return cell.textBuffer as ITextBuffer;
+					},
+					getFirstLineText: (limit: number) => {
+						return cell.textBuffer.getLineContent(1).substr(0, limit);
+					}
+				};
+				const language = cell.cellKind === CellKind.Markdown ? this._modeService.create('markdown') : (cell.language ? this._modeService.create(cell.language) : this._modeService.createByFilepathOrFirstLine(resource, cell.textBuffer.getLineContent(1)));
 				return this._modelService.createModel(
 					bufferFactory,
 					language,

@@ -481,7 +481,9 @@ export class TernarySearchTree<K, V> {
 	}
 }
 
-export class ResourceMap<T> {
+export class ResourceMap<T> implements Map<URI, T> {
+
+	readonly [Symbol.toStringTag] = 'ResourceMap';
 
 	protected readonly map: Map<string, T>;
 	protected readonly ignoreCase?: boolean;
@@ -491,8 +493,9 @@ export class ResourceMap<T> {
 		this.ignoreCase = false; // in the future this should be an uri-comparator
 	}
 
-	set(resource: URI, value: T): void {
+	set(resource: URI, value: T): this {
 		this.map.set(this.toKey(resource), value);
+		return this;
 	}
 
 	get(resource: URI): T | undefined {
@@ -515,12 +518,35 @@ export class ResourceMap<T> {
 		return this.map.delete(this.toKey(resource));
 	}
 
-	forEach(clb: (value: T, key: URI) => void): void {
-		this.map.forEach((value, index) => clb(value, URI.parse(index)));
+	forEach(clb: (value: T, key: URI, map: Map<URI, T>) => void, thisArg?: any): void {
+		if (typeof thisArg !== 'undefined') {
+			clb = clb.bind(thisArg);
+		}
+		for (let [index, value] of this.map) {
+			clb(value, URI.parse(index), <any>this);
+		}
 	}
 
-	values(): T[] {
-		return values(this.map);
+	values(): IterableIterator<T> {
+		return this.map.values();
+	}
+
+	*keys(): IterableIterator<URI> {
+		for (let key of this.map.keys()) {
+			yield URI.parse(key);
+		}
+	}
+
+	*entries(): IterableIterator<[URI, T]> {
+		for (let tuple of this.map.entries()) {
+			yield [URI.parse(tuple[0]), tuple[1]];
+		}
+	}
+
+	*[Symbol.iterator](): IterableIterator<[URI, T]> {
+		for (let item of this.map) {
+			yield [URI.parse(item[0]), item[1]];
+		}
 	}
 
 	private toKey(resource: URI): string {
@@ -530,10 +556,6 @@ export class ResourceMap<T> {
 		}
 
 		return key;
-	}
-
-	keys(): URI[] {
-		return keys(this.map).map(k => URI.parse(k));
 	}
 
 	clone(): ResourceMap<T> {
@@ -558,7 +580,9 @@ export const enum Touch {
 	AsNew = 2
 }
 
-export class LinkedMap<K, V> {
+export class LinkedMap<K, V> implements Map<K, V>{
+
+	readonly [Symbol.toStringTag] = 'LinkedMap';
 
 	private _map: Map<K, Item<K, V>>;
 	private _head: Item<K, V> | undefined;
@@ -610,7 +634,7 @@ export class LinkedMap<K, V> {
 		return item.value;
 	}
 
-	set(key: K, value: V, touch: Touch = Touch.None): void {
+	set(key: K, value: V, touch: Touch = Touch.None): this {
 		let item = this._map.get(key);
 		if (item) {
 			item.value = value;
@@ -636,6 +660,7 @@ export class LinkedMap<K, V> {
 			this._map.set(key, item);
 			this._size++;
 		}
+		return this;
 	}
 
 	delete(key: K): boolean {
@@ -679,34 +704,13 @@ export class LinkedMap<K, V> {
 		}
 	}
 
-	values(): V[] {
-		const result: V[] = [];
-		let current = this._head;
-		while (current) {
-			result.push(current.value);
-			current = current.next;
-		}
-		return result;
-	}
-
-	keys(): K[] {
-		const result: K[] = [];
-		let current = this._head;
-		while (current) {
-			result.push(current.key);
-			current = current.next;
-		}
-		return result;
-	}
-
-	/* VS Code / Monaco editor runs on es5 which has no Symbol.iterator
 	keys(): IterableIterator<K> {
-		const current = this._head;
+		let current = this._head;
 		const iterator: IterableIterator<K> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
-			next():IteratorResult<K> {
+			next(): IteratorResult<K> {
 				if (current) {
 					const result = { value: current.key, done: false };
 					current = current.next;
@@ -720,12 +724,12 @@ export class LinkedMap<K, V> {
 	}
 
 	values(): IterableIterator<V> {
-		const current = this._head;
+		let current = this._head;
 		const iterator: IterableIterator<V> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
-			next():IteratorResult<V> {
+			next(): IteratorResult<V> {
 				if (current) {
 					const result = { value: current.value, done: false };
 					current = current.next;
@@ -737,7 +741,29 @@ export class LinkedMap<K, V> {
 		};
 		return iterator;
 	}
-	*/
+
+	entries(): IterableIterator<[K, V]> {
+		let current = this._head;
+		const iterator: IterableIterator<[K, V]> = {
+			[Symbol.iterator]() {
+				return iterator;
+			},
+			next(): IteratorResult<[K, V]> {
+				if (current) {
+					const result: IteratorResult<[K, V]> = { value: [current.key, current.value], done: false };
+					current = current.next;
+					return result;
+				} else {
+					return { value: undefined, done: true };
+				}
+			}
+		};
+		return iterator;
+	}
+
+	[Symbol.iterator](): IterableIterator<[K, V]> {
+		return this.entries();
+	}
 
 	protected trimOld(newSize: number) {
 		if (newSize >= this.size) {
@@ -939,9 +965,10 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		return super.get(key, Touch.None);
 	}
 
-	set(key: K, value: V): void {
+	set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
+		return this;
 	}
 
 	private checkTrim() {

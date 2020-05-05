@@ -135,7 +135,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
-			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
+			openComposite: (compositeId: string) => this.openPanel(compositeId, true).then(panel => panel || null),
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
@@ -150,7 +150,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
-				(id: string, focus?: boolean) => this.openPanel(id, focus) as Promise<IPaneComposite | undefined>,
+				(id: string, focus?: boolean) => (this.openPanel(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
 				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore)
 			),
 			compositeSize: 0,
@@ -222,14 +222,27 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	private onDidDeregisterPanel(panelId: string): void {
+	private async onDidDeregisterPanel(panelId: string): Promise<void> {
 		const disposable = this.panelDisposables.get(panelId);
 		if (disposable) {
 			disposable.dispose();
 		}
-
 		this.panelDisposables.delete(panelId);
-		this.hideComposite(panelId);
+
+		const activeContainers = this.viewDescriptorService.getViewContainersByLocation(ViewContainerLocation.Panel)
+			.filter(container => this.viewDescriptorService.getViewContainerModel(container).activeViewDescriptors.length > 0);
+
+		if (activeContainers.length) {
+			if (this.getActivePanel()?.getId() === panelId) {
+				const defaultPanelId = this.panelRegistry.getDefaultPanelId();
+				const containerToOpen = activeContainers.filter(c => c.id === defaultPanelId)[0] || activeContainers[0];
+				await this.openPanel(containerToOpen.id);
+			}
+		} else {
+			this.layoutService.setPanelHidden(true);
+		}
+
+		this.removeComposite(panelId);
 	}
 
 	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
@@ -287,6 +300,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			this.compositeBar.onDidChange(() => this.saveCachedPanels(), this, disposables);
 			this.storageService.onDidChangeStorage(e => this.onDidStorageChange(e), this, disposables);
 		}));
+
 	}
 
 	private onDidRegisterExtensions(): void {
@@ -537,6 +551,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	protected removeComposite(compositeId: string): boolean {
 		if (super.removeComposite(compositeId)) {
+			this.compositeBar.removeComposite(compositeId);
 			const compositeActions = this.compositeActions.get(compositeId);
 			if (compositeActions) {
 				compositeActions.activityAction.dispose();

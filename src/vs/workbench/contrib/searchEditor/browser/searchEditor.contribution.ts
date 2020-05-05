@@ -208,12 +208,12 @@ registry.registerWorkbenchAction(
 	'Search Editor: Open New Search Editor to Side', category);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(RerunSearchEditorSearchAction,
-	{ mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R } }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
-	'Search Editor: Search Again', category);
+	{ mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_R } }),
+	'Search Editor: Search Again', category, SearchEditorConstants.InSearchEditor);
 
 registry.registerWorkbenchAction(SyncActionDescriptor.from(FocusQueryEditorWidgetAction,
-	{ primary: KeyCode.Escape }, ContextKeyExpr.and(SearchEditorConstants.InSearchEditor)),
-	'Search Editor: Focus Query Editor Widget', category);
+	{ primary: KeyCode.Escape }),
+	'Search Editor: Focus Query Editor Widget', category, SearchEditorConstants.InSearchEditor);
 //#endregion
 
 

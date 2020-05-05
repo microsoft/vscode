@@ -14,18 +14,23 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 const $ = dom.$;
 
 export class HoverWidget extends Widget {
+	private readonly _containerDomNode: HTMLElement;
 	private readonly _domNode: HTMLElement;
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _mouseTracker: CompositeMouseTracker;
+	private readonly _scrollbar: DomScrollableElement;
 
 	private _isDisposed: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
-	get domNode(): HTMLElement { return this._domNode; }
+	get domNode(): HTMLElement { return this._containerDomNode; }
 
 	private readonly _onDispose = new Emitter<void>();
 	get onDispose(): Event<void> { return this._onDispose.event; }
@@ -36,20 +41,28 @@ export class HoverWidget extends Widget {
 		private _text: IMarkdownString,
 		private _linkHandler: (url: string) => void,
 		private _actions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }[] | undefined,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
+		this._containerDomNode = document.createElement('div');
+		this._containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
+		this._containerDomNode.tabIndex = 0;
+		this._containerDomNode.setAttribute('role', 'tooltip');
+
 		this._domNode = document.createElement('div');
-		this._domNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
-		this._domNode.tabIndex = 0;
-		this._domNode.setAttribute('role', 'tooltip');
+		this._domNode.className = 'monaco-editor-hover-content';
+
+		this._scrollbar = new DomScrollableElement(this._domNode, {});
+		this._register(this._scrollbar);
+		this._containerDomNode.appendChild(this._scrollbar.getDomNode());
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
-		this.onmousedown(this._domNode, e => e.stopPropagation());
+		this.onmousedown(this._containerDomNode, e => e.stopPropagation());
 
 		// Hide hover on escape
-		this.onkeydown(this._domNode, e => {
+		this.onkeydown(this._containerDomNode, e => {
 			if (e.equals(KeyCode.Escape)) {
 				this.dispose();
 			}
@@ -61,6 +74,14 @@ export class HoverWidget extends Widget {
 			actionHandler: {
 				callback: (content) => this._linkHandler(content),
 				disposeables: this._messageListeners
+			},
+			codeBlockRenderer: async (_, value) => {
+				const fontFamily = this._configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
+				return `<span style="font-family: ${fontFamily}; white-space: nowrap">${value.replace(/\n/g, '<br>')}</span>`;
+			},
+			codeBlockRenderCallback: () => {
+				contentsElement.classList.add('code-hover-contents');
+				this.layout();
 			}
 		});
 		contentsElement.appendChild(markdownElement);
@@ -75,11 +96,11 @@ export class HoverWidget extends Widget {
 			this._domNode.appendChild(statusBarElement);
 		}
 
-		this._mouseTracker = new CompositeMouseTracker([this._domNode, ..._target.targetElements]);
+		this._mouseTracker = new CompositeMouseTracker([this._containerDomNode, ..._target.targetElements]);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
 		this._register(this._mouseTracker);
 
-		this._container.appendChild(this._domNode);
+		this._container.appendChild(this._containerDomNode);
 
 		this.layout();
 	}
@@ -106,45 +127,55 @@ export class HoverWidget extends Widget {
 	public layout(): void {
 		const anchor = this._target.anchor;
 
+		this._containerDomNode.classList.remove('right-aligned');
+		this._domNode.style.maxHeight = '';
 		if (anchor.horizontalAnchorSide === HorizontalAnchorSide.Left) {
-			if (anchor.x + this._domNode.clientWidth * 0.75 > document.documentElement.clientWidth) {
-				// Shift the hover to the left when > 25% would be cut off
-				const width = Math.round(this._domNode.clientWidth * 0.75);
-				this._domNode.style.width = `${width - 1}px`;
-				this._domNode.style.maxWidth = '';
-				this._domNode.style.left = `${document.documentElement.clientWidth - width - 1}px`;
+			if (anchor.x + this._containerDomNode.clientWidth > document.documentElement.clientWidth) {
+				// Shift the hover to the left when part of it would get cut off
+				const width = Math.round(this._containerDomNode.clientWidth);
+				this._containerDomNode.style.width = `${width - 1}px`;
+				this._containerDomNode.style.maxWidth = '';
+				const left = document.documentElement.clientWidth - width - 1;
+				this._containerDomNode.style.left = `${left}px`;
+				// Right align if the right edge is closer to the anchor than the left edge
+				if (left + width / 2 < anchor.x) {
+					this._containerDomNode.classList.add('right-aligned');
+				}
 			} else {
-				this._domNode.style.width = '';
-				this._domNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
-				this._domNode.style.left = `${anchor.x}px`;
+				this._containerDomNode.style.width = '';
+				this._containerDomNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
+				this._containerDomNode.style.left = `${anchor.x}px`;
 			}
 		} else {
-			this._domNode.style.right = `${anchor.x}px`;
+			this._containerDomNode.style.right = `${anchor.x}px`;
 		}
 		// Use fallback y value if there is not enough vertical space
 		if (anchor.verticalAnchorSide === VerticalAnchorSide.Bottom) {
-			if (anchor.y + this._domNode.clientHeight > document.documentElement.clientHeight) {
-				this._domNode.style.top = `${anchor.fallbackY}px`;
+			if (anchor.y + this._containerDomNode.clientHeight > document.documentElement.clientHeight) {
+				this._containerDomNode.style.top = `${anchor.fallbackY}px`;
+				this._domNode.style.maxHeight = `${document.documentElement.clientHeight - anchor.fallbackY}px`;
 			} else {
-				this._domNode.style.bottom = `${anchor.y}px`;
+				this._containerDomNode.style.bottom = `${anchor.y}px`;
+				this._containerDomNode.style.maxHeight = '';
 			}
 		} else {
-			if (anchor.y + this._domNode.clientHeight > document.documentElement.clientHeight) {
-				this._domNode.style.bottom = `${anchor.fallbackY}px`;
+			if (anchor.y + this._containerDomNode.clientHeight > document.documentElement.clientHeight) {
+				this._containerDomNode.style.bottom = `${anchor.fallbackY}px`;
 			} else {
-				this._domNode.style.top = `${anchor.y}px`;
+				this._containerDomNode.style.top = `${anchor.y}px`;
 			}
 		}
+		this._scrollbar.scanDomNode();
 	}
 
 	public focus() {
-		this._domNode.focus();
+		this._containerDomNode.focus();
 	}
 
 	public dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
-			this._domNode.parentElement?.removeChild(this.domNode);
+			this._containerDomNode.parentElement?.removeChild(this.domNode);
 			this._messageListeners.dispose();
 			this._target.dispose();
 			super.dispose();

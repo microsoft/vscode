@@ -35,8 +35,8 @@ suite('NotebookTextModel', () => {
 
 				assert.equal(textModel.cells.length, 6);
 
-				assert.equal(textModel.cells[1].source.join('\n'), 'var e = 5;');
-				assert.equal(textModel.cells[4].source.join('\n'), 'var f = 6;');
+				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.equal(textModel.cells[4].getValue(), 'var f = 6;');
 			}
 		);
 	});
@@ -60,8 +60,8 @@ suite('NotebookTextModel', () => {
 
 				assert.equal(textModel.cells.length, 6);
 
-				assert.equal(textModel.cells[1].source.join('\n'), 'var e = 5;');
-				assert.equal(textModel.cells[2].source.join('\n'), 'var f = 6;');
+				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.equal(textModel.cells[2].getValue(), 'var f = 6;');
 			}
 		);
 	});
@@ -83,8 +83,8 @@ suite('NotebookTextModel', () => {
 					{ editType: CellEditType.Delete, index: 3, count: 1 },
 				]);
 
-				assert.equal(textModel.cells[0].source.join('\n'), 'var a = 1;');
-				assert.equal(textModel.cells[1].source.join('\n'), 'var c = 3;');
+				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.equal(textModel.cells[1].getValue(), 'var c = 3;');
 			}
 		);
 	});
@@ -108,8 +108,8 @@ suite('NotebookTextModel', () => {
 
 				assert.equal(textModel.cells.length, 4);
 
-				assert.equal(textModel.cells[0].source.join('\n'), 'var a = 1;');
-				assert.equal(textModel.cells[2].source.join('\n'), 'var e = 5;');
+				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.equal(textModel.cells[2].getValue(), 'var e = 5;');
 			}
 		);
 	});
@@ -132,9 +132,9 @@ suite('NotebookTextModel', () => {
 				]);
 
 				assert.equal(textModel.cells.length, 4);
-				assert.equal(textModel.cells[0].source.join('\n'), 'var a = 1;');
-				assert.equal(textModel.cells[1].source.join('\n'), 'var e = 5;');
-				assert.equal(textModel.cells[2].source.join('\n'), 'var c = 3;');
+				assert.equal(textModel.cells[0].getValue(), 'var a = 1;');
+				assert.equal(textModel.cells[1].getValue(), 'var e = 5;');
+				assert.equal(textModel.cells[2].getValue(), 'var c = 3;');
 			}
 		);
 	});

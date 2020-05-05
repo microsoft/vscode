@@ -487,7 +487,7 @@ export class ResetViewLocationsAction extends Action {
 	}
 
 	async run(): Promise<void> {
-		this.viewDescriptorService.getViewContainers().forEach(viewContainer => {
+		this.viewDescriptorService.viewContainers.forEach(viewContainer => {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 
 			viewContainerModel.allViewDescriptors.forEach(viewDescriptor => {
@@ -596,7 +596,7 @@ export class MoveFocusedViewAction extends Action {
 			});
 		}
 
-		const pinnedViewlets = this.activityBarService.getPinnedViewletIds();
+		const pinnedViewlets = this.activityBarService.getPinnedViewContainerIds();
 		items.push(...pinnedViewlets
 			.filter(viewletId => {
 				if (viewletId === this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {

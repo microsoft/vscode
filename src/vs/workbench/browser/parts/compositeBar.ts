@@ -37,7 +37,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 	constructor(
 		private viewDescriptorService: IViewDescriptorService,
 		private targetContainerLocation: ViewContainerLocation,
-		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | undefined>,
+		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | null>,
 		private moveComposite: (from: string, to: string, before?: Before2D) => void,
 	) { }
 
@@ -140,7 +140,7 @@ export interface ICompositeBarOptions {
 	getOnCompositeClickAction: (compositeId: string) => Action;
 	getContextMenuActions: () => Action[];
 	getContextMenuActionsForComposite: (compositeId: string) => Action[];
-	openComposite: (compositeId: string) => Promise<IComposite | undefined>;
+	openComposite: (compositeId: string) => Promise<IComposite | null>;
 	getDefaultCompositeId: () => string;
 	hidePart: () => void;
 }
@@ -188,6 +188,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return this.model.pinnedItems;
 	}
 
+	getVisibleComposites(): ICompositeBarItem[] {
+		return this.model.visibleItems;
+	}
+
 	create(parent: HTMLElement): HTMLElement {
 		const actionBarDiv = parent.appendChild($('.composite-bar'));
 		this.compositeSwitcherBar = this._register(new ActionBar(actionBarDiv, {
@@ -229,6 +233,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			},
 
 			onDragLeave: (e: IDraggedCompositeData) => {
+				toggleClass(parent, 'dragged-over', false);
+			},
+			onDragEnd: (e: IDraggedCompositeData) => {
 				toggleClass(parent, 'dragged-over', false);
 			},
 			onDrop: (e: IDraggedCompositeData) => {

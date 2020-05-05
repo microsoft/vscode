@@ -161,7 +161,7 @@ export class RerunSearchEditorSearchAction extends Action {
 
 export class FocusQueryEditorWidgetAction extends Action {
 	static readonly ID: string = Constants.FocusQueryEditorWidgetCommandId;
-	static readonly LABEL = localize('search.action.focusQueryEditorWidget', "Focus Query Editor Widget");
+	static readonly LABEL = localize('search.action.focusQueryEditorWidget', "Focus Search Editor Input");
 
 	constructor(id: string, label: string,
 		@IEditorService private readonly editorService: IEditorService,

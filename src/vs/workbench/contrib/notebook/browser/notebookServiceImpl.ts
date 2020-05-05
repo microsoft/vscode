@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
@@ -19,44 +19,11 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IEditorService, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
-}
-
-export const INotebookService = createDecorator<INotebookService>('notebookService');
-
-export interface IMainNotebookController {
-	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
-	executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
-	onDidReceiveMessage(uri: URI, message: any): void;
-	executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void>;
-	destoryNotebookDocument(notebook: INotebookTextModel): Promise<void>;
-	save(uri: URI): Promise<boolean>;
-}
-
-export interface INotebookService {
-	_serviceBrand: undefined;
-	canResolve(viewType: string): Promise<boolean>;
-	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }>;
-	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
-	unregisterNotebookProvider(viewType: string): void;
-	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]): void;
-	unregisterNotebookRenderer(handle: number): void;
-	getRendererInfo(handle: number): INotebookRendererInfo | undefined;
-	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
-	executeNotebook(viewType: string, uri: URI): Promise<void>;
-	executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void>;
-
-	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
-	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
-	getNotebookProviderResourceRoots(): URI[];
-	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
-	updateActiveNotebookDocument(viewType: string, resource: URI): void;
-	save(viewType: string, resource: URI): Promise<boolean>;
-	onDidReceiveMessage(viewType: string, uri: URI, message: any): void;
-	setToCopy(items: NotebookCellTextModel[]): void;
-	getToCopy(): NotebookCellTextModel[] | undefined;
 }
 
 export class NotebookProviderInfoStore {
@@ -126,8 +93,6 @@ class ModelData implements IDisposable {
 		this._modelEventListeners.dispose();
 	}
 }
-
-
 export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
 	_serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
@@ -142,13 +107,18 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
 	private cutItems: NotebookCellTextModel[] | undefined;
 
+	modelManager: NotebookEditorModelManager;
+
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
 		this._models = {};
+		this.modelManager = this.instantiationService.createInstance(NotebookEditorModelManager);
+
 		notebookProviderExtensionPoint.setHandler((extensions) => {
 			this.notebookProviderInfoStore.clear();
 
@@ -311,11 +281,11 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return this.cutItems;
 	}
 
-	async save(viewType: string, resource: URI): Promise<boolean> {
+	async save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.save(resource);
+			return provider.controller.save(resource, token);
 		}
 
 		return false;

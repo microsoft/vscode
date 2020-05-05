@@ -281,16 +281,16 @@ export class DebugHoverWidget implements IContentWidget {
 		}
 
 		this.valueContainer.hidden = true;
-		this.complexValueContainer.hidden = false;
 
+		await this.tree.setInput(expression);
 		this.complexValueTitle.textContent = expression.value;
 		this.complexValueTitle.title = expression.value;
 		this.layoutTreeAndContainer();
 		this.editor.layoutContentWidget(this);
 		this.scrollbar.scanDomNode();
-		await this.tree.setInput(expression);
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
+		this.complexValueContainer.hidden = false;
 
 		if (focus) {
 			this.editor.render();
@@ -341,7 +341,7 @@ class DebugHoverAccessibilityProvider implements IListAccessibilityProvider<IExp
 	}
 
 	getAriaLabel(element: IExpression): string {
-		return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
+		return nls.localize('variableAriaLabel', "{0}, value {1}, variables, debug", element.name, element.value);
 	}
 }
 

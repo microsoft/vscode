@@ -5586,7 +5586,7 @@ declare namespace monaco.languages {
 		 *
 		 * The editor will only resolve a completion item once.
 		 */
-		resolveCompletionItem?(model: editor.ITextModel, position: Position, item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 	}
 
 	export interface CodeAction {

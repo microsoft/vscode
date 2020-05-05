@@ -113,10 +113,10 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 				if (lineNo) {
 					const lineColumnInfo: LineColumnInfo = terminalLinkHandler.extractLineColumnInfo(link);
-					assert.equal(lineColumnInfo.lineNumber, lineNo);
+					assert.equal(lineColumnInfo.lineNumber, lineNo, `For link ${link}, expected line number ${lineNo}, actual ${lineColumnInfo.lineNumber}`);
 
 					if (columnNo) {
-						assert.equal(lineColumnInfo.columnNumber, columnNo);
+						assert.equal(lineColumnInfo.columnNumber, columnNo, `For link ${link}, expected column number ${columnNo}, actual ${lineColumnInfo.columnNumber}`);
 					}
 				}
 			}
@@ -190,10 +190,10 @@ suite('Workbench - TerminalLinkHandler', () => {
 
 				if (lineNo) {
 					const lineColumnInfo: LineColumnInfo = terminalLinkHandler.extractLineColumnInfo(link);
-					assert.equal(lineColumnInfo.lineNumber, lineNo);
+					assert.equal(lineColumnInfo.lineNumber, lineNo, `For link ${link}, expected line number ${lineNo}, actual ${lineColumnInfo.lineNumber}`);
 
 					if (columnNo) {
-						assert.equal(lineColumnInfo.columnNumber, columnNo);
+						assert.equal(lineColumnInfo.columnNumber, columnNo, `For link ${link}, expected column number ${columnNo}, actual ${lineColumnInfo.columnNumber}`);
 					}
 				}
 			}

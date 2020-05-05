@@ -112,6 +112,7 @@ suite('notebook workflow', () => {
 
 		// ---- ---- //
 
+		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
@@ -161,6 +162,7 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 
+		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
@@ -183,6 +185,90 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('notebook.execute');
 		assert.equal(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+});
+
+suite('notebook dirty state', () => {
+	test('notebook open', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, 'test');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
+
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
+
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
+		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		assert.notEqual(vscode.notebook.activeNotebookEditor!.selection, undefined);
+		assert.equal(activeCell!.source, '');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 3);
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
+
+
+		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
+		// await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true);
+		assert.equal(vscode.notebook.activeNotebookEditor?.selection !== undefined, true);
+		assert.deepEqual(vscode.notebook.activeNotebookEditor?.document.cells[1], vscode.notebook.activeNotebookEditor?.selection);
+		assert.equal(vscode.notebook.activeNotebookEditor?.selection?.source, 'var abc = 0;');
+
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+});
+
+suite('notebook undo redo', () => {
+	test('notebook open', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, 'test');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
+
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
+
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
+		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		assert.notEqual(vscode.notebook.activeNotebookEditor!.selection, undefined);
+		assert.equal(activeCell!.source, '');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 3);
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
+
+
+		// modify the second cell, delete it
+		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
+		await vscode.commands.executeCommand('notebook.cell.delete');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 2);
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1);
+
+
+		// undo should bring back the deleted cell, and revert to previous content and selection
+		await vscode.commands.executeCommand('notebook.undo');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 3);
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1);
+		assert.equal(vscode.notebook.activeNotebookEditor?.selection?.source, 'var abc = 0;');
+
+		// redo
+		// await vscode.commands.executeCommand('notebook.redo');
+		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.length, 2);
+		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1);
+		// assert.equal(vscode.notebook.activeNotebookEditor?.selection?.source, 'test');
+
+		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 });

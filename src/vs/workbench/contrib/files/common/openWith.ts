@@ -38,7 +38,7 @@ export async function openEditorWith(
 		return;
 	}
 
-	const allEditorOverrides = getAllAvailableEditors(input, resource, options, group, editorService);
+	const allEditorOverrides = getAllAvailableEditors(resource, options, group, editorService);
 	if (!allEditorOverrides.length) {
 		return;
 	}
@@ -111,17 +111,22 @@ export async function openEditorWith(
 	return pickedItem?.handler.open(input!, options, group, pickedItem.id)?.override;
 }
 
+export const defaultEditorOverrideEntry = Object.freeze({
+	id: DEFAULT_EDITOR_ID,
+	label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
+	detail: builtinProviderDisplayName,
+});
+
 /**
  * Get a list of all available editors, including the default text editor.
  */
 export function getAllAvailableEditors(
-	input: IEditorInput,
 	resource: URI,
 	options: IEditorOptions | ITextEditorOptions | undefined,
 	group: IEditorGroup,
 	editorService: IEditorService,
 ): Array<[IOpenEditorOverrideHandler, IOpenEditorOverrideEntry]> {
-	const overrides = editorService.getEditorOverrides(input, options, group);
+	const overrides = editorService.getEditorOverrides(resource, options, group);
 	if (!overrides.some(([_, entry]) => entry.id === DEFAULT_EDITOR_ID)) {
 		overrides.unshift([
 			{
@@ -136,10 +141,8 @@ export function getAllAvailableEditors(
 				}
 			},
 			{
-				id: DEFAULT_EDITOR_ID,
+				...defaultEditorOverrideEntry,
 				active: editorService.activeEditor instanceof FileEditorInput && isEqual(editorService.activeEditor.resource, resource),
-				label: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-				detail: builtinProviderDisplayName,
 			}]);
 	}
 	return overrides;

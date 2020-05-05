@@ -112,16 +112,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		}
 	}
 
-	setText(strs: string[]) {
-		this.model.source = strs;
+	clearHTML() {
 		this._html = null;
-	}
-
-	save() {
-		if (this._textModel && !this._textModel.isDisposed() && this.editState === CellEditState.Editing) {
-			let cnt = this._textModel.getLineCount();
-			this.model.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
-		}
 	}
 
 	getHTML(): HTMLElement | null {
@@ -140,10 +132,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		if (!this._textModel) {
 			const ref = await this._modelService.createModelReference(this.model.uri);
 			this._textModel = ref.object.textEditorModel;
-			this._buffer = this._textModel.getTextBuffer();
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
-				this.model.contentChange();
 				this._html = null;
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));

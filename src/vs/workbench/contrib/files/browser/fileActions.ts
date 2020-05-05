@@ -16,7 +16,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
-import { toResource, SideBySideEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -337,10 +337,10 @@ function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, 
 }
 
 function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
-	const directories = distinctElements.filter(element => element.isDirectory);
-	const files = distinctElements.filter(element => !element.isDirectory);
+	const directory = distinctElements.find(element => element.isDirectory);
+	const file = distinctElements.find(element => !element.isDirectory);
 
-	return directories.length > 0 && files.length > 0;
+	return !!directory && !!file;
 }
 
 
@@ -476,7 +476,7 @@ export class GlobalCompareResourcesAction extends Action {
 
 			// Compare with next editor that opens
 			const toDispose = this.editorService.overrideOpenEditor({
-				getEditorOverrides: (editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+				getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
 					return [];
 				},
 				open: editor => {
@@ -570,7 +570,7 @@ export class ToggleEditorTypeCommand extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = getAllAvailableEditors(input, input.resource, options, group, this.editorService);
+		const overrides = getAllAvailableEditors(input.resource, options, group, this.editorService);
 		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
 		if (!firstNonActiveOverride) {
 			return;
@@ -743,11 +743,6 @@ export class CollapseExplorerView extends Action {
 		const explorerView = explorerViewlet.getExplorerView();
 		if (explorerView) {
 			explorerView.collapseAll();
-			// If there is something being edited via input box make sure to close it #96198
-			const editable = this.explorerService.getEditable();
-			if (editable) {
-				await this.explorerService.setEditable(editable.stat, null);
-			}
 		}
 	}
 }

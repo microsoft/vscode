@@ -104,8 +104,9 @@ import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quic
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
 import { TestWorkingCopyService, TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
-import { IViewsService, IView } from 'vs/workbench/common/views';
+import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -370,6 +371,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	_serviceBrand: undefined;
 
+	openedDefaultEditors = false;
+
 	dimension: IDimension = { width: 800, height: 600 };
 
 	container: HTMLElement = window.document.body;
@@ -472,14 +475,20 @@ export class TestPanelService implements IPanelService {
 export class TestViewsService implements IViewsService {
 	_serviceBrand: undefined;
 
-	onDidChangeViewVisibilityEmitter = new Emitter<{ id: string; visible: boolean; }>();
 
+	onDidChangeViewContainerVisibility = new Emitter<{ id: string; visible: boolean; location: ViewContainerLocation }>().event;
+	isViewContainerVisible(id: string): boolean { return true; }
+	getVisibleViewContainer(): ViewContainer | null { return null; }
+	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null> { return Promise.resolve(null); }
+	closeViewContainer(id: string): void { }
+
+	onDidChangeViewVisibilityEmitter = new Emitter<{ id: string; visible: boolean; }>();
 	onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
 	isViewVisible(id: string): boolean { return true; }
 	getActiveViewWithId<T extends IView>(id: string): T | null { return null; }
 	openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> { return Promise.resolve(null); }
 	closeView(id: string): void { }
-	getProgressIndicator(id: string) { return null!; }
+	getViewProgressIndicator(id: string) { return null!; }
 }
 
 export class TestEditorGroupsService implements IEditorGroupsService {
@@ -632,7 +641,7 @@ export class TestEditorService implements EditorServiceImpl {
 
 	constructor(private editorGroupService?: IEditorGroupsService) { }
 	getEditors() { return []; }
-	getEditorOverrides(editorInput: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
+	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][] { return []; }
 	overrideOpenEditor(_handler: IOpenEditorOverrideHandler): IDisposable { return toDisposable(() => undefined); }
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable {
 		throw new Error('Method not implemented.');

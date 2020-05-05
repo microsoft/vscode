@@ -81,20 +81,26 @@ export class GitHubServer {
 
 		const state = uuid();
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-		const clientDetails = scopes === 'vso' ? ClientRegistrar.getGitHubAppDetails() : ClientRegistrar.getClientDetails(callbackUri);
-		const uri = scopes !== 'vso'
-			? vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code`)
-			: vscode.Uri.parse(`https://github.com/login/oauth/authorize?redirect_uri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&client_id=${clientDetails.id}`);
+		let uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code`);
+		if (scopes === 'vso') {
+			const clientDetails = ClientRegistrar.getGitHubAppDetails();
+			uri = vscode.Uri.parse(`https://github.com/login/oauth/authorize?redirect_uri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&client_id=${clientDetails.id}`);
+		}
 
 		vscode.env.openExternal(uri);
 
-		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state, AUTH_RELAY_SERVER, (code) => {
-			return scopes !== 'vso'
-				? `/token?code=${code}&state=${state}`
-				: `/login/oauth/access_token?client_id=${clientDetails.id}&client_secret=${clientDetails.secret}&state=${state}&code=${code}&authServer=github.com`;
-		})).finally(() => {
-			this.updateStatusBarItem(false);
-		});
+		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state,
+			scopes === 'vso' ? 'github.com' : AUTH_RELAY_SERVER,
+			(code) => {
+				if (scopes === 'vso') {
+					const clientDetails = ClientRegistrar.getGitHubAppDetails();
+					return `/login/oauth/access_token?client_id=${clientDetails.id}&client_secret=${clientDetails.secret}&state=${state}&code=${code}`;
+				} else {
+					return `/token?code=${code}&state=${state}`;
+				}
+			})).finally(() => {
+				this.updateStatusBarItem(false);
+			});
 	}
 
 	private updateStatusBarItem(isStart?: boolean) {
