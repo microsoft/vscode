@@ -93,7 +93,7 @@ export class HoverWidget extends Widget {
 			const actionsElement = $('div.actions');
 			this._actions.forEach(action => this._renderAction(actionsElement, action));
 			statusBarElement.appendChild(actionsElement);
-			this._domNode.appendChild(statusBarElement);
+			this._containerDomNode.appendChild(statusBarElement);
 		}
 
 		this._mouseTracker = new CompositeMouseTracker([this._containerDomNode, ..._target.targetElements]);
