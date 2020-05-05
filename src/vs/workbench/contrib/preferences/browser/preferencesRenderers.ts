@@ -971,9 +971,9 @@ class UnsupportedSettingsRenderer extends Disposable {
 	public render(): void {
 		const markerData: IMarkerData[] = this.generateMarkerData();
 		if (markerData.length) {
-			this.markerService.changeOne('preferencesEditor', this.settingsEditorModel.uri, markerData);
+			this.markerService.changeOne('UnsupportedSettingsRenderer', this.settingsEditorModel.uri, markerData);
 		} else {
-			this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
+			this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
 		}
 	}
 
@@ -1078,7 +1078,7 @@ class UnsupportedSettingsRenderer extends Disposable {
 	}
 
 	public dispose(): void {
-		this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
+		this.markerService.remove('UnsupportedSettingsRenderer', [this.settingsEditorModel.uri]);
 		super.dispose();
 	}
 
@@ -1130,9 +1130,9 @@ class WorkspaceConfigurationRenderer extends Disposable {
 			this.decorationIds = this.editor.deltaDecorations(this.decorationIds, ranges.map(range => this.createDecoration(range)));
 		}
 		if (markerData.length) {
-			this.markerService.changeOne('preferencesEditor', this.workspaceSettingsEditorModel.uri, markerData);
+			this.markerService.changeOne('WorkspaceConfigurationRenderer', this.workspaceSettingsEditorModel.uri, markerData);
 		} else {
-			this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
+			this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
 		}
 	}
 
@@ -1149,7 +1149,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	dispose(): void {
-		this.markerService.remove('preferencesEditor', [this.workspaceSettingsEditorModel.uri]);
+		this.markerService.remove('WorkspaceConfigurationRenderer', [this.workspaceSettingsEditorModel.uri]);
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, []);
 		super.dispose();
 	}
