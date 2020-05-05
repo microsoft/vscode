@@ -124,7 +124,9 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder, selectBackground }, colors => {
 			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-			this.start.style.backgroundColor = colors.selectBackground ? `${colors.selectBackground}` : '';
+			const selectBackgroundColor = colors.selectBackground ? `${colors.selectBackground}` : '';
+			this.container.style.backgroundColor = selectBackgroundColor;
+			this.start.style.backgroundColor = selectBackgroundColor;
 		}));
 		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
 			this.providers = providers;
