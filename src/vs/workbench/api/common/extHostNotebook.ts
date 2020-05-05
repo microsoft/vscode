@@ -770,7 +770,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			this._editors.set(revivedUri.toString(), { editor, onDidReceiveMessage });
 
-			const data = await provider.provider.open(revivedUri);
+			const data = await provider.provider.openNotebook(revivedUri);
 			editor.document.languages = data.languages;
 			editor.document.metadata = {
 				...notebookDocumentMetadataDefaults,
@@ -864,7 +864,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		if (this._notebookContentProviders.has(viewType)) {
 			try {
-				await this._notebookContentProviders.get(viewType)!.provider.save(document, token);
+				await this._notebookContentProviders.get(viewType)!.provider.saveNotebook(document, token);
 			} catch (e) {
 				return false;
 			}

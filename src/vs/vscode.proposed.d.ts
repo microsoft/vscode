@@ -1786,13 +1786,16 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookContentProvider {
-		open(uri: Uri): NotebookData | Promise<NotebookData>;
-		save(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		saveAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		readonly onDidChange: Event<void>;
+		openNotebook(uri: Uri): NotebookData | Promise<NotebookData>;
+		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		readonly onDidChangeNotebook: Event<void>;
 		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 
+		/**
+		 * Responsible for filling in outputs for the cell
+		 */
 		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
 	}
 
@@ -1807,8 +1810,14 @@ declare module 'vscode' {
 			provider: NotebookProvider
 		): Disposable;
 
-		export function registerNotebookOutputRenderer(type: string, outputSelector: NotebookOutputSelector, renderer: NotebookOutputRenderer): Disposable;
+		export function registerNotebookOutputRenderer(
+			type: string,
+			outputSelector: NotebookOutputSelector,
+			renderer: NotebookOutputRenderer
+		): Disposable;
+
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+		// export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
 
 		// remove activeNotebookDocument, now that there is activeNotebookEditor.document
 		export let activeNotebookDocument: NotebookDocument | undefined;
