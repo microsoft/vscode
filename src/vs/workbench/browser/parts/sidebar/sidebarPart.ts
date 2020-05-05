@@ -109,7 +109,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 			themeService,
 			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets),
 			SidebarPart.activeViewletSettingsKey,
-			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).getDefaultViewletId(),
+			viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)!.id,
 			'sideBar',
 			'viewlet',
 			SIDE_BAR_TITLE_FOREGROUND,
@@ -142,7 +142,7 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 			if (activeContainers.length) {
 				if (this.getActiveComposite()?.getId() === viewletDescriptor.id) {
-					const defaultViewletId = this.getDefaultViewletId();
+					const defaultViewletId = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;
 					const containerToOpen = activeContainers.filter(c => c.id === defaultViewletId)[0] || activeContainers[0];
 					await this.openViewlet(containerToOpen.id);
 				}
@@ -251,10 +251,6 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 
 			return v1.order - v2.order;
 		});
-	}
-
-	getDefaultViewletId(): string {
-		return this.viewletRegistry.getDefaultViewletId();
 	}
 
 	getViewlet(id: string): ViewletDescriptor {
