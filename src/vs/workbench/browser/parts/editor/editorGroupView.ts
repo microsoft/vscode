@@ -1537,19 +1537,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			editorsToClose.push(editor);
 		});
 
-		const willCloseAllEditors = editorsToClose.length === this.count;
-
 		// Close active editor last (unless we skip it, e.g. because it is sticky)
 		if (this.activeEditor && editorsToClose.includes(this.activeEditor)) {
 			this.doCloseActiveEditor();
 		}
 
 		// Forward to title control
-		if (willCloseAllEditors) {
-			this.titleAreaControl.closeAllEditors();
-		} else {
-			this.titleAreaControl.closeEditors(editorsToClose);
-		}
+		this.titleAreaControl.closeEditors(editorsToClose);
 	}
 
 	//#endregion

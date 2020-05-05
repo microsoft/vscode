@@ -392,10 +392,6 @@ export class TabsTitleControl extends TitleControl {
 		this.handleClosedEditors();
 	}
 
-	closeAllEditors(): void {
-		this.handleClosedEditors();
-	}
-
 	private handleClosedEditors(): void {
 
 		// There are tabs to show

@@ -136,10 +136,6 @@ export class NoTabsTitleControl extends TitleControl {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
-	closeAllEditors(): void {
-		this.redraw();
-	}
-
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
@@ -226,7 +222,6 @@ export class NoTabsTitleControl extends TitleControl {
 			fn(); // only run if pinned state has changed
 		}
 	}
-
 
 	private ifEditorIsActive(editor: IEditorInput, fn: () => void): void {
 		if (this.group.isActive(editor)) {

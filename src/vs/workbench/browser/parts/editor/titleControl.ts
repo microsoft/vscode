@@ -380,8 +380,6 @@ export abstract class TitleControl extends Themable {
 
 	abstract closeEditors(editors: IEditorInput[]): void;
 
-	abstract closeAllEditors(): void;
-
 	abstract moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void;
 
 	abstract pinEditor(editor: IEditorInput): void;
