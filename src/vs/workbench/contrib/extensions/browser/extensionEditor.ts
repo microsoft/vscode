@@ -412,7 +412,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
-			this.instantiationService.createInstance(RemoteInstallAction),
+			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
 			combinedInstallAction,
 			systemDisabledWarningAction,
