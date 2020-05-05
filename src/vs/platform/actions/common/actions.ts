@@ -9,12 +9,13 @@ import { IConstructorSignature2, createDecorator, BrandedService, ServicesAccess
 import { IKeybindings, KeybindingsRegistry, IKeybindingRule } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService, CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { UriDto } from 'vs/base/common/types';
 import { Iterable } from 'vs/base/common/iterator';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export interface ILocalizedString {
 	value: string;
@@ -172,7 +173,7 @@ export interface IMenuRegistry {
 export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 
 	private readonly _commands = new Map<string, ICommandAction>();
-	private readonly _menuItems = new Map<MenuId, Array<IMenuItem | ISubmenuItem>>();
+	private readonly _menuItems = new Map<MenuId, LinkedList<IMenuItem | ISubmenuItem>>();
 	private readonly _onDidChangeMenu = new Emitter<IMenuRegistryChangeEvent>();
 
 	readonly onDidChangeMenu: Event<IMenuRegistryChangeEvent> = this._onDidChangeMenu.event;
@@ -190,17 +191,15 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 			this._commands.set(command.id, command);
 		}
 		this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
-		return {
-			dispose: () => {
-				let didChange = false;
-				for (const command of commands) {
-					didChange = this._commands.delete(command.id) || didChange;
-				}
-				if (didChange) {
-					this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
-				}
+		return toDisposable(() => {
+			let didChange = false;
+			for (const command of commands) {
+				didChange = this._commands.delete(command.id) || didChange;
 			}
-		};
+			if (didChange) {
+				this._onDidChangeMenu.fire(this._commandPaletteChangeEvent);
+			}
+		});
 	}
 
 	getCommand(id: string): ICommandAction | undefined {
@@ -220,39 +219,38 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable {
 
 		const changedIds = new Set<MenuId>();
+		const toRemove = new LinkedList<Function>();
 
 		for (const { id, item } of items) {
-			let array = this._menuItems.get(id);
-			if (!array) {
-				array = [item];
-				this._menuItems.set(id, array);
-			} else {
-				array.push(item);
+			let list = this._menuItems.get(id);
+			if (!list) {
+				list = new LinkedList();
+				this._menuItems.set(id, list);
 			}
+			toRemove.push(list.push(item));
 			changedIds.add(id);
 		}
 
 		this._onDidChangeMenu.fire(changedIds);
 
-		return {
-			dispose: () => {
-				const changedIds = new Set<MenuId>();
-				for (const { id, item } of items) {
-					const array = this._menuItems.get(id);
-					const idx = array?.indexOf(item) ?? -1;
-					if (idx >= 0) {
-						array!.splice(idx, 1);
-						changedIds.add(id);
-					}
+		return toDisposable(() => {
+			if (toRemove.size > 0) {
+				for (let fn of toRemove) {
+					fn();
 				}
 				this._onDidChangeMenu.fire(changedIds);
+				toRemove.clear();
 			}
-		};
+		});
 	}
 
 	getMenuItems(id: MenuId): Array<IMenuItem | ISubmenuItem> {
-		const result = (this._menuItems.get(id) || []).slice(0);
-
+		let result: Array<IMenuItem | ISubmenuItem>;
+		if (this._menuItems.has(id)) {
+			result = [...this._menuItems.get(id)!];
+		} else {
+			result = [];
+		}
 		if (id === MenuId.CommandPalette) {
 			// CommandPalette is special because it shows
 			// all commands by default
@@ -264,12 +262,12 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 	private _appendImplicitItems(result: Array<IMenuItem | ISubmenuItem>) {
 		const set = new Set<string>();
 
-		const temp = result.filter(item => { return isIMenuItem(item); }) as IMenuItem[];
-
-		for (const { command, alt } of temp) {
-			set.add(command.id);
-			if (alt) {
-				set.add(alt.id);
+		for (const item of result) {
+			if (isIMenuItem(item)) {
+				set.add(item.command.id);
+				if (item.alt) {
+					set.add(item.alt.id);
+				}
 			}
 		}
 		this._commands.forEach((command, id) => {
