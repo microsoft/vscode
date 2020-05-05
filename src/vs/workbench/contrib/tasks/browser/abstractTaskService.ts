@@ -791,7 +791,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (quickOpenHistoryLimit === 0) {
 			return;
 		}
-		let keys = this._recentlyUsedTasks.keys();
+		let keys = [...this._recentlyUsedTasks.keys()];
 		if (keys.length > quickOpenHistoryLimit) {
 			keys = keys.slice(0, quickOpenHistoryLimit);
 		}
@@ -2323,7 +2323,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				taskMap[key] = task;
 			}
 		});
-		const reversed = recentlyUsedTasks.keys().reverse();
+		const reversed = [...recentlyUsedTasks.keys()].reverse();
 		for (const key in reversed) {
 			let task = taskMap[key];
 			if (task) {
