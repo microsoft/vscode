@@ -101,7 +101,7 @@ export class NotebookEditorModelManager extends Disposable implements INotebookE
 	// private readonly modelLoadQueue = this._register(new ResourceQueue());
 
 	get models(): NotebookEditorModel[] {
-		return this.mapResourceToModel.values();
+		return [...this.mapResourceToModel.values()];
 	}
 	constructor(
 		@IInstantiationService readonly instantiationService: IInstantiationService

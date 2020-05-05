@@ -563,7 +563,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	matches(): FileMatch[] {
-		return this._fileMatches.values();
+		return [...this._fileMatches.values()];
 	}
 
 	isEmpty(): boolean {
@@ -621,8 +621,8 @@ export class FolderMatch extends Disposable {
 	}
 
 	private disposeMatches(): void {
-		this._fileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
-		this._unDisposedFileMatches.values().forEach((fileMatch: FileMatch) => fileMatch.dispose());
+		[...this._fileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
+		[...this._unDisposedFileMatches.values()].forEach((fileMatch: FileMatch) => fileMatch.dispose());
 		this._fileMatches.clear();
 		this._unDisposedFileMatches.clear();
 	}

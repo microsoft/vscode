@@ -190,7 +190,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Handle no longer visible out of workspace resources
-		this.activeOutOfWorkspaceWatchers.keys().forEach(resource => {
+		[...this.activeOutOfWorkspaceWatchers.keys()].forEach(resource => {
 			if (!visibleOutOfWorkspaceResources.get(resource)) {
 				dispose(this.activeOutOfWorkspaceWatchers.get(resource));
 				this.activeOutOfWorkspaceWatchers.delete(resource);
