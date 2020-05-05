@@ -20,7 +20,7 @@ export class DebugTitleContribution implements IWorkbenchContribution {
 	) {
 		const updateTitle = () => {
 			if (debugService.state === State.Stopped && !hostService.hasFocus) {
-				titleService.updateProperties({ prefix: '🐛' });
+				titleService.updateProperties({ prefix: '🔴' });
 			} else {
 				titleService.updateProperties({ prefix: '' });
 			}
