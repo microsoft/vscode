@@ -407,11 +407,11 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		} else {
 			const result: string[] = [];
 
+			result.push(basename(element.sourceUri));
+
 			if (element.decorations.tooltip) {
 				result.push(element.decorations.tooltip);
 			}
-
-			result.push(basename(element.sourceUri));
 
 			const path = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true, noPrefix: true });
 
