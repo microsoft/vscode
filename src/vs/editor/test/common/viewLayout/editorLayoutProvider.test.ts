@@ -77,6 +77,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		options._write(EditorOption.lineNumbers, lineNumbersOptions);
 
 		const actual = EditorLayoutInfoComputer.computeLayout(options, {
+			memory: null,
 			outerWidth: input.outerWidth,
 			outerHeight: input.outerHeight,
 			lineHeight: input.lineHeight,
