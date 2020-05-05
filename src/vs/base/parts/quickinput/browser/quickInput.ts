@@ -274,8 +274,10 @@ class QuickInput extends Disposable implements IQuickInput {
 			return;
 		}
 		const title = this.getTitle();
-		if (this.ui.title.textContent !== title) {
+		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
+		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
+			this.ui.title.innerHTML = '&nbsp;';
 		}
 		const description = this.getDescription();
 		if (this.ui.description.textContent !== description) {
