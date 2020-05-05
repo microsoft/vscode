@@ -536,6 +536,12 @@ export class ResourceMap<T> {
 		return keys(this.map).map(k => URI.parse(k));
 	}
 
+	*[Symbol.iterator](): Iterator<[URI, T]> {
+		for (let item of this.map) {
+			yield [URI.parse(item[0]), item[1]];
+		}
+	}
+
 	clone(): ResourceMap<T> {
 		const resourceMap = new ResourceMap<T>();
 
