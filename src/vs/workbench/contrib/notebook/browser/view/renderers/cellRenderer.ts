@@ -593,7 +593,6 @@ export class CellDragAndDropController extends Disposable {
 		const editState = draggedCell.editState;
 		const newCell = this.notebookEditor.insertNotebookCell(ontoCell, draggedCell.cellKind, direction, draggedCell.getText());
 		if (newCell) {
-			this.notebookEditor.focusNotebookCell(newCell, false);
 			this.notebookEditor.focusNotebookCell(newCell, editState === CellEditState.Editing);
 		}
 	}
