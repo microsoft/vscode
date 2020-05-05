@@ -381,7 +381,7 @@ export class StackFrame implements IStackFrame {
 	}
 
 	equals(other: IStackFrame): boolean {
-		return (this.name === other.name) && (other.thread === this.thread) && (other.source === this.source) && (Range.equalsRange(this.range, other.range));
+		return (this.name === other.name) && (other.thread === this.thread) && (this.frameId === other.frameId) && (other.source === this.source) && (Range.equalsRange(this.range, other.range));
 	}
 }
 
@@ -957,6 +957,8 @@ export class DebugModel implements IDebugModel {
 								for (let i = 1; i < stale.length && !bottomOfCallStackChanged; i++) {
 									bottomOfCallStackChanged = !stale[i].equals(current[i]);
 								}
+								console.log('bottom of call stack changed');
+								console.log(bottomOfCallStackChanged);
 
 								if (bottomOfCallStackChanged) {
 									this._onDidChangeCallStack.fire();
