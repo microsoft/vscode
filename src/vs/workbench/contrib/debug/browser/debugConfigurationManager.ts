@@ -79,7 +79,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		this.initLaunches();
 		this.registerListeners();
 		const previousSelectedRoot = this.storageService.get(DEBUG_SELECTED_ROOT, StorageScope.WORKSPACE);
-		const previousSelectedLaunch = this.launches.filter(l => l.uri.toString() === previousSelectedRoot).pop();
+		const previousSelectedLaunch = this.launches.find(l => l.uri.toString() === previousSelectedRoot);
 		this.debugConfigurationTypeContext = CONTEXT_DEBUG_CONFIGURATION_TYPE.bindTo(contextKeyService);
 		if (previousSelectedLaunch && previousSelectedLaunch.getConfigurationNames().length) {
 			this.selectConfiguration(previousSelectedLaunch, this.storageService.get(DEBUG_SELECTED_CONFIG_NAME_KEY, StorageScope.WORKSPACE));
@@ -202,8 +202,8 @@ export class ConfigurationManager implements IConfigurationManager {
 			triggerKind = DebugConfigurationProviderTriggerKind.Initial;
 		}
 		// check if there are providers for the given type that contribute a provideDebugConfigurations method
-		const providers = this.configProviders.filter(p => p.provideDebugConfigurations && (p.type === debugType) && (p.triggerKind === triggerKind));
-		return providers.length > 0;
+		const provider = this.configProviders.find(p => p.provideDebugConfigurations && (p.type === debugType) && (p.triggerKind === triggerKind));
+		return !!provider;
 	}
 
 	async resolveConfigurationByProviders(folderUri: uri | undefined, type: string | undefined, config: IConfig, token: CancellationToken): Promise<IConfig | null | undefined> {
@@ -416,7 +416,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			return undefined;
 		}
 
-		return this.launches.filter(l => l.workspace && l.workspace.uri.toString() === workspaceUri.toString()).pop();
+		return this.launches.find(l => l.workspace && l.workspace.uri.toString() === workspaceUri.toString());
 	}
 
 	get selectedConfiguration(): { launch: ILaunch | undefined, name: string | undefined } {
@@ -490,11 +490,11 @@ export class ConfigurationManager implements IConfigurationManager {
 	}
 
 	getDebugger(type: string): Debugger | undefined {
-		return this.debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, type)).pop();
+		return this.debuggers.find(dbg => strings.equalsIgnoreCase(dbg.type, type));
 	}
 
 	isDebuggerInterestedInLanguage(language: string): boolean {
-		return this.debuggers.filter(a => language && a.languages && a.languages.indexOf(language) >= 0).length > 0;
+		return !!this.debuggers.find(a => language && a.languages && a.languages.indexOf(language) >= 0);
 	}
 
 	async guessDebugger(type?: string): Promise<Debugger | undefined> {
@@ -571,7 +571,7 @@ abstract class AbstractLaunch {
 			return undefined;
 		}
 
-		return config.compounds.filter(compound => compound.name === name).pop();
+		return config.compounds.find(compound => compound.name === name);
 	}
 
 	getConfigurationNames(ignoreCompoundsAndPresentation = false): string[] {
@@ -602,7 +602,7 @@ abstract class AbstractLaunch {
 			return undefined;
 		}
 
-		return config.configurations.filter(config => config && config.name === name).shift();
+		return config.configurations.find(config => config && config.name === name);
 	}
 
 	get hidden(): boolean {

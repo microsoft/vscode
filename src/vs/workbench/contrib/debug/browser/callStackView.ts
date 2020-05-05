@@ -473,7 +473,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		const session = element.element;
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
 		data.label.set(session.getLabel(), createMatches(element.filterData));
-		const thread = session.getAllThreads().filter(t => t.stopped).pop();
+		const thread = session.getAllThreads().find(t => t.stopped);
 
 		const setActionBar = () => {
 			const actions = getActions(this.instantiationService, element.element);
@@ -493,7 +493,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		if (thread && thread.stoppedDetails) {
 			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
 		} else {
-			const hasChildSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === session).length > 0;
+			const hasChildSessions = this.debugService.getModel().getSessions().find(s => s.parentSession === session);
 			if (!hasChildSessions) {
 				data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 			} else {
@@ -751,7 +751,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
 		if (isDebugSession(element)) {
 			const threads = element.getAllThreads();
-			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || (this.debugService.getModel().getSessions().filter(s => s.parentSession === element).length > 0);
+			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || !!(this.debugService.getModel().getSessions().find(s => s.parentSession === element));
 		}
 
 		return isDebugModel(element) || (element instanceof Thread && element.stopped);

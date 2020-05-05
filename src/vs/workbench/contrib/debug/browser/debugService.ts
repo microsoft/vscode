@@ -952,7 +952,7 @@ export function getStackFrameThreadAndSessionToFocus(model: IDebugModel, stackFr
 			session = stackFrame ? stackFrame.thread.session : thread!.session;
 		} else {
 			const sessions = model.getSessions();
-			const stoppedSession = sessions.filter(s => s.state === State.Stopped).shift();
+			const stoppedSession = sessions.find(s => s.state === State.Stopped);
 			session = stoppedSession || (sessions.length ? sessions[0] : undefined);
 		}
 	}
@@ -962,7 +962,7 @@ export function getStackFrameThreadAndSessionToFocus(model: IDebugModel, stackFr
 			thread = stackFrame.thread;
 		} else {
 			const threads = session ? session.getAllThreads() : undefined;
-			const stoppedThread = threads && threads.filter(t => t.stopped).shift();
+			const stoppedThread = threads && threads.find(t => t.stopped);
 			thread = stoppedThread || (threads && threads.length ? threads[0] : undefined);
 		}
 	}

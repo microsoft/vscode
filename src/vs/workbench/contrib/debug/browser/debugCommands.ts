@@ -74,7 +74,7 @@ async function getThreadAndRun(accessor: ServicesAccessor, sessionAndThreadId: C
 	if (isThreadContext(sessionAndThreadId)) {
 		const session = debugService.getModel().getSession(sessionAndThreadId.sessionId);
 		if (session) {
-			thread = session.getAllThreads().filter(t => t.getId() === sessionAndThreadId.threadId).pop();
+			thread = session.getAllThreads().find(t => t.getId() === sessionAndThreadId.threadId);
 		}
 	} else {
 		thread = debugService.getViewModel().focusedThread;
@@ -98,9 +98,9 @@ function getFrame(debugService: IDebugService, context: CallStackContext | unkno
 	if (isStackFrameContext(context)) {
 		const session = debugService.getModel().getSession(context.sessionId);
 		if (session) {
-			const thread = session.getAllThreads().filter(t => t.getId() === context.threadId).pop();
+			const thread = session.getAllThreads().find(t => t.getId() === context.threadId);
 			if (thread) {
-				return thread.getCallStack().filter(sf => sf.getId() === context.frameId).pop();
+				return thread.getCallStack().find(sf => sf.getId() === context.frameId);
 			}
 		}
 	}
@@ -498,7 +498,7 @@ export function registerCommands(): void {
 				return;
 			}
 
-			const launch = manager.getLaunches().filter(l => l.uri.toString() === launchUri).pop() || manager.selectedConfiguration.launch;
+			const launch = manager.getLaunches().find(l => l.uri.toString() === launchUri) || manager.selectedConfiguration.launch;
 			if (launch) {
 				const { editor, created } = await launch.openConfigFile(false, false);
 				if (editor && !created) {
