@@ -19,7 +19,6 @@
 	width: 100%;
 	height: 100%;
 	backdrop-filter: brightness(97%) blur(2px);
-	pointer-events: none;
 	visibility: hidden;
 	opacity: 0;
 	transition: opacity .5s, visibility .5s;
