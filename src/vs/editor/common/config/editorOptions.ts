@@ -1947,12 +1947,26 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	}
 
 	private static _computeMinimapLayout(input: IMinimapLayoutInput) {
+		if (!input.minimap.enabled) {
+			return {
+				storeResultInMemory: false,
+				minimapWidth: 0,
+				minimapHeightIsEditorHeight: false,
+				minimapIsSampling: false,
+				minimapScale: 1,
+				minimapLineHeight: 1,
+				minimapCanvasInnerWidth: 0,
+				minimapCanvasInnerHeight: 0,
+				minimapCanvasOuterWidth: 0,
+				minimapCanvasOuterHeight: 0,
+			};
+		}
+
 		const outerHeight = input.outerHeight;
 		const lineHeight = input.lineHeight;
 		const typicalHalfwidthCharacterWidth = input.typicalHalfwidthCharacterWidth;
 		const pixelRatio = input.pixelRatio;
 		const scrollBeyondLastLine = input.scrollBeyondLastLine;
-		const minimapEnabled = input.minimap.enabled;
 		const minimapRenderCharacters = input.minimap.renderCharacters;
 		let minimapScale = (pixelRatio >= 2 ? Math.round(input.minimap.scale * 2) : input.minimap.scale);
 		const minimapMaxColumn = input.minimap.maxColumn;
@@ -1972,79 +1986,72 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		let minimapHeightIsEditorHeight = false;
 		let minimapIsSampling = false;
 		let minimapLineHeight = baseCharHeight * minimapScale;
-		if (!minimapEnabled) {
-			minimapWidth = 0;
-			minimapCanvasInnerWidth = 0;
-			minimapCanvasOuterWidth = 0;
-			minimapLineHeight = 1;
-		} else {
-			let minimapCharWidth = minimapScale / pixelRatio;
-			let minimapWidthMultiplier: number = 1;
+		let minimapCharWidth = minimapScale / pixelRatio;
+		let minimapWidthMultiplier: number = 1;
 
-			if (minimapSize === 'fill' || minimapSize === 'fit') {
-				const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
-					viewLineCount: viewLineCount,
-					scrollBeyondLastLine: scrollBeyondLastLine,
-					height: outerHeight,
-					lineHeight: lineHeight,
-					pixelRatio: pixelRatio
-				});
-				// ratio is intentionally not part of the layout to avoid the layout changing all the time
-				// when doing sampling
-				const ratio = viewLineCount / minimapLineCount;
+		if (minimapSize === 'fill' || minimapSize === 'fit') {
+			const { typicalViewportLineCount, extraLinesBeyondLastLine, desiredRatio, minimapLineCount } = EditorLayoutInfoComputer.computeContainedMinimapLineCount({
+				viewLineCount: viewLineCount,
+				scrollBeyondLastLine: scrollBeyondLastLine,
+				height: outerHeight,
+				lineHeight: lineHeight,
+				pixelRatio: pixelRatio
+			});
+			// ratio is intentionally not part of the layout to avoid the layout changing all the time
+			// when doing sampling
+			const ratio = viewLineCount / minimapLineCount;
 
-				if (ratio > 1) {
-					minimapHeightIsEditorHeight = true;
-					minimapIsSampling = true;
-					minimapScale = 1;
-					minimapLineHeight = 1;
-					minimapCharWidth = minimapScale / pixelRatio;
-				} else {
-					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
-					if (minimapSize === 'fill' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
-						if (minimapSize === 'fit' && isViewportWrapping) {
-							// `fit` becomes `fill`: this can cause the `minimapScale` to change, which causes `minimapWidth` to change.
-							// With viewport wrapping, this can cause the `viewLineCount` to change, which can lead to a new result
-							// where `fit` would not become `fill`... and so on...
-							// to break the loop, we store the result in memory and then reuse the same result on the next call.
-							storeResultInMemory = true;
-						}
-						minimapHeightIsEditorHeight = true;
-						const configuredFontScale = minimapScale;
-						minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
-						minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
-						if (minimapScale > configuredFontScale) {
-							minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
-						}
-						minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
-						minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
+			if (ratio > 1) {
+				minimapHeightIsEditorHeight = true;
+				minimapIsSampling = true;
+				minimapScale = 1;
+				minimapLineHeight = 1;
+				minimapCharWidth = minimapScale / pixelRatio;
+			} else {
+				const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+				if (minimapSize === 'fill' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
+					if (minimapSize === 'fit' && isViewportWrapping) {
+						// `fit` becomes `fill`: this can cause the `minimapScale` to change, which causes `minimapWidth` to change.
+						// With viewport wrapping, this can cause the `viewLineCount` to change, which can lead to a new result
+						// where `fit` would not become `fill`... and so on...
+						// to break the loop, we store the result in memory and then reuse the same result on the next call.
+						storeResultInMemory = true;
 					}
+					minimapHeightIsEditorHeight = true;
+					const configuredFontScale = minimapScale;
+					minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
+					minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
+					if (minimapScale > configuredFontScale) {
+						minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
+					}
+					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
+					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
 				}
 			}
-
-			// Given:
-			// (leaving 2px for the cursor to have space after the last character)
-			// viewportColumn = (contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth
-			// minimapWidth = viewportColumn * minimapCharWidth
-			// contentWidth = remainingWidth - minimapWidth
-			// What are good values for contentWidth and minimapWidth ?
-
-			// minimapWidth = ((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth) * minimapCharWidth
-			// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth - 2) * minimapCharWidth
-			// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth - 2) * minimapCharWidth
-			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth
-			// minimapWidth = ((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
-
-			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth))) + MINIMAP_GUTTER_WIDTH;
-			let minimapColumns = minimapWidth / minimapCharWidth;
-			if (minimapColumns > minimapMaxColumn) {
-				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
-			}
-
-			minimapCanvasInnerWidth = Math.floor(pixelRatio * minimapWidth);
-			minimapCanvasOuterWidth = minimapCanvasInnerWidth / pixelRatio;
-			minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
 		}
+
+		// Given:
+		// (leaving 2px for the cursor to have space after the last character)
+		// viewportColumn = (contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth
+		// minimapWidth = viewportColumn * minimapCharWidth
+		// contentWidth = remainingWidth - minimapWidth
+		// What are good values for contentWidth and minimapWidth ?
+
+		// minimapWidth = ((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth) * minimapCharWidth
+		// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+		// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+		// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+		// minimapWidth = ((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
+
+		minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth))) + MINIMAP_GUTTER_WIDTH;
+		let minimapColumns = minimapWidth / minimapCharWidth;
+		if (minimapColumns > minimapMaxColumn) {
+			minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
+		}
+
+		minimapCanvasInnerWidth = Math.floor(pixelRatio * minimapWidth);
+		minimapCanvasOuterWidth = minimapCanvasInnerWidth / pixelRatio;
+		minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
 
 		return {
 			storeResultInMemory,
