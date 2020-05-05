@@ -173,7 +173,12 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			// because we are triggering another openEditor() call
 			// and do not control the initial intent that resulted
 			// in us now opening as binary.
-			const preservingOptions: IEditorOptions = { activation: EditorActivation.PRESERVE, pinned: this.group?.isPinned(input) };
+			const preservingOptions: IEditorOptions = {
+				activation: EditorActivation.PRESERVE,
+				pinned: this.group?.isPinned(input),
+				sticky: this.group?.isSticky(input)
+			};
+
 			if (options) {
 				options.overwrite(preservingOptions);
 			} else {
