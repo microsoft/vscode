@@ -14,6 +14,7 @@ import { mergeSort } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ResourceMap } from 'vs/base/common/map';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
@@ -25,7 +26,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		private readonly _owner: string,
 		private readonly _maxDiagnosticsPerFile: number,
 		private readonly _proxy: MainThreadDiagnosticsShape | undefined,
-		private readonly _onDidChangeDiagnostics: Emitter<(vscode.Uri | string)[]>
+		private readonly _onDidChangeDiagnostics: Emitter<vscode.Uri[]>
 	) { }
 
 	dispose(): void {
@@ -215,7 +216,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections = new Map<string, DiagnosticCollection>();
-	private readonly _onDidChangeDiagnostics = new Emitter<(vscode.Uri | string)[]>();
+	private readonly _onDidChangeDiagnostics = new Emitter<vscode.Uri[]>();
 
 	static _debouncer(last: (vscode.Uri | string)[] | undefined, current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
 		if (!last) {
@@ -251,8 +252,25 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDiagnostics);
 	}
 
-	createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
-		let { _collections, _proxy, _onDidChangeDiagnostics } = this;
+	createDiagnosticCollection(extensionId: ExtensionIdentifier, name?: string): vscode.DiagnosticCollection {
+
+		const { _collections, _proxy, _onDidChangeDiagnostics, _logService } = this;
+
+		const loggingProxy = new class implements MainThreadDiagnosticsShape {
+			$changeMany(owner: string, entries: [UriComponents, IMarkerData[] | undefined][]): void {
+				_proxy.$changeMany(owner, entries);
+				_logService.trace('[DiagnosticCollection] change many (extension, owner, uris)', extensionId.value, owner, entries.length === 0 ? 'CLEARING' : entries);
+			}
+			$clear(owner: string): void {
+				_proxy.$clear(owner);
+				_logService.trace('[DiagnosticCollection] remove all (extension, owner)', extensionId.value, owner);
+			}
+			dispose(): void {
+				_proxy.dispose();
+			}
+		};
+
+
 		let owner: string;
 		if (!name) {
 			name = '_generated_diagnostic_collection_name_#' + ExtHostDiagnostics._idPool++;
@@ -268,7 +286,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 		const result = new class extends DiagnosticCollection {
 			constructor() {
-				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, _proxy, _onDidChangeDiagnostics);
+				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, loggingProxy, _onDidChangeDiagnostics);
 				_collections.set(owner, this);
 			}
 			dispose() {
