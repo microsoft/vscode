@@ -115,7 +115,7 @@ export class MarkerDecorationsService extends Disposable implements IMarkerDecor
 	private _onModelAdded(model: ITextModel): void {
 		const markerDecorations = new MarkerDecorations(model);
 		this._markerDecorations.set(MODEL_ID(model.uri), markerDecorations);
-		markerDecorations.register(model.onDidChangeContent(() => this._updateDecorations(markerDecorations)));
+		markerDecorations.register(Event.debounce(model.onDidChangeContent, () => undefined, 100)(() => this._updateDecorations(markerDecorations)));
 		this._updateDecorations(markerDecorations);
 	}
 
