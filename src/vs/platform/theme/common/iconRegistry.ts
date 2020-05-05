@@ -166,7 +166,9 @@ class IconRegistry implements IIconRegistry {
 		let reference = [];
 		let docCss = [];
 
-		for (const i of Object.values(this.iconsById).sort(sorter)) {
+		const contributions = Object.keys(this.iconsById).map(key => this.iconsById[key]);
+
+		for (const i of contributions.sort(sorter)) {
 			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|${ThemeIcon.isThemeIcon(i.defaults) ? i.defaults.id : ''}|`);
 
 			if (!ThemeIcon.isThemeIcon((i.defaults))) {
