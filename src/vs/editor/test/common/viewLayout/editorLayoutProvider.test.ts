@@ -76,10 +76,16 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 		};
 		options._write(EditorOption.lineNumbers, lineNumbersOptions);
 
+		options._write(EditorOption.wordWrap, 'off');
+		options._write(EditorOption.wordWrapColumn, 80);
+		options._write(EditorOption.wordWrapMinified, true);
+		options._write(EditorOption.accessibilitySupport, 'auto');
+
 		const actual = EditorLayoutInfoComputer.computeLayout(options, {
 			memory: null,
 			outerWidth: input.outerWidth,
 			outerHeight: input.outerHeight,
+			isDominatedByLongLines: false,
 			lineHeight: input.lineHeight,
 			viewLineCount: input.maxLineNumber || Math.pow(10, input.lineNumbersDigitCount) - 1,
 			lineNumbersDigitCount: input.lineNumbersDigitCount,
@@ -138,7 +144,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 800,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 98,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -200,7 +210,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 800,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 97,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 11,
 			horizontalScrollbarHeight: 12,
@@ -262,7 +276,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 800,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 88,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -324,7 +342,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 900,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 900,
+
 			viewportColumn: 88,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -386,7 +408,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 900,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 900,
+
 			viewportColumn: 88,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -448,7 +474,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 900,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 900,
+
 			viewportColumn: 83,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -510,7 +540,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 900,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 900,
+
 			viewportColumn: 83,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -572,7 +606,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 900,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 900,
+
 			viewportColumn: 82,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -634,7 +672,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 900,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 900,
+
 			viewportColumn: 171,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -696,7 +738,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 900,
 			minimapCanvasOuterWidth: 0,
 			minimapCanvasOuterHeight: 900,
+
 			viewportColumn: 169,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -758,7 +804,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 800,
 			minimapCanvasOuterWidth: 97,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 89,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -820,7 +870,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 1600,
 			minimapCanvasOuterWidth: 97,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 89,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -882,7 +936,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 3200,
 			minimapCanvasOuterWidth: 55,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 93,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -944,7 +1002,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 3200,
 			minimapCanvasOuterWidth: 55,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 93,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -1008,7 +1070,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 1560,
 			minimapCanvasOuterWidth: 97,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 89,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -1072,7 +1138,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 1600,
 			minimapCanvasOuterWidth: 55,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 93,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -1136,7 +1206,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 1600,
 			minimapCanvasOuterWidth: 97,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 89,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -1200,7 +1274,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 1600,
 			minimapCanvasOuterWidth: 55,
 			minimapCanvasOuterHeight: 800,
+
 			viewportColumn: 93,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 0,
 			horizontalScrollbarHeight: 0,
@@ -1262,7 +1340,11 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			minimapCanvasInnerHeight: 844,
 			minimapCanvasOuterWidth: 91,
 			minimapCanvasOuterHeight: 422,
+
 			viewportColumn: 83,
+			isWordWrapMinified: false,
+			isViewportWrapping: false,
+			wrappingColumn: -1,
 
 			verticalScrollbarWidth: 14,
 			horizontalScrollbarHeight: 10,

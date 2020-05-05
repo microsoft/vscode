@@ -1744,6 +1744,10 @@ export interface EditorLayoutInfo {
 	 */
 	readonly viewportColumn: number;
 
+	readonly isWordWrapMinified: boolean;
+	readonly isViewportWrapping: boolean;
+	readonly wrappingColumn: number;
+
 	/**
 	 * The width of the vertical scrollbar.
 	 */
@@ -1763,15 +1767,16 @@ export interface EditorLayoutInfo {
  * @internal
  */
 export interface EditorLayoutInfoComputerEnv {
-	memory: IComputeOptionsMemory | null;
-	outerWidth: number;
-	outerHeight: number;
-	lineHeight: number;
-	viewLineCount: number;
-	lineNumbersDigitCount: number;
-	typicalHalfwidthCharacterWidth: number;
-	maxDigitWidth: number;
-	pixelRatio: number;
+	readonly memory: IComputeOptionsMemory | null;
+	readonly outerWidth: number;
+	readonly outerHeight: number;
+	readonly isDominatedByLongLines: boolean
+	readonly lineHeight: number;
+	readonly viewLineCount: number;
+	readonly lineNumbersDigitCount: number;
+	readonly typicalHalfwidthCharacterWidth: number;
+	readonly maxDigitWidth: number;
+	readonly pixelRatio: number;
 }
 
 /**
@@ -1782,7 +1787,12 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	constructor() {
 		super(
 			EditorOption.layoutInfo,
-			[EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding, EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers]
+			[
+				EditorOption.glyphMargin, EditorOption.lineDecorationsWidth, EditorOption.folding,
+				EditorOption.minimap, EditorOption.scrollbar, EditorOption.lineNumbers,
+				EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified,
+				EditorOption.accessibilitySupport
+			]
 		);
 	}
 
@@ -1791,6 +1801,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			memory: env.memory,
 			outerWidth: env.outerWidth,
 			outerHeight: env.outerHeight,
+			isDominatedByLongLines: env.isDominatedByLongLines,
 			lineHeight: env.fontInfo.lineHeight,
 			viewLineCount: env.viewLineCount,
 			lineNumbersDigitCount: env.lineNumbersDigitCount,
@@ -1822,6 +1833,11 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const typicalHalfwidthCharacterWidth = env.typicalHalfwidthCharacterWidth;
 		const maxDigitWidth = env.maxDigitWidth;
 		const pixelRatio = env.pixelRatio;
+
+		const wordWrap = options.get(EditorOption.wordWrap);
+		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
+		const wordWrapMinified = options.get(EditorOption.wordWrapMinified);
+		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
 
 		const showGlyphMargin = options.get(EditorOption.glyphMargin);
 		const showLineNumbers = (options.get(EditorOption.lineNumbers).renderType !== RenderLineNumbersType.Off);
@@ -1974,6 +1990,52 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 
 		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
+		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } | null = null;
+		{
+			if (accessibilitySupport === AccessibilitySupport.Enabled) {
+				// See https://github.com/Microsoft/vscode/issues/27766
+				// Never enable wrapping when a screen reader is attached
+				// because arrow down etc. will not move the cursor in the way
+				// a screen reader expects.
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: -1
+				};
+			} else if (wordWrapMinified && env.isDominatedByLongLines) {
+				// Force viewport width wrapping if model is dominated by long lines
+				bareWrappingInfo = {
+					isWordWrapMinified: true,
+					isViewportWrapping: true,
+					wrappingColumn: Math.max(1, viewportColumn)
+				};
+			} else if (wordWrap === 'on') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: true,
+					wrappingColumn: Math.max(1, viewportColumn)
+				};
+			} else if (wordWrap === 'bounded') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: true,
+					wrappingColumn: Math.min(Math.max(1, viewportColumn), wordWrapColumn)
+				};
+			} else if (wordWrap === 'wordWrapColumn') {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: wordWrapColumn
+				};
+			} else {
+				bareWrappingInfo = {
+					isWordWrapMinified: false,
+					isViewportWrapping: false,
+					wrappingColumn: -1
+				};
+			}
+		}
+
 		return {
 			width: outerWidth,
 			height: outerHeight,
@@ -2003,6 +2065,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			minimapCanvasOuterHeight: minimapCanvasOuterHeight,
 
 			viewportColumn: viewportColumn,
+
+			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
+			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
+			wrappingColumn: bareWrappingInfo.wrappingColumn,
 
 			verticalScrollbarWidth: verticalScrollbarWidth,
 			horizontalScrollbarHeight: horizontalScrollbarHeight,
@@ -3234,67 +3300,17 @@ export interface EditorWrappingInfo {
 class EditorWrappingInfoComputer extends ComputedEditorOption<EditorOption.wrappingInfo, EditorWrappingInfo> {
 
 	constructor() {
-		super(EditorOption.wrappingInfo, [EditorOption.wordWrap, EditorOption.wordWrapColumn, EditorOption.wordWrapMinified, EditorOption.layoutInfo, EditorOption.accessibilitySupport]);
+		super(EditorOption.wrappingInfo, [EditorOption.layoutInfo]);
 	}
 
 	public compute(env: IEnvironmentalOptions, options: IComputedEditorOptions, _: EditorWrappingInfo): EditorWrappingInfo {
-		const wordWrap = options.get(EditorOption.wordWrap);
-		const wordWrapColumn = options.get(EditorOption.wordWrapColumn);
-		const wordWrapMinified = options.get(EditorOption.wordWrapMinified);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		const accessibilitySupport = options.get(EditorOption.accessibilitySupport);
-
-		let bareWrappingInfo: { isWordWrapMinified: boolean; isViewportWrapping: boolean; wrappingColumn: number; } | null = null;
-		{
-			if (accessibilitySupport === AccessibilitySupport.Enabled) {
-				// See https://github.com/Microsoft/vscode/issues/27766
-				// Never enable wrapping when a screen reader is attached
-				// because arrow down etc. will not move the cursor in the way
-				// a screen reader expects.
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
-			} else if (wordWrapMinified && env.isDominatedByLongLines) {
-				// Force viewport width wrapping if model is dominated by long lines
-				bareWrappingInfo = {
-					isWordWrapMinified: true,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-				};
-			} else if (wordWrap === 'on') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.max(1, layoutInfo.viewportColumn)
-				};
-			} else if (wordWrap === 'bounded') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: true,
-					wrappingColumn: Math.min(Math.max(1, layoutInfo.viewportColumn), wordWrapColumn)
-				};
-			} else if (wordWrap === 'wordWrapColumn') {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: wordWrapColumn
-				};
-			} else {
-				bareWrappingInfo = {
-					isWordWrapMinified: false,
-					isViewportWrapping: false,
-					wrappingColumn: -1
-				};
-			}
-		}
 
 		return {
 			isDominatedByLongLines: env.isDominatedByLongLines,
-			isWordWrapMinified: bareWrappingInfo.isWordWrapMinified,
-			isViewportWrapping: bareWrappingInfo.isViewportWrapping,
-			wrappingColumn: bareWrappingInfo.wrappingColumn,
+			isWordWrapMinified: layoutInfo.isWordWrapMinified,
+			isViewportWrapping: layoutInfo.isViewportWrapping,
+			wrappingColumn: layoutInfo.wrappingColumn,
 		};
 	}
 }
