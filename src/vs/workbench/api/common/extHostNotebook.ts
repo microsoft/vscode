@@ -345,8 +345,6 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 	transformMimeTypes(output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
 		let mimeTypes = Object.keys(output.data);
-
-		// TODO@rebornix, the document display order might be assigned a bit later. We need to postpone sending the outputs to the core side.
 		let coreDisplayOrder = this.renderingHandler.outputDisplayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], this._displayOrder, coreDisplayOrder?.defaultOrder || []);
 
@@ -415,7 +413,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	}
 }
 
-export class NotebookEditorCellEdit {
+export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellEdit {
 	private _finalized: boolean = false;
 	private readonly _documentVersionId: number;
 	private _collectedEdits: ICellEditOperation[] = [];
@@ -526,13 +524,13 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		}));
 	}
 
-	edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean> {
-		const edit = new NotebookEditorCellEdit(this);
+	edit(callback: (editBuilder: NotebookEditorCellEditBuilder) => void): Thenable<boolean> {
+		const edit = new NotebookEditorCellEditBuilder(this);
 		callback(edit);
 		return this._applyEdit(edit);
 	}
 
-	private _applyEdit(editBuilder: NotebookEditorCellEdit): Promise<boolean> {
+	private _applyEdit(editBuilder: NotebookEditorCellEditBuilder): Promise<boolean> {
 		const editData = editBuilder.finalize();
 
 		// return when there is nothing to do
@@ -769,8 +767,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	private _transformMimeTypes(document: ExtHostNotebookDocument, displayOrder: string[], output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
 		let mimeTypes = Object.keys(output.data);
-
-		// TODO@rebornix, the document display order might be assigned a bit later. We need to postpone sending the outputs to the core side.
 		let coreDisplayOrder = this.outputDisplayOrder;
 		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], displayOrder, coreDisplayOrder?.defaultOrder || []);
 
