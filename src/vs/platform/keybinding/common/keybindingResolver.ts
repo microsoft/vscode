@@ -285,6 +285,11 @@ export class KeybindingResolver {
 		}
 
 		let result = this._findCommand(context, lookupMap);
+
+		if (!result && lookupMap.length) {
+			result = lookupMap[0];
+		}
+
 		if (!result) {
 			return null;
 		}
