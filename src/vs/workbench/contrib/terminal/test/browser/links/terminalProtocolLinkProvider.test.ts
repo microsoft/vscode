@@ -76,4 +76,11 @@ suite('Workbench - TerminalWebLinkProvider', () => {
 		await assertLink('POST|https://portal.azure.com|2019-12-05|', [{ range: [[6, 1], [29, 1]], text: 'https://portal.azure.com' }]);
 		await assertLink('aa  https://foo.bar/[this is foo site]  aa', [{ range: [[5, 1], [38, 1]], text: 'https://foo.bar/[this is foo site]' }]);
 	});
+
+	test('should support multiple link results', async () => {
+		await assertLink('http://foo.bar http://bar.foo', [
+			{ range: [[1, 1], [14, 1]], text: 'http://foo.bar' },
+			{ range: [[16, 1], [29, 1]], text: 'http://bar.foo' }
+		]);
+	});
 });

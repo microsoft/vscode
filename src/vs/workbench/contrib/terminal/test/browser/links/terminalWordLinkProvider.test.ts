@@ -21,7 +21,7 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 	});
 
-	async function assertLink2(text: string, expected: { text: string, range: [number, number][] }[]) {
+	async function assertLink(text: string, expected: { text: string, range: [number, number][] }[]) {
 		const xterm = new Terminal();
 		const provider: TerminalWordLinkProvider = instantiationService.createInstance(TerminalWordLinkProvider, xterm, () => { }, () => { });
 
@@ -47,28 +47,36 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 
 	test('should link words as defined by wordSeparators', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ()[]' } });
-		await assertLink2('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
-		await assertLink2('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
-		await assertLink2(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
-		await assertLink2('(foo)', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
-		await assertLink2('[foo]', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
-		await assertLink2('{foo}', [{ range: [[1, 1], [5, 1]], text: '{foo}' }]);
+		await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
+		await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
+		await assertLink(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+		await assertLink('(foo)', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+		await assertLink('[foo]', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+		await assertLink('{foo}', [{ range: [[1, 1], [5, 1]], text: '{foo}' }]);
 
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
-		await assertLink2('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
-		await assertLink2(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
-		await assertLink2('(foo)', [{ range: [[1, 1], [5, 1]], text: '(foo)' }]);
-		await assertLink2('[foo]', [{ range: [[1, 1], [5, 1]], text: '[foo]' }]);
-		await assertLink2('{foo}', [{ range: [[1, 1], [5, 1]], text: '{foo}' }]);
+		await assertLink('foo', [{ range: [[1, 1], [3, 1]], text: 'foo' }]);
+		await assertLink(' foo ', [{ range: [[2, 1], [4, 1]], text: 'foo' }]);
+		await assertLink('(foo)', [{ range: [[1, 1], [5, 1]], text: '(foo)' }]);
+		await assertLink('[foo]', [{ range: [[1, 1], [5, 1]], text: '[foo]' }]);
+		await assertLink('{foo}', [{ range: [[1, 1], [5, 1]], text: '{foo}' }]);
 	});
 
 	test('should support wide characters', async () => {
 		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' []' } });
-		await assertLink2('aabbccdd.txt ', [{ range: [[1, 1], [12, 1]], text: 'aabbccdd.txt' }]);
-		await assertLink2('我是学生.txt ', [{ range: [[1, 1], [12, 1]], text: '我是学生.txt' }]);
-		await assertLink2(' aabbccdd.txt ', [{ range: [[2, 1], [13, 1]], text: 'aabbccdd.txt' }]);
-		await assertLink2(' 我是学生.txt ', [{ range: [[2, 1], [13, 1]], text: '我是学生.txt' }]);
-		await assertLink2(' [aabbccdd.txt] ', [{ range: [[3, 1], [14, 1]], text: 'aabbccdd.txt' }]);
-		await assertLink2(' [我是学生.txt] ', [{ range: [[3, 1], [14, 1]], text: '我是学生.txt' }]);
+		await assertLink('aabbccdd.txt ', [{ range: [[1, 1], [12, 1]], text: 'aabbccdd.txt' }]);
+		await assertLink('我是学生.txt ', [{ range: [[1, 1], [12, 1]], text: '我是学生.txt' }]);
+		await assertLink(' aabbccdd.txt ', [{ range: [[2, 1], [13, 1]], text: 'aabbccdd.txt' }]);
+		await assertLink(' 我是学生.txt ', [{ range: [[2, 1], [13, 1]], text: '我是学生.txt' }]);
+		await assertLink(' [aabbccdd.txt] ', [{ range: [[3, 1], [14, 1]], text: 'aabbccdd.txt' }]);
+		await assertLink(' [我是学生.txt] ', [{ range: [[3, 1], [14, 1]], text: '我是学生.txt' }]);
+	});
+
+	test('should support multiple link results', async () => {
+		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		await assertLink('foo bar', [
+			{ range: [[1, 1], [3, 1]], text: 'foo' },
+			{ range: [[5, 1], [7, 1]], text: 'bar' }
+		]);
 	});
 });

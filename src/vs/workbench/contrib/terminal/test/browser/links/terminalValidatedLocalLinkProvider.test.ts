@@ -149,4 +149,11 @@ suite('Workbench - TerminalValidatedLocalLinkProvider', () => {
 			await assertLink(`+++ b/foo/bar`, OperatingSystem.Linux, [{ text: 'foo/bar', range: [[7, 1], [13, 1]] }]);
 		});
 	});
+
+	test('should support multiple link results', async () => {
+		await assertLink('./foo ./bar', OperatingSystem.Linux, [
+			{ range: [[1, 1], [5, 1]], text: './foo' },
+			{ range: [[7, 1], [11, 1]], text: './bar' }
+		]);
+	});
 });
