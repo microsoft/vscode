@@ -540,7 +540,12 @@ registerAction2(class extends InsertCellCommand {
 				id: INSERT_CODE_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.insertCodeCellAbove', "Insert Code Cell Above"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				f1: true
+				f1: true,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			},
 			CellKind.Code,
 			'above');
@@ -572,7 +577,12 @@ registerAction2(class extends InsertCellCommand {
 				title: localize('notebookActions.insertCodeCellBelow', "Insert Code Cell Below"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/add' },
-				f1: true
+				f1: true,
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			},
 			CellKind.Code,
 			'below');
@@ -770,7 +780,12 @@ registerAction2(class extends Action2 {
 				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-up' },
-				f1: true
+				f1: true,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.UpArrow,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 	}
 
@@ -794,7 +809,12 @@ registerAction2(class extends Action2 {
 				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-down' },
-				f1: true
+				f1: true,
+				keybinding: {
+					primary: KeyMod.Alt | KeyCode.DownArrow,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 	}
 
@@ -969,7 +989,12 @@ registerAction2(class extends Action2 {
 				id: COPY_CELL_UP_COMMAND_ID,
 				title: localize('notebookActions.copyCellUp', "Copy Cell Up"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				f1: true
+				f1: true,
+				keybinding: {
+					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 	}
 
@@ -992,7 +1017,12 @@ registerAction2(class extends Action2 {
 				id: COPY_CELL_DOWN_COMMAND_ID,
 				title: localize('notebookActions.copyCellDown', "Copy Cell Down"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				f1: true
+				f1: true,
+				keybinding: {
+					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
+					weight: KeybindingWeight.WorkbenchContrib
+				}
 			});
 	}
 
