@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType, ICellDto2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 
 function compareRangesUsingEnds(a: [number, number], b: [number, number]): number {
@@ -33,7 +33,7 @@ export class NotebookTextModelSnapshot implements ITextSnapshot {
 
 		if (this._index === -1) {
 			this._index++;
-			return `{ "metadata": ${JSON.stringify(this._model.metadata)}, "cells": [`;
+			return `{ "metadata": ${JSON.stringify(this._model.metadata)}, "languages": ${JSON.stringify(this._model.languages)}, "cells": [`;
 		}
 
 		if (this._index < this._model.cells.length) {
@@ -119,6 +119,15 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const cellHandle = NotebookTextModel._cellhandlePool++;
 		const cellUri = CellUri.generate(this.uri, cellHandle);
 		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata);
+	}
+
+	initialize(cells: ICellDto2[]) {
+		const mainCells = cells.map(cell => {
+			const cellHandle = NotebookTextModel._cellhandlePool++;
+			const cellUri = CellUri.generate(this.uri, cellHandle);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
+		});
+		this.insertNewCell(0, mainCells);
 	}
 
 	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[]): boolean {

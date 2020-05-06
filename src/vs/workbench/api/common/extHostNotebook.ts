@@ -625,7 +625,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private static _handlePool: number = 0;
 
 	private readonly _proxy: MainThreadNotebookShape;
-	private readonly _notebookProviders = new Map<string, { readonly provider: vscode.NotebookProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any>; }>();
@@ -706,91 +705,22 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return matches;
 	}
 
-	registerNotebookProvider(
-		extension: IExtensionDescription,
-		viewType: string,
-		provider: vscode.NotebookProvider,
-	): vscode.Disposable {
-
-		if (this._notebookProviders.has(viewType)) {
-			throw new Error(`Notebook provider for '${viewType}' already registered`);
-		}
-
-		this._notebookProviders.set(viewType, { extension, provider });
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, false);
-		return new VSCodeDisposable(() => {
-			this._notebookProviders.delete(viewType);
-			this._proxy.$unregisterNotebookProvider(viewType);
-		});
-	}
-
 	registerNotebookContentProvider(
 		extension: IExtensionDescription,
 		viewType: string,
 		provider: vscode.NotebookContentProvider,
 	): vscode.Disposable {
 
-		if (this._notebookProviders.has(viewType)) {
+		if (this._notebookContentProviders.has(viewType)) {
 			throw new Error(`Notebook provider for '${viewType}' already registered`);
 		}
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, true);
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType);
 		return new VSCodeDisposable(() => {
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
 		});
-	}
-
-	async _resolveNotebookFromContentProvider(viewType: string, uri: UriComponents): Promise<number | undefined> {
-		let provider = this._notebookContentProviders.get(viewType);
-
-		if (provider) {
-			const revivedUri = URI.revive(uri);
-			if (!this._documents.has(revivedUri.toString())) {
-				let document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, revivedUri, this);
-				await this._proxy.$_deprecated_createNotebookDocument(
-					document.handle,
-					viewType,
-					uri
-				);
-
-				this._documents.set(revivedUri.toString(), document);
-			}
-
-			const onDidReceiveMessage = new Emitter<any>();
-
-			let editor = new ExtHostNotebookEditor(
-				viewType,
-				`${ExtHostNotebookController._handlePool++}`,
-				revivedUri,
-				this._proxy,
-				onDidReceiveMessage,
-				this._documents.get(revivedUri.toString())!,
-				this._documentsAndEditors
-			);
-
-			this._editors.set(revivedUri.toString(), { editor, onDidReceiveMessage });
-
-			const data = await provider.provider.openNotebook(revivedUri);
-			editor.document.languages = data.languages;
-			editor.document.metadata = {
-				...notebookDocumentMetadataDefaults,
-				...data.metadata
-			};
-
-			await editor.edit(editBuilder => {
-				for (let i = 0; i < data.cells.length; i++) {
-					const cell = data.cells[i];
-					editBuilder.insert(0, cell.source, cell.language, cell.cellKind, cell.outputs, cell.metadata);
-				}
-			});
-
-			this._onDidOpenNotebookDocument.fire(editor.document);
-			return editor.document.handle;
-		} else {
-			return Promise.resolve(undefined);
-		}
 	}
 
 	async $resolveNotebookData(viewType: string, uri: UriComponents): Promise<NotebookDataDto | undefined> {
@@ -890,48 +820,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		};
 	}
 
-	async $_deprecated_resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined> {
-		let notebookFromNotebookContentProvider = await this._resolveNotebookFromContentProvider(viewType, uri);
-
-		if (notebookFromNotebookContentProvider !== undefined) {
-			return notebookFromNotebookContentProvider;
-		}
-
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			if (!this._documents.has(URI.revive(uri).toString())) {
-				let document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, URI.revive(uri), this);
-				await this._proxy.$_deprecated_createNotebookDocument(
-					document.handle,
-					viewType,
-					uri
-				);
-
-				this._documents.set(URI.revive(uri).toString(), document);
-			}
-
-			const onDidReceiveMessage = new Emitter<any>();
-
-			let editor = new ExtHostNotebookEditor(
-				viewType,
-				`${ExtHostNotebookController._handlePool++}`,
-				URI.revive(uri),
-				this._proxy,
-				onDidReceiveMessage,
-				this._documents.get(URI.revive(uri).toString())!,
-				this._documentsAndEditors
-			);
-
-			this._editors.set(URI.revive(uri).toString(), { editor, onDidReceiveMessage });
-			await provider.provider.resolveNotebook(editor);
-			// await editor.document.$updateCells();
-			return editor.document.handle;
-		}
-
-		return Promise.resolve(undefined);
-	}
-
 	async $executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void> {
 		let document = this._documents.get(URI.revive(uri).toString());
 
@@ -944,15 +832,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			return this._notebookContentProviders.get(viewType)!.provider.executeCell(document, cell, token);
 		}
-
-		let provider = this._notebookProviders.get(viewType);
-
-		if (!provider) {
-			return;
-		}
-
-		let cell = cellHandle !== undefined ? document.getCell(cellHandle) : undefined;
-		return provider.provider.executeCell(document!, cell, token);
 	}
 
 	async $saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean> {
@@ -971,10 +850,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			return true;
 		}
 
-		let provider = this._notebookProviders.get(viewType);
+		let provider = this._notebookContentProviders.get(viewType);
 
 		if (provider && document) {
-			return await provider.provider.save(document);
+			await provider.provider.saveNotebook(document, token);
+			return true;
 		}
 
 		return false;

@@ -687,11 +687,10 @@ export type NotebookCellOutputsSplice = [
 ];
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, v2: boolean): Promise<void>;
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
-	$_deprecated_createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
 	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
@@ -1555,7 +1554,6 @@ export interface INotebookDocumentsAndEditorsDelta {
 
 export interface ExtHostNotebookShape {
 	$resolveNotebookData(viewType: string, uri: UriComponents): Promise<NotebookDataDto | undefined>;
-	$_deprecated_resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
 	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;

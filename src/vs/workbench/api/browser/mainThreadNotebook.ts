@@ -8,7 +8,7 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, CellKind, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -118,8 +118,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._notebookService.unregisterNotebookRenderer(handle);
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, v2: boolean): Promise<void> {
-		let controller = new MainThreadNotebookController(this._proxy, this, viewType, v2);
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void> {
+		let controller = new MainThreadNotebookController(this._proxy, this, viewType);
 		this._notebookProviders.set(viewType, controller);
 		this._notebookService.registerNotebookController(viewType, extension, controller);
 		return;
@@ -128,16 +128,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async $unregisterNotebookProvider(viewType: string): Promise<void> {
 		this._notebookProviders.delete(viewType);
 		this._notebookService.unregisterNotebookProvider(viewType);
-		return;
-	}
-
-	async $_deprecated_createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void> {
-		let controller = this._notebookProviders.get(viewType);
-
-		if (controller) {
-			controller._deprecated_createNotebookDocument(handle, viewType, resource);
-		}
-
 		return;
 	}
 
@@ -163,11 +153,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		if (controller) {
 			controller.updateNotebookCellMetadata(resource, handle, metadata);
 		}
-	}
-
-	async _deprecated_resolveNotebook(viewType: string, uri: URI): Promise<number | undefined> {
-		let handle = await this._proxy.$_deprecated_resolveNotebook(viewType, uri);
-		return handle;
 	}
 
 	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void> {
@@ -202,8 +187,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	constructor(
 		private readonly _proxy: ExtHostNotebookShape,
 		private _mainThreadNotebook: MainThreadNotebooks,
-		private _viewType: string,
-		public readonly v2: boolean
+		private _viewType: string
 	) {
 	}
 
@@ -215,7 +199,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 
 		let document = new MainThreadNotebookDocument(this._proxy, MainThreadNotebookController.documentHandle++, viewType, uri);
-		await this.createNotebookDocument(document.handle, document.viewType, document.uri);
+		await this.createNotebookDocument(document);
 
 		if (forBackup) {
 			return document.textModel;
@@ -229,37 +213,9 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 		document.textModel.languages = data.languages;
 		document.textModel.metadata = data.metadata;
-		document.textModel.applyEdit(document.textModel.versionId, [
-			{
-				editType: CellEditType.Insert,
-				index: 0,
-				cells: data!.cells
-			}
-		]);
+		document.textModel.initialize(data!.cells);
 
 		return document.textModel;
-	}
-
-	async _deprecated_resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined> {
-		// TODO: resolve notebook should wait for all notebook document destory operations to finish.
-		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-
-		if (mainthreadNotebook) {
-			return mainthreadNotebook.textModel;
-		}
-
-		let notebookHandle = await this._mainThreadNotebook._deprecated_resolveNotebook(viewType, uri);
-		if (notebookHandle !== undefined) {
-			mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-			if (mainthreadNotebook && mainthreadNotebook.textModel.cells.length === 0) {
-				// it's empty, we should create an empty template one
-				const mainCell = mainthreadNotebook.textModel.createCellTextModel([''], mainthreadNotebook.textModel.languages.length ? mainthreadNotebook.textModel.languages[0] : '', CellKind.Code, [], undefined);
-				mainthreadNotebook.textModel.insertTemplateCell(mainCell);
-			}
-			return mainthreadNotebook?.textModel;
-		}
-
-		return undefined;
 	}
 
 	async tryApplyEdits(resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean> {
@@ -287,15 +243,14 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		this._proxy.$onDidReceiveMessage(uri, message);
 	}
 
-	async createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void> {
-		let document = new MainThreadNotebookDocument(this._proxy, handle, viewType, URI.revive(resource));
-		this._mapping.set(URI.revive(resource).toString(), document);
+	async createNotebookDocument(document: MainThreadNotebookDocument): Promise<void> {
+		this._mapping.set(document.uri.toString(), document);
 
 		await this._proxy.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
-				viewType: viewType,
+				viewType: document.viewType,
 				handle: document.handle,
-				uri: resource
+				uri: document.uri
 			}]
 		});
 	}
@@ -313,10 +268,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	}
 
 	// Methods for ExtHost
-	async _deprecated_createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void> {
-		let document = new MainThreadNotebookDocument(this._proxy, handle, viewType, URI.revive(resource));
-		this._mapping.set(URI.revive(resource).toString(), document);
-	}
 
 	updateLanguages(resource: UriComponents, languages: string[]) {
 		let document = this._mapping.get(URI.from(resource).toString());

@@ -92,7 +92,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		const fullRange = content.getRangeAt(0, content.getLength());
 		const data = JSON.parse(content.getValueInRange(fullRange, EndOfLinePreference.LF));
 
-		const notebook = await this.notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.cells);
+		const notebook = await this.notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);

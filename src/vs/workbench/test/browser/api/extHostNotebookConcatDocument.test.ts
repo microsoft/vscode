@@ -41,15 +41,20 @@ suite('NotebookConcatDocument', function () {
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
 			async $registerNotebookProvider() { }
 			async $unregisterNotebookProvider() { }
-			async $_deprecated_createNotebookDocument() { }
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors);
-		let reg = extHostNotebooks.registerNotebookProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookProvider>() {
-			async resolveNotebook() { }
+		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
+			// async openNotebook() { }
 		});
-		await extHostNotebooks.$_deprecated_resolveNotebook('test', notebookUri);
+		await extHostNotebooks.$acceptDocumentAndEditorsDelta({
+			addedDocuments: [{
+				handle: 0,
+				uri: notebookUri,
+				viewType: 'test'
+			}]
+		});
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: 0,

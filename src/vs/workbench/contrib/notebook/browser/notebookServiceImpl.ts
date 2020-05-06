@@ -202,7 +202,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return;
 	}
 
-	async createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, cells: ICellDto2[]): Promise<NotebookTextModel | undefined> {
+	async createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[]): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
@@ -222,7 +222,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._models[modelId] = modelData;
 
 		notebookModel.metadata = metadata;
-		notebookModel.languages = [];
+		notebookModel.languages = languages;
 
 		notebookModel.applyEdit(notebookModel.versionId, [
 			{
@@ -243,11 +243,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		let notebookModel: NotebookTextModel | undefined;
 
-		if (provider.controller.v2) {
-			notebookModel = await provider.controller.createNotebook(viewType, uri, false);
-		} else {
-			notebookModel = await provider.controller._deprecated_resolveNotebook(viewType, uri);
-		}
+		notebookModel = await provider.controller.createNotebook(viewType, uri, false);
 
 		// new notebook model created
 		const modelId = MODEL_ID(uri);
