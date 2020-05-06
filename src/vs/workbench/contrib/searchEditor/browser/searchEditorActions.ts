@@ -13,13 +13,14 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { SearchResult } from 'vs/workbench/contrib/search/common/searchModel';
-import * as Constants from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditor';
 import { getOrMakeSearchEditorInput, SearchEditorInput } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { serializeSearchResultForEditor } from 'vs/workbench/contrib/searchEditor/browser/searchEditorSerialization';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { searchNewEditorIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+
+const OpenNewEditorCommandId = 'search.action.openNewEditor';
 
 export const toggleSearchEditorCaseSensitiveCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
@@ -71,7 +72,7 @@ export const selectAllSearchEditorMatchesCommand = (accessor: ServicesAccessor) 
 
 export class OpenSearchEditorAction extends Action {
 
-	static readonly ID: string = Constants.OpenNewEditorCommandId;
+	static readonly ID: string = OpenNewEditorCommandId;
 	static readonly LABEL = localize('search.openNewEditor', "Open New Search Editor");
 
 	constructor(id: string, label: string,

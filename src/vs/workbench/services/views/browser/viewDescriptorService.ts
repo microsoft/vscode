@@ -119,7 +119,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		// Try generating all generated containers that don't need extensions
 		this.tryGenerateContainers();
 
-		this._register(this.viewsRegistry.onViewsRegistered(({ views, viewContainer }) => this.onDidRegisterViews(views, viewContainer)));
+		this._register(this.viewsRegistry.onViewsRegistered(views => this.onDidRegisterViews(views)));
 		this._register(this.viewsRegistry.onViewsDeregistered(({ views, viewContainer }) => this.onDidDeregisterViews(views, viewContainer)));
 
 		this._register(this.viewsRegistry.onDidChangeContainer(({ views, from, to }) => this.moveViews(views, from, to)));
@@ -212,16 +212,18 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.tryGenerateContainers(true);
 	}
 
-	private onDidRegisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
-		// When views are registered, we need to regroup them based on the cache
-		const regroupedViews = this.regroupViews(viewContainer.id, views);
+	private onDidRegisterViews(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void {
+		views.forEach(({ views, viewContainer }) => {
+			// When views are registered, we need to regroup them based on the cache
+			const regroupedViews = this.regroupViews(viewContainer.id, views);
 
-		// Once they are grouped, try registering them which occurs
-		// if the container has already been registered within this service
-		// or we can generate the container from the source view id
-		this.registerGroupedViews(regroupedViews);
+			// Once they are grouped, try registering them which occurs
+			// if the container has already been registered within this service
+			// or we can generate the container from the source view id
+			this.registerGroupedViews(regroupedViews);
 
-		views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+			views.forEach(viewDescriptor => this.getOrCreateMovableViewContextKey(viewDescriptor).set(!!viewDescriptor.canMoveView));
+		});
 	}
 
 	private shouldGenerateContainer(containerInfo: ICachedViewContainerInfo): boolean {

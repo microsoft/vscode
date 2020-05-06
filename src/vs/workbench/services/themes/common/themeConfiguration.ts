@@ -150,11 +150,13 @@ const semanticTokenColorSchema: IJSONSchema = {
 	properties: {
 		enabled: {
 			type: 'boolean',
-			description: nls.localize('editorColors.semanticHighlighting.enabled', 'Whether semantic highlighting is enabled or disabled for this theme')
+			description: nls.localize('editorColors.semanticHighlighting.enabled', 'Whether semantic highlighting is enabled or disabled for this theme'),
+			suggestSortText: '0_enabled'
 		},
 		rules: {
 			$ref: tokenStylingSchemaId,
-			description: nls.localize('editorColors.semanticHighlighting.rules', 'Semantic token styling rules for this theme.')
+			description: nls.localize('editorColors.semanticHighlighting.rules', 'Semantic token styling rules for this theme.'),
+			suggestSortText: '0_rules'
 		}
 	},
 	additionalProperties: false

@@ -272,7 +272,7 @@ class BrowserMain extends Disposable {
 			if (!this.configuration.userDataProvider) {
 				const remoteUserDataUri = this.getRemoteUserDataUri();
 				if (remoteUserDataUri) {
-					this.configuration.userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService));
+					this.configuration.userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService, logService));
 				}
 			}
 		}
