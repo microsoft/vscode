@@ -161,7 +161,7 @@ class DesktopMain extends Disposable {
 		}
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: DesktopLogService, storageService: NativeStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
