@@ -66,8 +66,6 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 				if (targetCompositeId) {
 					this.moveComposite(currentContainer.id, targetCompositeId, before);
 				}
-
-				this.openComposite(currentContainer.id, true);
 			}
 		}
 
