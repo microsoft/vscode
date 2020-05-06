@@ -10,10 +10,10 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, MainThreadDocumentsShape, INotebookEditorPropertiesChangeData } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, MainThreadDocumentsShape, INotebookEditorPropertiesChangeData, INotebookDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Disposable as VSCodeDisposable } from './extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
@@ -717,7 +717,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		this._notebookProviders.set(viewType, { extension, provider });
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType);
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, false);
 		return new VSCodeDisposable(() => {
 			this._notebookProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
@@ -735,7 +735,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType);
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, true);
 		return new VSCodeDisposable(() => {
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
@@ -749,7 +749,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			const revivedUri = URI.revive(uri);
 			if (!this._documents.has(revivedUri.toString())) {
 				let document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, revivedUri, this);
-				await this._proxy.$createNotebookDocument(
+				await this._proxy.$_deprecated_createNotebookDocument(
 					document.handle,
 					viewType,
 					uri
@@ -793,7 +793,104 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
-	async $resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined> {
+	async $resolveNotebookData(viewType: string, uri: UriComponents): Promise<NotebookDataDto | undefined> {
+		let provider = this._notebookContentProviders.get(viewType);
+		let document = this._documents.get(URI.revive(uri).toString());
+
+		if (provider && document) {
+			const rawCells = await provider.provider.openNotebook(URI.revive(uri));
+			const renderers = new Set<number>();
+			const dto = {
+				metadata: {
+					...notebookDocumentMetadataDefaults,
+					...rawCells.metadata
+				},
+				languages: rawCells.languages,
+				cells: rawCells.cells.map(cell => {
+					let transformedOutputs = cell.outputs.map(output => {
+						if (output.outputKind === CellOutputKind.Rich) {
+							// TODO display string[]
+							const ret = this._transformMimeTypes(document!, (rawCells.metadata.displayOrder as string[]) || [], output);
+
+							if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
+								renderers.add(ret.orderedMimeTypes[ret.pickedMimeTypeIndex].rendererId!);
+							}
+							return ret;
+						} else {
+							return output as IStreamOutput | IErrorOutput;
+						}
+					});
+
+					return {
+						language: cell.language,
+						cellKind: cell.cellKind,
+						metadata: cell.metadata,
+						source: cell.source,
+						outputs: transformedOutputs
+					};
+				})
+			};
+
+			return dto;
+		}
+
+		return;
+	}
+
+	private _transformMimeTypes(document: ExtHostNotebookDocument, displayOrder: string[], output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
+		let mimeTypes = Object.keys(output.data);
+
+		// TODO@rebornix, the document display order might be assigned a bit later. We need to postpone sending the outputs to the core side.
+		let coreDisplayOrder = this.outputDisplayOrder;
+		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], displayOrder, coreDisplayOrder?.defaultOrder || []);
+
+		let orderMimeTypes: IOrderedMimeType[] = [];
+
+		sorted.forEach(mimeType => {
+			let handlers = this.findBestMatchedRenderer(mimeType);
+
+			if (handlers.length) {
+				let renderedOutput = handlers[0].render(document, output, mimeType);
+
+				orderMimeTypes.push({
+					mimeType: mimeType,
+					isResolved: true,
+					rendererId: handlers[0].handle,
+					output: renderedOutput
+				});
+
+				for (let i = 1; i < handlers.length; i++) {
+					orderMimeTypes.push({
+						mimeType: mimeType,
+						isResolved: false,
+						rendererId: handlers[i].handle
+					});
+				}
+
+				if (mimeTypeSupportedByCore(mimeType)) {
+					orderMimeTypes.push({
+						mimeType: mimeType,
+						isResolved: false,
+						rendererId: -1
+					});
+				}
+			} else {
+				orderMimeTypes.push({
+					mimeType: mimeType,
+					isResolved: false
+				});
+			}
+		});
+
+		return {
+			outputKind: output.outputKind,
+			data: output.data,
+			orderedMimeTypes: orderMimeTypes,
+			pickedMimeTypeIndex: 0
+		};
+	}
+
+	async $_deprecated_resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined> {
 		let notebookFromNotebookContentProvider = await this._resolveNotebookFromContentProvider(viewType, uri);
 
 		if (notebookFromNotebookContentProvider !== undefined) {
@@ -805,7 +902,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (provider) {
 			if (!this._documents.has(URI.revive(uri).toString())) {
 				let document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, URI.revive(uri), this);
-				await this._proxy.$createNotebookDocument(
+				await this._proxy.$_deprecated_createNotebookDocument(
 					document.handle,
 					viewType,
 					uri
@@ -883,37 +980,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return false;
 	}
 
-	async $updateActiveEditor(viewType: string, uri: UriComponents): Promise<void> {
-		this._activeNotebookDocument = this._documents.get(URI.revive(uri).toString());
-		this._activeNotebookEditor = this._editors.get(URI.revive(uri).toString())?.editor;
-	}
-
-	async $destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean> {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (!provider) {
-			return false;
-		}
-
-		let document = this._documents.get(URI.revive(uri).toString());
-
-		if (document) {
-			document.dispose();
-			this._documents.delete(URI.revive(uri).toString());
-			this._onDidCloseNotebookDocument.fire(document);
-		}
-
-		let editor = this._editors.get(URI.revive(uri).toString());
-
-		if (editor) {
-			editor.editor.dispose();
-			editor.onDidReceiveMessage.dispose();
-			this._editors.delete(URI.revive(uri).toString());
-		}
-
-		return true;
-	}
-
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void {
 		this._outputDisplayOrder = displayOrder;
 	}
@@ -955,6 +1021,59 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			} else {
 				editor.editor.selection = undefined;
 			}
+		}
+	}
+
+	async $acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta) {
+		if (delta.removedDocuments) {
+			delta.removedDocuments.forEach((uri) => {
+				let document = this._documents.get(URI.revive(uri).toString());
+
+				if (document) {
+					document.dispose();
+					this._documents.delete(URI.revive(uri).toString());
+					this._onDidCloseNotebookDocument.fire(document);
+				}
+
+				let editor = this._editors.get(URI.revive(uri).toString());
+
+				if (editor) {
+					editor.editor.dispose();
+					editor.onDidReceiveMessage.dispose();
+					this._editors.delete(URI.revive(uri).toString());
+				}
+			});
+		}
+
+		if (delta.addedDocuments) {
+			delta.addedDocuments.forEach(modelData => {
+				const revivedUri = URI.revive(modelData.uri);
+				const viewType = modelData.viewType;
+				if (!this._documents.has(revivedUri.toString())) {
+					let document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, revivedUri, this);
+					this._documents.set(revivedUri.toString(), document);
+				}
+
+				const onDidReceiveMessage = new Emitter<any>();
+
+				let editor = new ExtHostNotebookEditor(
+					viewType,
+					`${ExtHostNotebookController._handlePool++}`,
+					revivedUri,
+					this._proxy,
+					onDidReceiveMessage,
+					this._documents.get(revivedUri.toString())!,
+					this._documentsAndEditors
+				);
+
+				// TODO, does it already exist?
+				this._editors.set(revivedUri.toString(), { editor, onDidReceiveMessage });
+			});
+		}
+
+		if (delta.newActiveEditor) {
+			this._activeNotebookDocument = this._documents.get(URI.revive(delta.newActiveEditor).toString());
+			this._activeNotebookEditor = this._editors.get(URI.revive(delta.newActiveEditor).toString())?.editor;
 		}
 	}
 }

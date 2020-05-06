@@ -41,7 +41,7 @@ suite('NotebookConcatDocument', function () {
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
 			async $registerNotebookProvider() { }
 			async $unregisterNotebookProvider() { }
-			async $createNotebookDocument() { }
+			async $_deprecated_createNotebookDocument() { }
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
@@ -49,7 +49,7 @@ suite('NotebookConcatDocument', function () {
 		let reg = extHostNotebooks.registerNotebookProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookProvider>() {
 			async resolveNotebook() { }
 		});
-		await extHostNotebooks.$resolveNotebook('test', notebookUri);
+		await extHostNotebooks.$_deprecated_resolveNotebook('test', notebookUri);
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			kind: NotebookCellsChangeType.ModelChange,
 			versionId: 0,
@@ -62,7 +62,7 @@ suite('NotebookConcatDocument', function () {
 				outputs: [],
 			}]]]
 		});
-		await extHostNotebooks.$updateActiveEditor('test', notebookUri);
+		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: notebookUri });
 
 		notebook = extHostNotebooks.activeNotebookDocument!;
 

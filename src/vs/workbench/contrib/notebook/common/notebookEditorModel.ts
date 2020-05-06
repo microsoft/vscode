@@ -15,6 +15,8 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkingCopyService, IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { basename } from 'vs/base/common/resources';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { DefaultEndOfLine, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
 
 export interface INotebookEditorModelManager {
 	models: NotebookEditorModel[];
@@ -47,7 +49,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		public readonly resource: URI,
 		public readonly viewType: string,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IBackupFileService private readonly backupFileService: IBackupFileService
 	) {
 		super();
 		this._register(this.workingCopyService.registerWorkingCopy(this));
@@ -56,7 +59,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	capabilities = 0;
 
 	async backup(): Promise<IWorkingCopyBackup> {
-		return {};
+		return { content: this._notebook.createSnapshot(true) };
 	}
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
@@ -64,18 +67,70 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	}
 
 	async load(): Promise<NotebookEditorModel> {
+		if (this.isResolved()) {
+			return this;
+		}
+
+		const backup = await this.backupFileService.resolve(this.resource);
+
+		if (this.isResolved()) {
+			return this; // Make sure meanwhile someone else did not succeed in loading
+		}
+
+		if (backup) {
+			try {
+				return await this.loadFromBackup(backup.value.create(DefaultEndOfLine.LF));
+			} catch (error) {
+				// this.logService.error('[text file model] load() from backup', error); // ignore error and continue to load as file below
+			}
+		}
+
+		return this.loadFromProvider();
+	}
+
+	private async loadFromBackup(content: ITextBuffer): Promise<NotebookEditorModel> {
+		const fullRange = content.getRangeAt(0, content.getLength());
+		const data = JSON.parse(content.getValueInRange(fullRange, EndOfLinePreference.LF));
+
+		const notebook = await this.notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.cells);
+		this._notebook = notebook!;
+
+		this._name = basename(this._notebook!.uri);
+
+		this._register(this._notebook.onDidChangeContent(() => {
+			this.setDirty(true);
+			this._onDidChangeContent.fire();
+		}));
+
+		await this.backupFileService.discardBackup(this.resource);
+		this.setDirty(true);
+
+		return this;
+	}
+
+	private async loadFromProvider() {
 		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
 
 		this._register(this._notebook.onDidChangeContent(() => {
-			this._dirty = true;
-			this._onDidChangeDirty.fire();
+			this.setDirty(true);
 			this._onDidChangeContent.fire();
 		}));
 
 		return this;
+	}
+
+	isResolved(): boolean {
+		return !!this._notebook;
+	}
+
+	setDirty(newState: boolean) {
+		if (this._dirty !== newState) {
+			this._dirty = newState;
+			this._onDidChangeDirty.fire();
+		}
 	}
 
 	isDirty() {

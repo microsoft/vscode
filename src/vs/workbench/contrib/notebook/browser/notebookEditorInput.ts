@@ -96,6 +96,10 @@ export class NotebookEditorInput extends EditorInput {
 			this._onDidChangeDirty.fire();
 		}));
 
+		if (this.textModel.isDirty()) {
+			this._onDidChangeDirty.fire();
+		}
+
 		return this.textModel;
 	}
 

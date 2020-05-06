@@ -11,7 +11,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from '
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo, NotebookDocumentMetadata, CellEditType, ICellDto2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
@@ -202,13 +202,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return;
 	}
 
-	async resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined> {
+	async createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, cells: ICellDto2[]): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
 		}
 
-		const notebookModel = await provider.controller.resolveNotebook(viewType, uri);
+		const notebookModel = await provider.controller.createNotebook(viewType, uri, true);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -219,6 +219,43 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			notebookModel,
 			(model) => this._onWillDispose(model),
 		);
+		this._models[modelId] = modelData;
+
+		notebookModel.metadata = metadata;
+		notebookModel.languages = [];
+
+		notebookModel.applyEdit(notebookModel.versionId, [
+			{
+				editType: CellEditType.Insert,
+				index: 0,
+				cells: cells
+			}
+		]);
+
+		return modelData.model;
+	}
+
+	async resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined> {
+		const provider = this._notebookProviders.get(viewType);
+		if (!provider) {
+			return undefined;
+		}
+
+		let notebookModel: NotebookTextModel | undefined;
+
+		if (provider.controller.v2) {
+			notebookModel = await provider.controller.createNotebook(viewType, uri, false);
+		} else {
+			notebookModel = await provider.controller._deprecated_resolveNotebook(viewType, uri);
+		}
+
+		// new notebook model created
+		const modelId = MODEL_ID(uri);
+		const modelData = new ModelData(
+			notebookModel!,
+			(model) => this._onWillDispose(model),
+		);
+
 		this._models[modelId] = modelData;
 		return modelData.model;
 	}
@@ -265,7 +302,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			provider.controller.destoryNotebookDocument(notebook);
+			provider.controller.removeNotebookDocument(notebook);
 		}
 	}
 

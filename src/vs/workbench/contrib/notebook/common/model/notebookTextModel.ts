@@ -8,6 +8,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 function compareRangesUsingEnds(a: [number, number], b: [number, number]): number {
 	if (a[1] === b[1]) {
@@ -15,6 +16,49 @@ function compareRangesUsingEnds(a: [number, number], b: [number, number]): numbe
 
 	}
 	return a[1] - b[1];
+}
+
+export class NotebookTextModelSnapshot implements ITextSnapshot {
+	// private readonly _pieces: Ce[] = [];
+	private _index: number = -1;
+
+	constructor(private _model: NotebookTextModel) {
+		// for (let i = 0; i < this._model.cells.length; i++) {
+		// 	const cell = this._model.cells[i];
+		// 	this._pieces.push(this._model.cells[i].textBuffer.createSnapshot(true));
+		// }
+	}
+
+	read(): string | null {
+
+		if (this._index === -1) {
+			this._index++;
+			return `{ "metadata": ${JSON.stringify(this._model.metadata)}, "cells": [`;
+		}
+
+		if (this._index < this._model.cells.length) {
+			const cell = this._model.cells[this._index];
+
+			const data = {
+				source: cell.getValue(),
+				metadata: cell.metadata,
+				cellKind: cell.cellKind,
+				language: cell.language
+			};
+
+			const rawStr = JSON.stringify(data);
+			const isLastCell = this._index === this._model.cells.length - 1;
+
+			this._index++;
+			return isLastCell ? rawStr : (rawStr + ',');
+		} else if (this._index === this._model.cells.length) {
+			this._index++;
+			return `]}`;
+		} else {
+			return null;
+		}
+	}
+
 }
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
@@ -140,6 +184,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._onDidChangeCells.fire(diffs);
 		return true;
+	}
+
+	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
+		return new NotebookTextModelSnapshot(this);
 	}
 
 	private _increaseVersionId(): void {
