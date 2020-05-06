@@ -911,6 +911,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.statusBar.focusPrevious',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.LeftArrow,
+	secondary: [KeyCode.UpArrow],
 	when: CONTEXT_STATUS_BAR_FOCUSED,
 	handler: (accessor: ServicesAccessor) => {
 		const statusBarService = accessor.get(IStatusbarService);
@@ -922,6 +923,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.statusBar.focusNext',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.RightArrow,
+	secondary: [KeyCode.DownArrow],
 	when: CONTEXT_STATUS_BAR_FOCUSED,
 	handler: (accessor: ServicesAccessor) => {
 		const statusBarService = accessor.get(IStatusbarService);
