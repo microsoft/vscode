@@ -170,19 +170,20 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return true;
 	}
 
+	private updateEditorFocus() {
+		// Note - focus going to the webview will fire 'blur', but the webview element will be
+		// a descendent of the notebook editor root.
+		this.editorFocus?.set(DOM.isAncestor(document.activeElement, this.getDomNode()));
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, $('.notebook-editor'));
 		this.createBody(this._rootElement);
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 		this.editorFocus.set(true);
-		this._register(this.onDidFocus(() => {
-			this.editorFocus?.set(true);
-		}));
-
-		this._register(this.onDidBlur(() => {
-			this.editorFocus?.set(false);
-		}));
+		this._register(this.onDidFocus(() => this.updateEditorFocus()));
+		this._register(this.onDidBlur(() => this.updateEditorFocus()));
 
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
@@ -307,6 +308,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this);
+		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
+		this.webview.webview.onDidFocus(() => this.updateEditorFocus());
 		this._register(this.webview.onMessage(message => {
 			if (this.viewModel) {
 				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.viewModel.uri, message);
