@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Terminal, ILink, IBufferRange, IBufferCellPosition } from 'xterm';
+import { Terminal, ILink } from 'xterm';
 import { TerminalWordLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalWordLinkProvider';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-suite.only('Workbench - TerminalWordLinkProvider', () => {
+suite('Workbench - TerminalWordLinkProvider', () => {
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
