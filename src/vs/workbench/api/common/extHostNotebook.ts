@@ -931,6 +931,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				}
 
 				const onDidReceiveMessage = new Emitter<any>();
+				const document = this._documents.get(revivedUri.toString())!;
 
 				let editor = new ExtHostNotebookEditor(
 					viewType,
@@ -938,9 +939,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					revivedUri,
 					this._proxy,
 					onDidReceiveMessage,
-					this._documents.get(revivedUri.toString())!,
+					document,
 					this._documentsAndEditors
 				);
+
+				this._onDidOpenNotebookDocument.fire(document);
 
 				// TODO, does it already exist?
 				this._editors.set(revivedUri.toString(), { editor, onDidReceiveMessage });
