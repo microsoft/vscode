@@ -207,7 +207,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				}
 
 				if (isActive) {
-					if (!activePanel) {
+					// Only try to open the panel if it has been created and visible
+					if (!activePanel && this.element && this.layoutService.isVisible(Parts.PANEL_PART)) {
 						this.doOpenPanel(panel.id);
 					}
 

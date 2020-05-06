@@ -266,7 +266,10 @@ class DropOverlay extends Themable {
 					}
 
 					// Open in target group
-					const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
+					const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({
+						pinned: true,										// always pin dropped editor
+						sticky: sourceGroup.isSticky(draggedEditor.editor)	// preserve sticky state
+					}));
 					targetGroup.openEditor(draggedEditor.editor, options);
 
 					// Ensure target has focus

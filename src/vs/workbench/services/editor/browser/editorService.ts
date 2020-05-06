@@ -258,6 +258,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				const optionOverrides = {
 					preserveFocus: true,
 					pinned: group.isPinned(editor),
+					sticky: group.isSticky(editor),
 					index: group.getIndexOfEditor(editor),
 					inactive: !group.isActive(editor)
 				};
@@ -428,7 +429,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return this.getEditors(EditorsOrder.SEQUENTIAL).map(({ editor }) => editor);
 	}
 
-	getEditors(order: EditorsOrder): ReadonlyArray<IEditorIdentifier> {
+	getEditors(order: EditorsOrder.MOST_RECENTLY_ACTIVE): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder.SEQUENTIAL, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier> {
 		if (order === EditorsOrder.MOST_RECENTLY_ACTIVE) {
 			return this.editorsObserver.editors;
 		}
@@ -436,7 +439,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const editors: IEditorIdentifier[] = [];
 
 		this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(group => {
-			editors.push(...group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => ({ editor, groupId: group.id })));
+			editors.push(...group.getEditors(EditorsOrder.SEQUENTIAL, options).map(editor => ({ editor, groupId: group.id })));
 		});
 
 		return editors;
@@ -1038,7 +1041,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return this.save(this.getAllDirtyEditors(options), options);
 	}
 
-	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void> {
+	async revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> {
 
 		// Convert to array
 		if (!Array.isArray(editors)) {
@@ -1056,9 +1059,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			return editor.revert(groupId, options);
 		}));
+
+		return !uniqueEditors.some(({ editor }) => editor.isDirty());
 	}
 
-	async revertAll(options?: IRevertAllEditorsOptions): Promise<void> {
+	async revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> {
 		return this.revert(this.getAllDirtyEditors(options), options);
 	}
 
@@ -1067,9 +1072,19 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
-				if (editor.isDirty() && (!editor.isUntitled() || !!options?.includeUntitled)) {
-					editors.push({ groupId: group.id, editor });
+				if (!editor.isDirty()) {
+					continue;
 				}
+
+				if (!options?.includeUntitled && editor.isUntitled()) {
+					continue;
+				}
+
+				if (options?.excludeSticky && group.isSticky(editor)) {
+					continue;
+				}
+
+				editors.push({ groupId: group.id, editor });
 			}
 		}
 
@@ -1210,7 +1225,15 @@ export class DelegatingEditorService implements IEditorService {
 	get editors(): ReadonlyArray<IEditorInput> { return this.editorService.editors; }
 	get count(): number { return this.editorService.count; }
 
-	getEditors(order: EditorsOrder): ReadonlyArray<IEditorIdentifier> { return this.editorService.getEditors(order); }
+	getEditors(order: EditorsOrder.MOST_RECENTLY_ACTIVE): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder.SEQUENTIAL, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier> {
+		if (order === EditorsOrder.MOST_RECENTLY_ACTIVE) {
+			return this.editorService.getEditors(order);
+		}
+
+		return this.editorService.getEditors(order, options);
+	}
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
 	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
@@ -1237,8 +1260,8 @@ export class DelegatingEditorService implements IEditorService {
 	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { return this.editorService.save(editors, options); }
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> { return this.editorService.saveAll(options); }
 
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void> { return this.editorService.revert(editors, options); }
-	revertAll(options?: IRevertAllEditorsOptions): Promise<void> { return this.editorService.revertAll(options); }
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { return this.editorService.revert(editors, options); }
+	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { return this.editorService.revertAll(options); }
 
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable {
 		throw new Error('Method not implemented.');

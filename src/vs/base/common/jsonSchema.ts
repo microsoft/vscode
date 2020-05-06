@@ -63,6 +63,7 @@ export interface IJSONSchema {
 	markdownEnumDescriptions?: string[];
 	markdownDescription?: string;
 	doNotSuggest?: boolean;
+	suggestSortText?: string;
 	allowComments?: boolean;
 	allowTrailingCommas?: boolean;
 }

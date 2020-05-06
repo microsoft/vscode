@@ -318,7 +318,6 @@ export interface IStackFrame extends ITreeElement {
 	readonly source: Source;
 	getScopes(): Promise<IScope[]>;
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
-	getSpecificSourceName(): string;
 	forgetScopes(): void;
 	restart(): Promise<any>;
 	toString(): string;
