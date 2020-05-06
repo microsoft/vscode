@@ -17,7 +17,7 @@ import { INotebookEditorModelManager } from 'vs/workbench/contrib/notebook/commo
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface IMainNotebookController {
-	createNotebook(viewType: string, uri: URI, forBackup: boolean): Promise<NotebookTextModel | undefined>;
+	createNotebook(viewType: string, uri: URI, forBackup: boolean, forceReload: boolean): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
 	onDidReceiveMessage(uri: URI, message: any): void;
 	executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void>;
@@ -35,7 +35,7 @@ export interface INotebookService {
 	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]): void;
 	unregisterNotebookRenderer(handle: number): void;
 	getRendererInfo(handle: number): INotebookRendererInfo | undefined;
-	resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined>;
+	resolveNotebook(viewType: string, uri: URI, forceReload: boolean): Promise<NotebookTextModel | undefined>;
 	createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[]): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI): Promise<void>;
 	executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void>;

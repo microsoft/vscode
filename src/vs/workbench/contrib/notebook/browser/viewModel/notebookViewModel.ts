@@ -586,7 +586,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.splice(deleteIndex, 1);
 		this._handleToViewCellMapping.delete(deleteCell.handle);
 
-		this._notebook.removeCell(deleteIndex);
+		this._notebook.removeCell(deleteIndex, 1);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
 	}
 
@@ -638,7 +638,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.splice(index, 1);
 		this._handleToViewCellMapping.delete(viewCell.handle);
 
-		this._notebook.removeCell(index);
+		this._notebook.removeCell(index, 1);
 
 		let endSelections: number[] = [];
 		if (this.selectionHandles.length) {

@@ -8,7 +8,7 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -191,10 +191,23 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	) {
 	}
 
-	async createNotebook(viewType: string, uri: URI, forBackup: boolean): Promise<NotebookTextModel | undefined> {
+	async createNotebook(viewType: string, uri: URI, forBackup: boolean, forceReload: boolean): Promise<NotebookTextModel | undefined> {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook) {
+			if (forceReload) {
+				const data = await this._proxy.$resolveNotebookData(viewType, uri);
+				if (!data) {
+					return;
+				}
+
+				mainthreadNotebook.textModel.languages = data.languages;
+				mainthreadNotebook.textModel.metadata = data.metadata;
+				mainthreadNotebook.textModel.applyEdit(mainthreadNotebook.textModel.versionId, [
+					{ editType: CellEditType.Delete, count: mainthreadNotebook.textModel.cells.length, index: 0 },
+					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
+				]);
+			}
 			return mainthreadNotebook.textModel;
 		}
 

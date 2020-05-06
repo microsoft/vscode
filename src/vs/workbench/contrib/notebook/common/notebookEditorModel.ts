@@ -26,6 +26,13 @@ export interface INotebookEditorModelManager {
 	get(resource: URI): NotebookEditorModel | undefined;
 }
 
+export interface INotebookRevertOptions {
+	/**
+	 * Go to disk bypassing any cache of the model if any.
+	 */
+	forceReadFromDisk?: boolean;
+}
+
 
 export class NotebookEditorModel extends EditorModel implements IWorkingCopy, INotebookEditorModel {
 	private _dirty = false;
@@ -63,10 +70,17 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	}
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
+		console.log(options);
+		await this.load({ forceReadFromDisk: true });
+		this._dirty = false;
+		this._onDidChangeDirty.fire();
 		return;
 	}
 
-	async load(): Promise<NotebookEditorModel> {
+	async load(options?: INotebookRevertOptions): Promise<NotebookEditorModel> {
+		if (options?.forceReadFromDisk) {
+			return this.loadFromProvider(true);
+		}
 		if (this.isResolved()) {
 			return this;
 		}
@@ -85,7 +99,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			}
 		}
 
-		return this.loadFromProvider();
+		return this.loadFromProvider(false);
 	}
 
 	private async loadFromBackup(content: ITextBuffer): Promise<NotebookEditorModel> {
@@ -108,8 +122,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		return this;
 	}
 
-	private async loadFromProvider() {
-		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource);
+	private async loadFromProvider(forceReloadFromDisk: boolean) {
+		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
@@ -138,6 +152,14 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	}
 
 	async save(): Promise<boolean> {
+		const tokenSource = new CancellationTokenSource();
+		await this.notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
+		this._dirty = false;
+		this._onDidChangeDirty.fire();
+		return true;
+	}
+
+	async saveAs(targetResource: URI): Promise<boolean> {
 		const tokenSource = new CancellationTokenSource();
 		await this.notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
 		this._dirty = false;

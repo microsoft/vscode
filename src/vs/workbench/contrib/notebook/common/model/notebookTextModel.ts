@@ -122,6 +122,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	initialize(cells: ICellDto2[]) {
+		this.cells = [];
+		this._versionId = 0;
+
 		const mainCells = cells.map(cell => {
 			const cellHandle = NotebookTextModel._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
@@ -180,7 +183,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this.insertNewCell(insertEdit.index, mainCells);
 					break;
 				case CellEditType.Delete:
-					this.removeCell(operations[i].index);
+					this.removeCell(operations[i].index, operations[i].end - operations[i].start);
 					break;
 			}
 		}
@@ -307,17 +310,19 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return;
 	}
 
-	removeCell(index: number) {
+	removeCell(index: number, count: number) {
 		this._isUntitled = false;
 
-		let cell = this.cells[index];
-		this._cellListeners.get(cell.handle)?.dispose();
-		this._cellListeners.delete(cell.handle);
-		this.cells.splice(index, 1);
+		for (let i = index; i < index + count; i++) {
+			let cell = this.cells[i];
+			this._cellListeners.get(cell.handle)?.dispose();
+			this._cellListeners.delete(cell.handle);
+		}
+		this.cells.splice(index, count);
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, 1, []]] });
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]] });
 	}
 
 	moveCellToIdx(index: number, newIdx: number) {

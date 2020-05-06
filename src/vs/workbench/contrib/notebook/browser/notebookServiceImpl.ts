@@ -208,7 +208,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return undefined;
 		}
 
-		const notebookModel = await provider.controller.createNotebook(viewType, uri, true);
+		const notebookModel = await provider.controller.createNotebook(viewType, uri, true, false);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -235,7 +235,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return modelData.model;
 	}
 
-	async resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined> {
+	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
@@ -243,7 +243,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		let notebookModel: NotebookTextModel | undefined;
 
-		notebookModel = await provider.controller.createNotebook(viewType, uri, false);
+		notebookModel = await provider.controller.createNotebook(viewType, uri, false, forceReload);
 
 		// new notebook model created
 		const modelId = MODEL_ID(uri);

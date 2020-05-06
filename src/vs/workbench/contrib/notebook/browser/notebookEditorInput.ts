@@ -85,6 +85,18 @@ export class NotebookEditorInput extends EditorInput {
 		return undefined;
 	}
 
+	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		return this;
+	}
+
+	async revert(group: GroupIdentifier): Promise<void> {
+		if (this.textModel) {
+			await this.textModel.revert();
+		}
+
+		return;
+	}
+
 	async resolve(): Promise<NotebookEditorModel> {
 		if (!await this.notebookService.canResolve(this.viewType!)) {
 			throw new Error(`Cannot open notebook of type '${this.viewType}'`);
