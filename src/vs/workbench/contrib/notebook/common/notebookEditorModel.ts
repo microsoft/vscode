@@ -161,7 +161,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	async saveAs(targetResource: URI): Promise<boolean> {
 		const tokenSource = new CancellationTokenSource();
-		await this.notebookService.save(this.notebook.viewType, this.notebook.uri, tokenSource.token);
+		await this.notebookService.saveAs(this.notebook.viewType, this.notebook.uri, targetResource, tokenSource.token);
 		this._dirty = false;
 		this._onDidChangeDirty.fire();
 		return true;

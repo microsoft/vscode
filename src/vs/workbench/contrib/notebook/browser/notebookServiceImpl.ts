@@ -324,6 +324,16 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return false;
 	}
 
+	async saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.saveAs(resource, target, token);
+		}
+
+		return false;
+	}
+
 	onDidReceiveMessage(viewType: string, uri: URI, message: any): void {
 		let provider = this._notebookProviders.get(viewType);
 

@@ -846,10 +846,22 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			return true;
 		}
 
-		let provider = this._notebookContentProviders.get(viewType);
+		return false;
+	}
 
-		if (provider && document) {
-			await provider.provider.saveNotebook(document, token);
+	async $saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean> {
+		let document = this._documents.get(URI.revive(uri).toString());
+		if (!document) {
+			return false;
+		}
+
+		if (this._notebookContentProviders.has(viewType)) {
+			try {
+				await this._notebookContentProviders.get(viewType)!.provider.saveNotebookAs(URI.revive(target), document, token);
+			} catch (e) {
+				return false;
+			}
+
 			return true;
 		}
 

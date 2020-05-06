@@ -23,6 +23,7 @@ export interface IMainNotebookController {
 	executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void>;
 	removeNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
+	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
 }
 
 export interface INotebookService {
@@ -46,6 +47,7 @@ export interface INotebookService {
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
 	updateActiveNotebookDocument(viewType: string, resource: URI): void;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
+	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	onDidReceiveMessage(viewType: string, uri: URI, message: any): void;
 	setToCopy(items: NotebookCellTextModel[]): void;
 	getToCopy(): NotebookCellTextModel[] | undefined;

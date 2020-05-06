@@ -6,10 +6,12 @@
 import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, basename } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class NotebookEditorInput extends EditorInput {
 
@@ -39,7 +41,10 @@ export class NotebookEditorInput extends EditorInput {
 		public name: string,
 		public readonly viewType: string | undefined,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -86,7 +91,26 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		return this;
+		if (!this.textModel) {
+			return undefined;
+		}
+
+		const dialogPath = this.textModel.resource;
+		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
+		if (!target) {
+			return undefined; // save cancelled
+		}
+
+		if (!await this.textModel.saveAs(target)) {
+			return undefined;
+		}
+
+		return this._move(group, target)?.editor;
+	}
+
+	_move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+		const editorInput = NotebookEditorInput.getOrCreate(this.instantiationService, newResource, basename(newResource), this.viewType);
+		return { editor: editorInput };
 	}
 
 	async revert(group: GroupIdentifier): Promise<void> {
