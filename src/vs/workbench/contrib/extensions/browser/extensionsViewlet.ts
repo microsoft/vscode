@@ -456,7 +456,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 					e.dataTransfer.dropEffect = this.isSupportedDragElement(e) ? 'copy' : 'none';
 				}
 			},
-			onDrop: (e: DragEvent) => {
+			onDrop: async (e: DragEvent) => {
 				if (this.isSupportedDragElement(e)) {
 					hide(overlay);
 
@@ -469,8 +469,13 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 							}
 						}
 
-						// Install the extension(s)
-						this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL).run(vsixPaths);
+						try {
+							// Attempt to install the extension(s)
+							await this.instantiationService.createInstance(InstallVSIXAction, InstallVSIXAction.ID, InstallVSIXAction.LABEL).run(vsixPaths);
+						}
+						catch (err) {
+							this.notificationService.error(err);
+						}
 					}
 				}
 			},
