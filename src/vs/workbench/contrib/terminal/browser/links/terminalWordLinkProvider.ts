@@ -48,9 +48,10 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		for (let x = 0; x < line.length; x++) {
 			line.getCell(x, cellData);
 			const chars = cellData.getChars();
+			const width = cellData.getWidth();
 
 			// Add a link if this is a separator
-			if (wordSeparators.indexOf(chars) >= 0) {
+			if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
 				if (startX !== -1) {
 					result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
 					text = '';
