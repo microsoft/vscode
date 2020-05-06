@@ -11,7 +11,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class NotebookEditorInput extends EditorInput {
 
@@ -43,7 +42,7 @@ export class NotebookEditorInput extends EditorInput {
 		@INotebookService private readonly notebookService: INotebookService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IEditorService private readonly editorService: IEditorService,
+		// @IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
