@@ -173,6 +173,7 @@ export class HoverWidget extends Widget {
 	}
 
 	public dispose(): void {
+		console.log('HoverWidget.dispose');
 		if (!this._isDisposed) {
 			this._onDispose.fire();
 			this._containerDomNode.parentElement?.removeChild(this.domNode);
@@ -225,6 +226,7 @@ class CompositeMouseTracker extends Widget {
 
 	private _fireIfMouseOutside(): void {
 		if (!this._isMouseIn) {
+			console.log('mouse tracker fire mouse out');
 			this._onMouseOut.fire();
 		}
 	}

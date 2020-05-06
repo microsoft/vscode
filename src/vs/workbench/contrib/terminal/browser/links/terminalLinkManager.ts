@@ -301,18 +301,18 @@ export class TerminalLinkManager extends DisposableStore {
 		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this));
 		this._linkProviders.push(this._xterm.registerLinkProvider(protocolProvider));
 
-		// // Validated local links
-		// if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
-		// 	const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
-		// 	const validatedProvider = this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
-		// 		this._xterm,
-		// 		this._processManager.os || OS,
-		// 		wrappedTextLinkActivateCallback,
-		// 		this._wrapLinkHandler.bind(this),
-		// 		this._tooltipCallback2.bind(this),
-		// 		async (link, cb) => cb(await this._resolvePath(link)));
-		// 	this._linkProviders.push(this._xterm.registerLinkProvider(validatedProvider));
-		// }
+		// Validated local links
+		if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
+			const wrappedTextLinkActivateCallback = this._wrapLinkHandler((_, link) => this._handleLocalLink(link));
+			const validatedProvider = this._instantiationService.createInstance(TerminalValidatedLocalLinkProvider,
+				this._xterm,
+				this._processManager.os || OS,
+				wrappedTextLinkActivateCallback,
+				this._wrapLinkHandler.bind(this),
+				this._tooltipCallback2.bind(this),
+				async (link, cb) => cb(await this._resolvePath(link)));
+			this._linkProviders.push(this._xterm.registerLinkProvider(validatedProvider));
+		}
 
 		// Word links
 		const wordProvider = this._instantiationService.createInstance(TerminalWordLinkProvider, this._xterm, this._wrapLinkHandler.bind(this), this._tooltipCallback2.bind(this));

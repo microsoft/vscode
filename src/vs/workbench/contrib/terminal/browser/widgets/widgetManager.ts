@@ -29,6 +29,7 @@ export class TerminalWidgetManager implements IDisposable {
 		if (!this._container) {
 			return;
 		}
+		console.log('attach new widget');
 		this._attached.get(widget.id)?.dispose();
 		widget.attach(this._container);
 		this._attached.set(widget.id, widget);
