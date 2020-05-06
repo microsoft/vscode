@@ -706,12 +706,14 @@ export interface IEnvironmentalOptions {
  */
 export class ComputeOptionsMemory {
 
-	public lastInput: IEditorLayoutComputerInput | null;
-	public lastResult: EditorLayoutInfo | null;
+	public stableMinimapLayoutInput: IMinimapLayoutInput | null;
+	public stableFitMaxMinimapScale: number;
+	public stableFitRemainingWidth: number;
 
 	constructor() {
-		this.lastInput = null;
-		this.lastResult = null;
+		this.stableMinimapLayoutInput = null;
+		this.stableFitMaxMinimapScale = 0;
+		this.stableFitRemainingWidth = 0;
 	}
 }
 
@@ -1816,51 +1818,6 @@ export interface IEditorLayoutComputerInput {
 /**
  * @internal
  */
-function editorLayoutComputerInputSoftEquals(a: IEditorLayoutComputerInput, b: IEditorLayoutComputerInput): boolean {
-	return (
-		a.outerWidth === b.outerWidth
-		&& a.outerHeight === b.outerHeight
-		&& a.isDominatedByLongLines === b.isDominatedByLongLines
-		&& a.lineHeight === b.lineHeight
-		&& a.lineNumbersDigitCount === b.lineNumbersDigitCount
-		&& a.typicalHalfwidthCharacterWidth === b.typicalHalfwidthCharacterWidth
-		&& a.maxDigitWidth === b.maxDigitWidth
-		&& a.pixelRatio === b.pixelRatio
-		&& a.glyphMargin === b.glyphMargin
-		&& a.lineDecorationsWidth === b.lineDecorationsWidth
-		&& a.folding === b.folding
-		&& a.minimap.enabled === b.minimap.enabled
-		&& a.minimap.side === b.minimap.side
-		&& a.minimap.size === b.minimap.size
-		&& a.minimap.showSlider === b.minimap.showSlider
-		&& a.minimap.renderCharacters === b.minimap.renderCharacters
-		&& a.minimap.maxColumn === b.minimap.maxColumn
-		&& a.minimap.scale === b.minimap.scale
-		&& a.scrollbar.arrowSize === b.scrollbar.arrowSize
-		&& a.scrollbar.vertical === b.scrollbar.vertical
-		&& a.scrollbar.horizontal === b.scrollbar.horizontal
-		&& a.scrollbar.useShadows === b.scrollbar.useShadows
-		&& a.scrollbar.verticalHasArrows === b.scrollbar.verticalHasArrows
-		&& a.scrollbar.horizontalHasArrows === b.scrollbar.horizontalHasArrows
-		&& a.scrollbar.handleMouseWheel === b.scrollbar.handleMouseWheel
-		&& a.scrollbar.alwaysConsumeMouseWheel === b.scrollbar.alwaysConsumeMouseWheel
-		&& a.scrollbar.horizontalScrollbarSize === b.scrollbar.horizontalScrollbarSize
-		&& a.scrollbar.horizontalSliderSize === b.scrollbar.horizontalSliderSize
-		&& a.scrollbar.verticalScrollbarSize === b.scrollbar.verticalScrollbarSize
-		&& a.scrollbar.verticalSliderSize === b.scrollbar.verticalSliderSize
-		&& a.lineNumbers.renderType === b.lineNumbers.renderType
-		&& a.lineNumbersMinChars === b.lineNumbersMinChars
-		&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
-		&& a.wordWrap === b.wordWrap
-		&& a.wordWrapColumn === b.wordWrapColumn
-		&& a.wordWrapMinified === b.wordWrapMinified
-		&& a.accessibilitySupport === b.accessibilitySupport
-	);
-}
-
-/**
- * @internal
- */
 export interface IMinimapLayoutInput {
 	readonly outerHeight: number;
 	readonly lineHeight: number;
@@ -1943,10 +1900,10 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			wordWrapColumn: options.get(EditorOption.wordWrapColumn),
 			wordWrapMinified: options.get(EditorOption.wordWrapMinified),
 			accessibilitySupport: options.get(EditorOption.accessibilitySupport)
-		}, env.viewLineCount, env.memory);
+		}, env.viewLineCount, env.memory || new ComputeOptionsMemory());
 	}
 
-	private static _computeMinimapLayout(input: IMinimapLayoutInput) {
+	private static _computeMinimapLayout(input: IMinimapLayoutInput, memory: ComputeOptionsMemory) {
 		const outerHeight = input.outerHeight;
 		const pixelRatio = input.pixelRatio;
 
@@ -1965,6 +1922,28 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			};
 		}
 
+		// Can use memory if only the `viewLineCount` and `remainingWidth` have changed
+		const stableMinimapLayoutInput = memory.stableMinimapLayoutInput;
+		const couldUseMemory = (
+			stableMinimapLayoutInput
+			&& input.outerHeight === stableMinimapLayoutInput.outerHeight
+			&& input.lineHeight === stableMinimapLayoutInput.lineHeight
+			&& input.typicalHalfwidthCharacterWidth === stableMinimapLayoutInput.typicalHalfwidthCharacterWidth
+			&& input.pixelRatio === stableMinimapLayoutInput.pixelRatio
+			&& input.scrollBeyondLastLine === stableMinimapLayoutInput.scrollBeyondLastLine
+			&& input.minimap.enabled === stableMinimapLayoutInput.minimap.enabled
+			&& input.minimap.side === stableMinimapLayoutInput.minimap.side
+			&& input.minimap.size === stableMinimapLayoutInput.minimap.size
+			&& input.minimap.showSlider === stableMinimapLayoutInput.minimap.showSlider
+			&& input.minimap.renderCharacters === stableMinimapLayoutInput.minimap.renderCharacters
+			&& input.minimap.maxColumn === stableMinimapLayoutInput.minimap.maxColumn
+			&& input.minimap.scale === stableMinimapLayoutInput.minimap.scale
+			&& input.verticalScrollbarWidth === stableMinimapLayoutInput.verticalScrollbarWidth
+			// && input.viewLineCount === lastMinimapLayoutInput.viewLineCount !!! INTENTIONAL OMITTED
+			// && input.remainingWidth === lastMinimapLayoutInput.remainingWidth !!! INTENTIONAL OMITTED
+			&& input.isViewportWrapping === stableMinimapLayoutInput.isViewportWrapping
+		);
+
 		const lineHeight = input.lineHeight;
 		const typicalHalfwidthCharacterWidth = input.typicalHalfwidthCharacterWidth;
 		const scrollBeyondLastLine = input.scrollBeyondLastLine;
@@ -1978,7 +1957,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		const isViewportWrapping = input.isViewportWrapping;
 
 		const baseCharHeight = minimapRenderCharacters ? 2 : 3;
-		let storeResultInMemory = false;
 		let minimapCanvasInnerHeight = Math.floor(pixelRatio * outerHeight);
 		const minimapCanvasOuterHeight = minimapCanvasInnerHeight / pixelRatio;
 		let minimapHeightIsEditorHeight = false;
@@ -2006,24 +1984,45 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				minimapLineHeight = 1;
 				minimapCharWidth = minimapScale / pixelRatio;
 			} else {
-				const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
-				if (minimapSize === 'fill' || effectiveMinimapHeight > minimapCanvasInnerHeight) {
-					if (minimapSize === 'fit' && isViewportWrapping) {
-						// `fit` becomes `fill`: this can cause the `minimapScale` to change, which causes `minimapWidth` to change.
-						// With viewport wrapping, this can cause the `viewLineCount` to change, which can lead to a new result
-						// where `fit` would not become `fill`... and so on...
-						// to break the loop, we store the result in memory and then reuse the same result on the next call.
-						storeResultInMemory = true;
+				let fitBecomesFill = false;
+				let maxMinimapScale = minimapScale + 1;
+
+				if (minimapSize === 'fit') {
+					const effectiveMinimapHeight = Math.ceil((viewLineCount + extraLinesBeyondLastLine) * minimapLineHeight);
+					if (isViewportWrapping && couldUseMemory && remainingWidth <= memory.stableFitRemainingWidth) {
+						// There is a loop when using `fit` and viewport wrapping:
+						// - view line count impacts minimap layout
+						// - minimap layout impacts viewport width
+						// - viewport width impacts view line count
+						// To break the loop, once we go to a smaller minimap scale, we try to stick with it.
+						fitBecomesFill = true;
+						maxMinimapScale = memory.stableFitMaxMinimapScale;
+					} else {
+						fitBecomesFill = (effectiveMinimapHeight > minimapCanvasInnerHeight);
+						if (isViewportWrapping && fitBecomesFill) {
+							// remember for next time
+							memory.stableMinimapLayoutInput = input;
+							memory.stableFitRemainingWidth = remainingWidth;
+						} else {
+							memory.stableMinimapLayoutInput = null;
+							memory.stableFitRemainingWidth = 0;
+						}
 					}
+				}
+
+				if (minimapSize === 'fill' || fitBecomesFill) {
 					minimapHeightIsEditorHeight = true;
-					const configuredFontScale = minimapScale;
+					const configuredMinimapScale = minimapScale;
 					minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
-					minimapScale = Math.min(configuredFontScale + 1, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
-					if (minimapScale > configuredFontScale) {
-						minimapWidthMultiplier = Math.min(2, minimapScale / configuredFontScale);
+					minimapScale = Math.min(maxMinimapScale, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
+					if (minimapScale > configuredMinimapScale) {
+						minimapWidthMultiplier = Math.min(2, minimapScale / configuredMinimapScale);
 					}
 					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
 					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
+					if (isViewportWrapping && fitBecomesFill) {
+						memory.stableFitMaxMinimapScale = minimapScale;
+					}
 				}
 			}
 		}
@@ -2049,7 +2048,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		minimapCanvasInnerWidth = Math.floor(minimapCanvasInnerWidth * minimapWidthMultiplier);
 
 		return {
-			storeResultInMemory,
 			minimapWidth,
 			minimapHeightIsEditorHeight,
 			minimapIsSampling,
@@ -2062,12 +2060,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		};
 	}
 
-	public static doComputeLayout(input: IEditorLayoutComputerInput, viewLineCount: number, memory: ComputeOptionsMemory | null): EditorLayoutInfo {
-
-		if (memory && memory.lastInput && memory.lastResult && editorLayoutComputerInputSoftEquals(memory.lastInput, input)) {
-			return memory.lastResult;
-		}
-
+	public static doComputeLayout(input: IEditorLayoutComputerInput, viewLineCount: number, memory: ComputeOptionsMemory): EditorLayoutInfo {
 		const outerWidth = input.outerWidth;
 		const outerHeight = input.outerHeight;
 		const lineHeight = input.lineHeight;
@@ -2149,7 +2142,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 		}
 
 		const {
-			storeResultInMemory,
 			minimapWidth,
 			minimapHeightIsEditorHeight,
 			minimapIsSampling,
@@ -2170,7 +2162,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			viewLineCount: viewLineCount,
 			remainingWidth: remainingWidth,
 			isViewportWrapping: isViewportWrapping,
-		});
+		}, memory);
 
 		let renderMinimap: RenderMinimap;
 		let minimapLeft: number;
@@ -2204,7 +2196,7 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 			}
 		}
 
-		const result: EditorLayoutInfo = {
+		return {
 			width: outerWidth,
 			height: outerHeight,
 
@@ -2248,18 +2240,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 				right: 0
 			}
 		};
-
-		if (memory) {
-			if (storeResultInMemory) {
-				memory.lastInput = input;
-				memory.lastResult = result;
-			} else {
-				memory.lastInput = null;
-				memory.lastResult = null;
-			}
-		}
-
-		return result;
 	}
 }
 
