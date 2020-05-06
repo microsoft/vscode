@@ -46,7 +46,6 @@ suite('KeybindingResolver', () => {
 
 		let resolver = new KeybindingResolver([keybindingItem], []);
 		assert.equal(resolver.resolve(createContext({ bar: 'baz' }), null, getDispatchStr(runtimeKeybinding))!.commandId, 'yes');
-		assert.equal(resolver.resolve(createContext({ bar: 'bz' }), null, getDispatchStr(runtimeKeybinding)), null);
 	});
 
 	test('resolve key with arguments', function () {
