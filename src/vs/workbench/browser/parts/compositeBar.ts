@@ -275,8 +275,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Add to the model
 		if (this.model.add(id, name, order)) {
 			this.computeSizes([this.model.findItem(id)]);
-			// Set timeout helps prevent flicker
-			setTimeout(() => this.updateCompositeSwitcher(), 0);
+			this.updateCompositeSwitcher();
 		}
 	}
 
