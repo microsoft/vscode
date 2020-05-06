@@ -34,7 +34,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { terminalConfiguration, getTerminalShellConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
+import { terminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 
 // Register services
@@ -58,11 +58,6 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 // Register configurations
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration(terminalConfiguration);
-if (platform.isWeb) {
-	// Desktop shell configuration are registered in electron-browser as their default values rely
-	// on process.env
-	configurationRegistry.registerConfiguration(getTerminalShellConfiguration());
-}
 
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
@@ -162,17 +157,6 @@ if (BrowserFeatures.clipboard.readText) {
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V
 		});
 	}
-}
-
-if (platform.isWeb) {
-	// Register standard external terminal keybinding as integrated terminal when in web as the
-	// external terminal is not available
-	KeybindingsRegistry.registerKeybindingRule({
-		id: TERMINAL_COMMAND_ID.NEW,
-		weight: KeybindingWeight.WorkbenchContrib,
-		when: undefined,
-		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_C
-	});
 }
 
 // Delete word left: ctrl+w
