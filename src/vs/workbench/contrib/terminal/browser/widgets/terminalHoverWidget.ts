@@ -35,7 +35,6 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 	}
 
 	dispose() {
-		console.log('TerminalHover.dispose');
 		super.dispose();
 	}
 

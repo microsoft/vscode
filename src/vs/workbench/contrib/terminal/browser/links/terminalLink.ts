@@ -56,7 +56,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 	}
 
 	hover(event: MouseEvent, text: string): void {
-		console.log('hover ' + this.range.end.y, new Error().stack);
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
 		this.add(dom.addDisposableListener(document, 'keydown', e => {
 			if (this._isModifierDown(e)) {
@@ -71,7 +70,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 
 		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
 		this._tooltipScheduler = new RunOnceScheduler(() => {
-			console.log('tooltip trigger ' + this.range.end.y);
 			this._tooltipCallback(
 				this,
 				convertBufferRangeToViewport(this.range, this._viewportY),
@@ -81,7 +79,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 			// Clear out scheduler until next hover event
 			this._tooltipScheduler?.dispose();
 			this._tooltipScheduler = undefined;
-			// this.dispose();
 		}, timeout);
 		this.add(this._tooltipScheduler);
 		this._tooltipScheduler.schedule();
@@ -110,7 +107,6 @@ export class TerminalLink extends DisposableStore implements ILink {
 		this._hoverListeners = undefined;
 		this._tooltipScheduler?.dispose();
 		this._tooltipScheduler = undefined;
-		console.log('TerminalLink.onLeave fire (' + this.range.end.y + ')');
 		this._onLeave.fire();
 	}
 
