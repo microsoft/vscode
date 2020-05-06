@@ -567,7 +567,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				commandId: NextMarkerAction.ID,
 				run: () => {
 					this.hide();
-					MarkerController.get(this._editor).show(markerHover.marker);
+					MarkerController.get(this._editor).showAtMarker(markerHover.marker);
 					this._editor.focus();
 				}
 			}));
@@ -686,4 +686,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor-hover .hover-contents a.code-link span:hover { color: ${linkFg}; }`);
 	}
 });
-
