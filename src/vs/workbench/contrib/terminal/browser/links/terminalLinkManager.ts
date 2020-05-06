@@ -297,9 +297,9 @@ export class TerminalLinkManager extends DisposableStore {
 
 	public registerLinkProvider(): void {
 		// Protocol links
-		// const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
-		// const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this));
-		// this._linkProviders.push(this._xterm.registerLinkProvider(protocolProvider));
+		const wrappedActivateCallback = this._wrapLinkHandler((_, link) => this._handleProtocolLink(link));
+		const protocolProvider = this._instantiationService.createInstance(TerminalProtocolLinkProvider, this._xterm, wrappedActivateCallback, this._tooltipCallback2.bind(this));
+		this._linkProviders.push(this._xterm.registerLinkProvider(protocolProvider));
 
 		// // Validated local links
 		// if (this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).enableFileLinks) {
