@@ -26,6 +26,7 @@ import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 import { matchesPrefix } from 'vs/base/common/filters';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -428,6 +429,14 @@ class TypeLabelController<T> implements IDisposable {
 			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
 				this.list.setFocus([index]);
 				this.list.reveal(index);
+
+				if (index === start) {
+					// Focus did not change with typing, re-announce element https://github.com/microsoft/vscode/issues/95961
+					const ariaLabel = this.list.options.accessibilityProvider ? this.list.options.accessibilityProvider.getAriaLabel(this.list.element(index)) : undefined;
+					if (ariaLabel) {
+						alert(ariaLabel);
+					}
+				}
 				return;
 			}
 		}
