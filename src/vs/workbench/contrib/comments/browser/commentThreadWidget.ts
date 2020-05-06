@@ -928,9 +928,11 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	hide() {
-		this._isExpanded = false;
-		// Focus the container so that the comment editor will be blurred before it is hidden
-		this.editor.focus();
+		if (this._isExpanded) {
+			this._isExpanded = false;
+			// Focus the container so that the comment editor will be blurred before it is hidden
+			this.editor.focus();
+		}
 		super.hide();
 	}
 
