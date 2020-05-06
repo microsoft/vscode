@@ -20,7 +20,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ConsoleLogService, MultiplexLogService, ILogService, ConsoleLogInMainService } from 'vs/platform/log/common/log';
+import { ConsoleLogService, MultiplexLogService, ILogService, ConsoleLogInMainService, DelegatedLogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { Schemas } from 'vs/base/common/network';
@@ -29,7 +29,7 @@ import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/sto
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
@@ -50,6 +50,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
 import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 
 class DesktopMain extends Disposable {
 
@@ -122,6 +124,12 @@ class DesktopMain extends Disposable {
 		// Startup
 		const instantiationService = workbench.startup();
 
+		// Lifecycle Listeners
+		instantiationService.invokeFunction(accessor => {
+			const lifecycleService = accessor.get(ILifecycleService);
+			lifecycleService.when(LifecyclePhase.Restored).then(() => services.logService.init());
+		});
+
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
 
@@ -162,7 +170,7 @@ class DesktopMain extends Disposable {
 		}
 	}
 
-	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
+	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: DesktopLogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -181,7 +189,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IProductService, { _serviceBrand: undefined, ...product });
 
 		// Log
-		const logService = this._register(this.createLogService(mainProcessService, this.environmentService));
+		const logService = this._register(new DesktopLogService(this.configuration.windowId, mainProcessService, this.environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
@@ -314,26 +322,53 @@ class DesktopMain extends Disposable {
 		}
 	}
 
-	private createLogService(mainProcessService: IMainProcessService, environmentService: IWorkbenchEnvironmentService): ILogService {
+}
+
+class DesktopLogService extends DelegatedLogService {
+
+	private readonly bufferSpdLogService: BufferLogService | undefined;
+	private readonly windowId: number;
+	private readonly environmentService: NativeWorkbenchEnvironmentService;
+
+	constructor(windowId: number, mainProcessService: IMainProcessService, environmentService: NativeWorkbenchEnvironmentService) {
+
+		const disposables = new DisposableStore();
 		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));
+		let bufferSpdLogService: BufferLogService | undefined;
 
 		// Extension development test CLI: forward everything to main side
 		const loggers: ILogService[] = [];
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 			loggers.push(
-				new ConsoleLogInMainService(loggerClient, this.environmentService.configuration.logLevel)
+				disposables.add(new ConsoleLogInMainService(loggerClient, environmentService.configuration.logLevel))
 			);
 		}
 
 		// Normal logger: spdylog and console
 		else {
+			bufferSpdLogService = disposables.add(new BufferLogService(environmentService.configuration.logLevel));
 			loggers.push(
-				new ConsoleLogService(this.environmentService.configuration.logLevel),
-				new SpdLogService(`renderer${this.configuration.windowId}`, environmentService.logsPath, this.environmentService.configuration.logLevel)
+				disposables.add(new ConsoleLogService(environmentService.configuration.logLevel)),
+				bufferSpdLogService,
 			);
 		}
 
-		return new FollowerLogService(loggerClient, new MultiplexLogService(loggers));
+		const multiplexLogger = disposables.add(new MultiplexLogService(loggers));
+		const followerLogger = disposables.add(new FollowerLogService(loggerClient, multiplexLogger));
+		super(followerLogger);
+
+		this.bufferSpdLogService = bufferSpdLogService;
+		this.windowId = windowId;
+		this.environmentService = environmentService;
+
+		this._register(disposables);
+	}
+
+	init(): void {
+		if (this.bufferSpdLogService) {
+			this.bufferSpdLogService.logger = this._register(new SpdLogService(`renderer${this.windowId}`, this.environmentService.logsPath, this.getLevel()));
+			this.trace('Created Spdlogger');
+		}
 	}
 }
 
