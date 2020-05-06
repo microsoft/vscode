@@ -432,7 +432,7 @@ class TypeLabelController<T> implements IDisposable {
 
 				if (index === start) {
 					// Focus did not change with typing, re-announce element https://github.com/microsoft/vscode/issues/95961
-					const ariaLabel = this.list.options.accessibilityProvider ? this.list.options.accessibilityProvider.getAriaLabel(this.list.element(index)) : undefined;
+					const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(index));
 					if (ariaLabel) {
 						alert(ariaLabel);
 					}
