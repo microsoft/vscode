@@ -453,17 +453,16 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	stickEditor(editor: IEditorInput): void {
-
-		// Stick the editor
-		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel));
-
-		// A change to the sticky state requires a layout to keep the active editor visible
-		this.layout(this.dimension);
+		this.doHandleStickyEditorChange(editor);
 	}
 
 	unstickEditor(editor: IEditorInput): void {
+		this.doHandleStickyEditorChange(editor);
+	}
 
-		// Unstick the editor
+	private doHandleStickyEditorChange(editor: IEditorInput): void {
+
+		// Update tab
 		this.withTab(editor, (editor, index, tabContainer, tabLabelWidget, tabLabel) => this.redrawTab(editor, index, tabContainer, tabLabelWidget, tabLabel));
 
 		// A change to the sticky state requires a layout to keep the active editor visible
@@ -1022,7 +1021,7 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder) || '';
 
 		// Settings
-		const isTabSticky = this.group.isSticky(editor);
+		const isTabSticky = this.group.isSticky(index);
 		const options = this.accessor.partOptions;
 
 		const tabCloseButton = isTabSticky ? 'off' /* treat sticky tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
@@ -1258,11 +1257,11 @@ export class TabsTitleControl extends TitleControl {
 		// [-- Sticky Tabs Width --]
 		//
 
-		let allTabsWidth = tabsContainer.scrollWidth;
+		const visibleTabsContainerWidth = tabsContainer.offsetWidth;
+		const allTabsWidth = tabsContainer.scrollWidth;
+
 		let stickyTabsWidth = this.group.stickyCount * TabsTitleControl.TAB_SIZES.sticky;
 		let activeTabSticky = this.group.isSticky(activeIndex);
-
-		let visibleTabsContainerWidth = tabsContainer.offsetWidth;
 		let availableTabsContainerWidth = visibleTabsContainerWidth - stickyTabsWidth;
 
 		// Special case: we have sticky tabs but the available space for showing tabs
@@ -1579,11 +1578,11 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 		// Adjust gradient for focused and unfocused hover background
 		const makeTabHoverBackgroundRule = (color: Color, colorDrag: Color, hasFocus = false) => `
-			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+			.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky):hover > .tab-label::after {
 				background: linear-gradient(to left, ${color}, transparent) !important;
 			}
 
-			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):hover > .tab-label::after {
+			.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${hasFocus ? '.active' : ''} > .title .tabs-container > .tab.sizing-shrink:not(.dragged):not(.sticky):hover > .tab-label::after {
 				background: linear-gradient(to left, ${colorDrag}, transparent) !important;
 			}
 		`;
@@ -1606,19 +1605,19 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 		if (editorDragAndDropBackground && adjustedTabDragBackground) {
 			const adjustedColorDrag = editorDragAndDropBackground.flatten(adjustedTabDragBackground);
 			collector.addRule(`
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged) > .tab-label::after,
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged) > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container.active > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.active):not(.dragged):not(.sticky) > .tab-label::after,
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container:not(.active) > .title .tabs-container > .tab.sizing-shrink.dragged-over:not(.dragged):not(.sticky) > .tab-label::after {
 					background: linear-gradient(to left, ${adjustedColorDrag}, transparent) !important;
 				}
 		`);
 		}
 
 		const makeTabBackgroundRule = (color: Color, colorDrag: Color, focused: boolean, active: boolean) => `
-				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged) > .tab-label::after {
+				.monaco-workbench .part.editor > .content:not(.dragged-over) .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky) > .tab-label::after {
 					background: linear-gradient(to left, ${color}, transparent);
 				}
 
-				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged) > .tab-label::after {
+				.monaco-workbench .part.editor > .content.dragged-over .editor-group-container${focused ? '.active' : ':not(.active)'} > .title .tabs-container > .tab.sizing-shrink${active ? '.active' : ''}:not(.dragged):not(.sticky) > .tab-label::after {
 					background: linear-gradient(to left, ${colorDrag}, transparent);
 				}
 		`;

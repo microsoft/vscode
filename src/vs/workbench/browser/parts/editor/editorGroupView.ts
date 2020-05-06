@@ -1515,8 +1515,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Check for dirty and veto
-		const editors = this._group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options);
-		const veto = await this.handleDirtyClosing(editors);
+		const veto = await this.handleDirtyClosing(this._group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, options));
 		if (veto) {
 			return;
 		}

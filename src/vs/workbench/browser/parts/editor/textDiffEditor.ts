@@ -234,7 +234,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		if (isArray(error)) {
 			const errors = <Error[]>error;
 
-			return errors.some(e => this.isFileBinaryError(e));
+			return errors.some(error => this.isFileBinaryError(error));
 		}
 
 		return (<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY;

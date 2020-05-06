@@ -170,10 +170,10 @@ export class EditorGroup extends Disposable {
 		const makePinned = options?.pinned || options?.sticky;
 		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
 
-		const existingRes = this.findEditor(candidate);
+		const existingEditorAndIndex = this.findEditor(candidate);
 
 		// New editor
-		if (!existingRes) {
+		if (!existingEditorAndIndex) {
 			const newEditor = candidate;
 			const indexOfActive = this.indexOf(this.active);
 
@@ -270,7 +270,7 @@ export class EditorGroup extends Disposable {
 
 		// Existing editor
 		else {
-			const [existingEditor] = existingRes;
+			const [existingEditor] = existingEditorAndIndex;
 
 			// Pin it
 			if (makePinned) {
@@ -518,10 +518,6 @@ export class EditorGroup extends Disposable {
 	}
 
 	isPinned(editorOrIndex: EditorInput | number): boolean {
-		if (!this.preview) {
-			return true; // no preview editor
-		}
-
 		let editor: EditorInput;
 		if (typeof editorOrIndex === 'number') {
 			editor = this.editors[editorOrIndex];
@@ -585,16 +581,20 @@ export class EditorGroup extends Disposable {
 		this.sticky--;
 	}
 
-	isSticky(editorOrIndex: EditorInput | number): boolean {
+	isSticky(candidateOrIndex: EditorInput | number): boolean {
 		if (this.sticky < 0) {
 			return false; // no sticky editor
 		}
 
 		let index: number;
-		if (typeof editorOrIndex === 'number') {
-			index = editorOrIndex;
+		if (typeof candidateOrIndex === 'number') {
+			index = candidateOrIndex;
 		} else {
-			index = this.indexOf(editorOrIndex);
+			index = this.indexOf(candidateOrIndex);
+		}
+
+		if (index < 0) {
+			return false;
 		}
 
 		return index <= this.sticky;

@@ -261,7 +261,7 @@ function registerDiffEditorCommands(): void {
 
 	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
 		const editorService = accessor.get(IEditorService);
-		const candidates = [editorService.activeEditorPane, ...editorService.visibleEditorPanes].filter(e => e instanceof TextDiffEditor);
+		const candidates = [editorService.activeEditorPane, ...editorService.visibleEditorPanes].filter(editor => editor instanceof TextDiffEditor);
 
 		if (candidates.length > 0) {
 			const navigator = (<TextDiffEditor>candidates[0]).getDiffNavigator();
@@ -600,7 +600,7 @@ function registerCloseEditorCommands() {
 						.filter(context => context.groupId === groupId)
 						.map(context => typeof context.editorIndex === 'number' ? group.getEditorByIndex(context.editorIndex) : group.activeEditor);
 
-					const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(e => editors.indexOf(e) === -1);
+					const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => editors.indexOf(editor) === -1);
 
 					if (group.activeEditor) {
 						group.pinEditor(group.activeEditor);
