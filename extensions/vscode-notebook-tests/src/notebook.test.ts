@@ -212,7 +212,7 @@ suite('notebook dirty state', () => {
 
 
 		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
-		// await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
