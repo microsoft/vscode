@@ -414,20 +414,20 @@ xterm-addon-unicode11@0.2.0-beta.5:
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.2.0-beta.5.tgz#5961850162df20b5e966166423cd6957ac2db298"
   integrity sha512-IjnbBcyfS5JgJDXPO0W2nk/VBtGwx6GWE2snMC676z4DmAABUqPXfTzJKfUoWqoT6UcbxB0oIjDzykCfoRJp6Q==
 
-xterm-addon-web-links@0.4.0-beta.5:
-  version "0.4.0-beta.5"
-  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.4.0-beta.5.tgz#523fd0a1c5668370d73e05019ed16eaf596894c8"
-  integrity sha512-Qe0idPpSokCNvGrthSBjdrOZrsgXwnLYbzuv0JoEec/A9HVcxKmZ+ktw7fOA2gT/zbcwtrA5FWrir3GlRHglCQ==
+xterm-addon-web-links@0.4.0-beta.6:
+  version "0.4.0-beta.6"
+  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.4.0-beta.6.tgz#d159d4542eb9a02d57977fe7eb5f42f8ef2f27fa"
+  integrity sha512-dsQVD/EyVq8PtAYGh2PGQTCt009UipIfX6Q2SBDlz+W9x7IkXjhRxRaryMmLsBCca20qeVKwmbQ+ANhLi+nTaQ==
 
 xterm-addon-webgl@0.7.0-beta.10:
   version "0.7.0-beta.10"
   resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.7.0-beta.10.tgz#39fdb96351e97a1bf15f4c4c8944ba3d05cacee4"
   integrity sha512-nQl/ASk+ck11aSrBZXb2a0tu+SNDnm89owBk/sAZeZzi5MHNo6bB8y2VTKNNC6D3i3aFouTz4VorYB25LUgNFg==
 
-xterm@4.6.0-beta.38:
-  version "4.6.0-beta.38"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.6.0-beta.38.tgz#8472b168941500c3071aba482c2b5c6040951ec7"
-  integrity sha512-Q+nOalMD1MDGOqXdtkGZmOQqbSBU+71vhlX2RBwQoSpJa1QBrKDAhSlN/J+/XvouvVEtCiEFDeacF4EufMEIMg==
+xterm@4.6.0-beta.44:
+  version "4.6.0-beta.44"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-4.6.0-beta.44.tgz#76b2a6b8e147595ab44aa752c0e721d935464615"
+  integrity sha512-vYtfz4spFcSKLEUpC6anH7TwDams71+k2wAtUzCJ47dNL2IrwYafcFsvGPm46QLTtq4M2Bp9rQo3R3V746yxNg==
 
 yauzl@^2.9.2:
   version "2.10.0"
