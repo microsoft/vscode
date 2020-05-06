@@ -659,8 +659,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private doCreateStatusItem(id: string, alignment: StatusbarAlignment, ...extraClasses: string[]): HTMLElement {
 		const itemContainer = document.createElement('div');
 		itemContainer.id = id;
-		// Allow focus via next and previous navigation commands
-		itemContainer.tabIndex = -1;
 
 		addClass(itemContainer, 'statusbar-item');
 		if (extraClasses) {
