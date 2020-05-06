@@ -263,7 +263,8 @@ class MinimapLayout {
 			const computedSliderRatio = (maxMinimapSliderTop) / (scrollHeight - viewportHeight);
 			const sliderTop = (scrollTop * computedSliderRatio);
 			const sliderNeeded = (maxMinimapSliderTop > 0);
-			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, 1, lineCount);
+			const maxLinesFitting = Math.floor(options.canvasInnerHeight / options.minimapLineHeight);
+			return new MinimapLayout(scrollTop, scrollHeight, sliderNeeded, computedSliderRatio, sliderTop, sliderHeight, 1, Math.min(lineCount, maxLinesFitting));
 		}
 
 		// The visible line count in a viewport can change due to a number of reasons:
