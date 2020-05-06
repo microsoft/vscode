@@ -268,7 +268,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			});
 
 			diffs.reverse().forEach(diff => {
-				this._viewCells.splice(diff[0], diff[1], ...diff[2]);
+				const deletedCells = this._viewCells.splice(diff[0], diff[1], ...diff[2]);
+
+				deletedCells.forEach(cell => {
+					this._handleToViewCellMapping.delete(cell.handle);
+				});
+
 				diff[2].forEach(cell => {
 					this._handleToViewCellMapping.set(cell.handle, cell);
 					this._localStore.add(cell);
@@ -456,8 +461,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return index + 1;
 	}
 
-	hasCell(cell: ICellViewModel) {
-		return this._handleToViewCellMapping.has(cell.handle);
+	hasCell(handle: number) {
+		return this._handleToViewCellMapping.has(handle);
 	}
 
 	getVersionId() {
