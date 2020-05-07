@@ -394,6 +394,7 @@ class TypeLabelController<T> implements IDisposable {
 		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
 
 		onInput(this.onInput, this, this.enabledDisposables);
+		onClear(this.onClear, this, this.enabledDisposables);
 
 		this.enabled = true;
 		this.triggered = false;
@@ -407,6 +408,16 @@ class TypeLabelController<T> implements IDisposable {
 		this.enabledDisposables.clear();
 		this.enabled = false;
 		this.triggered = false;
+	}
+
+	private onClear(): void {
+		const focus = this.list.getFocus();
+		if (focus.length > 0) {
+			const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(focus[0]));
+			if (ariaLabel) {
+				alert(ariaLabel);
+			}
+		}
 	}
 
 	private onInput(word: string | null): void {
@@ -429,14 +440,6 @@ class TypeLabelController<T> implements IDisposable {
 			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
 				this.list.setFocus([index]);
 				this.list.reveal(index);
-
-				if (index === start) {
-					// Focus did not change with typing, re-announce element https://github.com/microsoft/vscode/issues/95961
-					const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(index));
-					if (ariaLabel) {
-						alert(ariaLabel);
-					}
-				}
 				return;
 			}
 		}
