@@ -350,7 +350,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 
 		data.filePath = dom.append(data.breakpoint, $('span.file-path'));
 		const lineNumberContainer = dom.append(data.breakpoint, $('.line-number-container'));
-		data.lineNumber = dom.append(lineNumberContainer, $('span.line-number'));
+		data.lineNumber = dom.append(lineNumberContainer, $('span.line-number.monaco-count-badge'));
 
 		return data;
 	}
