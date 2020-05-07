@@ -103,7 +103,7 @@ export function getOutOfWorkspaceEditorResources(accessor: ServicesAccessor): UR
 }
 
 // Supports patterns of <path><#|:|(><line><#|:|,><col?>
-const LINE_COLON_PATTERN = /\s?[#:\(](line )?(?<line>\d*)([#:,](?<col>\d*))?\)?\s*$/;
+const LINE_COLON_PATTERN = /\s?[#:\(](?:line )?(\d*)(?:[#:,](\d*))?\)?\s*$/;
 
 export interface IFilterAndRange {
 	filter: string;
@@ -121,7 +121,7 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 	const patternMatch = LINE_COLON_PATTERN.exec(filter);
 
 	if (patternMatch) {
-		const startLineNumber = parseInt(patternMatch.groups?.line ?? '', 10);
+		const startLineNumber = parseInt(patternMatch[1] ?? '', 10);
 
 		// Line Number
 		if (isNumber(startLineNumber)) {
@@ -133,7 +133,7 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 			};
 
 			// Column Number
-			const startColumn = parseInt(patternMatch.groups?.col ?? '', 10);
+			const startColumn = parseInt(patternMatch[2] ?? '', 10);
 			if (isNumber(startColumn)) {
 				range = {
 					startLineNumber: range.startLineNumber,
@@ -145,7 +145,7 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 		}
 
 		// User has typed "something:" or "something#" without a line number, in this case treat as start of file
-		else if (patternMatch.groups?.line === '') {
+		else if (patternMatch[1] === '') {
 			range = {
 				startLineNumber: 1,
 				startColumn: 1,
