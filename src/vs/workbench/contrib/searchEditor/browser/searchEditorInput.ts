@@ -36,7 +36,7 @@ import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapab
 export type SearchConfiguration = {
 	query: string,
 	includes: string,
-	excludes: string
+	excludes: string,
 	contextLines: number,
 	wholeWord: boolean,
 	caseSensitive: boolean,
