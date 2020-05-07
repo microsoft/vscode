@@ -491,6 +491,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+		
+		// Track focus within container
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
 		CONTEXT_STATUS_BAR_FOCUSED.bindTo(scopedContextKeyService);
 
