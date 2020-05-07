@@ -1116,15 +1116,15 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 	}
 
-	focusNotebookCell(cell: ICellViewModel, focusEditor: boolean, focusOuput?: boolean) {
-		if (focusEditor) {
+	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
+		if (focusItem === 'editor') {
 			this.selectElement(cell);
 			this.list?.focusView();
 
 			cell.editState = CellEditState.Editing;
 			cell.focusMode = CellFocusMode.Editor;
 			this.revealInCenterIfOutsideViewport(cell);
-		} else if (focusOuput) {
+		} else if (focusItem === 'output') {
 			this.selectElement(cell);
 			this.list?.focusView();
 

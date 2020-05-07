@@ -171,7 +171,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	saveNotebookCell(cell: CellViewModel): void {
 		// throw new Error('Method not implemented.');
 	}
-	focusNotebookCell(cell: CellViewModel, focusEditor: boolean, focusOutput?: boolean): void {
+	focusNotebookCell(cell: CellViewModel, focusItem: 'editor' | 'container' | 'output'): void {
 		// throw new Error('Method not implemented.');
 	}
 	getActiveCell(): CellViewModel | undefined {

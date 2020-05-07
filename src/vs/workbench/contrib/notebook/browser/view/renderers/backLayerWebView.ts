@@ -472,6 +472,7 @@ ${loaderJs}
 					type: 'focus-output',
 					id: this.activeCellId
 				});
+				this.activeCellId = undefined;
 			}
 		});
 
@@ -528,9 +529,9 @@ ${loaderJs}
 								return;
 							}
 
-							this.notebookEditor.focusNotebookCell(newCell, true);
+							this.notebookEditor.focusNotebookCell(newCell, 'editor');
 						} else {
-							this.notebookEditor.focusNotebookCell(info.cell, true);
+							this.notebookEditor.focusNotebookCell(info.cell, 'editor');
 						}
 					}
 				}

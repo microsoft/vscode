@@ -224,7 +224,7 @@ export interface INotebookEditor {
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
-	focusNotebookCell(cell: ICellViewModel, focusEditor: boolean, focusOutput?: boolean): void;
+	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
 	/**
 	 * Execute the given notebook cell
