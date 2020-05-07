@@ -197,32 +197,36 @@ class StatusbarViewModel extends Disposable {
 	}
 
 	focusNextEntry(): void {
-		const focused = this._entries.find(entry => isAncestor(document.activeElement, entry.container));
-		if (focused) {
-			const indexFocus = this._entries.indexOf(focused);
-			if (indexFocus < this._entries.length - 1) {
-				this._entries[indexFocus + 1].labelContainer.focus();
-				return;
-			}
-		}
-
-		if (this._entries.length > 0) {
-			this._entries[0].labelContainer.focus();
-		}
+		this.focusEntry(+1, 0);
 	}
 
 	focusPreviousEntry(): void {
+		this.focusEntry(-1, this.entries.length - 1);
+	}
+
+	private focusEntry(delta: number, restartPosition: number): void {
+		const getVisibleEntry = (start: number) => {
+			let indexToFocus = start;
+			let entry = (indexToFocus >= 0 && indexToFocus < this._entries.length) ? this._entries[indexToFocus] : undefined;
+			while (entry && this.isHidden(entry.id)) {
+				indexToFocus += delta;
+				entry = (indexToFocus >= 0 && indexToFocus < this._entries.length) ? this._entries[indexToFocus] : undefined;
+			}
+			return entry;
+		};
+
 		const focused = this._entries.find(entry => isAncestor(document.activeElement, entry.container));
 		if (focused) {
-			const indexFocus = this._entries.indexOf(focused);
-			if (indexFocus > 0) {
-				this._entries[indexFocus - 1].labelContainer.focus();
+			const entry = getVisibleEntry(this._entries.indexOf(focused) + delta);
+			if (entry) {
+				entry.labelContainer.focus();
 				return;
 			}
 		}
 
-		if (this._entries.length > 0) {
-			this._entries[this.entries.length - 1].labelContainer.focus();
+		const entry = getVisibleEntry(restartPosition);
+		if (entry) {
+			entry.labelContainer.focus();
 		}
 	}
 
@@ -491,7 +495,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
-		
+
 		// Track focus within container
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
 		CONTEXT_STATUS_BAR_FOCUSED.bindTo(scopedContextKeyService);
