@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, basename } from 'vs/base/common/resources';
@@ -123,9 +123,9 @@ export class NotebookEditorInput extends EditorInput {
 		return { editor: editorInput };
 	}
 
-	async revert(group: GroupIdentifier): Promise<void> {
+	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		if (this.textModel) {
-			await this.textModel.revert();
+			await this.textModel.revert(options);
 		}
 
 		return;

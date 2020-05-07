@@ -70,6 +70,11 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	}
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {
+		if (options?.soft) {
+			await this.backupFileService.discardBackup(this.resource);
+			return;
+		}
+
 		await this.load({ forceReadFromDisk: true });
 		this._dirty = false;
 		this._onDidChangeDirty.fire();
