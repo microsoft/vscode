@@ -59,7 +59,7 @@ interface IStatusbarViewModelEntry {
 	labelContainer: HTMLElement;
 }
 
-const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', true);
+const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false);
 
 class StatusbarViewModel extends Disposable {
 
@@ -498,7 +498,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Track focus within container
 		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
-		CONTEXT_STATUS_BAR_FOCUSED.bindTo(scopedContextKeyService);
+		CONTEXT_STATUS_BAR_FOCUSED.bindTo(scopedContextKeyService).set(true);
 
 		// Left items container
 		this.leftItemsContainer = document.createElement('div');
