@@ -202,8 +202,9 @@ class NavigateDownAction extends BaseNavigationAction {
 }
 
 function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Parts, next: boolean): Parts {
-	const neighbour = part === Parts.EDITOR_PART ? (next ? Parts.STATUSBAR_PART : Parts.PANEL_PART) : part === Parts.STATUSBAR_PART ? (next ? Parts.SIDEBAR_PART : Parts.EDITOR_PART) :
-		part === Parts.SIDEBAR_PART ? (next ? Parts.PANEL_PART : Parts.STATUSBAR_PART) : part === Parts.PANEL_PART ? (next ? Parts.EDITOR_PART : Parts.SIDEBAR_PART) : Parts.EDITOR_PART;
+	const neighbour = part === Parts.EDITOR_PART ? (next ? Parts.STATUSBAR_PART : Parts.PANEL_PART) : part === Parts.STATUSBAR_PART ? (next ? Parts.ACTIVITYBAR_PART : Parts.EDITOR_PART) :
+		part === Parts.ACTIVITYBAR_PART ? (next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART) : part === Parts.SIDEBAR_PART ? (next ? Parts.PANEL_PART : Parts.ACTIVITYBAR_PART) :
+			part === Parts.PANEL_PART ? (next ? Parts.EDITOR_PART : Parts.SIDEBAR_PART) : Parts.EDITOR_PART;
 	if (layoutService.isVisible(neighbour) || neighbour === Parts.EDITOR_PART) {
 		return neighbour;
 	}
@@ -212,8 +213,8 @@ function findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Part
 }
 
 function focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, next: boolean): void {
-	const currentlyFocusedPart = layoutService.hasFocus(Parts.EDITOR_PART) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.STATUSBAR_PART) ? Parts.STATUSBAR_PART :
-		layoutService.hasFocus(Parts.SIDEBAR_PART) ? Parts.SIDEBAR_PART : layoutService.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : undefined;
+	const currentlyFocusedPart = layoutService.hasFocus(Parts.EDITOR_PART) ? Parts.EDITOR_PART : layoutService.hasFocus(Parts.ACTIVITYBAR_PART) ? Parts.ACTIVITYBAR_PART :
+		layoutService.hasFocus(Parts.STATUSBAR_PART) ? Parts.STATUSBAR_PART : layoutService.hasFocus(Parts.SIDEBAR_PART) ? Parts.SIDEBAR_PART : layoutService.hasFocus(Parts.PANEL_PART) ? Parts.PANEL_PART : undefined;
 	let partToFocus = Parts.EDITOR_PART;
 	if (currentlyFocusedPart) {
 		partToFocus = findVisibleNeighbour(layoutService, currentlyFocusedPart, next);
