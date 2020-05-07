@@ -66,7 +66,7 @@ const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
 
-const FOCUS_OUTPUT_COMMAND_ID = "notebook.cell.focusOutput";
+const FOCUS_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutput';
 
 export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
