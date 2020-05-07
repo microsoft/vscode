@@ -43,12 +43,12 @@ const _registry = new Registry();
 
 export const iconRegistry: IIconRegistry = _registry;
 
-export function registerIcon(id: string, def: Codicon) {
+export function registerIcon(id: string, def: Codicon, description?: string) {
 	return new Codicon(id, def);
 }
 
 export class Codicon {
-	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition) {
+	constructor(public readonly id: string, public readonly definition: Codicon | IconDefinition, public description?: string) {
 		_registry.add(this);
 	}
 	public get classNames() { return 'codicon codicon-' + this.id; }

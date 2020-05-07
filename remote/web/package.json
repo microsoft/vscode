@@ -5,10 +5,10 @@
 		"semver-umd": "^5.5.6",
 		"vscode-oniguruma": "1.3.0",
 		"vscode-textmate": "5.1.1",
-		"xterm": "4.6.0-beta.38",
+		"xterm": "4.6.0-beta.44",
 		"xterm-addon-search": "0.7.0-beta.2",
 		"xterm-addon-unicode11": "0.2.0-beta.5",
-		"xterm-addon-web-links": "0.4.0-beta.5",
+		"xterm-addon-web-links": "0.4.0-beta.6",
 		"xterm-addon-webgl": "0.7.0-beta.10"
 	}
 }

@@ -10,7 +10,6 @@
 
 .monaco-workbench .part > .drop-block-overlay.visible {
 	visibility: visible;
-	opacity: 1;
 }
 
 .monaco-workbench .part > .drop-block-overlay {
@@ -18,10 +17,8 @@
 	top: 0;
 	width: 100%;
 	height: 100%;
-	backdrop-filter: brightness(97%) blur(2px);
 	visibility: hidden;
 	opacity: 0;
-	transition: opacity .5s, visibility .5s;
 	z-index: 10;
 }
 
