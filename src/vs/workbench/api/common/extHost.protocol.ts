@@ -51,7 +51,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEvent, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -691,7 +691,6 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
-	$createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void>;
 	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;
 	$updateNotebookMetadata(viewType: string, resource: UriComponents, metadata: NotebookDocumentMetadata): Promise<void>;
@@ -1538,16 +1537,31 @@ export interface INotebookEditorPropertiesChangeData {
 	selections: INotebookSelectionChangeEvent | null;
 }
 
+export interface INotebookModelAddedData {
+	uri: UriComponents;
+	handle: number;
+	// versionId: number;
+	viewType: string;
+}
+
+export interface INotebookDocumentsAndEditorsDelta {
+	removedDocuments?: UriComponents[];
+	addedDocuments?: INotebookModelAddedData[];
+	// removedEditors?: string[];
+	// addedEditors?: ITextEditorAddData[];
+	newActiveEditor?: UriComponents | null;
+}
+
 export interface ExtHostNotebookShape {
-	$resolveNotebook(viewType: string, uri: UriComponents): Promise<number | undefined>;
+	$resolveNotebookData(viewType: string, uri: UriComponents): Promise<NotebookDataDto | undefined>;
 	$executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, token: CancellationToken): Promise<void>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
-	$updateActiveEditor(viewType: string, uri: UriComponents): Promise<void>;
-	$destoryNotebookDocument(viewType: string, uri: UriComponents): Promise<boolean>;
+	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
 	$onDidReceiveMessage(uri: UriComponents, message: any): void;
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void;
+	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): Promise<void>;
 }
 
 export interface ExtHostStorageShape {

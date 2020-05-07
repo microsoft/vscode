@@ -6,7 +6,7 @@
 				"other": {
 					"name": "lib-oniguruma",
 					"downloadUrl": "https://github.com/kkos/oniguruma",
-					"version": "6.9.5"
+					"version": "6.9.5_rev1"
 				}
 			},
 			"licenseDetail": [
@@ -41,7 +41,7 @@
 			],
 			"isOnlyProductionDependency": true,
 			"license": "BSD",
-			"version": "6.9.5"
+			"version": "6.9.5_rev1"
 		}
 	],
 	"version": 1

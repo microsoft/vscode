@@ -114,7 +114,7 @@ export class Search extends Viewlet {
 	}
 
 	async waitForNoResultText(): Promise<void> {
-		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="true"] .message>span`);
+		await this.code.waitForTextContent(`${VIEWLET} .messages`, '');
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {

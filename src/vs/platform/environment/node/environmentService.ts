@@ -253,6 +253,7 @@ export class EnvironmentService implements INativeEnvironmentService {
 
 	get disableUpdates(): boolean { return !!this._args['disable-updates']; }
 	get disableCrashReporter(): boolean { return !!this._args['disable-crash-reporter']; }
+	get crashReporterDirectory(): string | undefined { return this._args['crash-reporter-directory']; }
 
 	get driverHandle(): string | undefined { return this._args['driver']; }
 	get driverVerbose(): boolean { return !!this._args['driver-verbose']; }

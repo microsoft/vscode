@@ -315,7 +315,7 @@ export const terminalConfiguration: IConfigurationNode = {
 		'terminal.integrated.experimentalLinkProvider': {
 			description: localize('terminal.integrated.experimentalLinkProvider', "An experimental setting that aims to improve link detection in the terminal by improving when links are detected and by enabling shared link detection with the editor. Currently this only supports web links."),
 			type: 'boolean',
-			default: false
+			default: true
 		}
 	}
 };

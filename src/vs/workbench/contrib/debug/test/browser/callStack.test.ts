@@ -14,7 +14,7 @@ import { IDebugSessionOptions, State } from 'vs/workbench/contrib/debug/common/d
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Constants } from 'vs/base/common/uint';
-import { getContext, getContextForContributedActions } from 'vs/workbench/contrib/debug/browser/callStackView';
+import { getContext, getContextForContributedActions, getSpecificSourceName } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug/browser/debugService';
 import { generateUuid } from 'vs/base/common/uuid';
 
@@ -250,8 +250,8 @@ suite('Debug - CallStack', () => {
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 
-		assert.equal(firstStackFrame.getSpecificSourceName(), '.../b/c/d/internalModule.js');
-		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
+		assert.equal(getSpecificSourceName(firstStackFrame), '.../b/c/d/internalModule.js');
+		assert.equal(getSpecificSourceName(secondStackFrame), '.../x/c/d/internalModule.js');
 	});
 
 	test('stack frame toString()', () => {

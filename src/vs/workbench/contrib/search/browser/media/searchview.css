@@ -152,9 +152,7 @@
 }
 
 .search-view .message {
-	padding-left: 22px;
-	padding-right: 22px;
-	padding-top: 0px;
+	padding: 0 22px 8px;
 }
 
 .search-view .message p:first-child {

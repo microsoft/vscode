@@ -205,25 +205,6 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.getValue();
 	}
 
-	getLinesContent(): string[] {
-		if (this._textModel) {
-			return this._textModel.getLinesContent();
-		}
-
-		return this.model.textBuffer.getLinesContent();
-	}
-
-	// setLinesContent(value: string[]) {
-	// 	if (this._textModel) {
-	// 		// TODO @rebornix we should avoid creating a new string here
-	// 		return this._textModel.setValue(value.join('\n'));
-	// 	} else {
-	// 		const range = this.model.getFullModelRange();
-	// 		this.model.textBuffer.
-	// 		this.model.source = value;
-	// 	}
-	// }
-
 	private saveViewState(): void {
 		if (!this._textEditor) {
 			return;

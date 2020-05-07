@@ -13,8 +13,8 @@ suite('Map', () => {
 		let map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
-		assert.deepStrictEqual([...map.keys()], ['ak', 'bk']);
-		assert.deepStrictEqual([...map.values()], ['av', 'bv']);
+		assert.deepStrictEqual(map.keys(), ['ak', 'bk']);
+		assert.deepStrictEqual(map.values(), ['av', 'bv']);
 		assert.equal(map.first, 'av');
 		assert.equal(map.last, 'bv');
 	});
@@ -23,16 +23,16 @@ suite('Map', () => {
 		let map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('ak', 'av', Touch.AsOld);
-		assert.deepStrictEqual([...map.keys()], ['ak']);
-		assert.deepStrictEqual([...map.values()], ['av']);
+		assert.deepStrictEqual(map.keys(), ['ak']);
+		assert.deepStrictEqual(map.values(), ['av']);
 	});
 
 	test('LinkedMap - Touch New one', () => {
 		let map = new LinkedMap<string, string>();
 		map.set('ak', 'av');
 		map.set('ak', 'av', Touch.AsNew);
-		assert.deepStrictEqual([...map.keys()], ['ak']);
-		assert.deepStrictEqual([...map.values()], ['av']);
+		assert.deepStrictEqual(map.keys(), ['ak']);
+		assert.deepStrictEqual(map.values(), ['av']);
 	});
 
 	test('LinkedMap - Touch Old two', () => {
@@ -40,8 +40,8 @@ suite('Map', () => {
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('bk', 'bv', Touch.AsOld);
-		assert.deepStrictEqual([...map.keys()], ['bk', 'ak']);
-		assert.deepStrictEqual([...map.values()], ['bv', 'av']);
+		assert.deepStrictEqual(map.keys(), ['bk', 'ak']);
+		assert.deepStrictEqual(map.values(), ['bv', 'av']);
 	});
 
 	test('LinkedMap - Touch New two', () => {
@@ -49,8 +49,8 @@ suite('Map', () => {
 		map.set('ak', 'av');
 		map.set('bk', 'bv');
 		map.set('ak', 'av', Touch.AsNew);
-		assert.deepStrictEqual([...map.keys()], ['bk', 'ak']);
-		assert.deepStrictEqual([...map.values()], ['bv', 'av']);
+		assert.deepStrictEqual(map.keys(), ['bk', 'ak']);
+		assert.deepStrictEqual(map.values(), ['bv', 'av']);
 	});
 
 	test('LinkedMap - Touch Old from middle', () => {
@@ -59,8 +59,8 @@ suite('Map', () => {
 		map.set('bk', 'bv');
 		map.set('ck', 'cv');
 		map.set('bk', 'bv', Touch.AsOld);
-		assert.deepStrictEqual([...map.keys()], ['bk', 'ak', 'ck']);
-		assert.deepStrictEqual([...map.values()], ['bv', 'av', 'cv']);
+		assert.deepStrictEqual(map.keys(), ['bk', 'ak', 'ck']);
+		assert.deepStrictEqual(map.values(), ['bv', 'av', 'cv']);
 	});
 
 	test('LinkedMap - Touch New from middle', () => {
@@ -69,8 +69,8 @@ suite('Map', () => {
 		map.set('bk', 'bv');
 		map.set('ck', 'cv');
 		map.set('bk', 'bv', Touch.AsNew);
-		assert.deepStrictEqual([...map.keys()], ['ak', 'ck', 'bk']);
-		assert.deepStrictEqual([...map.values()], ['av', 'cv', 'bv']);
+		assert.deepStrictEqual(map.keys(), ['ak', 'ck', 'bk']);
+		assert.deepStrictEqual(map.values(), ['av', 'cv', 'bv']);
 	});
 
 	test('LinkedMap - basics', function () {
@@ -136,15 +136,13 @@ suite('Map', () => {
 		assert.strictEqual(cache.size, 5);
 		cache.set(6, 6);
 		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [2, 3, 4, 5, 6]);
+		assert.deepStrictEqual(cache.keys(), [2, 3, 4, 5, 6]);
 		cache.set(7, 7);
 		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [3, 4, 5, 6, 7]);
+		assert.deepStrictEqual(cache.keys(), [3, 4, 5, 6, 7]);
 		let values: number[] = [];
 		[3, 4, 5, 6, 7].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [3, 4, 5, 6, 7]);
-
-		assert.deepEqual([...cache.entries()], [[3, 3], [4, 4], [5, 5], [6, 6], [7, 7]]);
 	});
 
 	test('LinkedMap - LRU Cache get', () => {
@@ -152,11 +150,11 @@ suite('Map', () => {
 
 		[1, 2, 3, 4, 5].forEach(value => cache.set(value, value));
 		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [1, 2, 3, 4, 5]);
+		assert.deepStrictEqual(cache.keys(), [1, 2, 3, 4, 5]);
 		cache.get(3);
-		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
+		assert.deepStrictEqual(cache.keys(), [1, 2, 4, 5, 3]);
 		cache.peek(4);
-		assert.deepStrictEqual([...cache.keys()], [1, 2, 4, 5, 3]);
+		assert.deepStrictEqual(cache.keys(), [1, 2, 4, 5, 3]);
 		let values: number[] = [];
 		[1, 2, 3, 4, 5].forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [1, 2, 3, 4, 5]);
@@ -171,7 +169,7 @@ suite('Map', () => {
 		assert.strictEqual(cache.size, 10);
 		cache.limit = 5;
 		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [6, 7, 8, 9, 10]);
+		assert.deepStrictEqual(cache.keys(), [6, 7, 8, 9, 10]);
 		cache.limit = 20;
 		assert.strictEqual(cache.size, 5);
 		for (let i = 11; i <= 20; i++) {
@@ -183,7 +181,7 @@ suite('Map', () => {
 			values.push(cache.get(i)!);
 			assert.strictEqual(cache.get(i), i);
 		}
-		assert.deepStrictEqual([...cache.values()], values);
+		assert.deepStrictEqual(cache.values(), values);
 	});
 
 	test('LinkedMap - LRU Cache limit with ratio', () => {
@@ -195,11 +193,11 @@ suite('Map', () => {
 		assert.strictEqual(cache.size, 10);
 		cache.set(11, 11);
 		assert.strictEqual(cache.size, 5);
-		assert.deepStrictEqual([...cache.keys()], [7, 8, 9, 10, 11]);
+		assert.deepStrictEqual(cache.keys(), [7, 8, 9, 10, 11]);
 		let values: number[] = [];
-		[...cache.keys()].forEach(key => values.push(cache.get(key)!));
+		cache.keys().forEach(key => values.push(cache.get(key)!));
 		assert.deepStrictEqual(values, [7, 8, 9, 10, 11]);
-		assert.deepStrictEqual([...cache.values()], values);
+		assert.deepStrictEqual(cache.values(), values);
 	});
 
 	test('LinkedMap - toJSON / fromJSON', () => {
@@ -239,7 +237,7 @@ suite('Map', () => {
 		map.delete('1');
 		assert.equal(map.get('1'), undefined);
 		assert.equal(map.size, 0);
-		assert.equal([...map.keys()].length, 0);
+		assert.equal(map.keys().length, 0);
 	});
 
 	test('LinkedMap - delete Head', function () {
@@ -253,8 +251,8 @@ suite('Map', () => {
 		map.delete('1');
 		assert.equal(map.get('2'), 2);
 		assert.equal(map.size, 1);
-		assert.equal([...map.keys()].length, 1);
-		assert.equal([...map.keys()][0], 2);
+		assert.equal(map.keys().length, 1);
+		assert.equal(map.keys()[0], 2);
 	});
 
 	test('LinkedMap - delete Tail', function () {
@@ -268,8 +266,8 @@ suite('Map', () => {
 		map.delete('2');
 		assert.equal(map.get('1'), 1);
 		assert.equal(map.size, 1);
-		assert.equal([...map.keys()].length, 1);
-		assert.equal([...map.keys()][0], 1);
+		assert.equal(map.keys().length, 1);
+		assert.equal(map.keys()[0], 1);
 	});
 
 

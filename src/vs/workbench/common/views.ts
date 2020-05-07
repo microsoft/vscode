@@ -282,13 +282,15 @@ export interface IViewContentDescriptor {
 
 export interface IViewsRegistry {
 
-	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
+	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }[]>;
 
 	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
 
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
 
 	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+
+	registerViews2(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void;
 
 	deregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
@@ -319,8 +321,8 @@ function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewConten
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
 
-	private readonly _onViewsRegistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>());
-	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsRegistered.event;
+	private readonly _onViewsRegistered = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }[]>());
+	readonly onViewsRegistered = this._onViewsRegistered.event;
 
 	private readonly _onViewsDeregistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>());
 	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsDeregistered.event;
@@ -336,8 +338,12 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 	private _viewWelcomeContents = new SetMap<string, IViewContentDescriptor>();
 
 	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
-		this.addViews(views, viewContainer);
-		this._onViewsRegistered.fire({ views: views, viewContainer });
+		this.registerViews2([{ views, viewContainer }]);
+	}
+
+	registerViews2(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void {
+		views.forEach(({ views, viewContainer }) => this.addViews(views, viewContainer));
+		this._onViewsRegistered.fire(views);
 	}
 
 	deregisterViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {

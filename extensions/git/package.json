@@ -409,6 +409,11 @@
         "command": "git.timeline.copyCommitMessage",
         "title": "%command.timelineCopyCommitMessage%",
         "category": "Git"
+      },
+      {
+        "command": "git.rebaseAbort",
+        "title": "%command.rebaseAbort%",
+        "category": "Git"
       }
     ],
     "keybindings": [

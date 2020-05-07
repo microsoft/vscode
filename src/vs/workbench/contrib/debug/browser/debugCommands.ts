@@ -24,7 +24,6 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -206,7 +205,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let session: IDebugSession | undefined;
 			if (isSessionContext(context)) {
@@ -217,10 +216,10 @@ export function registerCommands(): void {
 
 			if (!session) {
 				const { launch, name } = debugService.getConfigurationManager().selectedConfiguration;
-				debugService.startDebugging(launch, name, { noDebug: false });
+				await debugService.startDebugging(launch, name, { noDebug: false });
 			} else {
 				session.removeReplExpressions();
-				debugService.restartSession(session).then(undefined, onUnexpectedError);
+				await debugService.restartSession(session);
 			}
 		}
 	});
@@ -268,10 +267,15 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: DISCONNECT_ID,
-		handler: (accessor: ServicesAccessor, sessionId: string | undefined) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
-			const session = debugService.getModel().getSession(sessionId) || debugService.getViewModel().focusedSession;
-			debugService.stopSession(session).then(undefined, onUnexpectedError);
+			let session: IDebugSession | undefined;
+			if (isSessionContext(context)) {
+				session = debugService.getModel().getSession(context.sessionId);
+			} else {
+				session = debugService.getViewModel().focusedSession;
+			}
+			await debugService.stopSession(session);
 		}
 	});
 
@@ -280,7 +284,7 @@ export function registerCommands(): void {
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyMod.Shift | KeyCode.F5,
 		when: CONTEXT_IN_DEBUG_MODE,
-		handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
+		handler: async (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 			const debugService = accessor.get(IDebugService);
 			let session: IDebugSession | undefined;
 			if (isSessionContext(context)) {
@@ -296,7 +300,7 @@ export function registerCommands(): void {
 				session = session.parentSession;
 			}
 
-			debugService.stopSession(session).then(undefined, onUnexpectedError);
+			await debugService.stopSession(session);
 		}
 	});
 
@@ -336,9 +340,9 @@ export function registerCommands(): void {
 
 	CommandsRegistry.registerCommand({
 		id: 'debug.startFromConfig',
-		handler: (accessor, config: IConfig) => {
+		handler: async (accessor, config: IConfig) => {
 			const debugService = accessor.get(IDebugService);
-			debugService.startDebugging(undefined, config).then(undefined, onUnexpectedError);
+			await debugService.startDebugging(undefined, config);
 		}
 	});
 

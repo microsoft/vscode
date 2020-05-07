@@ -1333,6 +1333,10 @@ export class Repository {
 		}
 	}
 
+	async rebaseAbort(): Promise<void> {
+		await this.run(['rebase', '--abort']);
+	}
+
 	async rebaseContinue(): Promise<void> {
 		const args = ['rebase', '--continue'];
 

@@ -168,6 +168,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.registerListeners();
 	}
 
+	focusActivityBar(): void {
+		this.compositeBar.focus();
+	}
+
 	private registerListeners(): void {
 
 		// View Container Changes

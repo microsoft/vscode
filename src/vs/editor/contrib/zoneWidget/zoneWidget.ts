@@ -254,13 +254,13 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 	}
 
 	private _getWidth(info: EditorLayoutInfo): number {
-		return info.width - info.minimapWidth - info.verticalScrollbarWidth;
+		return info.width - info.minimap.minimapWidth - info.verticalScrollbarWidth;
 	}
 
 	private _getLeft(info: EditorLayoutInfo): number {
 		// If minimap is to the left, we move beyond it
-		if (info.minimapWidth > 0 && info.minimapLeft === 0) {
-			return info.minimapWidth;
+		if (info.minimap.minimapWidth > 0 && info.minimap.minimapLeft === 0) {
+			return info.minimap.minimapWidth;
 		}
 		return 0;
 	}
@@ -526,6 +526,6 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	getHorizontalSashWidth() {
 		const layoutInfo = this.editor.getLayoutInfo();
-		return layoutInfo.width - layoutInfo.minimapWidth;
+		return layoutInfo.width - layoutInfo.minimap.minimapWidth;
 	}
 }
