@@ -345,7 +345,7 @@ class TypeLabelController<T> implements IDisposable {
 
 	private automaticKeyboardNavigation = true;
 	private triggered = false;
-	private charactersTyped = 0;
+	private previouslyFocused = -1;
 
 	private readonly enabledDisposables = new DisposableStore();
 	private readonly disposables = new DisposableStore();
@@ -413,15 +413,15 @@ class TypeLabelController<T> implements IDisposable {
 
 	private onClear(): void {
 		const focus = this.list.getFocus();
-		if (focus.length > 0 && this.charactersTyped > 1) {
+		if (focus.length > 0 && focus[0] === this.previouslyFocused) {
 			// List: re-anounce element on typing end since typed keys will interupt aria label of focused element
-			// Do not announce if only one character typed to avoid duplicate announcment https://github.com/microsoft/vscode/issues/95961
+			// Do not announce if there was a focus change at the end to prevent duplication https://github.com/microsoft/vscode/issues/95961
 			const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(focus[0]));
 			if (ariaLabel) {
 				alert(ariaLabel);
 			}
 		}
-		this.charactersTyped = 0;
+		this.previouslyFocused = -1;
 	}
 
 	private onInput(word: string | null): void {
@@ -431,7 +431,6 @@ class TypeLabelController<T> implements IDisposable {
 			return;
 		}
 
-		this.charactersTyped++;
 		const focus = this.list.getFocus();
 		const start = focus.length > 0 ? focus[0] : 0;
 		const delta = this.state === TypeLabelControllerState.Idle ? 1 : 0;
@@ -443,6 +442,7 @@ class TypeLabelController<T> implements IDisposable {
 			const labelStr = label && label.toString();
 
 			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
+				this.previouslyFocused = start;
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 				return;
