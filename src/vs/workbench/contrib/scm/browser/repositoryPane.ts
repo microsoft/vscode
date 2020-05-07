@@ -639,8 +639,6 @@ export class ToggleViewModeAction extends Action {
 
 export class RepositoryPane extends ViewPane {
 
-	private static commitFontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif';
-
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
 	private inputContainer!: HTMLElement;
@@ -761,7 +759,19 @@ export class RepositoryPane extends ViewPane {
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
-		const editorOptions = this.getInputEditorOptions();
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 4,
+			dragAndDrop: false,
+			cursorWidth: 1,
+			fontSize: 13,
+			lineHeight: 20,
+			fontFamily: this.getInputEditorFontFamily(),
+			wrappingStrategy: 'advanced',
+			wrappingIndent: 'none',
+			padding: { top: 3, bottom: 3 },
+			quickSuggestions: false
+		};
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -785,11 +795,8 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
 		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
 
-		const updateInputEditorOptions = () => {
-			const newEditorOptions = this.getInputEditorOptions();
-			this.inputEditor.updateOptions(newEditorOptions);
-		};
-		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('git.commitMessageFontFamily'))(updateInputEditorOptions);
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
+		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
 		let query: string | undefined;
 
@@ -1110,27 +1117,8 @@ export class RepositoryPane extends ViewPane {
 		}
 	}
 
-	private getInputEditorOptions(): IEditorConstructionOptions {
-		let editorOptionsFontFamily = RepositoryPane.commitFontFamily;
-
-		const commitMessageFontFamilyConfiguration = this.configurationService.getValue<string>('git.commitMessageFontFamily');
-		if (commitMessageFontFamilyConfiguration.trim().length !== 0) {
-			editorOptionsFontFamily = `${commitMessageFontFamilyConfiguration}, ${editorOptionsFontFamily}`;
-		}
-
-		return {
-			...getSimpleEditorOptions(),
-			lineDecorationsWidth: 4,
-			dragAndDrop: false,
-			cursorWidth: 1,
-			fontSize: 13,
-			lineHeight: 20,
-			fontFamily: editorOptionsFontFamily,
-			wrappingStrategy: 'advanced',
-			wrappingIndent: 'none',
-			padding: { top: 3, bottom: 3 },
-			quickSuggestions: false
-		};
+	private getInputEditorFontFamily(): string {
+		return this.configurationService.getValue<string>('scm.inputFontFamily');
 	}
 }
 
