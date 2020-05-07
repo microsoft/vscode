@@ -273,7 +273,7 @@ export enum CellEditType {
 }
 
 export interface ICellDto2 {
-	source: string[];
+	source: string | string[];
 	language: string;
 	cellKind: CellKind;
 	outputs: IOutput[];
@@ -299,6 +299,13 @@ export interface INotebookEditData {
 	edits: ICellEditOperation[];
 	renderers: number[];
 }
+
+export interface NotebookDataDto {
+	readonly cells: ICellDto2[];
+	readonly languages: string[];
+	readonly metadata: NotebookDocumentMetadata;
+}
+
 
 export namespace CellUri {
 

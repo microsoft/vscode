@@ -268,7 +268,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			});
 
 			diffs.reverse().forEach(diff => {
-				this._viewCells.splice(diff[0], diff[1], ...diff[2]);
+				const deletedCells = this._viewCells.splice(diff[0], diff[1], ...diff[2]);
+
+				deletedCells.forEach(cell => {
+					this._handleToViewCellMapping.delete(cell.handle);
+				});
+
 				diff[2].forEach(cell => {
 					this._handleToViewCellMapping.set(cell.handle, cell);
 					this._localStore.add(cell);
@@ -456,8 +461,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return index + 1;
 	}
 
-	hasCell(cell: ICellViewModel) {
-		return this._handleToViewCellMapping.has(cell.handle);
+	hasCell(handle: number) {
+		return this._handleToViewCellMapping.has(handle);
 	}
 
 	getVersionId() {
@@ -586,7 +591,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.splice(deleteIndex, 1);
 		this._handleToViewCellMapping.delete(deleteCell.handle);
 
-		this._notebook.removeCell(deleteIndex);
+		this._notebook.removeCell(deleteIndex, 1);
 		this._onDidChangeViewCells.fire({ synchronous: true, splices: [[deleteIndex, 1, []]] });
 	}
 
@@ -638,7 +643,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		this._viewCells.splice(index, 1);
 		this._handleToViewCellMapping.delete(viewCell.handle);
 
-		this._notebook.removeCell(index);
+		this._notebook.removeCell(index, 1);
 
 		let endSelections: number[] = [];
 		if (this.selectionHandles.length) {
