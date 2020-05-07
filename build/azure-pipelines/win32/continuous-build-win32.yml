@@ -34,6 +34,7 @@ steps:
 
 - powershell: |
     yarn electron
+  displayName: Download Electron
 
 - script: |
     yarn gulp hygiene
