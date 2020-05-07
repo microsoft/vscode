@@ -21,6 +21,8 @@ import { pad, uppercaseFirstLetter } from 'vs/base/common/strings';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Codicon } from 'vs/base/common/codicons';
 
+export const VIEW_CONTAINER_ID = 'workbench.view.sync';
+
 export class UserDataSyncViewContribution implements IWorkbenchContribution {
 
 	constructor(
@@ -36,11 +38,11 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 	private registerSyncViewContainer(): ViewContainer {
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
-				id: 'workbench.view.sync',
+				id: VIEW_CONTAINER_ID,
 				name: localize('sync preferences', "Preferences Sync"),
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					['workbench.view.sync', { mergeViewWithContainerWhenSingleView: true }]
+					[VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
 				),
 				icon: Codicon.sync.classNames,
 				hideIfEmpty: true,
