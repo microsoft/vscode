@@ -152,6 +152,13 @@ steps:
   displayName: Run smoke tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: crash-dump-macos
+    targetPath: .build/crashes
+  displayName: 'Publish Crash Reports'
+  condition: succeededOrFailed()
+
 - script: |
     set -e
     security create-keychain -p pwd $(agent.tempdirectory)/buildagent.keychain
