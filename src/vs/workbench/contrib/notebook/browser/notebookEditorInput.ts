@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions } from 'vs/workbench/common/editor';
+import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
-import { isEqual, basename } from 'vs/base/common/resources';
+import { isEqual, basename, extname } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
@@ -105,6 +105,17 @@ export class NotebookEditorInput extends EditorInput {
 		}
 
 		return this._move(group, target)?.editor;
+	}
+
+	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
+		if (this.textModel) {
+			const contributedNotebookProviders = this.notebookService.getContributedNotebookProviders(target);
+
+			if (contributedNotebookProviders.find(provider => provider.id === this.textModel!.viewType)) {
+				return this._move(group, target);
+			}
+		}
+		return undefined;
 	}
 
 	_move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
