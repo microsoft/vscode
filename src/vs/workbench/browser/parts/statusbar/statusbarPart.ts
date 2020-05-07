@@ -696,7 +696,7 @@ class StatusbarEntryItem extends Disposable {
 
 	private entry!: IStatusbarEntry;
 
-	public labelContainer!: HTMLElement;
+	labelContainer!: HTMLElement;
 	private label!: CodiconLabel;
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
