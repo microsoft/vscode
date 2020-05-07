@@ -127,13 +127,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.deregisterViewletOrPanel(container, location);
 		}
 		for (const { container, location } of added) {
-			this.registerViewletOrPanel(container, location);
+			this.onDidRegisterViewContainer(container, location);
 		}
-	}
-
-	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
-		this.deregisterViewletOrPanel(viewContainer, from);
-		this.registerViewletOrPanel(viewContainer, to);
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
@@ -144,6 +139,11 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.onViewDescriptorsAdded(added, viewContainer);
 			this.onViewDescriptorsRemoved(removed);
 		}));
+	}
+
+	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
+		this.deregisterViewletOrPanel(viewContainer, from);
+		this.registerViewletOrPanel(viewContainer, to);
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
