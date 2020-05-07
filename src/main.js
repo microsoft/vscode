@@ -35,8 +35,10 @@ app.setPath('userData', userDataPath);
 // Set temp directory based on crash-reporter-directory CLI argument
 // The crash reporter will store crashes in temp folder so we need
 // to change that location accordingly.
-const crashReporterDirectory = args['crash-reporter-directory'];
+let crashReporterDirectory = args['crash-reporter-directory'];
 if (crashReporterDirectory) {
+	crashReporterDirectory = path.normalize(crashReporterDirectory);
+
 	if (!fs.existsSync(crashReporterDirectory)) {
 		try {
 			fs.mkdirSync(crashReporterDirectory);
@@ -45,6 +47,7 @@ if (crashReporterDirectory) {
 			app.exit(1);
 		}
 	}
+	console.log(`Found --crash-reporter-directory argument. Setting temp directory to be '${crashReporterDirectory}'`);
 	app.setPath('temp', crashReporterDirectory);
 }
 
