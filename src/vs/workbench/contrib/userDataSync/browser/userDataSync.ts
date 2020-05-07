@@ -8,7 +8,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
 import { isEqual, basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -39,7 +38,6 @@ import { IEditorInput, toResource, SideBySideEditor } from 'vs/workbench/common/
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { UserDataSyncTrigger } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncTrigger';
 import { IActivityService, IBadge, NumberBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -162,10 +160,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 			textModelResolverService.registerTextModelContentProvider(USER_DATA_SYNC_SCHEME, instantiationService.createInstance(UserDataRemoteContentProvider));
 			registerEditorContribution(AcceptChangesContribution.ID, AcceptChangesContribution);
-
-			if (!isWeb) {
-				this._register(instantiationService.createInstance(UserDataSyncTrigger).onDidTriggerSync(source => userDataAutoSyncService.triggerAutoSync([source])));
-			}
 		}
 	}
 
