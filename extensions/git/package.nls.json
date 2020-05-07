@@ -63,6 +63,7 @@
 	"command.showOutput": "Show Git Output",
 	"command.ignore": "Add to .gitignore",
 	"command.revealInExplorer": "Reveal in Side Bar",
+	"command.rebaseAbort": "Abort Rebase",
 	"command.stashIncludeUntracked": "Stash (Include Untracked)",
 	"command.stash": "Stash",
 	"command.stashPop": "Pop Stash...",

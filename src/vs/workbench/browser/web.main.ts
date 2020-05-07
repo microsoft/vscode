@@ -71,7 +71,7 @@ class BrowserMain extends Disposable {
 			services.storageService.store(Settings.WORKSPACE_FIRST_OPEN, !(firstOpen ?? false), StorageScope.WORKSPACE);
 		}
 
-		{ await domContentLoaded(); }
+		await domContentLoaded();
 		mark('willStartWorkbench');
 
 		// Base Theme
