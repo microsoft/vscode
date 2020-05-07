@@ -38,6 +38,7 @@ export class ActiveWindowManager extends Disposable {
 		if (this.firstActiveWindowIdPromise) {
 			this.firstActiveWindowIdPromise.cancel();
 			this.firstActiveWindowIdPromise = undefined;
+			console.log('hello');
 		}
 
 		this.activeWindowId = windowId;
