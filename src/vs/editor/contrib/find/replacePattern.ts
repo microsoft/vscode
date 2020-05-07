@@ -151,7 +151,11 @@ export class ReplacePiece {
 	private constructor(staticValue: string | null, matchIndex: number, caseOps: string[] | null) {
 		this.staticValue = staticValue;
 		this.matchIndex = matchIndex;
-		this.caseOps = Object.assign([], caseOps);
+		if (!caseOps || caseOps.length === 0) {
+			this.caseOps = null;
+		} else {
+			this.caseOps = caseOps.slice(0);
+		}
 	}
 }
 
