@@ -61,7 +61,6 @@ export async function getMainProcessParentEnv(): Promise<IProcessEnvironment> {
 			'XPC_FLAGS',
 			'XPC_SERVICE_NAME',
 			'HOME',
-			'LOGNAME',
 			'TMPDIR'
 		];
 		rootEnvVars.forEach(k => {
