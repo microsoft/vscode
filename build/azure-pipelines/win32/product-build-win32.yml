@@ -151,7 +151,7 @@ steps:
 
 - task: PublishPipelineArtifact@0
   inputs:
-    artifactName: crash-dump-windows
+    artifactName: crash-dump-windows-$(VSCODE_ARCH)
     targetPath: .build\crashes
   displayName: 'Publish Crash Reports'
   condition: succeededOrFailed()
