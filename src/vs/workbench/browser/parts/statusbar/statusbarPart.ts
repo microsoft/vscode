@@ -768,7 +768,6 @@ class StatusbarEntryItem extends Disposable {
 
 			const command = entry.command;
 			if (command) {
-
 				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_UP, e => {
 					const event = new StandardKeyboardEvent(e);
