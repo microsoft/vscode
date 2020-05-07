@@ -172,6 +172,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		// View Container Changes
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
+		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
 
 		// View Container Visibility Changes
 		this._register(Event.filter(this.viewsService.onDidChangeViewContainerVisibility, e => e.location === this.location)(({ id, visible }) => this.onDidChangeViewContainerVisibility(id, visible)));
@@ -200,6 +201,15 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private onDidChangeViewContainers(added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>) {
 		removed.filter(({ location }) => location === ViewContainerLocation.Sidebar).forEach(({ container }) => this.onDidDeregisterViewContainer(container));
 		this.onDidRegisterViewContainers(added.filter(({ location }) => location === ViewContainerLocation.Sidebar).map(({ container }) => container));
+	}
+
+	private onDidChangeViewContainerLocation(container: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation) {
+		if (from === this.location) {
+			this.onDidDeregisterViewContainer(container);
+		}
+		if (to === this.location) {
+			this.onDidRegisterViewContainers([container]);
+		}
 	}
 
 	private onDidChangeViewContainerVisibility(id: string, visible: boolean) {

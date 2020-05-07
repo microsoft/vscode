@@ -9,7 +9,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { dispose, IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
@@ -614,7 +614,7 @@ export class OutlinePane extends ViewPane {
 			}
 		};
 		updateMarker(textModel, true);
-		this._editorDisposables.add(this._markerDecorationService.onDidChangeMarker(updateMarker));
+		this._editorDisposables.add(Event.debounce(this._markerDecorationService.onDidChangeMarker, (_, e) => e, 64)(updateMarker));
 
 		this._editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {

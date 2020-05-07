@@ -17,6 +17,8 @@ import { trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { domEvent } from 'vs/base/browser/event';
+import { memoize } from 'vs/base/common/decorators';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -77,17 +79,15 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	private _onDidChangeFocus: Event<boolean> | undefined;
+	@memoize
 	get onDidChangeFocus(): Event<boolean> {
-		if (!this._onDidChangeFocus) {
-			const focusTracker = this._register(trackFocus(window));
-			this._onDidChangeFocus = Event.any(
-				Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-				Event.map(focusTracker.onDidBlur, () => this.hasFocus)
-			);
-		}
+		const focusTracker = this._register(trackFocus(window));
 
-		return this._onDidChangeFocus;
+		return Event.latch(Event.any(
+			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
+			Event.map(focusTracker.onDidBlur, () => this.hasFocus),
+			Event.map(domEvent(window.document, 'visibilitychange'), () => this.hasFocus)
+		));
 	}
 
 	get hasFocus(): boolean {

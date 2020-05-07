@@ -186,17 +186,21 @@ export class TerminalLinkManager extends DisposableStore {
 			terminalDimensions,
 			modifierDownCallback,
 			modifierUpCallback
-		}, this._getLinkHoverString(link.text, link.label), (text) => link.activate(undefined, text));
+		}, this._getLinkHoverString(link.text, link.label), (text) => link.activate(undefined, text), link);
 	}
 
 	private _showHover(
 		targetOptions: ILinkHoverTargetOptions,
 		text: IMarkdownString,
-		linkHandler: (url: string) => void
+		linkHandler: (url: string) => void,
+		link?: TerminalLink
 	) {
 		if (this._widgetManager) {
 			const widget = this._instantiationService.createInstance(TerminalHover, targetOptions, text, linkHandler);
-			this._widgetManager.attachWidget(widget);
+			const attached = this._widgetManager.attachWidget(widget);
+			if (attached) {
+				link?.onLeave(() => attached.dispose());
+			}
 		}
 	}
 

@@ -368,6 +368,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private addViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
+		const viewIds: Set<string> = new Set<string>();
+		const allViewDescriptors: { views: IViewDescriptor[], viewContainer: ViewContainer }[] = [];
+
 		for (const extension of extensions) {
 			const { value, collector } = extension;
 
@@ -386,10 +389,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
 					// validate
-					if (viewIds.indexOf(item.id) !== -1) {
+					if (viewIds.has(item.id)) {
 						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
 						return null;
 					}
@@ -421,12 +423,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority // TODO@roblou - delete after remote extensions are updated
 					};
 
-					viewIds.push(viewDescriptor.id);
+					viewIds.add(viewDescriptor.id);
 					return viewDescriptor;
 				}));
-				this.viewsRegistry.registerViews(viewDescriptors, container);
+
+				allViewDescriptors.push({ viewContainer: container, views: viewDescriptors });
+
 			});
 		}
+
+		this.viewsRegistry.registerViews2(allViewDescriptors);
 	}
 
 	private getDefaultViewContainer(): ViewContainer {

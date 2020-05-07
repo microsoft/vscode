@@ -688,6 +688,10 @@ export class CustomTask extends CommonTask {
 		}
 	}
 
+	public clone(): CustomTask {
+		return new CustomTask(this._id, this._source, this._label, this.type, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
+	}
+
 	public customizes(): KeyedTaskIdentifier | undefined {
 		if (this._source && this._source.customizes) {
 			return this._source.customizes;
@@ -874,6 +878,10 @@ export class ContributedTask extends CommonTask {
 		this.command = command;
 	}
 
+	public clone(): ContributedTask {
+		return new ContributedTask(this._id, this._source, this._label, this.type, this.defines, this.command, this.hasDefinedMatchers, this.runOptions, this.configurationProperties);
+	}
+
 	public getDefinition(): KeyedTaskIdentifier {
 		return this.defines;
 	}
@@ -936,6 +944,10 @@ export class InMemoryTask extends CommonTask {
 		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {
 		super(id, label, type, runOptions, configurationProperties, source);
 		this._source = source;
+	}
+
+	public clone(): InMemoryTask {
+		return new InMemoryTask(this._id, this._source, this._label, this.type, this.runOptions, this.configurationProperties);
 	}
 
 	public static is(value: any): value is InMemoryTask {

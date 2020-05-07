@@ -62,6 +62,22 @@
 
 }
 
+.monaco-workbench .part.panel .empty-panel-message-area {
+	position: absolute;
+	display: none;
+	top: 0px;
+	height: 100%;
+	width: 100%;
+	z-index: 10;
+}
+
+.monaco-workbench .part.panel .empty-panel-message-area.visible {
+	display: flex;
+	align-items: center;
+	align-content: center;
+	justify-content: center;
+}
+
 .monaco-workbench .part.panel > .composite.title > .composite-bar-excess {
 	width: 100px;
 }

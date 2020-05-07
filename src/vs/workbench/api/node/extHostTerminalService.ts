@@ -230,13 +230,10 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
-
 		if (!collection) {
-			// TODO: Disable dispose
 			collection = new EnvironmentVariableCollection();
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
-
 		return collection;
 	}
 

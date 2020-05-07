@@ -654,6 +654,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 	private _onDidOpenNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
+	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
+	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
 
 	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
@@ -770,7 +772,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 			this._editors.set(revivedUri.toString(), { editor, onDidReceiveMessage });
 
-			const data = await provider.provider.open(revivedUri);
+			const data = await provider.provider.openNotebook(revivedUri);
 			editor.document.languages = data.languages;
 			editor.document.metadata = {
 				...notebookDocumentMetadataDefaults,
@@ -864,7 +866,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		if (this._notebookContentProviders.has(viewType)) {
 			try {
-				await this._notebookContentProviders.get(viewType)!.provider.save(document, token);
+				await this._notebookContentProviders.get(viewType)!.provider.saveNotebook(document, token);
 			} catch (e) {
 				return false;
 			}
@@ -898,6 +900,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (document) {
 			document.dispose();
 			this._documents.delete(URI.revive(uri).toString());
+			this._onDidCloseNotebookDocument.fire(document);
 		}
 
 		let editor = this._editors.get(URI.revive(uri).toString());

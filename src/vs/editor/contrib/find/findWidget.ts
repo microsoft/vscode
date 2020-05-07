@@ -701,7 +701,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 
 		const editorWidth = layoutInfo.width;
-		const minimapWidth = layoutInfo.minimapWidth;
+		const minimapWidth = layoutInfo.minimap.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -1218,7 +1218,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				// 1. never resized before, double click should maximizes it
 				// 2. users resized it already but its width is the same as default
 				const layoutInfo = this._codeEditor.getLayoutInfo();
-				width = layoutInfo.width - 28 - layoutInfo.minimapWidth - 15;
+				width = layoutInfo.width - 28 - layoutInfo.minimap.minimapWidth - 15;
 				this._resized = true;
 			} else {
 				/**
