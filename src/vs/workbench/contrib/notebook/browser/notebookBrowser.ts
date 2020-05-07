@@ -110,7 +110,6 @@ export interface ICellViewModel {
 	resolveTextModel(): Promise<ITextModel>;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 	getSelectionsStartPosition(): IPosition[] | undefined;
-	getLinesContent(): string[];
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {
