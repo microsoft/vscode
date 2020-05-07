@@ -122,7 +122,6 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 
 	if (patternMatch) {
 		const startLineNumber = parseInt(patternMatch.groups?.line ?? '', 10);
-		const startColumn = parseInt(patternMatch.groups?.col ?? '', 10);
 
 		// Line Number
 		if (isNumber(startLineNumber)) {
@@ -134,6 +133,7 @@ export function extractRangeFromFilter(filter: string, unless?: string[]): IFilt
 			};
 
 			// Column Number
+			const startColumn = parseInt(patternMatch.groups?.col ?? '', 10);
 			if (isNumber(startColumn)) {
 				range = {
 					startLineNumber: range.startLineNumber,
