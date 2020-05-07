@@ -26,4 +26,9 @@ export interface IActivityBarService {
 	 * Returns id of visible viewlets following the visual order.
 	 */
 	getVisibleViewContainerIds(): string[];
+
+	/**
+	 * Focuses the activity bar.
+	 */
+	focusActivityBar(): void;
 }

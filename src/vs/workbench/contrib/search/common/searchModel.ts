@@ -192,8 +192,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return (selected ? FileMatch._CURRENT_FIND_MATCH : FileMatch._FIND_MATCH);
 	}
 
-	private _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean; userRemoved?: boolean }>());
-	readonly onChange: Event<{ didRemove?: boolean; forceUpdateModel?: boolean; userRemoved?: boolean }> = this._onChange.event;
+	private _onChange = this._register(new Emitter<{ didRemove?: boolean; forceUpdateModel?: boolean }>());
+	readonly onChange: Event<{ didRemove?: boolean; forceUpdateModel?: boolean }> = this._onChange.event;
 
 	private _onDispose = this._register(new Emitter<void>());
 	readonly onDispose: Event<void> = this._onDispose.event;
@@ -354,10 +354,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return values(this._matches);
 	}
 
-	remove(match: Match, userRemoved?: boolean): void {
+	remove(match: Match): void {
 		this.removeMatch(match);
 		this._removedMatches.add(match.id());
-		this._onChange.fire({ didRemove: true, userRemoved });
+		this._onChange.fire({ didRemove: true });
 	}
 
 	replace(toReplace: Match): Promise<void> {
@@ -447,7 +447,6 @@ export interface IChangeEvent {
 	elements: FileMatch[];
 	added?: boolean;
 	removed?: boolean;
-	userRemoved?: boolean;
 }
 
 export class FolderMatch extends Disposable {
@@ -530,7 +529,7 @@ export class FolderMatch extends Disposable {
 				const fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.previewOptions, this._query.maxResults, this, rawFileMatch);
 				this.doAdd(fileMatch);
 				added.push(fileMatch);
-				const disposable = fileMatch.onChange(({ didRemove, userRemoved }) => this.onFileChange(fileMatch, didRemove, userRemoved));
+				const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 				fileMatch.onDispose(() => disposable.dispose());
 			}
 		});
@@ -541,14 +540,14 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
-	clear(userRemoved?: boolean): void {
+	clear(): void {
 		const changed: FileMatch[] = this.matches();
 		this.disposeMatches();
-		this._onChange.fire({ elements: changed, removed: true, userRemoved });
+		this._onChange.fire({ elements: changed, removed: true });
 	}
 
-	remove(matches: FileMatch | FileMatch[], userRemoved?: boolean): void {
-		this.doRemove(matches, undefined, undefined, userRemoved);
+	remove(matches: FileMatch | FileMatch[]): void {
+		this.doRemove(matches);
 	}
 
 	replace(match: FileMatch): Promise<any> {
@@ -578,7 +577,7 @@ export class FolderMatch extends Disposable {
 		return this.matches().reduce<number>((prev, match) => prev + match.count(), 0);
 	}
 
-	private onFileChange(fileMatch: FileMatch, removed = false, userRemoved = false): void {
+	private onFileChange(fileMatch: FileMatch, removed = false): void {
 		let added = false;
 		if (!this._fileMatches.has(fileMatch.resource)) {
 			this.doAdd(fileMatch);
@@ -590,7 +589,7 @@ export class FolderMatch extends Disposable {
 			removed = true;
 		}
 		if (!this._replacingAll) {
-			this._onChange.fire({ elements: [fileMatch], added: added, removed: removed, userRemoved });
+			this._onChange.fire({ elements: [fileMatch], added: added, removed: removed });
 		}
 	}
 
@@ -601,7 +600,7 @@ export class FolderMatch extends Disposable {
 		}
 	}
 
-	private doRemove(fileMatches: FileMatch | FileMatch[], dispose: boolean = true, trigger: boolean = true, userRemoved: boolean = false): void {
+	private doRemove(fileMatches: FileMatch | FileMatch[], dispose: boolean = true, trigger: boolean = true): void {
 		if (!Array.isArray(fileMatches)) {
 			fileMatches = [fileMatches];
 		}
@@ -616,7 +615,7 @@ export class FolderMatch extends Disposable {
 		}
 
 		if (trigger) {
-			this._onChange.fire({ elements: fileMatches, removed: true, userRemoved });
+			this._onChange.fire({ elements: fileMatches, removed: true });
 		}
 	}
 
@@ -703,7 +702,7 @@ export class SearchResult extends Disposable {
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
 	private disposePastResults: () => void = () => { };
 
-	private _hasRemovedResults = false;
+	private _isDirty = false;
 
 	constructor(
 		private _searchModel: SearchModel,
@@ -718,14 +717,14 @@ export class SearchResult extends Disposable {
 		this._register(this.modelService.onModelAdded(model => this.onModelAdded(model)));
 
 		this._register(this.onChange(e => {
-			if (e.userRemoved) {
-				this._hasRemovedResults = true;
+			if (e.removed) {
+				this._isDirty = !this.isEmpty();
 			}
 		}));
 	}
 
-	get hasRemovedResults(): boolean {
-		return this._hasRemovedResults;
+	get isDirty(): boolean {
+		return this._isDirty;
 	}
 
 	get query(): ITextQuery | null {
@@ -738,7 +737,7 @@ export class SearchResult extends Disposable {
 		new Promise(resolve => this.disposePastResults = resolve)
 			.then(() => oldFolderMatches.forEach(match => match.clear()))
 			.then(() => oldFolderMatches.forEach(match => match.dispose()))
-			.then(() => this._hasRemovedResults = false);
+			.then(() => this._isDirty = false);
 
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>();
@@ -809,14 +808,14 @@ export class SearchResult extends Disposable {
 		this._otherFilesMatch = null;
 	}
 
-	remove(matches: FileMatch | FolderMatch | (FileMatch | FolderMatch)[], userRemoved?: boolean): void {
+	remove(matches: FileMatch | FolderMatch | (FileMatch | FolderMatch)[]): void {
 		if (!Array.isArray(matches)) {
 			matches = [matches];
 		}
 
 		matches.forEach(m => {
 			if (m instanceof FolderMatch) {
-				m.clear(userRemoved);
+				m.clear();
 			}
 		});
 
@@ -828,11 +827,11 @@ export class SearchResult extends Disposable {
 				return;
 			}
 
-			this.getFolderMatch(matches[0].resource).remove(<FileMatch[]>matches, userRemoved);
+			this.getFolderMatch(matches[0].resource).remove(<FileMatch[]>matches);
 		});
 
 		if (other.length) {
-			this.getFolderMatch(other[0].resource).remove(<FileMatch[]>other, userRemoved);
+			this.getFolderMatch(other[0].resource).remove(<FileMatch[]>other);
 		}
 	}
 

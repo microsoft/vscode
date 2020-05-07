@@ -177,6 +177,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private backupFileService!: IBackupFileService;
 	private notificationService!: INotificationService;
 	private themeService!: IThemeService;
+	private activityBarService!: IActivityBarService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -260,8 +261,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
+		this.activityBarService = accessor.get(IActivityBarService);
 		accessor.get(IStatusbarService); // not used, but called to ensure instantiated
-		accessor.get(IActivityBarService); // not used, but called to ensure instantiated
 
 		// Listeners
 		this.registerLayoutListeners();
@@ -845,6 +846,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				if (activeViewlet) {
 					activeViewlet.focus();
 				}
+				break;
+			case Parts.ACTIVITYBAR_PART:
+				this.activityBarService.focusActivityBar();
 				break;
 			default:
 				// Status Bar, Activity Bar and Title Bar simply pass focus to container

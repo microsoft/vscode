@@ -116,6 +116,7 @@ import 'vs/workbench/contrib/webview/browser/webviewService';
 import 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 
 // Terminal
+import 'vs/workbench/contrib/terminal/browser/terminal.web.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks

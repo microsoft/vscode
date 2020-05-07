@@ -2494,6 +2494,10 @@ export class CommandCenter {
 		env.clipboard.writeText(item.message);
 	}
 
+	@command('git.rebaseAbort', { repository: true })
+	async rebaseAbort(repository: Repository): Promise<void> {
+		await repository.rebaseAbort();
+	}
 
 	private createCommand(id: string, key: string, method: Function, options: CommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {

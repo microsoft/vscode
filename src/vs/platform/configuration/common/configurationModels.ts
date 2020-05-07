@@ -324,7 +324,8 @@ export class ConfigurationModelParser {
 				result[key] = this.filterByScope(properties[key], configurationProperties, false, scopes);
 			} else {
 				const scope = this.getScope(key, configurationProperties);
-				if (scopes.indexOf(scope) !== -1) {
+				// Load unregistered configurations always.
+				if (scope === undefined || scopes.indexOf(scope) !== -1) {
 					result[key] = properties[key];
 				}
 			}
@@ -332,9 +333,9 @@ export class ConfigurationModelParser {
 		return result;
 	}
 
-	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope {
+	private getScope(key: string, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema }): ConfigurationScope | undefined {
 		const propertySchema = configurationProperties[key];
-		return propertySchema && typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW;
+		return propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
 	}
 }
 

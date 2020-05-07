@@ -47,6 +47,10 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -170,19 +174,20 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return true;
 	}
 
+	private updateEditorFocus() {
+		// Note - focus going to the webview will fire 'blur', but the webview element will be
+		// a descendent of the notebook editor root.
+		this.editorFocus?.set(DOM.isAncestor(document.activeElement, this.getDomNode()));
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, $('.notebook-editor'));
 		this.createBody(this._rootElement);
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 		this.editorFocus.set(true);
-		this._register(this.onDidFocus(() => {
-			this.editorFocus?.set(true);
-		}));
-
-		this._register(this.onDidBlur(() => {
-			this.editorFocus?.set(false);
-		}));
+		this._register(this.onDidFocus(() => this.updateEditorFocus()));
+		this._register(this.onDidBlur(() => this.updateEditorFocus()));
 
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
@@ -307,6 +312,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this);
+		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
+		this.webview.webview.onDidFocus(() => this.updateEditorFocus());
 		this._register(this.webview.onMessage(message => {
 			if (this.viewModel) {
 				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.viewModel.uri, message);
@@ -778,11 +785,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return newCell;
 	}
 
-	private isAtEOL(p: IPosition, lines: string[]) {
-		const line = lines[p.lineNumber - 1];
-		return line.length + 1 === p.column;
-	}
-
 	private pushIfAbsent(positions: IPosition[], p: IPosition) {
 		const last = positions.length > 0 ? positions[positions.length - 1] : undefined;
 		if (!last || last.lineNumber !== p.lineNumber || last.column !== p.column) {
@@ -795,8 +797,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	 * Move end of line split points to the beginning of the next line;
 	 * Avoid duplicate split points
 	 */
-	private splitPointsToBoundaries(splitPoints: IPosition[], lines: string[]): IPosition[] | null {
+	private splitPointsToBoundaries(splitPoints: IPosition[], textBuffer: IReadonlyTextBuffer): IPosition[] | null {
 		const boundaries: IPosition[] = [];
+		const lineCnt = textBuffer.getLineCount();
+		const getLineLen = (lineNumber: number) => {
+			return textBuffer.getLineLength(lineNumber);
+		};
 
 		// split points need to be sorted
 		splitPoints = splitPoints.sort((l, r) => {
@@ -809,22 +815,21 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.pushIfAbsent(boundaries, new Position(1, 1));
 
 		for (let sp of splitPoints) {
-			if (this.isAtEOL(sp, lines) && sp.lineNumber < lines.length) {
+			if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.lineNumber < lineCnt) {
 				sp = new Position(sp.lineNumber + 1, 1);
 			}
 			this.pushIfAbsent(boundaries, sp);
 		}
 
 		// eat-up any split point at the beginning, i.e. we ignore the split point at the very end
-		this.pushIfAbsent(boundaries, new Position(lines.length, lines[lines.length - 1].length + 1));
+		this.pushIfAbsent(boundaries, new Position(lineCnt, getLineLen(lineCnt) + 1));
 
 		// if we only have two then they describe the whole range and nothing needs to be split
 		return boundaries.length > 2 ? boundaries : null;
 	}
 
 	private computeCellLinesContents(cell: IEditableCellViewModel, splitPoints: IPosition[]): string[] | null {
-		const lines = cell.getLinesContent();
-		const rangeBoundaries = this.splitPointsToBoundaries(splitPoints, lines);
+		const rangeBoundaries = this.splitPointsToBoundaries(splitPoints, cell.textBuffer);
 		if (!rangeBoundaries) {
 			return null;
 		}
