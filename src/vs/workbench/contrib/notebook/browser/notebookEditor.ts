@@ -18,6 +18,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
+import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -47,10 +48,6 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
