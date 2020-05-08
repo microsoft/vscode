@@ -47,6 +47,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IPosition, Position } from 'vs/editor/common/core/position';
+import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -781,11 +782,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		return newCell;
 	}
 
-	private isAtEOL(p: IPosition, lines: string[]) {
-		const line = lines[p.lineNumber - 1];
-		return line.length + 1 === p.column;
-	}
-
 	private pushIfAbsent(positions: IPosition[], p: IPosition) {
 		const last = positions.length > 0 ? positions[positions.length - 1] : undefined;
 		if (!last || last.lineNumber !== p.lineNumber || last.column !== p.column) {
@@ -798,8 +794,12 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	 * Move end of line split points to the beginning of the next line;
 	 * Avoid duplicate split points
 	 */
-	private splitPointsToBoundaries(splitPoints: IPosition[], lines: string[]): IPosition[] | null {
+	private splitPointsToBoundaries(splitPoints: IPosition[], textBuffer: IReadonlyTextBuffer): IPosition[] | null {
 		const boundaries: IPosition[] = [];
+		const lineCnt = textBuffer.getLineCount();
+		const getLineLen = (lineNumber: number) => {
+			return textBuffer.getLineLength(lineNumber);
+		};
 
 		// split points need to be sorted
 		splitPoints = splitPoints.sort((l, r) => {
@@ -812,22 +812,21 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.pushIfAbsent(boundaries, new Position(1, 1));
 
 		for (let sp of splitPoints) {
-			if (this.isAtEOL(sp, lines) && sp.lineNumber < lines.length) {
+			if (getLineLen(sp.lineNumber) + 1 === sp.column && sp.lineNumber < lineCnt) {
 				sp = new Position(sp.lineNumber + 1, 1);
 			}
 			this.pushIfAbsent(boundaries, sp);
 		}
 
 		// eat-up any split point at the beginning, i.e. we ignore the split point at the very end
-		this.pushIfAbsent(boundaries, new Position(lines.length, lines[lines.length - 1].length + 1));
+		this.pushIfAbsent(boundaries, new Position(lineCnt, getLineLen(lineCnt) + 1));
 
 		// if we only have two then they describe the whole range and nothing needs to be split
 		return boundaries.length > 2 ? boundaries : null;
 	}
 
 	private computeCellLinesContents(cell: IEditableCellViewModel, splitPoints: IPosition[]): string[] | null {
-		const lines = cell.getLinesContent();
-		const rangeBoundaries = this.splitPointsToBoundaries(splitPoints, lines);
+		const rangeBoundaries = this.splitPointsToBoundaries(splitPoints, cell.textBuffer);
 		if (!rangeBoundaries) {
 			return null;
 		}

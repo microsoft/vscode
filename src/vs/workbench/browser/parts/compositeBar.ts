@@ -253,6 +253,12 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return actionBarDiv;
 	}
 
+	focus(): void {
+		if (this.compositeSwitcherBar) {
+			this.compositeSwitcherBar.focus();
+		}
+	}
+
 	layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (dimension.height === 0 || dimension.width === 0) {

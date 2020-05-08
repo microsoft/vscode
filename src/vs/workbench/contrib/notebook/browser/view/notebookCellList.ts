@@ -157,7 +157,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 						const cell = this.element(i);
-						if (this._viewModel!.hasCell(cell)) {
+						if (this._viewModel!.hasCell(cell.handle)) {
 							hideOutputs.push(...cell?.model.outputs);
 						} else {
 							deletedOutputs.push(...cell?.model.outputs);
@@ -177,7 +177,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 						for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 							const cell = this.element(i);
-							if (this._viewModel!.hasCell(cell)) {
+							if (this._viewModel!.hasCell(cell.handle)) {
 								hideOutputs.push(...cell?.model.outputs);
 							} else {
 								deletedOutputs.push(...cell?.model.outputs);
@@ -299,7 +299,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				const cell = this.element(i);
-				if (this._viewModel!.hasCell(cell)) {
+				if (this._viewModel!.hasCell(cell.handle)) {
 					hideOutputs.push(...cell?.model.outputs);
 				} else {
 					deletedOutputs.push(...cell?.model.outputs);
@@ -316,6 +316,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
 		// we need to convert start and delete count based on hidden ranges
 		super.splice(start, deleteCount, elements);
+
+		const selectionsLeft = [];
+		this._viewModel!.selectionHandles.forEach(handle => {
+			if (this._viewModel!.hasCell(handle)) {
+				selectionsLeft.push(handle);
+			}
+		});
+
+		if (!selectionsLeft.length && this._viewModel!.viewCells) {
+			// after splice, the selected cells are deleted
+			this._viewModel!.selectionHandles = [this._viewModel!.viewCells[0].handle];
+		}
 	}
 
 	getViewIndex(cell: ICellViewModel) {

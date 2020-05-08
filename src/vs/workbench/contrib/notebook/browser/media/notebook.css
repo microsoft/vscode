@@ -21,6 +21,10 @@
 	overflow: visible !important;
 } */
 
+.monaco-workbench .part.editor > .content .notebook-editor .simple-fr-find-part-wrapper.visible {
+	z-index: 100;
+}
+
 .monaco-workbench .part.editor > .content .notebook-editor .cell-list-container .overflowingContentWidgets > div {
 	z-index: 600 !important;
 	/* @rebornix: larger than the editor title bar */

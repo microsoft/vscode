@@ -791,7 +791,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (quickOpenHistoryLimit === 0) {
 			return;
 		}
-		let keys = [...this._recentlyUsedTasks.keys()];
+		let keys = this._recentlyUsedTasks.keys();
 		if (keys.length > quickOpenHistoryLimit) {
 			keys = keys.slice(0, quickOpenHistoryLimit);
 		}
@@ -1579,7 +1579,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								for (const task of taskSet.tasks) {
 									if (task.type !== this._providerTypes.get(handle)) {
 										this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
-										this.showOutput();
+										if ((task.type !== 'shell') && (task.type !== 'process')) {
+											this.showOutput();
+										}
 										break;
 									}
 								}
@@ -2323,7 +2325,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				taskMap[key] = task;
 			}
 		});
-		const reversed = [...recentlyUsedTasks.keys()].reverse();
+		const reversed = recentlyUsedTasks.keys().reverse();
 		for (const key in reversed) {
 			let task = taskMap[key];
 			if (task) {

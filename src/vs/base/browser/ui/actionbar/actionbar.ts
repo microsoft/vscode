@@ -477,27 +477,27 @@ export class ActionBar extends Disposable implements IActionRunner {
 			DOM.addClass(this.domNode, 'animated');
 		}
 
-		let previousKey: KeyCode;
-		let nextKey: KeyCode;
+		let previousKeys: KeyCode[];
+		let nextKeys: KeyCode[];
 
 		switch (this.options.orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKey = KeyCode.LeftArrow;
-				nextKey = KeyCode.RightArrow;
+				previousKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
 				break;
 			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKey = KeyCode.RightArrow;
-				nextKey = KeyCode.LeftArrow;
+				previousKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' reverse';
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKey = KeyCode.UpArrow;
-				nextKey = KeyCode.DownArrow;
+				previousKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
 				break;
 			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKey = KeyCode.DownArrow;
-				nextKey = KeyCode.UpArrow;
+				previousKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' vertical reverse';
 				break;
 		}
@@ -506,9 +506,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(previousKey)) {
+			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
 				this.focusPrevious();
-			} else if (event.equals(nextKey)) {
+			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this._onDidCancel.fire();

@@ -37,7 +37,6 @@ namespace schema {
 			case 'debug/callstack/context': return MenuId.DebugCallStackContext;
 			case 'debug/toolbar': return MenuId.DebugToolBar;
 			case 'debug/toolBar': return MenuId.DebugToolBar;
-			case 'menuBar/file': return MenuId.MenubarFileMenu;
 			case 'menuBar/webNavigation': return MenuId.MenubarWebNavigationMenu;
 			case 'scm/title': return MenuId.SCMTitle;
 			case 'scm/sourceControl': return MenuId.SCMSourceControl;
@@ -64,7 +63,6 @@ namespace schema {
 	export function isProposedAPI(menuId: MenuId): boolean {
 		switch (menuId) {
 			case MenuId.StatusBarWindowIndicatorMenu:
-			case MenuId.MenubarFileMenu:
 			case MenuId.MenubarWebNavigationMenu:
 				return true;
 		}

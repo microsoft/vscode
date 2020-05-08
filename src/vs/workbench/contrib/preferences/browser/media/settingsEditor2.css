@@ -40,12 +40,9 @@
 }
 
 .settings-editor > .settings-header > .search-container > .settings-count-widget {
-	margin: 6px 0px;
-	padding: 0px 8px;
-	border-radius: 2px;
 	position: absolute;
 	right: 35px;
-	top: 0;
+	top: 6px;
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget {
