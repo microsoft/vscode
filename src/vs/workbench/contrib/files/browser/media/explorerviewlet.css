@@ -60,8 +60,7 @@
 }
 
 .dirty-count.monaco-count-badge {
-	padding-top: 2px;
-	padding-bottom: 2px;
+	padding: 2px 4px;
 	margin-left: 6px;
 	min-height: auto;
 }

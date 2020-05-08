@@ -349,7 +349,8 @@ export interface ISearchConfigurationProperties {
 	searchOnTypeDebouncePeriod: number;
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
-		experimental: { reusePriorSearchConfiguration: boolean }
+		reusePriorSearchConfiguration: boolean,
+		experimental: {}
 	};
 	sortOrder: SearchSortOrder;
 }
