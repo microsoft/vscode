@@ -147,6 +147,14 @@ export const enum SortOrder {
 	Modified = 'modified'
 }
 
+export const enum SortOrderOption {
+	Numeric = 'numeric',
+	Upper = 'upper',
+	Lower = 'lower',
+	Mixed = 'mixed',
+	Unicode = 'unicode',
+}
+
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {
 	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
 
