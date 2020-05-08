@@ -290,8 +290,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
 		this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
 
-		// Revalidate center layout when active editor changes: diff editor quits centered mode.
+		// Revalidate center layout when inline diff editor is toggled or active editor changes: side by side diff editor quits centered mode.
 		this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.state.editor.centered)));
+		this._register(this.configurationService.onDidChangeConfiguration((e) => { if (e.affectsConfiguration('diffEditor.renderSideBySide')) { this.centerEditorLayout(this.state.editor.centered); } }));
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(() => this.doUpdateLayoutConfiguration()));
@@ -1209,8 +1210,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
 		if (this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')
-			&& (this.editorGroupService.groups.length > 1 || (activeEditor && activeEditor instanceof SideBySideEditorInput))) {
-			smartActive = false; // Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
+			&& (this.editorGroupService.groups.length > 1
+				|| (activeEditor && activeEditor instanceof SideBySideEditorInput && this.configurationService.getValue('diffEditor.renderSideBySide')))) {
+			// Respect the auto resize setting - do not go into centered layout if there is more than 1 group or diffEditor in side by side mode is active
+			smartActive = false;
 		}
 
 		// Enter Centered Editor Layout
