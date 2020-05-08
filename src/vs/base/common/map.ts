@@ -715,7 +715,7 @@ export class LinkedMap<K, V> {
 			},
 			next(): IteratorResult<K> {
 				if (map._state !== state) {
-					throw new Error(`Map got modified during iteration.`);
+					throw new Error(`LinkedMap got modified during iteration.`);
 				}
 				if (current) {
 					const result = { value: current.key, done: false };
@@ -739,7 +739,7 @@ export class LinkedMap<K, V> {
 			},
 			next(): IteratorResult<V> {
 				if (map._state !== state) {
-					throw new Error(`Map got modified during iteration.`);
+					throw new Error(`LinkedMap got modified during iteration.`);
 				}
 				if (current) {
 					const result = { value: current.value, done: false };
@@ -763,7 +763,7 @@ export class LinkedMap<K, V> {
 			},
 			next(): IteratorResult<[K, V]> {
 				if (map._state !== state) {
-					throw new Error(`Map got modified during iteration.`);
+					throw new Error(`LinkedMap got modified during iteration.`);
 				}
 				if (current) {
 					const result: IteratorResult<[K, V]> = { value: [current.key, current.value], done: false };
