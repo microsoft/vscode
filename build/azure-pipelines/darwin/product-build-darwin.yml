@@ -173,6 +173,7 @@ steps:
     security import $(agent.tempdirectory)/cert.p12 -k $(agent.tempdirectory)/buildagent.keychain -P "$(macos-developer-certificate-key)" -T /usr/bin/codesign
     security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k pwd $(agent.tempdirectory)/buildagent.keychain
     codesign -s 99FM488X57 --deep --force --options runtime --entitlements build/azure-pipelines/darwin/entitlements.plist "$APP_ROOT"/*.app
+    codesign -s 99FM488X57 --force --options runtime --entitlements build/azure-pipelines/darwin/helper-entitlements.plist "$APP_FRAMEWORK_PATH/$HELPER_APP_NAME Helper.app"
     codesign -s 99FM488X57 --force --options runtime --entitlements build/azure-pipelines/darwin/helper-gpu-entitlements.plist "$APP_FRAMEWORK_PATH/$HELPER_APP_NAME Helper (GPU).app"
     codesign -s 99FM488X57 --force --options runtime --entitlements build/azure-pipelines/darwin/helper-plugin-entitlements.plist "$APP_FRAMEWORK_PATH/$HELPER_APP_NAME Helper (Plugin).app"
     codesign -s 99FM488X57 --force --options runtime --entitlements build/azure-pipelines/darwin/helper-renderer-entitlements.plist "$APP_FRAMEWORK_PATH/$HELPER_APP_NAME Helper (Renderer).app"
