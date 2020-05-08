@@ -58,25 +58,15 @@ export function compareFileNamesNumeric(one: string | null, other: string | null
 	let result;
 
 	// Check for name differences, comparing numbers numerically instead of alphabetically.
-	result = collatorNumeric.compare(oneName, otherName);
+	result = compareAndDisambiguateByLength(collatorNumeric, oneName, otherName);
 	if (result !== 0) {
 		return result;
-	}
-
-	// Using the numeric option in the collator will make compare(`foo1`, `foo01`) === 0. Sort the shorter name first.
-	if (oneName.length !== otherName.length) {
-		return oneName.length < otherName.length ? -1 : 1;
 	}
 
 	// Check for case insensitive extension differences, comparing numbers numerically instead of alphabetically.
-	result = collatorNumericCaseInsensitive.compare(oneExtension, otherExtension);
+	result = compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension);
 	if (result !== 0) {
 		return result;
-	}
-
-	// If extensions are numerically equal but not equal in length, sort the shorter extension first.
-	if (oneExtension.length !== otherExtension.length) {
-		return oneExtension.length < otherExtension.length ? -1 : 1;
 	}
 
 	// Disambiguate the extension case if needed.
@@ -142,25 +132,15 @@ export function compareFileExtensionsNumeric(one: string | null, other: string |
 	let result;
 
 	// Check for extension differences, ignoring differences in case and comparing numbers numerically.
-	result = collatorNumericCaseInsensitive.compare(oneExtension, otherExtension);
+	result = compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension);
 	if (result !== 0) {
 		return result;
-	}
-
-	// Disambiguate equivalent numbers in extensions.
-	if (oneExtension.length !== otherExtension.length) {
-		return oneExtension.length < otherExtension.length ? -1 : 1;
 	}
 
 	// Compare names.
-	result = collatorNumeric.compare(oneName, otherName);
+	result = compareAndDisambiguateByLength(collatorNumeric, oneName, otherName);
 	if (result !== 0) {
 		return result;
-	}
-
-	// Disambiguate equivalent numbers in names.
-	if (oneName.length !== otherName.length) {
-		return oneName.length < otherName.length ? -1 : 1;
 	}
 
 	// Disambiguate extension case if needed.
@@ -172,7 +152,7 @@ export function compareFileExtensionsNumeric(one: string | null, other: string |
 }
 
 /** Extracts the name and extension from a full filename, with optional special handling for dotfiles */
-export function extractNameAndExtension(str?: string | null, dotfilesAsNames = false): [string, string] {
+function extractNameAndExtension(str?: string | null, dotfilesAsNames = false): [string, string] {
 	const match = str ? FileNameMatch.exec(str) as Array<string> : ([] as Array<string>);
 
 	let result: [string, string] = [(match && match[1]) || '', (match && match[3]) || ''];
@@ -184,6 +164,22 @@ export function extractNameAndExtension(str?: string | null, dotfilesAsNames = f
 	}
 
 	return result;
+}
+
+function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, other: string) {
+	// Check for differences
+	let result = collator.compare(one, other);
+	if (result !== 0) {
+		return result;
+	}
+
+	// In a numeric comparison, `foo1` and `foo01` will compare as equivalent.
+	// Disambiguate by sorting the shorter string first.
+	if (one.length !== other.length) {
+		return one.length < other.length ? -1 : 1;
+	}
+
+	return 0;
 }
 
 function comparePathComponents(one: string, other: string, caseSensitive = false): number {
