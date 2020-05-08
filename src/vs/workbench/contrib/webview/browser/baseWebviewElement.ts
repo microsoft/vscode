@@ -21,6 +21,7 @@ export const enum WebviewMessageChannels {
 	didScroll = 'did-scroll',
 	didFocus = 'did-focus',
 	didBlur = 'did-blur',
+	didLoad = 'did-load',
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
 	loadResource = 'load-resource',
@@ -153,6 +154,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
+	private readonly _onDidReload = this._register(new Emitter<void>());
+	public readonly onDidReload = this._onDidReload.event;
+
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
 
@@ -216,6 +220,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	public reload(): void {
 		this.doUpdateContent();
+		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
+			this._onDidReload.fire();
+			subscription.dispose();
+		}));
 	}
 
 	public set html(value: string) {

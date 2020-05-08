@@ -65,6 +65,7 @@ export interface ICreationRequestMessage {
 	outputId: string;
 	top: number;
 	left: number;
+	initiallyHidden?: boolean;
 }
 
 export interface IContentWidgetTopRequest {
@@ -93,13 +94,20 @@ export interface IUpdatePreloadResourceMessage {
 	resources: string[];
 }
 
+interface ICachedInset {
+	outputId: string;
+	cell: CodeCellViewModel;
+	preloads: ReadonlySet<number>;
+	cachedCreation: ICreationRequestMessage;
+}
+
 type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
 	element: HTMLElement;
 	webview!: WebviewElement;
-	insetMapping: Map<IOutput, { outputId: string, cell: CodeCellViewModel, cacheOffset: number | undefined }> = new Map();
+	insetMapping: Map<IOutput, ICachedInset> = new Map();
 	hiddenInsetMapping: Set<IOutput> = new Set();
 	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
@@ -336,6 +344,9 @@ ${loaderJs}
 							height: outputNode.clientHeight
 						}
 					});
+
+					// don't hide until after this step so that the height is right
+					cellOutputContainer.style.display = event.data.initiallyHidden ? 'none' : 'block';
 				}
 				break;
 			case 'view-scroll':
@@ -410,6 +421,14 @@ ${loaderJs}
 			this.openerService.open(link, { fromUserGesture: true });
 		}));
 
+		this._register(this.webview.onDidReload(() => {
+			this.preloadsCache.clear();
+			for (const [output, inset] of this.insetMapping.entries()) {
+				this.updateRendererPreloads(inset.preloads);
+				this.webview.sendMessage({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
+			}
+		}));
+
 		this._register(this.webview.onMessage((data: IMessage) => {
 			if (data.__vscode_notebook_message) {
 				if (data.type === 'dimension') {
@@ -480,7 +499,7 @@ ${loaderJs}
 			return true;
 		}
 
-		if (outputOffset === outputCache.cacheOffset) {
+		if (outputOffset === outputCache.cachedCreation.top) {
 			return false;
 		}
 
@@ -494,7 +513,7 @@ ${loaderJs}
 			let outputIndex = item.cell.outputs.indexOf(item.output);
 
 			let outputOffset = item.cellTop + item.cell.getOutputOffset(outputIndex);
-			outputCache.cacheOffset = outputOffset;
+			outputCache.cachedCreation.top = outputOffset;
 			this.hiddenInsetMapping.delete(item.output);
 
 			return {
@@ -544,7 +563,7 @@ ${loaderJs}
 		};
 
 		this.webview.sendMessage(message);
-		this.insetMapping.set(output, { outputId: outputId, cell: cell, cacheOffset: initialTop });
+		this.insetMapping.set(output, { outputId: outputId, cell: cell, preloads, cachedCreation: message });
 		this.hiddenInsetMapping.delete(output);
 		this.reversedInsetMapping.set(outputId, output);
 	}
@@ -589,7 +608,7 @@ ${loaderJs}
 		this.reversedInsetMapping = new Map();
 	}
 
-	updateRendererPreloads(preloads: Set<number>) {
+	updateRendererPreloads(preloads: ReadonlySet<number>) {
 		let resources: string[] = [];
 		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
