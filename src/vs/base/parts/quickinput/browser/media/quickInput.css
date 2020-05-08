@@ -103,6 +103,8 @@
 
 .quick-input-count .monaco-count-badge {
 	vertical-align: middle;
+	padding: 2px 4px;
+	border-radius: 2px;
 }
 
 .quick-input-action {
