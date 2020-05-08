@@ -15,7 +15,7 @@ import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBo
 import { SimpleButton, findCloseIcon, findNextMatchIcon, findPreviousMatchIcon, findReplaceIcon, findReplaceAllIcon } from 'vs/editor/contrib/find/findWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { ReplaceInput, IReplaceInputStyles } from 'vs/base/browser/ui/findinput/replaceInput';
@@ -267,6 +267,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	public updateTheme(theme: IColorTheme): void {
 		const inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionForeground: theme.getColor(inputActiveOptionBackground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
@@ -284,6 +285,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._findInput.style(inputStyles);
 		const replaceStyles: IReplaceInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
+			inputActiveOptionForeground: theme.getColor(inputActiveOptionForeground),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
 			inputBackground: theme.getColor(inputBackground),
 			inputForeground: theme.getColor(inputForeground),
