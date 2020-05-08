@@ -154,7 +154,8 @@ steps:
     artifactName: crash-dump-windows-$(VSCODE_ARCH)
     targetPath: .build\crashes
   displayName: 'Publish Crash Reports'
-  condition: succeededOrFailed()
+  continueOnError: true
+  condition: failed()
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:

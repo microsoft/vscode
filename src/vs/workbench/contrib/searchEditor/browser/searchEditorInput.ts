@@ -36,7 +36,7 @@ import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapab
 export type SearchConfiguration = {
 	query: string,
 	includes: string,
-	excludes: string
+	excludes: string,
 	contextLines: number,
 	wholeWord: boolean,
 	caseSensitive: boolean,
@@ -304,7 +304,7 @@ export const getOrMakeSearchEditorInput = (
 	const storageService = accessor.get(IStorageService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	const reuseOldSettings = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor?.experimental?.reusePriorSearchConfiguration;
+	const reuseOldSettings = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor?.reusePriorSearchConfiguration;
 	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE).searchConfig : {};
 	const defaultConfig = defaultSearchConfig();
 	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };

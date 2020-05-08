@@ -157,7 +157,8 @@ steps:
     artifactName: crash-dump-macos
     targetPath: .build/crashes
   displayName: 'Publish Crash Reports'
-  condition: succeededOrFailed()
+  continueOnError: true
+  condition: failed()
 
 - script: |
     set -e
