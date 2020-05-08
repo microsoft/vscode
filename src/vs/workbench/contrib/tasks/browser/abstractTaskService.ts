@@ -717,7 +717,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const tasks: (Task | ConfiguringTask)[] = [];
 		for (const entry of recentlyUsedTasks.entries()) {
 			const key = entry[0];
-			const task = entry[1];
+			const task = JSON.parse(entry[1]);
 			const folder = this.getFolderFromTaskKey(key);
 			if (folder && !folderToTasksMap.has(folder)) {
 				folderToTasksMap.set(folder, []);
