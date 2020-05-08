@@ -69,7 +69,6 @@ export function getInvalidTypeError(value: any, type: undefined | string | strin
 		(valueType === 'boolean' && !canBeType(typeArr, 'boolean')) ||
 		(valueType === 'object' && !canBeType(typeArr, 'object', 'null', 'array')) ||
 		(valueType === 'string' && !canBeType(typeArr, 'string', 'number', 'integer')) ||
-		(typeof parseFloat(value) === 'number' && !isNaN(parseFloat(value)) && !canBeType(typeArr, 'number', 'integer')) ||
 		(Array.isArray(value) && !canBeType(typeArr, 'array'))
 	) {
 		if (typeof type !== 'undefined') {
