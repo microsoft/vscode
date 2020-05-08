@@ -105,6 +105,14 @@ export interface IUpdatePreloadResourceMessage {
 	resources: string[];
 }
 
+function html(strings: TemplateStringsArray, ...values: any[]): string {
+	let str = '';
+	strings.forEach((string, i) => {
+		str += string + values[i];
+	});
+	return str;
+}
+
 type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage;
 
 let version = 0;
@@ -120,8 +128,6 @@ export class BackLayerWebView extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
 	private _initalized: Promise<void>;
-	private activeCellId: string | undefined;
-
 
 	constructor(
 		public notebookEditor: INotebookEditor,
@@ -174,7 +180,7 @@ ${loaderJs}
 	}
 
 	generateContent(outputNodePadding: number, coreDependencies: string) {
-		return /* html */`
+		return html`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
@@ -290,6 +296,21 @@ ${loaderJs}
 		});
 	};
 
+	function createFocusSink(cellId, focusNext) {
+		const element = document.createElement('div');
+		element.tabIndex = 0;
+		element.addEventListener('focus', () => {
+			vscode.postMessage({
+				__vscode_notebook_message: true,
+				type: 'focus-editor',
+				id: cellId,
+				focusNext
+			});
+		});
+
+		return element;
+	}
+
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', event => {
@@ -303,16 +324,8 @@ ${loaderJs}
 					if (!cellOutputContainer) {
 						const container = document.getElementById('container');
 
-						let upperWrapperElement = document.createElement('div');
-						upperWrapperElement.tabIndex = 0;
+						const upperWrapperElement = createFocusSink(outputId);
 						container.appendChild(upperWrapperElement);
-						upperWrapperElement.addEventListener('focus', () => {
-							vscode.postMessage({
-								__vscode_notebook_message: true,
-								type: 'focus-editor',
-								id: outputId,
-							});
-						});
 
 						let newElement = document.createElement('div');
 
@@ -337,31 +350,8 @@ ${loaderJs}
 							});
 						});
 
-						const handleKeyDown = (event) => {
-							if (event.defaultPrevented || !(event.key === 'ArrowUp' && event.ctrlKey)) {
-								return;
-							}
-
-							vscode.postMessage({
-								__vscode_notebook_message: true,
-								type: 'focus-editor',
-								id: outputId,
-							});
-						};
-
-						cellOutputContainer.addEventListener("keydown", handleKeyDown);
-
-						let lowerWrapperElement = document.createElement('div');
-						lowerWrapperElement.tabIndex = 0;
+						const lowerWrapperElement = createFocusSink(outputId, true);
 						container.appendChild(lowerWrapperElement);
-						lowerWrapperElement.addEventListener('focus', () => {
-							vscode.postMessage({
-								__vscode_notebook_message: true,
-								type: 'focus-editor',
-								id: outputId,
-								focusNext: true
-							});
-						});
 					}
 
 					let outputNode = document.createElement('div');
@@ -466,15 +456,6 @@ ${loaderJs}
 	initialize(content: string) {
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
-		this.webview.onDidFocus(() => {
-			if (this.activeCellId) {
-				this.webview.sendMessage({
-					type: 'focus-output',
-					id: this.activeCellId
-				});
-				this.activeCellId = undefined;
-			}
-		});
 
 		this._register(this.webview.onDidClickLink(link => {
 			this.openerService.open(link, { fromUserGesture: true });
@@ -679,8 +660,13 @@ ${loaderJs}
 	}
 
 	focusOutput(cellId: string) {
-		this.activeCellId = cellId;
 		this.webview.focus();
+		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
+			this.webview.sendMessage({
+				type: 'focus-output',
+				id: cellId
+			});
+		}, 50);
 	}
 
 	updateRendererPreloads(preloads: Set<number>) {
