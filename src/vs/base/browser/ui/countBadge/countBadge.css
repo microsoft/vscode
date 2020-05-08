@@ -15,3 +15,8 @@
 	display: inline-block;
 	box-sizing: border-box;
 }
+
+.monaco-count-badge.long {
+	padding: 2px 3px;
+	border-radius: 2px;
+}

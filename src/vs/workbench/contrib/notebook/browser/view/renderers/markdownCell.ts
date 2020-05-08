@@ -250,7 +250,6 @@ export class StatefullMarkdownCell extends Disposable {
 	bindEditorListeners(model: ITextModel, dimension?: IDimension) {
 		this.localDisposables.add(model.onDidChangeContent(() => {
 			// we don't need to update view cell text anymore as the textbuffer is shared
-			// this.viewCell.setText(model.getLinesContent());
 			this.viewCell.clearHTML();
 			let clientHeight = this.markdownContainer.clientHeight;
 			this.markdownContainer.innerHTML = '';
