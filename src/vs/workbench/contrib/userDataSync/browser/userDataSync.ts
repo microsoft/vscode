@@ -79,7 +79,7 @@ const resolveSettingsConflictsCommand = { id: 'workbench.userData.actions.resolv
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userData.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
 const resolveSnippetsConflictsCommand = { id: 'workbench.userData.actions.resolveSnippetsConflicts', title: localize('showSnippetsConflicts', "Preferences Sync: Show User Snippets Conflicts") };
 const configureSyncCommand = { id: 'workbench.userData.actions.configureSync', title: localize('configure sync', "Preferences Sync: Configure...") };
-const showSyncActivityCommand = { id: 'workbench.userData.actions.showSyncActivity', title: localize('show sync log', "Preferences Sync: Show Log") };
+const showSyncActivityCommand = { id: 'workbench.userData.actions.showSyncActivity', title: localize('show sync log title', "Preferences Sync: Show Log") };
 const syncNowCommand = {
 	id: 'workbench.userData.actions.syncNow',
 	title: localize('sync now', "Preferences Sync: Sync Now"),
