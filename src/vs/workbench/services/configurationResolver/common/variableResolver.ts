@@ -18,7 +18,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 export interface IVariableResolveContext {
 	getFolderUri(folderName: string): uri | undefined;
 	getWorkspaceFolderCount(): number;
-	getConfigurationValue(folderUri: uri, section: string): string | undefined;
+	getConfigurationValue(folderUri: uri | undefined, section: string): string | undefined;
 	getExecPath(): string | undefined;
 	getFilePath(): string | undefined;
 	getSelectedText(): string | undefined;
@@ -162,9 +162,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 		};
 
 		// common error handling for all variables that require an open folder and accept a folder name argument
-		const getFolderUri = (withArg = true): uri => {
+		const getFolderUri = (): uri => {
 
-			if (withArg && argument) {
+			if (argument) {
 				const folder = this._context.getFolderUri(argument);
 				if (folder) {
 					return folder;
@@ -200,7 +200,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 
 			case 'config':
 				if (argument) {
-					const config = this._context.getConfigurationValue(getFolderUri(false), argument);
+					const config = this._context.getConfigurationValue(folderUri, argument);
 					if (types.isUndefinedOrNull(config)) {
 						throw new Error(localize('configNotFound', "'{0}' can not be resolved because setting '{1}' not found.", match, argument));
 					}
