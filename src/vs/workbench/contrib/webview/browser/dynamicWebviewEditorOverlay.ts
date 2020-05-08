@@ -130,6 +130,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			this._webviewEvents.add(webview.onMessage(x => { this._onMessage.fire(x); }));
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
+			this._webviewEvents.add(webview.onDidReload(() => { this._onDidReload.fire(); }));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -188,6 +189,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink: Event<string> = this._onDidClickLink.event;
+
+	private readonly _onDidReload = this._register(new Emitter<void>());
+	public readonly onDidReload = this._onDidReload.event;
 
 	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
 	public readonly onDidScroll: Event<{ scrollYPercentage: number; }> = this._onDidScroll.event;
