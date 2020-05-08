@@ -506,9 +506,9 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(previousKeys[0]) || event.equals(previousKeys[1])) {
+			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
 				this.focusPrevious();
-			} else if (event.equals(nextKeys[0]) || event.equals(nextKeys[1])) {
+			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this._onDidCancel.fire();

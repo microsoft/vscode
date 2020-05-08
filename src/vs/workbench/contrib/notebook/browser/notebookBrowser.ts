@@ -15,10 +15,10 @@ import { ScrollEvent } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
-import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -110,7 +110,6 @@ export interface ICellViewModel {
 	resolveTextModel(): Promise<ITextModel>;
 	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata;
 	getSelectionsStartPosition(): IPosition[] | undefined;
-	getLinesContent(): string[];
 }
 
 export interface IEditableCellViewModel extends ICellViewModel {
@@ -224,7 +223,7 @@ export interface INotebookEditor {
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
-	focusNotebookCell(cell: ICellViewModel, focusEditor: boolean): void;
+	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
 	/**
 	 * Execute the given notebook cell

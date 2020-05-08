@@ -4,24 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { URI } from 'vs/base/common/uri';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { BaseCellRenderTemplate, CellEditState, CellRunState, ICellViewModel, INotebookEditor, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_EDITABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { URI } from 'vs/base/common/uri';
+import { BaseCellRenderTemplate, CellEditState, CellRunState, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_RUNNABLE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 // Notebook Commands
 const EXECUTE_NOTEBOOK_COMMAND_ID = 'notebook.execute';
@@ -66,6 +66,7 @@ const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
 
+const FOCUS_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutput';
 
 export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
@@ -207,11 +208,11 @@ registerAction2(class extends Action2 {
 		// Try to select below, fall back on inserting
 		const nextCell = editor.viewModel?.viewCells[idx + 1];
 		if (nextCell) {
-			editor.focusNotebookCell(nextCell, activeCell.editState === CellEditState.Editing);
+			editor.focusNotebookCell(nextCell, activeCell.editState === CellEditState.Editing ? 'editor' : 'container');
 		} else {
 			const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
 			if (newCell) {
-				editor.focusNotebookCell(newCell, true);
+				editor.focusNotebookCell(newCell, 'editor');
 			}
 		}
 	}
@@ -245,7 +246,7 @@ registerAction2(class extends Action2 {
 
 		const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
 		if (newCell) {
-			editor.focusNotebookCell(newCell, true);
+			editor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 });
@@ -320,7 +321,7 @@ registerAction2(class extends Action2 {
 				activeCell.editState = CellEditState.Preview;
 			}
 
-			editor.focusNotebookCell(activeCell, false);
+			editor.focusNotebookCell(activeCell, 'container');
 		}
 	}
 });
@@ -473,7 +474,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		newCell.model.language = language;
 	}
 
-	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing);
+	notebookEditor.focusNotebookCell(newCell, cell.editState === CellEditState.Editing ? 'editor' : 'container');
 	notebookEditor.deleteNotebookCell(cell);
 
 	return newCell;
@@ -528,7 +529,7 @@ abstract class InsertCellCommand extends Action2 {
 
 		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, context.ui);
 		if (newCell) {
-			context.notebookEditor.focusNotebookCell(newCell, true);
+			context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 }
@@ -699,7 +700,6 @@ registerAction2(class extends Action2 {
 	}
 });
 
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super(
@@ -740,12 +740,12 @@ registerAction2(class extends Action2 {
 			// deletion succeeds, move focus to the next cell
 			const nextCellIdx = index < context.notebookEditor.viewModel!.length ? index : context.notebookEditor.viewModel!.length - 1;
 			if (nextCellIdx >= 0) {
-				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[nextCellIdx], false);
+				context.notebookEditor.focusNotebookCell(context.notebookEditor.viewModel!.viewCells[nextCellIdx], 'container');
 			} else {
 				// No cells left, insert a new empty one
 				const newCell = context.notebookEditor.insertNotebookCell(undefined, context.cell.cellKind);
 				if (newCell) {
-					context.notebookEditor.focusNotebookCell(newCell, true);
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
 				}
 			}
 		}
@@ -759,7 +759,7 @@ async function moveCell(context: INotebookCellActionContext, direction: 'up' | '
 
 	if (result) {
 		// move cell command only works when the cell container has focus
-		context.notebookEditor.focusNotebookCell(context.cell, false);
+		context.notebookEditor.focusNotebookCell(context.cell, 'container');
 	}
 }
 
@@ -768,7 +768,7 @@ async function copyCell(context: INotebookCellActionContext, direction: 'up' | '
 	const newCellDirection = direction === 'up' ? 'above' : 'below';
 	const newCell = context.notebookEditor.insertNotebookCell(context.cell, context.cell.cellKind, newCellDirection, text);
 	if (newCell) {
-		context.notebookEditor.focusNotebookCell(newCell, false);
+		context.notebookEditor.focusNotebookCell(newCell, 'container');
 	}
 }
 
@@ -1074,7 +1074,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		editor.focusNotebookCell(newCell, true);
+		editor.focusNotebookCell(newCell, 'editor');
 	}
 });
 
@@ -1119,9 +1119,38 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		editor.focusNotebookCell(newCell, true);
+		editor.focusNotebookCell(newCell, 'editor');
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_OUTPUT_COMMAND_ID,
+			title: localize('focusOutput', 'Focus output'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED),
+				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
+				weight: EDITOR_WIDGET_ACTION_WEIGHT
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		const activeCell = context.cell;
+		editor.focusNotebookCell(activeCell, 'output');
+	}
+});
+
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -1217,7 +1246,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const firstCell = editor.viewModel.viewCells[0];
-		editor.focusNotebookCell(firstCell, false);
+		editor.focusNotebookCell(firstCell, 'container');
 	}
 });
 
@@ -1251,7 +1280,7 @@ registerAction2(class extends Action2 {
 		}
 
 		const firstCell = editor.viewModel.viewCells[editor.viewModel.length - 1];
-		editor.focusNotebookCell(firstCell, false);
+		editor.focusNotebookCell(firstCell, 'container');
 	}
 });
 
@@ -1366,7 +1395,7 @@ export class ChangeCellLanguageAction extends Action2 {
 			if (selection.languageId === 'markdown' && context.cell?.language !== 'markdown') {
 				const newCell = await changeCellToKind(CellKind.Markdown, { cell: context.cell, notebookEditor: context.notebookEditor });
 				if (newCell) {
-					context.notebookEditor.focusNotebookCell(newCell, true);
+					context.notebookEditor.focusNotebookCell(newCell, 'editor');
 				}
 			} else if (selection.languageId !== 'markdown' && context.cell?.language === 'markdown') {
 				await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, selection.languageId);
@@ -1435,7 +1464,7 @@ async function splitCell(context: INotebookCellActionContext): Promise<void> {
 	if (context.cell.cellKind === CellKind.Code) {
 		const newCells = await context.notebookEditor.splitNotebookCell(context.cell);
 		if (newCells) {
-			context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], true);
+			context.notebookEditor.focusNotebookCell(newCells[newCells.length - 1], 'editor');
 		}
 	}
 }
@@ -1473,7 +1502,7 @@ registerAction2(class extends Action2 {
 async function joinCells(context: INotebookCellActionContext, direction: 'above' | 'below'): Promise<void> {
 	const cell = await context.notebookEditor.joinNotebookCells(context.cell, direction, CellKind.Code);
 	if (cell) {
-		context.notebookEditor.focusNotebookCell(cell, true);
+		context.notebookEditor.focusNotebookCell(cell, 'editor');
 	}
 }
 

@@ -580,20 +580,21 @@ export const enum Touch {
 	AsNew = 2
 }
 
-export class LinkedMap<K, V> implements Map<K, V>{
-
-	readonly [Symbol.toStringTag] = 'LinkedMap';
+export class LinkedMap<K, V> {
 
 	private _map: Map<K, Item<K, V>>;
 	private _head: Item<K, V> | undefined;
 	private _tail: Item<K, V> | undefined;
 	private _size: number;
 
+	private _state: number;
+
 	constructor() {
 		this._map = new Map<K, Item<K, V>>();
 		this._head = undefined;
 		this._tail = undefined;
 		this._size = 0;
+		this._state = 0;
 	}
 
 	clear(): void {
@@ -601,6 +602,7 @@ export class LinkedMap<K, V> implements Map<K, V>{
 		this._head = undefined;
 		this._tail = undefined;
 		this._size = 0;
+		this._state++;
 	}
 
 	isEmpty(): boolean {
@@ -634,7 +636,7 @@ export class LinkedMap<K, V> implements Map<K, V>{
 		return item.value;
 	}
 
-	set(key: K, value: V, touch: Touch = Touch.None): this {
+	set(key: K, value: V, touch: Touch = Touch.None): void {
 		let item = this._map.get(key);
 		if (item) {
 			item.value = value;
@@ -660,7 +662,6 @@ export class LinkedMap<K, V> implements Map<K, V>{
 			this._map.set(key, item);
 			this._size++;
 		}
-		return this;
 	}
 
 	delete(key: K): boolean {
@@ -705,12 +706,17 @@ export class LinkedMap<K, V> implements Map<K, V>{
 	}
 
 	keys(): IterableIterator<K> {
+		const map = this;
+		const state = this._state;
 		let current = this._head;
 		const iterator: IterableIterator<K> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
 			next(): IteratorResult<K> {
+				if (map._state !== state) {
+					throw new Error(`LinkedMap got modified during iteration.`);
+				}
 				if (current) {
 					const result = { value: current.key, done: false };
 					current = current.next;
@@ -724,12 +730,17 @@ export class LinkedMap<K, V> implements Map<K, V>{
 	}
 
 	values(): IterableIterator<V> {
+		const map = this;
+		const state = this._state;
 		let current = this._head;
 		const iterator: IterableIterator<V> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
 			next(): IteratorResult<V> {
+				if (map._state !== state) {
+					throw new Error(`LinkedMap got modified during iteration.`);
+				}
 				if (current) {
 					const result = { value: current.value, done: false };
 					current = current.next;
@@ -743,12 +754,17 @@ export class LinkedMap<K, V> implements Map<K, V>{
 	}
 
 	entries(): IterableIterator<[K, V]> {
+		const map = this;
+		const state = this._state;
 		let current = this._head;
 		const iterator: IterableIterator<[K, V]> = {
 			[Symbol.iterator]() {
 				return iterator;
 			},
 			next(): IteratorResult<[K, V]> {
+				if (map._state !== state) {
+					throw new Error(`LinkedMap got modified during iteration.`);
+				}
 				if (current) {
 					const result: IteratorResult<[K, V]> = { value: [current.key, current.value], done: false };
 					current = current.next;
@@ -785,6 +801,7 @@ export class LinkedMap<K, V> implements Map<K, V>{
 		if (current) {
 			current.previous = undefined;
 		}
+		this._state++;
 	}
 
 	private addItemFirst(item: Item<K, V>): void {
@@ -798,6 +815,7 @@ export class LinkedMap<K, V> implements Map<K, V>{
 			this._head.previous = item;
 		}
 		this._head = item;
+		this._state++;
 	}
 
 	private addItemLast(item: Item<K, V>): void {
@@ -811,6 +829,7 @@ export class LinkedMap<K, V> implements Map<K, V>{
 			this._tail.next = item;
 		}
 		this._tail = item;
+		this._state++;
 	}
 
 	private removeItem(item: Item<K, V>): void {
@@ -847,6 +866,7 @@ export class LinkedMap<K, V> implements Map<K, V>{
 		}
 		item.next = undefined;
 		item.previous = undefined;
+		this._state++;
 	}
 
 	private touch(item: Item<K, V>, touch: Touch): void {
@@ -883,6 +903,7 @@ export class LinkedMap<K, V> implements Map<K, V>{
 			item.next = this._head;
 			this._head.previous = item;
 			this._head = item;
+			this._state++;
 		} else if (touch === Touch.AsNew) {
 			if (item === this._tail) {
 				return;
@@ -906,6 +927,7 @@ export class LinkedMap<K, V> implements Map<K, V>{
 			item.previous = this._tail;
 			this._tail.next = item;
 			this._tail = item;
+			this._state++;
 		}
 	}
 
@@ -957,18 +979,17 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		this.checkTrim();
 	}
 
-	get(key: K): V | undefined {
-		return super.get(key, Touch.AsNew);
+	get(key: K, touch: Touch = Touch.AsNew): V | undefined {
+		return super.get(key, touch);
 	}
 
 	peek(key: K): V | undefined {
 		return super.get(key, Touch.None);
 	}
 
-	set(key: K, value: V): this {
+	set(key: K, value: V): void {
 		super.set(key, value, Touch.AsNew);
 		this.checkTrim();
-		return this;
 	}
 
 	private checkTrim() {

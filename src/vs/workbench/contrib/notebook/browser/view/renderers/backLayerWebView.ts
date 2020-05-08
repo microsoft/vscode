@@ -4,22 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as path from 'vs/base/common/path';
+import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
-import { isWeb } from 'vs/base/common/platform';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
@@ -54,8 +54,20 @@ export interface IScrollAckMessage {
 	version: number;
 }
 
+export interface IBlurOutputMessage {
+	__vscode_notebook_message: boolean;
+	type: 'focus-editor';
+	id: string;
+	focusNext?: boolean;
+}
+
 export interface IClearMessage {
 	type: 'clear';
+}
+
+export interface IFocusOutputMessage {
+	type: 'focus-output';
+	id: string;
 }
 
 export interface ICreationRequestMessage {
@@ -93,7 +105,7 @@ export interface IUpdatePreloadResourceMessage {
 	resources: string[];
 }
 
-type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage;
+type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
@@ -108,6 +120,7 @@ export class BackLayerWebView extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
 	private _initalized: Promise<void>;
+	private activeCellId: string | undefined;
 
 
 	constructor(
@@ -288,10 +301,23 @@ ${loaderJs}
 					let cellOutputContainer = document.getElementById(id);
 					let outputId = event.data.outputId;
 					if (!cellOutputContainer) {
+						const container = document.getElementById('container');
+
+						let upperWrapperElement = document.createElement('div');
+						upperWrapperElement.tabIndex = 0;
+						container.appendChild(upperWrapperElement);
+						upperWrapperElement.addEventListener('focus', () => {
+							vscode.postMessage({
+								__vscode_notebook_message: true,
+								type: 'focus-editor',
+								id: outputId,
+							});
+						});
+
 						let newElement = document.createElement('div');
 
 						newElement.id = id;
-						document.getElementById('container').appendChild(newElement);
+						container.appendChild(newElement);
 						cellOutputContainer = newElement;
 
 						cellOutputContainer.addEventListener('mouseenter', () => {
@@ -308,6 +334,32 @@ ${loaderJs}
 								type: 'mouseleave',
 								id: outputId,
 								data: { }
+							});
+						});
+
+						const handleKeyDown = (event) => {
+							if (event.defaultPrevented || !(event.key === 'ArrowUp' && event.ctrlKey)) {
+								return;
+							}
+
+							vscode.postMessage({
+								__vscode_notebook_message: true,
+								type: 'focus-editor',
+								id: outputId,
+							});
+						};
+
+						cellOutputContainer.addEventListener("keydown", handleKeyDown);
+
+						let lowerWrapperElement = document.createElement('div');
+						lowerWrapperElement.tabIndex = 0;
+						container.appendChild(lowerWrapperElement);
+						lowerWrapperElement.addEventListener('focus', () => {
+							vscode.postMessage({
+								__vscode_notebook_message: true,
+								type: 'focus-editor',
+								id: outputId,
+								focusNext: true
 							});
 						});
 					}
@@ -384,6 +436,15 @@ ${loaderJs}
 					preloadsContainer.appendChild(scriptTag)
 				}
 				break;
+			case 'focus-output':
+				{
+					let cellOutputContainer = document.getElementById(id);
+					if(cellOutputContainer){
+						const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea');
+						focusableElement && focusableElement.focus();
+					}
+					break;
+				}
 		}
 	});
 }());
@@ -405,6 +466,15 @@ ${loaderJs}
 	initialize(content: string) {
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
+		this.webview.onDidFocus(() => {
+			if (this.activeCellId) {
+				this.webview.sendMessage({
+					type: 'focus-output',
+					id: this.activeCellId
+				});
+				this.activeCellId = undefined;
+			}
+		});
 
 		this._register(this.webview.onDidClickLink(link => {
 			this.openerService.open(link, { fromUserGesture: true });
@@ -445,6 +515,25 @@ ${loaderJs}
 						preventDefault: () => { },
 						stopPropagation: () => { }
 					});
+				} else if (data.type === 'focus-editor') {
+					const info = this.resolveOutputId(data.id);
+					if (info) {
+						if (data.focusNext) {
+							const idx = this.notebookEditor.viewModel?.getCellIndex(info.cell);
+							if (typeof idx !== 'number') {
+								return;
+							}
+
+							const newCell = this.notebookEditor.viewModel?.viewCells[idx + 1];
+							if (!newCell) {
+								return;
+							}
+
+							this.notebookEditor.focusNotebookCell(newCell, 'editor');
+						} else {
+							this.notebookEditor.focusNotebookCell(info.cell, 'editor');
+						}
+					}
 				}
 				return;
 			}
@@ -587,6 +676,11 @@ ${loaderJs}
 
 		this.insetMapping = new Map();
 		this.reversedInsetMapping = new Map();
+	}
+
+	focusOutput(cellId: string) {
+		this.activeCellId = cellId;
+		this.webview.focus();
 	}
 
 	updateRendererPreloads(preloads: Set<number>) {

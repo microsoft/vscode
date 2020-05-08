@@ -515,7 +515,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 	registerTokenType('namespace', nls.localize('namespace', "Style for namespaces."), [['entity.name.namespace']]);
 
 	registerTokenType('type', nls.localize('type', "Style for types."), [['entity.name.type'], ['support.type']]);
-	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['storage.type.struct']]);
+	registerTokenType('struct', nls.localize('struct', "Style for structs."), [['entity.name.type.struct']]);
 	registerTokenType('class', nls.localize('class', "Style for classes."), [['entity.name.type.class'], ['support.class']]);
 	registerTokenType('interface', nls.localize('interface', "Style for interfaces."), [['entity.name.type.interface']]);
 	registerTokenType('enum', nls.localize('enum', "Style for enums."), [['entity.name.type.enum']]);

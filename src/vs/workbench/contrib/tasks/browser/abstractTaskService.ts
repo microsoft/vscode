@@ -19,7 +19,7 @@ import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
-import { LRUCache } from 'vs/base/common/map';
+import { LRUCache, Touch } from 'vs/base/common/map';
 
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -715,9 +715,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const folderToTasksMap: Map<string, any> = new Map();
 		const recentlyUsedTasks = this.getRecentlyUsedTasks();
 		const tasks: (Task | ConfiguringTask)[] = [];
-		for (const key of recentlyUsedTasks.keys()) {
+		for (const entry of recentlyUsedTasks.entries()) {
+			const key = entry[0];
+			const task = JSON.parse(entry[1]);
 			const folder = this.getFolderFromTaskKey(key);
-			const task = JSON.parse(recentlyUsedTasks.get(key)!);
 			if (folder && !folderToTasksMap.has(folder)) {
 				folderToTasksMap.set(folder, []);
 			}
@@ -797,7 +798,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		const keyValues: [string, string][] = [];
 		for (const key of keys) {
-			keyValues.push([key, this._recentlyUsedTasks.get(key)!]);
+			keyValues.push([key, this._recentlyUsedTasks.get(key, Touch.None)!]);
 		}
 		this.storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE);
 	}
@@ -1579,7 +1580,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								for (const task of taskSet.tasks) {
 									if (task.type !== this._providerTypes.get(handle)) {
 										this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
-										this.showOutput();
+										if ((task.type !== 'shell') && (task.type !== 'process')) {
+											this.showOutput();
+										}
 										break;
 									}
 								}

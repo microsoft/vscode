@@ -826,6 +826,11 @@ configurationRegistry.registerConfiguration({
 			],
 			markdownDescription: nls.localize('search.searchEditor.doubleClickBehaviour', "Configure effect of double clicking a result in a search editor.")
 		},
+		'search.searchEditor.reusePriorSearchConfiguration': {
+			type: 'boolean',
+			default: false,
+			markdownDescription: nls.localize('search.searchEditor.reusePriorSearchConfiguration', "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
+		},
 		'search.sortOrder': {
 			'type': 'string',
 			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],

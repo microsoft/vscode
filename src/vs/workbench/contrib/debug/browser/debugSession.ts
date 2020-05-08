@@ -735,6 +735,7 @@ export class DebugSession implements IDebugSession {
 						await this.raw.configurationDone();
 					} catch (e) {
 						// Disconnect the debug session on configuration done error #10596
+						this.notificationService.error(e);
 						if (this.raw) {
 							this.raw.disconnect();
 						}
