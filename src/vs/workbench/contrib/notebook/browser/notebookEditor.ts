@@ -616,7 +616,7 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 				state.cellTotalHeights = cellHeights;
 
 				const focus = this.list.getFocus()[0];
-				if (focus) {
+				if (typeof focus === 'number') {
 					const element = this.notebookViewModel!.viewCells[focus];
 					const itemDOM = this.list?.domElementOfElement(element!);
 					let editorFocused = false;
