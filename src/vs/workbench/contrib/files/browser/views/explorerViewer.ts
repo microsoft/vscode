@@ -939,25 +939,30 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async handleWebExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		for (let item of originalEvent.dataTransfer.items) {
+		const items = (originalEvent as any).dataTransfer.items;
+		for (let item of items) {
 			const entry = item.webkitGetAsEntry();
 			await this.uploadFileEntry(entry, target.resource, target);
-		});
+
+			if (items.length === 1) {
+				await this.editorService.openEditor({ resource: joinPath(target.resource, entry.name), options: { pinned: true } });
+			}
+		}
 	}
 
-	private async uploadFileEntry(entry: FileSystemEntry, parentResource: URI, target: ExplorerItem): Promise<void> {
+	private async uploadFileEntry(entry: any, parentResource: URI, target: ExplorerItem | undefined): Promise<void> {
 		const resource = joinPath(parentResource, entry.name);
 
 		if (entry.isFile) {
 			// Handle file upload
 			if (target && target.getChild(entry.name)) {
-				const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(name));
+				const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(resource.path));
 				if (!confirmed) {
 					return;
 				}
 			}
 
-			const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
 			const reader = new FileReader();
 			reader.readAsArrayBuffer(file);
 			reader.onload = async (event) => {
@@ -965,9 +970,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
 
 					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
-					if (data.files.length === 1) {
-						await this.editorService.openEditor({ resource, options: { pinned: true } });
-					}
 				}
 			};
 		} else if (entry.isDirectory) {
@@ -977,10 +979,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			// Recursive upload files in this directory
 			const folderTarget = target && target.getChild(entry.name) || undefined;
 			const dirReader = entry.createReader();
-			const childEntries = await new Promise<FileSystemEntry[]>((resolve, reject) => {
+			const childEntries = await new Promise<any[]>((resolve, reject) => {
 				dirReader.readEntries(resolve, reject);
 			});
-			for (let childEntry of childEntries){
+			for (let childEntry of childEntries) {
 				await this.uploadFileEntry(childEntry, resource, folderTarget);
 			}
 		}
