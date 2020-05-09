@@ -54,6 +54,32 @@ export function getSelectionSearchString(editor: ICodeEditor): string | null {
 	return null;
 }
 
+export function getSelectionReplaceString(editor: ICodeEditor): string | null {
+	if (!editor.hasModel()) {
+		return null;
+	}
+
+	const selections = editor.getSelections();
+	const selectionSize = selections.length;
+	if (selectionSize > 1) {
+		const selection = selections[selectionSize - 1];
+		// if selection spans multiple lines, default search string to empty
+		if (selection.startLineNumber === selection.endLineNumber) {
+			if (selection.isEmpty()) {
+				const wordAtPosition = editor.getConfiguredWordAtPosition(selection.getStartPosition());
+				if (wordAtPosition) {
+					return wordAtPosition.word;
+				}
+			} else {
+				if (editor.getModel().getValueLengthInRange(selection) < SEARCH_STRING_MAX_LENGTH) {
+					return editor.getModel().getValueInRange(selection);
+				}
+			}
+		}
+	}
+	return null;
+}
+
 export const enum FindStartFocusAction {
 	NoFocusChange,
 	FocusFindInput,
@@ -269,12 +295,16 @@ export class CommonFindController extends Disposable implements IEditorContribut
 
 		if (opts.seedSearchStringFromSelection) {
 			let selectionSearchString = getSelectionSearchString(this._editor);
+			let replacementSearchString = getSelectionReplaceString(this._editor);
 			if (selectionSearchString) {
 				if (this._state.isRegex) {
 					stateChanges.searchString = strings.escapeRegExpCharacters(selectionSearchString);
 				} else {
 					stateChanges.searchString = selectionSearchString;
 				}
+			}
+			if (replacementSearchString) {
+				stateChanges.replaceString = replacementSearchString;
 			}
 		}
 
