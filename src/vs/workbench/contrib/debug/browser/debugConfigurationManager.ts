@@ -8,6 +8,7 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
+import * as json from 'vs/base/common/json';
 import { URI as uri } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -15,7 +16,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -385,7 +386,7 @@ export class ConfigurationManager implements IConfigurationManager {
 	private initLaunches(): void {
 		this.launches = this.contextService.getWorkspace().folders.map(folder => this.instantiationService.createInstance(Launch, this, folder));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch));
+			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this));
 		}
 		this.launches.push(this.instantiationService.createInstance(UserLaunch));
 
@@ -692,6 +693,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 
 class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	constructor(
+		private configurationManager: ConfigurationManager,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
@@ -715,10 +717,29 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspaceValue;
 	}
 
-	async openConfigFile(sideBySide: boolean, preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
+	async openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }> {
+		const ws = this.contextService.getWorkspace();
+
+		if (ws.folders.length === 0) {
+			return { editor: null, created: false };
+		}
+
+		let launchExistInFile = !!this.getConfig();
+		if (!launchExistInFile) {
+			// Launch property in workspace config not found: create one by collecting launch configs from debugConfigProviders
+			let content = '';
+			const adapter = await this.configurationManager.guessDebugger(type);
+			if (adapter) {
+				const initialConfigs = await this.configurationManager.provideDebugConfigurations(undefined, adapter.type, token || CancellationToken.None);
+				content = await adapter.getInitialConfigurationContent(initialConfigs);
+			}
+			if (content) {
+				await this.configurationService.updateValue('launch', json.parse(content), ConfigurationTarget.WORKSPACE);
+			}
+		}
 
 		const editor = await this.editorService.openEditor({
-			resource: this.contextService.getWorkspace().configuration!,
+			resource: ws.configuration!,
 			options: { preserveFocus }
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 

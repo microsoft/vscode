@@ -92,7 +92,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		if (configurationManager.selectedConfiguration.name) {
 			launch = configurationManager.selectedConfiguration.launch;
 		} else {
-			const launches = configurationManager.getLaunches().filter(l => !!l.workspace);
+			const launches = configurationManager.getLaunches().filter(l => !l.hidden);
 			if (launches.length === 1) {
 				launch = launches[0];
 			} else {
