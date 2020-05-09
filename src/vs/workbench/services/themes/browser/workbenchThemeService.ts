@@ -101,7 +101,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IWorkbenchLayoutService readonly layoutService: IWorkbenchLayoutService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.container = layoutService.getWorkbenchContainer();
+		this.container = layoutService.container;
 		this.settings = new ThemeConfiguration(configurationService);
 
 		this.colorThemeRegistry = new ThemeRegistry(extensionService, colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
@@ -123,9 +123,12 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
 		let themeData: ColorThemeData | undefined = ColorThemeData.fromStorageData(this.storageService);
-		const containerBaseTheme = this.getBaseThemeFromContainer();
-		if (!themeData || themeData.baseTheme !== containerBaseTheme) {
-			themeData = ColorThemeData.createUnloadedTheme(containerBaseTheme);
+		if (environmentService.configuration.highContrast && themeData?.baseTheme !== HIGH_CONTRAST) {
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(HIGH_CONTRAST);
+		}
+		if (!themeData) {
+			const defaultThemeType = environmentService.configuration.defaultThemeType || DARK;
+			themeData = ColorThemeData.createUnloadedThemeForThemeType(defaultThemeType);
 		}
 		themeData.setCustomizations(this.settings);
 		this.applyTheme(themeData, undefined, true);
@@ -424,6 +427,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		} else {
 			removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
 		}
+		console.log(newTheme.id);
 		addClasses(this.container, newTheme.id);
 
 		this.currentColorTheme.clearCaches();
@@ -616,16 +620,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		}
 		this.onProductIconThemeChange.fire(this.currentProductIconTheme);
 
-	}
-
-	private getBaseThemeFromContainer() {
-		for (let i = this.container.classList.length - 1; i >= 0; i--) {
-			const item = this.container.classList.item(i);
-			if (item === VS_LIGHT_THEME || item === VS_DARK_THEME || item === VS_HC_THEME) {
-				return item;
-			}
-		}
-		return VS_DARK_THEME;
 	}
 }
 
