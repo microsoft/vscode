@@ -300,15 +300,27 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		this.titleContainer = append(container, $('h3.title', undefined, title));
+		this.titleContainer = append(container, $('h3.title', undefined, this.calculateTitle(title)));
 	}
 
 	protected updateTitle(title: string): void {
 		if (this.titleContainer) {
-			this.titleContainer.textContent = title;
+			this.titleContainer.textContent = this.calculateTitle(title);
 		}
 		this.title = title;
 		this._onDidChangeTitleArea.fire();
+	}
+
+	private calculateTitle(title: string): string {
+		// const currentContainer = this.viewDescriptorService.getViewContainerByViewId(this.id)!;
+		// const containerTitle = this.viewDescriptorService.getViewContainerModel(currentContainer).title;
+		// const contextTitle = this.viewDescriptorService.getViewDescriptorById(this.id)?.containerTitle;
+
+		// if (contextTitle && !containerTitle.startsWith(contextTitle)) {
+		// 	return `${contextTitle}: ${title}`;
+		// }
+
+		return title;
 	}
 
 	private scrollableElement!: DomScrollableElement;
@@ -508,10 +520,6 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 }
 
-export interface IViewPaneContainerOptions extends IPaneViewOptions {
-	mergeViewWithContainerWhenSingleView: boolean;
-	donotShowContainerTitleWhenMergedWithContainer?: boolean;
-}
 
 interface IViewPaneItem {
 	pane: ViewPane;
@@ -738,12 +746,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	private visible: boolean = false;
 
-	private areExtensionsReady: boolean = false;
-
 	private didLayout = false;
 	private dimension: Dimension | undefined;
 
-	private readonly visibleViewsCountFromCache: number | undefined;
 	private readonly visibleViewsStorageId: string;
 	protected readonly viewContainerModel: IViewContainerModel;
 	private viewDisposables: IDisposable[] = [];
@@ -781,7 +786,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	constructor(
 		id: string,
-		private options: IViewPaneContainerOptions,
+		private options: IPaneViewOptions,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkbenchLayoutService protected layoutService: IWorkbenchLayoutService,
@@ -804,7 +809,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		this.viewContainer = container;
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
-		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
 		this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
 	}
@@ -888,29 +892,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		if (addedViews.length) {
 			this.onDidAddViewDescriptors(addedViews);
 		}
-
-		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			this.areExtensionsReady = true;
-			if (this.panes.length) {
-				this.updateTitleArea();
-				this.updateViewHeaders();
-			}
-		});
 	}
 
 	getTitle(): string {
-		const containerTitle = this.viewContainerModel.title;
-
-		if (this.isViewMergedWithContainer()) {
-			const paneItemTitle = this.paneItems[0].pane.title;
-			if (this.options.donotShowContainerTitleWhenMergedWithContainer || containerTitle === paneItemTitle) {
-				return this.paneItems[0].pane.title;
-			}
-			return paneItemTitle ? `${containerTitle}: ${paneItemTitle}` : containerTitle;
-		}
-
-		return containerTitle;
+		return this.viewContainerModel.title;
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
@@ -1444,18 +1429,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	private isViewMergedWithContainer(): boolean {
-		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
-			return false;
-		}
-		if (!this.areExtensionsReady) {
-			if (this.visibleViewsCountFromCache === undefined) {
-				// TODO @sbatten fix hack for #91367
-				return this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
-			}
-			// Check in cache so that view do not jump. See #29609
-			return this.visibleViewsCountFromCache === 1;
-		}
-		return true;
+		return this.viewContainerModel.isViewMergedWithContainer();
 	}
 
 	dispose(): void {

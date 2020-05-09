@@ -350,9 +350,10 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 	id: BulkEditPane.ID,
 	name: localize('panel', "Refactor Preview"),
 	hideIfEmpty: true,
+	mergeSingleViewWithContainer: true,
 	ctorDescriptor: new SyncDescriptor(
 		ViewPaneContainer,
-		[BulkEditPane.ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]
+		[BulkEditPane.ID, {}]
 	),
 	storageId: BulkEditPane.ID
 }, ViewContainerLocation.Panel);

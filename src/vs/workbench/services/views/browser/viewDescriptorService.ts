@@ -408,9 +408,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 		return this.viewContainersRegistry.registerViewContainer({
 			id,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [id, {}]),
 			name: 'Custom Views', // we don't want to see this, so no need to localize
 			icon: location === ViewContainerLocation.Sidebar ? 'codicon-window' : undefined,
+			mergeSingleViewWithContainer: true,
 			storageId: `${id}.state`,
 			hideIfEmpty: true
 		}, location);

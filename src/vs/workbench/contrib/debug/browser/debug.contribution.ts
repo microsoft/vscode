@@ -74,6 +74,7 @@ class OpenDebugViewletAction extends ShowViewletAction {
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
 	name: nls.localize('run', "Run"),
+	mergeSingleViewWithContainer: true,
 	ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
 	icon: 'codicon-debug-alt-2',
 	alwaysUseContainerInfo: true,
@@ -93,7 +94,8 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewE
 	id: DEBUG_PANEL_ID,
 	name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
 	icon: 'codicon-debug-console',
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	mergeSingleViewWithContainer: true,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, {}]),
 	storageId: DEBUG_PANEL_ID,
 	focusCommand: {
 		id: OpenDebugConsoleAction.ID,

@@ -124,7 +124,7 @@ export class SCMViewPaneContainer extends ViewPaneContainer implements IViewMode
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
-		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(VIEWLET_ID, {}, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this._register(this.menus.onDidChangeTitle(this.updateTitleArea, this));

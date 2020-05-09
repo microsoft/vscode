@@ -49,6 +49,8 @@ export interface IViewContainerDescriptor {
 
 	readonly alwaysUseContainerInfo?: boolean;
 
+	readonly mergeSingleViewWithContainer?: boolean;
+
 	readonly order?: number;
 
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
@@ -211,6 +213,8 @@ export interface IViewDescriptor {
 
 	readonly containerIcon?: string | URI;
 
+	readonly containerTitle?: string;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
@@ -256,6 +260,8 @@ export interface IViewContainerModel {
 
 	isCollapsed(id: string): boolean;
 	setCollapsed(id: string, collapsed: boolean): void;
+
+	isViewMergedWithContainer(): boolean;
 
 	getSize(id: string): number | undefined;
 	setSize(id: string, size: number): void

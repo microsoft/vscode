@@ -116,7 +116,8 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 	icon: Codicon.warning.classNames,
 	hideIfEmpty: true,
 	order: 0,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
+	mergeSingleViewWithContainer: true,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Constants.MARKERS_CONTAINER_ID, {}]),
 	storageId: Constants.MARKERS_VIEW_STORAGE_ID,
 	focusCommand: {
 		id: ToggleMarkersPanelAction.ID, keybindings: {

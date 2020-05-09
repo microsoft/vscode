@@ -46,9 +46,10 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 			{
 				id: VIEW_CONTAINER_ID,
 				name: localize('sync preferences', "Preferences Sync"),
+				mergeSingleViewWithContainer: true,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					[VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
+					[VIEW_CONTAINER_ID, {}]
 				),
 				icon: Codicon.sync.classNames,
 				hideIfEmpty: true,

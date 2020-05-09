@@ -40,7 +40,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService
 	) {
 
-		super(viewletId, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+		super(viewletId, {}, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
 		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);

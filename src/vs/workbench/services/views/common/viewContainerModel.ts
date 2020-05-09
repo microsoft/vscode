@@ -338,11 +338,37 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 
 		this.updateContainerInfo();
 	}
+	isViewMergedWithContainer(): boolean {
+		if (!(this.container.mergeSingleViewWithContainer && this.visibleViewDescriptors.length === 1)) {
+			return false;
+		}
+
+		// TODO@sbatten cache logic
+		// if (!this.areExtensionsReady) {
+		// 	if (this.visibleViewsCountFromCache === undefined) {
+		// 		// TODO @sbatten fix hack for #91367
+		// 		return this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
+		// 	}
+		// 	// Check in cache so that view do not jump. See #29609
+		// 	return this.visibleViewsCountFromCache === 1;
+		// }
+		return true;
+	}
 
 	private updateContainerInfo(): void {
 		/* Use default container info if one of the visible view descriptors belongs to the current container by default */
 		const useDefaultContainerInfo = this.container.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.container);
-		const title = useDefaultContainerInfo ? this.container.name : this.visibleViewDescriptors[0]?.name || '';
+		let title = useDefaultContainerInfo ? this.container.name : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
+
+		if (this.isViewMergedWithContainer()) {
+			const viewTitle = this.visibleViewDescriptors[0]?.name;
+			if (title === viewTitle) {
+				title = viewTitle;
+			} else if (viewTitle) {
+				title = `${title}: ${viewTitle}`;
+			}
+		}
+
 		let titleChanged: boolean = false;
 		if (this._title !== title) {
 			this._title = title;

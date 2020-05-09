@@ -52,6 +52,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	id: VIEWLET_ID,
 	name: localize('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPaneContainer),
+	mergeSingleViewWithContainer: true,
 	storageId: 'workbench.scm.views.state',
 	icon: Codicon.sourceControl.classNames,
 	alwaysUseContainerInfo: true,

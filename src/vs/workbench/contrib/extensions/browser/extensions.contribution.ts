@@ -81,6 +81,7 @@ Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegis
 	{
 		id: VIEWLET_ID,
 		name: localize('extensions', "Extensions"),
+		mergeSingleViewWithContainer: true,
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: 'codicon-extensions',
 		order: 4,

@@ -320,9 +320,10 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			viewContainer = this.viewContainersRegistry.registerViewContainer({
 				id,
 				name: title, extensionId,
+				mergeSingleViewWithContainer: true,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
-					[id, { mergeViewWithContainerWhenSingleView: true }]
+					[id, {}]
 				),
 				hideIfEmpty: true,
 				order,
@@ -412,6 +413,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						ctorDescriptor: new SyncDescriptor(TreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: viewContainer?.icon,
+						containerTitle: viewContainer?.name || 'VIEW PROVIDED TITLE',
 						canToggleVisibility: true,
 						canMoveView: true,
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
