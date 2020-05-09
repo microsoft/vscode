@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line code-import-patterns
-import 'vs/css!vs/workbench/contrib/notebook/browser/media/notebook';
 import { getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
@@ -21,11 +19,14 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { deepClone } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
+// eslint-disable-next-line code-import-patterns
+import 'vs/css!vs/workbench/contrib/notebook/browser/media/notebook';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorOption, EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
@@ -37,6 +38,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, EDITOR_BOTTOM_PADDING, EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
@@ -50,8 +52,6 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 const $ = DOM.$;
 
@@ -586,14 +586,14 @@ export class CellDragAndDropController extends Disposable {
 	private moveCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
 		const editState = draggedCell.editState;
 		this.notebookEditor.moveCell(draggedCell, ontoCell, direction);
-		this.notebookEditor.focusNotebookCell(draggedCell, editState === CellEditState.Editing);
+		this.notebookEditor.focusNotebookCell(draggedCell, editState === CellEditState.Editing ? 'editor' : 'container');
 	}
 
 	private copyCell(draggedCell: ICellViewModel, ontoCell: ICellViewModel, direction: 'above' | 'below') {
 		const editState = draggedCell.editState;
 		const newCell = this.notebookEditor.insertNotebookCell(ontoCell, draggedCell.cellKind, direction, draggedCell.getText());
 		if (newCell) {
-			this.notebookEditor.focusNotebookCell(newCell, editState === CellEditState.Editing);
+			this.notebookEditor.focusNotebookCell(newCell, editState === CellEditState.Editing ? 'editor' : 'container');
 		}
 	}
 

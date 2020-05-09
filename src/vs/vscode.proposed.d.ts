@@ -1640,12 +1640,6 @@ declare module 'vscode' {
 		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
 	}
 
-	export interface NotebookProvider {
-		resolveNotebook(editor: NotebookEditor): Promise<void>;
-		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
-		save(document: NotebookDocument): Promise<boolean>;
-	}
-
 	export interface NotebookOutputSelector {
 		type: string;
 		subTypes?: string[];
@@ -1688,11 +1682,20 @@ declare module 'vscode' {
 		readonly metadata: NotebookDocumentMetadata;
 	}
 
+	interface NotebookDocumentEditEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: NotebookDocument;
+	}
+
 	export interface NotebookContentProvider {
 		openNotebook(uri: Uri): NotebookData | Promise<NotebookData>;
 		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
 		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
-		readonly onDidChangeNotebook: Event<void>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
+
 		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 
@@ -1706,11 +1709,6 @@ declare module 'vscode' {
 		export function registerNotebookContentProvider(
 			notebookType: string,
 			provider: NotebookContentProvider
-		): Disposable;
-
-		export function registerNotebookProvider(
-			notebookType: string,
-			provider: NotebookProvider
 		): Disposable;
 
 		export function registerNotebookOutputRenderer(

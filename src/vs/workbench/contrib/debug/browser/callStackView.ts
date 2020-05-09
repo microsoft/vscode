@@ -475,7 +475,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		dom.append(session, $('.codicon.codicon-bug'));
 		const name = dom.append(session, $('.name'));
 		const state = dom.append(session, $('.state'));
-		const stateLabel = dom.append(state, $('span.label'));
+		const stateLabel = dom.append(state, $('span.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(session, {
 			actionViewItemProvider: action => {
@@ -584,7 +584,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		const file = dom.append(stackFrame, $('.file'));
 		const fileName = dom.append(file, $('span.file-name'));
 		const wrapper = dom.append(file, $('span.line-number-wrapper'));
-		const lineNumber = dom.append(wrapper, $('span.line-number'));
+		const lineNumber = dom.append(wrapper, $('span.line-number.monaco-count-badge'));
 		const label = new HighlightedLabel(labelDiv, false);
 		const actionBar = new ActionBar(stackFrame);
 

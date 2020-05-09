@@ -531,7 +531,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 			!!(<SelectionKeyboardEvent>browserEvent).preserveFocus :
 			!isDoubleClick;
 
-		if (this.treeOrList.openOnSingleClick || isDoubleClick || isKeyboardEvent) {
+		if (this.options.openOnSingleClick || this.treeOrList.openOnSingleClick || isDoubleClick || isKeyboardEvent) {
 			const sideBySide = browserEvent instanceof MouseEvent && (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);
 			this.open(preserveFocus, isDoubleClick || isMiddleClick, sideBySide, browserEvent);
 		}

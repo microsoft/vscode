@@ -442,7 +442,7 @@ export class SettingsEditor2 extends BaseEditor {
 			inputBorder: settingsTextInputBorder
 		}));
 
-		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget'));
+		this.countElement = DOM.append(searchContainer, DOM.$('.settings-count-widget.monaco-count-badge.long'));
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
 			const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';

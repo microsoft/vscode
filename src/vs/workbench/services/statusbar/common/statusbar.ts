@@ -91,6 +91,11 @@ export interface IStatusbarService {
 	updateEntryVisibility(id: string, visible: boolean): void;
 
 	/**
+	 * Focused the status bar. If one of the status bar entries was focused, focuses it directly.
+	 */
+	focus(preserveEntryFocus?: boolean): void;
+
+	/**
 	 * Focuses the next status bar entry. If none focused, focuses the first.
 	 */
 	focusNextEntry(): void;

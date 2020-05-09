@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { CellKind, IOutput, CellUri, NotebookCellMetadata, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
 import { EditorModel } from 'vs/workbench/common/editor';
+import { ICellRange, ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CellKind, CellUri, INotebookEditorModel, IOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 export class TestCell extends NotebookCellTextModel {
 	constructor(
 		public viewType: string,
@@ -171,7 +171,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	saveNotebookCell(cell: CellViewModel): void {
 		// throw new Error('Method not implemented.');
 	}
-	focusNotebookCell(cell: CellViewModel, focusEditor: boolean): void {
+	focusNotebookCell(cell: CellViewModel, focusItem: 'editor' | 'container' | 'output'): void {
 		// throw new Error('Method not implemented.');
 	}
 	getActiveCell(): CellViewModel | undefined {

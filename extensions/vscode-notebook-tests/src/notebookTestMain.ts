@@ -6,12 +6,22 @@
 import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext): any {
-	context.subscriptions.push(vscode.notebook.registerNotebookProvider('notebookCoreTest', {
-		resolveNotebook: async (editor: vscode.NotebookEditor) => {
-			await editor.edit(eb => {
-				eb.insert(0, 'test', 'typescript', vscode.CellKind.Code, [], {});
-			});
-			return;
+	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
+		onDidChangeNotebook: new vscode.EventEmitter<vscode.NotebookDocumentEditEvent>().event,
+		openNotebook: async (_resource: vscode.Uri) => {
+			return {
+				languages: ['typescript'],
+				metadata: {},
+				cells: [
+					{
+						source: 'test',
+						language: 'typescript',
+						cellKind: vscode.CellKind.Code,
+						outputs: [],
+						metadata: {}
+					}
+				]
+			};
 		},
 		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined, _token: vscode.CancellationToken) => {
 			if (!_cell) {
@@ -26,8 +36,11 @@ export function activate(context: vscode.ExtensionContext): any {
 			}];
 			return;
 		},
-		save: async (_document: vscode.NotebookDocument) => {
-			return true;
+		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+			return;
+		},
+		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+			return;
 		}
 	}));
 }

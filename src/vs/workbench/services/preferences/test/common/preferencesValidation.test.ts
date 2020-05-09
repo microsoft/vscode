@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
+import { createValidator, getInvalidTypeError } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
 
-suite('Preferences Model test', () => {
+suite('Preferences Validation', () => {
 	class Tester {
 		private validator: (value: any) => string | null;
 
@@ -333,5 +333,44 @@ suite('Preferences Model test', () => {
 		const arr = new ArrayTester({ type: 'array', items: { type: 'string' }, uniqueItems: true });
 
 		arr.rejects(['a', 'a']).withMessage(`Array has duplicate items`);
+	});
+
+	test('getInvalidTypeError', () => {
+		function testInvalidTypeError(value: any, type: string | string[], shouldValidate: boolean) {
+			const message = `value: ${value}, type: ${JSON.stringify(type)}, expected: ${shouldValidate ? 'valid' : 'invalid'}`;
+			if (shouldValidate) {
+				assert.ok(!getInvalidTypeError(value, type), message);
+			} else {
+				assert.ok(getInvalidTypeError(value, type), message);
+			}
+		}
+
+		testInvalidTypeError(1, 'number', true);
+		testInvalidTypeError(1.5, 'number', true);
+		testInvalidTypeError([1], 'number', false);
+		testInvalidTypeError('1', 'number', false);
+		testInvalidTypeError({ a: 1 }, 'number', false);
+		testInvalidTypeError(null, 'number', false);
+
+		testInvalidTypeError('a', 'string', true);
+		testInvalidTypeError('1', 'string', true);
+		testInvalidTypeError([], 'string', false);
+		testInvalidTypeError({}, 'string', false);
+
+		testInvalidTypeError([1], 'array', true);
+		testInvalidTypeError([], 'array', true);
+		testInvalidTypeError([{}, [[]]], 'array', true);
+		testInvalidTypeError({ a: ['a'] }, 'array', false);
+		testInvalidTypeError('hello', 'array', false);
+
+		testInvalidTypeError(true, 'boolean', true);
+		testInvalidTypeError('hello', 'boolean', false);
+		testInvalidTypeError(null, 'boolean', false);
+		testInvalidTypeError([true], 'boolean', false);
+
+		testInvalidTypeError(null, 'null', true);
+		testInvalidTypeError(false, 'null', false);
+		testInvalidTypeError([null], 'null', false);
+		testInvalidTypeError('null', 'null', false);
 	});
 });
