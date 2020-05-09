@@ -14,7 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { VIEWLET_ID, SortOrder, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, AutoReveal, SortOrder, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -371,14 +371,15 @@ configurationRegistry.registerConfiguration({
 			'default': 9
 		},
 		'explorer.autoReveal': {
-			'type': 'boolean',
-			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them."),
-			'default': true
-		},
-		'explorer.autoRevealScroll': {
-			'type': 'boolean',
-			'description': nls.localize('autoRevealScroll', "Controls whether the explorer should automatically scroll to revealed files."),
-			'default': true
+			'type': 'string',
+			'enum': [AutoReveal.On, AutoReveal.Off, AutoReveal.HighlightNoScroll],
+			'default': AutoReveal.On,
+			'enumDescriptions': [
+				nls.localize('autoReveal.on', 'Files will be revealed and selected.'),
+				nls.localize('autoReveal.off', 'Files will not be revealed and selected.'),
+				nls.localize('autoReveal.highlightNoScroll', 'Files will not be scrolled into view, but will still be highlighted.'),
+			],
+			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them.")
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
