@@ -85,6 +85,8 @@ export class TabsTitleControl extends TitleControl {
 
 	private path: IPath = isWindows ? win32 : posix;
 
+	private previousMouseWheelEventMsTime : number = 0;
+
 	constructor(
 		parent: HTMLElement,
 		accessor: IEditorGroupsAccessor,
@@ -326,8 +328,24 @@ export class TabsTitleControl extends TitleControl {
 			}
 		}));
 
+
 		// Mouse-wheel support to switch to tabs optionally
+		// `MouseWheelEvent` events often come multiple times for a single logical change
+		// so throttle multiple `MouseWheelEvent` events that burst in a short period of time.
 		this._register(addDisposableListener(tabsContainer, EventType.MOUSE_WHEEL, (e: MouseWheelEvent) => {
+
+			const msEventsThreshold : number = 40;
+
+			const msNow : number = Date.now();
+			const msBetweenLastTwoEvents = msNow - this.previousMouseWheelEventMsTime;
+			this.previousMouseWheelEventMsTime = msNow;
+
+			if (msBetweenLastTwoEvents < msEventsThreshold) {
+				// received another `MouseWheelEvent` event within msEventsThreshold of the previous `MouseWheelEvent` event
+				// => ignore it
+				return;
+			}
+
 			const activeEditor = this.group.activeEditor;
 			if (!activeEditor || this.group.count < 2) {
 				return;  // need at least 2 open editors
