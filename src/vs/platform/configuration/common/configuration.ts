@@ -123,8 +123,6 @@ export interface IConfigurationService {
 		workspaceFolder: string[];
 		memory?: string[];
 	};
-
-	getConfigurationFileResource(target: ConfigurationTarget, resource: URI | null | undefined): URI | null;
 }
 
 export interface IConfigurationModel {

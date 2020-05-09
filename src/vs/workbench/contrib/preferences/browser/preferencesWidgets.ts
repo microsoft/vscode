@@ -20,7 +20,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { Position } from 'vs/editor/common/core/position';
 import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -32,7 +32,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { ISettingsGroup, IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { isEqual } from 'vs/base/common/resources';
 import { registerIcon, Codicon } from 'vs/base/common/codicons';
@@ -311,7 +311,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -401,14 +401,14 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	private update(): void {
+	private async update(): Promise<void> {
 		let total = 0;
 		this._folderSettingCounts.forEach(n => total += n);
 
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
-			this.anchorElement.title = this.configurationService.getConfigurationFileResource(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri)?.fsPath || '';
+			this.anchorElement.title = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri))?.fsPath || '';
 			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
 			DOM.toggleClass(this.dropDownElement, 'hide', workspace.folders.length === 1 || !this._action.checked);
@@ -490,7 +490,7 @@ export class SettingsTargetsWidget extends Widget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IPreferencesService private readonly preferencesSerivce: IPreferencesService,
 	) {
 		super();
 		this.options = options || {};
@@ -509,14 +509,19 @@ export class SettingsTargetsWidget extends Widget {
 		}));
 
 		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
-		this.userLocalSettings.tooltip = this.configurationService.getConfigurationFileResource(ConfigurationTarget.USER_LOCAL, undefined)?.fsPath || '';
+		this.preferencesSerivce.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
+			// Don't wait to create UI on resolving remote
+			this.userLocalSettings.tooltip = uri?.fsPath || '';
+		});
 
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(REMOTE_HOST_SCHEME, remoteAuthority);
 		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
 			(hostLabel ? ` [${hostLabel}]` : '');
 		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
-		this.userRemoteSettings.tooltip = this.configurationService.getConfigurationFileResource(ConfigurationTarget.USER_REMOTE, undefined)?.fsPath || '';
+		this.preferencesSerivce.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
+			this.userRemoteSettings.tooltip = uri?.fsPath || '';
+		});
 
 		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 
@@ -588,15 +593,14 @@ export class SettingsTargetsWidget extends Widget {
 		return Promise.resolve(undefined);
 	}
 
-	private update(): void {
+	private async update(): Promise<void> {
 		DOM.toggleClass(this.settingsSwitcherBar.domNode, 'empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.configuration.remoteAuthority);
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
 		this.folderSettings.getAction().enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
 
-		this.workspaceSettings.tooltip = this.configurationService.getConfigurationFileResource(ConfigurationTarget.WORKSPACE, undefined)?.fsPath || '';
+		this.workspaceSettings.tooltip = (await this.preferencesSerivce.getEditableSettingsURI(ConfigurationTarget.WORKSPACE))?.fsPath || '';
 	}
-
 }
 
 export interface SearchOptions extends IInputOptions {
