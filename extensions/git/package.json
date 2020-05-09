@@ -1399,20 +1399,9 @@
         },
         "git.checkoutType": {
           "type": "string",
-          "enum": [
-            "all",
-            "local",
-            "tags",
-            "remote"
-          ],
-          "enumDescriptions": [
-            "%config.checkoutType.all%",
-            "%config.checkoutType.local%",
-            "%config.checkoutType.tags%",
-            "%config.checkoutType.remote%"
-          ],
+
           "markdownDescription": "%config.checkoutType%",
-          "default": "all"
+          "default": "local,remote,tags"
         },
         "git.ignoreLegacyWarning": {
           "type": "boolean",

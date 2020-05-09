@@ -203,18 +203,35 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 
 function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	const config = workspace.getConfiguration('git');
-	const checkoutType = config.get<string>('checkoutType') || 'all';
-	const includeTags = checkoutType === 'all' || checkoutType === 'tags';
-	const includeRemotes = checkoutType === 'all' || checkoutType === 'remote';
+	const checkoutType = config.get<string>('checkoutType') || 'local,remote,tags';
+	const checkoutTypes = checkoutType.trim().split(',').map(type => type.trim());
 
-	const heads = repository.refs.filter(ref => ref.type === RefType.Head)
-		.map(ref => new CheckoutItem(ref));
-	const tags = (includeTags ? repository.refs.filter(ref => ref.type === RefType.Tag) : [])
-		.map(ref => new CheckoutTagItem(ref));
-	const remoteHeads = (includeRemotes ? repository.refs.filter(ref => ref.type === RefType.RemoteHead) : [])
-		.map(ref => new CheckoutRemoteHeadItem(ref));
+	const results: CheckoutItem[] = [];
+	const invalids = new Set<string>();
+	const seens = new Set<string>();
+	checkoutTypes.forEach(type => {
+		if (seens.has(type)) {
+			return;
+		}
+		seens.add(type);
 
-	return [...heads, ...tags, ...remoteHeads];
+		switch (type) {
+			case 'local':
+				results.push(...repository.refs.filter(ref => ref.type === RefType.Head).map(ref => new CheckoutItem(ref)));
+				break;
+			case 'remote':
+				results.push(...repository.refs.filter(ref => ref.type === RefType.RemoteHead).map(ref => new CheckoutRemoteHeadItem(ref)));
+				break;
+			case 'tags':
+				results.push(...repository.refs.filter(ref => ref.type === RefType.Tag).map(ref => new CheckoutTagItem(ref)));
+				break;
+			default:
+				invalids.add(type);
+				break;
+		}
+	});
+
+	return results;
 }
 
 function sanitizeRemoteName(name: string) {
