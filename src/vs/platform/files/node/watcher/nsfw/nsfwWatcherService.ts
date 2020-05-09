@@ -8,7 +8,7 @@ import * as extpath from 'vs/base/common/extpath';
 import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import * as nsfw from 'vscode-nsfw';
+import { default as nsfw } from 'nsfw';
 import { IWatcherService, IWatcherRequest, IWatcherOptions } from 'vs/platform/files/node/watcher/nsfw/watcher';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
@@ -108,7 +108,7 @@ export class NsfwWatcherService implements IWatcherService {
 			for (const e of events) {
 				// Logging
 				if (this._verboseLogging) {
-					const logPath = e.action === nsfw.actions.RENAMED ? path.join(e.directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');
+					const logPath = e.action === nsfw.actions.RENAMED ? path.join((e as any).directory, e.oldFile || '') + ' -> ' + e.newFile : path.join(e.directory, e.file || '');
 					this.log(`${e.action === nsfw.actions.CREATED ? '[CREATED]' : e.action === nsfw.actions.DELETED ? '[DELETED]' : e.action === nsfw.actions.MODIFIED ? '[CHANGED]' : '[RENAMED]'} ${logPath}`);
 				}
 
@@ -116,13 +116,13 @@ export class NsfwWatcherService implements IWatcherService {
 				let absolutePath: string;
 				if (e.action === nsfw.actions.RENAMED) {
 					// Rename fires when a file's name changes within a single directory
-					absolutePath = path.join(e.directory, e.oldFile || '');
+					absolutePath = path.join((e as any).directory, e.oldFile || '');
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.DELETED, path: absolutePath });
 					} else if (this._verboseLogging) {
 						this.log(` >> ignored ${absolutePath}`);
 					}
-					absolutePath = path.join(e.newDirectory || e.directory, e.newFile || '');
+					absolutePath = path.join(e.newDirectory || (e as any).directory, e.newFile || '');
 					if (!this._isPathIgnored(absolutePath, this._pathWatchers[request.path].ignored)) {
 						undeliveredFileEvents.push({ type: FileChangeType.ADDED, path: absolutePath });
 					} else if (this._verboseLogging) {
