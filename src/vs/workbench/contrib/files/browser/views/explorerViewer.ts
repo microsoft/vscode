@@ -939,27 +939,51 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async handleWebExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		data.files.forEach(file => {
+		for (let item of originalEvent.dataTransfer.items) {
+			const entry = item.webkitGetAsEntry();
+			await this.uploadFileEntry(entry, target.resource, target);
+		});
+	}
+
+	private async uploadFileEntry(entry: FileSystemEntry, parentResource: URI, target: ExplorerItem): Promise<void> {
+		const resource = joinPath(parentResource, entry.name);
+
+		if (entry.isFile) {
+			// Handle file upload
+			if (target && target.getChild(entry.name)) {
+				const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(name));
+				if (!confirmed) {
+					return;
+				}
+			}
+
+			const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
 			const reader = new FileReader();
 			reader.readAsArrayBuffer(file);
 			reader.onload = async (event) => {
 				const name = file.name;
 				if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
-					if (target.getChild(name)) {
-						const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(name));
-						if (!confirmed) {
-							return;
-						}
-					}
 
-					const resource = joinPath(target.resource, name);
 					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
 					if (data.files.length === 1) {
 						await this.editorService.openEditor({ resource, options: { pinned: true } });
 					}
 				}
 			};
-		});
+		} else if (entry.isDirectory) {
+			// Handle folder upload
+			await this.fileService.createFolder(resource);
+
+			// Recursive upload files in this directory
+			const folderTarget = target && target.getChild(entry.name) || undefined;
+			const dirReader = entry.createReader();
+			const childEntries = await new Promise<FileSystemEntry[]>((resolve, reject) => {
+				dirReader.readEntries(resolve, reject);
+			});
+			for (let childEntry of childEntries){
+				await this.uploadFileEntry(childEntry, resource, folderTarget);
+			}
+		}
 	}
 
 	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
