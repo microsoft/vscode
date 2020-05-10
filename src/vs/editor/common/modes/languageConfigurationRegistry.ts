@@ -419,7 +419,8 @@ export class LanguageConfigurationRegistryImpl {
 				};
 			}
 
-			if (honorIntentialIndent) {
+			// if precedingUnIgnoredLineContent is of jsDoc pattern then don't honour initial indent
+			if (honorIntentialIndent && !/\s*\*\/$/.test(precedingUnIgnoredLineContent)) {
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
 					action: null,
