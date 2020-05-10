@@ -575,8 +575,13 @@ export interface IFileOperationOptions {
 	recursive?: boolean;
 }
 
+export const enum FileEditType {
+	FileOperation = 1,
+	FileTextEdit = 2
+}
+
 export interface IFileOperation {
-	_type: 1;
+	_type: FileEditType.FileOperation;
 	from?: URI;
 	to?: URI;
 	options?: IFileOperationOptions;
@@ -584,7 +589,7 @@ export interface IFileOperation {
 }
 
 export interface IFileTextEdit {
-	_type: 2;
+	_type: FileEditType.FileTextEdit;
 	uri: URI;
 	edit: TextEdit;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
@@ -596,15 +601,15 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
 	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from, to, options, metadata });
+		this._edits.push({ _type: FileEditType.FileOperation, from, to, options, metadata });
 	}
 
 	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from: undefined, to: uri, options, metadata });
+		this._edits.push({ _type: FileEditType.FileOperation, from: undefined, to: uri, options, metadata });
 	}
 
 	deleteFile(uri: vscode.Uri, options?: { recursive?: boolean, ignoreIfNotExists?: boolean; }, metadata?: vscode.WorkspaceEditEntryMetadata): void {
-		this._edits.push({ _type: 1, from: uri, to: undefined, options, metadata });
+		this._edits.push({ _type: FileEditType.FileOperation, from: uri, to: undefined, options, metadata });
 	}
 
 	replace(uri: URI, range: Range, newText: string, metadata?: vscode.WorkspaceEditEntryMetadata): void {
@@ -620,7 +625,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		return this._edits.some(edit => edit._type === 2 && edit.uri.toString() === uri.toString());
+		return this._edits.some(edit => edit._type === FileEditType.FileTextEdit && edit.uri.toString() === uri.toString());
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
@@ -628,7 +633,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 			// remove all text edits for `uri`
 			for (let i = 0; i < this._edits.length; i++) {
 				const element = this._edits[i];
-				if (element._type === 2 && element.uri.toString() === uri.toString()) {
+				if (element._type === FileEditType.FileTextEdit && element.uri.toString() === uri.toString()) {
 					this._edits[i] = undefined!; // will be coalesced down below
 				}
 			}
@@ -646,7 +651,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	get(uri: URI): TextEdit[] {
 		const res: TextEdit[] = [];
 		for (let candidate of this._edits) {
-			if (candidate._type === 2 && candidate.uri.toString() === uri.toString()) {
+			if (candidate._type === FileEditType.FileTextEdit && candidate.uri.toString() === uri.toString()) {
 				res.push(candidate.edit);
 			}
 		}
@@ -656,7 +661,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	entries(): [URI, TextEdit[]][] {
 		const textEdits = new Map<string, [URI, TextEdit[]]>();
 		for (let candidate of this._edits) {
-			if (candidate._type === 2) {
+			if (candidate._type === FileEditType.FileTextEdit) {
 				let textEdit = textEdits.get(candidate.uri.toString());
 				if (!textEdit) {
 					textEdit = [candidate.uri, []];
