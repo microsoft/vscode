@@ -992,8 +992,9 @@ export class CommandCenter {
 	}
 
 	@command('git.stageAll', { repository: true })
-	async stageAll(repository: Repository): Promise<void> {
-		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
+	async stageAll(repository: Repository, resourceGroup: ExtHostSourceControlResourceGroup): Promise<void> {
+		const resourceStates = resourceGroup?.resourceStates ?? repository.mergeGroup.resourceStates;
+		const resources = resourceStates.filter((s: Resource) => s instanceof Resource) as Resource[];
 		const { merge, unresolved, deletionConflicts } = await categorizeResourceByResolution(resources);
 
 		try {
@@ -1021,9 +1022,15 @@ export class CommandCenter {
 			}
 		}
 
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
-		await repository.add([], untrackedChanges === 'mixed' ? undefined : { update: true });
+		if (resourceGroup) {
+			const uris = resources.map(r => r.resourceUri) as Uri[];
+			await repository.add(uris);
+		}
+		else {
+			const config = workspace.getConfiguration('git', Uri.file(repository.root));
+			const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+			await repository.add([], untrackedChanges === 'mixed' ? undefined : { update: true });
+		}
 	}
 
 	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
