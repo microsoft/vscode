@@ -15,7 +15,8 @@
 }
 
 .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
-	height: 24px;
+	height: 20px;
+	line-height: 18px;
 	font-size: 12px;
 	flex: 1;
 }
@@ -45,11 +46,13 @@
 	display: none;
 }
 
-.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-label.markers-filters {
-	line-height: 20px;
-	height: 20px;
-	min-width: 22px;
+.markers-panel-action-filter > .markers-panel-filter-controls > .monaco-action-bar .action-item .action-label.codicon.markers-filters {
+	line-height: 18px;
+	height: 18px;
+	width: 28px;
 	margin-left: 4px;
+	margin-right: 0px;
+	justify-content: center;
 }
 
 .panel > .title .monaco-action-bar .action-item.markers-panel-action-filter-container {
