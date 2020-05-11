@@ -232,21 +232,24 @@ export class NoTabsTitleControl extends TitleControl {
 	private redraw(): void {
 		const editor = withNullAsUndefined(this.group.activeEditor);
 
-		const isEditorPinned = this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false;
+		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
+
+		const shouldRelayout = !this.activeLabel.editor && !!editor;
 
 		this.activeLabel = { editor, pinned: isEditorPinned };
 
 		// Update Breadcrumbs
 		if (this.breadcrumbsControl) {
+			let didUpdate = false;
 			let wasHidden = this.breadcrumbsControl.isHidden();
 			if (isGroupActive) {
-				this.breadcrumbsControl.update();
+				didUpdate = this.breadcrumbsControl.update();
 				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
 			} else {
 				this.breadcrumbsControl.hide();
 			}
-			if (wasHidden !== this.breadcrumbsControl.isHidden()) {
+			if (shouldRelayout && (didUpdate || wasHidden !== this.breadcrumbsControl.isHidden())) {
 				// relayout when hidden-status has changed
 				this.group.relayout();
 			}
