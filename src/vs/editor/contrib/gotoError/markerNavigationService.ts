@@ -29,22 +29,38 @@ export class MarkerList {
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
+	private readonly _resourceFilter?: (uri: URI) => boolean;
 	private readonly _dispoables = new DisposableStore();
 
 	private _markers: IMarker[] = [];
 	private _nextIdx: number = -1;
 
 	constructor(
-		private readonly _scope: URI | undefined,
+		resourceFilter: URI | ((uri: URI) => boolean) | undefined,
 		@IMarkerService private readonly _markerService: IMarkerService,
 	) {
+		if (URI.isUri(resourceFilter)) {
+			this._resourceFilter = uri => uri.toString() === resourceFilter.toString();
+		} else if (resourceFilter) {
+			this._resourceFilter = resourceFilter;
+		}
 
-		const filter = { resource: this._scope, severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info };
-		this._markers = this._markerService.read(filter).sort(MarkerList._compareMarker);
+		const updateMarker = () => {
+			this._markers = this._markerService.read({
+				resource: URI.isUri(resourceFilter) ? resourceFilter : undefined,
+				severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info
+			});
+			if (typeof resourceFilter === 'function') {
+				this._markers = this._markers.filter(m => this._resourceFilter!(m.resource));
+			}
+			this._markers.sort(MarkerList._compareMarker);
+		};
 
-		this._dispoables.add(_markerService.onMarkerChanged(e => {
-			if (!this._scope || e.some(e => e.toString() === _scope?.toString())) {
-				this._markers = this._markerService.read(filter).sort(MarkerList._compareMarker);
+		updateMarker();
+
+		this._dispoables.add(_markerService.onMarkerChanged(uris => {
+			if (!this._resourceFilter || uris.some(uri => this._resourceFilter!(uri))) {
+				updateMarker();
 				this._nextIdx = -1;
 				this._onDidChange.fire();
 			}
@@ -57,13 +73,10 @@ export class MarkerList {
 	}
 
 	matches(uri: URI | undefined) {
-		if (this._scope === uri) {
+		if (!this._resourceFilter) {
 			return true;
 		}
-		if (this._scope && uri && this._scope.toString() === uri.toString()) {
-			return true;
-		}
-		return false;
+		return uri && this._resourceFilter(uri);
 	}
 
 	get selected(): MarkerCoordinate | undefined {
