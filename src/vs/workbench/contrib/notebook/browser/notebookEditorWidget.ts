@@ -221,7 +221,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private createCellList(): void {
 		DOM.addClass(this.body, 'cell-list-container');
 
-		const dndController = this._register(new CellDragAndDropController(this));
+		const dndController = this._register(new CellDragAndDropController(this, this.body));
 		const renders = [
 			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors, dndController),
 			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this, dndController, this.renderedEditors),
@@ -271,6 +271,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			},
 		);
+		dndController.setList(this.list);
 
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this);
 		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
@@ -1256,7 +1257,7 @@ registerThemingParticipant((theme, collector) => {
 	if (focusedCellIndicatorColor) {
 		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.notebookOverlay .monaco-list-row .cell-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
 	}
 
@@ -1276,7 +1277,7 @@ registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.notebookOverlay .markdown-cell-row .cell .cell-editor-part { margin-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
 	collector.addRule(`.notebookOverlay .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
-	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-insertion-indicator { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
 	collector.addRule(`.notebookOverlay .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
 	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator { left: ${CELL_MARGIN}px; }`);
 });

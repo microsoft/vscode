@@ -355,6 +355,8 @@ export interface INotebookEditor extends ICompositeCodeEditor {
 }
 
 export interface INotebookCellList {
+	elementAt(position: number): ICellViewModel;
+	elementHeight(element: ICellViewModel): number;
 	onWillScroll: Event<ScrollEvent>;
 	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
 	onDidChangeContentHeight: Event<number>;
