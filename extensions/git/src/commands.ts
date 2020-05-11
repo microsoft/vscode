@@ -19,7 +19,6 @@ import { grep, isDescendant, pathEquals } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { throttle, debounce } from './decorators';
-import { URI } from 'vscode-uri';
 
 const localize = nls.loadMessageBundle();
 
@@ -932,7 +931,7 @@ export class CommandCenter {
 	}
 
 	@command('git.rename', { repository: true })
-	async rename(repository: Repository, fromUri: URI): Promise<void> {
+	async rename(repository: Repository, fromUri: Uri): Promise<void> {
 		this.outputChannel.appendLine(`git.rename ${fromUri.fsPath}`);
 
 		const rootPath = workspace.rootPath;
