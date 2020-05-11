@@ -1126,7 +1126,7 @@ export class RepositoryPane extends ViewPane {
 		}
 
 		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
-			return `${inputFontFamily}, ${this.defaultInputFontFamily}`;
+			return inputFontFamily;
 		}
 
 		return this.defaultInputFontFamily;
