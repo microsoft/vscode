@@ -10,18 +10,8 @@ import API from '../utils/api';
 import { Disposable } from '../utils/dispose';
 import * as fileSchemes from '../utils/fileSchemes';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
+import { equals } from '../utils/objects';
 import { ResourceMap } from '../utils/resourceMap';
-
-
-function objsAreEqual<T>(a: T, b: T): boolean {
-	let keys = Object.keys(a);
-	for (const key of keys) {
-		if ((a as any)[key] !== (b as any)[key]) {
-			return false;
-		}
-	}
-	return true;
-}
 
 interface FileConfiguration {
 	readonly formatOptions: Proto.FormatCodeSettings;
@@ -29,10 +19,7 @@ interface FileConfiguration {
 }
 
 function areFileConfigurationsEqual(a: FileConfiguration, b: FileConfiguration): boolean {
-	return (
-		objsAreEqual(a.formatOptions, b.formatOptions)
-		&& objsAreEqual(a.preferences, b.preferences)
-	);
+	return equals(a, b);
 }
 
 export default class FileConfigurationManager extends Disposable {
