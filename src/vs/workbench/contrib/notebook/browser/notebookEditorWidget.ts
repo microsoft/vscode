@@ -81,7 +81,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private eventDispatcher: NotebookEventDispatcher | undefined;
 	private notebookViewModel: NotebookViewModel | undefined;
 	private localStore: DisposableStore = this._register(new DisposableStore());
-	// private readonly groupListener = this._register(new MutableDisposable());
 	private fontInfo: BareFontInfo | undefined;
 	private dimension: DOM.Dimension | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
@@ -189,9 +188,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 		this.editorFocus.set(true);
-		// this._register(this.onDidFocus(() => this.updateEditorFocus()));
-		// this._register(this.onDidBlur(() => this.updateEditorFocus()));
-
 		this.editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.contextKeyService);
 		this.editorEditable.set(true);
 		this.editorRunnable = NOTEBOOK_EDITOR_RUNNABLE.bindTo(this.contextKeyService);
