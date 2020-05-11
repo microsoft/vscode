@@ -211,6 +211,26 @@ CommandsRegistry.registerCommand(
 //#region Actions
 const category = localize('search', "Search Editor");
 
+const openArgDescription = {
+	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
+	args: [{
+		name: 'Open new Search Editor args',
+		schema: {
+			properties: {
+				query: { type: 'string' },
+				includes: { type: 'string' },
+				excludes: { type: 'string' },
+				contextLines: { type: 'number' },
+				wholeWord: { type: 'boolean' },
+				caseSensitive: { type: 'boolean' },
+				regexp: { type: 'boolean' },
+				useIgnores: { type: 'boolean' },
+				showIncludesExcludes: { type: 'boolean' },
+			}
+		}
+	}]
+} as const;
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -218,6 +238,7 @@ registerAction2(class extends Action2 {
 			title: localize('search.openNewSearchEditor', "Open new Search Editor"),
 			category,
 			f1: true,
+			description: openArgDescription
 		});
 	}
 	async run(accessor: ServicesAccessor, args: Partial<SearchConfiguration>) {
@@ -232,6 +253,7 @@ registerAction2(class extends Action2 {
 			title: localize('search.openNewEditorToSide', "Open new Search Editor to the Side"),
 			category,
 			f1: true,
+			description: openArgDescription
 		});
 	}
 	async run(accessor: ServicesAccessor, args: Partial<SearchConfiguration>) {
