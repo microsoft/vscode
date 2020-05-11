@@ -153,7 +153,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'scm.inputFontFamily': {
 			type: 'string',
 			description: localize('inputFontFamily', "Controls the font for the input message."),
-			default: '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif'
+			default: 'default'
 		}
 	}
 });

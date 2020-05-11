@@ -638,6 +638,7 @@ export class ToggleViewModeAction extends Action {
 }
 
 export class RepositoryPane extends ViewPane {
+	private readonly defaultInputFontFamily = '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif';
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
@@ -1118,7 +1119,17 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	private getInputEditorFontFamily(): string {
-		return this.configurationService.getValue<string>('scm.inputFontFamily');
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily');
+
+		if (inputFontFamily.toLowerCase() === 'inherit') {
+			return this.configurationService.getValue<string>('editor.fontFamily');
+		}
+
+		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
+			return `${inputFontFamily}, ${this.defaultInputFontFamily}`;
+		}
+
+		return this.defaultInputFontFamily;
 	}
 }
 
