@@ -60,6 +60,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EDITOR_FONT_DEFAULTS, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 const $ = dom.$;
 
@@ -508,7 +509,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		super.renderBody(parent);
 
 		this.container = dom.append(parent, $('.repl'));
-		const treeContainer = dom.append(this.container, $('.repl-tree.mouse-text'));
+		const treeContainer = dom.append(this.container, $(`.repl-tree.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		this.createReplInput(this.container);
 
 		this.replDelegate = new ReplDelegate(this.configurationService);

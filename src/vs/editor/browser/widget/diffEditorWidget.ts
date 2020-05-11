@@ -49,6 +49,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -2095,7 +2096,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		maxCharsPerLine += this.modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
 
 		let domNode = document.createElement('div');
-		domNode.className = 'view-lines line-delete mouse-text';
+		domNode.className = `view-lines line-delete ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`;
 		domNode.innerHTML = sb.build();
 		Configuration.applyFontInfoSlow(domNode, fontInfo);
 
