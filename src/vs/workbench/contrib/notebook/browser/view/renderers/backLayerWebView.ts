@@ -116,7 +116,7 @@ interface ICachedInset {
 function html(strings: TemplateStringsArray, ...values: any[]): string {
 	let str = '';
 	strings.forEach((string, i) => {
-		str += string + values[i];
+		str += string + (values[i] || '');
 	});
 	return str;
 }
