@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IDebugAdapterDescriptorFactory, IDebugAdapter, IDebugSession, IAdapterDescriptor, CONTEXT_DEBUG_CONFIGURATION_TYPE, IDebugAdapterFactory, IConfigPresentation } from 'vs/workbench/contrib/debug/common/debug';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -635,7 +635,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch', { resource: this.workspace.uri }).workspaceFolderValue;
 	}
 
-	async openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }> {
+	async openConfigFile(preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }> {
 		const resource = this.uri;
 		let created = false;
 		let content = '';
@@ -681,7 +681,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 				pinned: created,
 				revealIfVisible: true
 			},
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		}, ACTIVE_GROUP);
 
 		return ({
 			editor: withUndefinedAsNull(editor),
@@ -715,12 +715,12 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspaceValue;
 	}
 
-	async openConfigFile(sideBySide: boolean, preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
+	async openConfigFile(preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
 
 		const editor = await this.editorService.openEditor({
 			resource: this.contextService.getWorkspace().configuration!,
 			options: { preserveFocus }
-		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+		}, ACTIVE_GROUP);
 
 		return ({
 			editor: withUndefinedAsNull(editor),
@@ -758,7 +758,7 @@ class UserLaunch extends AbstractLaunch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').userValue;
 	}
 
-	async openConfigFile(_: boolean, preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
+	async openConfigFile(preserveFocus: boolean): Promise<{ editor: IEditorPane | null, created: boolean }> {
 		const editor = await this.preferencesService.openGlobalSettings(true, { preserveFocus });
 		return ({
 			editor: withUndefinedAsNull(editor),
