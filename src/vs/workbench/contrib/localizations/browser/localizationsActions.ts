@@ -46,7 +46,7 @@ export class ConfigureLocaleAction extends Action {
 			.concat({ label: localize('installAdditionalLanguages', "Install additional languages...") });
 	}
 
-	public async run(event?: any): Promise<void> {
+	public async run(): Promise<void> {
 		const languageOptions = await this.getLanguageOptions();
 		const currentLanguageIndex = firstIndex(languageOptions, l => l.label === language);
 

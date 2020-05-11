@@ -67,7 +67,7 @@ export class CodeLensContribution implements IEditorContribution {
 		}));
 		this._onModelChange();
 
-		this._styleClassName = hash(this._editor.getId()).toString(16);
+		this._styleClassName = '_' + hash(this._editor.getId()).toString(16);
 		this._styleElement = dom.createStyleSheet(
 			dom.isInShadowDOM(this._editor.getContainerDomNode())
 				? this._editor.getContainerDomNode()

@@ -11,7 +11,7 @@ jobs:
         uses: actions/checkout@v2
         with:
           repository: 'microsoft/vscode-github-triage-actions'
-          ref: v2
+          ref: v15
           path: ./actions
       - name: Install Actions
         run: npm install --production --prefix ./actions
@@ -36,3 +36,21 @@ jobs:
           labelColor: "006b75"
           labelDescription: Issues found in a recent release of VS Code
           days: 5
+
+      - name: Run Clipboard Labeler
+        uses: ./actions/regex-labeler
+        with:
+          label: "invalid"
+          mustNotMatch: "^We have written the needed data into your clipboard because it was too large to send\\. Please paste\\.$"
+          comment: "It looks like you're using the VS Code Issue Reporter but did not paste the text generated into the created issue. We've closed this issue, please open a new one containing the text we placed in your clipboard.\n\nHappy Coding!"
+
+      # source of truth in ./english-please.yml
+      - name: Run English Please
+        uses: ./actions/english-please
+        with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          cognitiveServicesAPIKey: ${{secrets.AZURE_TEXT_TRANSLATOR_KEY}}
+          nonEnglishLabel: "*english-please"
+          needsMoreInfoLabel: "needs more info"
+          translatorRequestedLabelPrefix: "translation-required-"
+          translatorRequestedLabelColor: "c29cff"

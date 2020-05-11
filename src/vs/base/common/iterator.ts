@@ -6,8 +6,12 @@
 export namespace Iterable {
 
 	const _empty: Iterable<any> = Object.freeze([]);
-	export function empty<T>(): Iterable<T> {
+	export function empty<T = any>(): Iterable<T> {
 		return _empty;
+	}
+
+	export function* single<T>(element: T): Iterable<T> {
+		yield element;
 	}
 
 	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {

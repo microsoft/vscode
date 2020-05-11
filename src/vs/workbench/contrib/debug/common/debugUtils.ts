@@ -24,7 +24,7 @@ export function formatPII(value: string, excludePII: boolean, args: { [key: stri
 }
 
 export function isSessionAttach(session: IDebugSession): boolean {
-	return !session.parentSession && session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
+	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
 }
 
 /**
@@ -219,7 +219,7 @@ function convertPaths(msg: DebugProtocol.ProtocolMessage, fixSourcePath: (toDA: 
 			break;
 		case 'response':
 			const response = <DebugProtocol.Response>msg;
-			if (response.success) {
+			if (response.success && response.body) {
 				switch (response.command) {
 					case 'stackTrace':
 						(<DebugProtocol.StackTraceResponse>response).body.stackFrames.forEach(frame => fixSourcePath(false, frame.source));

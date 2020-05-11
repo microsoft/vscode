@@ -12,14 +12,15 @@ import { SelectBox, ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selec
 import { SelectActionViewItem, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IDebugService, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { StartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 
 const $ = dom.$;
 
@@ -34,6 +35,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 	private options: { label: string, handler?: (() => boolean) }[] = [];
 	private toDispose: IDisposable[];
 	private selected = 0;
+	private providers: { label: string, pick: () => Promise<{ launch: ILaunch, config: IConfig } | undefined> }[] = [];
 
 	constructor(
 		private context: unknown,
@@ -48,9 +50,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.toDispose.push(this.selectBox);
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
-			selectBackground: SIDE_BAR_BACKGROUND
-		}));
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.registerListeners();
 	}
@@ -121,10 +121,19 @@ export class StartDebugActionViewItem implements IActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder, selectBackground }, colors => {
 			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			const selectBackgroundColor = colors.selectBackground ? `${colors.selectBackground}` : '';
+			this.container.style.backgroundColor = selectBackgroundColor;
+			this.start.style.backgroundColor = selectBackgroundColor;
 		}));
+		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
+			this.providers = providers;
+			if (this.providers.length > 0) {
+				this.updateOptions();
+			}
+		});
 
 		this.updateOptions();
 	}
@@ -173,7 +182,13 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			}
 
 			const label = inWorkspace ? `${name} (${launch.name})` : name;
-			this.options.push({ label, handler: () => { manager.selectConfiguration(launch, name); return true; } });
+			this.options.push({
+				label, handler: () => {
+					StartAction.GET_CONFIG_AND_LAUNCH = undefined;
+					manager.selectConfiguration(launch, name);
+					return true;
+				}
+			});
 		});
 
 		if (this.options.length === 0) {
@@ -183,11 +198,25 @@ export class StartDebugActionViewItem implements IActionViewItem {
 			disabledIdxs.push(this.options.length - 1);
 		}
 
+		this.providers.forEach(p => {
+			this.options.push({
+				label: `${p.label}...`, handler: () => {
+					StartAction.GET_CONFIG_AND_LAUNCH = p.pick;
+					return true;
+				}
+			});
+		});
+
+		if (this.providers.length > 0) {
+			this.options.push({ label: StartDebugActionViewItem.SEPARATOR, handler: undefined });
+			disabledIdxs.push(this.options.length - 1);
+		}
+
 		manager.getLaunches().filter(l => !l.hidden).forEach(l => {
 			const label = inWorkspace ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			this.options.push({
 				label, handler: () => {
-					this.commandService.executeCommand('debug.addConfiguration', l.uri.toString());
+					this.commandService.executeCommand(ADD_CONFIGURATION_ID, l.uri.toString());
 					return false;
 				}
 			});

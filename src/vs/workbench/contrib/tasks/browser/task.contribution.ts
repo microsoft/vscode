@@ -43,7 +43,7 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ManageAutomaticTaskRunning, ManageAutomaticTaskRunning.ID, ManageAutomaticTaskRunning.LABEL), 'Tasks: Manage Automatic Tasks in Folder', tasksCategory);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ManageAutomaticTaskRunning), 'Tasks: Manage Automatic Tasks in Folder', tasksCategory);
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
 	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
@@ -122,6 +122,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 		} else {
 			const itemProps: IStatusbarEntry = {
 				text: `$(tools) ${tasks.length}`,
+				ariaLabel: nls.localize('numberOfRunningTasks', "{0} running tasks", tasks.length),
 				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
 				command: 'workbench.action.tasks.showTasks',
 			};
@@ -375,6 +376,25 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
 			default: false
-		}
+		},
+		'task.quickOpen.showAll': {
+			type: 'boolean',
+			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
+			default: false
+		},
+		'task.saveBeforeRun': {
+			markdownDescription: nls.localize(
+				'task.saveBeforeRun',
+				'Save all dirty editors before running a task.'
+			),
+			type: 'string',
+			enum: ['always', 'never', 'prompt'],
+			enumDescriptions: [
+				nls.localize('task.saveBeforeRun.always', 'Always saves all editors before running.'),
+				nls.localize('task.saveBeforeRun.never', 'Never saves editors before running.'),
+				nls.localize('task.SaveBeforeRun.prompt', 'Prompts whether to save editors before running.'),
+			],
+			default: 'always',
+		},
 	}
 });

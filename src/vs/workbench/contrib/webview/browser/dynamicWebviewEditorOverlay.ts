@@ -97,6 +97,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		if (!this.container || !this.container.parentElement) {
 			return;
 		}
+
 		const frameRect = element.getBoundingClientRect();
 		const containerRect = this.container.parentElement.getBoundingClientRect();
 		this.container.style.position = 'absolute';
@@ -124,10 +125,12 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
 			this._webviewEvents.add(webview.onDidFocus(() => { this._onDidFocus.fire(); }));
+			this._webviewEvents.add(webview.onDidBlur(() => { this._onDidBlur.fire(); }));
 			this._webviewEvents.add(webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }));
 			this._webviewEvents.add(webview.onMessage(x => { this._onMessage.fire(x); }));
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
+			this._webviewEvents.add(webview.onDidReload(() => { this._onDidReload.fire(); }));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -181,8 +184,14 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
+
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink: Event<string> = this._onDidClickLink.event;
+
+	private readonly _onDidReload = this._register(new Emitter<void>());
+	public readonly onDidReload = this._onDidReload.event;
 
 	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
 	public readonly onDidScroll: Event<{ scrollYPercentage: number; }> = this._onDidScroll.event;

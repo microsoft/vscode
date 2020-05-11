@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/repl';
 import { URI as uri } from 'vs/base/common/uri';
+import { Color } from 'vs/base/common/color';
 import { IAction, IActionViewItem, Action } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
@@ -20,7 +21,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -33,7 +34,7 @@ import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { transparent, editorForeground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
@@ -411,6 +412,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.dimension = new dom.Dimension(width, height);
 		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
 		if (this.tree) {
@@ -529,7 +531,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			// https://github.com/microsoft/TypeScript/issues/32526
 			new ReplDataSource() as IAsyncDataSource<IDebugSession, IReplElement>,
 			{
-				ariaLabel: localize('replAriaLabel', "Read Eval Print Loop Panel"),
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider: { getId: (element: IReplElement) => element.getId() },
 				mouseSupport: false,
@@ -811,3 +812,13 @@ export class ClearReplAction extends Action {
 function getReplView(viewsService: IViewsService): Repl | undefined {
 	return viewsService.getActiveViewWithId(REPL_VIEW_ID) as Repl ?? undefined;
 }
+
+registerThemingParticipant((theme, collector) => {
+	const inputBorderColor = theme.getColor(inputBorder) || Color.fromHex('#80808060');
+
+	collector.addRule(`
+		.repl .repl-input-wrapper {
+			border-top: 1px solid ${inputBorderColor};
+		}
+	`);
+});

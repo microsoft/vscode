@@ -29,7 +29,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
+import { compareFileExtensionsNumeric, compareFileNamesNumeric } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
@@ -252,6 +252,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				this.config = this.configurationService.getValue();
 			}
 		});
+	}
+
+	getWidgetAriaLabel(): string {
+		return localize('treeAriaLabel', "Files Explorer");
 	}
 
 	get templateId(): string {
@@ -595,7 +599,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 		if ((cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) || stat.parent?.isExcluded) {
 			stat.isExcluded = true;
 			const editors = this.editorService.visibleEditors;
-			const editor = editors.filter(e => e.resource && isEqualOrParent(e.resource, stat.resource)).pop();
+			const editor = editors.find(e => e.resource && isEqualOrParent(e.resource, stat.resource));
 			if (editor) {
 				this.editorsAffectingFilter.add(editor);
 				return true; // Show all opened files and their parents
@@ -650,7 +654,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				}
 
 				if (statA.isDirectory && statB.isDirectory) {
-					return compareFileNames(statA.name, statB.name);
+					return compareFileNamesNumeric(statA.name, statB.name);
 				}
 
 				break;
@@ -684,17 +688,17 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		// Sort Files
 		switch (sortOrder) {
 			case 'type':
-				return compareFileExtensions(statA.name, statB.name);
+				return compareFileExtensionsNumeric(statA.name, statB.name);
 
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
 					return (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
 				}
 
-				return compareFileNames(statA.name, statB.name);
+				return compareFileNamesNumeric(statA.name, statB.name);
 
 			default: /* 'default', 'mixed', 'filesFirst' */
-				return compareFileNames(statA.name, statB.name);
+				return compareFileNamesNumeric(statA.name, statB.name);
 		}
 	}
 }
@@ -886,7 +890,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, originalEvent);
 		if (items && items.length && originalEvent.dataTransfer) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, items, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, items, undefined, originalEvent);
 
 			// The only custom data transfer we set from the explorer is a file transfer
 			// to be able to DND between multiple code file explorers across windows
@@ -961,7 +965,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
 		// Check for dropped external files to be folders
-		const result = await this.fileService.resolveAll(droppedResources);
+		const result = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
 
 		// Pass focus to window
 		this.hostService.focus();

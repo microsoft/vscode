@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch, IConfig } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -81,7 +81,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = configurationManager.selectedConfiguration.name ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
 	}
 
-	async run(event?: any): Promise<any> {
+	async run(): Promise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return;
@@ -105,8 +105,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		}
 
 		if (launch) {
-			const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-			return launch.openConfigFile(sideBySide, false);
+			return launch.openConfigFile(false);
 		}
 	}
 }
@@ -114,6 +113,7 @@ export class ConfigureAction extends AbstractDebugAction {
 export class StartAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
 	static LABEL = nls.localize('startDebug', "Start Debugging");
+	static GET_CONFIG_AND_LAUNCH: (() => Promise<{ config: IConfig, launch: ILaunch } | undefined>) | undefined;
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
@@ -128,9 +128,17 @@ export class StartAction extends AbstractDebugAction {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
-	run(): Promise<boolean> {
-		const { launch, name } = this.debugService.getConfigurationManager().selectedConfiguration;
-		return this.debugService.startDebugging(launch, name, { noDebug: this.isNoDebug() });
+	async run(): Promise<boolean> {
+		if (StartAction.GET_CONFIG_AND_LAUNCH) {
+			const picked = await StartAction.GET_CONFIG_AND_LAUNCH();
+			if (picked) {
+				return this.debugService.startDebugging(picked.launch, picked.config, { noDebug: this.isNoDebug() });
+			}
+			return Promise.resolve(false);
+		} else {
+			let { launch, name } = this.debugService.getConfigurationManager().selectedConfiguration;
+			return this.debugService.startDebugging(launch, name, { noDebug: this.isNoDebug() });
+		}
 	}
 
 	protected isNoDebug(): boolean {

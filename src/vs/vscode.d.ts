@@ -1279,6 +1279,28 @@ declare module 'vscode' {
 		static file(path: string): Uri;
 
 		/**
+		 * Create a new uri which path is the result of joining
+		 * the path of the base uri with the provided path segments.
+		 *
+		 * - Note 1: `joinPath` only affects the path component
+		 * and all other components (scheme, authority, query, and fragment) are
+		 * left as they are.
+		 * - Note 2: The base uri must have a path; an error is thrown otherwise.
+		 *
+		 * The path segments are normalized in the following ways:
+		 * - sequences of path separators (`/` or `\`) are replaced with a single separator
+		 * - for `file`-uris on windows, the backslash-character (`\`) is considered a path-separator
+		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segement
+		 * - paths have a root which always remains, for instance on windows drive-letters are roots
+		 * so that is true: `joinPath(Uri.file('file:///c:/root'), '../../other').fsPath === 'c:/other'`
+		 *
+		 * @param base An uri. Must have a path.
+		 * @param pathSegments One more more path fragments
+		 * @returns A new uri which path is joined with the given fragments
+		 */
+		static joinPath(base: Uri, ...pathSegments: string[]): Uri;
+
+		/**
 		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
 		 */
 		private constructor(scheme: string, authority: string, path: string, query: string, fragment: string);
@@ -2248,7 +2270,7 @@ declare module 'vscode' {
 	 * A code lens provider adds [commands](#Command) to source text. The commands will be shown
 	 * as dedicated horizontal lines in between the source text.
 	 */
-	export interface CodeLensProvider {
+	export interface CodeLensProvider<T = CodeLens> {
 
 		/**
 		 * An optional event to signal that the code lenses from this provider have changed.
@@ -2265,17 +2287,17 @@ declare module 'vscode' {
 		 * @return An array of code lenses or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<CodeLens[]>;
+		provideCodeLenses(document: TextDocument, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * This function will be called for each visible code lens, usually when scrolling and after
 		 * calls to [compute](#CodeLensProvider.provideCodeLenses)-lenses.
 		 *
-		 * @param codeLens code lens that must be resolved.
+		 * @param codeLens Code lens that must be resolved.
 		 * @param token A cancellation token.
 		 * @return The given, resolved code lens or thenable that resolves to such.
 		 */
-		resolveCodeLens?(codeLens: CodeLens, token: CancellationToken): ProviderResult<CodeLens>;
+		resolveCodeLens?(codeLens: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
@@ -2776,7 +2798,7 @@ declare module 'vscode' {
 	 * The workspace symbol provider interface defines the contract between extensions and
 	 * the [symbol search](https://code.visualstudio.com/docs/editor/editingevolved#_open-symbol-by-name)-feature.
 	 */
-	export interface WorkspaceSymbolProvider {
+	export interface WorkspaceSymbolProvider<T = SymbolInformation> {
 
 		/**
 		 * Project-wide search for a symbol matching the given query string.
@@ -2795,7 +2817,7 @@ declare module 'vscode' {
 		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideWorkspaceSymbols(query: string, token: CancellationToken): ProviderResult<SymbolInformation[]>;
+		provideWorkspaceSymbols(query: string, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Given a symbol fill in its [location](#SymbolInformation.location). This method is called whenever a symbol
@@ -2809,7 +2831,7 @@ declare module 'vscode' {
 		 * @return The resolved symbol or a thenable that resolves to that. When no result is returned,
 		 * the given `symbol` is used.
 		 */
-		resolveWorkspaceSymbol?(symbol: SymbolInformation, token: CancellationToken): ProviderResult<SymbolInformation>;
+		resolveWorkspaceSymbol?(symbol: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
@@ -3158,11 +3180,11 @@ declare module 'vscode' {
 		/**
 		 * The possible token types.
 		 */
-		public readonly tokenTypes: string[];
+		readonly tokenTypes: string[];
 		/**
 		 * The possible token modifiers.
 		 */
-		public readonly tokenModifiers: string[];
+		readonly tokenModifiers: string[];
 
 		constructor(tokenTypes: string[], tokenModifiers?: string[]);
 	}
@@ -3518,6 +3540,13 @@ declare module 'vscode' {
 		parameters: ParameterInformation[];
 
 		/**
+		 * The index of the active parameter.
+		 *
+		 * If provided, this is used in place of [`SignatureHelp.activeSignature`](#SignatureHelp.activeSignature).
+		 */
+		activeParameter?: number;
+
+		/**
 		 * Creates a new signature information object.
 		 *
 		 * @param label A label string.
@@ -3670,7 +3699,9 @@ declare module 'vscode' {
 		Struct = 21,
 		Event = 22,
 		Operator = 23,
-		TypeParameter = 24
+		TypeParameter = 24,
+		User = 25,
+		Issue = 26,
 	}
 
 	/**
@@ -3827,7 +3858,7 @@ declare module 'vscode' {
 	 * Represents a collection of [completion items](#CompletionItem) to be presented
 	 * in the editor.
 	 */
-	export class CompletionList {
+	export class CompletionList<T = CompletionItem> {
 
 		/**
 		 * This list is not complete. Further typing should result in recomputing
@@ -3838,7 +3869,7 @@ declare module 'vscode' {
 		/**
 		 * The completion items.
 		 */
-		items: CompletionItem[];
+		items: T[];
 
 		/**
 		 * Creates a new completion list.
@@ -3846,7 +3877,7 @@ declare module 'vscode' {
 		 * @param items The completion items.
 		 * @param isIncomplete The list is not complete.
 		 */
-		constructor(items?: CompletionItem[], isIncomplete?: boolean);
+		constructor(items?: T[], isIncomplete?: boolean);
 	}
 
 	/**
@@ -3900,7 +3931,7 @@ declare module 'vscode' {
 	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
 	 * implicitly when typing words or trigger characters.
 	 */
-	export interface CompletionItemProvider {
+	export interface CompletionItemProvider<T = CompletionItem> {
 
 		/**
 		 * Provide completion items for the given position and document.
@@ -3913,7 +3944,7 @@ declare module 'vscode' {
 		 * @return An array of completions, a [completion list](#CompletionList), or a thenable that resolves to either.
 		 * The lack of a result can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken, context: CompletionContext): ProviderResult<CompletionItem[] | CompletionList>;
+		provideCompletionItems(document: TextDocument, position: Position, token: CancellationToken, context: CompletionContext): ProviderResult<T[] | CompletionList<T>>;
 
 		/**
 		 * Given a completion item fill in more data, like [doc-comment](#CompletionItem.documentation)
@@ -3930,7 +3961,7 @@ declare module 'vscode' {
 		 * @return The resolved completion item or a thenable that resolves to of such. It is OK to return the given
 		 * `item`. When no result is returned, the given `item` will be used.
 		 */
-		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+		resolveCompletionItem?(item: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 
@@ -3972,7 +4003,7 @@ declare module 'vscode' {
 	 * The document link provider defines the contract between extensions and feature of showing
 	 * links in the editor.
 	 */
-	export interface DocumentLinkProvider {
+	export interface DocumentLinkProvider<T = DocumentLink> {
 
 		/**
 		 * Provide links for the given document. Note that the editor ships with a default provider that detects
@@ -3983,7 +4014,7 @@ declare module 'vscode' {
 		 * @return An array of [document links](#DocumentLink) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideDocumentLinks(document: TextDocument, token: CancellationToken): ProviderResult<DocumentLink[]>;
+		provideDocumentLinks(document: TextDocument, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Given a link fill in its [target](#DocumentLink.target). This method is called when an incomplete
@@ -3994,7 +4025,7 @@ declare module 'vscode' {
 		 * @param link The link that is to be resolved.
 		 * @param token A cancellation token.
 		 */
-		resolveDocumentLink?(link: DocumentLink, token: CancellationToken): ProviderResult<DocumentLink>;
+		resolveDocumentLink?(link: T, token: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
@@ -5340,7 +5371,13 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * The absolute file path of the directory containing this extension.
+		 * The uri of the directory containing the extension.
+		 */
+		readonly extensionUri: Uri;
+
+		/**
+		 * The absolute file path of the directory containing this extension. Shorthand
+		 * notation for [Extension.extensionUri.fsPath](#Extension.extensionUri) (independent of the uri scheme).
 		 */
 		readonly extensionPath: string;
 
@@ -5405,9 +5442,21 @@ declare module 'vscode' {
 		readonly globalState: Memento;
 
 		/**
-		 * The absolute file path of the directory containing the extension.
+		 * The uri of the directory containing the extension.
+		 */
+		readonly extensionUri: Uri;
+
+		/**
+		 * The absolute file path of the directory containing the extension. Shorthand
+		 * notation for [ExtensionContext.extensionUri.fsPath](#TextDocument.uri) (independent of the uri scheme).
 		 */
 		readonly extensionPath: string;
+
+		/**
+		 * Gets the extension's environment variable collection for this workspace, enabling changes
+		 * to be applied to terminal environment variables.
+		 */
+		readonly environmentVariableCollection: EnvironmentVariableCollection;
 
 		/**
 		 * Get the absolute path of a resource contained in the extension.
@@ -5475,6 +5524,26 @@ declare module 'vscode' {
 		 * @param value A value. MUST not contain cyclic references.
 		 */
 		update(key: string, value: any): Thenable<void>;
+	}
+
+	/**
+	 * Represents a color theme kind.
+	 */
+	export enum ColorThemeKind {
+		Light = 1,
+		Dark = 2,
+		HighContrast = 3
+	}
+
+	/**
+	 * Represents a color theme.
+	 */
+	export interface ColorTheme {
+
+		/**
+		 * The kind of this color theme: light, dark or high contrast.
+		 */
+		readonly kind: ColorThemeKind;
 	}
 
 	/**
@@ -5967,13 +6036,13 @@ declare module 'vscode' {
 	 * A task provider allows to add tasks to the task service.
 	 * A task provider is registered via #tasks.registerTaskProvider.
 	 */
-	export interface TaskProvider {
+	export interface TaskProvider<T = Task> {
 		/**
 		 * Provides tasks.
 		 * @param token A cancellation token.
 		 * @return an array of tasks
 		 */
-		provideTasks(token?: CancellationToken): ProviderResult<Task[]>;
+		provideTasks(token?: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Resolves a task that has no [`execution`](#Task.execution) set. Tasks are
@@ -5988,7 +6057,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return The resolved task
 		 */
-		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
+		resolveTask(task: T, token?: CancellationToken): ProviderResult<T>;
 	}
 
 	/**
@@ -7623,13 +7692,6 @@ declare module 'vscode' {
 		export function createTerminal(options: ExtensionTerminalOptions): Terminal;
 
 		/**
-		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
-		 * handle links that are activated within terminals.
-		 * @param handler The link handler being registered.
-		 */
-		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
-
-		/**
 		 * Register a [TreeDataProvider](#TreeDataProvider) for the view contributed using the extension point `views`.
 		 * This will allow you to contribute data to the [TreeView](#TreeView) and update if the data changes.
 		 *
@@ -7698,6 +7760,17 @@ declare module 'vscode' {
 		 * @return Disposable that unregisters the provider.
 		 */
 		export function registerCustomEditorProvider(viewType: string, provider: CustomTextEditorProvider, options?: { readonly webviewOptions?: WebviewPanelOptions; }): Disposable;
+
+		/**
+		 * The currently active color theme as configured in the settings. The active
+		 * theme can be changed via the `workbench.colorTheme` setting.
+		 */
+		export let activeColorTheme: ColorTheme;
+
+		/**
+		 * An [event](#Event) which fires when the active color theme is changed or has changes.
+		 */
+		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
 	}
 
 	/**
@@ -7830,7 +7903,7 @@ declare module 'vscode' {
 		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
 		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
 		 */
-		onDidChangeTreeData?: Event<T | undefined | null>;
+		onDidChangeTreeData?: Event<T | undefined | null | void>;
 
 		/**
 		 * Get [TreeItem](#TreeItem) representation of the `element`
@@ -8106,6 +8179,7 @@ declare module 'vscode' {
 		 *   }
 		 * };
 		 * vscode.window.createTerminal({ name: 'Exit example', pty });
+		 * ```
 		 */
 		onDidClose?: Event<void | number>;
 
@@ -8189,14 +8263,111 @@ declare module 'vscode' {
 		readonly code: number | undefined;
 	}
 
-	export interface TerminalLinkHandler {
+	/**
+	 * A type of mutation that can be applied to an environment variable.
+	 */
+	export enum EnvironmentVariableMutatorType {
 		/**
-		 * Handles a link that is activated within the terminal.
-		 *
-		 * @return Whether the link was handled, if the link was handled this link will not be
-		 * considered by any other extension or by the default built-in link handler.
+		 * Replace the variable's existing value.
 		 */
-		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+		Replace = 1,
+		/**
+		 * Append to the end of the variable's existing value.
+		 */
+		Append = 2,
+		/**
+		 * Prepend to the start of the variable's existing value.
+		 */
+		Prepend = 3
+	}
+
+	/**
+	 * A type of mutation and its value to be applied to an environment variable.
+	 */
+	export interface EnvironmentVariableMutator {
+		/**
+		 * The type of mutation that will occur to the variable.
+		 */
+		readonly type: EnvironmentVariableMutatorType;
+
+		/**
+		 * The value to use for the variable.
+		 */
+		readonly value: string;
+	}
+
+	/**
+	 * A collection of mutations that an extension can apply to a process environment.
+	 */
+	export interface EnvironmentVariableCollection {
+		/**
+		 * Whether the collection should be cached for the workspace and applied to the terminal
+		 * across window reloads. When true the collection will be active immediately such when the
+		 * window reloads. Additionally, this API will return the cached version if it exists. The
+		 * collection will be invalidated when the extension is uninstalled or when the collection
+		 * is cleared. Defaults to true.
+		 */
+		persistent: boolean;
+
+		/**
+		 * Replace an environment variable with a value.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 *
+		 * @param variable The variable to replace.
+		 * @param value The value to replace the variable with.
+		 */
+		replace(variable: string, value: string): void;
+
+		/**
+		 * Append a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 *
+		 * @param variable The variable to append to.
+		 * @param value The value to append to the variable.
+		 */
+		append(variable: string, value: string): void;
+
+		/**
+		 * Prepend a value to an environment variable.
+		 *
+		 * Note that an extension can only make a single change to any one variable, so this will
+		 * overwrite any previous calls to replace, append or prepend.
+		 *
+		 * @param variable The variable to prepend.
+		 * @param value The value to prepend to the variable.
+		 */
+		prepend(variable: string, value: string): void;
+
+		/**
+		 * Gets the mutator that this collection applies to a variable, if any.
+		 *
+		 * @param variable The variable to get the mutator for.
+		 */
+		get(variable: string): EnvironmentVariableMutator | undefined;
+
+		/**
+		 * Iterate over each mutator in this collection.
+		 *
+		 * @param callback Function to execute for each entry.
+		 * @param thisArg The `this` context used when invoking the handler function.
+		 */
+		forEach(callback: (variable: string, mutator: EnvironmentVariableMutator, collection: EnvironmentVariableCollection) => any, thisArg?: any): void;
+
+		/**
+		 * Deletes this collection's mutator for a variable.
+		 *
+		 * @param variable The variable to delete the mutator for.
+		 */
+		delete(variable: string): void;
+
+		/**
+		 * Clears all mutators from this collection.
+		 */
+		clear(): void;
 	}
 
 	/**
@@ -9763,6 +9934,11 @@ declare module 'vscode' {
 		 * A string to show as placeholder in the input box to guide the user.
 		 */
 		placeholder: string;
+
+		/**
+		 * Controls whether the input box is visible (default is `true`).
+		 */
+		visible: boolean;
 	}
 
 	interface QuickDiffProvider {
@@ -10064,13 +10240,13 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A debug configuration provider allows to add the initial debug configurations to a newly created launch.json
-	 * and to resolve a launch configuration before it is used to start a new debug session.
+	 * A debug configuration provider allows to add debug configurations to the debug service
+	 * and to resolve launch configurations before they are used to start a debug session.
 	 * A debug configuration provider is registered via #debug.registerDebugConfigurationProvider.
 	 */
 	export interface DebugConfigurationProvider {
 		/**
-		 * Provides initial [debug configuration](#DebugConfiguration). If more than one debug configuration provider is
+		 * Provides [debug configuration](#DebugConfiguration) to the debug service. If more than one debug configuration provider is
 		 * registered for the same type, debug configurations are concatenated in arbitrary order.
 		 *
 		 * @param folder The workspace folder for which the configurations are used or `undefined` for a folderless setup.
@@ -10424,6 +10600,23 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A DebugConfigurationProviderTriggerKind specifies when the `provideDebugConfigurations` method of a `DebugConfigurationProvider` is triggered.
+	 * Currently there are two situations: to provide the initial debug configurations for a newly created launch.json or
+	 * to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+	 * A trigger kind is used when registering a `DebugConfigurationProvider` with #debug.registerDebugConfigurationProvider.
+	 */
+	export enum DebugConfigurationProviderTriggerKind {
+		/**
+		 *	`DebugConfigurationProvider.provideDebugConfigurations` is called to provide the initial debug configurations for a newly created launch.json.
+		 */
+		Initial = 1,
+		/**
+		 * `DebugConfigurationProvider.provideDebugConfigurations` is called to provide dynamically generated debug configurations when the user asks for them through the UI (e.g. via the "Select and Start Debugging" command).
+		 */
+		Dynamic = 2
+	}
+
+	/**
 	 * Namespace for debug functionality.
 	 */
 	export namespace debug {
@@ -10474,16 +10667,21 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
 
-
 		/**
 		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specific debug type.
+		 * The optional [triggerKind](#DebugConfigurationProviderTriggerKind) can be used to specify when the `provideDebugConfigurations` method of the provider is triggered.
+		 * Currently two trigger kinds are possible: with the value `Initial` (or if no trigger kind argument is given) the `provideDebugConfigurations` method is used to provide the initial debug configurations to be copied into a newly created launch.json.
+		 * With the trigger kind `Dynamic` the `provideDebugConfigurations` method is used to dynamically determine debug configurations to be presented to the user (in addition to the static configurations from the launch.json).
+		 * Please note that the `triggerKind` argument only applies to the `provideDebugConfigurations` method: so the `resolveDebugConfiguration` methods are not affected at all.
+		 * Registering a single provider with resolve methods for different trigger kinds, results in the same resolve methods called multiple times.
 		 * More than one provider can be registered for the same type.
 		 *
 		 * @param type The debug type for which the provider is registered.
 		 * @param provider The [debug configuration provider](#DebugConfigurationProvider) to register.
+		 * @param triggerKind The [trigger](#DebugConfigurationProviderTrigger) for which the 'provideDebugConfiguration' method of the provider is registered. If `triggerKind` is missing, the value `DebugConfigurationProviderTriggerKind.Initial` is assumed.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider): Disposable;
+		export function registerDebugConfigurationProvider(debugType: string, provider: DebugConfigurationProvider, triggerKind?: DebugConfigurationProviderTriggerKind): Disposable;
 
 		/**
 		 * Register a [debug adapter descriptor factory](#DebugAdapterDescriptorFactory) for a specific debug type.
@@ -10814,6 +11012,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a [comment controller](#CommentController)'s [options](#CommentController.options).
+	 */
+	export interface CommentOptions {
+		/**
+		 * An optional string to show on the comment input box when it's collapsed.
+		 */
+		prompt?: string;
+
+		/**
+		 * An optional string to show as placeholder in the comment input box when it's focused.
+		 */
+		placeHolder?: string;
+	}
+
+	/**
 	 * A comment controller is able to provide [comments](#CommentThread) support to the editor and
 	 * provide users various ways to interact with comments.
 	 */
@@ -10827,6 +11040,11 @@ declare module 'vscode' {
 		 * The human-readable label of this comment controller.
 		 */
 		readonly label: string;
+
+		/**
+		 * Comment controller options
+		 */
+		options?: CommentOptions;
 
 		/**
 		 * Optional commenting range provider. Provide a list [ranges](#Range) which support commenting to any given resource uri.

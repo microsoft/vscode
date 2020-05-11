@@ -42,8 +42,21 @@ function toResource(props: IResourceLabelProps | undefined): URI | undefined {
 }
 
 export interface IResourceLabelOptions extends IIconLabelValueOptions {
+
+	/**
+	 * A hint to the file kind of the resource.
+	 */
 	fileKind?: FileKind;
+
+	/**
+	 * File decorations to use for the label.
+	 */
 	fileDecorations?: { colors: boolean, badges: boolean };
+
+	/**
+	 * Will take the provided label as is and e.g. not override it for untitled files.
+	 */
+	forceLabel?: boolean;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -289,11 +302,12 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	private handleModelEvent(model: ITextModel): void {
-		if (!this.label || !this.label.resource) {
-			return; // only update if label exists
+		const resource = toResource(this.label);
+		if (!resource) {
+			return; // only update if resource exists
 		}
 
-		if (model.uri.toString() === this.label.resource.toString()) {
+		if (model.uri.toString() === resource.toString()) {
 			if (this.lastKnownDetectedModeId !== model.getModeId()) {
 				this.render(true); // update if the language id of the model has changed from our last known state
 			}
@@ -367,7 +381,7 @@ class ResourceLabelWidget extends IconLabel {
 		const resource = toResource(label);
 		const isMasterDetail = label?.resource && !URI.isUri(label.resource);
 
-		if (!isMasterDetail && resource?.scheme === Schemas.untitled) {
+		if (!options.forceLabel && !isMasterDetail && resource?.scheme === Schemas.untitled) {
 			// Untitled labels are very dynamic because they may change
 			// whenever the content changes (unless a path is associated).
 			// As such we always ask the actual editor for it's name and
@@ -417,8 +431,8 @@ class ResourceLabelWidget extends IconLabel {
 	}
 
 	private clearIconCache(newLabel: IResourceLabelProps, newOptions?: IResourceLabelOptions): boolean {
-		const newResource = newLabel ? newLabel.resource : undefined;
-		const oldResource = this.label ? this.label.resource : undefined;
+		const newResource = toResource(newLabel);
+		const oldResource = toResource(this.label);
 
 		const newFileKind = newOptions ? newOptions.fileKind : undefined;
 		const oldFileKind = this.options ? this.options.fileKind : undefined;
@@ -527,7 +541,6 @@ class ResourceLabelWidget extends IconLabel {
 			);
 
 			if (deco) {
-
 				this.renderDisposables.add(deco);
 
 				if (deco.tooltip) {

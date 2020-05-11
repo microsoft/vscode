@@ -11,8 +11,9 @@ import { FileDeleteOptions, FileOverwriteOptions, FileSystemProviderCapabilities
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { readTrustedDomains } from 'vs/workbench/contrib/url/common/trustedDomains';
+import { readTrustedDomains, TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, TRUSTED_DOMAINS_STORAGE_KEY } from 'vs/workbench/contrib/url/common/trustedDomains';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 const TRUSTED_DOMAINS_SCHEMA = 'trustedDomains';
 
@@ -76,9 +77,13 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		this.fileService.registerProvider(TRUSTED_DOMAINS_SCHEMA, this);
+
+		this.storageKeysSyncRegistryService.registerStorageKey({ key: TRUSTED_DOMAINS_STORAGE_KEY, version: 1 });
+		this.storageKeysSyncRegistryService.registerStorageKey({ key: TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, version: 1 });
 	}
 
 	stat(resource: URI): Promise<IStat> {
@@ -87,7 +92,7 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 
 	readFile(resource: URI): Promise<Uint8Array> {
 		let trustedDomainsContent = this.storageService.get(
-			'http.linkProtectionTrustedDomainsContent',
+			TRUSTED_DOMAINS_CONTENT_STORAGE_KEY,
 			StorageScope.GLOBAL
 		);
 
@@ -110,9 +115,9 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 			const trustedDomainsContent = VSBuffer.wrap(content).toString();
 			const trustedDomains = parse(trustedDomainsContent);
 
-			this.storageService.store('http.linkProtectionTrustedDomainsContent', trustedDomainsContent, StorageScope.GLOBAL);
+			this.storageService.store(TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, trustedDomainsContent, StorageScope.GLOBAL);
 			this.storageService.store(
-				'http.linkProtectionTrustedDomains',
+				TRUSTED_DOMAINS_STORAGE_KEY,
 				JSON.stringify(trustedDomains) || '',
 				StorageScope.GLOBAL
 			);

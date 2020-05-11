@@ -19,13 +19,6 @@ vscode-sqlite3/build/**
 vscode-sqlite3/src/**
 !vscode-sqlite3/build/Release/*.node
 
-oniguruma/binding.gyp
-oniguruma/build/**
-oniguruma/src/**
-oniguruma/deps/**
-!oniguruma/build/Release/*.node
-!oniguruma/src/*.js
-
 windows-mutex/binding.gyp
 windows-mutex/build/**
 windows-mutex/src/**
@@ -83,13 +76,13 @@ node-pty/deps/**
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
 
-nsfw/binding.gyp
-nsfw/build/**
-nsfw/src/**
-nsfw/openpa/**
-nsfw/includes/**
-!nsfw/build/Release/*.node
-!nsfw/**/*.a
+vscode-nsfw/binding.gyp
+vscode-nsfw/build/**
+vscode-nsfw/src/**
+vscode-nsfw/openpa/**
+vscode-nsfw/includes/**
+!vscode-nsfw/build/Release/*.node
+!vscode-nsfw/**/*.a
 
 vsda/build/**
 vsda/ci/**

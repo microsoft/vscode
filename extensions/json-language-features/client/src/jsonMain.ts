@@ -13,12 +13,12 @@ const localize = nls.loadMessageBundle();
 import {
 	workspace, window, languages, commands, ExtensionContext, extensions, Uri, LanguageConfiguration,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString,
 } from 'vscode';
 import {
 	LanguageClient, LanguageClientOptions, RequestType, ServerOptions, TransportKind, NotificationType,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature
 } from 'vscode-languageclient';
 import TelemetryReporter from 'vscode-extension-telemetry';
 
@@ -77,6 +77,12 @@ interface JSONSchemaSettings {
 	schema?: any;
 }
 
+namespace SettingIds {
+	export const enableFormatter = 'json.format.enable';
+	export const enableSchemaDownload = 'json.schemaDownload.enable';
+	export const maxItemsComputed = 'json.maxItemsComputed';
+}
+
 let telemetryReporter: TelemetryReporter | undefined;
 
 export function activate(context: ExtensionContext) {
@@ -107,10 +113,8 @@ export function activate(context: ExtensionContext) {
 		id: 'status.json.resolveError',
 		name: localize('json.resolveError', "JSON: Schema Resolution Error"),
 		alignment: StatusBarAlignment.Right,
-		priority: 0
+		priority: 0,
 	});
-	schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
-	schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema.') + ' ' + localize('json.clickToRetry', 'Click to retry.');
 	schemaResolutionErrorStatusBarItem.text = '$(alert)';
 	toDispose.push(schemaResolutionErrorStatusBarItem);
 
@@ -153,25 +157,41 @@ export function activate(context: ExtensionContext) {
 			},
 			// testing the replace / insert mode
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
-				function updateRanges(item: CompletionItem) {
+				function update(item: CompletionItem) {
 					const range = item.range;
 					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
 						item.range = { inserting: new Range(range.start, position), replacing: range };
 					}
+					if (item.documentation instanceof MarkdownString) {
+						item.documentation = updateMarkdownString(item.documentation);
+					}
+
 				}
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
 					if (r) {
-						(Array.isArray(r) ? r : r.items).forEach(updateRanges);
+						(Array.isArray(r) ? r : r.items).forEach(update);
 					}
 					return r;
 				}
-				const isThenable = <T>(obj: ProviderResult<T>): obj is Thenable<T> => obj && (<any>obj)['then'];
 
 				const r = next(document, position, context, token);
 				if (isThenable<CompletionItem[] | CompletionList | null | undefined>(r)) {
 					return r.then(updateProposals);
 				}
 				return updateProposals(r);
+			},
+			provideHover(document: TextDocument, position: Position, token: CancellationToken, next: ProvideHoverSignature) {
+				function updateHover(r: Hover | null | undefined): Hover | null | undefined {
+					if (r && Array.isArray(r.contents)) {
+						r.contents = r.contents.map(h => h instanceof MarkdownString ? updateMarkdownString(h) : h);
+					}
+					return r;
+				}
+				const r = next(document, position, token);
+				if (isThenable<Hover | null | undefined>(r)) {
+					return r.then(updateHover);
+				}
+				return updateHover(r);
 			}
 		}
 	};
@@ -184,6 +204,7 @@ export function activate(context: ExtensionContext) {
 	toDispose.push(disposable);
 	client.onReady().then(() => {
 		const schemaDocuments: { [uri: string]: boolean } = {};
+		let schemaDownloadEnabled = true;
 
 		// handle content request
 		client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
@@ -192,12 +213,16 @@ export function activate(context: ExtensionContext) {
 				return Promise.reject(new Error(localize('untitled.schema', 'Unable to load {0}', uri.toString())));
 			}
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-				return workspace.openTextDocument(uri).then(doc => {
-					schemaDocuments[uri.toString()] = true;
-					return doc.getText();
-				}, error => {
-					return Promise.reject(error);
-				});
+				if (schemaDownloadEnabled) {
+					return workspace.openTextDocument(uri).then(doc => {
+						schemaDocuments[uri.toString()] = true;
+						return doc.getText();
+					}, error => {
+						return Promise.reject(error);
+					});
+				} else {
+					return Promise.reject(localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
+				}
 			} else {
 				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
 					/* __GDPR__
@@ -278,15 +303,60 @@ export function activate(context: ExtensionContext) {
 			client.sendNotification(SchemaAssociationNotification.type, getSchemaAssociations(context));
 		});
 
-		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
+		// manually register / deregister format provider based on the `json.format.enable` setting avoiding issues with late registration. See #71652.
 		updateFormatterRegistration();
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
-		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
 
+		updateSchemaDownloadSetting();
+
+		toDispose.push(workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(SettingIds.enableFormatter)) {
+				updateFormatterRegistration();
+			} else if (e.affectsConfiguration(SettingIds.enableSchemaDownload)) {
+				updateSchemaDownloadSetting();
+			}
+		}));
 
 		client.onNotification(ResultLimitReachedNotification.type, message => {
-			window.showInformationMessage(`${message}\nUse setting 'json.maxItemsComputed' to configure the limit.`);
+			window.showInformationMessage(`${message}\n${localize('configureLimit', 'Use setting \'{0}\' to configure the limit.', SettingIds.maxItemsComputed)}`);
 		});
+
+		function updateFormatterRegistration() {
+			const formatEnabled = workspace.getConfiguration().get(SettingIds.enableFormatter);
+			if (!formatEnabled && rangeFormatting) {
+				rangeFormatting.dispose();
+				rangeFormatting = undefined;
+			} else if (formatEnabled && !rangeFormatting) {
+				rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
+					provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
+						const params: DocumentRangeFormattingParams = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
+							range: client.code2ProtocolConverter.asRange(range),
+							options: client.code2ProtocolConverter.asFormattingOptions(options)
+						};
+						return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
+							client.protocol2CodeConverter.asTextEdits,
+							(error) => {
+								client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
+								return Promise.resolve([]);
+							}
+						);
+					}
+				});
+			}
+		}
+
+		function updateSchemaDownloadSetting() {
+			schemaDownloadEnabled = workspace.getConfiguration().get(SettingIds.enableSchemaDownload) !== false;
+			if (schemaDownloadEnabled) {
+				schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionErrorMessage', 'Unable to resolve schema. Click to retry.');
+				schemaResolutionErrorStatusBarItem.command = '_json.retryResolveSchema';
+				handleRetryResolveSchemaCommand();
+			} else {
+				schemaResolutionErrorStatusBarItem.tooltip = localize('json.schemaResolutionDisabledMessage', 'Downloading schemas is disabled. Click to configure.');
+				schemaResolutionErrorStatusBarItem.command = { command: 'workbench.action.openSettings', arguments: [SettingIds.enableSchemaDownload], title: '' };
+			}
+		}
 
 	});
 
@@ -300,30 +370,6 @@ export function activate(context: ExtensionContext) {
 	languages.setLanguageConfiguration('json', languageConfiguration);
 	languages.setLanguageConfiguration('jsonc', languageConfiguration);
 
-	function updateFormatterRegistration() {
-		const formatEnabled = workspace.getConfiguration().get('json.format.enable');
-		if (!formatEnabled && rangeFormatting) {
-			rangeFormatting.dispose();
-			rangeFormatting = undefined;
-		} else if (formatEnabled && !rangeFormatting) {
-			rangeFormatting = languages.registerDocumentRangeFormattingEditProvider(documentSelector, {
-				provideDocumentRangeFormattingEdits(document: TextDocument, range: Range, options: FormattingOptions, token: CancellationToken): ProviderResult<TextEdit[]> {
-					const params: DocumentRangeFormattingParams = {
-						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-						range: client.code2ProtocolConverter.asRange(range),
-						options: client.code2ProtocolConverter.asFormattingOptions(options)
-					};
-					return client.sendRequest(DocumentRangeFormattingRequest.type, params, token).then(
-						client.protocol2CodeConverter.asTextEdits,
-						(error) => {
-							client.logFailedRequest(DocumentRangeFormattingRequest.type, error);
-							return Promise.resolve([]);
-						}
-					);
-				}
-			});
-		}
-	}
 }
 
 
@@ -370,7 +416,7 @@ function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[]
 function getSettings(): Settings {
 	const httpSettings = workspace.getConfiguration('http');
 
-	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get('json.maxItemsComputed')))) || 5000;
+	const resultLimit: number = Math.trunc(Math.max(0, Number(workspace.getConfiguration().get(SettingIds.maxItemsComputed)))) || 5000;
 
 	const settings: Settings = {
 		http: {
@@ -491,4 +537,14 @@ function readJSONFile(location: string) {
 		console.log(`Problems reading ${location}: ${e}`);
 		return {};
 	}
+}
+
+function isThenable<T>(obj: ProviderResult<T>): obj is Thenable<T> {
+	return obj && (<any>obj)['then'];
+}
+
+function updateMarkdownString(h: MarkdownString): MarkdownString {
+	const n = new MarkdownString(h.value, true);
+	n.isTrusted = h.isTrusted;
+	return n;
 }

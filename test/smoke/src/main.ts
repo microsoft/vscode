@@ -29,7 +29,6 @@ import { setup as setupDataLanguagesTests } from './areas/languages/languages.te
 import { setup as setupDataEditorTests } from './areas/editor/editor.test';
 import { setup as setupDataStatusbarTests } from './areas/statusbar/statusbar.test';
 import { setup as setupDataExtensionTests } from './areas/extensions/extensions.test';
-import { setup as setupTerminalTests } from './areas/terminal/terminal.test';
 import { setup as setupDataMultirootTests } from './areas/multiroot/multiroot.test';
 import { setup as setupDataLocalizationTests } from './areas/workbench/localization.test';
 import { setup as setupLaunchTests } from './areas/workbench/launch.test';
@@ -267,16 +266,6 @@ after(async function () {
 });
 
 describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-	before(async function () {
-		const app = new Application(this.defaultOptions);
-		await app!.start(opts.web ? false : undefined);
-		this.app = app;
-	});
-
-	after(async function () {
-		await this.app.stop();
-	});
-
 	if (screenshotsPath) {
 		afterEach(async function () {
 			if (this.currentTest.state !== 'failed') {
@@ -298,16 +287,33 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 		});
 	}
 
-	if (!opts.web) { setupDataMigrationTests(opts['stable-build'], testDataPath); }
-	if (!opts.web) { setupDataLossTests(); }
-	if (!opts.web) { setupDataPreferencesTests(); }
-	setupDataSearchTests();
-	setupDataLanguagesTests();
-	setupDataEditorTests();
-	setupDataStatusbarTests(!!opts.web);
-	if (!opts.web) { setupDataExtensionTests(); }
-	setupTerminalTests();
-	if (!opts.web) { setupDataMultirootTests(); }
-	if (!opts.web) { setupDataLocalizationTests(); }
-	if (!opts.web) { setupLaunchTests(); }
+	if (!opts.web && opts['stable-build']) {
+		describe(`Stable vs Insiders Smoke Tests: This test MUST run before releasing by providing the --stable-build command line argument`, () => {
+			setupDataMigrationTests(opts['stable-build'], testDataPath);
+		});
+	}
+
+	describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
+		before(async function () {
+			const app = new Application(this.defaultOptions);
+			await app!.start(opts.web ? false : undefined);
+			this.app = app;
+		});
+
+		after(async function () {
+			await this.app.stop();
+		});
+
+		if (!opts.web) { setupDataLossTests(); }
+		if (!opts.web) { setupDataPreferencesTests(); }
+		setupDataSearchTests();
+		setupDataLanguagesTests();
+		setupDataEditorTests();
+		setupDataStatusbarTests(!!opts.web);
+		if (!opts.web) { setupDataExtensionTests(); }
+		if (!opts.web) { setupDataMultirootTests(); }
+		if (!opts.web) { setupDataLocalizationTests(); }
+		if (!opts.web) { setupLaunchTests(); }
+	});
 });
+

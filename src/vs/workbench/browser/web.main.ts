@@ -33,12 +33,12 @@ import { WorkspaceService } from 'vs/workbench/services/configuration/browser/co
 import { ConfigurationCache } from 'vs/workbench/services/configuration/browser/configurationCache';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/browser/signService';
-import { IWorkbenchConstructionOptions, IWorkspace } from 'vs/workbench/workbench.web.api';
+import { IWorkbenchConstructionOptions, IWorkspace, IWorkbench } from 'vs/workbench/workbench.web.api';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { joinPath } from 'vs/base/common/resources';
 import { BrowserStorageService } from 'vs/platform/storage/browser/storageService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { getThemeTypeSelector, DARK, HIGH_CONTRAST, LIGHT } from 'vs/platform/theme/common/themeService';
 import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
@@ -51,6 +51,8 @@ import { getWorkspaceIdentifier } from 'vs/workbench/services/workspaces/browser
 import { coalesce } from 'vs/base/common/arrays';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { WebResourceIdentityService, IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Settings } from 'vs/workbench/browser/layout';
 
 class BrowserMain extends Disposable {
 
@@ -61,8 +63,13 @@ class BrowserMain extends Disposable {
 		super();
 	}
 
-	async open(): Promise<void> {
+	async open(): Promise<IWorkbench> {
 		const services = await this.initServices();
+
+		const firstOpen = services.storageService.getBoolean(Settings.WORKSPACE_FIRST_OPEN, StorageScope.WORKSPACE);
+		if (firstOpen === undefined || firstOpen) {
+			services.storageService.store(Settings.WORKSPACE_FIRST_OPEN, !(firstOpen ?? false), StorageScope.WORKSPACE);
+		}
 
 		await domContentLoaded();
 		mark('willStartWorkbench');
@@ -86,7 +93,18 @@ class BrowserMain extends Disposable {
 		}
 
 		// Startup
-		workbench.startup();
+		const instantiationService = workbench.startup();
+
+		// Return API Facade
+		return instantiationService.invokeFunction(accessor => {
+			const commandService = accessor.get(ICommandService);
+
+			return {
+				commands: {
+					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
+				}
+			};
+		});
 	}
 
 	private registerListeners(workbench: Workbench, storageService: BrowserStorageService): void {
@@ -254,7 +272,7 @@ class BrowserMain extends Disposable {
 			if (!this.configuration.userDataProvider) {
 				const remoteUserDataUri = this.getRemoteUserDataUri();
 				if (remoteUserDataUri) {
-					this.configuration.userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService));
+					this.configuration.userDataProvider = this._register(new FileUserDataProvider(remoteUserDataUri, joinPath(remoteUserDataUri, BACKUPS), remoteFileSystemProvider, environmentService, logService));
 				}
 			}
 		}
@@ -335,8 +353,8 @@ class BrowserMain extends Disposable {
 	}
 }
 
-export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<void> {
-	const renderer = new BrowserMain(domElement, options);
+export function main(domElement: HTMLElement, options: IWorkbenchConstructionOptions): Promise<IWorkbench> {
+	const workbench = new BrowserMain(domElement, options);
 
-	return renderer.open();
+	return workbench.open();
 }

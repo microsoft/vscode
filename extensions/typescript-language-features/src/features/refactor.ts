@@ -20,6 +20,23 @@ import FormattingOptionsManager from './fileConfigurationManager';
 const localize = nls.loadMessageBundle();
 
 
+namespace Experimental {
+	export interface RefactorActionInfo extends Proto.RefactorActionInfo {
+		readonly error?: string
+	}
+
+	export type RefactorTriggerReason = RefactorInvokedReason;
+
+	export interface RefactorInvokedReason {
+		readonly kind: 'invoked';
+	}
+
+	export interface GetApplicableRefactorsRequestArgs extends Proto.FileRangeRequestArgs {
+		readonly triggerReason?: RefactorTriggerReason;
+	}
+}
+
+
 class ApplyRefactoringCommand implements Command {
 	public static readonly ID = '_typescript.applyRefactoring';
 	public readonly id = ApplyRefactoringCommand.ID;
@@ -241,7 +258,10 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
+			const args: Experimental.GetApplicableRefactorsRequestArgs = {
+				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
+				triggerReason: this.toTsTriggerReason(context),
+			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
 		if (response?.type !== 'response' || !response.body) {
@@ -253,6 +273,13 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			return actions;
 		}
 		return this.appendInvalidActions(actions);
+	}
+
+	private toTsTriggerReason(context: vscode.CodeActionContext): Experimental.RefactorInvokedReason | undefined {
+		if (!context.only) {
+			return;
+		}
+		return { kind: 'invoked' };
 	}
 
 	private convertApplicableRefactors(
@@ -280,13 +307,20 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private refactorActionToCodeAction(
-		action: Proto.RefactorActionInfo,
+		action: Experimental.RefactorActionInfo,
 		document: vscode.TextDocument,
 		info: Proto.ApplicableRefactorInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
 	) {
 		const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
+
+		// https://github.com/microsoft/TypeScript/pull/37871
+		if (action.error) {
+			codeAction.disabled = { reason: action.error };
+			return codeAction;
+		}
+
 		codeAction.command = {
 			title: action.description,
 			command: ApplyRefactoringCommand.ID,

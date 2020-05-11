@@ -125,6 +125,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('spellcheck', 'false');
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
 		this.textArea.setAttribute('role', 'textbox');
+		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');

@@ -114,7 +114,7 @@ class EditorScrollable extends Disposable {
 			scrollWidth: dimensions.scrollWidth,
 			height: dimensions.height,
 			scrollHeight: dimensions.scrollHeight
-		});
+		}, true);
 
 		const contentWidthChanged = (oldDimensions.contentWidth !== dimensions.contentWidth);
 		const contentHeightChanged = (oldDimensions.contentHeight !== dimensions.contentHeight);

@@ -27,7 +27,7 @@ import { defaultSearchConfig, extractSearchQueryFromModel, parseSavedSearchEdito
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { ITextFileSaveOptions, ITextFileService, snapshotToString, stringToSnapshot } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -36,7 +36,7 @@ import { IWorkingCopy, IWorkingCopyBackup, IWorkingCopyService, WorkingCopyCapab
 export type SearchConfiguration = {
 	query: string,
 	includes: string,
-	excludes: string
+	excludes: string,
 	contextLines: number,
 	wholeWord: boolean,
 	caseSensitive: boolean,
@@ -86,7 +86,7 @@ export class SearchEditorInput extends EditorInput {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IRemotePathService private readonly remotePathService: IRemotePathService,
+		@IPathService private readonly pathService: IPathService,
 		@IStorageService storageService: IStorageService,
 	) {
 		super();
@@ -284,7 +284,7 @@ export class SearchEditorInput extends EditorInput {
 		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
 		const schemeFilter = remoteAuthority ? network.Schemas.vscodeRemote : network.Schemas.file;
 
-		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.remotePathService.userHome), searchFileName);
+		return joinPath(this.fileDialogService.defaultFilePath(schemeFilter) || (await this.pathService.userHome), searchFileName);
 	}
 }
 
@@ -304,15 +304,15 @@ export const getOrMakeSearchEditorInput = (
 	const storageService = accessor.get(IStorageService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	const reuseOldSettings = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor?.experimental?.reusePriorSearchConfiguration;
+	const reuseOldSettings = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor?.reusePriorSearchConfiguration;
 	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE).searchConfig : {};
 	const defaultConfig = defaultSearchConfig();
 	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };
 
 	const modelUri = existingData.modelUri ?? URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
 
-
-	const existing = inputs.get(modelUri.toString() + existingData.backingUri?.toString());
+	const cacheKey = existingData.backingUri?.toString() ?? modelUri.toString();
+	const existing = inputs.get(cacheKey);
 	if (existing) {
 		return existing;
 	}
@@ -341,8 +341,8 @@ export const getOrMakeSearchEditorInput = (
 
 	const input = instantiationService.createInstance(SearchEditorInput, modelUri, existingData.backingUri, config, getModel);
 
-	inputs.set(modelUri.toString(), input);
-	input.onDispose(() => inputs.delete(modelUri.toString()));
+	inputs.set(cacheKey, input);
+	input.onDispose(() => inputs.delete(cacheKey));
 
 	return input;
 };

@@ -58,7 +58,9 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
-			this.editorOpeningListener = this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
+			this.editorOpeningListener = this.editorService.overrideOpenEditor({
+				open: (editor, options, group) => this.onEditorOpening(editor, options, group)
+			});
 		}
 	}
 

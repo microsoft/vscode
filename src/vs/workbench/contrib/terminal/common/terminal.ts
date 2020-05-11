@@ -11,6 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 export const TERMINAL_VIEW_ID = 'workbench.panel.terminal';
 
@@ -36,15 +37,15 @@ export const KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED = new RawContextKey<boole
 export const KEYBINDING_CONTEXT_TERMINAL_TEXT_NOT_SELECTED = KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED.toNegated();
 
 /**  A context key that is set when the find widget in integrated terminal is visible. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('terminalFindWidgetVisible', false);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE = new RawContextKey<boolean>('terminalFindVisible', false);
 /**  A context key that is set when the find widget in integrated terminal is not visible. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_NOT_VISIBLE = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_VISIBLE.toNegated();
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.toNegated();
 /**  A context key that is set when the find widget find input in integrated terminal is focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetInputFocused', false);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('terminalFindInputFocused', false);
 /**  A context key that is set when the find widget in integrated terminal is focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('terminalFindWidgetFocused', false);
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED = new RawContextKey<boolean>('terminalFindFocused', false);
 /**  A context key that is set when the find widget find input in integrated terminal is not focused. */
-export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_FOCUSED.toNegated();
+export const KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_NOT_FOCUSED = KEYBINDING_CONTEXT_TERMINAL_FIND_INPUT_FOCUSED.toNegated();
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
@@ -124,6 +125,7 @@ export interface ITerminalConfiguration {
 		osx: { [key: string]: string };
 		windows: { [key: string]: string };
 	};
+	environmentChangesIndicator: 'off' | 'on' | 'warnonly';
 	showExitAlert: boolean;
 	splitCwd: 'workspaceRoot' | 'initial' | 'inherited';
 	windowsEnableConpty: boolean;
@@ -131,6 +133,7 @@ export interface ITerminalConfiguration {
 	experimentalUseTitleEvent: boolean;
 	enableFileLinks: boolean;
 	unicodeVersion: '6' | '11';
+	experimentalLinkProvider: boolean;
 }
 
 export interface ITerminalConfigHelper {
@@ -293,6 +296,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly remoteAuthority: string | undefined;
 	readonly os: OperatingSystem | undefined;
 	readonly userHome: string | undefined;
+	readonly environmentVariableInfo: IEnvironmentVariableInfo | undefined;
 
 	readonly onProcessReady: Event<void>;
 	readonly onBeforeProcessData: Event<IBeforeProcessDataEvent>;
@@ -301,6 +305,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onProcessExit: Event<number | undefined>;
 	readonly onProcessOverrideDimensions: Event<ITerminalDimensions | undefined>;
 	readonly onProcessResolvedShellLaunchConfig: Event<IShellLaunchConfig>;
+	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<void>;
@@ -392,6 +397,8 @@ export enum TitleEventSource {
 }
 
 export interface IWindowsShellHelper extends IDisposable {
+	readonly onShellNameChange: Event<string>;
+
 	getShellName(): Promise<string>;
 }
 
@@ -441,6 +448,7 @@ export const enum TERMINAL_COMMAND_ID {
 	NEW_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.newInActiveWorkspace',
 	SPLIT = 'workbench.action.terminal.split',
 	SPLIT_IN_ACTIVE_WORKSPACE = 'workbench.action.terminal.splitInActiveWorkspace',
+	RELAUNCH = 'workbench.action.terminal.relaunch',
 	FOCUS_PREVIOUS_PANE = 'workbench.action.terminal.focusPreviousPane',
 	FOCUS_NEXT_PANE = 'workbench.action.terminal.focusNextPane',
 	RESIZE_PANE_LEFT = 'workbench.action.terminal.resizePaneLeft',
@@ -466,8 +474,8 @@ export const enum TERMINAL_COMMAND_ID {
 	MANAGE_WORKSPACE_SHELL_PERMISSIONS = 'workbench.action.terminal.manageWorkspaceShellPermissions',
 	RENAME = 'workbench.action.terminal.rename',
 	RENAME_WITH_ARG = 'workbench.action.terminal.renameWithArg',
-	FIND_WIDGET_FOCUS = 'workbench.action.terminal.focusFindWidget',
-	FIND_WIDGET_HIDE = 'workbench.action.terminal.hideFindWidget',
+	FIND_FOCUS = 'workbench.action.terminal.focusFind',
+	FIND_HIDE = 'workbench.action.terminal.hideFind',
 	QUICK_OPEN_TERM = 'workbench.action.quickOpenTerm',
 	SCROLL_TO_PREVIOUS_COMMAND = 'workbench.action.terminal.scrollToPreviousCommand',
 	SCROLL_TO_NEXT_COMMAND = 'workbench.action.terminal.scrollToNextCommand',
@@ -482,5 +490,127 @@ export const enum TERMINAL_COMMAND_ID {
 	TOGGLE_FIND_CASE_SENSITIVE = 'workbench.action.terminal.toggleFindCaseSensitive',
 	NAVIGATION_MODE_EXIT = 'workbench.action.terminal.navigationModeExit',
 	NAVIGATION_MODE_FOCUS_NEXT = 'workbench.action.terminal.navigationModeFocusNext',
-	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious'
+	NAVIGATION_MODE_FOCUS_PREVIOUS = 'workbench.action.terminal.navigationModeFocusPrevious',
+	SHOW_ENVIRONMENT_INFORMATION = 'workbench.action.terminal.showEnvironmentInformation'
 }
+
+export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
+	TERMINAL_COMMAND_ID.CLEAR_SELECTION,
+	TERMINAL_COMMAND_ID.CLEAR,
+	TERMINAL_COMMAND_ID.COPY_SELECTION,
+	TERMINAL_COMMAND_ID.DELETE_TO_LINE_START,
+	TERMINAL_COMMAND_ID.DELETE_WORD_LEFT,
+	TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
+	TERMINAL_COMMAND_ID.FIND_FOCUS,
+	TERMINAL_COMMAND_ID.FIND_HIDE,
+	TERMINAL_COMMAND_ID.FIND_NEXT,
+	TERMINAL_COMMAND_ID.FIND_PREVIOUS,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD,
+	TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE,
+	TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
+	TERMINAL_COMMAND_ID.FOCUS_NEXT,
+	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
+	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
+	TERMINAL_COMMAND_ID.FOCUS,
+	TERMINAL_COMMAND_ID.KILL,
+	TERMINAL_COMMAND_ID.MOVE_TO_LINE_END,
+	TERMINAL_COMMAND_ID.MOVE_TO_LINE_START,
+	TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
+	TERMINAL_COMMAND_ID.NEW,
+	TERMINAL_COMMAND_ID.PASTE,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
+	TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
+	TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
+	TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
+	TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
+	TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
+	TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
+	TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
+	TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
+	TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
+	TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
+	TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
+	TERMINAL_COMMAND_ID.SEND_SEQUENCE,
+	TERMINAL_COMMAND_ID.SELECT_ALL,
+	TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
+	TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
+	TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
+	TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
+	TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
+	TERMINAL_COMMAND_ID.SPLIT,
+	TERMINAL_COMMAND_ID.TOGGLE,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT,
+	TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS,
+	'editor.action.toggleTabFocusMode',
+	'workbench.action.quickOpen',
+	'workbench.action.quickOpenPreviousEditor',
+	'workbench.action.showCommands',
+	'workbench.action.tasks.build',
+	'workbench.action.tasks.restartTask',
+	'workbench.action.tasks.runTask',
+	'workbench.action.tasks.reRunTask',
+	'workbench.action.tasks.showLog',
+	'workbench.action.tasks.showTasks',
+	'workbench.action.tasks.terminate',
+	'workbench.action.tasks.test',
+	'workbench.action.toggleFullScreen',
+	'workbench.action.terminal.focusAtIndex1',
+	'workbench.action.terminal.focusAtIndex2',
+	'workbench.action.terminal.focusAtIndex3',
+	'workbench.action.terminal.focusAtIndex4',
+	'workbench.action.terminal.focusAtIndex5',
+	'workbench.action.terminal.focusAtIndex6',
+	'workbench.action.terminal.focusAtIndex7',
+	'workbench.action.terminal.focusAtIndex8',
+	'workbench.action.terminal.focusAtIndex9',
+	'workbench.action.focusSecondEditorGroup',
+	'workbench.action.focusThirdEditorGroup',
+	'workbench.action.focusFourthEditorGroup',
+	'workbench.action.focusFifthEditorGroup',
+	'workbench.action.focusSixthEditorGroup',
+	'workbench.action.focusSeventhEditorGroup',
+	'workbench.action.focusEighthEditorGroup',
+	'workbench.action.focusNextPart',
+	'workbench.action.focusPreviousPart',
+	'workbench.action.nextPanelView',
+	'workbench.action.previousPanelView',
+	'workbench.action.nextSideBarView',
+	'workbench.action.previousSideBarView',
+	'workbench.action.debug.start',
+	'workbench.action.debug.stop',
+	'workbench.action.debug.run',
+	'workbench.action.debug.restart',
+	'workbench.action.debug.continue',
+	'workbench.action.debug.pause',
+	'workbench.action.debug.stepInto',
+	'workbench.action.debug.stepOut',
+	'workbench.action.debug.stepOver',
+	'workbench.action.nextEditor',
+	'workbench.action.previousEditor',
+	'workbench.action.nextEditorInGroup',
+	'workbench.action.previousEditorInGroup',
+	'workbench.action.openNextRecentlyUsedEditor',
+	'workbench.action.openPreviousRecentlyUsedEditor',
+	'workbench.action.openNextRecentlyUsedEditorInGroup',
+	'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+	'workbench.action.quickOpenPreviousRecentlyUsedEditor',
+	'workbench.action.quickOpenLeastRecentlyUsedEditor',
+	'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
+	'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
+	'workbench.action.focusActiveEditorGroup',
+	'workbench.action.focusFirstEditorGroup',
+	'workbench.action.focusLastEditorGroup',
+	'workbench.action.firstEditorInGroup',
+	'workbench.action.lastEditorInGroup',
+	'workbench.action.navigateUp',
+	'workbench.action.navigateDown',
+	'workbench.action.navigateRight',
+	'workbench.action.navigateLeft',
+	'workbench.action.togglePanel',
+	'workbench.action.quickOpenView',
+	'workbench.action.toggleMaximizedPanel'
+];

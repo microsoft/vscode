@@ -173,7 +173,12 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			// because we are triggering another openEditor() call
 			// and do not control the initial intent that resulted
 			// in us now opening as binary.
-			const preservingOptions: IEditorOptions = { activation: EditorActivation.PRESERVE, pinned: this.group?.isPinned(input) };
+			const preservingOptions: IEditorOptions = {
+				activation: EditorActivation.PRESERVE,
+				pinned: this.group?.isPinned(input),
+				sticky: this.group?.isSticky(input)
+			};
+
 			if (options) {
 				options.overwrite(preservingOptions);
 			} else {
@@ -215,9 +220,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 		const inputName = this.input?.getName();
 		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly compare editor", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly compare editor");
+			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly compare", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly compare");
 		} else {
-			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0} compare editor", inputName) : nls.localize('editableEditorAriaLabel', "Compare editor");
+			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0} compare", inputName) : nls.localize('editableEditorAriaLabel', "Compare");
 		}
 
 		return ariaLabel;
@@ -229,7 +234,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		if (isArray(error)) {
 			const errors = <Error[]>error;
 
-			return errors.some(e => this.isFileBinaryError(e));
+			return errors.some(error => this.isFileBinaryError(error));
 		}
 
 		return (<TextFileOperationError>error).textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY;

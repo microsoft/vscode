@@ -47,12 +47,12 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			.map(session => {
 				return {
 					id: session.id,
-					accountName: session.accountName,
+					account: session.account,
 					scopes: session.scopes,
 					getAccessToken: async () => {
 						const isAllowed = await this._proxy.$getSessionsPrompt(
 							provider.id,
-							session.accountName,
+							session.account.displayName,
 							provider.displayName,
 							extensionId,
 							requestingExtension.displayName || requestingExtension.name);
@@ -80,14 +80,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		const session = await provider.login(scopes);
+		await this._proxy.$setTrustedExtension(provider.id, session.account.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
 		return {
 			id: session.id,
-			accountName: session.accountName,
+			account: session.account,
 			scopes: session.scopes,
 			getAccessToken: async () => {
 				const isAllowed = await this._proxy.$getSessionsPrompt(
 					provider.id,
-					session.accountName,
+					session.account.displayName,
 					provider.displayName,
 					ExtensionIdentifier.toKey(requestingExtension.identifier),
 					requestingExtension.displayName || requestingExtension.name);
@@ -99,6 +100,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				return session.getAccessToken();
 			}
 		};
+	}
+
+	async logout(providerId: string, sessionId: string): Promise<void> {
+		const provider = this._authenticationProviders.get(providerId);
+		if (!provider) {
+			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
+		}
+
+		return provider.logout(sessionId);
 	}
 
 	registerAuthenticationProvider(provider: vscode.AuthenticationProvider): vscode.Disposable {

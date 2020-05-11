@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
@@ -73,6 +73,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -392,13 +393,33 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 
 export class SCMAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('scm', "Source Control Management");
+	}
+
 	getAriaLabel(element: TreeElement): string {
 		if (ResourceTree.isResourceNode(element)) {
-			return element.name;
+			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			return `${basename(element.sourceUri)}, ${element.decorations.tooltip || ''}`;
+			const result: string[] = [];
+
+			result.push(basename(element.sourceUri));
+
+			if (element.decorations.tooltip) {
+				result.push(element.decorations.tooltip);
+			}
+
+			const path = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true, noPrefix: true });
+
+			if (path) {
+				result.push(path);
+			}
+
+			return result.join(', ');
 		}
 	}
 }
@@ -617,6 +638,7 @@ export class ToggleViewModeAction extends Action {
 }
 
 export class RepositoryPane extends ViewPane {
+	private readonly defaultInputFontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif';
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
@@ -745,13 +767,12 @@ export class RepositoryPane extends ViewPane {
 			cursorWidth: 1,
 			fontSize: 13,
 			lineHeight: 20,
-			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			fontFamily: this.getInputEditorFontFamily(),
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
 			quickSuggestions: false
 		};
-
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -774,6 +795,9 @@ export class RepositoryPane extends ViewPane {
 
 		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
 		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
+
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
+		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
 		let query: string | undefined;
 
@@ -820,9 +844,7 @@ export class RepositoryPane extends ViewPane {
 		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
 		this._register(onDidChangeContentHeight(() => this.layoutBody()));
 
-		if (this.repository.provider.onDidChangeCommitTemplate) {
-			this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
-		}
+		this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
 
 		this.onDidChangeCommitTemplate();
 
@@ -846,13 +868,7 @@ export class RepositoryPane extends ViewPane {
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		this._register(actionRunner);
-		this._register(actionRunner.onDidRun(() => {
-			if (this.repository.input.visible && this.inputEditor.hasWidgetFocus()) {
-				return;
-			}
-
-			this.tree.domFocus();
-		}));
+		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
 
 		const renderers = [
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
@@ -879,7 +895,7 @@ export class RepositoryPane extends ViewPane {
 				overrideStyles: {
 					listBackground: SIDE_BAR_BACKGROUND
 				},
-				accessibilityProvider: new SCMAccessibilityProvider()
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
 		const navigator = this._register(new TreeResourceNavigator(this.tree, { openOnSelection: false }));
@@ -945,6 +961,10 @@ export class RepositoryPane extends ViewPane {
 	layoutBody(height: number | undefined = this.cachedHeight, width: number | undefined = this.cachedWidth): void {
 		if (height === undefined) {
 			return;
+		}
+
+		if (width !== undefined) {
+			super.layoutBody(height, width);
 		}
 
 		this.cachedHeight = height;
@@ -1060,7 +1080,7 @@ export class RepositoryPane extends ViewPane {
 		}
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
-		actionRunner.onDidRun(() => this.tree.domFocus());
+		actionRunner.onDidBeforeRun(() => this.tree.domFocus());
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -1096,6 +1116,20 @@ export class RepositoryPane extends ViewPane {
 		if (this.cachedHeight) {
 			this.layoutBody(this.cachedHeight);
 		}
+	}
+
+	private getInputEditorFontFamily(): string {
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily');
+
+		if (inputFontFamily.toLowerCase() === 'editor') {
+			return this.configurationService.getValue<string>('editor.fontFamily');
+		}
+
+		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
+			return inputFontFamily;
+		}
+
+		return this.defaultInputFontFamily;
 	}
 }
 

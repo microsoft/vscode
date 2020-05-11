@@ -38,7 +38,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
-import { TestBackupFileService, TestEditorGroupsService, TestEditorService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestBackupFileService, TestEditorGroupsService, TestEditorService, TestLifecycleService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas } from 'vs/base/common/network';
 import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
@@ -57,6 +57,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestTextResourcePropertiesService, TestContextService, TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
@@ -93,6 +94,7 @@ suite('KeybindingsEditing', () => {
 			configService.setUserConfiguration('files', { 'eol': '\n' });
 
 			instantiationService.stub(IEnvironmentService, environmentService);
+			instantiationService.stub(IPathService, new TestPathService());
 			instantiationService.stub(IConfigurationService, configService);
 			instantiationService.stub(IWorkspaceContextService, new TestContextService());
 			const lifecycleService = new TestLifecycleService();
@@ -113,7 +115,7 @@ suite('KeybindingsEditing', () => {
 			const fileService = new FileService(new NullLogService());
 			const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 			fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
+			fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService, new NullLogService()));
 			instantiationService.stub(IFileService, fileService);
 			instantiationService.stub(IWorkingCopyService, new TestWorkingCopyService());
 			instantiationService.stub(IWorkingCopyFileService, instantiationService.createInstance(WorkingCopyFileService));

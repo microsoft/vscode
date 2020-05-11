@@ -36,10 +36,15 @@ export interface IEnvironmentService {
 	argvResource: URI;
 	snippetsHome: URI;
 
+	// --- data paths
+	backupHome: URI;
+	untitledWorkspacesHome: URI;
+
 	// --- settings sync
 	userDataSyncLogResource: URI;
 	userDataSyncHome: URI;
-	sync: 'on' | 'off';
+	sync: 'on' | 'off' | undefined;
+	enableSyncByDefault: boolean;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -56,19 +61,9 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	isBuilt: boolean;
 
-	// --- data paths
-	backupHome: URI;
-	untitledWorkspacesHome: URI;
-
 	// --- misc
 	disableTelemetry: boolean;
-
 	serviceMachineIdResource: URI;
-
-	/**
-	 * @deprecated use IRemotePathService#userHome instead (https://github.com/microsoft/vscode/issues/94506)
-	 */
-	userHome?: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// NOTE: DO NOT ADD ANY OTHER PROPERTY INTO THE COLLECTION HERE

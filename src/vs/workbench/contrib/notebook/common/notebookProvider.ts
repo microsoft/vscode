@@ -17,15 +17,18 @@ export class NotebookProviderInfo {
 	readonly id: string;
 	readonly displayName: string;
 	readonly selector: readonly NotebookSelector[];
+	readonly providerDisplayName: string;
 
 	constructor(descriptor: {
 		readonly id: string;
 		readonly displayName: string;
 		readonly selector: readonly NotebookSelector[];
+		readonly providerDisplayName: string;
 	}) {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
 		this.selector = descriptor.selector;
+		this.providerDisplayName = descriptor.providerDisplayName;
 	}
 
 	matches(resource: URI): boolean {
