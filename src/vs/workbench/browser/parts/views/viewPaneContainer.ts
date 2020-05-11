@@ -290,6 +290,10 @@ export abstract class ViewPane extends Pane implements IView {
 		this._register(this.toolbar);
 		this.setActions();
 
+		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
+			this.updateTitle(this.title);
+		}));
+
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
@@ -300,15 +304,28 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		this.titleContainer = append(container, $('h3.title', undefined, title));
+		this.titleContainer = append(container, $('h3.title', undefined, this.calculateTitle(title)));
 	}
 
-	protected updateTitle(title: string): void {
+	updateTitle(title: string): void {
 		if (this.titleContainer) {
-			this.titleContainer.textContent = title;
+			this.titleContainer.textContent = this.calculateTitle(title);
 		}
 		this.title = title;
 		this._onDidChangeTitleArea.fire();
+	}
+
+	private calculateTitle(title: string): string {
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.id)!;
+		const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
+		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.id)!;
+		const isDefault = this.viewDescriptorService.getDefaultContainerById(this.id) === viewContainer;
+
+		if (!isDefault && viewDescriptor.containerTitle && model.title !== viewDescriptor.containerTitle) {
+			return `${viewDescriptor.containerTitle}: ${title}`;
+		}
+
+		return title;
 	}
 
 	private scrollableElement!: DomScrollableElement;
@@ -510,7 +527,6 @@ export abstract class ViewPane extends Pane implements IView {
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
 	mergeViewWithContainerWhenSingleView: boolean;
-	donotShowContainerTitleWhenMergedWithContainer?: boolean;
 }
 
 interface IViewPaneItem {
@@ -904,7 +920,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;
-			if (this.options.donotShowContainerTitleWhenMergedWithContainer || containerTitle === paneItemTitle) {
+			if (containerTitle === paneItemTitle) {
 				return this.paneItems[0].pane.title;
 			}
 			return paneItemTitle ? `${containerTitle}: ${paneItemTitle}` : containerTitle;
@@ -1227,6 +1243,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.updateTitleArea();
 			}
 		});
+
 		const onDidChangeVisibility = pane.onDidChangeBodyVisibility(() => this._onDidChangeViewVisibility.fire(pane));
 		const onDidChange = pane.onDidChange(() => {
 			if (pane === this.lastFocusedPane && !pane.isExpanded()) {
