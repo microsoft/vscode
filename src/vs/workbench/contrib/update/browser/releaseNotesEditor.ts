@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/releasenoteseditor';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -74,7 +75,7 @@ export class ReleaseNotesManager {
 			this._webviewWorkbenchService.revealWebview(this._currentReleaseNotes, activeEditorPane ? activeEditorPane.group : this._editorGroupService.activeGroup, false);
 		} else {
 			this._currentReleaseNotes = this._webviewWorkbenchService.createWebview(
-				generateUuid(),
+				'vs_code_release_notes',
 				'releaseNotes',
 				title,
 				{ group: ACTIVE_GROUP, preserveFocus: false },
@@ -88,11 +89,6 @@ export class ReleaseNotesManager {
 			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
 			this._currentReleaseNotes.onDispose(() => { this._currentReleaseNotes = undefined; });
 
-			const iconPath = URI.parse(require.toUrl('vs/workbench/browser/media/code-icon.svg'));
-			this._currentReleaseNotes.iconPath = {
-				light: iconPath,
-				dark: iconPath
-			};
 			this._currentReleaseNotes.webview.html = html;
 		}
 
