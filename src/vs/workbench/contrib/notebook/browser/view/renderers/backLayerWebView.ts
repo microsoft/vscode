@@ -304,16 +304,32 @@ ${loaderJs}
 		});
 	};
 
-	function createFocusSink(cellId, focusNext) {
+	function focusFirstFocusableInCell(cellId) {
+		const cellOutputContainer = document.getElementById(cellId);
+		if (cellOutputContainer) {
+			const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea');
+			focusableElement && focusableElement.focus();
+		}
+	}
+
+	function createFocusSink(cellId, outputId, focusNext) {
 		const element = document.createElement('div');
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
 			vscode.postMessage({
 				__vscode_notebook_message: true,
 				type: 'focus-editor',
-				id: cellId,
+				id: outputId,
 				focusNext
 			});
+
+			setTimeout(() => { // Wait a tick to prevent the focus indicator blinking before webview blurs
+				// Move focus off the focus sink - single use
+				focusFirstFocusableInCell(cellId);
+			}, 50);
+
+			console.log(cellId, outputId);
+			console.log(document.activeElement);
 		});
 
 		return element;
@@ -332,7 +348,7 @@ ${loaderJs}
 					if (!cellOutputContainer) {
 						const container = document.getElementById('container');
 
-						const upperWrapperElement = createFocusSink(outputId);
+						const upperWrapperElement = createFocusSink(id, outputId);
 						container.appendChild(upperWrapperElement);
 
 						let newElement = document.createElement('div');
@@ -358,7 +374,7 @@ ${loaderJs}
 							});
 						});
 
-						const lowerWrapperElement = createFocusSink(outputId, true);
+						const lowerWrapperElement = createFocusSink(id, outputId, true);
 						container.appendChild(lowerWrapperElement);
 					}
 
@@ -439,11 +455,7 @@ ${loaderJs}
 				break;
 			case 'focus-output':
 				{
-					let cellOutputContainer = document.getElementById(id);
-					if(cellOutputContainer){
-						const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea');
-						focusableElement && focusableElement.focus();
-					}
+					focusFirstFocusableInCell(id);
 					break;
 				}
 		}
