@@ -18,6 +18,7 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
+import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { PluginManager } from './utils/plugins';
@@ -27,13 +28,13 @@ import VersionStatus from './utils/versionStatus';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
-	6133, 	// variable is declared but never used
-	6138, 	// property is declared but its value is never read
-	6192, 	// All imports are unused
-	7027,	// unreachable code detected
-	7028,	// unused label
-	7029,	// fall through case in switch
-	7030	// not all code paths return a value
+	errorCodes.variableDeclaredButNeverUsed,
+	errorCodes.propertyDeclaretedButNeverUsed,
+	errorCodes.allImportsAreUnused,
+	errorCodes.unreachableCode,
+	errorCodes.unusedLabel,
+	errorCodes.fallThroughCaseInSwitch,
+	errorCodes.notAllCodePathsReturnAValue,
 ];
 
 export default class TypeScriptServiceClientHost extends Disposable {
