@@ -29,7 +29,7 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 						reveal: () => {
 							editor.revealInCenterIfOutsideViewport(cell);
 							editor.selectElement(cell);
-							editor.focusNotebookCell(cell, 'container');
+							// editor.focusNotebookCell(cell, 'container');
 						}
 					});
 				}
