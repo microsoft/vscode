@@ -17,7 +17,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditor } from 'vs/editor/common/editorCommon';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -66,29 +66,7 @@ export class NotebookEditorOptions extends EditorOptions {
 	}
 }
 
-export class NotebookCodeEditors implements ICompositeCodeEditor {
 
-	private readonly _disposables = new DisposableStore();
-	private readonly _onDidChangeActiveEditor = new Emitter<this>();
-	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
-
-	constructor(
-		private _list: INotebookCellList,
-		private _renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>
-	) {
-		_list.onDidChangeFocus(_e => this._onDidChangeActiveEditor.fire(this), undefined, this._disposables);
-	}
-
-	dispose(): void {
-		this._onDidChangeActiveEditor.dispose();
-		this._disposables.dispose();
-	}
-
-	get activeCodeEditor(): IEditor | undefined {
-		const [focused] = this._list.getFocusedElements();
-		return this._renderedEditors.get(focused);
-	}
-}
 
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
@@ -99,7 +77,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private webview: BackLayerWebView | null = null;
 	private webviewTransparentCover: HTMLElement | null = null;
 	private list: INotebookCellList | undefined;
-	private control: ICompositeCodeEditor | undefined;
 	private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
 	private eventDispatcher: NotebookEventDispatcher | undefined;
 	private notebookViewModel: NotebookViewModel | undefined;
@@ -155,13 +132,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.notebookViewModel;
 	}
 
-	get minimumWidth(): number { return 375; }
-	get maximumWidth(): number { return Number.POSITIVE_INFINITY; }
+	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
+	readonly onDidChangeActiveEditor: Event<this> = this._onDidChangeActiveEditor.event;
 
-	// these setters need to exist because this extends from BaseEditor
-	set minimumWidth(value: number) { /*noop*/ }
-	set maximumWidth(value: number) { /*noop*/ }
-
+	get activeCodeEditor(): IEditor | undefined {
+		const [focused] = this.list!.getFocusedElements();
+		return this.renderedEditors.get(focused);
+	}
 
 	//#region Editor Core
 
@@ -191,13 +168,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return true;
 	}
 
-	private updateEditorFocus() {
+	updateEditorFocus() {
 		// Note - focus going to the webview will fire 'blur', but the webview element will be
 		// a descendent of the notebook editor root.
 		this.editorFocus?.set(DOM.isAncestor(document.activeElement, this.overlayContainer));
 	}
 
-	public createEditor(parent: HTMLElement): void {
+	createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, $('.notebook-editor'));
 
 		this.overlayContainer = document.createElement('div');
@@ -299,7 +276,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			},
 		);
 
-		this.control = new NotebookCodeEditors(this.list, this.renderedEditors);
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this);
 		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
 		this.webview.webview.onDidFocus(() => this.updateEditorFocus());
@@ -342,6 +318,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 		}));
 
+		this._register(this.list.onDidChangeFocus(_e => this._onDidChangeActiveEditor.fire(this)));
 	}
 
 	getShadowDomNode() {
@@ -350,10 +327,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	getDomNode() {
 		return this.overlayContainer;
-	}
-
-	getControl() {
-		return this.control;
 	}
 
 	onWillHide() {

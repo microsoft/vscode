@@ -67,13 +67,10 @@ export class NotebookEditor extends BaseEditor {
 		return true;
 	}
 
-
 	protected createEditor(parent: HTMLElement): void {
 		this._widget.createEditor(parent);
-	}
-
-	get editorWidget() {
-		return this._widget;
+		this._register(this.onDidFocus(() => this._widget.updateEditorFocus()));
+		this._register(this.onDidBlur(() => this._widget.updateEditorFocus()));
 	}
 
 	getDomNode() {
@@ -81,7 +78,7 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	getControl() {
-		return this._widget.getControl();
+		return this._widget;
 	}
 
 	onWillHide() {

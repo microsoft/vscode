@@ -14,7 +14,7 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 			return undefined;
 		}
 		// return an entry per markdown header
-		const editorWidget = editor.editorWidget;
+		const editorWidget = editor.getControl();
 		const result: ITableOfContentsEntry[] = [];
 		for (let cell of editor.viewModel.viewCells) {
 			const content = cell.getText();
