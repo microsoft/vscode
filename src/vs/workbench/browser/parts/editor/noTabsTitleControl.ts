@@ -239,11 +239,16 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Update Breadcrumbs
 		if (this.breadcrumbsControl) {
+			let wasHidden = this.breadcrumbsControl.isHidden();
 			if (isGroupActive) {
 				this.breadcrumbsControl.update();
 				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
 			} else {
 				this.breadcrumbsControl.hide();
+			}
+			if (wasHidden !== this.breadcrumbsControl.isHidden()) {
+				// relayout when hidden-status has changed
+				this.group.relayout();
 			}
 		}
 
