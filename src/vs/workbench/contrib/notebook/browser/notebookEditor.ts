@@ -31,7 +31,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorOptions, IEditorCloseEvent, IEditorMemento } from 'vs/workbench/common/editor';
-import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CELL_MARGIN, CELL_RUN_GUTTER, EDITOR_BOTTOM_PADDING, EDITOR_TOP_MARGIN, EDITOR_TOP_PADDING, SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, ICellRange, ICellViewModel, IEditableCellViewModel, INotebookCellList, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_RUNNABLE } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
@@ -48,6 +48,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { generateUuid } from 'vs/base/common/uuid';
 
 const $ = DOM.$;
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
@@ -94,8 +96,8 @@ export class NotebookCodeEditors implements ICompositeCodeEditor {
 export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private _rootElement!: HTMLElement;
+	private overlayContainer!: HTMLElement;
 	private body!: HTMLElement;
-	private titleBar: HTMLElement | null = null;
 	private webview: BackLayerWebView | null = null;
 	private webviewTransparentCover: HTMLElement | null = null;
 	private list: INotebookCellList | undefined;
@@ -124,7 +126,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		@INotebookService private notebookService: INotebookService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ILayoutService private readonly _layoutService: ILayoutService
 	) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
@@ -179,7 +182,15 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, $('.notebook-editor'));
-		this.createBody(this._rootElement);
+
+		this.overlayContainer = document.createElement('div');
+		const id = generateUuid();
+		this.overlayContainer.id = `notebook-${id}`;
+		this.overlayContainer.className = 'notebookOverlay';
+		this.overlayContainer.style.visibility = 'hidden';
+
+		this._layoutService.container.appendChild(this.overlayContainer);
+		this.createBody(this.overlayContainer);
 		this.generateFontInfo();
 		this.editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.contextKeyService);
 		this.editorFocus.set(true);
@@ -201,43 +212,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			} catch (err) {
 				onUnexpectedError(err);
 			}
-		}
-	}
-
-	populateEditorTitlebar() {
-		for (let element: HTMLElement | null = this._rootElement.parentElement; element; element = element.parentElement) {
-			if (DOM.hasClass(element, 'editor-group-container')) {
-				// elemnet is editor group container
-				for (let i = 0; i < element.childElementCount; i++) {
-					const child = element.childNodes.item(i) as HTMLElement;
-
-					if (DOM.hasClass(child, 'title')) {
-						this.titleBar = child;
-						break;
-					}
-				}
-				break;
-			}
-		}
-	}
-
-	clearEditorTitlebarZindex() {
-		if (this.titleBar === null) {
-			this.populateEditorTitlebar();
-		}
-
-		if (this.titleBar) {
-			this.titleBar.style.zIndex = 'auto';
-		}
-	}
-
-	increaseEditorTitlebarZindex() {
-		if (this.titleBar === null) {
-			this.populateEditorTitlebar();
-		}
-
-		if (this.titleBar) {
-			this.titleBar.style.zIndex = '500';
 		}
 	}
 
@@ -325,13 +299,13 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		this.webviewTransparentCover = DOM.append(this.list.rowsContainer, $('.webview-cover'));
 		this.webviewTransparentCover.style.display = 'none';
 
-		this._register(DOM.addStandardDisposableGenericMouseDownListner(this._rootElement, (e: StandardMouseEvent) => {
+		this._register(DOM.addStandardDisposableGenericMouseDownListner(this.overlayContainer, (e: StandardMouseEvent) => {
 			if (DOM.hasClass(e.target, 'slider') && this.webviewTransparentCover) {
 				this.webviewTransparentCover.style.display = 'block';
 			}
 		}));
 
-		this._register(DOM.addStandardDisposableGenericMouseUpListner(this._rootElement, (e: StandardMouseEvent) => {
+		this._register(DOM.addStandardDisposableGenericMouseUpListner(this.overlayContainer, (e: StandardMouseEvent) => {
 			if (this.webviewTransparentCover) {
 				// no matter when
 				this.webviewTransparentCover.style.display = 'none';
@@ -365,12 +339,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 	}
 
 	setVisible(visible: boolean, group?: IEditorGroup): void {
-		if (visible) {
-			this.increaseEditorTitlebarZindex();
-		} else {
-			this.clearEditorTitlebarZindex();
-		}
-
 		super.setVisible(visible, group);
 	}
 
@@ -380,14 +348,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		this.editorFocus?.set(false);
-		if (this.webview) {
-			this.localStore.clear();
-			this.list?.rowsContainer.removeChild(this.webview?.element);
-			this.webview?.dispose();
-			this.webview = null;
-		}
-
-		this.list?.clear();
+		this.overlayContainer.style.visibility = 'hidden';
+		this.overlayContainer.style.display = 'none';
 		super.onHide();
 	}
 
@@ -403,7 +365,6 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		}
 
 		if (editor === this.input) {
-			this.clearEditorTitlebarZindex();
 			this.saveEditorViewState(editor);
 		}
 	}
@@ -658,8 +619,17 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 		DOM.toggleClass(this._rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this._rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
-		this.list?.updateOptions({ additionalScrollHeight: this.scrollBeyondLastLine ? dimension.height : 0 });
-		this.list?.layout(dimension.height, dimension.width);
+		this.list?.updateOptions({ additionalScrollHeight: this.scrollBeyondLastLine ? dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP : 0 });
+		this.list?.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
+
+		this.overlayContainer.style.visibility = 'visible';
+		this.overlayContainer.style.display = 'block';
+		const containerRect = this._rootElement.getBoundingClientRect();
+		this.overlayContainer.style.position = 'absolute';
+		this.overlayContainer.style.top = `${containerRect.top}px`;
+		this.overlayContainer.style.left = `${containerRect.left}px`;
+		this.overlayContainer.style.width = `${dimension ? dimension.width : containerRect.width}px`;
+		this.overlayContainer.style.height = `${dimension ? dimension.height : containerRect.height}px`;
 
 		if (this.webviewTransparentCover) {
 			this.webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -1231,6 +1201,8 @@ export class NotebookEditor extends BaseEditor implements INotebookEditor {
 			this._contributions[contributionId].dispose();
 		}
 
+		this._layoutService.container.removeChild(this.overlayContainer);
+
 		super.dispose();
 	}
 
@@ -1265,87 +1237,92 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 
 
 registerThemingParticipant((theme, collector) => {
+	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element {
+		padding-top: ${SCROLLABLE_ELEMENT_PADDING_TOP}px;
+		box-sizing: border-box;
+	}`);
+
 	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
 	if (color) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .monaco-editor-background,
-			.monaco-workbench .part.editor > .content .notebook-editor .cell .margin-view-overlays,
-			.monaco-workbench .part.editor > .content .notebook-editor .cell .cell-statusbar-container { background: ${color}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-drag-image .cell-editor-container > div { background: ${color} !important; }`);
+		collector.addRule(`.notebookOverlay .cell .monaco-editor-background,
+			.notebookOverlay .cell .margin-view-overlays,
+			.notebookOverlay .cell .cell-statusbar-container { background: ${color}; }`);
+		collector.addRule(`.notebookOverlay .cell-drag-image .cell-editor-container > div { background: ${color} !important; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output a,
-			.monaco-workbench .part.editor > .content .notebook-editor .cell.markdown a { color: ${link};} `);
+		collector.addRule(`.notebookOverlay .output a,
+			.notebookOverlay .cell.markdown a { color: ${link};} `);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output a:hover,
-			.monaco-workbench .part.editor > .content .notebook-editor .cell .output a:active { color: ${activeLink}; }`);
+		collector.addRule(`.notebookOverlay .output a:hover,
+			.notebookOverlay .cell .output a:active { color: ${activeLink}; }`);
 	}
 	const shortcut = theme.getColor(textPreformatForeground);
 	if (shortcut) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor code,
-			.monaco-workbench .part.editor > .content .notebook-editor .shortcut { color: ${shortcut}; }`);
+		collector.addRule(`.notebookOverlay code,
+			.notebookOverlay .shortcut { color: ${shortcut}; }`);
 	}
 	const border = theme.getColor(contrastBorder);
 	if (border) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-editor { border-color: ${border}; }`);
+		collector.addRule(`.notebookOverlay .monaco-editor { border-color: ${border}; }`);
 	}
 	const quoteBackground = theme.getColor(textBlockQuoteBackground);
 	if (quoteBackground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor blockquote { background: ${quoteBackground}; }`);
+		collector.addRule(`.notebookOverlay blockquote { background: ${quoteBackground}; }`);
 	}
 	const quoteBorder = theme.getColor(textBlockQuoteBorder);
 	if (quoteBorder) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor blockquote { border-color: ${quoteBorder}; }`);
+		collector.addRule(`.notebookOverlay blockquote { border-color: ${quoteBorder}; }`);
 	}
 
 	const containerBackground = theme.getColor(notebookOutputContainerColor);
 	if (containerBackground) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { background-color: ${containerBackground}; }`);
+		collector.addRule(`.notebookOverlay .output { background-color: ${containerBackground}; }`);
 	}
 
 	const editorBackgroundColor = theme.getColor(editorBackground);
 	if (editorBackgroundColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-statusbar-container { border-top: solid 1px ${editorBackgroundColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > .monaco-toolbar { background-color: ${editorBackgroundColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.cell-drag-image { background-color: ${editorBackgroundColor}; }`);
+		collector.addRule(`.notebookOverlay .cell-statusbar-container { border-top: solid 1px ${editorBackgroundColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row > .monaco-toolbar { background-color: ${editorBackgroundColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row.cell-drag-image { background-color: ${editorBackgroundColor}; }`);
 	}
 
 	const cellToolbarSeperator = theme.getColor(CELL_TOOLBAR_SEPERATOR);
 	if (cellToolbarSeperator) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator { background-color: ${cellToolbarSeperator} }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container .seperator-short { background-color: ${cellToolbarSeperator} }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row:hover .notebook-cell-focus-indicator,
-			.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator { border-color: ${cellToolbarSeperator}; }`);
+		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .seperator { background-color: ${cellToolbarSeperator} }`);
+		collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container .seperator-short { background-color: ${cellToolbarSeperator} }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row > .monaco-toolbar { border: solid 1px ${cellToolbarSeperator}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row:hover .notebook-cell-focus-indicator,
+			.notebookOverlay .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator { border-color: ${cellToolbarSeperator}; }`);
 	}
 
 	const focusedCellIndicatorColor = theme.getColor(focusedCellIndicator);
 	if (focusedCellIndicatorColor) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row .cell-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row.focused .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row .cell-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
+		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
 	}
 
 	// const widgetShadowColor = theme.getColor(widgetShadow);
 	// if (widgetShadowColor) {
-	// 	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-toolbar {
+	// 	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row > .monaco-toolbar {
 	// 		box-shadow:  0 0 8px 4px ${widgetShadowColor}
 	// 	}`)
 	// }
 
 	// Cell Margin
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
+	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row { padding-top: ${EDITOR_TOP_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .output { margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
+	collector.addRule(`.notebookOverlay .cell-bottom-toolbar-container { width: calc(100% - ${CELL_MARGIN * 2 + CELL_RUN_GUTTER}px); margin: 0px ${CELL_MARGIN}px 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px }`);
 
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .markdown-cell-row .cell .cell-editor-part { margin-left: ${CELL_RUN_GUTTER}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .cell-insertion-indicator { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
-	collector.addRule(`.monaco-workbench .part.editor > .content .notebook-editor .monaco-list .monaco-list-row .notebook-cell-focus-indicator { left: ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .markdown-cell-row .cell .cell-editor-part { margin-left: ${CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row  > div.cell.markdown { padding-left: ${CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.notebookOverlay .cell .run-button-container { width: ${CELL_RUN_GUTTER}px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .cell-insertion-indicator { left: ${CELL_MARGIN + CELL_RUN_GUTTER}px; right: ${CELL_MARGIN}px; }`);
+	collector.addRule(`.notebookOverlay .cell-drag-image .cell-editor-container > div { padding: ${EDITOR_TOP_PADDING}px 16px ${EDITOR_BOTTOM_PADDING}px 16px; }`);
+	collector.addRule(`.notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator { left: ${CELL_MARGIN}px; }`);
 });
