@@ -260,7 +260,6 @@ export class SuggestController implements IEditorContribution {
 		const model = this.editor.getModel();
 		const modelVersionNow = model.getAlternativeVersionId();
 		const { item } = event;
-		const { completion: suggestion } = item;
 
 		// pushing undo stops *before* additional text edits and
 		// *after* the main edit
@@ -276,12 +275,12 @@ export class SuggestController implements IEditorContribution {
 
 		const scrollState = StableEditorScrollState.capture(this.editor);
 
-		if (Array.isArray(suggestion.additionalTextEdits)) {
-			this.editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+		if (Array.isArray(item.completion.additionalTextEdits)) {
+			this.editor.executeEdits('suggestController.additionalTextEdits', item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 		}
 
-		let { insertText } = suggestion;
-		if (!(suggestion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
+		let { insertText } = item.completion;
+		if (!(item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet)) {
 			insertText = SnippetParser.escape(insertText);
 		}
 
@@ -290,7 +289,7 @@ export class SuggestController implements IEditorContribution {
 			overwriteAfter: info.overwriteAfter,
 			undoStopBefore: false,
 			undoStopAfter: false,
-			adjustWhitespace: !(suggestion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
+			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
 		});
 
 		scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
@@ -299,18 +298,18 @@ export class SuggestController implements IEditorContribution {
 			this.editor.pushUndoStop();
 		}
 
-		if (!suggestion.command) {
+		if (!item.completion.command) {
 			// done
 			this.model.cancel();
 			this.model.clear();
 
-		} else if (suggestion.command.id === TriggerSuggestAction.id) {
+		} else if (item.completion.command.id === TriggerSuggestAction.id) {
 			// retigger
 			this.model.trigger({ auto: true, shy: false }, true);
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(suggestion.command.id, ...(suggestion.command.arguments ? [...suggestion.command.arguments] : []))
+			this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : []))
 				.catch(onUnexpectedError)
 				.finally(() => this.model.clear()); // <- clear only now, keep commands alive
 			this.model.cancel();
@@ -334,7 +333,7 @@ export class SuggestController implements IEditorContribution {
 			});
 		}
 
-		this._alertCompletionItem(event.item);
+		this._alertCompletionItem(item);
 	}
 
 	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number, overwriteAfter: number } {
