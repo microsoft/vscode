@@ -73,10 +73,13 @@ export class MarkerList {
 	}
 
 	matches(uri: URI | undefined) {
-		if (!this._resourceFilter) {
+		if (!this._resourceFilter && !uri) {
 			return true;
 		}
-		return uri && this._resourceFilter(uri);
+		if (!this._resourceFilter || !uri) {
+			return false;
+		}
+		return this._resourceFilter(uri);
 	}
 
 	get selected(): MarkerCoordinate | undefined {
