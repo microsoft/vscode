@@ -719,7 +719,7 @@ export class DebugService implements IDebugService {
 				folder = launch.workspace;
 			} else {
 				const folders = this.contextService.getWorkspace().folders;
-				if (folders.length === 1) {
+				if (folders.length > 0) {
 					folder = folders[0];
 				}
 			}
