@@ -18,7 +18,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { MarkerNavigationWidget } from './gotoErrorWidget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -243,6 +243,12 @@ class NextMarkerInFilesAction extends MarkerNavigationAction {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyCode.F8,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				menuId: MenuId.MenubarGoMenu,
+				title: nls.localize({ key: 'miGotoNextProblem', comment: ['&& denotes a mnemonic'] }, "Next &&Problem"),
+				group: '6_problem_nav',
+				order: 1
 			}
 		});
 	}
@@ -259,6 +265,12 @@ class PrevMarkerInFilesAction extends MarkerNavigationAction {
 				kbExpr: EditorContextKeys.focus,
 				primary: KeyMod.Shift | KeyCode.F8,
 				weight: KeybindingWeight.EditorContrib
+			},
+			menuOpts: {
+				menuId: MenuId.MenubarGoMenu,
+				title: nls.localize({ key: 'miGotoPreviousProblem', comment: ['&& denotes a mnemonic'] }, "Previous &&Problem"),
+				group: '6_problem_nav',
+				order: 2
 			}
 		});
 	}
@@ -285,22 +297,3 @@ registerEditorCommand(new MarkerCommand({
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}
 }));
-
-// Go to menu
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '6_problem_nav',
-	command: {
-		id: 'editor.action.marker.nextInFiles',
-		title: nls.localize({ key: 'miGotoNextProblem', comment: ['&& denotes a mnemonic'] }, "Next &&Problem")
-	},
-	order: 1
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
-	group: '6_problem_nav',
-	command: {
-		id: 'editor.action.marker.prevInFiles',
-		title: nls.localize({ key: 'miGotoPreviousProblem', comment: ['&& denotes a mnemonic'] }, "Previous &&Problem")
-	},
-	order: 2
-});
