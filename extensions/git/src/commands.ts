@@ -6,7 +6,7 @@
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, QuickPick } from 'vscode';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, QuickPick, SourceControl } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider, RemoteSource } from './api/git';
@@ -2506,18 +2506,7 @@ export class CommandCenter {
 			if (!options.repository) {
 				result = Promise.resolve(method.apply(this, args));
 			} else {
-				// try to guess the repository based on the first argument
-				const repository = this.model.getRepository(args[0]);
-				let repositoryPromise: Promise<Repository | undefined>;
-
-				if (repository) {
-					repositoryPromise = Promise.resolve(repository);
-				} else if (this.model.repositories.length === 1) {
-					repositoryPromise = Promise.resolve(this.model.repositories[0]);
-				} else {
-					repositoryPromise = this.model.pickRepository();
-				}
-
+				const repositoryPromise = this.guessRepository(args[0]);
 				result = repositoryPromise.then(repository => {
 					if (!repository) {
 						return Promise.resolve();
@@ -2544,12 +2533,19 @@ export class CommandCenter {
 
 				const choices = new Map<string, () => void>();
 				const openOutputChannelChoice = localize('open git log', "Open Git Log");
+				const forceCheckoutChoice = localize('force checkout', "Force Checkout");
+				const smartCheckoutChoice = localize('smart checkout', "Smart Checkout");
 				const outputChannel = this.outputChannel as OutputChannel;
 				choices.set(openOutputChannelChoice, () => outputChannel.show());
 
 				switch (err.gitErrorCode) {
 					case GitErrorCodes.DirtyWorkTree:
 						message = localize('clean repo', "Please clean your repository working tree before checkout.");
+						if (err.gitTreeish) {
+							options.modal = true;
+							choices.set(forceCheckoutChoice, () => forceCheckout(err.gitTreeish, args));
+							choices.set(smartCheckoutChoice, () => smartCheckout(err.gitTreeish, args));
+						}
 						break;
 					case GitErrorCodes.PushRejected:
 						message = localize('cant push', "Can't push refs to remote. Try running 'Pull' first to integrate your changes.");
@@ -2612,10 +2608,57 @@ export class CommandCenter {
 			});
 		};
 
+		const forceCheckout = async (treeish: string, args: any[]) => {
+			const repo = await this.guessRepository(args[0]);
+			if (!repo) {
+				return;
+			}
+
+			this.outputChannel.appendLine('force checkout: clean all');
+			await this.cleanAll(repo);
+			this.outputChannel.appendLine(`force checkout: checkout ${treeish}`);
+			await repo.checkout(treeish);
+			this.outputChannel.appendLine('force checkout: done');
+		};
+
+		const smartCheckout = async (treeish: string, args: any[]) => {
+			const repo = await this.guessRepository(args[0]);
+			if (!repo) {
+				return;
+			}
+
+			this.outputChannel.appendLine('smart checkout: stash');
+			await repo.createStash();
+			try {
+				this.outputChannel.appendLine(`smart checkout: checkout ${treeish}`);
+				await repo.checkout(treeish);
+			} finally {
+				this.outputChannel.appendLine('smart checkout pop stash');
+				await repo.popStash();
+			}
+			this.outputChannel.appendLine('smart checkout: done');
+		};
+
 		// patch this object, so people can call methods directly
 		(this as any)[key] = result;
 
 		return result;
+	}
+
+	/**
+	 * try to guess the repository based on the first argument
+	 * @param sourceControl
+	 */
+	private guessRepository (sourceControl: SourceControl) {
+		const repository = this.model.getRepository(sourceControl);
+
+		if (repository) {
+			return Promise.resolve(repository);
+		} else if (this.model.repositories.length === 1) {
+			return Promise.resolve(this.model.repositories[0]);
+		} else {
+			return this.model.pickRepository();
+		}
 	}
 
 	private getSCMResource(uri?: Uri): Resource | undefined {
