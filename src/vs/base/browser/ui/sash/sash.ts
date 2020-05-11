@@ -14,6 +14,7 @@ import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListe
 import { domEvent } from 'vs/base/browser/event';
 
 const DEBUG = false;
+let newSashSize = 4;
 
 export interface ISashLayoutProvider { }
 
@@ -58,16 +59,16 @@ export const enum SashState {
 const _onDidChangeGlobalSize = new Emitter<number>();
 const onDidChangeGlobalSize: Event<number> = _onDidChangeGlobalSize.event;
 export function setGlobalSashSize(size: number): void {
+	newSashSize = size;
 	_onDidChangeGlobalSize.fire(size);
 }
 
 export class Sash extends Disposable {
-	private size: number = 0;
-
 	private el: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
 	private hidden: boolean;
 	private orientation!: Orientation;
+	private size: number = newSashSize;
 
 	private _state: SashState = SashState.Enabled;
 	get state(): SashState { return this._state; }

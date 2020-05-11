@@ -24,7 +24,7 @@ export class SashSizeController extends Disposable implements IWorkbenchContribu
 		super();
 
 		this.stylesheet = createStyleSheet();
-		this._register(toDisposable(() => this.stylesheet.parentElement!.removeChild(this.stylesheet)));
+		this._register(toDisposable(() => this.stylesheet.remove()));
 
 		const onDidChangeSizeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(this.configurationName));
 		this._register(onDidChangeSizeConfiguration(this.onDidChangeSizeConfiguration, this));
