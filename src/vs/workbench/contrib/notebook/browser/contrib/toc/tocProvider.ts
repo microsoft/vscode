@@ -16,16 +16,21 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 		// return an entry per markdown header
 		const result: ITableOfContentsEntry[] = [];
 		for (let cell of editor.viewModel.viewCells) {
-			if (cell.cellKind === CellKind.Code) {
-				continue;
-			}
 			const content = cell.getText();
-			const matches = content.match(/^[ \t]*(\#+)(.+)$/gm);
+			const regexp = cell.cellKind === CellKind.Markdown
+				? /^[ \t]*(\#+)(.+)$/gm // md: header
+				: /^.*\w+.*\w*$/m;		// code: none empty line
+
+			const matches = content.match(regexp);
 			if (matches && matches.length) {
 				for (let j = 0; j < matches.length; j++) {
 					result.push({
 						label: matches[j].replace(/^[ \t]*(\#+)/, ''),
-						reveal: () => editor.revealInCenterIfOutsideViewport(cell)
+						reveal: () => {
+							editor.revealInCenterIfOutsideViewport(cell);
+							editor.selectElement(cell);
+							editor.focusNotebookCell(cell, 'container');
+						}
 					});
 				}
 			}

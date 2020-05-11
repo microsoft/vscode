@@ -183,7 +183,7 @@ export function resultIsMatch(result: ITextSearchResult): result is ITextSearchM
 }
 
 export interface IProgressMessage {
-	message?: string;
+	message: string;
 }
 
 export type ISearchProgressItem = IFileMatch | IProgressMessage;
@@ -192,8 +192,8 @@ export function isFileMatch(p: ISearchProgressItem): p is IFileMatch {
 	return !!(<IFileMatch>p).resource;
 }
 
-export function isProgressMessage(p: ISearchProgressItem): p is IProgressMessage {
-	return !isFileMatch(p);
+export function isProgressMessage(p: ISearchProgressItem | ISerializedSearchProgressItem): p is IProgressMessage {
+	return !!(p as IProgressMessage).message;
 }
 
 export interface ISearchCompleteStats {
@@ -468,7 +468,7 @@ export interface IRawFileMatch {
 	 *
 	 * If not given, the search algorithm should use `relativePath`.
 	 */
-	searchPath?: string;
+	searchPath: string | undefined;
 }
 
 export interface ISearchEngine<T> {

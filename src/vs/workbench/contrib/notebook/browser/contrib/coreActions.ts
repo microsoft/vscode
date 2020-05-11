@@ -66,7 +66,8 @@ const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
 
-const FOCUS_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutput';
+const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
+const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
 
 export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "Notebook");
 
@@ -1126,14 +1127,16 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: FOCUS_OUTPUT_COMMAND_ID,
-			title: localize('focusOutput', 'Focus output'),
+			id: FOCUS_IN_OUTPUT_COMMAND_ID,
+			title: localize('focusOutput', 'Focus In Active Cell Output'),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED),
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-				weight: EDITOR_WIDGET_ACTION_WEIGHT
-			}
+				mac: { primary: KeyMod.WinCtrl | KeyCode.DownArrow, },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			f1: true
 		});
 	}
 
@@ -1148,6 +1151,36 @@ registerAction2(class extends Action2 {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 		editor.focusNotebookCell(activeCell, 'output');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: FOCUS_OUT_OUTPUT_COMMAND_ID,
+			title: localize('focusOutputOut', 'Focus Out Active Cell Output'),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED),
+				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.UpArrow, },
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		const editor = context.notebookEditor;
+		const activeCell = context.cell;
+		editor.focusNotebookCell(activeCell, 'editor');
 	}
 });
 

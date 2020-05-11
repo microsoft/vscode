@@ -431,6 +431,10 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				const currentEditor = group?.editors.find(editor => isEqual(editor.resource, resource));
 
 				const customEditors = this.customEditorService.getAllCustomEditors(resource);
+				if (!customEditors.length) {
+					return [];
+				}
+
 				return [
 					{
 						...defaultEditorOverrideEntry,

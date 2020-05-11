@@ -236,7 +236,7 @@ export class SplitTerminalAction extends Action {
 		super(id, label, SplitTerminalAction.HORIZONTAL_CLASS);
 	}
 
-	public async run(event?: any): Promise<any> {
+	public async run(): Promise<any> {
 		await this._terminalService.doWithActiveInstance(async t => {
 			const cwd = await getCwdForSplit(this._terminalService.configHelper, t, this._workspaceContextService.getWorkspace().folders, this._commandService);
 			if (cwd === undefined) {

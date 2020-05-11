@@ -518,7 +518,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this._defaultUserSettingsContentModel;
 	}
 
-	private async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
+	public async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
 		switch (configurationTarget) {
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
