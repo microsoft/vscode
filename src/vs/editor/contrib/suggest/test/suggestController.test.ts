@@ -24,6 +24,8 @@ import { Event } from 'vs/base/common/event';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { IMenuService, IMenu } from 'vs/platform/actions/common/actions';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { Range } from 'vs/editor/common/core/range';
+import { timeout } from 'vs/base/common/async';
 
 suite('SuggestController', function () {
 
@@ -101,5 +103,96 @@ suite('SuggestController', function () {
 		await p2;
 
 		assert.equal(editor.getValue(), '    let name = foo');
+	});
+
+	test('use additionalTextEdits sync when possible', async function () {
+
+		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Snippet,
+						label: 'let',
+						insertText: 'hello',
+						range: Range.fromPositions(pos),
+						additionalTextEdits: [{
+							text: 'I came sync',
+							range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+						}]
+					}]
+				};
+			},
+			async resolveCompletionItem(item) {
+				return item;
+			}
+		}));
+
+		editor.setValue('hello\nhallo');
+		editor.setSelection(new Selection(2, 6, 2, 6));
+
+		// trigger
+		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		//
+		let p2 = Event.toPromise(controller.model.onDidCancel);
+		controller.acceptSelectedSuggestion(false, false);
+		await p2;
+
+		// insertText happens sync!
+		assert.equal(editor.getValue(), 'I came synchello\nhallohello');
+	});
+
+	test('resolve additionalTextEdits async when needed', async function () {
+
+		let resolveCallCount = 0;
+
+		disposables.add(CompletionProviderRegistry.register({ scheme: 'test-ctrl' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Snippet,
+						label: 'let',
+						insertText: 'hello',
+						range: Range.fromPositions(pos)
+					}]
+				};
+			},
+			async resolveCompletionItem(item) {
+				resolveCallCount += 1;
+				await timeout(10);
+				item.additionalTextEdits = [{
+					text: 'I came late',
+					range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }
+				}];
+				return item;
+			}
+		}));
+
+		editor.setValue('hello\nhallo');
+		editor.setSelection(new Selection(2, 6, 2, 6));
+
+		// trigger
+		let p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+		await p1;
+
+		//
+		let p2 = Event.toPromise(controller.model.onDidCancel);
+		controller.acceptSelectedSuggestion(false, false);
+		await p2;
+
+		// insertText happens sync!
+		assert.equal(editor.getValue(), 'hello\nhallohello');
+		assert.equal(resolveCallCount, 1);
+
+		// additional edits happened after a litte wait
+		await timeout(20);
+		assert.equal(editor.getValue(), 'I came latehello\nhallohello');
+
+		// single undo stop
+		editor.getModel()?.undo();
+		assert.equal(editor.getValue(), 'hello\nhallo');
 	});
 });

@@ -100,29 +100,34 @@ export class CompletionItem {
 		// create the suggestion resolver
 		if (typeof provider.resolveCompletionItem !== 'function') {
 			this._resolveCache = Promise.resolve();
+			this._isResolved = true;
 		}
 	}
 
 	// resolving
 	get isResolved() {
-		return Boolean(this._resolveCache);
+		return Boolean(this._isResolved);
 	}
 
 	private _resolveCache?: Promise<void>;
+	private _isResolved?: boolean;
 
 	async resolve(token: CancellationToken) {
 		if (!this._resolveCache) {
 			const sub = token.onCancellationRequested(() => {
 				this._resolveCache = undefined;
+				this._isResolved = false;
 			});
 			this._resolveCache = Promise.resolve(this.provider.resolveCompletionItem!(this.completion, token)).then(value => {
 				Object.assign(this.completion, value);
+				this._isResolved = true;
 				sub.dispose();
 			}, err => {
 				if (isPromiseCanceledError(err)) {
 					// the IPC queue will reject the request with the
 					// cancellation error -> reset cached
 					this._resolveCache = undefined;
+					this._isResolved = false;
 				}
 			});
 		}
