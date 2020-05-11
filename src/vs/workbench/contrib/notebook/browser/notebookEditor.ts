@@ -77,7 +77,7 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	getDomNode() {
-		return this._widget.getDomNode();
+		return this._widget.getShadowDomNode();
 	}
 
 	getControl() {

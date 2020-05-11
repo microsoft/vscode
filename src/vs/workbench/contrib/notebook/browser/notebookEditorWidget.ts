@@ -194,7 +194,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private updateEditorFocus() {
 		// Note - focus going to the webview will fire 'blur', but the webview element will be
 		// a descendent of the notebook editor root.
-		this.editorFocus?.set(DOM.isAncestor(document.activeElement, this.getDomNode()));
+		this.editorFocus?.set(DOM.isAncestor(document.activeElement, this.overlayContainer));
 	}
 
 	public createEditor(parent: HTMLElement): void {
@@ -204,6 +204,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const id = generateUuid();
 		this.overlayContainer.id = `notebook-${id}`;
 		this.overlayContainer.className = 'notebookOverlay';
+		DOM.addClass(this.overlayContainer, 'notebook-editor');
 		this.overlayContainer.style.visibility = 'hidden';
 
 		this._layoutService.container.appendChild(this.overlayContainer);
@@ -343,8 +344,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	}
 
-	getDomNode() {
+	getShadowDomNode() {
 		return this._rootElement;
+	}
+
+	getDomNode() {
+		return this.overlayContainer;
 	}
 
 	getControl() {
@@ -412,6 +417,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private updateForMetadata(): void {
 		this.editorEditable?.set(!!this.viewModel!.metadata?.editable);
 		this.editorRunnable?.set(!!this.viewModel!.metadata?.runnable);
+		DOM.toggleClass(this.overlayContainer, 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
 		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
 	}
 
