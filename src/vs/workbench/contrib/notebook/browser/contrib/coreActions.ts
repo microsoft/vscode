@@ -407,7 +407,7 @@ registerAction2(class extends Action2 {
 export function getActiveNotebookEditor(editorService: IEditorService): INotebookEditor | undefined {
 	// TODO can `isNotebookEditor` be on INotebookEditor to avoid a circular dependency?
 	const activeEditorPane = editorService.activeEditorPane as any | undefined;
-	return activeEditorPane?.isNotebookEditor ? activeEditorPane : undefined;
+	return activeEditorPane?.isNotebookEditor ? activeEditorPane.editorWidget : undefined;
 }
 
 async function runActiveCell(accessor: ServicesAccessor): Promise<ICellViewModel | undefined> {
