@@ -516,7 +516,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	getEditorViewState() {
-		const state = this.notebookViewModel!.geteEditorViewState();
+		const state = this.notebookViewModel!.getEditorViewState();
 		if (this.list) {
 			state.scrollPosition = { left: this.list.scrollLeft, top: this.list.scrollTop };
 			let cellHeights: { [key: number]: number } = {};
@@ -1156,7 +1156,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._contributions[contributionId].dispose();
 		}
 
-		this._layoutService.container.removeChild(this.overlayContainer);
+		this.overlayContainer.remove();
+
+		// this._layoutService.container.removeChild(this.overlayContainer);
 
 		super.dispose();
 	}
