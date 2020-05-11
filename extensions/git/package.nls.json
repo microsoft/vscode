@@ -21,6 +21,7 @@
 	"command.unstage": "Unstage Changes",
 	"command.unstageAll": "Unstage All Changes",
 	"command.unstageSelectedRanges": "Unstage Selected Ranges",
+	"command.rename": "Rename (Git)",
 	"command.clean": "Discard Changes",
 	"command.cleanAll": "Discard All Changes",
 	"command.cleanAllTracked": "Discard All Tracked Changes",

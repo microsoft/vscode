@@ -151,6 +151,12 @@
         "icon": "$(discard)"
       },
       {
+        "command": "git.rename",
+        "title": "%command.rename%",
+        "category": "Git",
+        "icon": "$(discard)"
+      },
+      {
         "command": "git.cleanAll",
         "title": "%command.cleanAll%",
         "category": "Git",
@@ -1295,6 +1301,13 @@
           "command": "git.timeline.copyCommitMessage",
           "group": "5_copy@2",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "git.rename",
+          "group": "7_modification",
+          "when": "config.git.enabled && !git.missing && !explorerResourceIsRoot"
         }
       ]
     },

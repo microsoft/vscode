@@ -1390,6 +1390,11 @@ export class Repository {
 		await this.run(args);
 	}
 
+	async move(from: string, to: string): Promise<void> {
+		const args = ['mv', from, to];
+		await this.run(args);
+	}
+
 	async setBranchUpstream(name: string, upstream: string): Promise<void> {
 		const args = ['branch', '--set-upstream-to', upstream, name];
 		await this.run(args);

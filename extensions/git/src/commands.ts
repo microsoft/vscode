@@ -19,6 +19,7 @@ import { grep, isDescendant, pathEquals } from './util';
 import { Log, LogLevel } from './log';
 import { GitTimelineItem } from './timelineProvider';
 import { throttle, debounce } from './decorators';
+import { URI } from 'vscode-uri';
 
 const localize = nls.loadMessageBundle();
 
@@ -928,6 +929,26 @@ export class CommandCenter {
 		for (const resource of resources) {
 			await this._openResource(resource, preview, preserveFocus, preserveSelection);
 		}
+	}
+
+	@command('git.rename', { repository: true })
+	async rename(repository: Repository, fromUri: URI): Promise<void> {
+		this.outputChannel.appendLine(`git.rename ${fromUri.fsPath}`);
+
+		const rootPath = workspace.rootPath;
+		const fromPath = workspace.asRelativePath(fromUri);
+		const fromBasename = path.basename(fromPath);
+		const toPath = await window.showInputBox({
+			value: fromPath,
+			valueSelection: [fromPath.length - fromBasename.length, fromPath.length]
+		});
+		if (!toPath?.trim()) {
+			return;
+		}
+
+		const fullToPath = path.join(rootPath || '', toPath);
+		this.outputChannel.appendLine(`git.rename from ${fromPath} to ${fullToPath}`);
+		await repository.move(fromPath, fullToPath);
 	}
 
 	@command('git.stage')
