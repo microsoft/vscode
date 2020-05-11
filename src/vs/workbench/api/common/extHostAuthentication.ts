@@ -33,6 +33,46 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return ids;
 	}
 
+	async hasSessions(providerId: string, scopes: string[]): Promise<boolean> {
+		const provider = this._authenticationProviders.get(providerId);
+		if (!provider) {
+			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
+		}
+
+		const orderedScopes = scopes.sort().join(' ');
+		return !!(await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes).length;
+	}
+
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.authentication.GetSessionOptions): Promise<vscode.AuthenticationSession | undefined> {
+		const provider = this._authenticationProviders.get(providerId);
+		if (!provider) {
+			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
+		}
+
+		const orderedScopes = scopes.sort().join(' ');
+		const sessions = (await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes);
+		if (sessions.length) {
+			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
+			const extensionName = requestingExtension.displayName || requestingExtension.name;
+			const selected = await this._proxy.$getSession(provider.id, provider.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName, sessions, scopes, !!options.clearSessionPreference);
+			return sessions.find(session => session.id === selected.id);
+		} else {
+			if (options.createIfNone) {
+				const extensionName = requestingExtension.displayName || requestingExtension.name;
+				const isAllowed = await this._proxy.$loginPrompt(provider.displayName, extensionName);
+				if (!isAllowed) {
+					throw new Error('User did not consent to login.');
+				}
+
+				const session = await provider.login(scopes);
+				await this._proxy.$setTrustedExtension(provider.id, session.account.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
+				return session;
+			} else {
+				return undefined;
+			}
+		}
+	}
+
 	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: string[]): Promise<readonly vscode.AuthenticationSession[]> {
 		const provider = this._authenticationProviders.get(providerId);
 		if (!provider) {
