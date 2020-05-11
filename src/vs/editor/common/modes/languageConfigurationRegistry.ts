@@ -419,8 +419,10 @@ export class LanguageConfigurationRegistryImpl {
 				};
 			}
 
-			// if precedingUnIgnoredLineContent is of jsDoc pattern then don't honour initial indent
-			if (honorIntentialIndent && !/\s*\*\/$/.test(precedingUnIgnoredLineContent)) {
+			const jsDocOpeningRegExp = /\s*\/\*\*\s*$/;
+			const jsDocClosingRegExp = /\s*\*\/$/;
+			// if precedingUnIgnoredLineContent is of jsDoc closing pattern then don't honour initial indent
+			if (honorIntentialIndent && !jsDocClosingRegExp.test(precedingUnIgnoredLineContent)) {
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
 					action: null,
@@ -451,7 +453,8 @@ export class LanguageConfigurationRegistryImpl {
 							action: null,
 							line: stopLine + 1
 						};
-					} else if (indentRulesSupport.shouldDecrease(lineContent)) {
+						// if precedingUnIgnoredLineContent is of jsDoc pattern and lineContent matches jsDoc opening pattern
+					} else if (indentRulesSupport.shouldDecrease(lineContent) || jsDocOpeningRegExp.test(lineContent)) {
 						return {
 							indentation: strings.getLeadingWhitespace(lineContent),
 							action: null,

@@ -3951,6 +3951,7 @@ suite('Editor Controller - Indentation Rules', () => {
 		model.dispose();
 		mode.dispose();
 	});
+
 	test('bug #92094: After JSDoc comment close, should not move cursor one space on multiple enter', () => {
 		usingCursor({
 			text: [
@@ -3971,6 +3972,33 @@ suite('Editor Controller - Indentation Rules', () => {
 			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
 			assertCursor(cursor, new Selection(6, 1, 6, 1));
 			assert.deepEqual(model.getLineContent(6), '/** */');
+		});
+	});
+
+	test('bug #92094: After JSDoc comment close, enter should keep indentation of jsDoc opening tag', () => {
+		usingCursor({
+			text: [
+				'if(true) {',
+				'\tif(true) {',
+				'\t\t/**',
+				'\t\t\s* xyz',
+				'\t\t\s*/const a = 0;',
+				'\t}',
+				'}'
+			],
+			modelOpts: {
+				insertSpaces: true,
+				tabSize: 2
+			}
+		}, (model, cursor) => {
+			moveTo(cursor, 5, 6, false);
+			assertCursor(cursor, new Selection(5, 6, 5, 6));
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(6, 5, 6, 5));
+			assert.deepEqual(model.getLineContent(6), '    const a = 0;');
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+			assertCursor(cursor, new Selection(7, 5, 7, 5));
+			assert.deepEqual(model.getLineContent(7), '    const a = 0;');
 		});
 	});
 });
