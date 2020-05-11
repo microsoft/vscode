@@ -107,7 +107,7 @@ export class Debugger implements IDebugger {
 
 	substituteVariables(folder: IWorkspaceFolder | undefined, config: IConfig): Promise<IConfig> {
 		return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
-			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables);
+			return this.configurationResolverService.resolveWithInteractionReplace(folder, config, 'launch', this.variables, config.__configurationTarget);
 		});
 	}
 

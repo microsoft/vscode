@@ -147,8 +147,8 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 
 		// get all "inputs"
 		let inputs: ConfiguredInput[] = [];
-		if (folder && this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
-			let result = this.configurationService.inspect(section, { resource: folder.uri });
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY && section) {
+			let result = this.configurationService.inspect(section, { resource: folder?.uri });
 			if (result && (result.userValue || result.workspaceValue || result.workspaceFolderValue)) {
 				switch (target) {
 					case ConfigurationTarget.USER: inputs = (<any>result.userValue)?.inputs; break;
@@ -156,7 +156,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 					default: inputs = (<any>result.workspaceFolderValue)?.inputs;
 				}
 			} else {
-				const valueResult = this.configurationService.getValue<any>(section, { resource: folder.uri });
+				const valueResult = this.configurationService.getValue<any>(section, { resource: folder?.uri });
 				if (valueResult) {
 					inputs = valueResult.inputs;
 				}
