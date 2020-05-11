@@ -6,7 +6,7 @@
 import { IMarkerService, MarkerSeverity, IMarker } from 'vs/platform/markers/common/markers';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { compare } from 'vs/base/common/strings';
@@ -14,6 +14,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { ITextModel } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { LinkedList } from 'vs/base/common/linkedList';
 
 export class MarkerCoordinate {
 	constructor(
@@ -164,16 +165,35 @@ export const IMarkerNavigationService = createDecorator<IMarkerNavigationService
 
 export interface IMarkerNavigationService {
 	readonly _serviceBrand: undefined;
+	registerProvider(provider: IMarkerListProvider): IDisposable;
 	getMarkerList(resource: URI | undefined): MarkerList;
 }
 
-class MarkerNavigationService implements IMarkerNavigationService {
+export interface IMarkerListProvider {
+	getMarkerList(resource: URI | undefined): MarkerList | undefined;
+}
+
+class MarkerNavigationService implements IMarkerNavigationService, IMarkerListProvider {
 
 	readonly _serviceBrand: undefined;
 
+	private readonly _provider = new LinkedList<IMarkerListProvider>();
+
 	constructor(@IMarkerService private readonly _markerService: IMarkerService) { }
 
-	getMarkerList(resource: URI | undefined) {
+	registerProvider(provider: IMarkerListProvider): IDisposable {
+		const remove = this._provider.unshift(provider);
+		return toDisposable(() => remove());
+	}
+
+	getMarkerList(resource: URI | undefined): MarkerList {
+		for (let provider of this._provider) {
+			const result = provider.getMarkerList(resource);
+			if (result) {
+				return result;
+			}
+		}
+		// default
 		return new MarkerList(resource, this._markerService);
 	}
 }
