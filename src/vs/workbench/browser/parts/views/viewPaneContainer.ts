@@ -6,10 +6,10 @@
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ColorIdentifier, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ColorIdentifier, activeContrastBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
-import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass } from 'vs/base/browser/dom';
+import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass, createCSSRule, asCSSUrl, addClasses } from 'vs/base/browser/dom';
 import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IAction } from 'vs/base/common/actions';
@@ -20,14 +20,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { PaneView, IPaneViewOptions, IPaneOptions, Pane } from 'vs/base/browser/ui/splitview/paneview';
+import { PaneView, IPaneViewOptions, IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined, isString } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -48,6 +48,7 @@ import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { URI } from 'vs/base/common/uri';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -185,6 +186,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
+	private iconContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
 
 	private bodyContainer!: HTMLElement;
@@ -303,14 +305,66 @@ export abstract class ViewPane extends Pane implements IView {
 		this.twistiesContainer = append(container, $('.twisties.codicon.codicon-chevron-right'));
 	}
 
+	style(styles: IPaneStyles): void {
+		super.style(styles);
+
+		const icon = this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon;
+
+		if (this.iconContainer) {
+			const fgColor = styles.headerForeground || this.themeService.getColorTheme().getColor(foreground);
+			if (URI.isUri(icon)) {
+				// Apply background color to activity bar item provided with iconUrls
+				this.iconContainer.style.backgroundColor = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.color = '';
+			} else {
+				// Apply foreground color to activity bar items provided with codicons
+				this.iconContainer.style.color = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.backgroundColor = '';
+			}
+		}
+	}
+
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		this.titleContainer = append(container, $('h3.title', undefined, this.calculateTitle(title)));
+		this.iconContainer = append(container, $('.icon', undefined));
+		const icon = this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon;
+
+		let cssClass: string | undefined = undefined;
+		if (URI.isUri(icon)) {
+			cssClass = `view-${this.id.replace(/[\.\:]/g, '-')}`;
+			const iconClass = `.pane-header .icon.${cssClass}`;
+
+			createCSSRule(iconClass, `
+				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				mask-size: 24px;
+				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				-webkit-mask-size: 16px;
+			`);
+		} else if (isString(icon)) {
+			addClass(this.iconContainer, 'codicon');
+			cssClass = icon;
+		}
+
+		if (cssClass) {
+			addClasses(this.iconContainer, cssClass);
+		}
+
+		const calculatedTitle = this.calculateTitle(title);
+		this.titleContainer = append(container, $('h3.title', undefined, calculatedTitle));
+		this.iconContainer.title = calculatedTitle;
+		this.iconContainer.setAttribute('aria-label', calculatedTitle);
 	}
 
 	updateTitle(title: string): void {
+		const calculatedTitle = this.calculateTitle(title);
 		if (this.titleContainer) {
-			this.titleContainer.textContent = this.calculateTitle(title);
+			this.titleContainer.textContent = calculatedTitle;
 		}
+
+		if (this.iconContainer) {
+			this.iconContainer.title = calculatedTitle;
+			this.iconContainer.setAttribute('aria-label', calculatedTitle);
+		}
+
 		this.title = title;
 		this._onDidChangeTitleArea.fire();
 	}
