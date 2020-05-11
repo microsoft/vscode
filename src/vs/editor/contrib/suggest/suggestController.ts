@@ -204,18 +204,18 @@ export class SuggestController implements IEditorContribution {
 		this._toDispose.add(_instantiationService.createInstance(WordContextKey, editor));
 
 		this._toDispose.add(this.model.onDidTrigger(e => {
-			this.widget.getValue().showTriggered(e.auto, e.shy ? 250 : 50);
+			this.widget.value.showTriggered(e.auto, e.shy ? 250 : 50);
 			this._lineSuffix.value = new LineSuffix(this.editor.getModel()!, e.position);
 		}));
 		this._toDispose.add(this.model.onDidSuggest(e => {
 			if (!e.shy) {
 				let index = this._memoryService.select(this.editor.getModel()!, this.editor.getPosition()!, e.completionModel.items);
-				this.widget.getValue().showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
+				this.widget.value.showSuggestions(e.completionModel, index, e.isFrozen, e.auto);
 			}
 		}));
 		this._toDispose.add(this.model.onDidCancel(e => {
 			if (!e.retrigger) {
-				this.widget.getValue().hideWidget();
+				this.widget.value.hideWidget();
 			}
 		}));
 		this._toDispose.add(this.editor.onDidBlurEditorWidget(() => {
@@ -248,7 +248,7 @@ export class SuggestController implements IEditorContribution {
 		flags: InsertFlags
 	): void {
 		if (!event || !event.item) {
-			this._alternatives.getValue().reset();
+			this._alternatives.value.reset();
 			this.model.cancel();
 			this.model.clear();
 			return;
@@ -317,7 +317,7 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		if (flags & InsertFlags.KeepAlternativeSuggestions) {
-			this._alternatives.getValue().set(event, next => {
+			this._alternatives.value.set(event, next => {
 				// this is not so pretty. when inserting the 'next'
 				// suggestion we undo until we are at the state at
 				// which we were before inserting the previous suggestion...
@@ -440,7 +440,7 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	acceptSelectedSuggestion(keepAlternativeSuggestions: boolean, alternativeOverwriteConfig: boolean): void {
-		const item = this.widget.getValue().getFocusedItem();
+		const item = this.widget.value.getFocusedItem();
 		let flags = 0;
 		if (keepAlternativeSuggestions) {
 			flags |= InsertFlags.KeepAlternativeSuggestions;
@@ -451,53 +451,53 @@ export class SuggestController implements IEditorContribution {
 		this._insertSuggestion(item, flags);
 	}
 	acceptNextSuggestion() {
-		this._alternatives.getValue().next();
+		this._alternatives.value.next();
 	}
 
 	acceptPrevSuggestion() {
-		this._alternatives.getValue().prev();
+		this._alternatives.value.prev();
 	}
 
 	cancelSuggestWidget(): void {
 		this.model.cancel();
 		this.model.clear();
-		this.widget.getValue().hideWidget();
+		this.widget.value.hideWidget();
 	}
 
 	selectNextSuggestion(): void {
-		this.widget.getValue().selectNext();
+		this.widget.value.selectNext();
 	}
 
 	selectNextPageSuggestion(): void {
-		this.widget.getValue().selectNextPage();
+		this.widget.value.selectNextPage();
 	}
 
 	selectLastSuggestion(): void {
-		this.widget.getValue().selectLast();
+		this.widget.value.selectLast();
 	}
 
 	selectPrevSuggestion(): void {
-		this.widget.getValue().selectPrevious();
+		this.widget.value.selectPrevious();
 	}
 
 	selectPrevPageSuggestion(): void {
-		this.widget.getValue().selectPreviousPage();
+		this.widget.value.selectPreviousPage();
 	}
 
 	selectFirstSuggestion(): void {
-		this.widget.getValue().selectFirst();
+		this.widget.value.selectFirst();
 	}
 
 	toggleSuggestionDetails(): void {
-		this.widget.getValue().toggleDetails();
+		this.widget.value.toggleDetails();
 	}
 
 	toggleExplainMode(): void {
-		this.widget.getValue().toggleExplainMode();
+		this.widget.value.toggleExplainMode();
 	}
 
 	toggleSuggestionFocus(): void {
-		this.widget.getValue().toggleDetailsFocus();
+		this.widget.value.toggleDetailsFocus();
 	}
 }
 
