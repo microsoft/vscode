@@ -176,16 +176,21 @@ export default class FileConfigurationManager extends Disposable {
 		}
 
 		const config = vscode.workspace.getConfiguration(
+			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
+			document.uri);
+
+		const preferencesConfig = vscode.workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
 		const preferences: Proto.UserPreferences = {
-			quotePreference: this.getQuoteStylePreference(config),
-			importModuleSpecifierPreference: getImportModuleSpecifierPreference(config),
-			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(config),
+			quotePreference: this.getQuoteStylePreference(preferencesConfig),
+			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
+			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
-			providePrefixAndSuffixTextForRename: config.get<boolean>('renameShorthandProperties', true) === false ? false : config.get<boolean>('useAliasesForRenames', true),
+			providePrefixAndSuffixTextForRename: preferencesConfig.get<boolean>('renameShorthandProperties', true) === false ? false : preferencesConfig.get<boolean>('useAliasesForRenames', true),
 			allowRenameOfImportPath: true,
+			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 		};
 
 		return preferences;

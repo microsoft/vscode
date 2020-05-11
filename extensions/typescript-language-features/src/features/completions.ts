@@ -380,7 +380,6 @@ interface CompletionConfiguration {
 	readonly nameSuggestions: boolean;
 	readonly pathSuggestions: boolean;
 	readonly autoImportSuggestions: boolean;
-	readonly includeAutomaticOptionalChainCompletions: boolean;
 }
 
 namespace CompletionConfiguration {
@@ -388,7 +387,6 @@ namespace CompletionConfiguration {
 	export const nameSuggestions = 'suggest.names';
 	export const pathSuggestions = 'suggest.paths';
 	export const autoImportSuggestions = 'suggest.autoImports';
-	export const includeAutomaticOptionalChainCompletions = 'suggest.includeAutomaticOptionalChainCompletions';
 
 	export function getConfigurationForResource(
 		modeId: string,
@@ -400,7 +398,6 @@ namespace CompletionConfiguration {
 			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
 			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
 			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, true),
-			includeAutomaticOptionalChainCompletions: config.get<boolean>(CompletionConfiguration.includeAutomaticOptionalChainCompletions, true),
 		};
 	}
 }
@@ -456,12 +453,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
-		const args: Proto.CompletionsRequestArgs & { includeAutomaticOptionalChainCompletions?: boolean } = {
+		const args: Proto.CompletionsRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
 			triggerCharacter: this.getTsTriggerCharacter(context),
-			includeAutomaticOptionalChainCompletions: completionConfiguration.includeAutomaticOptionalChainCompletions,
 		};
 
 		let isNewIdentifierLocation = true;
