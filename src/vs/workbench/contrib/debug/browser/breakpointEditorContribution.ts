@@ -120,7 +120,7 @@ async function createCandidateDecorations(model: ITextModel, breakpointDecoratio
 							return;
 						}
 
-						const breakpointAtPosition = breakpointDecorations.filter(bpd => bpd.range.equalsRange(range)).pop();
+						const breakpointAtPosition = breakpointDecorations.find(bpd => bpd.range.equalsRange(range));
 						if (breakpointAtPosition && breakpointAtPosition.inlineWidget) {
 							// Space already occupied, do not render candidate.
 							return;
@@ -468,6 +468,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			const newBreakpointRange = model.getDecorationRange(breakpointDecoration.decorationId);
 			if (newBreakpointRange && (!breakpointDecoration.range.equalsRange(newBreakpointRange))) {
 				somethingChanged = true;
+				breakpointDecoration.range = newBreakpointRange;
 			}
 		});
 		if (!somethingChanged) {

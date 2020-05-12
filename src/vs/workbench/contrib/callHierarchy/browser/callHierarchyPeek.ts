@@ -7,7 +7,7 @@ import 'vs/css!./media/callHierarchy';
 import * as peekView from 'vs/editor/contrib/peekView/peekView';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchy';
+import { CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { WorkbenchAsyncDataTree, IWorkbenchAsyncDataTreeOptions } from 'vs/platform/list/browser/listService';
 import { FuzzyScore } from 'vs/base/common/filters';
 import * as callHTree from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyTree';
@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { Dimension, addClass } from 'vs/base/browser/dom';
+import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
@@ -24,7 +24,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions, OverviewRulerLane } from 'vs/editor/common/model';
-import { registerThemingParticipant, themeColorFromId, IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, themeColorFromId, IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Action } from 'vs/base/common/actions';
 import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -50,10 +50,10 @@ class ChangeHierarchyDirectionAction extends Action {
 		const update = () => {
 			if (getDirection() === CallHierarchyDirection.CallsFrom) {
 				this.label = localize('toggle.from', "Show Incoming Calls");
-				this.class = 'calls-from';
+				this.class = 'codicon codicon-call-incoming';
 			} else {
 				this.label = localize('toggle.to', "Showing Outgoing Calls");
-				this.class = 'calls-to';
+				this.class = 'codicon codicon-call-outgoing';
 			}
 		};
 		update();
@@ -82,13 +82,15 @@ class LayoutInfo {
 	) { }
 }
 
+class CallHierarchyTree extends WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>{ }
+
 export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 	private _changeDirectionAction?: ChangeHierarchyDirectionAction;
 	private _parent!: HTMLElement;
 	private _message!: HTMLElement;
 	private _splitView!: SplitView;
-	private _tree!: WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>;
+	private _tree!: CallHierarchyTree;
 	private _treeViewStates = new Map<CallHierarchyDirection, IAsyncDataTreeViewState>();
 	private _editor!: EmbeddedCodeEditorWidget;
 	private _dim!: Dimension;
@@ -110,8 +112,8 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		super(editor, { showFrame: true, showArrow: true, isResizeable: true, isAccessible: true });
 		this.create();
 		this._peekViewService.addExclusiveWidget(editor, this);
-		this._applyTheme(themeService.getTheme());
-		this._disposables.add(themeService.onThemeChange(this._applyTheme, this));
+		this._applyTheme(themeService.getColorTheme());
+		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._disposables.add(this._previewDisposable);
 	}
 
@@ -127,7 +129,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		return this._direction;
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		const borderColor = theme.getColor(peekView.peekViewBorder) || Color.transparent;
 		this.style({
 			arrowColor: borderColor,
@@ -150,23 +152,23 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this._dim = { height: 0, width: 0 };
 
 		this._parent = parent;
-		addClass(parent, 'call-hierarchy');
+		parent.classList.add('call-hierarchy');
 
 		const message = document.createElement('div');
-		addClass(message, 'message');
+		message.classList.add('message');
 		parent.appendChild(message);
 		this._message = message;
 		this._message.tabIndex = 0;
 
 		const container = document.createElement('div');
-		addClass(container, 'results');
+		container.classList.add('results');
 		parent.appendChild(container);
 
 		this._splitView = new SplitView(container, { orientation: Orientation.HORIZONTAL });
 
 		// editor stuff
 		const editorContainer = document.createElement('div');
-		addClass(editorContainer, 'editor');
+		editorContainer.classList.add('editor');
 		container.appendChild(editorContainer);
 		let editorOptions: IEditorOptions = {
 			scrollBeyondLastLine: false,
@@ -193,19 +195,19 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 		// tree stuff
 		const treeContainer = document.createElement('div');
-		addClass(treeContainer, 'tree');
+		treeContainer.classList.add('tree');
 		container.appendChild(treeContainer);
 		const options: IWorkbenchAsyncDataTreeOptions<callHTree.Call, FuzzyScore> = {
 			sorter: new callHTree.Sorter(),
+			accessibilityProvider: new callHTree.AccessibilityProvider(() => this._direction),
 			identityProvider: new callHTree.IdentityProvider(() => this._direction),
-			ariaLabel: localize('tree.aria', "Call Hierarchy"),
 			expandOnlyOnTwistieClick: true,
 			overrideStyles: {
 				listBackground: peekView.peekViewResultsBackground
 			}
 		};
-		this._tree = this._instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallHierarchyModel, callHTree.Call, FuzzyScore>>(
-			WorkbenchAsyncDataTree,
+		this._tree = this._instantiationService.createInstance(
+			CallHierarchyTree,
 			'CallHierarchyPeek',
 			treeContainer,
 			new callHTree.VirtualDelegate(),
@@ -383,7 +385,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 		} else {
 			this._parent.dataset['state'] = State.Data;
-			if (!viewState) {
+			if (!viewState || this._tree.getFocus().length === 0) {
 				this._tree.setFocus([root.children[0].element]);
 			}
 			this._tree.domFocus();

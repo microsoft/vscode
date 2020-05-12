@@ -6,7 +6,7 @@
 import { SaveDialogOptions, OpenDialogOptions } from 'electron';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService, ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -19,6 +19,11 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { SimpleFileDialog } from 'vs/workbench/services/dialogs/browser/simpleFileDialog';
+import { NativeSimpleFileDialog } from 'vs/workbench/services/dialogs/electron-browser/simpleFileDialog';
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
@@ -34,9 +39,12 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		@IFileService fileService: IFileService,
 		@IOpenerService openerService: IOpenerService,
 		@IElectronService private readonly electronService: IElectronService,
-		@IDialogService dialogService: IDialogService
+		@IDialogService dialogService: IDialogService,
+		@IModeService modeService: IModeService,
+		@IWorkspacesService workspacesService: IWorkspacesService,
+		@ILabelService labelService: ILabelService
 	) {
-		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService, dialogService);
+		super(hostService, contextService, historyService, environmentService, instantiationService, configurationService, fileService, openerService, dialogService, modeService, workspacesService, labelService);
 	}
 
 	private toNativeOpenDialogOptions(options: IPickAndOpenOptions): INativeOpenDialogOptions {
@@ -107,8 +115,9 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return this.electronService.pickWorkspaceAndOpen(this.toNativeOpenDialogOptions(options));
 	}
 
-	async pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const schema = this.getFileSystemSchema(options);
+	async pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined> {
+		const schema = this.getFileSystemSchema({ defaultUri, availableFileSystems });
+		const options = this.getPickFileToSaveDialogOptions(defaultUri, availableFileSystems);
 		if (this.shouldUseSimplified(schema).useSimplified) {
 			return this.pickFileToSaveSimplified(schema, options);
 		} else {
@@ -184,14 +193,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		return schema === Schemas.untitled ? [Schemas.file] : (schema !== Schemas.file ? [schema, Schemas.file] : [schema]);
 	}
 
-	async showSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
-		if (this.environmentService.isExtensionDevelopment) {
-			if (!this.environmentService.args['extension-development-confirm-save']) {
-				return ConfirmResult.DONT_SAVE; // no veto when we are in extension dev mode because we cannot assume we run interactive (e.g. tests)
-			}
-		}
-
-		return super.showSaveConfirm(fileNamesOrResources);
+	protected createSimpleFileDialog(): SimpleFileDialog {
+		return this.instantiationService.createInstance(NativeSimpleFileDialog);
 	}
 }
 

@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as encoding from 'vs/base/node/encoding';
 import * as terminalEncoding from 'vs/base/node/terminalEncoding';
 import { Readable } from 'stream';
+import * as iconv from 'iconv-lite';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
@@ -224,7 +225,7 @@ suite('Encoding', () => {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(encoding.decode(data, fileEncoding!));
+					resolve(iconv.decode(data, encoding.toNodeEncoding(fileEncoding!)));
 				}
 			});
 		});

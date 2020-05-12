@@ -6,10 +6,10 @@
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'electron';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenEmptyWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
-import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
+import { INativeOpenWindowOptions, IOpenedWindow } from 'vs/platform/windows/node/window';
 
 export const IElectronService = createDecorator<IElectronService>('electronService');
 
@@ -43,7 +43,6 @@ export interface IElectronService {
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
 
-	isWindowFocused(): Promise<boolean>;
 	focusWindow(options?: { windowId?: number }): Promise<void>;
 
 	// Dialogs
@@ -75,6 +74,7 @@ export interface IElectronService {
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
 	reload(options?: { disableExtensions?: boolean }): Promise<void>;
 	closeWindow(): Promise<void>;
+	closeWindowById(windowId: number): Promise<void>;
 	quit(): Promise<void>;
 
 	// Development

@@ -22,7 +22,8 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text
+		text: text,
+		forceMoveMarkers: false
 	};
 }
 

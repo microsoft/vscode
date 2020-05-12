@@ -110,7 +110,11 @@
 	margin-left: 10px;
 }
 
-.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .count-badge-wrapper {
+.markers-panel:not(.wide) .markers-panel-container .tree-container .monaco-tl-contents .resource-label-container {
+	flex: 1;
+}
+
+.markers-panel.wide .markers-panel-container .tree-container .monaco-tl-contents .count-badge-wrapper {
 	margin-left: 10px;
 }
 
@@ -131,6 +135,14 @@
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-message-details-container > .marker-message-line.details-container {
 	display: flex;
+}
+
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link {
+	color: inherit;
+}
+.markers-panel .markers-panel-container .tree-container .monaco-tl-contents .details-container a.code-link .monaco-highlighted-label {
+	text-decoration: underline;
+	text-underline-position: under;
 }
 
 .markers-panel .markers-panel-container .tree-container .monaco-tl-contents .marker-code:before {

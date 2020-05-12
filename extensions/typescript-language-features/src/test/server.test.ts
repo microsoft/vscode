@@ -11,7 +11,7 @@ import { nulToken } from '../utils/cancellation';
 import Logger from '../utils/logger';
 import { TelemetryReporter } from '../utils/telemetry';
 import Tracer from '../utils/tracer';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 
 
 const NoopTelemetryReporter = new class implements TelemetryReporter {

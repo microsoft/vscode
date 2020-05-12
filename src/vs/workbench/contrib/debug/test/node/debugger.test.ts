@@ -11,7 +11,7 @@ import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/modelService.test';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 

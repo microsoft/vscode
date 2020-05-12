@@ -142,16 +142,6 @@
 	-webkit-user-select: none;
 }
 
-.vs .monaco-editor .settings-header-widget .title-container {
-	color: #6f6f6f;
-}
-.vs-dark .monaco-editor .settings-header-widget .title-container {
-	color: #bbbbbb;
-}
-.hc-black .monaco-editor .settings-header-widget .title-container {
-	color: white;
-}
-
 .monaco-editor .settings-header-widget .title-container .title {
 	font-weight: bold;
 	white-space: nowrap;
@@ -175,20 +165,10 @@
 	display: flex;
 }
 
-.vs .monaco-editor .settings-group-title-widget .title-container {
-	color: #6f6f6f;
-}
 
 .monaco-editor .settings-group-title-widget .title-container .title {
 	white-space: nowrap;
 	overflow: hidden;
-}
-
-.vs-dark .monaco-editor .settings-group-title-widget .title-container {
-	color: #bbbbbb;
-}
-.hc-black .monaco-editor .settings-group-title-widget .title-container {
-	color: white;
 }
 
 .monaco-editor.vs-dark .settings-group-title-widget .title-container.focused,

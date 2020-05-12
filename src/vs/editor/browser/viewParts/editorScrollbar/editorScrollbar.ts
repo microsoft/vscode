@@ -34,6 +34,7 @@ export class EditorScrollbar extends ViewPart {
 		const scrollbar = options.get(EditorOption.scrollbar);
 		const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
 		const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
+		const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
 
 		const scrollbarOptions: ScrollableElementCreationOptions = {
 			listenOnDomNode: viewDomNode.domNode,
@@ -54,9 +55,10 @@ export class EditorScrollbar extends ViewPart {
 			arrowSize: scrollbar.arrowSize,
 			mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
 			fastScrollSensitivity: fastScrollSensitivity,
+			scrollPredominantAxis: scrollPredominantAxis,
 		};
 
-		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.scrollable));
+		this.scrollbar = this._register(new SmoothScrollableElement(linesContent.domNode, scrollbarOptions, this._context.viewLayout.getScrollable()));
 		PartFingerprints.write(this.scrollbar.getDomNode(), PartFingerprint.ScrollableElement);
 
 		this.scrollbarDomNode = createFastDomNode(this.scrollbar.getDomNode());
@@ -109,11 +111,11 @@ export class EditorScrollbar extends ViewPart {
 		const minimap = options.get(EditorOption.minimap);
 		const side = minimap.side;
 		if (side === 'right') {
-			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimapWidth);
+			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth + layoutInfo.minimap.minimapWidth);
 		} else {
 			this.scrollbarDomNode.setWidth(layoutInfo.contentWidth);
 		}
-		this.scrollbarDomNode.setHeight(layoutInfo.contentHeight);
+		this.scrollbarDomNode.setHeight(layoutInfo.height);
 	}
 
 	public getOverviewRulerLayoutInfo(): IOverviewRulerLayoutInfo {
@@ -140,10 +142,12 @@ export class EditorScrollbar extends ViewPart {
 			const scrollbar = options.get(EditorOption.scrollbar);
 			const mouseWheelScrollSensitivity = options.get(EditorOption.mouseWheelScrollSensitivity);
 			const fastScrollSensitivity = options.get(EditorOption.fastScrollSensitivity);
+			const scrollPredominantAxis = options.get(EditorOption.scrollPredominantAxis);
 			const newOpts: ScrollableElementChangeOptions = {
 				handleMouseWheel: scrollbar.handleMouseWheel,
 				mouseWheelScrollSensitivity: mouseWheelScrollSensitivity,
-				fastScrollSensitivity: fastScrollSensitivity
+				fastScrollSensitivity: fastScrollSensitivity,
+				scrollPredominantAxis: scrollPredominantAxis
 			};
 			this.scrollbar.updateOptions(newOpts);
 		}

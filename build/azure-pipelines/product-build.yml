@@ -102,7 +102,7 @@ jobs:
 - job: macOS
   condition: and(succeeded(), eq(variables['VSCODE_COMPILE_ONLY'], 'false'), eq(variables['VSCODE_BUILD_MACOS'], 'true'))
   pool:
-    vmImage: macOS 10.13
+    vmImage: macOS-latest
   dependsOn:
   - Compile
   steps:

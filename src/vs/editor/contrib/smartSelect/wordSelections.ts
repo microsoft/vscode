@@ -40,7 +40,7 @@ export class WordSelectionRangeProvider implements SelectionRangeProvider {
 		// LEFT anchor (start)
 		for (; start >= 0; start--) {
 			let ch = word.charCodeAt(start);
-			if (ch === CharCode.Underline || ch === CharCode.Dash) {
+			if ((start !== offset) && (ch === CharCode.Underline || ch === CharCode.Dash)) {
 				// foo-bar OR foo_bar
 				break;
 			} else if (isLowerAsciiLetter(ch) && isUpperAsciiLetter(lastCh)) {

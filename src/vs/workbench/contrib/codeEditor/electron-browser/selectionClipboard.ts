@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorAction, ServicesAccessor, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
@@ -19,6 +20,7 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
@@ -107,5 +109,33 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 	}
 }
 
+class PasteSelectionClipboardAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.selectionClipboardPaste',
+			label: nls.localize('actions.pasteSelectionClipboard', "Paste Selection Clipboard"),
+			alias: 'Paste Selection Clipboard',
+			precondition: EditorContextKeys.writable
+		});
+	}
+
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		const clipboardService = accessor.get(IClipboardService);
+
+		// read selection clipboard
+		const text = await clipboardService.readText('selection');
+
+		editor.trigger('keyboard', Handler.Paste, {
+			text: text,
+			pasteOnNewLine: false,
+			multicursorText: null
+		});
+	}
+}
+
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
+if (platform.isLinux) {
+	registerEditorAction(PasteSelectionClipboardAction);
+}

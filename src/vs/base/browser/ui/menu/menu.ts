@@ -6,10 +6,10 @@
 import 'vs/css!./menu';
 import * as nls from 'vs/nls';
 import * as strings from 'vs/base/common/strings';
-import { IActionRunner, IAction, Action, IActionViewItem } from 'vs/base/common/actions';
+import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider, ActionsOrientation, Separator, ActionViewItem, IActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
-import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses } from 'vs/base/browser/dom';
+import { addClass, EventType, EventHelper, EventLike, removeTabIndexAndUpdateFocus, isAncestor, hasClass, addDisposableListener, removeClass, append, $, addClasses, removeClasses, clearNode } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -19,9 +19,13 @@ import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
 import { Event } from 'vs/base/common/event';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { Codicon, registerIcon, stripCodicons } from 'vs/base/common/codicons';
 
 export const MENU_MNEMONIC_REGEX = /\(&([^\s&])\)|(^|[^&])&([^\s&])/;
 export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
+
+const menuSelectionIcon = registerIcon('menu-selection', Codicon.check);
+const menuSubmenuIcon = registerIcon('menu-submenu', Codicon.chevronRight);
 
 export enum Direction {
 	Right,
@@ -80,7 +84,7 @@ export class Menu extends ActionBar {
 			context: options.context,
 			actionRunner: options.actionRunner,
 			ariaLabel: options.ariaLabel,
-			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh ? [KeyCode.Space] : [])], keyDown: true }
+			triggerKeys: { keys: [KeyCode.Enter, ...(isMacintosh || isLinux ? [KeyCode.Space] : [])], keyDown: true }
 		});
 
 		this.menuElement = menuElement;
@@ -205,7 +209,7 @@ export class Menu extends ActionBar {
 		container.appendChild(this.scrollableElement.getDomNode());
 		this.scrollableElement.scanDomNode();
 
-		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item: IActionViewItem, index: number, array: any[]) => {
+		this.viewItems.filter(item => !(item instanceof MenuSeparatorActionViewItem)).forEach((item, index, array) => {
 			(item as BaseMenuActionViewItem).updatePositionInSet(index + 1, array.length);
 		});
 	}
@@ -363,7 +367,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	private cssClass: string;
 	protected menuStyle: IMenuStyles | undefined;
 
-	constructor(ctx: any, action: IAction, options: IMenuItemOptions = {}) {
+	constructor(ctx: unknown, action: IAction, options: IMenuItemOptions = {}) {
 		options.isMenu = true;
 		super(action, action, options);
 
@@ -422,7 +426,7 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 			}
 		}
 
-		this.check = append(this.item, $('span.menu-item-check.codicon.codicon-check'));
+		this.check = append(this.item, $('span.menu-item-check' + menuSelectionIcon.cssSelector));
 		this.check.setAttribute('role', 'none');
 
 		this.label = append(this.item, $('span.action-label'));
@@ -464,17 +468,21 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 	}
 
 	updateLabel(): void {
+		if (!this.label) {
+			return;
+		}
+
 		if (this.options.label) {
-			let label = this.getAction().label;
+			clearNode(this.label);
+
+			let label = stripCodicons(this.getAction().label);
 			if (label) {
 				const cleanLabel = cleanMnemonic(label);
 				if (!this.options.enableMnemonics) {
 					label = cleanLabel;
 				}
 
-				if (this.label) {
-					this.label.setAttribute('aria-label', cleanLabel.replace(/&&/g, '&'));
-				}
+				this.label.setAttribute('aria-label', cleanLabel.replace(/&&/g, '&'));
 
 				const matches = MENU_MNEMONIC_REGEX.exec(label);
 
@@ -490,21 +498,24 @@ class BaseMenuActionViewItem extends BaseActionViewItem {
 						escMatch = MENU_ESCAPED_MNEMONIC_REGEX.exec(label);
 					}
 
+					const replaceDoubleEscapes = (str: string) => str.replace(/&amp;&amp;/g, '&amp;');
+
 					if (escMatch) {
-						label = `${label.substr(0, escMatch.index)}<u aria-hidden="true">${escMatch[3]}</u>${label.substr(escMatch.index + escMatch[0].length)}`;
+						this.label.append(
+							strings.ltrim(replaceDoubleEscapes(label.substr(0, escMatch.index)), ' '),
+							$('u', { 'aria-hidden': 'true' },
+								escMatch[3]),
+							strings.rtrim(replaceDoubleEscapes(label.substr(escMatch.index + escMatch[0].length)), ' '));
+					} else {
+						this.label.innerText = replaceDoubleEscapes(label).trim();
 					}
 
-					label = label.replace(/&amp;&amp;/g, '&amp;');
 					if (this.item) {
 						this.item.setAttribute('aria-keyshortcuts', (!!matches[1] ? matches[1] : matches[3]).toLocaleLowerCase());
 					}
 				} else {
-					label = label.replace(/&&/g, '&');
+					this.label.innerText = label.replace(/&&/g, '&').trim();
 				}
-			}
-
-			if (this.label) {
-				this.label.innerHTML = label.trim();
 			}
 		}
 	}
@@ -662,7 +673,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			addClass(this.item, 'monaco-submenu-item');
 			this.item.setAttribute('aria-haspopup', 'true');
 			this.updateAriaExpanded('false');
-			this.submenuIndicator = append(this.item, $('span.submenu-indicator.codicon.codicon-chevron-right'));
+			this.submenuIndicator = append(this.item, $('span.submenu-indicator' + menuSubmenuIcon.cssSelector));
 			this.submenuIndicator.setAttribute('aria-hidden', 'true');
 		}
 

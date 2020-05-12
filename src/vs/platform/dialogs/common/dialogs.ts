@@ -232,7 +232,7 @@ export interface IFileDialogService {
 	/**
 	 * Shows a save file dialog and save the file at the chosen file URI.
 	 */
-	pickFileToSave(options: ISaveDialogOptions): Promise<URI | undefined>;
+	pickFileToSave(defaultUri: URI, availableFileSystems?: string[]): Promise<URI | undefined>;
 
 	/**
 	 * Shows a save file dialog and returns the chosen file URI.

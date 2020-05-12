@@ -12,19 +12,23 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IWebIssueService, WebIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
+import { OpenIssueReporterArgs, OpenIssueReporterActionId } from 'vs/workbench/contrib/issue/common/commands';
 
 class RegisterIssueContribution implements IWorkbenchContribution {
 
 	constructor(@IProductService readonly productService: IProductService) {
 		if (productService.reportIssueUrl) {
 			const helpCategory = { value: nls.localize('help', "Help"), original: 'Help' };
-			const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 			const OpenIssueReporterActionLabel = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
-			CommandsRegistry.registerCommand(OpenIssueReporterActionId, function (accessor, args?: [string]) {
+			CommandsRegistry.registerCommand(OpenIssueReporterActionId, function (accessor, args?: [string] | OpenIssueReporterArgs) {
 				let extensionId: string | undefined;
-				if (args && Array.isArray(args)) {
-					[extensionId] = args;
+				if (args) {
+					if (Array.isArray(args)) {
+						[extensionId] = args;
+					} else {
+						extensionId = args.extensionId;
+					}
 				}
 
 				return accessor.get(IWebIssueService).openReporter({ extensionId });

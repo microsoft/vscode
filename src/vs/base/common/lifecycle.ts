@@ -49,8 +49,7 @@ export interface IDisposable {
 }
 
 export function isDisposable<E extends object>(thing: E): thing is E & IDisposable {
-	return typeof (<IDisposable><any>thing).dispose === 'function'
-		&& (<IDisposable><any>thing).dispose.length === 0;
+	return typeof (<IDisposable>thing).dispose === 'function' && (<IDisposable>thing).dispose.length === 0;
 }
 
 export function dispose<T extends IDisposable>(disposable: T): T;
@@ -91,6 +90,9 @@ export function toDisposable(fn: () => void): IDisposable {
 }
 
 export class DisposableStore implements IDisposable {
+
+	static DISABLE_DISPOSED_WARNING = false;
+
 	private _toDispose = new Set<IDisposable>();
 	private _isDisposed = false;
 
@@ -121,13 +123,15 @@ export class DisposableStore implements IDisposable {
 		if (!t) {
 			return t;
 		}
-		if ((t as any as DisposableStore) === this) {
+		if ((t as unknown as DisposableStore) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 
 		markTracked(t);
 		if (this._isDisposed) {
-			console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
+				console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			}
 		} else {
 			this._toDispose.add(t);
 		}
@@ -153,7 +157,7 @@ export abstract class Disposable implements IDisposable {
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
-		if ((t as any as Disposable) === this) {
+		if ((t as unknown as Disposable) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 		return this._store.add(t);

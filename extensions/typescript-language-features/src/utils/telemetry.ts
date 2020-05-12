@@ -30,22 +30,20 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 		private readonly clientVersionDelegate: () => string
 	) { }
 
-	public logTelemetry(eventName: string, properties?: { [prop: string]: string }) {
+	public logTelemetry(eventName: string, properties: { [prop: string]: string } = {}) {
 		const reporter = this.reporter;
-		if (reporter) {
-			if (!properties) {
-				properties = {};
-			}
-
-			/* __GDPR__FRAGMENT__
-				"TypeScriptCommonProperties" : {
-					"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-				}
-			*/
-			properties['version'] = this.clientVersionDelegate();
-
-			reporter.sendTelemetryEvent(eventName, properties);
+		if (!reporter) {
+			return;
 		}
+
+		/* __GDPR__FRAGMENT__
+			"TypeScriptCommonProperties" : {
+				"version" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+			}
+		*/
+		properties['version'] = this.clientVersionDelegate();
+
+		reporter.sendTelemetryEvent(eventName, properties);
 	}
 
 	public dispose() {

@@ -5,10 +5,7 @@
 
 import * as assert from 'assert';
 import { merge } from 'vs/platform/userDataSync/common/keybindingsMerge';
-import { IStringDictionary } from 'vs/base/common/collections';
-import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
-import { FormattingOptions } from 'vs/base/common/jsonFormatter';
-import { URI } from 'vs/base/common/uri';
+import { TestUserDataSyncUtilService } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 
 suite('KeybindingsMerge - No Conflicts', () => {
 
@@ -437,11 +434,6 @@ suite('KeybindingsMerge - No Conflicts', () => {
 		assert.equal(actual.mergeContent, expected);
 	});
 
-});
-
-
-suite('KeybindingsMerge - Conflicts', () => {
-
 	test('merge when local and remote with one entry but different value', async () => {
 		const localContent = stringify([{ key: 'alt+d', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
 		const remoteContent = stringify([{ key: 'alt+c', command: 'a', when: 'editorTextFocus && !editorReadonly' }]);
@@ -449,23 +441,13 @@ suite('KeybindingsMerge - Conflicts', () => {
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
-			`<<<<<<< local
-[
+			`[
 	{
 		"key": "alt+d",
 		"command": "a",
 		"when": "editorTextFocus && !editorReadonly"
 	}
-]
-=======
-[
-	{
-		"key": "alt+c",
-		"command": "a",
-		"when": "editorTextFocus && !editorReadonly"
-	}
-]
->>>>>>> remote`);
+]`);
 	});
 
 	test('merge when local and remote with different keybinding', async () => {
@@ -481,8 +463,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
-			`<<<<<<< local
-[
+			`[
 	{
 		"key": "alt+d",
 		"command": "a",
@@ -493,21 +474,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		"command": "-a",
 		"when": "editorTextFocus && !editorReadonly"
 	}
-]
-=======
-[
-	{
-		"key": "alt+c",
-		"command": "a",
-		"when": "editorTextFocus && !editorReadonly"
-	},
-	{
-		"key": "alt+a",
-		"command": "-a",
-		"when": "editorTextFocus && !editorReadonly"
-	}
-]
->>>>>>> remote`);
+]`);
 	});
 
 	test('merge when the entry is removed in local but updated in remote', async () => {
@@ -518,17 +485,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
-			`<<<<<<< local
-[]
-=======
-[
-	{
-		"key": "alt+c",
-		"command": "a",
-		"when": "editorTextFocus && !editorReadonly"
-	}
-]
->>>>>>> remote`);
+			`[]`);
 	});
 
 	test('merge when the entry is removed in local but updated in remote and a new entry is added in local', async () => {
@@ -539,22 +496,12 @@ suite('KeybindingsMerge - Conflicts', () => {
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
-			`<<<<<<< local
-[
+			`[
 	{
 		"key": "alt+b",
 		"command": "b"
 	}
-]
-=======
-[
-	{
-		"key": "alt+c",
-		"command": "a",
-		"when": "editorTextFocus && !editorReadonly"
-	}
-]
->>>>>>> remote`);
+]`);
 	});
 
 	test('merge when the entry is removed in remote but updated in local', async () => {
@@ -565,17 +512,13 @@ suite('KeybindingsMerge - Conflicts', () => {
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
-			`<<<<<<< local
-[
+			`[
 	{
 		"key": "alt+c",
 		"command": "a",
 		"when": "editorTextFocus && !editorReadonly"
 	}
-]
-=======
-[]
->>>>>>> remote`);
+]`);
 	});
 
 	test('merge when the entry is removed in remote but updated in local and a new entry is added in remote', async () => {
@@ -586,8 +529,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
-			`<<<<<<< local
-[
+			`[
 	{
 		"key": "alt+c",
 		"command": "a",
@@ -597,15 +539,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		"key": "alt+b",
 		"command": "b"
 	}
-]
-=======
-[
-	{
-		"key": "alt+b",
-		"command": "b"
-	}
-]
->>>>>>> remote`);
+]`);
 	});
 
 	test('merge when local and remote has moved forwareded with conflicts', async () => {
@@ -638,8 +572,7 @@ suite('KeybindingsMerge - Conflicts', () => {
 		assert.ok(actual.hasChanges);
 		assert.ok(actual.hasConflicts);
 		assert.equal(actual.mergeContent,
-			`<<<<<<< local
-[
+			`[
 	{
 		"key": "alt+d",
 		"command": "-f"
@@ -670,65 +603,17 @@ suite('KeybindingsMerge - Conflicts', () => {
 		"command": "g",
 		"when": "context2"
 	}
-]
-=======
-[
-	{
-		"key": "alt+a",
-		"command": "f"
-	},
-	{
-		"key": "cmd+c",
-		"command": "-c"
-	},
-	{
-		"key": "cmd+d",
-		"command": "d"
-	},
-	{
-		"key": "alt+d",
-		"command": "-f"
-	},
-	{
-		"key": "alt+c",
-		"command": "c",
-		"when": "context1"
-	},
-	{
-		"key": "alt+g",
-		"command": "g",
-		"when": "context2"
-	}
-]
->>>>>>> remote`);
+]`);
 	});
 
 });
 
-
 async function mergeKeybindings(localContent: string, remoteContent: string, baseContent: string | null) {
-	const userDataSyncUtilService = new MockUserDataSyncUtilService();
+	const userDataSyncUtilService = new TestUserDataSyncUtilService();
 	const formattingOptions = await userDataSyncUtilService.resolveFormattingOptions();
 	return merge(localContent, remoteContent, baseContent, formattingOptions, userDataSyncUtilService);
 }
 
 function stringify(value: any): string {
 	return JSON.stringify(value, null, '\t');
-}
-
-class MockUserDataSyncUtilService implements IUserDataSyncUtilService {
-
-	_serviceBrand: any;
-
-	async resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>> {
-		const keys: IStringDictionary<string> = {};
-		for (const keybinding of userbindings) {
-			keys[keybinding] = keybinding;
-		}
-		return keys;
-	}
-
-	async resolveFormattingOptions(file?: URI): Promise<FormattingOptions> {
-		return { eol: '\n', insertSpaces: false, tabSize: 4 };
-	}
 }

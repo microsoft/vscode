@@ -290,9 +290,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -301,9 +301,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -433,9 +433,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -444,9 +444,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -708,9 +708,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -719,9 +719,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -1335,9 +1335,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1346,9 +1346,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -1368,9 +1368,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1379,9 +1379,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -1500,9 +1500,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1511,9 +1511,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -1874,9 +1874,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1962,9 +1962,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1973,9 +1973,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -2182,9 +2182,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2303,9 +2303,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2886,9 +2886,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2897,9 +2897,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -3106,9 +3106,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3117,9 +3117,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -3249,9 +3249,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3260,9 +3260,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -3326,9 +3326,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3337,9 +3337,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -3909,9 +3909,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3942,9 +3942,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -3975,9 +3975,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4008,9 +4008,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4184,9 +4184,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4195,9 +4195,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -4239,9 +4239,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4250,9 +4250,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -4305,9 +4305,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4624,9 +4624,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4635,9 +4635,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -4679,9 +4679,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4690,9 +4690,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -4811,9 +4811,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss variable.interpolation.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4855,9 +4855,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss string.quoted.double.scss variable.interpolation.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -4976,9 +4976,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5009,9 +5009,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5020,9 +5020,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -5053,9 +5053,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5064,9 +5064,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -5196,9 +5196,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5262,9 +5262,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5273,9 +5273,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -5339,9 +5339,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5350,9 +5350,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -5460,9 +5460,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5471,9 +5471,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -5526,9 +5526,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5537,9 +5537,9 @@
 		"t": "source.css.scss meta.definition.variable.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -5845,9 +5845,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.return.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6043,9 +6043,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6769,9 +6769,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6780,9 +6780,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -7022,9 +7022,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -7033,9 +7033,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -7209,9 +7209,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -7220,9 +7220,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -7528,9 +7528,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -7539,9 +7539,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -7825,9 +7825,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -7836,9 +7836,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -8507,9 +8507,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -8518,9 +8518,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -8892,9 +8892,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -8903,9 +8903,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -9343,9 +9343,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9387,9 +9387,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9431,9 +9431,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9508,9 +9508,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9519,9 +9519,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -9629,9 +9629,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9673,9 +9673,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9750,9 +9750,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9761,9 +9761,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -9926,9 +9926,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9937,9 +9937,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -10564,9 +10564,9 @@
 		"t": "source.css.scss meta.at-rule.for.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -10608,9 +10608,9 @@
 		"t": "source.css.scss meta.at-rule.for.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -10773,9 +10773,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -10784,9 +10784,9 @@
 		"t": "source.css.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -11367,9 +11367,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -11466,9 +11466,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -11631,9 +11631,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -11642,9 +11642,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.em.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -11818,9 +11818,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -12104,9 +12104,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.for.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -12456,9 +12456,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.if.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -12544,9 +12544,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -12555,9 +12555,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.percentage.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -13039,9 +13039,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -13050,9 +13050,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -13402,9 +13402,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -13413,9 +13413,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -13589,9 +13589,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -13600,9 +13600,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.at-rule.mixin.scss constant.numeric.css keyword.other.unit.in.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -14535,9 +14535,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -14546,9 +14546,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -14568,9 +14568,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -14579,9 +14579,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -14601,9 +14601,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -14612,9 +14612,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -14667,9 +14667,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -14678,9 +14678,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -14700,9 +14700,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -14711,9 +14711,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -14733,9 +14733,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -14744,9 +14744,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.include.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -16559,9 +16559,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -16570,9 +16570,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.cm.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -16636,9 +16636,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -16647,9 +16647,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.cm.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -16878,9 +16878,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -16889,9 +16889,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -17483,9 +17483,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.at-rule.extend.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -17604,9 +17604,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -18066,9 +18066,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -18077,9 +18077,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -18187,9 +18187,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -18198,9 +18198,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css keyword.other.unit.px.css",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -18880,9 +18880,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -18979,9 +18979,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -19111,9 +19111,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -19221,9 +19221,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -19419,9 +19419,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -19551,9 +19551,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -19738,9 +19738,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -19870,9 +19870,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -20057,9 +20057,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -20167,9 +20167,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.property-list.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -20376,9 +20376,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -20508,9 +20508,9 @@
 		"t": "source.css.scss meta.at-rule.each.scss meta.at-rule.while.scss meta.property-list.scss meta.at-rule.keyframes.scss meta.property-list.scss meta.property-value.scss constant.numeric.css",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},

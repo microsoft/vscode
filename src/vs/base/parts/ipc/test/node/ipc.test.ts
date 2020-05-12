@@ -415,4 +415,80 @@ suite('Base IPC', function () {
 			return assert.equal(r, 'Super Context');
 		});
 	});
+
+	suite('one to many', function () {
+		test('all clients get pinged', async function () {
+			const service = new TestService();
+			const channel = new TestChannel(service);
+			const server = new TestIPCServer();
+			server.registerChannel('channel', channel);
+
+			let client1GotPinged = false;
+			const client1 = server.createConnection('client1');
+			const ipcService1 = new TestChannelClient(client1.getChannel('channel'));
+			ipcService1.onPong(() => client1GotPinged = true);
+
+			let client2GotPinged = false;
+			const client2 = server.createConnection('client2');
+			const ipcService2 = new TestChannelClient(client2.getChannel('channel'));
+			ipcService2.onPong(() => client2GotPinged = true);
+
+			await timeout(1);
+			service.ping('hello');
+
+			await timeout(1);
+			assert(client1GotPinged, 'client 1 got pinged');
+			assert(client2GotPinged, 'client 2 got pinged');
+
+			client1.dispose();
+			client2.dispose();
+			server.dispose();
+		});
+
+		test('server gets pings from all clients (broadcast channel)', async function () {
+			const server = new TestIPCServer();
+
+			const client1 = server.createConnection('client1');
+			const clientService1 = new TestService();
+			const clientChannel1 = new TestChannel(clientService1);
+			client1.registerChannel('channel', clientChannel1);
+
+			const pings: string[] = [];
+			const channel = server.getChannel('channel', () => true);
+			const service = new TestChannelClient(channel);
+			service.onPong(msg => pings.push(msg));
+
+			await timeout(1);
+			clientService1.ping('hello 1');
+
+			await timeout(1);
+			assert.deepEqual(pings, ['hello 1']);
+
+			const client2 = server.createConnection('client2');
+			const clientService2 = new TestService();
+			const clientChannel2 = new TestChannel(clientService2);
+			client2.registerChannel('channel', clientChannel2);
+
+			await timeout(1);
+			clientService2.ping('hello 2');
+
+			await timeout(1);
+			assert.deepEqual(pings, ['hello 1', 'hello 2']);
+
+			client1.dispose();
+			clientService1.ping('hello 1');
+
+			await timeout(1);
+			assert.deepEqual(pings, ['hello 1', 'hello 2']);
+
+			await timeout(1);
+			clientService2.ping('hello again 2');
+
+			await timeout(1);
+			assert.deepEqual(pings, ['hello 1', 'hello 2', 'hello again 2']);
+
+			client2.dispose();
+			server.dispose();
+		});
+	});
 });

@@ -11,7 +11,7 @@ const localize = nls.loadMessageBundle();
 import {
 	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	SemanticTokensProvider, SemanticTokens
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens
 } from 'vscode';
 import {
 	LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
@@ -21,13 +21,12 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
-import { activateMirrorCursor } from './mirrorCursor';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
 }
-namespace MatchingTagPositionRequest {
-	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
+namespace OnTypeRenameRequest {
+	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
 }
 
 // experimental: semantic tokens
@@ -96,9 +95,8 @@ export function activate(context: ExtensionContext) {
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
 				function updateRanges(item: CompletionItem) {
 					const range = item.range;
-					if (range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
-						item.range2 = { inserting: new Range(range.start, position), replacing: range };
-						item.range = undefined;
+					if (range instanceof Range && range.end.isAfter(position) && range.start.isBeforeOrEqual(position)) {
+						item.range = { inserting: new Range(range.start, position), replacing: range };
 					}
 				}
 				function updateProposals(r: CompletionItem[] | CompletionList | null | undefined): CompletionItem[] | CompletionList | null | undefined {
@@ -132,14 +130,6 @@ export function activate(context: ExtensionContext) {
 		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags');
 		toDispose.push(disposable);
 
-		const matchingTagPositionRequestor = (document: TextDocument, position: Position) => {
-			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-			return client.sendRequest(MatchingTagPositionRequest.type, param);
-		};
-
-		disposable = activateMirrorCursor(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.mirrorCursorOnMatchingTag');
-		toDispose.push(disposable);
-
 		disposable = client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
@@ -154,20 +144,38 @@ export function activate(context: ExtensionContext) {
 
 		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
 			if (legend) {
-				const provider: SemanticTokensProvider = {
-					provideSemanticTokens(doc, opts) {
+				const provider: DocumentSemanticTokensProvider & DocumentRangeSemanticTokensProvider = {
+					provideDocumentSemanticTokens(doc) {
 						const params: SemanticTokenParams = {
 							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-							ranges: opts.ranges?.map(r => client.code2ProtocolConverter.asRange(r))
+						};
+						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
+							return data && new SemanticTokens(new Uint32Array(data));
+						});
+					},
+					provideDocumentRangeSemanticTokens(doc, range) {
+						const params: SemanticTokenParams = {
+							textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
+							ranges: [client.code2ProtocolConverter.asRange(range)]
 						};
 						return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
 							return data && new SemanticTokens(new Uint32Array(data));
 						});
 					}
 				};
-				toDispose.push(languages.registerSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
+				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
 			}
 		});
+
+		disposable = languages.registerOnTypeRenameProvider(documentSelector, {
+			async provideOnTypeRenameRanges(document, position) {
+				const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
+				const response = await client.sendRequest(OnTypeRenameRequest.type, param);
+
+				return response || [];
+			}
+		});
+		toDispose.push(disposable);
 
 	});
 

@@ -16,6 +16,10 @@
 	flex-direction: column;
 }
 
+.monaco-pane-view .pane.horizontal:not(.expanded) {
+	flex-direction: row;
+}
+
 .monaco-pane-view .pane > .pane-header {
 	font-size: 11px;
 	font-weight: bold;
@@ -26,6 +30,11 @@
 	align-items: center;
 }
 
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {
+	flex-direction: column;
+	width: 22px;
+}
+
 .monaco-pane-view .pane > .pane-header > .twisties {
 	width: 20px;
 	display: flex;
@@ -34,6 +43,11 @@
 	transform-origin: center;
 	color: inherit;
 	flex-shrink: 0;
+}
+
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .twisties {
+	margin-top: 2px;
+	margin-bottom: 2px;
 }
 
 .monaco-pane-view .pane > .pane-header.expanded > .twisties::before {
@@ -68,6 +82,24 @@
 	color: inherit;
 }
 
+.monaco-pane-view .pane > .pane-header .monaco-action-bar .action-item.select-container {
+	cursor: default;
+}
+
+.monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
+	cursor: pointer;
+	min-width: 110px;
+	min-height: 18px;
+	padding: 2px 23px 2px 8px;
+	background-color: inherit !important;
+	color: inherit !important;
+}
+
+.linux .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box,
+.windows .monaco-pane-view .pane > .pane-header .action-item .monaco-select-box {
+	padding: 0px 23px 0px 8px;
+}
+
 /* Bold font style does not go well with CJK fonts */
 .monaco-pane-view:lang(zh-Hans) .pane > .pane-header,
 .monaco-pane-view:lang(zh-Hant) .pane > .pane-header,
@@ -98,4 +130,28 @@
 
 .monaco-pane-view.animated.horizontal .split-view-view {
 	transition-property: width;
+}
+
+#monaco-workbench-pane-drop-overlay {
+	position: absolute;
+	z-index: 10000;
+	width: 100%;
+	height: 100%;
+	left: 0;
+	box-sizing: border-box;
+}
+
+#monaco-workbench-pane-drop-overlay > .pane-overlay-indicator {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	min-height: 22px;
+	min-width: 19px;
+
+	pointer-events: none; /* very important to not take events away from the parent */
+	transition: opacity 150ms ease-out;
+}
+
+#monaco-workbench-pane-drop-overlay > .pane-overlay-indicator.overlay-move-transition {
+	transition: top 70ms ease-out, left 70ms ease-out, width 70ms ease-out, height 70ms ease-out, opacity 150ms ease-out;
 }

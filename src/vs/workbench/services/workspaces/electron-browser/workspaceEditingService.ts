@@ -28,9 +28,10 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
+import { isMacintosh } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -49,7 +50,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService protected dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -91,22 +92,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			CANCEL
 		}
 
-		const save = { label: mnemonicButtonLabel(nls.localize('save', "Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: mnemonicButtonLabel(nls.localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE };
-		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
-
-		const buttons: { label: string; result: ConfirmResult; }[] = [];
-		if (isWindows) {
-			buttons.push(save, dontSave, cancel);
-		} else if (isLinux) {
-			buttons.push(dontSave, cancel, save);
-		} else {
-			buttons.push(save, cancel, dontSave);
-		}
-
+		const buttons: { label: string; result: ConfirmResult; }[] = [
+			{ label: mnemonicButtonLabel(nls.localize('save', "Save")), result: ConfirmResult.SAVE },
+			{ label: mnemonicButtonLabel(nls.localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE },
+			{ label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL }
+		];
 		const message = nls.localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
 		const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
-		const cancelId = buttons.indexOf(cancel);
+		const cancelId = 2;
 
 		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
 
@@ -131,11 +124,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				try {
 					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
+					// Make sure to add the new workspace to the history to find it again
 					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+					this.workspacesService.addRecentlyOpened([{
+						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
+						workspace: newWorkspaceIdentifier
+					}]);
 
-					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
-					this.workspacesService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
-
+					// Delete the untitled one
 					this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
 				} catch (error) {
 					// ignore
@@ -144,8 +140,6 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				return false;
 			}
 		}
-
-		return false;
 	}
 
 	async isValidTargetWorkspacePath(path: URI): Promise<boolean> {

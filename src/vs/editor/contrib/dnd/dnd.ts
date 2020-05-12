@@ -10,7 +10,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget, MouseTargetType, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -29,7 +29,7 @@ function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
 	}
 }
 
-export class DragAndDropController extends Disposable implements editorCommon.IEditorContribution {
+export class DragAndDropController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.dragAndDrop';
 
@@ -68,7 +68,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	}
 
 	private onEditorKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
 			return;
 		}
 
@@ -84,7 +84,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 	}
 
 	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop)) {
+		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
 			return;
 		}
 
@@ -201,7 +201,7 @@ export class DragAndDropController extends Disposable implements editorCommon.IE
 		}];
 
 		this._dndDecorationIds = this._editor.deltaDecorations(this._dndDecorationIds, newDecorations);
-		this._editor.revealPosition(position, editorCommon.ScrollType.Immediate);
+		this._editor.revealPosition(position, ScrollType.Immediate);
 	}
 
 	private _removeDecoration(): void {

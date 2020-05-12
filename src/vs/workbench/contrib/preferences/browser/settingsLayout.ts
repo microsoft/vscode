@@ -166,6 +166,11 @@ export const tocData: ITOCEntry = {
 					settings: ['problems.*']
 				},
 				{
+					id: 'features/output',
+					label: localize('output', "Output"),
+					settings: ['output.*']
+				},
+				{
 					id: 'features/comments',
 					label: localize('comments', "Comments"),
 					settings: ['comments.*']
@@ -174,6 +179,16 @@ export const tocData: ITOCEntry = {
 					id: 'features/remote',
 					label: localize('remote', "Remote"),
 					settings: ['remote.*']
+				},
+				{
+					id: 'features/timeline',
+					label: localize('timeline', "Timeline"),
+					settings: ['timeline.*']
+				},
+				{
+					id: 'features/notebook',
+					label: localize('notebook', 'Notebook'),
+					settings: ['notebook.*']
 				}
 			]
 		},

@@ -164,8 +164,9 @@
         "html.mirrorCursorOnMatchingTag": {
           "type": "boolean",
           "scope": "resource",
-          "default": true,
-          "description": "%html.mirrorCursorOnMatchingTag%"
+          "default": false,
+          "description": "%html.mirrorCursorOnMatchingTag%",
+          "deprecationMessage": "%html.mirrorCursorOnMatchingTagDeprecationMessage%"
         },
         "html.trace.server": {
           "type": "string",
@@ -201,8 +202,8 @@
   },
   "dependencies": {
     "vscode-extension-telemetry": "0.1.1",
-    "vscode-languageclient": "^6.0.0-next.3",
-    "vscode-nls": "^4.1.1"
+    "vscode-languageclient": "^6.1.3",
+    "vscode-nls": "^4.1.2"
   },
   "devDependencies": {
     "@types/node": "^12.11.7"

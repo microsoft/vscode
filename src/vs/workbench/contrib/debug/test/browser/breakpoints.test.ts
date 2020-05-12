@@ -17,9 +17,12 @@ import { LanguageIdentifier, LanguageId } from 'vs/editor/common/modes';
 import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+import { generateUuid } from 'vs/base/common/uuid';
+import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 
 function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
 }
 
 function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
@@ -46,7 +49,7 @@ suite('Debug - Breakpoints', () => {
 	let model: DebugModel;
 
 	setup(() => {
-		model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
+		model = createMockDebugModel();
 	});
 
 	// Breakpoints
@@ -96,10 +99,10 @@ suite('Debug - Breakpoints', () => {
 		const modelUri1 = uri.file('/myfolder/my file first.js');
 		const modelUri2 = uri.file('/secondfolder/second/second file.js');
 		addBreakpointsAndCheckEvents(model, modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		assert.equal(getExpandedBodySize(model), 44);
+		assert.equal(getExpandedBodySize(model, 9), 44);
 
 		addBreakpointsAndCheckEvents(model, modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
-		assert.equal(getExpandedBodySize(model), 110);
+		assert.equal(getExpandedBodySize(model, 9), 110);
 
 		assert.equal(model.getBreakpoints().length, 5);
 		assert.equal(model.getBreakpoints({ uri: modelUri1 }).length, 2);
@@ -133,7 +136,7 @@ suite('Debug - Breakpoints', () => {
 		assert.equal(bp.enabled, true);
 
 		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
-		assert.equal(getExpandedBodySize(model), 66);
+		assert.equal(getExpandedBodySize(model, 9), 66);
 
 		assert.equal(model.getBreakpoints().length, 3);
 	});
@@ -319,7 +322,7 @@ suite('Debug - Breakpoints', () => {
 	test('decorations', () => {
 		const modelUri = uri.file('/myfolder/my file first.js');
 		const languageIdentifier = new LanguageIdentifier('testMode', LanguageId.PlainText);
-		const textModel = new TextModel(
+		const textModel = createTextModel(
 			['this is line one', 'this is line two', '    this is line three it has whitespace at start', 'this is line four', 'this is line five'].join('\n'),
 			TextModel.DEFAULT_CREATION_OPTIONS,
 			languageIdentifier

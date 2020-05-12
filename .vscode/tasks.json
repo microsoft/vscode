@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watch",
+			"script": "watchd",
 			"label": "Build VS Code",
 			"group": {
 				"kind": "build",
@@ -33,17 +33,13 @@
 		},
 		{
 			"type": "npm",
-			"script": "strict-function-types-watch",
-			"label": "TS - Strict Function Types",
-			"isBackground": true,
+			"script": "kill-watchd",
+			"label": "Kill Build VS Code",
+			"group": "build",
 			"presentation": {
 				"reveal": "never"
 			},
-			"problemMatcher": {
-				"base": "$tsc-watch",
-				"owner": "typescript-function-types",
-				"applyTo": "allDocuments"
-			}
+			"problemMatcher": "$tsc"
 		},
 		{
 			"label": "Run tests",

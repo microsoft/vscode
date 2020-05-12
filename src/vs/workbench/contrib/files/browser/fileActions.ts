@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/fileactions';
 import * as nls from 'vs/nls';
 import { isWindows, isWeb } from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
@@ -14,12 +13,12 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, IExplorerService, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { ExplorerViewPaneContainer } from 'vs/workbench/contrib/files/browser/explorerViewlet';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
@@ -41,10 +40,18 @@ import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/e
 import { coalesce } from 'vs/base/common/arrays';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { getErrorMessage } from 'vs/base/common/errors';
-import { asDomUri, triggerDownload } from 'vs/base/browser/dom';
+import { triggerDownload, asDomUri } from 'vs/base/browser/dom';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { sequence, timeout } from 'vs/base/common/async';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { once } from 'vs/base/common/functional';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { Codicon } from 'vs/base/common/codicons';
+import { IViewsService } from 'vs/workbench/common/views';
+import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
@@ -74,10 +81,10 @@ function onError(notificationService: INotificationService, error: any): void {
 	notificationService.error(toErrorMessage(error, false));
 }
 
-function refreshIfSeparator(value: string, explorerService: IExplorerService): void {
+async function refreshIfSeparator(value: string, explorerService: IExplorerService): Promise<void> {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
-		explorerService.refresh();
+		await explorerService.refresh();
 	}
 }
 
@@ -87,18 +94,13 @@ export class NewFileAction extends Action {
 	static readonly LABEL = nls.localize('createNewFile', "New File");
 
 	constructor(
-		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFile', NEW_FILE_LABEL);
-		this.class = 'explorer-action codicon-new-file';
-		this._register(explorerService.onDidChangeEditable(e => {
-			const elementIsBeingEdited = explorerService.isEditable(e);
-			this.enabled = !elementIsBeingEdited;
-		}));
+		this.class = 'explorer-action ' + Codicon.newFile.classNames;
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return this.commandService.executeCommand(NEW_FILE_COMMAND_ID);
 	}
 }
@@ -109,18 +111,13 @@ export class NewFolderAction extends Action {
 	static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
 	constructor(
-		@IExplorerService explorerService: IExplorerService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super('explorer.newFolder', NEW_FOLDER_LABEL);
-		this.class = 'explorer-action codicon-new-folder';
-		this._register(explorerService.onDidChangeEditable(e => {
-			const elementIsBeingEdited = explorerService.isEditable(e);
-			this.enabled = !elementIsBeingEdited;
-		}));
+		this.class = 'explorer-action ' + Codicon.newFolder.classNames;
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return this.commandService.executeCommand(NEW_FOLDER_COMMAND_ID);
 	}
 }
@@ -138,12 +135,12 @@ export class GlobalNewUntitledFileAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
-		return this.editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
+	async run(): Promise<void> {
+		await this.editorService.openEditor({ options: { pinned: true } }); // untitled are always pinned
 	}
 }
 
-async function deleteFiles(textFileService: ITextFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
+async function deleteFiles(workingCopyFileService: IWorkingCopyFileService, dialogService: IDialogService, configurationService: IConfigurationService, elements: ExplorerItem[], useTrash: boolean, skipConfirm = false): Promise<void> {
 	let primaryButton: string;
 	if (useTrash) {
 		primaryButton = isWindows ? nls.localize('deleteButtonLabelRecycleBin', "&&Move to Recycle Bin") : nls.localize({ key: 'deleteButtonLabelTrash', comment: ['&& denotes a mnemonic'] }, "&&Move to Trash");
@@ -151,23 +148,27 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
 	}
 
-	const distinctElements = resources.distinctParents(elements, e => e.resource);
-
 	// Handle dirty
+	const distinctElements = resources.distinctParents(elements, e => e.resource);
+	const dirtyWorkingCopies = new Set<IWorkingCopy>();
+	for (const distinctElement of distinctElements) {
+		for (const dirtyWorkingCopy of workingCopyFileService.getDirty(distinctElement.resource)) {
+			dirtyWorkingCopies.add(dirtyWorkingCopy);
+		}
+	}
 	let confirmed = true;
-	const dirty = textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource)));
-	if (dirty.length) {
+	if (dirtyWorkingCopies.size) {
 		let message: string;
 		if (distinctElements.length > 1) {
 			message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
 		} else if (distinctElements[0].isDirectory) {
-			if (dirty.length === 1) {
-				message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder with unsaved changes in 1 file. Do you want to continue?");
+			if (dirtyWorkingCopies.size === 1) {
+				message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder {0} with unsaved changes in 1 file. Do you want to continue?", distinctElements[0].name);
 			} else {
-				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder with unsaved changes in {0} files. Do you want to continue?", dirty.length);
+				message = nls.localize('dirtyMessageFolderDelete', "You are deleting a folder {0} with unsaved changes in {1} files. Do you want to continue?", distinctElements[0].name, dirtyWorkingCopies.size);
 			}
 		} else {
-			message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
+			message = nls.localize('dirtyMessageFileDelete', "You are deleting {0} with unsaved changes. Do you want to continue?", distinctElements[0].name);
 		}
 
 		const response = await dialogService.confirm({
@@ -181,7 +182,6 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 			confirmed = false;
 		} else {
 			skipConfirm = true;
-			await textFileService.revertAll(dirty);
 		}
 	}
 
@@ -190,11 +190,11 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		return;
 	}
 
-	let confirmDeletePromise: Promise<IConfirmationResult>;
+	let confirmation: IConfirmationResult;
 
 	// Check if we need to ask for confirmation at all
 	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
-		confirmDeletePromise = Promise.resolve({ confirmed: true });
+		confirmation = { confirmed: true };
 	}
 
 	// Confirm for moving to trash
@@ -207,7 +207,7 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 			detail += distinctElements.length > 1 ? nls.localize('undoTrashFiles', "You can restore these files from the Trash.") : nls.localize('undoTrash', "You can restore this file from the Trash.");
 		}
 
-		confirmDeletePromise = dialogService.confirm({
+		confirmation = await dialogService.confirm({
 			message,
 			detail,
 			primaryButton,
@@ -223,7 +223,7 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		let { message, detail } = getDeleteMessage(distinctElements);
 		detail += detail ? '\n' : '';
 		detail += nls.localize('irreversible', "This action is irreversible!");
-		confirmDeletePromise = dialogService.confirm({
+		confirmation = await dialogService.confirm({
 			message,
 			detail,
 			primaryButton,
@@ -231,61 +231,51 @@ async function deleteFiles(textFileService: ITextFileService, dialogService: IDi
 		});
 	}
 
-	return confirmDeletePromise.then(confirmation => {
+	// Check for confirmation checkbox
+	if (confirmation.confirmed && confirmation.checkboxChecked === true) {
+		await configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
+	}
 
-		// Check for confirmation checkbox
-		let updateConfirmSettingsPromise: Promise<void> = Promise.resolve(undefined);
-		if (confirmation.confirmed && confirmation.checkboxChecked === true) {
-			updateConfirmSettingsPromise = configurationService.updateValue(CONFIRM_DELETE_SETTING_KEY, false, ConfigurationTarget.USER);
+	// Check for confirmation
+	if (!confirmation.confirmed) {
+		return;
+	}
+
+	// Call function
+	try {
+		await Promise.all(distinctElements.map(e => workingCopyFileService.delete(e.resource, { useTrash: useTrash, recursive: true })));
+	} catch (error) {
+
+		// Handle error to delete file(s) from a modal confirmation dialog
+		let errorMessage: string;
+		let detailMessage: string | undefined;
+		let primaryButton: string;
+		if (useTrash) {
+			errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
+			detailMessage = nls.localize('irreversible', "This action is irreversible!");
+			primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
+		} else {
+			errorMessage = toErrorMessage(error, false);
+			primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
 		}
 
-		return updateConfirmSettingsPromise.then(() => {
+		const res = await dialogService.confirm({
+			message: errorMessage,
+			detail: detailMessage,
+			type: 'warning',
+			primaryButton
+		});
 
-			// Check for confirmation
-			if (!confirmation.confirmed) {
-				return Promise.resolve(undefined);
+		if (res.confirmed) {
+			if (useTrash) {
+				useTrash = false; // Delete Permanently
 			}
 
-			// Call function
-			const servicePromise = Promise.all(distinctElements.map(e => textFileService.delete(e.resource, { useTrash: useTrash, recursive: true })))
-				.then(undefined, (error: any) => {
-					// Handle error to delete file(s) from a modal confirmation dialog
-					let errorMessage: string;
-					let detailMessage: string | undefined;
-					let primaryButton: string;
-					if (useTrash) {
-						errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
-						detailMessage = nls.localize('irreversible', "This action is irreversible!");
-						primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
-					} else {
-						errorMessage = toErrorMessage(error, false);
-						primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
-					}
+			skipConfirm = true;
 
-					return dialogService.confirm({
-						message: errorMessage,
-						detail: detailMessage,
-						type: 'warning',
-						primaryButton
-					}).then(res => {
-
-						if (res.confirmed) {
-							if (useTrash) {
-								useTrash = false; // Delete Permanently
-							}
-
-							skipConfirm = true;
-
-							return deleteFiles(textFileService, dialogService, configurationService, elements, useTrash, skipConfirm);
-						}
-
-						return Promise.resolve();
-					});
-				});
-
-			return servicePromise.then(undefined);
-		});
-	});
+			return deleteFiles(workingCopyFileService, dialogService, configurationService, elements, useTrash, skipConfirm);
+		}
+	}
 }
 
 function getMoveToTrashMessage(distinctElements: ExplorerItem[]): { message: string, detail: string } {
@@ -347,10 +337,10 @@ function getDeleteMessage(distinctElements: ExplorerItem[]): { message: string, 
 }
 
 function containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
-	const directories = distinctElements.filter(element => element.isDirectory);
-	const files = distinctElements.filter(element => !element.isDirectory);
+	const directory = distinctElements.find(element => element.isDirectory);
+	const file = distinctElements.find(element => !element.isDirectory);
 
-	return directories.length > 0 && files.length > 0;
+	return !!directory && !!file;
 }
 
 
@@ -441,7 +431,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => {
+		return name.replace(/(\d+)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
 				? strings.pad(number + 1, groups[0].length)
@@ -451,7 +441,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 
 	// 1.folder=>2.folder
 	if (isFolder && name.match(/^(\d+)/)) {
-		return name.replace(/^(\d+)(.*)$/, (match: string, ...groups: any[]) => {
+		return name.replace(/^(\d+)(.*)$/, (match, ...groups) => {
 			let number = parseInt(groups[0]);
 			return number < maxNumber
 				? strings.pad(number + 1, groups[0].length) + groups[1]
@@ -472,44 +462,121 @@ export class GlobalCompareResourcesAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IEditorService private readonly editorService: IEditorService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super(id, label);
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		const activeInput = this.editorService.activeEditor;
-		const activeResource = activeInput ? activeInput.getResource() : undefined;
+		const activeResource = activeInput ? activeInput.resource : undefined;
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const toDispose = this.editorService.overrideOpenEditor(editor => {
+			const toDispose = this.editorService.overrideOpenEditor({
+				getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
+					return [];
+				},
+				open: editor => {
+					// Only once!
+					toDispose.dispose();
 
-				// Only once!
-				toDispose.dispose();
+					// Open editor as diff
+					const resource = editor.resource;
+					if (resource) {
+						return {
+							override: this.editorService.openEditor({
+								leftResource: activeResource,
+								rightResource: resource
+							})
+						};
+					}
 
-				// Open editor as diff
-				const resource = editor.getResource();
-				if (resource) {
-					return {
-						override: this.editorService.openEditor({
-							leftResource: activeResource,
-							rightResource: resource
-						})
-					};
+					return undefined;
 				}
-
-				return undefined;
 			});
 
-			// Bring up quick open
-			await this.quickOpenService.show('', { autoFocus: { autoFocusSecondEntry: true } });
-			toDispose.dispose(); // make sure to unbind if quick open is closing
+			once(this.quickInputService.onHide)((async () => {
+				await timeout(0); // prevent race condition with editor
+				toDispose.dispose();
+			}));
+
+			// Bring up quick access
+			this.quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
+	}
+}
+
+export class ReopenResourcesAction extends Action {
+
+	static readonly ID = 'workbench.files.action.reopenWithEditor';
+	static readonly LABEL = nls.localize('workbench.files.action.reopenWithEditor', "Reopen With...");
+
+	constructor(
+		id: string,
+		label: string,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const activeInput = this.editorService.activeEditor;
+		if (!activeInput) {
+			return;
+		}
+
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+		await openEditorWith(activeInput, undefined, options, group, this.editorService, this.configurationService, this.quickInputService);
+	}
+}
+
+export class ToggleEditorTypeCommand extends Action {
+
+	static readonly ID = 'workbench.files.action.toggleEditorType';
+	static readonly LABEL = nls.localize('workbench.files.action.toggleEditorType', "Toggle Editor Type");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const input = activeEditorPane.input;
+		if (!input.resource) {
+			return;
+		}
+
+		const options = activeEditorPane.options;
+		const group = activeEditorPane.group;
+
+		const overrides = getAllAvailableEditors(input.resource, options, group, this.editorService);
+		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
+		if (!firstNonActiveOverride) {
+			return;
+		}
+
+		await firstNonActiveOverride[0].open(input, options, group, firstNonActiveOverride[1].id)?.override;
 	}
 }
 
@@ -525,13 +592,13 @@ export class ToggleAutoSaveAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return this.filesConfigurationService.toggleAutoSave();
 	}
 }
 
 export abstract class BaseSaveAllAction extends Action {
-	private lastIsDirty: boolean;
+	private lastDirtyState: boolean;
 
 	constructor(
 		id: string,
@@ -542,29 +609,29 @@ export abstract class BaseSaveAllAction extends Action {
 	) {
 		super(id, label);
 
-		this.lastIsDirty = this.workingCopyService.hasDirty;
-		this.enabled = this.lastIsDirty;
+		this.lastDirtyState = this.workingCopyService.hasDirty;
+		this.enabled = this.lastDirtyState;
 
 		this.registerListeners();
 	}
 
-	protected abstract doRun(context: any): Promise<any>;
+	protected abstract doRun(context: unknown): Promise<void>;
 
 	private registerListeners(): void {
 
 		// update enablement based on working copy changes
-		this._register(this.workingCopyService.onDidChangeDirty(w => this.updateEnablement(w)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.updateEnablement(workingCopy)));
 	}
 
 	private updateEnablement(workingCopy: IWorkingCopy): void {
 		const hasDirty = workingCopy.isDirty() || this.workingCopyService.hasDirty;
-		if (this.lastIsDirty !== hasDirty) {
+		if (this.lastDirtyState !== hasDirty) {
 			this.enabled = hasDirty;
-			this.lastIsDirty = this.enabled;
+			this.lastDirtyState = this.enabled;
 		}
 	}
 
-	async run(context?: any): Promise<void> {
+	async run(context?: unknown): Promise<void> {
 		try {
 			await this.doRun(context);
 		} catch (error) {
@@ -579,10 +646,10 @@ export class SaveAllAction extends BaseSaveAllAction {
 	static readonly LABEL = SAVE_ALL_LABEL;
 
 	get class(): string {
-		return 'explorer-action codicon-save-all';
+		return 'explorer-action ' + Codicon.saveAll.classNames;
 	}
 
-	protected doRun(context: any): Promise<any> {
+	protected doRun(): Promise<void> {
 		return this.commandService.executeCommand(SAVE_ALL_COMMAND_ID);
 	}
 }
@@ -593,10 +660,10 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	static readonly LABEL = nls.localize('saveAllInGroup', "Save All in Group");
 
 	get class(): string {
-		return 'explorer-action codicon-save-all';
+		return 'explorer-action ' + Codicon.saveAll.classNames;
 	}
 
-	protected doRun(context: any): Promise<any> {
+	protected doRun(context: unknown): Promise<void> {
 		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
 	}
 }
@@ -607,10 +674,10 @@ export class CloseGroupAction extends Action {
 	static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
 	constructor(id: string, label: string, @ICommandService private readonly commandService: ICommandService) {
-		super(id, label, 'codicon-close-all');
+		super(id, label, Codicon.closeAll.classNames);
 	}
 
-	run(context?: any): Promise<any> {
+	run(context?: unknown): Promise<void> {
 		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
@@ -628,8 +695,8 @@ export class FocusFilesExplorer extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true);
+	async run(): Promise<void> {
+		await this.viewletService.openViewlet(VIEWLET_ID, true);
 	}
 }
 
@@ -648,15 +715,13 @@ export class ShowActiveFileInExplorer extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
 			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
-
-		return Promise.resolve(true);
 	}
 }
 
@@ -670,14 +735,10 @@ export class CollapseExplorerView extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExplorerService readonly explorerService: IExplorerService
 	) {
-		super(id, label, 'explorer-action codicon-collapse-all');
-		this._register(explorerService.onDidChangeEditable(e => {
-			const elementIsBeingEdited = explorerService.isEditable(e);
-			this.enabled = !elementIsBeingEdited;
-		}));
+		super(id, label, 'explorer-action ' + Codicon.collapseAll.classNames);
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		const explorerViewlet = (await this.viewletService.openViewlet(VIEWLET_ID))?.getViewPaneContainer() as ExplorerViewPaneContainer;
 		const explorerView = explorerViewlet.getExplorerView();
 		if (explorerView) {
@@ -697,16 +758,12 @@ export class RefreshExplorerView extends Action {
 		@IViewletService private readonly viewletService: IViewletService,
 		@IExplorerService private readonly explorerService: IExplorerService
 	) {
-		super(id, label, 'explorer-action codicon-refresh');
-		this._register(explorerService.onDidChangeEditable(e => {
-			const elementIsBeingEdited = explorerService.isEditable(e);
-			this.enabled = !elementIsBeingEdited;
-		}));
+		super(id, label, 'explorer-action ' + Codicon.refresh.classNames);
 	}
 
-	async run(): Promise<any> {
+	async run(): Promise<void> {
 		await this.viewletService.openViewlet(VIEWLET_ID);
-		this.explorerService.refresh();
+		await this.explorerService.refresh();
 	}
 }
 
@@ -726,7 +783,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
 		if (fileResource) {
 			if (this.fileService.canHandleResource(fileResource)) {
@@ -737,23 +794,27 @@ export class ShowOpenedFileInNewWindow extends Action {
 		} else {
 			this.notificationService.info(nls.localize('openFileToShowInNewWindow.nofile', "Open a file first to open in new window"));
 		}
-
-		return Promise.resolve(true);
 	}
 }
 
-export function validateFileName(item: ExplorerItem, name: string): string | null {
+export function validateFileName(item: ExplorerItem, name: string): { content: string, severity: Severity } | null {
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
 
 	// Name not provided
 	if (!name || name.length === 0 || /^\s+$/.test(name)) {
-		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
+		return {
+			content: nls.localize('emptyFileNameError', "A file or folder name must be provided."),
+			severity: Severity.Error
+		};
 	}
 
 	// Relative paths only
 	if (name[0] === '/' || name[0] === '\\') {
-		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
+		return {
+			content: nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash."),
+			severity: Severity.Error
+		};
 	}
 
 	const names = coalesce(name.split(/[\\/]/));
@@ -763,14 +824,27 @@ export function validateFileName(item: ExplorerItem, name: string): string | nul
 		// Do not allow to overwrite existing file
 		const child = parent?.getChild(name);
 		if (child && child !== item) {
-			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
+			return {
+				content: nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name),
+				severity: Severity.Error
+			};
 		}
 	}
 
 	// Invalid File name
 	const windowsBasenameValidity = item.resource.scheme === Schemas.file && isWindows;
 	if (names.some((folderName) => !extpath.isValidBasename(folderName, windowsBasenameValidity))) {
-		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
+		return {
+			content: nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name)),
+			severity: Severity.Error
+		};
+	}
+
+	if (names.some(name => /^\s|\s$/.test(name))) {
+		return {
+			content: nls.localize('fileNameWhitespaceWarning', "Leading or trailing whitespace detected in file or folder name."),
+			severity: Severity.Warning
+		};
 	}
 
 	return null;
@@ -792,7 +866,7 @@ export function getWellFormedFileName(filename: string): string {
 	// Trim tabs
 	filename = strings.trim(filename, '\t');
 
-	// Remove trailing dots, slashes, and spaces
+	// Remove trailing dots and slashes
 	filename = strings.rtrim(filename, '.');
 	filename = strings.rtrim(filename, '/');
 	filename = strings.rtrim(filename, '\\');
@@ -805,9 +879,8 @@ export class CompareWithClipboardAction extends Action {
 	static readonly ID = 'workbench.files.action.compareWithClipboard';
 	static readonly LABEL = nls.localize('compareWithClipboard', "Compare Active File with Clipboard");
 
-	private static readonly SCHEME = 'clipboardCompare';
-
 	private registrationDisposal: IDisposable | undefined;
+	private static SCHEME_COUNTER = 0;
 
 	constructor(
 		id: string,
@@ -822,24 +895,23 @@ export class CompareWithClipboardAction extends Action {
 		this.enabled = true;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.MASTER });
+		const scheme = `clipboardCompare${CompareWithClipboardAction.SCHEME_COUNTER++}`;
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
-				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
+				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(scheme, provider);
 			}
 
 			const name = resources.basename(resource);
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
-			return this.editorService.openEditor({ leftResource: resource.with({ scheme: CompareWithClipboardAction.SCHEME }), rightResource: resource, label: editorLabel }).finally(() => {
+			await this.editorService.openEditor({ leftResource: resource.with({ scheme }), rightResource: resource, label: editorLabel }).finally(() => {
 				dispose(this.registrationDisposal);
 				this.registrationDisposal = undefined;
 			});
 		}
-
-		return Promise.resolve(true);
 	}
 
 	dispose(): void {
@@ -858,13 +930,14 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 	) { }
 
 	async provideTextContent(resource: URI): Promise<ITextModel> {
-		const model = this.modelService.createModel(await this.clipboardService.readText(), this.modeService.createByFilepathOrFirstLine(resource), resource);
+		const text = await this.clipboardService.readText();
+		const model = this.modelService.createModel(text, this.modeService.createByFilepathOrFirstLine(resource), resource);
 
 		return model;
 	}
 }
 
-function onErrorWithRetry(notificationService: INotificationService, error: any, retry: () => Promise<any>): void {
+function onErrorWithRetry(notificationService: INotificationService, error: unknown, retry: () => Promise<unknown>): void {
 	notificationService.prompt(Severity.Error, toErrorMessage(error, false),
 		[{
 			label: nls.localize('retry', "Retry"),
@@ -878,10 +951,10 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	const fileService = accessor.get(IFileService);
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
-	const viewletService = accessor.get(IViewletService);
+	const viewsService = accessor.get(IViewsService);
 	const notificationService = accessor.get(INotificationService);
 
-	await viewletService.openViewlet(VIEWLET_ID, true);
+	await viewsService.openView(VIEW_ID, true);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -897,27 +970,26 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 	}
 
 	const newStat = new NewExplorerItem(fileService, folder, isFolder);
-	const sortOrder = explorerService.sortOrder;
-	await folder.fetchChildren(sortOrder);
-
 	folder.addChild(newStat);
 
-	const onSuccess = (value: string): Promise<void> => {
-		const createPromise = isFolder ? fileService.createFolder(resources.joinPath(folder.resource, value)) : textFileService.create(resources.joinPath(folder.resource, value));
-		return createPromise.then(created => {
-			refreshIfSeparator(value, explorerService);
-			return isFolder ? explorerService.select(created.resource, true)
-				: editorService.openEditor({ resource: created.resource, options: { pinned: true } }).then(() => undefined);
-		}, error => {
+	const onSuccess = async (value: string): Promise<void> => {
+		try {
+			const created = isFolder ? await fileService.createFolder(resources.joinPath(folder.resource, value)) : await textFileService.create(resources.joinPath(folder.resource, value));
+			await refreshIfSeparator(value, explorerService);
+
+			isFolder ?
+				await explorerService.select(created.resource, true) :
+				await editorService.openEditor({ resource: created.resource, options: { pinned: true } });
+		} catch (error) {
 			onErrorWithRetry(notificationService, error, () => onSuccess(value));
-		});
+		}
 	};
 
-	explorerService.setEditable(newStat, {
+	await explorerService.setEditable(newStat, {
 		validationMessage: value => validateFileName(newStat, value),
-		onFinish: (value, success) => {
+		onFinish: async (value, success) => {
 			folder.removeChild(newStat);
-			explorerService.setEditable(newStat, null);
+			await explorerService.setEditable(newStat, null);
 			if (success) {
 				onSuccess(value);
 			}
@@ -939,9 +1011,9 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const renameHandler = (accessor: ServicesAccessor) => {
+export const renameHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
-	const textFileService = accessor.get(ITextFileService);
+	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 	const notificationService = accessor.get(INotificationService);
 
 	const stats = explorerService.getContext(false);
@@ -950,7 +1022,7 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 		return;
 	}
 
-	explorerService.setEditable(stat, {
+	await explorerService.setEditable(stat, {
 		validationMessage: value => validateFileName(stat, value),
 		onFinish: async (value, success) => {
 			if (success) {
@@ -958,14 +1030,14 @@ export const renameHandler = (accessor: ServicesAccessor) => {
 				const targetResource = resources.joinPath(parentResource, value);
 				if (stat.resource.toString() !== targetResource.toString()) {
 					try {
-						await textFileService.move(stat.resource, targetResource);
-						refreshIfSeparator(value, explorerService);
+						await workingCopyFileService.move(stat.resource, targetResource);
+						await refreshIfSeparator(value, explorerService);
 					} catch (e) {
 						notificationService.error(e);
 					}
 				}
 			}
-			explorerService.setEditable(stat, null);
+			await explorerService.setEditable(stat, null);
 		}
 	});
 };
@@ -974,7 +1046,7 @@ export const moveFileToTrashHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 	if (stats.length) {
-		await deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
+		await deleteFiles(accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, true);
 	}
 };
 
@@ -983,7 +1055,7 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 	const stats = explorerService.getContext(true).filter(s => !s.isRoot);
 
 	if (stats.length) {
-		await deleteFiles(accessor.get(ITextFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
+		await deleteFiles(accessor.get(IWorkingCopyFileService), accessor.get(IDialogService), accessor.get(IConfigurationService), stats, false);
 	}
 };
 
@@ -1008,24 +1080,32 @@ export const cutFileHandler = (accessor: ServicesAccessor) => {
 
 export const DOWNLOAD_COMMAND_ID = 'explorer.download';
 const downloadFileHandler = (accessor: ServicesAccessor) => {
-	const textFileService = accessor.get(ITextFileService);
+	const fileService = accessor.get(IFileService);
+	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 	const fileDialogService = accessor.get(IFileDialogService);
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
 
 	let canceled = false;
-	stats.forEach(async s => {
+	sequence(stats.map(s => async () => {
 		if (canceled) {
 			return;
 		}
 
 		if (isWeb) {
 			if (!s.isDirectory) {
-				triggerDownload(asDomUri(s.resource), s.name);
+				let bufferOrUri: Uint8Array | URI;
+				try {
+					bufferOrUri = (await fileService.readFile(s.resource, { limits: { size: 1024 * 1024  /* set a limit to reduce memory pressure */ } })).value.buffer;
+				} catch (error) {
+					bufferOrUri = asDomUri(s.resource);
+				}
+
+				triggerDownload(bufferOrUri, s.name);
 			}
 		} else {
-			let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath() : fileDialogService.defaultFilePath();
-			if (defaultUri && !s.isDirectory) {
+			let defaultUri = s.isDirectory ? fileDialogService.defaultFolderPath(Schemas.file) : fileDialogService.defaultFilePath(Schemas.file);
+			if (defaultUri) {
 				defaultUri = resources.joinPath(defaultUri, s.name);
 			}
 
@@ -1036,13 +1116,13 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				defaultUri
 			});
 			if (destination) {
-				await textFileService.copy(s.resource, destination);
+				await workingCopyFileService.copy(s.resource, destination, true);
 			} else {
 				// User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 				canceled = true;
 			}
 		}
-	});
+	}));
 };
 
 CommandsRegistry.registerCommand({
@@ -1054,7 +1134,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
-	const textFileService = accessor.get(ITextFileService);
+	const workingCopyFileService = accessor.get(IWorkingCopyFileService);
 	const notificationService = accessor.get(INotificationService);
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -1086,9 +1166,9 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 			// Move/Copy File
 			if (pasteShouldMove) {
-				return await textFileService.move(fileToPaste, targetFile);
+				return await workingCopyFileService.move(fileToPaste, targetFile);
 			} else {
-				return await textFileService.copy(fileToPaste, targetFile);
+				return await workingCopyFileService.copy(fileToPaste, targetFile);
 			}
 		} catch (e) {
 			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));

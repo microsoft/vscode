@@ -8,17 +8,6 @@
 	flex: 1;
 }
 
-.scm-viewlet .empty-message {
-	box-sizing: border-box;
-	height: 100%;
-	padding: 10px 22px 0 22px;
-}
-
-.scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-pane-view {
-	display: none;
-}
-
 .scm-viewlet .scm-status {
 	height: 100%;
 	position: relative;
@@ -114,7 +103,7 @@
 	overflow: hidden;
 }
 
-.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-description-container > .label-name {
+.scm-viewlet .monaco-list-row .resource > .name.strike-through > .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-name-container > .label-name {
 	text-decoration: line-through;
 }
 
@@ -164,6 +153,10 @@
 	background-repeat: no-repeat;
 }
 
+.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label.codicon {
+	line-height: 22px;
+}
+
 .scm-viewlet .scm-editor {
 	box-sizing: border-box;
 	padding: 5px 12px 5px 16px;
@@ -173,20 +166,48 @@
 	display: none;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox {
+.scm-viewlet .scm-editor-container {
+	padding: 1px;
+	position: relative;
+	outline-offset: -1px;
+}
+
+.scm-viewlet .scm-editor-container > .scm-editor-validation {
+	position: absolute;
 	width: 100%;
+	z-index: 10;
+	left: 0px;
+	box-sizing: border-box;
+	font-size: 0.9em;
+	padding: 1px 3px;
+	display: none;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox > .wrapper > .mirror {
-	max-height: 134px;
+.scm-viewlet .scm-editor-container.synthetic-focus > .scm-editor-validation {
+	display: block;
 }
 
-.scm-viewlet .scm-editor > .monaco-inputbox > .wrapper > textarea.input {
-	min-height: 26px;
+.scm-viewlet .scm-editor-placeholder {
+	position: absolute;
+	pointer-events: none;
+	z-index: 1;
+	margin: 1px;
+	padding: 3px 4px;
+	box-sizing: border-box;
+	width: 100%;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
 }
 
-.scm-viewlet .scm-editor.scroll > .monaco-inputbox > .wrapper > textarea.input {
-	overflow-y: scroll;
+.scm-viewlet .scm-editor-placeholder.hidden {
+	display: none;
+}
+
+.scm-viewlet .scm-editor-container .monaco-editor-background,
+.scm-viewlet .scm-editor-container .monaco-editor,
+.scm-viewlet .scm-editor-container .mtk1 {
+	color: inherit;
 }
 
 .scm-viewlet .list-view-mode .monaco-tl-twistie:not(.force-twistie):not(.collapsible) {

@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_FIND_WIDGET_VISIBLE, FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleSearchScopeKeybinding, ToggleWholeWordKeybinding, CONTEXT_REPLACE_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
@@ -27,6 +27,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -39,7 +40,7 @@ export function getSelectionSearchString(editor: ICodeEditor): string | null {
 	// if selection spans multiple lines, default search string to empty
 	if (selection.startLineNumber === selection.endLineNumber) {
 		if (selection.isEmpty()) {
-			let wordAtPosition = editor.getModel().getWordAtPosition(selection.getStartPosition());
+			const wordAtPosition = editor.getConfiguredWordAtPosition(selection.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;
 			}
@@ -66,9 +67,10 @@ export interface IFindStartOptions {
 	shouldFocus: FindStartFocusAction;
 	shouldAnimate: boolean;
 	updateSearchScope: boolean;
+	loop: boolean;
 }
 
-export class CommonFindController extends Disposable implements editorCommon.IEditorContribution {
+export class CommonFindController extends Disposable implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.findController';
 
@@ -125,7 +127,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 					seedSearchStringFromGlobalClipboard: false,
 					shouldFocus: FindStartFocusAction.NoFocusChange,
 					shouldAnimate: false,
-					updateSearchScope: false
+					updateSearchScope: false,
+					loop: this._editor.getOption(EditorOption.find).loop
 				});
 			}
 		}));
@@ -296,6 +299,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 			}
 		}
 
+		stateChanges.loop = opts.loop;
+
 		this._state.change(stateChanges, false);
 
 		if (!this._model) {
@@ -383,6 +388,7 @@ export class FindController extends CommonFindController implements IFindControl
 		@IThemeService private readonly _themeService: IThemeService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
+		@IStorageKeysSyncRegistryService private readonly _storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@optional(IClipboardService) clipboardService: IClipboardService,
 	) {
 		super(editor, _contextKeyService, _storageService, clipboardService);
@@ -437,7 +443,7 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._storageKeysSyncRegistryService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService, this._themeService));
 	}
 }
@@ -473,7 +479,8 @@ export class StartFindAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
 				shouldFocus: FindStartFocusAction.FocusFindInput,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 		}
 	}
@@ -507,7 +514,8 @@ export class StartFindWithSelectionAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 
 			controller.setGlobalBufferTerm(controller.getState().searchString);
@@ -524,7 +532,8 @@ export abstract class MatchFindAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: true,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 			this._run(controller);
 		}
@@ -636,7 +645,8 @@ export abstract class SelectionMatchFindAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: false,
 				shouldFocus: FindStartFocusAction.NoFocusChange,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 			this._run(controller);
 		}
@@ -741,7 +751,8 @@ export class StartFindReplaceAction extends EditorAction {
 				seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection,
 				shouldFocus: shouldFocus,
 				shouldAnimate: true,
-				updateSearchScope: false
+				updateSearchScope: false,
+				loop: editor.getOption(EditorOption.find).loop
 			});
 		}
 	}

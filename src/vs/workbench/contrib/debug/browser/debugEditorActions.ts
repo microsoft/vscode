@@ -9,14 +9,14 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution } from 'vs/workbench/contrib/debug/common/debug';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -169,7 +169,7 @@ class SelectionToReplAction extends EditorAction {
 
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
-		const panelService = accessor.get(IPanelService);
+		const viewsService = accessor.get(IViewsService);
 		const viewModel = debugService.getViewModel();
 		const session = viewModel.focusedSession;
 		if (!editor.hasModel() || !session) {
@@ -178,7 +178,7 @@ class SelectionToReplAction extends EditorAction {
 
 		const text = editor.getModel().getValueInRange(editor.getSelection());
 		await session.addReplExpression(viewModel.focusedStackFrame!, text);
-		await panelService.openPanel(REPL_ID, true);
+		await viewsService.openView(REPL_VIEW_ID, true);
 	}
 }
 

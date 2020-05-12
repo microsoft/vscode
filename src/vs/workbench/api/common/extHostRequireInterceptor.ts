@@ -11,7 +11,6 @@ import { nullExtensionDescription } from 'vs/workbench/services/extensions/commo
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import * as vscode from 'vscode';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { endsWith } from 'vs/base/common/strings';
 import { IExtensionApiFactory } from 'vs/workbench/api/common/extHost.api.impl';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -91,7 +90,7 @@ class VSCodeNodeModuleFactory implements INodeModuleFactory {
 
 	constructor(
 		private readonly _apiFactory: IExtensionApiFactory,
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
 		private readonly _extensionRegistry: ExtensionDescriptionRegistry,
 		private readonly _configProvider: ExtHostConfigProvider,
 		private readonly _logService: ILogService,
@@ -192,7 +191,7 @@ class KeytarNodeModuleFactory implements INodeModuleFactory {
 			return undefined;
 		}
 		const sep = length - 7;
-		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && endsWith(name, 'keytar')) {
+		if ((name.charAt(sep) === '/' || name.charAt(sep) === '\\') && name.endsWith('keytar')) {
 			name = name.replace(/\\/g, '/');
 			if (this.alternativeNames.has(name)) {
 				return 'keytar';
@@ -230,7 +229,7 @@ class OpenNodeModuleFactory implements INodeModuleFactory {
 	private _mainThreadTelemetry: MainThreadTelemetryShape;
 
 	constructor(
-		private readonly _extensionPaths: TernarySearchTree<IExtensionDescription>,
+		private readonly _extensionPaths: TernarySearchTree<string, IExtensionDescription>,
 		private readonly _appUriScheme: string,
 		@IExtHostRpcService rpcService: IExtHostRpcService,
 	) {

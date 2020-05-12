@@ -17,7 +17,7 @@ import { getBaseLabel } from 'vs/base/common/labels';
 import { dirname, basename } from 'vs/base/common/resources';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IKeyboardNavigationLabelProvider, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -119,7 +119,7 @@ class FileReferencesTemplate extends Disposable {
 	) {
 		super();
 		const parent = document.createElement('div');
-		dom.addClass(parent, 'reference-file');
+		parent.classList.add('reference-file');
 		this.file = this._register(new IconLabel(parent, { supportHighlights: true }));
 
 		this.badge = new CountBadge(dom.append(parent, dom.$('.count')));
@@ -184,10 +184,10 @@ class OneReferenceTemplate {
 			// we have score, then render the score
 			const { value, highlight } = preview;
 			if (score && !FuzzyScore.isDefault(score)) {
-				dom.toggleClass(this.label.element, 'referenceMatch', false);
+				this.label.element.classList.toggle('referenceMatch', false);
 				this.label.set(value, createMatches(score));
 			} else {
-				dom.toggleClass(this.label.element, 'referenceMatch', true);
+				this.label.element.classList.toggle('referenceMatch', true);
 				this.label.set(value, [highlight]);
 			}
 		}
@@ -213,7 +213,11 @@ export class OneReferenceRenderer implements ITreeRenderer<OneReference, FuzzySc
 //#endregion
 
 
-export class AriaProvider implements IAccessibilityProvider<FileReferences | OneReference> {
+export class AccessibilityProvider implements IListAccessibilityProvider<FileReferences | OneReference> {
+
+	getWidgetAriaLabel(): string {
+		return localize('treeAriaLabel', "References");
+	}
 
 	getAriaLabel(element: FileReferences | OneReference): string | null {
 		return element.ariaMessage;

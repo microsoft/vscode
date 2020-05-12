@@ -10,6 +10,7 @@ import { provideSuggestionItems, SnippetSortOrder, CompletionOptions } from 'vs/
 import { Position } from 'vs/editor/common/core/position';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { Range } from 'vs/editor/common/core/range';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 
 suite('Suggest', function () {
@@ -19,7 +20,7 @@ suite('Suggest', function () {
 
 	setup(function () {
 
-		model = TextModel.createFromString('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
+		model = createTextModel('FOO\nbar\BAR\nfoo', undefined, undefined, URI.parse('foo:bar/path'));
 		registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, {
 			provideCompletionItems(_doc, pos) {
 				return {

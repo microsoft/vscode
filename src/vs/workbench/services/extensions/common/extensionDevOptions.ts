@@ -34,6 +34,6 @@ export function parseExtensionDevOptions(environmentService: IEnvironmentService
 		isExtensionDevHost,
 		isExtensionDevDebug,
 		isExtensionDevDebugBrk,
-		isExtensionDevTestFromCli,
+		isExtensionDevTestFromCli
 	};
 }

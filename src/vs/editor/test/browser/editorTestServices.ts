@@ -9,13 +9,13 @@ import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCo
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions } from 'vs/editor/common/model';
 import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
-	public lastInput?: IResourceInput;
+	public lastInput?: IResourceEditorInput;
 	public getActiveCodeEditor(): ICodeEditor | null { return null; }
-	public openCodeEditor(input: IResourceInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	public openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;
 		return Promise.resolve(null);
 	}

@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { View } from 'vs/editor/browser/view/viewImpl';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import * as editorOptions from 'vs/editor/common/config/editorOptions';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { TestCodeEditorService, TestCommandService } from 'vs/editor/test/browser/editorTestServices';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { BrandedService, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -26,10 +27,10 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 
-export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.ICodeEditor {
+export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region testing overrides
-	protected _createConfiguration(options: editorOptions.IEditorConstructionOptions): editorCommon.IConfiguration {
+	protected _createConfiguration(options: editorOptions.IEditorConstructionOptions): IConfiguration {
 		return new TestConfiguration(options);
 	}
 	protected _createView(viewModel: ViewModel, cursor: Cursor): [View, boolean] {
@@ -42,8 +43,8 @@ export class TestCodeEditor extends CodeEditorWidget implements editorBrowser.IC
 	public getCursor(): Cursor | undefined {
 		return this._modelData ? this._modelData.cursor : undefined;
 	}
-	public registerAndInstantiateContribution<T extends editorCommon.IEditorContribution>(id: string, ctor: any): T {
-		let r = <T>this._instantiationService.createInstance(ctor, this);
+	public registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T {
+		const r: T = this._instantiationService.createInstance(ctor as IEditorContributionCtor, this);
 		this._contributions[id] = r;
 		return r;
 	}
@@ -77,13 +78,14 @@ export function withTestCodeEditor(text: string | string[] | null, options: Test
 	// create a model if necessary and remember it in order to dispose it.
 	if (!options.model) {
 		if (typeof text === 'string') {
-			options.model = TextModel.createFromString(text);
+			options.model = createTextModel(text);
 		} else if (text) {
-			options.model = TextModel.createFromString(text.join('\n'));
+			options.model = createTextModel(text.join('\n'));
 		}
 	}
 
 	let editor = <TestCodeEditor>createTestCodeEditor(options);
+	editor.getCursor()!.setHasFocus(true);
 	callback(editor, editor.getCursor()!);
 
 	editor.dispose();

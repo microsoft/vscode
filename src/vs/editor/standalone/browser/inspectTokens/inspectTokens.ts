@@ -6,6 +6,7 @@
 import 'vs/css!./inspectTokens';
 import { CharCode } from 'vs/base/common/charCode';
 import { Color } from 'vs/base/common/color';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { escape } from 'vs/base/common/strings';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -48,6 +49,7 @@ class InspectTokensController extends Disposable implements IEditorContribution 
 		this._register(this._editor.onDidChangeModel((e) => this.stop()));
 		this._register(this._editor.onDidChangeModelLanguage((e) => this.stop()));
 		this._register(TokenizationRegistry.onDidChange((e) => this.stop()));
+		this._register(this._editor.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
 	}
 
 	public dispose(): void {
@@ -222,13 +224,13 @@ class InspectTokensWidget extends Disposable implements IContentWidget {
 
 		result += `<hr class="tokens-inspect-separator" style="clear:both"/>`;
 
-		let metadata = this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]);
+		let metadata = (token2Index << 1) + 1 < data.tokens2.length ? this._decodeMetadata(data.tokens2[(token2Index << 1) + 1]) : null;
 		result += `<table class="tm-metadata-table"><tbody>`;
-		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${escape(metadata.languageIdentifier.language)}</td>`;
-		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${this._tokenTypeToString(metadata.tokenType)}</td>`;
-		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${this._fontStyleToString(metadata.fontStyle)}</td>`;
-		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${Color.Format.CSS.formatHex(metadata.foreground)}</td>`;
-		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${Color.Format.CSS.formatHex(metadata.background)}</td>`;
+		result += `<tr><td class="tm-metadata-key">language</td><td class="tm-metadata-value">${metadata ? escape(metadata.languageIdentifier.language) : '-?-'}</td>`;
+		result += `<tr><td class="tm-metadata-key">token type</td><td class="tm-metadata-value">${metadata ? this._tokenTypeToString(metadata.tokenType) : '-?-'}</td>`;
+		result += `<tr><td class="tm-metadata-key">font style</td><td class="tm-metadata-value">${metadata ? this._fontStyleToString(metadata.fontStyle) : '-?-'}</td>`;
+		result += `<tr><td class="tm-metadata-key">foreground</td><td class="tm-metadata-value">${metadata ? Color.Format.CSS.formatHex(metadata.foreground) : '-?-'}</td>`;
+		result += `<tr><td class="tm-metadata-key">background</td><td class="tm-metadata-value">${metadata ? Color.Format.CSS.formatHex(metadata.background) : '-?-'}</td>`;
 		result += `</tbody></table>`;
 
 		result += `<hr class="tokens-inspect-separator"/>`;

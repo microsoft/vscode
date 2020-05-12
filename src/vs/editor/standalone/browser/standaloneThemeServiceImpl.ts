@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { Color } from 'vs/base/common/color';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
@@ -13,7 +13,8 @@ import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
-import { Extensions as ThemingExtensions, ICssStyleCollector, IIconTheme, IThemingRegistry } from 'vs/platform/theme/common/themeService';
+import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IThemingRegistry, ITokenStyle } from 'vs/platform/theme/common/themeService';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -130,13 +131,15 @@ class StandaloneTheme implements IStandaloneTheme {
 		return this._tokenTheme;
 	}
 
-	public getTokenStyleMetadata(type: string, modifiers: string[]): number | undefined {
+	public getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
 		return undefined;
 	}
 
 	public get tokenColorMap(): string[] {
 		return [];
 	}
+
+	public readonly semanticHighlighting = false;
 }
 
 function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
@@ -163,32 +166,68 @@ function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
 	return new StandaloneTheme(builtinTheme, themeData);
 }
 
-export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
+export class StandaloneThemeServiceImpl extends Disposable implements IStandaloneThemeService {
 
 	_serviceBrand: undefined;
 
+	private readonly _onColorThemeChange = this._register(new Emitter<IStandaloneTheme>());
+	public readonly onDidColorThemeChange = this._onColorThemeChange.event;
+
+	private readonly _onFileIconThemeChange = this._register(new Emitter<IFileIconTheme>());
+	public readonly onDidFileIconThemeChange = this._onFileIconThemeChange.event;
+
+	private readonly _environment: IEnvironmentService = Object.create(null);
 	private readonly _knownThemes: Map<string, StandaloneTheme>;
-	private readonly _styleElement: HTMLStyleElement;
+	private _css: string;
+	private _globalStyleElement: HTMLStyleElement | null;
+	private _styleElements: HTMLStyleElement[];
 	private _theme!: IStandaloneTheme;
-	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
-	private readonly _onIconThemeChange: Emitter<IIconTheme>;
-	private readonly environment: IEnvironmentService = Object.create(null);
 
 	constructor() {
-		this._onThemeChange = new Emitter<IStandaloneTheme>();
-		this._onIconThemeChange = new Emitter<IIconTheme>();
+		super();
 
 		this._knownThemes = new Map<string, StandaloneTheme>();
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
-		this._styleElement = dom.createStyleSheet();
-		this._styleElement.className = 'monaco-colors';
+		this._css = '';
+		this._globalStyleElement = null;
+		this._styleElements = [];
 		this.setTheme(VS_THEME_NAME);
 	}
 
-	public get onThemeChange(): Event<IStandaloneTheme> {
-		return this._onThemeChange.event;
+	public registerEditorContainer(domNode: HTMLElement): IDisposable {
+		if (dom.isInShadowDOM(domNode)) {
+			return this._registerShadowDomContainer(domNode);
+		}
+		return this._registerRegularEditorContainer();
+	}
+
+	private _registerRegularEditorContainer(): IDisposable {
+		if (!this._globalStyleElement) {
+			this._globalStyleElement = dom.createStyleSheet();
+			this._globalStyleElement.className = 'monaco-colors';
+			this._globalStyleElement.innerHTML = this._css;
+			this._styleElements.push(this._globalStyleElement);
+		}
+		return Disposable.None;
+	}
+
+	private _registerShadowDomContainer(domNode: HTMLElement): IDisposable {
+		const styleElement = dom.createStyleSheet(domNode);
+		styleElement.className = 'monaco-colors';
+		styleElement.innerHTML = this._css;
+		this._styleElements.push(styleElement);
+		return {
+			dispose: () => {
+				for (let i = 0; i < this._styleElements.length; i++) {
+					if (this._styleElements[i] === styleElement) {
+						this._styleElements.splice(i, 1);
+						return;
+					}
+				}
+			}
+		};
 	}
 
 	public defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
@@ -213,7 +252,7 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 		}
 	}
 
-	public getTheme(): IStandaloneTheme {
+	public getColorTheme(): IStandaloneTheme {
 		return this._theme;
 	}
 
@@ -240,29 +279,26 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(theme, ruleCollector, this.environment));
+		themingRegistry.getThemingParticipants().forEach(p => p(theme, ruleCollector, this._environment));
 
 		let tokenTheme = theme.tokenTheme;
 		let colorMap = tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
-		this._styleElement.innerHTML = cssRules.join('\n');
+		this._css = cssRules.join('\n');
+		this._styleElements.forEach(styleElement => styleElement.innerHTML = this._css);
 
 		TokenizationRegistry.setColorMap(colorMap);
-		this._onThemeChange.fire(theme);
+		this._onColorThemeChange.fire(theme);
 
 		return theme.id;
 	}
 
-	public getIconTheme(): IIconTheme {
+	public getFileIconTheme(): IFileIconTheme {
 		return {
 			hasFileIcons: false,
 			hasFolderIcons: false,
 			hidesExplorerArrows: false
 		};
-	}
-
-	public get onIconThemeChange(): Event<IIconTheme> {
-		return this._onIconThemeChange.event;
 	}
 }

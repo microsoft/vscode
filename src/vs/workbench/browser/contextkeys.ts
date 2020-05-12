@@ -6,9 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IWindowsConfiguration } from 'vs/platform/windows/common/windows';
-import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorIsReadonlyContext, EditorAreaVisibleContext, DirtyWorkingCopiesContext } from 'vs/workbench/common/editor';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext } from 'vs/platform/contextkey/common/contextkeys';
+import { ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, TEXT_DIFF_EDITOR_ID, SplitEditorsVertically, InEditorZenModeContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorIsReadonlyContext, EditorAreaVisibleContext, DirtyWorkingCopiesContext, ActiveEditorAvailableEditorIdsContext } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -18,26 +17,14 @@ import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/
 import { SideBarVisibleContext } from 'vs/workbench/common/viewlet';
 import { IWorkbenchLayoutService, Parts, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { isMacintosh, isLinux, isWindows, isWeb } from 'vs/base/common/platform';
 import { PanelPositionContext } from 'vs/workbench/common/panel';
 import { getRemoteName } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-
-export const IsMacContext = new RawContextKey<boolean>('isMac', isMacintosh);
-export const IsLinuxContext = new RawContextKey<boolean>('isLinux', isLinux);
-export const IsWindowsContext = new RawContextKey<boolean>('isWindows', isWindows);
-
-export const IsWebContext = new RawContextKey<boolean>('isWeb', isWeb);
-export const IsMacNativeContext = new RawContextKey<boolean>('isMacNative', isMacintosh && !isWeb);
 
 export const Deprecated_RemoteAuthorityContext = new RawContextKey<string>('remoteAuthority', '');
 
 export const RemoteNameContext = new RawContextKey<string>('remoteName', '');
 export const RemoteConnectionState = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '');
-
-export const HasMacNativeTabsContext = new RawContextKey<boolean>('hasMacNativeTabs', false);
-
-export const IsDevelopmentContext = new RawContextKey<boolean>('isDevelopment', false);
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined);
 
@@ -54,6 +41,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private activeEditorContext: IContextKey<string | null>;
 	private activeEditorIsReadonly: IContextKey<boolean>;
+	private activeEditorAvailableEditorIds: IContextKey<string>;
 
 	private activeEditorGroupEmpty: IContextKey<boolean>;
 	private activeEditorGroupIndex: IContextKey<number>;
@@ -98,16 +86,13 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		RemoteNameContext.bindTo(this.contextKeyService).set(getRemoteName(this.environmentService.configuration.remoteAuthority) || '');
 
-		// macOS Native Tabs
-		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
-		HasMacNativeTabsContext.bindTo(this.contextKeyService).set(windowConfig?.window?.nativeTabs);
-
 		// Development
 		IsDevelopmentContext.bindTo(this.contextKeyService).set(!this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment);
 
 		// Editors
 		this.activeEditorContext = ActiveEditorContext.bindTo(this.contextKeyService);
 		this.activeEditorIsReadonly = ActiveEditorIsReadonlyContext.bindTo(this.contextKeyService);
+		this.activeEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.contextKeyService);
 		this.editorsVisibleContext = EditorsVisibleContext.bindTo(this.contextKeyService);
 		this.textCompareEditorVisibleContext = TextCompareEditorVisibleContext.bindTo(this.contextKeyService);
 		this.textCompareEditorActiveContext = TextCompareEditorActiveContext.bindTo(this.contextKeyService);
@@ -118,6 +103,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Working Copies
 		this.dirtyWorkingCopiesContext = DirtyWorkingCopiesContext.bindTo(this.contextKeyService);
+		this.dirtyWorkingCopiesContext.set(this.workingCopyService.hasDirty);
 
 		// Inputs
 		this.inputFocusedContext = InputFocusedContext.bindTo(this.contextKeyService);
@@ -187,18 +173,18 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.layoutService.onPartVisibilityChange(() => this.editorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART))));
 
-		this._register(this.workingCopyService.onDidChangeDirty(w => this.dirtyWorkingCopiesContext.set(w.isDirty() || this.workingCopyService.hasDirty)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.dirtyWorkingCopiesContext.set(workingCopy.isDirty() || this.workingCopyService.hasDirty)));
 	}
 
 	private updateEditorContextKeys(): void {
 		const activeGroup = this.editorGroupService.activeGroup;
-		const activeControl = this.editorService.activeControl;
-		const visibleEditors = this.editorService.visibleControls;
+		const activeEditorPane = this.editorService.activeEditorPane;
+		const visibleEditorPanes = this.editorService.visibleEditorPanes;
 
-		this.textCompareEditorActiveContext.set(activeControl?.getId() === TEXT_DIFF_EDITOR_ID);
-		this.textCompareEditorVisibleContext.set(visibleEditors.some(control => control.getId() === TEXT_DIFF_EDITOR_ID));
+		this.textCompareEditorActiveContext.set(activeEditorPane?.getId() === TEXT_DIFF_EDITOR_ID);
+		this.textCompareEditorVisibleContext.set(visibleEditorPanes.some(editorPane => editorPane.getId() === TEXT_DIFF_EDITOR_ID));
 
-		if (visibleEditors.length > 0) {
+		if (visibleEditorPanes.length > 0) {
 			this.editorsVisibleContext.set(true);
 		} else {
 			this.editorsVisibleContext.reset();
@@ -220,12 +206,16 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.activeEditorGroupIndex.set(activeGroup.index + 1); // not zero-indexed
 		this.activeEditorGroupLast.set(activeGroup.index === groupCount - 1);
 
-		if (activeControl) {
-			this.activeEditorContext.set(activeControl.getId());
-			this.activeEditorIsReadonly.set(activeControl.input.isReadonly());
+		if (activeEditorPane) {
+			this.activeEditorContext.set(activeEditorPane.getId());
+			this.activeEditorIsReadonly.set(activeEditorPane.input.isReadonly());
+
+			const editors = activeEditorPane.input.resource ? this.editorService.getEditorOverrides(activeEditorPane.input.resource, undefined, activeGroup) : [];
+			this.activeEditorAvailableEditorIds.set(editors.map(([_, entry]) => entry.id).join(','));
 		} else {
 			this.activeEditorContext.reset();
 			this.activeEditorIsReadonly.reset();
+			this.activeEditorAvailableEditorIds.reset();
 		}
 	}
 

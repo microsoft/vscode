@@ -46,7 +46,6 @@ export function pathEquals(path1: string, path2: string): boolean {
 
 export function closeAllEditors(): Thenable<any> {
 	return vscode.commands.executeCommand('workbench.action.closeAllEditors');
-
 }
 
 export function disposeAll(disposables: vscode.Disposable[]) {
@@ -70,4 +69,17 @@ function isTestTypeActive(): boolean {
 
 export function delay(ms: number) {
 	return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export function withLogDisabled(runnable: () => Promise<any>): () => Promise<void> {
+	return async (): Promise<void> => {
+		const logLevel = await vscode.commands.executeCommand('_extensionTests.getLogLevel');
+		await vscode.commands.executeCommand('_extensionTests.setLogLevel', 6 /* critical */);
+
+		try {
+			await runnable();
+		} finally {
+			await vscode.commands.executeCommand('_extensionTests.setLogLevel', logLevel);
+		}
+	};
 }

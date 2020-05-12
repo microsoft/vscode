@@ -752,9 +752,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc meta.bracket.square.access.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1731,9 +1731,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.other.unit.hexadecimal.objc",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -1742,9 +1742,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.hexadecimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1819,9 +1819,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1830,9 +1830,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.point.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1841,9 +1841,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1896,9 +1896,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1907,9 +1907,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.point.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1918,9 +1918,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1929,9 +1929,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.other.unit.exponent.decimal.objc",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -1940,9 +1940,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.exponent.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -1995,9 +1995,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2006,9 +2006,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.point.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2017,9 +2017,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2028,9 +2028,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.other.unit.exponent.decimal.objc",
 		"r": {
 			"dark_plus": "keyword.other.unit: #B5CEA8",
-			"light_plus": "keyword.other.unit: #09885A",
+			"light_plus": "keyword.other.unit: #098658",
 			"dark_vs": "keyword.other.unit: #B5CEA8",
-			"light_vs": "keyword.other.unit: #09885A",
+			"light_vs": "keyword.other.unit: #098658",
 			"hc_black": "keyword.other.unit: #B5CEA8"
 		}
 	},
@@ -2039,9 +2039,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc keyword.operator.minus.exponent.decimal.objc",
 		"r": {
 			"dark_plus": "keyword.operator.minus.exponent: #B5CEA8",
-			"light_plus": "keyword.operator.minus.exponent: #09885A",
+			"light_plus": "keyword.operator.minus.exponent: #098658",
 			"dark_vs": "keyword.operator.minus.exponent: #B5CEA8",
-			"light_vs": "keyword.operator.minus.exponent: #09885A",
+			"light_vs": "keyword.operator.minus.exponent: #098658",
 			"hc_black": "keyword.operator: #D4D4D4"
 		}
 	},
@@ -2050,9 +2050,9 @@
 		"t": "source.objc meta.implementation.objc meta.scope.implementation.objc meta.function-with-body.objc meta.block.objc constant.numeric.exponent.decimal.objc",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},

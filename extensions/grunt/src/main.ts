@@ -295,7 +295,7 @@ class TaskDetector {
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
 			const thisCapture = this;
-			this.taskProvider = vscode.workspace.registerTaskProvider('grunt', {
+			this.taskProvider = vscode.tasks.registerTaskProvider('grunt', {
 				provideTasks: (): Promise<vscode.Task[]> => {
 					return thisCapture.getTasks();
 				},

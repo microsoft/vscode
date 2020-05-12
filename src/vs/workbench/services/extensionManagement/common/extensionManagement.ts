@@ -9,6 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IExtension } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
 
@@ -34,9 +35,9 @@ export const enum EnablementState {
 	EnabledWorkspace
 }
 
-export const IExtensionEnablementService = createDecorator<IExtensionEnablementService>('extensionEnablementService');
+export const IWorkbenchExtensionEnablementService = createDecorator<IWorkbenchExtensionEnablementService>('extensionEnablementService');
 
-export interface IExtensionEnablementService {
+export interface IWorkbenchExtensionEnablementService {
 	_serviceBrand: undefined;
 
 	readonly allUserExtensionsDisabled: boolean;
@@ -84,34 +85,46 @@ export type RecommendationChangeNotification = {
 };
 
 export type DynamicRecommendation = 'dynamic';
+export type ConfigRecommendation = 'config';
 export type ExecutableRecommendation = 'executable';
 export type CachedRecommendation = 'cached';
 export type ApplicationRecommendation = 'application';
-export type ExtensionRecommendationSource = IWorkspace | IWorkspaceFolder | URI | DynamicRecommendation | ExecutableRecommendation | CachedRecommendation | ApplicationRecommendation;
+export type ExperimentalRecommendation = 'experimental';
+export type ExtensionRecommendationSource = IWorkspace | IWorkspaceFolder | URI | DynamicRecommendation | ExecutableRecommendation | CachedRecommendation | ApplicationRecommendation | ExperimentalRecommendation | ConfigRecommendation;
 
 export interface IExtensionRecommendation {
 	extensionId: string;
 	sources: ExtensionRecommendationSource[];
 }
 
-export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
-
-export interface IExtensionTipsService {
-	_serviceBrand: undefined;
-	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; };
-	getFileBasedRecommendations(): IExtensionRecommendation[];
-	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
-	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
-	getKeymapRecommendations(): IExtensionRecommendation[];
-	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
-	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };
-	onRecommendationChange: Event<RecommendationChangeNotification>;
-}
-
 export const enum ExtensionRecommendationReason {
 	Workspace,
 	File,
 	Executable,
+	WorkspaceConfig,
 	DynamicWorkspace,
-	Experimental
+	Experimental,
+	Application,
+}
+
+export interface IExtensionRecommendationReson {
+	reasonId: ExtensionRecommendationReason;
+	reasonText: string;
+}
+
+export const IExtensionRecommendationsService = createDecorator<IExtensionRecommendationsService>('extensionRecommendationsService');
+
+export interface IExtensionRecommendationsService {
+	_serviceBrand: undefined;
+
+	getAllRecommendationsWithReason(): IStringDictionary<IExtensionRecommendationReson>;
+	getFileBasedRecommendations(): IExtensionRecommendation[];
+	getConfigBasedRecommendations(): Promise<IExtensionRecommendation[]>;
+	getOtherRecommendations(): Promise<IExtensionRecommendation[]>;
+	getWorkspaceRecommendations(): Promise<IExtensionRecommendation[]>;
+	getKeymapRecommendations(): IExtensionRecommendation[];
+
+	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
+	getIgnoredRecommendations(): ReadonlyArray<string>;
+	onRecommendationChange: Event<RecommendationChangeNotification>;
 }

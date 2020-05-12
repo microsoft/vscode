@@ -32,10 +32,6 @@ export function registerFileProtocol(
 		}
 
 		return callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
-	}, (error) => {
-		if (error) {
-			console.error(`Failed to register '${protocol}' protocol`);
-		}
 	});
 }
 

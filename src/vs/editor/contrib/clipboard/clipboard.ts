@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./clipboard';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -23,7 +22,7 @@ const CLIPBOARD_CONTEXT_MENU_GROUP = '9_cutcopypaste';
 const supportsCut = (platform.isNative || document.queryCommandSupported('cut'));
 const supportsCopy = (platform.isNative || document.queryCommandSupported('copy'));
 // IE and Edge have trouble with setting html content in clipboard
-const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdgeOrIE);
+const supportsCopyWithSyntaxHighlighting = (supportsCopy && !browser.isEdge);
 // Chrome incorrectly returns true for document.queryCommandSupported('paste')
 // when the paste feature is available but the calling script has insufficient
 // privileges to actually perform the action
@@ -161,6 +160,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
+			linux: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] },
 			weight: KeybindingWeight.EditorContrib
 		};
 		// Do not bind paste keybindings in the browser,

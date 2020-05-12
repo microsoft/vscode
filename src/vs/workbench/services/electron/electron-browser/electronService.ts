@@ -6,8 +6,9 @@
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ElectronService {
 
@@ -15,9 +16,9 @@ export class ElectronService {
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IElectronEnvironmentService electronEnvironmentService: IElectronEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
-		return createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: electronEnvironmentService.windowId });
+		return createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: environmentService.configuration.windowId });
 	}
 }
 

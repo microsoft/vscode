@@ -18,16 +18,13 @@ import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/fi
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-browser/fileCommands';
-import { MenuRegistry, MenuId, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { ShowOpenedFileInNewWindow } from 'vs/workbench/contrib/files/browser/fileActions';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
-const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
+const REVEAL_IN_OS_LABEL = isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder");
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
@@ -51,7 +48,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
-		const resource = activeInput ? activeInput.getResource() : null;
+		const resource = activeInput ? activeInput.resource : null;
 		const resources = resource ? [resource] : [];
 		revealResourcesInOS(resources, accessor.get(IElectronService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
@@ -63,7 +60,7 @@ appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL, Re
 
 const revealInOsCommand = {
 	id: REVEAL_IN_OS_COMMAND_ID,
-	title: isWindows ? nls.localize('revealInWindows', "Reveal in Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
+	title: isWindows ? nls.localize('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize('revealInMac', "Reveal in Finder") : nls.localize('openContainer', "Open Containing Folder")
 };
 MenuRegistry.appendMenuItem(MenuId.OpenEditorsContext, {
 	group: 'navigation',
@@ -84,7 +81,4 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 // Command Palette
 
 const category = { value: nls.localize('filesCategory', "File"), original: 'File' };
-appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' }, category);
-
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ShowOpenedFileInNewWindow, ShowOpenedFileInNewWindow.ID, ShowOpenedFileInNewWindow.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'File: Open Active File in New Window', category.value);
+appendToCommandPalette(REVEAL_IN_OS_COMMAND_ID, { value: REVEAL_IN_OS_LABEL, original: isWindows ? 'Reveal in File Explorer' : isMacintosh ? 'Reveal in Finder' : 'Open Containing Folder' }, category, ResourceContextKey.Scheme.isEqualTo(Schemas.file));

@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IssueReporterStyles, IIssueService, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/node/issue';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, listHighlightForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: undefined;
@@ -22,44 +23,41 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IIssueService private readonly issueService: IIssueService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) { }
 
-	openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
-		return this.extensionManagementService.getInstalled(ExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
-			const extensionData: IssueReporterExtensionData[] = enabledExtensions.map(extension => {
-				const { manifest } = extension;
-				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
-				const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-
-				return {
-					name: manifest.name,
-					publisher: manifest.publisher,
-					version: manifest.version,
-					repositoryUrl: manifest.repository && manifest.repository.url,
-					bugsUrl: manifest.bugs && manifest.bugs.url,
-					displayName: manifest.displayName,
-					id: extension.identifier.id,
-					isTheme: isTheme
-				};
-			});
-			const theme = this.themeService.getTheme();
-			const issueReporterData: IssueReporterData = assign(
-				{
-					styles: getIssueReporterStyles(theme),
-					zoomLevel: webFrame.getZoomLevel(),
-					enabledExtensions: extensionData
-				},
-				dataOverrides);
-
-			return this.issueService.openReporter(issueReporterData);
+	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
+		const extensions = await this.extensionManagementService.getInstalled();
+		const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
+		const extensionData = enabledExtensions.map((extension): IssueReporterExtensionData => {
+			const { manifest } = extension;
+			const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
+			const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+			const isBuiltin = extension.type === ExtensionType.System;
+			return {
+				name: manifest.name,
+				publisher: manifest.publisher,
+				version: manifest.version,
+				repositoryUrl: manifest.repository && manifest.repository.url,
+				bugsUrl: manifest.bugs && manifest.bugs.url,
+				displayName: manifest.displayName,
+				id: extension.identifier.id,
+				isTheme,
+				isBuiltin,
+			};
 		});
+		const theme = this.themeService.getColorTheme();
+		const issueReporterData: IssueReporterData = assign({
+			styles: getIssueReporterStyles(theme),
+			zoomLevel: webFrame.getZoomLevel(),
+			enabledExtensions: extensionData,
+		}, dataOverrides);
+		return this.issueService.openReporter(issueReporterData);
 	}
 
 	openProcessExplorer(): Promise<void> {
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const data: ProcessExplorerData = {
 			pid: this.environmentService.configuration.mainPid,
 			zoomLevel: webFrame.getZoomLevel(),
@@ -75,7 +73,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 	}
 }
 
-export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
+export function getIssueReporterStyles(theme: IColorTheme): IssueReporterStyles {
 	return {
 		backgroundColor: getColor(theme, SIDE_BAR_BACKGROUND),
 		color: getColor(theme, foreground),
@@ -97,7 +95,7 @@ export function getIssueReporterStyles(theme: ITheme): IssueReporterStyles {
 	};
 }
 
-function getColor(theme: ITheme, key: string): string | undefined {
+function getColor(theme: IColorTheme, key: string): string | undefined {
 	const color = theme.getColor(key);
 	return color ? color.toString() : undefined;
 }

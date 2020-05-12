@@ -12,32 +12,32 @@ export class Query {
 	}
 
 	static suggestions(query: string): string[] {
-		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext', 'id'];
+		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'recommended', 'sort', 'category', 'tag', 'ext', 'id'] as const;
 		const subcommands = {
 			'sort': ['installs', 'rating', 'name'],
 			'category': ['"programming languages"', 'snippets', 'linters', 'themes', 'debuggers', 'formatters', 'keymaps', '"scm providers"', 'other', '"extension packs"', '"language packs"'],
 			'tag': [''],
 			'ext': [''],
 			'id': ['']
-		};
+		} as const;
 
-		let queryContains = (substr: string) => query.indexOf(substr) > -1;
-		let hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
-		let hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
+		const queryContains = (substr: string) => query.indexOf(substr) > -1;
+		const hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
+		const hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
 
 		return flatten(
 			commands.map(command => {
 				if (hasSort && command === 'sort' || hasCategory && command === 'category') {
 					return [];
 				}
-				if ((subcommands as any)[command]) {
-					return (subcommands as any)[command].map((subcommand: string) => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
+				if (command in subcommands) {
+					return (subcommands as Record<string, readonly string[]>)[command]
+						.map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
 				}
 				else {
-					return [`@${command} `];
+					return queryContains(`@${command}`) ? [] : [`@${command} `];
 				}
 			}));
-
 	}
 
 	static parse(value: string): Query {

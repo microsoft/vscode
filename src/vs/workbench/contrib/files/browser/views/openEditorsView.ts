@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/openeditors';
 import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IAction, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
@@ -12,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { IEditorInput, Verbosity, toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
@@ -30,10 +31,10 @@ import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
-import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext as ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
+import { DirtyEditorContext, OpenEditorsGroupContext, ReadonlyEditorContext } from 'vs/workbench/contrib/files/browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ResourcesDropHandler, fillResourceDataTransfers, CodeDataTransfers, containsDragType } from 'vs/workbench/browser/dnd';
-import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
@@ -42,8 +43,11 @@ import { URI } from 'vs/base/common/uri';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyService, IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 const $ = dom.$;
 
@@ -67,23 +71,22 @@ export class OpenEditorsView extends ViewPane {
 
 	constructor(
 		options: IViewletViewOptions,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IThemeService private readonly themeService: IThemeService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IOpenerService openerService: IOpenerService,
 	) {
-		super({
-			...(options as IViewPaneOptions),
-			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
-		}, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.structuralRefreshDelay = 0;
 		this.listRefreshScheduler = new RunOnceScheduler(() => {
@@ -102,7 +105,7 @@ export class OpenEditorsView extends ViewPane {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this._register(this.workingCopyService.onDidChangeDirty(c => this.updateDirtyIndicator(c)));
+		this._register(this.workingCopyService.onDidChangeDirty(workingCopy => this.updateDirtyIndicator(workingCopy)));
 	}
 
 	private registerUpdateEvents(): void {
@@ -181,7 +184,7 @@ export class OpenEditorsView extends ViewPane {
 		super.renderHeaderTitle(container, this.title);
 
 		const count = dom.append(container, $('.count'));
-		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));
+		this.dirtyCountElement = dom.append(count, $('.dirty-count.monaco-count-badge.long'));
 
 		this._register((attachStylerCallback(this.themeService, { badgeBackground, badgeForeground, contrastBorder }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
@@ -200,7 +203,9 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	renderBody(container: HTMLElement): void {
-		dom.addClass(container, 'explorer-open-editors');
+		super.renderBody(container);
+
+		dom.addClass(container, 'open-editors');
 		dom.addClass(container, 'show-file-icons');
 
 		const delegate = new OpenEditorsDelegate();
@@ -212,15 +217,16 @@ export class OpenEditorsView extends ViewPane {
 			this.listLabels.clear();
 		}
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
+		this.list = <WorkbenchList<OpenEditor | IEditorGroup>>this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
 			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
-			}
+				listBackground: this.getBackgroundColor()
+			},
+			accessibilityProvider: new OpenEditorsAccessibilityProvider()
 		});
 		this._register(this.list);
 		this._register(this.listLabels);
@@ -241,7 +247,7 @@ export class OpenEditorsView extends ViewPane {
 		this.readonlyEditorFocusedContext = ReadonlyEditorContext.bindTo(this.contextKeyService);
 
 		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
-		this.list.onFocusChange(e => {
+		this.list.onDidChangeFocus(e => {
 			this.resourceContext.reset();
 			this.groupFocusedContext.reset();
 			this.dirtyEditorFocusedContext.reset();
@@ -317,6 +323,7 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		if (this.list) {
 			this.list.layout(height, width);
 		}
@@ -374,7 +381,7 @@ export class OpenEditorsView extends ViewPane {
 
 		const element = e.element;
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.getResource() : {} }, actions, this.contextMenuService);
+		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { shouldForwardArgs: true, arg: element instanceof OpenEditor ? element.editor.resource : {} }, actions, this.contextMenuService);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -412,8 +419,8 @@ export class OpenEditorsView extends ViewPane {
 
 	private updateSize(): void {
 		// Adjust expanded body size
-		this.minimumBodySize = this.getMinExpandedBodySize();
-		this.maximumBodySize = this.getMaxExpandedBodySize();
+		this.minimumBodySize = this.orientation === Orientation.VERTICAL ? this.getMinExpandedBodySize() : 170;
+		this.maximumBodySize = this.orientation === Orientation.VERTICAL ? this.getMaxExpandedBodySize() : Number.POSITIVE_INFINITY;
 	}
 
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
@@ -485,9 +492,9 @@ interface IEditorGroupTemplateData {
 class OpenEditorActionRunner extends ActionRunner {
 	public editor: OpenEditor | undefined;
 
-	run(action: IAction, context?: any): Promise<void> {
+	async run(action: IAction): Promise<void> {
 		if (!this.editor) {
-			return Promise.resolve();
+			return;
 		}
 
 		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
@@ -584,15 +591,19 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 		return editorTemplate;
 	}
 
-	renderElement(editor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
-		templateData.actionRunner.editor = editor;
+	renderElement(openedEditor: OpenEditor, _index: number, templateData: IOpenEditorTemplateData): void {
+		const editor = openedEditor.editor;
+		templateData.actionRunner.editor = openedEditor;
 		editor.isDirty() && !editor.isSaving() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
-		templateData.root.setEditor(editor.editor, {
-			italic: editor.isPreview(),
+		templateData.root.setResource({
+			resource: toResource(editor, { supportSideBySide: SideBySideEditor.BOTH }),
+			name: editor.getName(),
+			description: editor.getDescription(Verbosity.MEDIUM)
+		}, {
+			italic: openedEditor.isPreview(),
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
-			descriptionVerbosity: Verbosity.MEDIUM,
-			title: editor.editor.getTitle(Verbosity.LONG)
+			title: editor.getTitle(Verbosity.LONG)
 		});
 	}
 
@@ -649,7 +660,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
 		}
 	}
 
@@ -667,7 +678,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 
 	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): void {
 		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement;
-		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+		const index = targetElement instanceof OpenEditor ? targetElement.editorIndex : 0;
 
 		if (data instanceof ElementsDragAndDropData) {
 			const elementsData = data.elements;
@@ -678,5 +689,20 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		} else {
 			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
 		}
+	}
+}
+
+class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<OpenEditor | IEditorGroup> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize('openEditors', "Open Editors");
+	}
+
+	getAriaLabel(element: OpenEditor | IEditorGroup): string | null {
+		if (element instanceof OpenEditor) {
+			return `${element.editor.getName()}, ${element.editor.getDescription()}`;
+		}
+
+		return element.ariaLabel;
 	}
 }

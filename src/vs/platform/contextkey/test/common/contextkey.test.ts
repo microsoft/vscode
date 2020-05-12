@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { isMacintosh, isLinux, isWindows } from 'vs/base/common/platform';
 
 function createContext(ctx: any) {
 	return {
@@ -89,6 +90,8 @@ suite('ContextKeyExpr', () => {
 		testBatch('d', 'd');
 		testBatch('z', undefined);
 
+		testExpression('true', true);
+		testExpression('false', false);
 		testExpression('a && !b', true && !false);
 		testExpression('a && b', true && false);
 		testExpression('a && !b && c == 5', true && !false && '5' === '5');
@@ -107,10 +110,30 @@ suite('ContextKeyExpr', () => {
 			const actual = ContextKeyExpr.deserialize(expr)!.negate().serialize();
 			assert.strictEqual(actual, expected);
 		}
+		testNegate('true', 'false');
+		testNegate('false', 'true');
 		testNegate('a', '!a');
 		testNegate('a && b || c', '!a && !c || !b && !c');
 		testNegate('a && b || c || d', '!a && !c && !d || !b && !c && !d');
 		testNegate('!a && !b || !c && !d', 'a && c || a && d || b && c || b && d');
 		testNegate('!a && !b || !c && !d || !e && !f', 'a && c && e || a && c && f || a && d && e || a && d && f || b && c && e || b && c && f || b && d && e || b && d && f');
+	});
+
+	test('false, true', () => {
+		function testNormalize(expr: string, expected: string): void {
+			const actual = ContextKeyExpr.deserialize(expr)!.serialize();
+			assert.strictEqual(actual, expected);
+		}
+		testNormalize('true', 'true');
+		testNormalize('!true', 'false');
+		testNormalize('false', 'false');
+		testNormalize('!false', 'true');
+		testNormalize('a && true', 'a');
+		testNormalize('a && false', 'false');
+		testNormalize('a || true', 'true');
+		testNormalize('a || false', 'a');
+		testNormalize('isMac', isMacintosh ? 'true' : 'false');
+		testNormalize('isLinux', isLinux ? 'true' : 'false');
+		testNormalize('isWindows', isWindows ? 'true' : 'false');
 	});
 });

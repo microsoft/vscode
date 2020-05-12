@@ -11,11 +11,15 @@ import { URI } from 'vs/base/common/uri';
 
 export const IWorkbenchEnvironmentService = createDecorator<IWorkbenchEnvironmentService>('environmentService');
 
+export interface IEnvironmentConfiguration extends IWindowConfiguration {
+	backupWorkspaceResource?: URI;
+}
+
 export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 
 	_serviceBrand: undefined;
 
-	readonly configuration: IWindowConfiguration;
+	readonly configuration: IEnvironmentConfiguration;
 
 	readonly options?: IWorkbenchConstructionOptions;
 
@@ -24,4 +28,6 @@ export interface IWorkbenchEnvironmentService extends IEnvironmentService {
 	readonly webviewExternalEndpoint: string;
 	readonly webviewResourceRoot: string;
 	readonly webviewCspSource: string;
+
+	readonly skipReleaseNotes: boolean;
 }

@@ -38,6 +38,7 @@ import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
@@ -114,10 +115,10 @@ export class View extends ViewEventHandler {
 		this.eventDispatcher.addEventHandler(this);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, themeService.getTheme(), model, this.eventDispatcher);
+		this._context = new ViewContext(configuration, themeService.getColorTheme(), model, this.eventDispatcher);
 
-		this._register(themeService.onThemeChange(theme => {
-			this._context.theme = theme;
+		this._register(themeService.onDidColorThemeChange(theme => {
+			this._context.theme.update(theme);
 			this.eventDispatcher.emit(new viewEvents.ViewThemeChangedEvent());
 			this.render(true, false);
 		}));
@@ -135,6 +136,8 @@ export class View extends ViewEventHandler {
 
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName(this.getEditorClassName());
+		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
+		this.domNode.setAttribute('role', 'code');
 
 		this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);
@@ -306,6 +309,10 @@ export class View extends ViewEventHandler {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this.domNode.setClassName(this.getEditorClassName());
 		this._applyLayout();
+		return false;
+	}
+	public onContentSizeChanged(e: viewEvents.ViewContentSizeChangedEvent): boolean {
+		this.outgoingEvents.emitContentSizeChange(e);
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -521,10 +528,15 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutContentWidget(widgetData: IContentWidgetData): void {
-		const newPosition = widgetData.position ? widgetData.position.position : null;
-		const newRange = widgetData.position ? widgetData.position.range || null : null;
+		let newRange = widgetData.position ? widgetData.position.range || null : null;
+		if (newRange === null) {
+			const newPosition = widgetData.position ? widgetData.position.position : null;
+			if (newPosition !== null) {
+				newRange = new Range(newPosition.lineNumber, newPosition.column, newPosition.lineNumber, newPosition.column);
+			}
+		}
 		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		this.contentWidgets.setWidgetPosition(widgetData.widget, newPosition, newRange, newPreference);
+		this.contentWidgets.setWidgetPosition(widgetData.widget, newRange, newPreference);
 		this._scheduleRender();
 	}
 

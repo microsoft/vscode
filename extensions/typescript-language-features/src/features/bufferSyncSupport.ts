@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { coalesce } from '../utils/arrays';
@@ -82,12 +82,16 @@ class BufferSynchronizer {
 		}
 	}
 
-	public close(resource: vscode.Uri, filepath: string) {
+	/**
+	 * @return Was the buffer open?
+	 */
+	public close(resource: vscode.Uri, filepath: string): boolean {
 		if (this.supportsBatching) {
-			this.updatePending(resource, new CloseOperation(filepath));
+			return this.updatePending(resource, new CloseOperation(filepath));
 		} else {
 			const args: Proto.FileRequestArgs = { file: filepath };
 			this.client.executeWithoutWaitingForResponse('close', args);
+			return true;
 		}
 	}
 
@@ -155,14 +159,14 @@ class BufferSynchronizer {
 		return this.client.apiVersion.gte(API.v340);
 	}
 
-	private updatePending(resource: vscode.Uri, op: BufferOperation): void {
+	private updatePending(resource: vscode.Uri, op: BufferOperation): boolean {
 		switch (op.type) {
 			case BufferOperationType.Close:
 				const existing = this._pending.get(resource);
 				switch (existing?.type) {
 					case BufferOperationType.Open:
 						this._pending.delete(resource);
-						return; // Open then close. No need to do anything
+						return false; // Open then close. No need to do anything
 				}
 				break;
 		}
@@ -172,6 +176,7 @@ class BufferSynchronizer {
 			this.flush();
 		}
 		this._pending.set(resource, op);
+		return true;
 	}
 }
 
@@ -232,9 +237,16 @@ class SyncedBuffer {
 		}
 	}
 
-	public close(): void {
-		this.synchronizer.close(this.resource, this.filepath);
+	/**
+	 * @return Was the buffer open?
+	 */
+	public close(): boolean {
+		if (this.state !== BufferState.Open) {
+			this.state = BufferState.Closed;
+			return false;
+		}
 		this.state = BufferState.Closed;
+		return this.synchronizer.close(this.resource, this.filepath);
 	}
 
 	public onContentChanged(events: readonly vscode.TextDocumentContentChangeEvent[]): void {
@@ -289,19 +301,25 @@ class GetErrRequest {
 		public readonly files: ResourceMap<void>,
 		onDone: () => void
 	) {
-		const args: Proto.GeterrRequestArgs = {
-			delay: 0,
-			files: coalesce(Array.from(files.entries).map(entry => client.normalizedPath(entry.resource)))
-		};
+		const allFiles = coalesce(Array.from(files.entries).map(entry => client.normalizedPath(entry.resource)));
+		if (!allFiles.length) {
+			this._done = true;
+			onDone();
+		} else {
+			const request = client.configuration.enableProjectDiagnostics
+				// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
+				// too many diagnostics
+				? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
+				: client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token);
 
-		client.executeAsync('geterr', args, this._token.token)
-			.finally(() => {
+			request.finally(() => {
 				if (this._done) {
 					return;
 				}
 				this._done = true;
 				onDone();
 			});
+		}
 	}
 
 	public cancel(): any {
@@ -329,7 +347,7 @@ export default class BufferSyncSupport extends Disposable {
 
 	constructor(
 		client: ITypeScriptServiceClient,
-		modeIds: string[]
+		modeIds: readonly string[]
 	) {
 		super();
 		this.client = client;
@@ -448,13 +466,17 @@ export default class BufferSyncSupport extends Disposable {
 		this.pendingDiagnostics.delete(resource);
 		this.pendingGetErr?.files.delete(resource);
 		this.syncedBuffers.delete(resource);
-		syncedBuffer.close();
+		const wasBufferOpen = syncedBuffer.close();
 		this._onDelete.fire(resource);
-		this.requestAllDiagnostics();
+		if (wasBufferOpen) {
+			this.requestAllDiagnostics();
+		}
 	}
 
 	public interuptGetErr<R>(f: () => R): R {
-		if (!this.pendingGetErr) {
+		if (!this.pendingGetErr
+			|| this.client.configuration.enableProjectDiagnostics // `geterr` happens on seperate server so no need to cancel it.
+		) {
 			return f();
 		}
 

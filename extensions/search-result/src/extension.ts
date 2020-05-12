@@ -34,8 +34,6 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand('searchResult.rerunSearch', () => vscode.commands.executeCommand('search.action.rerunEditorSearch')),
-		vscode.commands.registerCommand('searchResult.rerunSearchWithContext', () => vscode.commands.executeCommand('search.action.rerunEditorSearchWithContext')),
 
 		vscode.languages.registerDocumentSymbolProvider(SEARCH_RESULT_SELECTOR, {
 			provideDocumentSymbols(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.DocumentSymbol[] {
@@ -79,9 +77,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const lineResult = parseSearchResults(document, token)[position.line];
 				if (!lineResult) { return []; }
 				if (lineResult.type === 'file') {
-					// TODO: The multi-match peek UX isnt very smooth.
-					// return lineResult.allLocations.length > 1 ? lineResult.allLocations : [lineResult.location];
-					return [];
+					return lineResult.allLocations;
 				}
 
 				const translateRangeSidewaysBy = (r: vscode.Range, n: number) =>

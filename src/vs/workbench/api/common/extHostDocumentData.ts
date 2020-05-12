@@ -181,6 +181,10 @@ export class ExtHostDocumentData extends MirrorTextModel {
 			throw new Error('Invalid argument');
 		}
 
+		if (this._lines.length === 0) {
+			return position.with(0, 0);
+		}
+
 		let { line, character } = position;
 		let hasChanged = false;
 
@@ -238,7 +242,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	}
 }
 
-class ExtHostDocumentLine implements vscode.TextLine {
+export class ExtHostDocumentLine implements vscode.TextLine {
 
 	private readonly _line: number;
 	private readonly _text: string;

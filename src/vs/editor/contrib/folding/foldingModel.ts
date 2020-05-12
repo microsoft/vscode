@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { FoldingRegions, ILineRange, FoldingRegion } from './foldingRanges';
 
 export interface IDecorationProvider {
-	getDecorationOption(isCollapsed: boolean): IModelDecorationOptions;
+	getDecorationOption(isCollapsed: boolean, isHidden: boolean): IModelDecorationOptions;
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 	changeDecorations<T>(callback: (changeAccessor: IModelDecorationsChangeAccessor) => T): T | null;
 }
@@ -34,6 +34,7 @@ export class FoldingModel {
 	public get regions(): FoldingRegions { return this._regions; }
 	public get textModel() { return this._textModel; }
 	public get isInitialized() { return this._isInitialized; }
+	public get decorationProvider() { return this._decorationProvider; }
 
 	constructor(textModel: ITextModel, decorationProvider: IDecorationProvider) {
 		this._textModel = textModel;
@@ -43,24 +44,47 @@ export class FoldingModel {
 		this._isInitialized = false;
 	}
 
-	public toggleCollapseState(regions: FoldingRegion[]) {
-		if (!regions.length) {
+	public toggleCollapseState(toggledRegions: FoldingRegion[]) {
+		if (!toggledRegions.length) {
 			return;
 		}
-		let processed: { [key: string]: boolean | undefined } = {};
+		toggledRegions = toggledRegions.sort((r1, r2) => r1.regionIndex - r2.regionIndex);
+
+		const processed: { [key: string]: boolean | undefined } = {};
 		this._decorationProvider.changeDecorations(accessor => {
-			for (let region of regions) {
+			let k = 0; // index from [0 ... this.regions.length]
+			let dirtyRegionEndLine = -1; // end of the range where decorations need to be updated
+			let lastHiddenLine = -1; // the end of the last hidden lines
+			const updateDecorationsUntil = (index: number) => {
+				while (k < index) {
+					const endLineNumber = this._regions.getEndLineNumber(k);
+					const isCollapsed = this._regions.isCollapsed(k);
+					if (endLineNumber <= dirtyRegionEndLine) {
+						accessor.changeDecorationOptions(this._editorDecorationIds[k], this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine));
+					}
+					if (isCollapsed && endLineNumber > lastHiddenLine) {
+						lastHiddenLine = endLineNumber;
+					}
+					k++;
+				}
+			};
+			for (let region of toggledRegions) {
 				let index = region.regionIndex;
 				let editorDecorationId = this._editorDecorationIds[index];
 				if (editorDecorationId && !processed[editorDecorationId]) {
 					processed[editorDecorationId] = true;
+
+					updateDecorationsUntil(index); // update all decorations up to current index using the old dirtyRegionEndLine
+
 					let newCollapseState = !this._regions.isCollapsed(index);
 					this._regions.setCollapsed(index, newCollapseState);
-					accessor.changeDecorationOptions(editorDecorationId, this._decorationProvider.getDecorationOption(newCollapseState));
+
+					dirtyRegionEndLine = Math.max(dirtyRegionEndLine, this._regions.getEndLineNumber(index));
 				}
 			}
+			updateDecorationsUntil(this._regions.length);
 		});
-		this._updateEventEmitter.fire({ model: this, collapseStateChanged: regions });
+		this._updateEventEmitter.fire({ model: this, collapseStateChanged: toggledRegions });
 	}
 
 	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
@@ -75,20 +99,27 @@ export class FoldingModel {
 			return false;
 		};
 
+		let lastHiddenLine = -1;
+
 		let initRange = (index: number, isCollapsed: boolean) => {
-			let startLineNumber = newRegions.getStartLineNumber(index);
-			if (isCollapsed && isBlocked(startLineNumber, newRegions.getEndLineNumber(index))) {
+			const startLineNumber = newRegions.getStartLineNumber(index);
+			const endLineNumber = newRegions.getEndLineNumber(index);
+			if (isCollapsed && isBlocked(startLineNumber, endLineNumber)) {
 				isCollapsed = false;
 			}
 			newRegions.setCollapsed(index, isCollapsed);
-			let maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
-			let decorationRange = {
+
+			const maxColumn = this._textModel.getLineMaxColumn(startLineNumber);
+			const decorationRange = {
 				startLineNumber: startLineNumber,
 				startColumn: maxColumn,
 				endLineNumber: startLineNumber,
 				endColumn: maxColumn
 			};
-			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed) });
+			newEditorDecorations.push({ range: decorationRange, options: this._decorationProvider.getDecorationOption(isCollapsed, endLineNumber <= lastHiddenLine) });
+			if (isCollapsed && endLineNumber > lastHiddenLine) {
+				lastHiddenLine = endLineNumber;
+			}
 		};
 		let i = 0;
 		let nextCollapsed = () => {
@@ -318,7 +349,7 @@ export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse:
 export function setCollapseStateUp(foldingModel: FoldingModel, doCollapse: boolean, lineNumbers: number[]): void {
 	let toToggle: FoldingRegion[] = [];
 	for (let lineNumber of lineNumbers) {
-		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region, ) => region.isCollapsed !== doCollapse);
+		let regions = foldingModel.getAllRegionsAtLine(lineNumber, (region,) => region.isCollapsed !== doCollapse);
 		if (regions.length > 0) {
 			toToggle.push(regions[0]);
 		}

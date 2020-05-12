@@ -72,32 +72,31 @@ export default class TscTaskProvider implements vscode.TaskProvider {
 		return tasks;
 	}
 
-	public async resolveTask(_task: vscode.Task): Promise<vscode.Task | undefined> {
-		const definition = <TypeScriptTaskDefinition>_task.definition;
-		const badTsconfig = /\\tsconfig.*\.json/;
-		if (badTsconfig.exec(definition.tsconfig) !== null) {
+	public async resolveTask(task: vscode.Task): Promise<vscode.Task | undefined> {
+		const definition = <TypeScriptTaskDefinition>task.definition;
+		if (/\\tsconfig.*\.json/.test(definition.tsconfig)) {
 			// Warn that the task has the wrong slash type
 			vscode.window.showWarningMessage(localize('badTsConfig', "TypeScript Task in tasks.json contains \"\\\\\". TypeScript tasks tsconfig must use \"/\""));
 			return undefined;
 		}
 
-		const typescriptTask = (<any>_task.definition).tsconfig;
-		if (typescriptTask) {
-			if (_task.scope === undefined || _task.scope === vscode.TaskScope.Global || _task.scope === vscode.TaskScope.Workspace) {
-				// scope is required to be a WorkspaceFolder for resolveTask
-				return undefined;
-			}
-			const kind: TypeScriptTaskDefinition = (<any>_task.definition);
-			const tsconfigUri: vscode.Uri = _task.scope.uri.with({ path: _task.scope.uri.path + '/' + kind.tsconfig });
-			const tsconfig: TSConfig = {
-				uri: tsconfigUri,
-				fsPath: tsconfigUri.fsPath,
-				posixPath: tsconfigUri.path,
-				workspaceFolder: _task.scope
-			};
-			return this.getTasksForProjectAndDefinition(tsconfig, kind);
+		const tsconfigPath = definition.tsconfig;
+		if (!tsconfigPath) {
+			return undefined;
 		}
-		return undefined;
+
+		if (task.scope === undefined || task.scope === vscode.TaskScope.Global || task.scope === vscode.TaskScope.Workspace) {
+			// scope is required to be a WorkspaceFolder for resolveTask
+			return undefined;
+		}
+		const tsconfigUri = task.scope.uri.with({ path: task.scope.uri.path + '/' + tsconfigPath });
+		const tsconfig: TSConfig = {
+			uri: tsconfigUri,
+			fsPath: tsconfigUri.fsPath,
+			posixPath: tsconfigUri.path,
+			workspaceFolder: task.scope
+		};
+		return this.getTasksForProjectAndDefinition(tsconfig, definition);
 	}
 
 	private async getAllTsConfigs(token: vscode.CancellationToken): Promise<TSConfig[]> {

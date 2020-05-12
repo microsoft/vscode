@@ -6,7 +6,6 @@
 import { equals } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { size, values } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -42,6 +41,7 @@ export class EditorBreadcrumbsModel {
 	private readonly _disposables = new DisposableStore();
 	private readonly _fileInfo: FileInfo;
 
+	private readonly _cfgEnabled: BreadcrumbsConfig<boolean>;
 	private readonly _cfgFilePath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 	private readonly _cfgSymbolPath: BreadcrumbsConfig<'on' | 'off' | 'last'>;
 
@@ -58,6 +58,7 @@ export class EditorBreadcrumbsModel {
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService,
 	) {
+		this._cfgEnabled = BreadcrumbsConfig.IsEnabled.bindTo(_configurationService);
 		this._cfgFilePath = BreadcrumbsConfig.FilePath.bindTo(_configurationService);
 		this._cfgSymbolPath = BreadcrumbsConfig.SymbolPath.bindTo(_configurationService);
 
@@ -69,9 +70,12 @@ export class EditorBreadcrumbsModel {
 	}
 
 	dispose(): void {
+		this._cfgEnabled.dispose();
 		this._cfgFilePath.dispose();
 		this._cfgSymbolPath.dispose();
+		this._outlineDisposables.dispose();
 		this._disposables.dispose();
+		this._onDidUpdate.dispose();
 	}
 
 	isRelative(): boolean {
@@ -142,6 +146,11 @@ export class EditorBreadcrumbsModel {
 
 		// update when config changes (re-render)
 		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
+			if (!this._cfgEnabled.getValue()) {
+				// breadcrumbs might be disabled (also via a setting/config) and that is
+				// something we must check before proceeding.
+				return;
+			}
 			if (e.affectsConfiguration('breadcrumbs')) {
 				this._updateOutline(true);
 				return;
@@ -240,7 +249,7 @@ export class EditorBreadcrumbsModel {
 			if (parent instanceof OutlineModel) {
 				break;
 			}
-			if (parent instanceof OutlineGroup && parent.parent && size(parent.parent.children) === 1) {
+			if (parent instanceof OutlineGroup && parent.parent && parent.parent.children.size === 1) {
 				break;
 			}
 			item = parent;
@@ -260,7 +269,12 @@ export class EditorBreadcrumbsModel {
 	}
 
 	private _getOutlineElementsRoot(model: OutlineModel): (OutlineModel | OutlineGroup | OutlineElement)[] {
-		return values(model.children).every(e => this._isFiltered(e)) ? [] : [model];
+		for (const child of model.children.values()) {
+			if (!this._isFiltered(child)) {
+				return [model];
+			}
+		}
+		return [];
 	}
 
 	private _isFiltered(element: TreeElement): boolean {

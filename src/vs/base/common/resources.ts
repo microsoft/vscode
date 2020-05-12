@@ -5,7 +5,7 @@
 
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
-import { URI } from 'vs/base/common/uri';
+import { URI, uriToFsPath } from 'vs/base/common/uri';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
@@ -13,8 +13,20 @@ import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
 
-export function getComparisonKey(resource: URI): string {
-	return hasToIgnoreCase(resource) ? resource.toString().toLowerCase() : resource.toString();
+export function originalFSPath(uri: URI): string {
+	return uriToFsPath(uri, true);
+}
+
+/**
+ * Creates a key from a resource URI to be used to resource comparison and for resource maps.
+ * URI queries are included, fragments are ignored.
+ */
+export function getComparisonKey(resource: URI, caseInsensitivePath = hasToIgnoreCase(resource)): string {
+	let path = resource.path || '/';
+	if (caseInsensitivePath) {
+		path = path.toLowerCase();
+	}
+	return resource.with({ authority: resource.authority.toLowerCase(), path: path, fragment: null }).toString();
 }
 
 export function hasToIgnoreCase(resource: URI | undefined): boolean {
@@ -29,29 +41,33 @@ export function basenameOrAuthority(resource: URI): string {
 
 /**
  * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
+ * URI queries must match, fragments are ignored.
  * @param base A uri which is "longer"
  * @param parentCandidate A uri which is "shorter" then `base`
  */
 export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = hasToIgnoreCase(base)): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
-			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignoreCase);
+			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignoreCase) && base.query === parentCandidate.query;
 		}
 		if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-			return extpath.isEqualOrParent(base.path, parentCandidate.path, ignoreCase, '/');
+			return extpath.isEqualOrParent(base.path || '/', parentCandidate.path || '/', ignoreCase, '/') && base.query === parentCandidate.query;
 		}
 	}
 	return false;
 }
 
 /**
- * Tests wheter the two authorities are the same
+ * Tests whether the two authorities are the same
  */
 export function isEqualAuthority(a1: string, a2: string) {
 	return a1 === a2 || equalsIgnoreCase(a1, a2);
 }
 
-export function isEqual(first: URI | undefined, second: URI | undefined, ignoreCase = hasToIgnoreCase(first)): boolean {
+/**
+ * Tests whether two resources are the same.  URI queries must match, fragments are ignored unless requested.
+ */
+export function isEqual(first: URI | undefined, second: URI | undefined, caseInsensitivePath = hasToIgnoreCase(first), ignoreFragment = true): boolean {
 	if (first === second) {
 		return true;
 	}
@@ -65,7 +81,7 @@ export function isEqual(first: URI | undefined, second: URI | undefined, ignoreC
 	}
 
 	const p1 = first.path || '/', p2 = second.path || '/';
-	return p1 === p2 || ignoreCase && equalsIgnoreCase(p1 || '/', p2 || '/');
+	return (p1 === p2 || caseInsensitivePath && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
 }
 
 export function basename(resource: URI): string {
@@ -86,13 +102,15 @@ export function dirname(resource: URI): URI {
 	if (resource.path.length === 0) {
 		return resource;
 	}
+	let dirname;
 	if (resource.scheme === Schemas.file) {
-		return URI.file(paths.dirname(originalFSPath(resource)));
-	}
-	let dirname = paths.posix.dirname(resource.path);
-	if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
-		console.error(`dirname("${resource.toString})) resulted in a relative path`);
-		dirname = '/'; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
+		dirname = URI.file(paths.dirname(originalFSPath(resource))).path;
+	} else {
+		dirname = paths.posix.dirname(resource.path);
+		if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
+			console.error(`dirname("${resource.toString})) resulted in a relative path`);
+			dirname = '/'; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
+		}
 	}
 	return resource.with({
 		path: dirname
@@ -108,7 +126,7 @@ export function dirname(resource: URI): URI {
  */
 export function joinPath(resource: URI, ...pathFragment: string[]): URI {
 	let joinedPath: string;
-	if (resource.scheme === Schemas.file) {
+	if (resource.scheme === 'file') {
 		joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
 	} else {
 		joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
@@ -140,33 +158,6 @@ export function normalizePath(resource: URI): URI {
 }
 
 /**
- * Returns the fsPath of an URI where the drive letter is not normalized.
- * See #56403.
- */
-export function originalFSPath(uri: URI): string {
-	let value: string;
-	const uriPath = uri.path;
-	if (uri.authority && uriPath.length > 1 && uri.scheme === Schemas.file) {
-		// unc path: file://shares/c$/far/boo
-		value = `//${uri.authority}${uriPath}`;
-	} else if (
-		isWindows
-		&& uriPath.charCodeAt(0) === CharCode.Slash
-		&& extpath.isWindowsDriveLetter(uriPath.charCodeAt(1))
-		&& uriPath.charCodeAt(2) === CharCode.Colon
-	) {
-		value = uriPath.substr(1);
-	} else {
-		// other path
-		value = uriPath;
-	}
-	if (isWindows) {
-		value = value.replace(/\//g, '\\');
-	}
-	return value;
-}
-
-/**
  * Returns true if the URI path is absolute.
  */
 export function isAbsolutePath(resource: URI): boolean {
@@ -182,7 +173,7 @@ export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep)
 		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
 	} else {
 		const p = resource.path;
-		return p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash; // ignore the slash at offset 0
+		return (p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash) && !(/^[a-zA-Z]:(\/$|\\$)/.test(resource.fsPath)); // ignore the slash at offset 0
 	}
 }
 
@@ -191,6 +182,7 @@ export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep)
  * Important: Doesn't remove the first slash, it would make the URI invalid
  */
 export function removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+	// Make sure that the path isn't a drive letter. A trailing separator there is not removable.
 	if (hasTrailingPathSeparator(resource, sep)) {
 		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
 	}
@@ -221,16 +213,16 @@ export function addTrailingPathSeparator(resource: URI, sep: string = paths.sep)
  * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.
  * The returned relative path always uses forward slashes.
  */
-export function relativePath(from: URI, to: URI, ignoreCase = hasToIgnoreCase(from)): string | undefined {
+export function relativePath(from: URI, to: URI, caseInsensitivePath = hasToIgnoreCase(from)): string | undefined {
 	if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
 		return undefined;
 	}
 	if (from.scheme === Schemas.file) {
-		const relativePath = paths.relative(from.path, to.path);
+		const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
 		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 	}
 	let fromPath = from.path || '/', toPath = to.path || '/';
-	if (ignoreCase) {
+	if (caseInsensitivePath) {
 		// make casing of fromPath match toPath
 		let i = 0;
 		for (const len = Math.min(fromPath.length, toPath.length); i < len; i++) {
@@ -325,7 +317,7 @@ export namespace DataUri {
 export class ResourceGlobMatcher {
 
 	private readonly globalExpression: ParsedExpression;
-	private readonly expressionsByRoot: TernarySearchTree<{ root: URI, expression: ParsedExpression }> = TernarySearchTree.forPaths<{ root: URI, expression: ParsedExpression }>();
+	private readonly expressionsByRoot: TernarySearchTree<URI, { root: URI, expression: ParsedExpression }> = TernarySearchTree.forUris<{ root: URI, expression: ParsedExpression }>();
 
 	constructor(
 		globalExpression: IExpression,
@@ -333,12 +325,12 @@ export class ResourceGlobMatcher {
 	) {
 		this.globalExpression = parse(globalExpression);
 		for (const expression of rootExpressions) {
-			this.expressionsByRoot.set(expression.root.toString(), { root: expression.root, expression: parse(expression.expression) });
+			this.expressionsByRoot.set(expression.root, { root: expression.root, expression: parse(expression.expression) });
 		}
 	}
 
 	matches(resource: URI): boolean {
-		const rootExpression = this.expressionsByRoot.findSubstr(resource.toString());
+		const rootExpression = this.expressionsByRoot.findSubstr(resource);
 		if (rootExpression) {
 			const path = relativePath(rootExpression.root, resource);
 			if (path && !!rootExpression.expression(path)) {

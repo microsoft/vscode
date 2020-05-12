@@ -17,7 +17,8 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -227,8 +228,6 @@ export interface IStartupMetrics {
 		 * * Reading of package.json-files is avoided by caching them all in a single file (after the read,
 		 * until another extension is installed)
 		 * * Happens in parallel to other things, depends on async timing
-		 *
-		 * todo@joh/ramya this measures an artifical dealy we have added, see https://github.com/Microsoft/vscode/blob/2f07ddae8bf56e969e3f4ba1447258ebc999672f/src/vs/workbench/services/extensions/electron-browser/extensionService.ts#L311-L326
 		 */
 		readonly ellapsedExtensions: number;
 
@@ -264,8 +263,6 @@ export interface IStartupMetrics {
 		 * * Measured with the `willRestoreEditors` and `didRestoreEditors` performance marks.
 		 * * This should be looked at per editor and per editor type.
 		 * * Happens in parallel to other things, depends on async timing
-		 *
-		 * todo@joh/ramya We should probably measures each editor individually?
 		 */
 		readonly ellapsedEditorRestore: number;
 
@@ -274,8 +271,6 @@ export interface IStartupMetrics {
 		 *
 		 * * Happens in the renderer-process
 		 * * Measured with the `willStartWorkbench` and `didStartWorkbench` performance marks.
-		 *
-		 * todo@joh/ramya Not sure if this is useful because this includes too much
 		 */
 		readonly ellapsedWorkbench: number;
 
@@ -309,7 +304,7 @@ class TimerService implements ITimerService {
 
 	constructor(
 		@IElectronService private readonly _electronService: IElectronService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
@@ -414,7 +409,7 @@ class TimerService implements ITimerService {
 			loadavg,
 			initialStartup,
 			isVMLikelyhood,
-			hasAccessibilitySupport: this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled,
+			hasAccessibilitySupport: this._accessibilityService.isScreenReaderOptimized(),
 			emptyWorkbench: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY
 		};
 	}

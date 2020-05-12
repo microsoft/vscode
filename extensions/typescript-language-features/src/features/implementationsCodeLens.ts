@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
@@ -75,7 +75,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 				return getSymbolRange(document, item);
 
 			case PConst.Kind.class:
-			case PConst.Kind.memberFunction:
+			case PConst.Kind.method:
 			case PConst.Kind.memberVariable:
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:

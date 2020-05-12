@@ -22,13 +22,13 @@
         "extensions": [
           ".json",
           ".bowerrc",
-          ".jshintrc",
           ".jscsrc",
-          ".swcrc",
           ".webmanifest",
           ".js.map",
           ".css.map",
-          ".har"
+          ".har",
+          ".jslintrc",
+          ".jsonld"
         ],
         "filenames": [
           "composer.lock",
@@ -51,7 +51,10 @@
           ".babelrc",
           ".jsonc",
           ".eslintrc",
-          ".eslintrc.json"
+          ".eslintrc.json",
+          ".jsfmtrc",
+          ".jshintrc",
+          ".swcrc"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -66,12 +69,6 @@
         "language": "jsonc",
         "scopeName": "source.json.comments",
         "path": "./syntaxes/JSONC.tmLanguage.json"
-      }
-    ],
-    "jsonValidation": [
-      {
-        "fileMatch": "*.schema.json",
-        "url": "http://json-schema.org/draft-07/schema#"
       }
     ]
   }

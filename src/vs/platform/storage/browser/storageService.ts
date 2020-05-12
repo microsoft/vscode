@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { IWorkspaceStorageChangeEvent, IStorageService, StorageScope, IWillSaveStateEvent, WillSaveStateReason, logStorage } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
@@ -13,7 +13,6 @@ import { IStorage, Storage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateR
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { runWhenIdle, RunOnceScheduler } from 'vs/base/common/async';
-import { serializableToMap, mapToSerializable } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
@@ -136,7 +135,7 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	private doFlushWhenIdle(): void {
 
 		// Dispose any previous idle runner
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
 
 		// Run when idle
 		this.runWhenIdleDisposable = runWhenIdle(() => {
@@ -180,7 +179,8 @@ export class BrowserStorageService extends Disposable implements IStorageService
 	}
 
 	dispose(): void {
-		this.runWhenIdleDisposable = dispose(this.runWhenIdleDisposable);
+		dispose(this.runWhenIdleDisposable);
+		this.runWhenIdleDisposable = undefined;
 
 		super.dispose();
 	}
@@ -188,8 +188,8 @@ export class BrowserStorageService extends Disposable implements IStorageService
 
 export class FileStorageDatabase extends Disposable implements IStorageDatabase {
 
-	private readonly _onDidChangeItemsExternal: Emitter<IStorageItemsChangeEvent> = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal: Event<IStorageItemsChangeEvent> = this._onDidChangeItemsExternal.event;
+	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
+	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
 
 	private cache: Map<string, string> | undefined;
 
@@ -223,7 +223,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 		this.isWatching = true;
 
 		this._register(this.fileService.watch(this.file));
-		this._register(this.fileService.onFileChanges(e => {
+		this._register(this.fileService.onDidFilesChange(e => {
 			if (document.hasFocus()) {
 				return; // optimization: ignore changes from ourselves by checking for focus
 			}
@@ -239,9 +239,36 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 	private async onDidStorageChangeExternal(): Promise<void> {
 		const items = await this.doGetItemsFromFile();
 
+		// pervious cache, diff for changes
+		let changed = new Map<string, string>();
+		let deleted = new Set<string>();
+		if (this.cache) {
+			items.forEach((value, key) => {
+				const existingValue = this.cache?.get(key);
+				if (existingValue !== value) {
+					changed.set(key, value);
+				}
+			});
+
+			this.cache.forEach((_, key) => {
+				if (!items.has(key)) {
+					deleted.add(key);
+				}
+			});
+		}
+
+		// no previous cache, consider all as changed
+		else {
+			changed = items;
+		}
+
+		// Update cache
 		this.cache = items;
 
-		this._onDidChangeItemsExternal.fire({ items });
+		// Emit as event as needed
+		if (changed.size > 0 || deleted.size > 0) {
+			this._onDidChangeItemsExternal.fire({ changed, deleted });
+		}
 	}
 
 	async getItems(): Promise<Map<string, string>> {
@@ -263,7 +290,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 
 		this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
 
-		return serializableToMap(JSON.parse(itemsRaw.value.toString()));
+		return new Map(JSON.parse(itemsRaw.value.toString()));
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
@@ -283,7 +310,7 @@ export class FileStorageDatabase extends Disposable implements IStorageDatabase 
 			try {
 				this._hasPendingUpdate = true;
 
-				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(mapToSerializable(items))));
+				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(Array.from(items.entries()))));
 
 				this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
 			} finally {

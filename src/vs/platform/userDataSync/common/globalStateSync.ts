@@ -3,173 +3,334 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserData, UserDataSyncStoreError, UserDataSyncStoreErrorCode, ISynchroniser, SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, ISyncPreviewResult, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { URI } from 'vs/base/common/uri';
-import { joinPath, dirname } from 'vs/base/common/resources';
+import { dirname, joinPath, basename, isEqual } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { parse } from 'vs/base/common/json';
+import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { URI } from 'vs/base/common/uri';
+import { format } from 'vs/base/common/jsonFormatter';
+import { applyEdits } from 'vs/base/common/jsonEdit';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
+import { equals } from 'vs/base/common/arrays';
 
+const argvStoragePrefx = 'globalState.argv.';
 const argvProperties: string[] = ['locale'];
 
-export class GlobalStateSynchroniser extends Disposable implements ISynchroniser {
+interface IGlobalSyncPreviewResult extends ISyncPreviewResult {
+	readonly local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> };
+	readonly remote: IStringDictionary<IStorageValue> | null;
+	readonly skippedStorageKeys: string[];
+	readonly localUserData: IGlobalState;
+	readonly remoteUserData: IRemoteUserData;
+	readonly lastSyncUserData: ILastSyncUserData | null;
+}
 
-	private static EXTERNAL_USER_DATA_GLOBAL_STATE_KEY: string = 'globalState';
+interface ILastSyncUserData extends IRemoteUserData {
+	skippedStorageKeys: string[] | undefined;
+}
 
-	private _status: SyncStatus = SyncStatus.Idle;
-	get status(): SyncStatus { return this._status; }
-	private _onDidChangStatus: Emitter<SyncStatus> = this._register(new Emitter<SyncStatus>());
-	readonly onDidChangeStatus: Event<SyncStatus> = this._onDidChangStatus.event;
+export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	private _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
-	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
-
-	private readonly lastSyncGlobalStateResource: URI;
+	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/current.json` });
+	protected readonly version: number = 1;
 
 	constructor(
-		@IFileService private readonly fileService: IFileService,
-		@IUserDataSyncStoreService private readonly userDataSyncStoreService: IUserDataSyncStoreService,
-		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
+		@IFileService fileService: IFileService,
+		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
+		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
+		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
-		super();
-		this.lastSyncGlobalStateResource = joinPath(environmentService.userRoamingDataHome, '.lastSyncGlobalState');
+		super(SyncResource.GlobalState, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.environmentService.argvResource))(() => this._onDidChangeLocal.fire()));
+		this._register(
+			Event.any(
+				/* Locale change */
+				Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.environmentService.argvResource)),
+				/* Storage change */
+				Event.filter(this.storageService.onDidChangeStorage, e => storageKeysSyncRegistryService.storageKeys.some(({ key }) => e.key === key)),
+				/* Storage key registered */
+				this.storageKeysSyncRegistryService.onDidChangeStorageKeys
+			)((() => this._onDidChangeLocal.fire()))
+		);
 	}
 
-	private setStatus(status: SyncStatus): void {
-		if (this._status !== status) {
-			this._status = status;
-			this._onDidChangStatus.fire(status);
-		}
-	}
-
-	async sync(): Promise<boolean> {
-		if (!this.configurationService.getValue<boolean>('sync.enableUIState')) {
-			this.logService.trace('UI State: Skipping synchronizing UI state as it is disabled.');
-			return false;
+	async pull(): Promise<void> {
+		if (!this.isEnabled()) {
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pulling ui state as it is disabled.`);
+			return;
 		}
 
-		if (this.status !== SyncStatus.Idle) {
-			this.logService.trace('UI State: Skipping synchronizing ui state as it is running already.');
-			return false;
-		}
-
-		this.logService.trace('UI State: Started synchronizing ui state...');
-		this.setStatus(SyncStatus.Syncing);
+		this.stop();
 
 		try {
-			await this.doSync();
-			this.logService.trace('UI State: Finised synchronizing ui state.');
-			this.setStatus(SyncStatus.Idle);
-			return true;
-		} catch (e) {
-			this.setStatus(SyncStatus.Idle);
-			if (e instanceof UserDataSyncStoreError && e.code === UserDataSyncStoreErrorCode.Rejected) {
-				// Rejected as there is a new remote version. Syncing again,
-				this.logService.info('UI State: Failed to synchronise ui state as there is a new remote version available. Synchronizing again...');
-				return this.sync();
+			this.logService.info(`${this.syncResourceLogLabel}: Started pulling ui state...`);
+			this.setStatus(SyncStatus.Syncing);
+
+			const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
+			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+
+			if (remoteUserData.syncData !== null) {
+				const localGlobalState = await this.getLocalGlobalState();
+				const remoteGlobalState: IGlobalState = JSON.parse(remoteUserData.syncData.content);
+				const { local, remote, skipped } = merge(localGlobalState.storage, remoteGlobalState.storage, null, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
+				await this.apply({
+					local, remote, remoteUserData, localUserData: localGlobalState, lastSyncUserData,
+					skippedStorageKeys: skipped,
+					hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
+					hasRemoteChanged: remote !== null
+				});
 			}
-			throw e;
+
+			// No remote exists to pull
+			else {
+				this.logService.info(`${this.syncResourceLogLabel}: Remote UI state does not exist.`);
+			}
+
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pulling UI state.`);
+		} finally {
+			this.setStatus(SyncStatus.Idle);
 		}
 	}
 
-	stop(): void { }
+	async push(): Promise<void> {
+		if (!this.isEnabled()) {
+			this.logService.info(`${this.syncResourceLogLabel}: Skipped pushing UI State as it is disabled.`);
+			return;
+		}
 
-	async hasPreviouslySynced(): Promise<boolean> {
-		const lastSyncData = await this.getLastSyncUserData();
-		return !!lastSyncData;
+		this.stop();
+
+		try {
+			this.logService.info(`${this.syncResourceLogLabel}: Started pushing UI State...`);
+			this.setStatus(SyncStatus.Syncing);
+
+			const localUserData = await this.getLocalGlobalState();
+			const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
+			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
+			await this.apply({
+				local: { added: {}, removed: [], updated: {} }, remote: localUserData.storage, remoteUserData, localUserData, lastSyncUserData,
+				skippedStorageKeys: [],
+				hasLocalChanged: false,
+				hasRemoteChanged: true
+			}, true);
+
+			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing UI State.`);
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+
 	}
 
-	async hasRemote(): Promise<boolean> {
-		const remoteUserData = await this.userDataSyncStoreService.read(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, null);
-		return remoteUserData.content !== null;
+	async stop(): Promise<void> { }
+
+	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
+		return [{ resource: joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
 	}
 
-	private async doSync(): Promise<void> {
-		const lastSyncData = await this.getLastSyncUserData();
-		const lastSyncGlobalState = lastSyncData && lastSyncData.content ? JSON.parse(lastSyncData.content) : null;
+	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
+			const localGlobalState = await this.getLocalGlobalState();
+			return this.format(localGlobalState);
+		}
 
-		let remoteData = await this.userDataSyncStoreService.read(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, lastSyncData);
-		const remoteGlobalState: IGlobalState = remoteData.content ? JSON.parse(remoteData.content) : null;
+		let content = await super.resolveContent(uri);
+		if (content) {
+			return content;
+		}
+
+		content = await super.resolveContent(dirname(uri));
+		if (content) {
+			const syncData = this.parseSyncData(content);
+			if (syncData) {
+				switch (basename(uri)) {
+					case 'globalState.json':
+						return this.format(JSON.parse(syncData.content));
+				}
+			}
+		}
+
+		return null;
+	}
+
+	private format(globalState: IGlobalState): string {
+		const storageKeys = Object.keys(globalState.storage).sort();
+		const storage: IStringDictionary<IStorageValue> = {};
+		storageKeys.forEach(key => storage[key] = globalState.storage[key]);
+		globalState.storage = storage;
+		const content = JSON.stringify(globalState);
+		const edits = format(content, undefined, {});
+		return applyEdits(content, edits);
+	}
+
+	async acceptConflict(conflict: URI, content: string): Promise<void> {
+		throw new Error(`${this.syncResourceLogLabel}: Conflicts should not occur`);
+	}
+
+	async hasLocalData(): Promise<boolean> {
+		try {
+			const { storage } = await this.getLocalGlobalState();
+			if (Object.keys(storage).length > 1 || storage[`${argvStoragePrefx}.locale`]?.value !== 'en') {
+				return true;
+			}
+		} catch (error) {
+			/* ignore error */
+		}
+		return false;
+	}
+
+	protected async performSync(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<SyncStatus> {
+		const result = await this.generatePreview(remoteUserData, lastSyncUserData);
+		await this.apply(result);
+		return SyncStatus.Idle;
+	}
+
+	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IGlobalSyncPreviewResult> {
+		const remoteGlobalState: IGlobalState = remoteUserData.syncData ? JSON.parse(remoteUserData.syncData.content) : null;
+		const lastSyncGlobalState: IGlobalState = lastSyncUserData && lastSyncUserData.syncData ? JSON.parse(lastSyncUserData.syncData.content) : null;
 
 		const localGloablState = await this.getLocalGlobalState();
 
-		const { local, remote } = merge(localGloablState, remoteGlobalState, lastSyncGlobalState);
+		if (remoteGlobalState) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote ui state with local ui state...`);
+		} else {
+			this.logService.trace(`${this.syncResourceLogLabel}: Remote ui state does not exist. Synchronizing ui state for the first time.`);
+		}
 
-		if (local) {
+		const { local, remote, skipped } = merge(localGloablState.storage, remoteGlobalState ? remoteGlobalState.storage : null, lastSyncGlobalState ? lastSyncGlobalState.storage : null, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
+
+		return {
+			local, remote, remoteUserData, localUserData: localGloablState, lastSyncUserData,
+			skippedStorageKeys: skipped,
+			hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
+			hasRemoteChanged: remote !== null
+		};
+	}
+
+	private async apply({ local, remote, remoteUserData, lastSyncUserData, localUserData, hasLocalChanged, hasRemoteChanged, skippedStorageKeys }: IGlobalSyncPreviewResult, forcePush?: boolean): Promise<void> {
+
+		if (!hasLocalChanged && !hasRemoteChanged) {
+			this.logService.info(`${this.syncResourceLogLabel}: No changes found during synchronizing ui state.`);
+		}
+
+		if (hasLocalChanged) {
 			// update local
-			this.logService.info('UI State: Updating local ui state...');
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating local ui state...`);
+			await this.backupLocal(JSON.stringify(localUserData));
 			await this.writeLocalGlobalState(local);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated local ui state`);
 		}
 
-		if (remote) {
+		if (hasRemoteChanged) {
 			// update remote
-			this.logService.info('UI State: Updating remote ui state...');
-			remoteData = await this.writeToRemote(remote, remoteData.ref);
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating remote ui state...`);
+			const content = JSON.stringify(<IGlobalState>{ storage: remote });
+			remoteUserData = await this.updateRemoteUserData(content, forcePush ? null : remoteUserData.ref);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated remote ui state`);
 		}
 
-		if (remoteData.content
-			&& (!lastSyncData || lastSyncData.ref !== remoteData.ref)
-		) {
+		if (lastSyncUserData?.ref !== remoteUserData.ref || !equals(lastSyncUserData.skippedStorageKeys, skippedStorageKeys)) {
 			// update last sync
-			this.logService.info('UI State: Updating last synchronised ui state...');
-			await this.updateLastSyncValue(remoteData);
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized ui state...`);
+			await this.updateLastSyncUserData(remoteUserData, { skippedStorageKeys });
+			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized ui state`);
 		}
 	}
 
 	private async getLocalGlobalState(): Promise<IGlobalState> {
-		const argv: IStringDictionary<any> = {};
-		const storage: IStringDictionary<any> = {};
+		const storage: IStringDictionary<IStorageValue> = {};
+		const argvContent: string = await this.getLocalArgvContent();
+		const argvValue: IStringDictionary<any> = parse(argvContent);
+		for (const argvProperty of argvProperties) {
+			if (argvValue[argvProperty] !== undefined) {
+				storage[`${argvStoragePrefx}${argvProperty}`] = { version: 1, value: argvValue[argvProperty] };
+			}
+		}
+		for (const { key, version } of this.storageKeysSyncRegistryService.storageKeys) {
+			const value = this.storageService.get(key, StorageScope.GLOBAL);
+			if (value) {
+				storage[key] = { version, value };
+			}
+		}
+		return { storage };
+	}
+
+	private async getLocalArgvContent(): Promise<string> {
 		try {
 			const content = await this.fileService.readFile(this.environmentService.argvResource);
-			const argvValue: IStringDictionary<any> = parse(content.value.toString());
-			for (const argvProperty of argvProperties) {
-				if (argvValue[argvProperty] !== undefined) {
-					argv[argvProperty] = argvValue[argvProperty];
+			return content.value.toString();
+		} catch (error) { }
+		return '{}';
+	}
+
+	private async writeLocalGlobalState({ added, removed, updated }: { added: IStringDictionary<IStorageValue>, updated: IStringDictionary<IStorageValue>, removed: string[] }): Promise<void> {
+		const argv: IStringDictionary<any> = {};
+		const updatedStorage: IStringDictionary<any> = {};
+		const handleUpdatedStorage = (keys: string[], storage?: IStringDictionary<IStorageValue>): void => {
+			for (const key of keys) {
+				if (key.startsWith(argvStoragePrefx)) {
+					argv[key.substring(argvStoragePrefx.length)] = storage ? storage[key].value : undefined;
+					continue;
+				}
+				if (storage) {
+					const storageValue = storage[key];
+					if (storageValue.value !== String(this.storageService.get(key, StorageScope.GLOBAL))) {
+						updatedStorage[key] = storageValue.value;
+					}
+				} else {
+					if (this.storageService.get(key, StorageScope.GLOBAL) !== undefined) {
+						updatedStorage[key] = undefined;
+					}
 				}
 			}
-		} catch (error) { }
-		return { argv, storage };
-	}
-
-	private async writeLocalGlobalState(globalState: IGlobalState): Promise<void> {
-		const content = await this.fileService.readFile(this.environmentService.argvResource);
-		let argvContent = content.value.toString();
-		for (const argvProperty of Object.keys(globalState.argv)) {
-			argvContent = edit(argvContent, [argvProperty], globalState.argv[argvProperty], {});
+		};
+		handleUpdatedStorage(Object.keys(added), added);
+		handleUpdatedStorage(Object.keys(updated), updated);
+		handleUpdatedStorage(removed);
+		if (Object.keys(argv).length) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
+			await this.updateArgv(argv);
+			this.logService.info(`${this.syncResourceLogLabel}: Updated locale`);
 		}
-		if (argvContent !== content.value.toString()) {
-			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(argvContent));
-		}
-	}
-
-	private async getLastSyncUserData(): Promise<IUserData | null> {
-		try {
-			const content = await this.fileService.readFile(this.lastSyncGlobalStateResource);
-			return JSON.parse(content.value.toString());
-		} catch (error) {
-			return null;
+		const updatedStorageKeys: string[] = Object.keys(updatedStorage);
+		if (updatedStorageKeys.length) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating global state...`);
+			for (const key of Object.keys(updatedStorage)) {
+				this.storageService.store(key, updatedStorage[key], StorageScope.GLOBAL);
+			}
+			this.logService.info(`${this.syncResourceLogLabel}: Updated global state`, Object.keys(updatedStorage));
 		}
 	}
 
-	private async updateLastSyncValue(remoteUserData: IUserData): Promise<void> {
-		await this.fileService.writeFile(this.lastSyncGlobalStateResource, VSBuffer.fromString(JSON.stringify(remoteUserData)));
+	private async updateArgv(argv: IStringDictionary<any>): Promise<void> {
+		const argvContent = await this.getLocalArgvContent();
+		let content = argvContent;
+		for (const argvProperty of Object.keys(argv)) {
+			content = edit(content, [argvProperty], argv[argvProperty], {});
+		}
+		if (argvContent !== content) {
+			this.logService.trace(`${this.syncResourceLogLabel}: Updating locale...`);
+			await this.fileService.writeFile(this.environmentService.argvResource, VSBuffer.fromString(content));
+			this.logService.info(`${this.syncResourceLogLabel}: Updated locale.`);
+		}
 	}
 
-	private async writeToRemote(globalState: IGlobalState, ref: string | null): Promise<IUserData> {
-		const content = JSON.stringify(globalState);
-		ref = await this.userDataSyncStoreService.write(GlobalStateSynchroniser.EXTERNAL_USER_DATA_GLOBAL_STATE_KEY, content, ref);
-		return { content, ref };
+	private getSyncStorageKeys(): IStorageKey[] {
+		return [...this.storageKeysSyncRegistryService.storageKeys, ...argvProperties.map(argvProprety => (<IStorageKey>{ key: `${argvStoragePrefx}${argvProprety}`, version: 1 }))];
 	}
-
 }

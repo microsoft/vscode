@@ -14,6 +14,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspacesService, hasWorkspaceFileExtension, IRecent } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -156,7 +158,7 @@ CommandsRegistry.registerCommand(OpenWithAPICommand.ID, adjustHandler(OpenWithAP
 
 CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, uri: URI) {
 	const workspacesService = accessor.get(IWorkspacesService);
-	return workspacesService.removeFromRecentlyOpened([uri]);
+	return workspacesService.removeRecentlyOpened([uri]);
 });
 
 export class RemoveFromRecentlyOpenedAPICommand {
@@ -172,10 +174,20 @@ export class RemoveFromRecentlyOpenedAPICommand {
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
 
+export interface OpenIssueReporterArgs {
+	readonly extensionId: string;
+	readonly issueTitle?: string;
+	readonly issueBody?: string;
+}
+
 export class OpenIssueReporter {
 	public static readonly ID = 'vscode.openIssueReporter';
-	public static execute(executor: ICommandsExecutor, extensionId: string): Promise<void> {
-		return executor.executeCommand('workbench.action.openIssueReporter', [extensionId]);
+
+	public static execute(executor: ICommandsExecutor, args: string | OpenIssueReporterArgs): Promise<void> {
+		const commandArgs = typeof args === 'string'
+			? { extensionId: args }
+			: args;
+		return executor.executeCommand('workbench.action.openIssueReporter', commandArgs);
 	}
 }
 
@@ -236,4 +248,19 @@ CommandsRegistry.registerCommand({
 			}
 		}]
 	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.setLogLevel', function (accessor: ServicesAccessor, level: number) {
+	const logService = accessor.get(ILogService);
+	const environmentService = accessor.get(IEnvironmentService);
+
+	if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
+		logService.setLevel(level);
+	}
+});
+
+CommandsRegistry.registerCommand('_extensionTests.getLogLevel', function (accessor: ServicesAccessor) {
+	const logService = accessor.get(ILogService);
+
+	return logService.getLevel();
 });

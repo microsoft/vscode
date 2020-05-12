@@ -21,8 +21,12 @@ import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
 import { isMacintosh } from 'vs/base/common/platform';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 const $ = DOM.$;
+
+const menuBarMoreIcon = registerIcon('menubar-more', Codicon.more);
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
@@ -31,6 +35,7 @@ export interface IMenuBarOptions {
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 	compactMode?: Direction;
+	getCompactMenuActions?: () => IAction[]
 }
 
 export interface MenuBarMenu {
@@ -88,7 +93,7 @@ export class MenuBar extends Disposable {
 
 	private numMenusShown: number = 0;
 	private menuStyle: IMenuStyles | undefined;
-	private overflowLayoutScheduled: IDisposable | null = null;
+	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
@@ -311,7 +316,7 @@ export class MenuBar extends Disposable {
 		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
 		const title = this.options.compactMode !== undefined ? label : undefined;
 		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'title': title, 'aria-haspopup': true });
-		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more.codicon.codicon-more', { 'role': 'none', 'aria-hidden': true });
+		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + menuBarMoreIcon.cssSelector, { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
 		this.container.appendChild(buttonElement);
@@ -419,9 +424,8 @@ export class MenuBar extends Disposable {
 		DOM.removeNode(this.overflowMenu.titleElement);
 		DOM.removeNode(this.overflowMenu.buttonElement);
 
-		if (this.overflowLayoutScheduled) {
-			this.overflowLayoutScheduled = dispose(this.overflowLayoutScheduled);
-		}
+		dispose(this.overflowLayoutScheduled);
+		this.overflowLayoutScheduled = undefined;
 	}
 
 	blur(): void {
@@ -490,6 +494,12 @@ export class MenuBar extends Disposable {
 				DOM.removeNode(this.overflowMenu.buttonElement);
 				this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
 				this.overflowMenu.buttonElement.style.visibility = 'visible';
+			}
+
+			const compactMenuActions = this.options.getCompactMenuActions?.();
+			if (compactMenuActions && compactMenuActions.length) {
+				this.overflowMenu.actions.push(new Separator());
+				this.overflowMenu.actions.push(...compactMenuActions);
 			}
 		} else {
 			DOM.removeNode(this.overflowMenu.buttonElement);
@@ -561,7 +571,7 @@ export class MenuBar extends Disposable {
 		if (!this.overflowLayoutScheduled) {
 			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
 				this.updateOverflowAction();
-				this.overflowLayoutScheduled = null;
+				this.overflowLayoutScheduled = undefined;
 			});
 		}
 

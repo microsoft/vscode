@@ -5,7 +5,6 @@
 
 import * as nls from 'vs/nls';
 
-import { QuickOpenHandler } from 'vs/workbench/contrib/tasks/browser/taskQuickOpen';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -18,15 +17,11 @@ import * as jsonContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
-import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 
 import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/services/output/common/output';
-import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 
 import { TaskEvent, TaskEventKind, TaskGroup, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService } from 'vs/workbench/contrib/tasks/common/taskService';
-
-import { QuickOpenActionContributor } from '../browser/quickOpen';
 
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -38,6 +33,9 @@ import schemaVersion2, { updateProblemMatchers } from '../common/jsonSchema_v2';
 import { AbstractTaskService, ConfigureTaskAction } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { tasksSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
+import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
+import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
 
 let tasksCategory = nls.localize('tasksCategory', "Tasks");
 
@@ -45,7 +43,7 @@ const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Workbench
 workbenchRegistry.registerWorkbenchContribution(RunAutomaticTasks, LifecyclePhase.Eventually);
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-actionRegistry.registerWorkbenchAction(SyncActionDescriptor.create(ManageAutomaticTaskRunning, ManageAutomaticTaskRunning.ID, ManageAutomaticTaskRunning.LABEL), 'Tasks: Manage Automatic Tasks in Folder', tasksCategory);
+actionRegistry.registerWorkbenchAction(SyncActionDescriptor.from(ManageAutomaticTaskRunning), 'Tasks: Manage Automatic Tasks in Folder', tasksCategory);
 
 export class TaskStatusBarContributions extends Disposable implements IWorkbenchContribution {
 	private runningTasksStatusItem: IStatusbarEntryAccessor | undefined;
@@ -124,6 +122,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 		} else {
 			const itemProps: IStatusbarEntry = {
 				text: `$(tools) ${tasks.length}`,
+				ariaLabel: nls.localize('numberOfRunningTasks', "{0} running tasks", tasks.length),
 				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
 				command: 'workbench.action.tasks.showTasks',
 			};
@@ -224,6 +223,15 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 });
 
 
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, ({
+	command: {
+		id: 'workbench.action.tasks.openWorkspaceFileTasks',
+		title: nls.localize('workbench.action.tasks.openWorkspaceFileTasks', "Open Workspace Tasks"),
+		category: tasksCategory
+	},
+	when: WorkbenchStateContext.isEqualTo('workspace')
+}));
+
 MenuRegistry.addCommand({ id: ConfigureTaskAction.ID, title: { value: ConfigureTaskAction.TEXT, original: 'Configure Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.showLog', title: { value: nls.localize('ShowLogAction.label', "Show Task Log"), original: 'Show Task Log' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.runTask', title: { value: nls.localize('RunTaskAction.label', "Run Task"), original: 'Run Task' }, category: { value: tasksCategory, original: 'Tasks' } });
@@ -235,6 +243,7 @@ MenuRegistry.addCommand({ id: 'workbench.action.tasks.build', title: { value: nl
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.test', title: { value: nls.localize('TestAction.label', "Run Test Task"), original: 'Run Test Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultBuildTask', title: { value: nls.localize('ConfigureDefaultBuildTask.label', "Configure Default Build Task"), original: 'Configure Default Build Task' }, category: { value: tasksCategory, original: 'Tasks' } });
 MenuRegistry.addCommand({ id: 'workbench.action.tasks.configureDefaultTestTask', title: { value: nls.localize('ConfigureDefaultTestTask.label', "Configure Default Test Task"), original: 'Configure Default Test Task' }, category: { value: tasksCategory, original: 'Tasks' } });
+MenuRegistry.addCommand({ id: 'workbench.action.tasks.openUserTasks', title: { value: nls.localize('workbench.action.tasks.openUserTasks', "Open User Tasks"), original: 'Open User Tasks' }, category: { value: tasksCategory, original: 'Tasks' } });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.rebuild', title: nls.localize('RebuildAction.label', 'Run Rebuild Task'), category: tasksCategory });
 // MenuRegistry.addCommand( { id: 'workbench.action.tasks.clean', title: nls.localize('CleanAction.label', 'Run Clean Task'), category: tasksCategory });
 
@@ -249,22 +258,18 @@ KeybindingsRegistry.registerKeybindingRule({
 let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
 outputChannelRegistry.registerChannel({ id: AbstractTaskService.OutputChannelId, label: AbstractTaskService.OutputChannelLabel, log: false });
 
-// Register Quick Open
-const quickOpenRegistry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));
+
+// Register Quick Access
+const quickAccessRegistry = (Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess));
 const tasksPickerContextKey = 'inTasksPicker';
 
-quickOpenRegistry.registerQuickOpenHandler(
-	QuickOpenHandlerDescriptor.create(
-		QuickOpenHandler,
-		QuickOpenHandler.ID,
-		'task ',
-		tasksPickerContextKey,
-		nls.localize('quickOpen.task', "Run Task")
-	)
-);
-
-const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
-actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionContributor);
+quickAccessRegistry.registerQuickAccessProvider({
+	ctor: TasksQuickAccessProvider,
+	prefix: TasksQuickAccessProvider.PREFIX,
+	contextKey: tasksPickerContextKey,
+	placeholder: nls.localize('tasksQuickAccessPlaceholder', "Type the name of a task to run."),
+	helpEntries: [{ description: nls.localize('tasksQuickAccessHelp', "Run Task"), needsEditor: false }]
+});
 
 // tasks.json validation
 let schema: IJSONSchema = {
@@ -335,7 +340,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		'task.autoDetect': {
-			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions my provide settings to disabled auto detection."),
+			markdownDescription: nls.localize('task.autoDetect', "Controls enablement of `provideTasks` for all task provider extension. If the Tasks: Run Task command is slow, disabling auto detect for task providers may help. Individual extensions may also provide settings that disable auto detection."),
 			type: 'string',
 			enum: ['on', 'off'],
 			default: 'on'
@@ -371,6 +376,25 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('task.quickOpen.skip', "Controls whether the task quick pick is skipped when there is only one task to pick from."),
 			default: false
-		}
+		},
+		'task.quickOpen.showAll': {
+			type: 'boolean',
+			description: nls.localize('task.quickOpen.showAll', "Causes the Tasks: Run Task command to use the slower \"show all\" behavior instead of the faster two level picker where tasks are grouped by provider."),
+			default: false
+		},
+		'task.saveBeforeRun': {
+			markdownDescription: nls.localize(
+				'task.saveBeforeRun',
+				'Save all dirty editors before running a task.'
+			),
+			type: 'string',
+			enum: ['always', 'never', 'prompt'],
+			enumDescriptions: [
+				nls.localize('task.saveBeforeRun.always', 'Always saves all editors before running.'),
+				nls.localize('task.saveBeforeRun.never', 'Never saves editors before running.'),
+				nls.localize('task.SaveBeforeRun.prompt', 'Prompts whether to save editors before running.'),
+			],
+			default: 'always',
+		},
 	}
 });

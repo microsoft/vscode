@@ -10,8 +10,8 @@ import { ITextBufferFactory, ITextSnapshot } from 'vs/editor/common/model';
 export const IBackupFileService = createDecorator<IBackupFileService>('backupFileService');
 
 export interface IResolvedBackup<T extends object> {
-	value: ITextBufferFactory;
-	meta?: T;
+	readonly value: ITextBufferFactory;
+	readonly meta?: T;
 }
 
 /**
@@ -28,61 +28,49 @@ export interface IBackupFileService {
 
 	/**
 	 * Finds out if the provided resource with the given version is backed up.
+	 *
+	 * Note: if the backup service has not been initialized yet, this may return
+	 * the wrong result. Always use `resolve()` if you can do a long running
+	 * operation.
 	 */
 	hasBackupSync(resource: URI, versionId?: number): boolean;
-
-	/**
-	 * Loads the backup resource for a particular resource within the current workspace.
-	 *
-	 * @param resource The resource that is backed up.
-	 * @return The backup resource if any.
-	 */
-	loadBackupResource(resource: URI): Promise<URI | undefined>;
-
-	/**
-	 * Given a resource, returns the associated backup resource.
-	 *
-	 * @param resource The resource to get the backup resource for.
-	 * @return The backup resource.
-	 */
-	toBackupResource(resource: URI): URI;
-
-	/**
-	 * Backs up a resource.
-	 *
-	 * @param resource The resource to back up.
-	 * @param content The content of the resource as snapshot.
-	 * @param versionId The version id of the resource to backup.
-	 * @param meta The (optional) meta data of the resource to backup. This information
-	 * can be restored later when loading the backup again.
-	 */
-	backupResource<T extends object>(resource: URI, content: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
 
 	/**
 	 * Gets a list of file backups for the current workspace.
 	 *
 	 * @return The list of backups.
 	 */
-	getWorkspaceFileBackups(): Promise<URI[]>;
+	getBackups(): Promise<URI[]>;
 
 	/**
-	 * Resolves the backup for the given resource.
+	 * Resolves the backup for the given resource if that exists.
 	 *
 	 * @param resource The resource to get the backup for.
-	 * @return The backup file's backed up content and metadata if available.
+	 * @return The backup file's backed up content and metadata if available or undefined
+	 * if not backup exists.
 	 */
-	resolveBackupContent<T extends object>(resource: URI): Promise<IResolvedBackup<T>>;
+	resolve<T extends object>(resource: URI): Promise<IResolvedBackup<T> | undefined>;
 
 	/**
-	 * Discards the backup associated with a resource if it exists..
+	 * Backs up a resource.
+	 *
+	 * @param resource The resource to back up.
+	 * @param content The optional content of the resource as snapshot.
+	 * @param versionId The optionsl version id of the resource to backup.
+	 * @param meta The optional meta data of the resource to backup. This information
+	 * can be restored later when loading the backup again.
+	 */
+	backup<T extends object>(resource: URI, content?: ITextSnapshot, versionId?: number, meta?: T): Promise<void>;
+
+	/**
+	 * Discards the backup associated with a resource if it exists.
 	 *
 	 * @param resource The resource whose backup is being discarded discard to back up.
 	 */
-	discardResourceBackup(resource: URI): Promise<void>;
+	discardBackup(resource: URI): Promise<void>;
 
 	/**
-	 * Discards all backups associated with the current workspace and prevents further backups from
-	 * being made.
+	 * Discards all backups.
 	 */
-	discardAllWorkspaceBackups(): Promise<void>;
+	discardBackups(): Promise<void>;
 }

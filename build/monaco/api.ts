@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 
-const dtsv = '2';
+const dtsv = '3';
 
 const tsfmt = require('../../tsfmt.json');
 
@@ -138,7 +138,7 @@ function isDefaultExport(declaration: ts.InterfaceDeclaration | ts.ClassDeclarat
 	);
 }
 
-function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: string[]): string {
+function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declaration: TSTopLevelDeclare, importName: string, usage: string[], enums: IEnumEntry[]): string {
 	let result = getNodeText(sourceFile, declaration);
 	if (declaration.kind === ts.SyntaxKind.InterfaceDeclaration || declaration.kind === ts.SyntaxKind.ClassDeclaration) {
 		let interfaceDeclaration = <ts.InterfaceDeclaration | ts.ClassDeclaration>declaration;
@@ -167,24 +167,56 @@ function getMassagedTopLevelDeclarationText(sourceFile: ts.SourceFile, declarati
 					result = result.replace(memberText, '');
 				} else {
 					const memberName = (<ts.Identifier | ts.StringLiteral>member.name).text;
+					const memberAccess = (memberName.indexOf('.') >= 0 ? `['${memberName}']` : `.${memberName}`);
 					if (isStatic(member)) {
-						usage.push(`a = ${staticTypeName}.${memberName};`);
+						usage.push(`a = ${staticTypeName}${memberAccess};`);
 					} else {
-						usage.push(`a = (<${instanceTypeName}>b).${memberName};`);
+						usage.push(`a = (<${instanceTypeName}>b)${memberAccess};`);
 					}
 				}
 			} catch (err) {
 				// life..
 			}
 		});
+	} else if (declaration.kind === ts.SyntaxKind.VariableStatement) {
+		const jsDoc = result.substr(0, declaration.getLeadingTriviaWidth(sourceFile));
+		if (jsDoc.indexOf('@monacodtsreplace') >= 0) {
+			const jsDocLines = jsDoc.split(/\r\n|\r|\n/);
+			let directives: [RegExp, string][] = [];
+			for (const jsDocLine of jsDocLines) {
+				const m = jsDocLine.match(/^\s*\* \/([^/]+)\/([^/]+)\/$/);
+				if (m) {
+					directives.push([new RegExp(m[1], 'g'), m[2]]);
+				}
+			}
+			// remove the jsdoc
+			result = result.substr(jsDoc.length);
+			if (directives.length > 0) {
+				// apply replace directives
+				const replacer = createReplacerFromDirectives(directives);
+				result = replacer(result);
+			}
+		}
 	}
 	result = result.replace(/export default /g, 'export ');
 	result = result.replace(/export declare /g, 'export ');
 	result = result.replace(/declare /g, '');
+	let lines = result.split(/\r\n|\r|\n/);
+	for (let i = 0; i < lines.length; i++) {
+		if (/\s*\*/.test(lines[i])) {
+			// very likely a comment
+			continue;
+		}
+		lines[i] = lines[i].replace(/"/g, '\'');
+	}
+	result = lines.join('\n');
 
 	if (declaration.kind === ts.SyntaxKind.EnumDeclaration) {
 		result = result.replace(/const enum/, 'enum');
-		enums.push(result);
+		enums.push({
+			enumName: declaration.name.getText(sourceFile),
+			text: result
+		});
 	}
 
 	return result;
@@ -324,6 +356,15 @@ function format(text: string, endl: string): string {
 	}
 }
 
+function createReplacerFromDirectives(directives: [RegExp, string][]): (str: string) => string {
+	return (str: string) => {
+		for (let i = 0; i < directives.length; i++) {
+			str = str.replace(directives[i][0], directives[i][1]);
+		}
+		return str;
+	};
+}
+
 function createReplacer(data: string): (str: string) => string {
 	data = data || '';
 	let rawDirectives = data.split(';');
@@ -341,18 +382,18 @@ function createReplacer(data: string): (str: string) => string {
 		directives.push([new RegExp(findStr, 'g'), replaceStr]);
 	});
 
-	return (str: string) => {
-		for (let i = 0; i < directives.length; i++) {
-			str = str.replace(directives[i][0], directives[i][1]);
-		}
-		return str;
-	};
+	return createReplacerFromDirectives(directives);
 }
 
 interface ITempResult {
 	result: string;
 	usageContent: string;
 	enums: string;
+}
+
+interface IEnumEntry {
+	enumName: string;
+	text: string;
 }
 
 function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGetter): ITempResult | null {
@@ -376,7 +417,7 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 		return importName;
 	};
 
-	let enums: string[] = [];
+	let enums: IEnumEntry[] = [];
 	let version: string | null = null;
 
 	lines.forEach(line => {
@@ -492,6 +533,16 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 	resultTxt = format(resultTxt, endl);
 	resultTxt = resultTxt.split(/\r\n|\n|\r/).join(endl);
 
+	enums.sort((e1, e2) => {
+		if (e1.enumName < e2.enumName) {
+			return -1;
+		}
+		if (e1.enumName > e2.enumName) {
+			return 1;
+		}
+		return 0;
+	});
+
 	let resultEnums = [
 		'/*---------------------------------------------------------------------------------------------',
 		' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -500,7 +551,7 @@ function generateDeclarationFile(recipe: string, sourceFileGetter: SourceFileGet
 		'',
 		'// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
 		''
-	].concat(enums).join(endl);
+	].concat(enums.map(e => e.text)).join(endl);
 	resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);
 	resultEnums = format(resultEnums, endl);
 	resultEnums = resultEnums.split(/\r\n|\n|\r/).join(endl);

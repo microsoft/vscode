@@ -11,9 +11,9 @@ import * as fs from 'fs';
 import * as json from 'vs/base/common/json';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestTextFileService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestWindowConfiguration, TestTextFileService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import * as uuid from 'vs/base/common/uuid';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -40,17 +40,15 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { ConfigurationCache } from 'vs/workbench/services/configuration/node/configurationCache';
 import { KeybindingsEditingService, IKeybindingEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IWindowConfiguration } from 'vs/platform/windows/common/windows';
 import { FileUserDataProvider } from 'vs/workbench/services/userData/common/fileUserDataProvider';
 
 class TestEnvironmentService extends NativeWorkbenchEnvironmentService {
 
 	constructor(private _appSettingsHome: URI) {
-		super(parseArgs(process.argv, OPTIONS) as IWindowConfiguration, process.execPath, 0);
+		super(TestWindowConfiguration, TestWindowConfiguration.execPath);
 	}
 
 	get appSettingsHome() { return this._appSettingsHome; }
-
 }
 
 suite('ConfigurationEditingService', () => {
@@ -108,11 +106,11 @@ suite('ConfigurationEditingService', () => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
 		const environmentService = new TestEnvironmentService(URI.file(workspaceDir));
 		instantiationService.stub(IEnvironmentService, environmentService);
-		const remoteAgentService = instantiationService.createInstance(RemoteAgentService, {});
+		const remoteAgentService = instantiationService.createInstance(RemoteAgentService);
 		const fileService = new FileService(new NullLogService());
 		const diskFileSystemProvider = new DiskFileSystemProvider(new NullLogService());
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService));
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(environmentService.appSettingsHome, environmentService.backupHome, diskFileSystemProvider, environmentService, new NullLogService()));
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(IRemoteAgentService, remoteAgentService);
 		const workspaceService = new WorkspaceService({ configurationCache: new ConfigurationCache(environmentService) }, environmentService, fileService, remoteAgentService);

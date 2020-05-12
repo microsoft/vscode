@@ -27,46 +27,41 @@ import { Readable } from 'stream';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { nodeReadableToString, streamToNodeReadable, nodeStreamToVSBufferReadable } from 'vs/base/node/stream';
-import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { assign } from 'vs/base/common/objects';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class NativeTextFileService extends AbstractTextFileService {
 
 	constructor(
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IFileService fileService: IFileService,
 		@IUntitledTextEditorService untitledTextEditorService: IUntitledTextEditorService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IModeService modeService: IModeService,
 		@IModelService modelService: IModelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@INotificationService notificationService: INotificationService,
-		@IBackupFileService backupFileService: IBackupFileService,
-		@IHistoryService historyService: IHistoryService,
+		@IWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
 		@IDialogService dialogService: IDialogService,
 		@IFileDialogService fileDialogService: IFileDialogService,
-		@IEditorService editorService: IEditorService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
-		@IElectronService private readonly electronService: IElectronService,
 		@IProductService private readonly productService: IProductService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
-		@ITextModelService textModelService: ITextModelService
+		@ITextModelService textModelService: ITextModelService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IPathService pathService: IPathService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
+		@ILogService private readonly logService: ILogService
 	) {
-		super(contextService, fileService, untitledTextEditorService, lifecycleService, instantiationService, modeService, modelService, environmentService, notificationService, backupFileService, historyService, dialogService, fileDialogService, editorService, textResourceConfigurationService, filesConfigurationService, textModelService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService);
 	}
 
 	private _encoding: EncodingOracle | undefined;
@@ -79,16 +74,15 @@ export class NativeTextFileService extends AbstractTextFileService {
 	}
 
 	async read(resource: URI, options?: IReadTextFileOptions): Promise<ITextFileContent> {
-		const [bufferStream, decoder] = await this.doRead(resource,
-			assign({
-				// optimization: since we know that the caller does not
-				// care about buffering, we indicate this to the reader.
-				// this reduces all the overhead the buffered reading
-				// has (open, read, close) if the provider supports
-				// unbuffered reading.
-				preferUnbuffered: true
-			}, options || Object.create(null))
-		);
+		const [bufferStream, decoder] = await this.doRead(resource, {
+			...options,
+			// optimization: since we know that the caller does not
+			// care about buffering, we indicate this to the reader.
+			// this reduces all the overhead the buffered reading
+			// has (open, read, close) if the provider supports
+			// unbuffered reading.
+			preferUnbuffered: true
+		});
 
 		return {
 			...bufferStream,
@@ -304,17 +298,21 @@ export class NativeTextFileService extends AbstractTextFileService {
 			sudoCommand.push('--file-write', `"${source}"`, `"${target}"`);
 
 			sudoPrompt.exec(sudoCommand.join(' '), promptOptions, (error: string, stdout: string, stderr: string) => {
-				if (error || stderr) {
-					reject(error || stderr);
+				if (stdout) {
+					this.logService.trace(`[sudo-prompt] received stdout: ${stdout}`);
+				}
+
+				if (stderr) {
+					this.logService.trace(`[sudo-prompt] received stderr: ${stderr}`);
+				}
+
+				if (error) {
+					reject(error);
 				} else {
 					resolve(undefined);
 				}
 			});
 		});
-	}
-
-	protected getWindowCount(): Promise<number> {
-		return this.electronService.getWindowCount();
 	}
 }
 

@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { first } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IDisposable, toDisposable, IReference, ReferenceCollection, ImmortalReference } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
-import { ITextFileService, LoadReason } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileLoadReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as network from 'vs/base/common/network';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -26,7 +26,8 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 	}
@@ -38,7 +39,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 		// File or remote file provider already known
 		if (this.fileService.canHandleResource(resource)) {
-			return this.textFileService.models.loadOrCreate(resource, { reason: LoadReason.REFERENCE });
+			return this.textFileService.files.resolve(resource, { reason: TextFileLoadReason.REFERENCE });
 		}
 
 		// Virtual documents
@@ -64,7 +65,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		modelPromise.then(model => {
 			if (this.modelsToDispose.has(key)) {
 				if (model instanceof TextFileEditorModel) {
-					this.textFileService.models.disposeModel(model);
+					this.textFileService.files.disposeModel(model);
 				} else {
 					model.dispose();
 				}
@@ -108,14 +109,29 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	private async resolveTextModelContent(key: string): Promise<ITextModel> {
 		const resource = URI.parse(key);
 		const providers = this.providers[resource.scheme] || [];
-		const factories = providers.map(p => () => Promise.resolve(p.provideTextContent(resource)));
 
-		const model = await first(factories);
-		if (!model) {
-			throw new Error('resource is not available');
+		if (resource.query || resource.fragment) {
+			type TextModelResolverUri = {
+				query: boolean;
+				fragment: boolean;
+			};
+			type TextModelResolverUriMeta = {
+				query: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				fragment: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			this.telemetryService.publicLog2<TextModelResolverUri, TextModelResolverUriMeta>('textmodelresolveruri', {
+				query: Boolean(resource.query),
+				fragment: Boolean(resource.fragment)
+			});
 		}
 
-		return model;
+		for (const provider of providers) {
+			const value = await provider.provideTextContent(resource);
+			if (value) {
+				return value;
+			}
+		}
+		throw new Error('resource is not available');
 	}
 }
 
@@ -139,17 +155,16 @@ export class TextModelResolverService implements ITextModelService {
 
 	private async doCreateModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
 
-		// Untitled Schema: go through cached input
+		// Untitled Schema: go through untitled text service
 		if (resource.scheme === network.Schemas.untitled) {
-			const model = await this.untitledTextEditorService.createOrGet({ resource }).resolve();
+			const model = await this.untitledTextEditorService.resolve({ untitledResource: resource });
 
-			return new ImmortalReference(model as IResolvedTextEditorModel);
+			return new ImmortalReference(model);
 		}
 
 		// InMemory Schema: go through model service cache
 		if (resource.scheme === network.Schemas.inMemory) {
 			const cachedModel = this.modelService.getModel(resource);
-
 			if (!cachedModel) {
 				throw new Error('Cant resolve inmemory resource');
 			}

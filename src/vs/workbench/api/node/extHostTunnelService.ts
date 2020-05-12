@@ -23,8 +23,8 @@ class ExtensionTunnel implements vscode.Tunnel {
 	onDidDispose: Event<void> = this._onDispose.event;
 
 	constructor(
-		public readonly remoteAddress: { port: number; host: string; },
-		public readonly localAddress: string,
+		public readonly remoteAddress: { port: number, host: string },
+		public readonly localAddress: { port: number, host: string } | string,
 		private readonly _dispose: () => void) { }
 
 	dispose(): void {
@@ -37,7 +37,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	readonly _serviceBrand: undefined;
 	private readonly _proxy: MainThreadTunnelServiceShape;
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
+	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, vscode.Tunnel>> = new Map();
+	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
+	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -49,6 +52,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			this.registerCandidateFinder();
 		}
 	}
+
 	async openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
 		const tunnel = await this._proxy.$openTunnel(forward);
 		if (tunnel) {
@@ -61,17 +65,34 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		return undefined;
 	}
 
+	async getTunnels(): Promise<vscode.TunnelDescription[]> {
+		return this._proxy.$getTunnels();
+	}
+
 	registerCandidateFinder(): Promise<void> {
 		return this._proxy.$registerCandidateFinder();
 	}
 
-	async setForwardPortProvider(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
-		if (provider && provider.tunnelFactory) {
-			this._forwardPortProvider = provider.tunnelFactory;
-			await this._proxy.$setTunnelProvider();
+	$filterCandidates(candidates: { host: string, port: number, detail: string }[]): Promise<boolean[]> {
+		return Promise.all(candidates.map(candidate => {
+			return this._showCandidatePort(candidate.host, candidate.port, candidate.detail);
+		}));
+	}
+
+	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+		if (provider) {
+			if (provider.showCandidatePort) {
+				this._showCandidatePort = provider.showCandidatePort;
+				await this._proxy.$setCandidateFilter();
+			}
+			if (provider.tunnelFactory) {
+				this._forwardPortProvider = provider.tunnelFactory;
+				await this._proxy.$setTunnelProvider();
+			}
 		} else {
 			this._forwardPortProvider = undefined;
 		}
+		await this._proxy.$tunnelServiceReady();
 		return toDisposable(() => {
 			this._forwardPortProvider = undefined;
 		});
@@ -85,6 +106,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				hostMap.delete(remote.port);
 			}
 		}
+	}
+
+	async $onDidTunnelsChange(): Promise<void> {
+		this._onDidChangeTunnels.fire();
 	}
 
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined {
@@ -111,8 +136,14 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 
 		const ports: { host: string, port: number, detail: string }[] = [];
-		const tcp: string = fs.readFileSync('/proc/net/tcp', 'utf8');
-		const tcp6: string = fs.readFileSync('/proc/net/tcp6', 'utf8');
+		let tcp: string = '';
+		let tcp6: string = '';
+		try {
+			tcp = fs.readFileSync('/proc/net/tcp', 'utf8');
+			tcp6 = fs.readFileSync('/proc/net/tcp6', 'utf8');
+		} catch (e) {
+			// File reading error. No additional handling needed.
+		}
 		const procSockets: string = await (new Promise(resolve => {
 			exec('ls -l /proc/[0-9]*/fd/[0-9]* | grep socket:', (error, stdout, stderr) => {
 				resolve(stdout);
@@ -128,9 +159,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 				const childStat = fs.statSync(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
 					const cwd = fs.readlinkSync(resources.joinPath(childUri, 'cwd').fsPath);
-					const rawCmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
-					const nullIndex = rawCmd.indexOf('\0');
-					const cmd = rawCmd.substr(0, nullIndex > 0 ? nullIndex : rawCmd.length).trim();
+					const cmd = fs.readFileSync(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

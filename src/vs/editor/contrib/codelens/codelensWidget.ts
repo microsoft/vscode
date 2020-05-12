@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./codelensWidget';
-import * as dom from 'vs/base/browser/dom';
 import { renderCodicons } from 'vs/base/common/codicons';
 import { escape } from 'vs/base/common/strings';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { IViewZone, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -17,7 +16,7 @@ import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 
-class CodeLensViewZone implements editorBrowser.IViewZone {
+class CodeLensViewZone implements IViewZone {
 
 	readonly heightInLines: number;
 	readonly suppressMouseDown: boolean;
@@ -47,7 +46,7 @@ class CodeLensViewZone implements editorBrowser.IViewZone {
 	}
 }
 
-class CodeLensContentWidget implements editorBrowser.IContentWidget {
+class CodeLensContentWidget implements IContentWidget {
 
 	private static _idPool: number = 0;
 
@@ -57,14 +56,14 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 
 	private readonly _id: string;
 	private readonly _domNode: HTMLElement;
-	private readonly _editor: editorBrowser.IActiveCodeEditor;
+	private readonly _editor: IActiveCodeEditor;
 	private readonly _commands = new Map<string, Command>();
 
-	private _widgetPosition?: editorBrowser.IContentWidgetPosition;
+	private _widgetPosition?: IContentWidgetPosition;
 	private _isEmpty: boolean = true;
 
 	constructor(
-		editor: editorBrowser.IActiveCodeEditor,
+		editor: IActiveCodeEditor,
 		className: string,
 		line: number,
 	) {
@@ -113,7 +112,7 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 			}
 			this._domNode.innerHTML = innerHtml;
 			if (this._isEmpty && animate) {
-				dom.addClass(this._domNode, 'fadein');
+				this._domNode.classList.add('fadein');
 			}
 			this._isEmpty = false;
 		}
@@ -137,11 +136,11 @@ class CodeLensContentWidget implements editorBrowser.IContentWidget {
 		const column = this._editor.getModel().getLineFirstNonWhitespaceColumn(line);
 		this._widgetPosition = {
 			position: { lineNumber: line, column: column },
-			preference: [editorBrowser.ContentWidgetPositionPreference.ABOVE]
+			preference: [ContentWidgetPositionPreference.ABOVE]
 		};
 	}
 
-	getPosition(): editorBrowser.IContentWidgetPosition | null {
+	getPosition(): IContentWidgetPosition | null {
 		return this._widgetPosition || null;
 	}
 }
@@ -181,7 +180,7 @@ export class CodeLensHelper {
 
 export class CodeLensWidget {
 
-	private readonly _editor: editorBrowser.IActiveCodeEditor;
+	private readonly _editor: IActiveCodeEditor;
 	private readonly _className: string;
 	private readonly _viewZone!: CodeLensViewZone;
 	private readonly _viewZoneId!: string;
@@ -193,10 +192,10 @@ export class CodeLensWidget {
 
 	constructor(
 		data: CodeLensItem[],
-		editor: editorBrowser.IActiveCodeEditor,
+		editor: IActiveCodeEditor,
 		className: string,
 		helper: CodeLensHelper,
-		viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor,
+		viewZoneChangeAccessor: IViewZoneChangeAccessor,
 		updateCallback: Function
 	) {
 		this._editor = editor;
@@ -244,7 +243,7 @@ export class CodeLensWidget {
 		}
 	}
 
-	dispose(helper: CodeLensHelper, viewZoneChangeAccessor?: editorBrowser.IViewZoneChangeAccessor): void {
+	dispose(helper: CodeLensHelper, viewZoneChangeAccessor?: IViewZoneChangeAccessor): void {
 		this._decorationIds.forEach(helper.removeDecoration, helper);
 		this._decorationIds = [];
 		if (viewZoneChangeAccessor) {
@@ -322,7 +321,7 @@ export class CodeLensWidget {
 		return -1;
 	}
 
-	update(viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor): void {
+	update(viewZoneChangeAccessor: IViewZoneChangeAccessor): void {
 		if (this.isValid()) {
 			const range = this._editor.getModel().getDecorationRange(this._decorationIds[0]);
 			if (range) {
@@ -335,6 +334,10 @@ export class CodeLensWidget {
 				}
 			}
 		}
+	}
+
+	getItems(): CodeLensItem[] {
+		return this._data;
 	}
 }
 

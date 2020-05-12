@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -39,7 +39,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -140,8 +140,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	public _onExtensionHostExit(code: number): void {
-		console.log(`vscode:exit`, code);
-		// ipc.send('vscode:exit', code);
+		// We log the exit code to the console. Do NOT remove this
+		// code as the automated integration tests in browser rely
+		// on this message to exit properly.
+		console.log(`vscode:exit ${code}`);
 	}
 }
 

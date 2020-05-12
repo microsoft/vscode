@@ -40,55 +40,48 @@ export abstract class AbstractRemoteAgentService extends Disposable {
 
 	getEnvironment(bail?: boolean): Promise<IRemoteAgentEnvironment | null> {
 		if (!this._environment) {
-			const connection = this.getConnection();
-			if (connection) {
-				const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-				this._environment = client.getEnvironmentData(connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI);
-			} else {
-				this._environment = Promise.resolve(null);
-			}
+			this._environment = this._withChannel(
+				(channel, connection) => RemoteExtensionEnvironmentChannelClient.getEnvironmentData(channel, connection.remoteAuthority, this._environmentService.extensionDevelopmentLocationURI),
+				null
+			);
 		}
 		return bail ? this._environment : this._environment.then(undefined, () => null);
 	}
 
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined> {
-		const connection = this.getConnection();
-		if (connection) {
-			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-			return client.getDiagnosticInfo(options);
-		}
-
-		return Promise.resolve(undefined);
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.getDiagnosticInfo(channel, options),
+			undefined
+		);
 	}
 
 	disableTelemetry(): Promise<void> {
-		const connection = this.getConnection();
-		if (connection) {
-			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-			return client.disableTelemetry();
-		}
-
-		return Promise.resolve(undefined);
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.disableTelemetry(channel),
+			undefined
+		);
 	}
 
 	logTelemetry(eventName: string, data: ITelemetryData): Promise<void> {
-		const connection = this.getConnection();
-		if (connection) {
-			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-			return client.logTelemetry(eventName, data);
-		}
-
-		return Promise.resolve(undefined);
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.logTelemetry(channel, eventName, data),
+			undefined
+		);
 	}
 
 	flushTelemetry(): Promise<void> {
-		const connection = this.getConnection();
-		if (connection) {
-			const client = new RemoteExtensionEnvironmentChannelClient(connection.getChannel('remoteextensionsenvironment'));
-			return client.flushTelemetry();
-		}
+		return this._withChannel(
+			channel => RemoteExtensionEnvironmentChannelClient.flushTelemetry(channel),
+			undefined
+		);
+	}
 
-		return Promise.resolve(undefined);
+	private _withChannel<R>(callback: (channel: IChannel, connection: IRemoteAgentConnection) => Promise<R>, fallback: R): Promise<R> {
+		const connection = this.getConnection();
+		if (!connection) {
+			return Promise.resolve(fallback);
+		}
+		return connection.withChannel('remoteextensionsenvironment', (channel) => callback(channel, connection));
 	}
 }
 
@@ -118,6 +111,12 @@ export class RemoteAgentConnection extends Disposable implements IRemoteAgentCon
 
 	getChannel<T extends IChannel>(channelName: string): T {
 		return <T>getDelayedChannel(this._getOrCreateConnection().then(c => c.getChannel(channelName)));
+	}
+
+	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R> {
+		const channel = this.getChannel<T>(channelName);
+		const result = callback(channel);
+		return result;
 	}
 
 	registerChannel<T extends IServerChannel<RemoteAgentConnectionContext>>(channelName: string, channel: T): void {
@@ -165,7 +164,7 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 		// Let's cover the case where connecting to fetch the remote extension info fails
 		remoteAgentService.getEnvironment(true)
 			.then(undefined, err => {
-				if (!RemoteAuthorityResolverError.isHandledNotAvailable(err)) {
+				if (!RemoteAuthorityResolverError.isHandled(err)) {
 					notificationService.error(nls.localize('connectionError', "Failed to connect to the remote extension host server (Error: {0})", err ? err.message : ''));
 				}
 			});

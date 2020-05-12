@@ -40,12 +40,16 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 // Commands
 
 export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
 export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
 export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
+export const OPEN_WITH_EXPLORER_COMMAND_ID = 'explorer.openWith';
 export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
 
 export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
@@ -200,7 +204,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: COMPARE_SELECTED_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
+	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
 		const explorerService = accessor.get(IExplorerService);
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, explorerService);
@@ -212,7 +216,7 @@ CommandsRegistry.registerCommand({
 			});
 		}
 
-		return Promise.resolve(true);
+		return true;
 	}
 });
 
@@ -280,7 +284,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: async (accessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
-		const resource = activeInput ? activeInput.getResource() : null;
+		const resource = activeInput ? activeInput.resource : null;
 		const resources = resource ? [resource] : [];
 		await resourcesToClipboard(resources, false, accessor.get(IClipboardService), accessor.get(INotificationService), accessor.get(ILabelService));
 	}
@@ -309,6 +313,22 @@ CommandsRegistry.registerCommand({
 				openEditorsView.setExpanded(true);
 				openEditorsView.focus();
 			}
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: OPEN_WITH_EXPLORER_COMMAND_ID,
+	handler: async (accessor, resource: URI | object) => {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const configurationService = accessor.get(IConfigurationService);
+		const quickInputService = accessor.get(IQuickInputService);
+
+		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
+		if (uri) {
+			const input = editorService.createEditorInput({ resource: uri });
+			openEditorWith(input, undefined, undefined, editorGroupsService.activeGroup, editorService, configurationService, quickInputService);
 		}
 	}
 });
@@ -358,7 +378,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 
 		// Check that the resource of the model was not saved already
 		if (resource && !editors.some(({ editor }) => isEqual(toResource(editor, { supportSideBySide: SideBySideEditor.MASTER }), resource))) {
-			const model = textFileService.models.get(resource);
+			const model = textFileService.files.get(resource);
 			if (!model?.isReadonly()) {
 				await textFileService.save(resource, options);
 			}

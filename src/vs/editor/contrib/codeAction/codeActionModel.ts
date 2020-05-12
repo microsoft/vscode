@@ -11,10 +11,10 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { CodeActionProviderRegistry, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { IEditorProgressService, Progress } from 'vs/platform/progress/common/progress';
 import { getCodeActions, CodeActionSet } from './codeAction';
 import { CodeActionTrigger } from './types';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -56,14 +56,14 @@ class CodeActionOracle extends Disposable {
 
 		if (resources.some(resource => isEqual(resource, model.uri))) {
 			this._autoTriggerTimer.cancelAndSet(() => {
-				this.trigger({ type: 'auto' });
+				this.trigger({ type: CodeActionTriggerType.Auto });
 			}, this._delay);
 		}
 	}
 
 	private _onCursorChange(): void {
 		this._autoTriggerTimer.cancelAndSet(() => {
-			this.trigger({ type: 'auto' });
+			this.trigger({ type: CodeActionTriggerType.Auto });
 		}, this._delay);
 	}
 
@@ -88,7 +88,7 @@ class CodeActionOracle extends Disposable {
 		}
 		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty() && trigger.type === 'auto') {
+		if (selection.isEmpty() && trigger.type === CodeActionTriggerType.Auto) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
@@ -213,15 +213,15 @@ export class CodeActionModel extends Disposable {
 					return;
 				}
 
-				const actions = createCancelablePromise(token => getCodeActions(model, trigger.selection, trigger.trigger, token));
-				if (this._progressService && trigger.trigger.type === 'manual') {
+				const actions = createCancelablePromise(token => getCodeActions(model, trigger.selection, trigger.trigger, Progress.None, token));
+				if (this._progressService && trigger.trigger.type === CodeActionTriggerType.Manual) {
 					this._progressService.showWhile(actions, 250);
 				}
 
 				this.setState(new CodeActionsState.Triggered(trigger.trigger, trigger.selection, trigger.position, actions));
 
 			}, undefined);
-			this._codeActionOracle.value.trigger({ type: 'auto' });
+			this._codeActionOracle.value.trigger({ type: CodeActionTriggerType.Auto });
 		} else {
 			this._supportedCodeActions.reset();
 		}

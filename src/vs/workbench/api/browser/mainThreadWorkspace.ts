@@ -12,7 +12,7 @@ import { isNative } from 'vs/base/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileMatch, IPatternInfo, ISearchProgressItem, ISearchService } from 'vs/workbench/services/search/common/search';
-import { IWorkspaceContextService, WorkbenchState, IWorkspace } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspace, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -138,7 +138,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 
 		const query = this._queryBuilder.file(
-			includeFolder ? [includeFolder] : workspace.folders.map(f => f.uri),
+			includeFolder ? [toWorkspaceFolder(includeFolder)] : workspace.folders,
 			{
 				maxResults: withNullAsUndefined(maxResults),
 				disregardExcludeSettings: (excludePatternOrDisregardExcludes === false) || undefined,
@@ -190,7 +190,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	$checkExists(folders: UriComponents[], includes: string[], token: CancellationToken): Promise<boolean> {
 		const queryBuilder = this._instantiationService.createInstance(QueryBuilder);
-		const query = queryBuilder.file(folders.map(folder => URI.revive(folder)), {
+		const query = queryBuilder.file(folders.map(folder => toWorkspaceFolder(URI.revive(folder))), {
 			_reason: 'checkExists',
 			includePattern: includes.join(', '),
 			expandPatterns: true,

@@ -2039,9 +2039,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2138,9 +2138,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2600,9 +2600,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2611,9 +2611,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts meta.delimiter.decimal.period.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2622,9 +2622,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2721,9 +2721,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -2820,9 +2820,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5416,9 +5416,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5504,9 +5504,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -5724,9 +5724,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6142,9 +6142,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6274,9 +6274,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6340,9 +6340,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6538,9 +6538,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6615,9 +6615,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6780,9 +6780,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -6868,9 +6868,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -7693,9 +7693,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -7781,9 +7781,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -8551,9 +8551,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.var.expr.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -8936,9 +8936,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts meta.block.ts meta.var.expr.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
@@ -9805,9 +9805,9 @@
 		"t": "source.ts meta.namespace.declaration.ts meta.block.ts meta.class.ts meta.method.declaration.ts meta.block.ts constant.numeric.decimal.ts",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
-			"light_plus": "constant.numeric: #09885A",
+			"light_plus": "constant.numeric: #098658",
 			"dark_vs": "constant.numeric: #B5CEA8",
-			"light_vs": "constant.numeric: #09885A",
+			"light_vs": "constant.numeric: #098658",
 			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},

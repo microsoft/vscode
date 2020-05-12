@@ -80,10 +80,14 @@ class SearchOperation {
 	}
 
 	addMatch(match: IFileMatch): void {
-		if (this.matches.has(match.resource.toString())) {
-			// Merge with previous IFileMatches
+		const existingMatch = this.matches.get(match.resource.toString());
+		if (existingMatch) {
 			// TODO@rob clean up text/file result types
-			this.matches.get(match.resource.toString())!.results!.push(...match.results!);
+			// If a file search returns the same file twice, we would enter this branch.
+			// It's possible that could happen, #90813
+			if (existingMatch.results && match.results) {
+				existingMatch.results.push(...match.results);
+			}
 		} else {
 			this.matches.set(match.resource.toString(), match);
 		}

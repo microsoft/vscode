@@ -9,13 +9,12 @@ import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';
-import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter } from './apiCommands';
+import { ICommandsExecutor, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand, SetEditorLayoutAPICommand, OpenIssueReporter, OpenIssueReporterArgs } from './apiCommands';
 import { EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
@@ -128,38 +127,38 @@ const newCommands: ApiCommand[] = [
 	new ApiCommand(
 		'vscode.executeFormatDocumentProvider', '_executeFormatDocumentProvider', 'Execute document format provider.',
 		[ApiCommandArgument.Uri, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	new ApiCommand(
 		'vscode.executeFormatRangeProvider', '_executeFormatRangeProvider', 'Execute range format provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Range, new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	new ApiCommand(
 		'vscode.executeFormatOnTypeProvider', '_executeFormatOnTypeProvider', 'Execute format on type provider.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position, new ApiCommandArgument('ch', 'Trigger character', v => typeof v === 'string', v => v), new ApiCommandArgument('options', 'Formatting options', _ => true, v => v)],
-		new ApiCommandResult<ISingleEditOperation[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
+		new ApiCommandResult<modes.TextEdit[], types.TextEdit[] | undefined>('A promise that resolves to an array of TextEdits.', tryMapWith(typeConverters.TextEdit.to))
 	),
 	// -- go to symbol (definition, type definition, declaration, impl, references)
 	new ApiCommand(
-		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition provider.',
+		'vscode.executeDefinitionProvider', '_executeDefinitionProvider', 'Execute all definition providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
 		'vscode.executeTypeDefinitionProvider', '_executeTypeDefinitionProvider', 'Execute all type definition providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
 		'vscode.executeDeclarationProvider', '_executeDeclarationProvider', 'Execute all declaration providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
 		'vscode.executeImplementationProvider', '_executeImplementationProvider', 'Execute all implementation providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
-		new ApiCommandResult<modes.Location[], types.Location[] | undefined>('A promise that resolves to an array of Location-instances.', tryMapWith(typeConverters.location.to))
+		new ApiCommandResult<(modes.Location | modes.LocationLink)[], (types.Location | vscode.LocationLink)[] | undefined>('A promise that resolves to an array of Location or LocationLink instances.', mapLocationOrLocationLink)
 	),
 	new ApiCommand(
 		'vscode.executeReferenceProvider', '_executeReferenceProvider', 'Execute all reference providers.',
@@ -168,14 +167,14 @@ const newCommands: ApiCommand[] = [
 	),
 	// -- hover
 	new ApiCommand(
-		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover provider.',
+		'vscode.executeHoverProvider', '_executeHoverProvider', 'Execute all hover providers.',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
 		new ApiCommandResult<modes.Hover[], types.Hover[] | undefined>('A promise that resolves to an array of Hover-instances.', tryMapWith(typeConverters.Hover.to))
 	),
 	// -- selection range
 	new ApiCommand(
 		'vscode.executeSelectionRangeProvider', '_executeSelectionRangeProvider', 'Execute selection range provider.',
-		[ApiCommandArgument.Uri, new ApiCommandArgument('position', 'A positions in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
+		[ApiCommandArgument.Uri, new ApiCommandArgument<types.Position[], IPosition[]>('position', 'A positions in a text document', v => Array.isArray(v) && v.every(v => types.Position.isPosition(v)), v => v.map(typeConverters.Position.from))],
 		new ApiCommandResult<IRange[][], types.SelectionRange[]>('A promise that resolves to an array of ranges.', result => {
 			return result.map(ranges => {
 				let node: types.SelectionRange | undefined;
@@ -188,7 +187,7 @@ const newCommands: ApiCommand[] = [
 	),
 	// -- symbol search
 	new ApiCommand(
-		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol provider.',
+		'vscode.executeWorkspaceSymbolProvider', '_executeWorkspaceSymbolProvider', 'Execute all workspace symbol providers.',
 		[new ApiCommandArgument('query', 'Search string', v => typeof v === 'string', v => v)],
 		new ApiCommandResult<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][], types.SymbolInformation[]>('A promise that resolves to an array of SymbolInformation-instances.', value => {
 			const result: types.SymbolInformation[] = [];
@@ -365,7 +364,7 @@ export class ExtHostApiCommands {
 		this._register(OpenIssueReporter.ID, adjustHandler(OpenIssueReporter.execute), {
 			description: 'Opens the issue reporter with the provided extension id as the selected source',
 			args: [
-				{ name: 'extensionId', description: 'extensionId to report an issue on', constraint: (value: any) => typeof value === 'string' }
+				{ name: 'extensionId', description: 'extensionId to report an issue on', constraint: (value: unknown) => typeof value === 'string' || (typeof value === 'object' && typeof (value as OpenIssueReporterArgs).extensionId === 'string') }
 			]
 		});
 	}
@@ -507,4 +506,19 @@ function tryMapWith<T, R>(f: (x: T) => R) {
 		}
 		return undefined;
 	};
+}
+
+function mapLocationOrLocationLink(values: (modes.Location | modes.LocationLink)[]): (types.Location | vscode.LocationLink)[] | undefined {
+	if (!Array.isArray(values)) {
+		return undefined;
+	}
+	const result: (types.Location | vscode.LocationLink)[] = [];
+	for (const item of values) {
+		if (modes.isLocationLink(item)) {
+			result.push(typeConverters.DefinitionLink.to(item));
+		} else {
+			result.push(typeConverters.location.to(item));
+		}
+	}
+	return result;
 }

@@ -16,7 +16,179 @@
 
 declare module 'vscode' {
 
-	//#region Alex - resolvers, AlexR - ports
+	// #region auth provider: https://github.com/microsoft/vscode/issues/88309
+
+	export interface AuthenticationSession {
+		id: string;
+		getAccessToken(): Thenable<string>;
+		account: {
+			displayName: string;
+			id: string;
+		};
+		scopes: string[];
+	}
+
+	/**
+	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
+	 */
+	export interface AuthenticationProvidersChangeEvent {
+		/**
+		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been added.
+		 */
+		readonly added: string[];
+
+		/**
+		 * The ids of the [authenticationProvider](#AuthenticationProvider)s that have been removed.
+		 */
+		readonly removed: string[];
+	}
+
+	/**
+	* An [event](#Event) which fires when an [AuthenticationSession](#AuthenticationSession) is added, removed, or changed.
+	*/
+	export interface AuthenticationSessionsChangeEvent {
+		/**
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been added.
+		*/
+		readonly added: string[];
+
+		/**
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been removed.
+		 */
+		readonly removed: string[];
+
+		/**
+		 * The ids of the [AuthenticationSession](#AuthenticationSession)s that have been changed.
+		 */
+		readonly changed: string[];
+	}
+
+	/**
+	 * **WARNING** When writing an AuthenticationProvider, `id` should be treated as part of your extension's
+	 * API, changing it is a breaking change for all extensions relying on the provider. The id is
+	 * treated case-sensitively.
+	 */
+	export interface AuthenticationProvider {
+		/**
+		 * Used as an identifier for extensions trying to work with a particular
+		 * provider: 'microsoft', 'github', etc. id must be unique, registering
+		 * another provider with the same id will fail.
+		 */
+		readonly id: string;
+		readonly displayName: string;
+
+		/**
+		 * Whether it is possible to be signed into multiple accounts at once.
+		 */
+		supportsMultipleAccounts: boolean;
+
+		/**
+		 * An [event](#Event) which fires when the array of sessions has changed, or data
+		 * within a session has changed.
+		 */
+		readonly onDidChangeSessions: Event<AuthenticationSessionsChangeEvent>;
+
+		/**
+		 * Returns an array of current sessions.
+		 */
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
+
+		/**
+		 * Prompts a user to login.
+		 */
+		login(scopes: string[]): Thenable<AuthenticationSession>;
+		logout(sessionId: string): Thenable<void>;
+	}
+
+	export namespace authentication {
+		export function registerAuthenticationProvider(provider: AuthenticationProvider): Disposable;
+
+		/**
+		 * Fires with the provider id that was registered or unregistered.
+		 */
+		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
+
+		/**
+		 * An array of the ids of authentication providers that are currently registered.
+		 */
+		export const providerIds: string[];
+
+		/**
+		 * Returns whether a provider has any sessions matching the requested scopes. This request
+		 * is transparent to the user, not UI is shown. Rejects if a provider with providerId is not
+		 * registered.
+		 * @param providerId The id of the provider
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		 * provider
+		 */
+		export function hasSessions(providerId: string, scopes: string[]): Thenable<boolean>;
+
+		export interface GetSessionOptions {
+			/**
+			 *  Whether login should be performed if there is no matching session. Defaults to false.
+			 */
+			createIfNone?: boolean;
+
+			/**
+			 * Whether the existing user session preference should be cleared. Set to allow the user to switch accounts.
+			 * Defaults to false.
+			 */
+			clearSessionPreference?: boolean;
+		}
+
+		/**
+		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension. If there are multiple sessions with the same scopes, the user will be shown a
+		 * quickpick to select which account they would like to use.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
+		 * @param options The [getSessionOptions](#GetSessionOptions) to use
+		 */
+		export function getSession(providerId: string, scopes: string[], options: GetSessionOptions): Thenable<AuthenticationSession | undefined>;
+
+		/**
+		 * @deprecated
+		 * Get existing authentication sessions. Rejects if a provider with providerId is not
+		 * registered, or if the user does not consent to sharing authentication information with
+		 * the extension.
+		 * @param providerId The id of the provider to use
+		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		 * provider
+		 */
+		export function getSessions(providerId: string, scopes: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
+
+		/**
+		 * @deprecated
+		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
+		* providerId is not registered, or if the user does not consent to sharing authentication
+		* information with the extension.
+		* @param providerId The id of the provider to use
+		* @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
+		* provider
+		*/
+		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
+
+		/**
+		 * @deprecated
+		* Logout of a specific session.
+		* @param providerId The id of the provider to use
+		* @param sessionId The session id to remove
+		* provider
+		*/
+		export function logout(providerId: string, sessionId: string): Thenable<void>;
+
+		/**
+		* An [event](#Event) which fires when the array of sessions has changed, or data
+		* within a session has changed for a provider. Fires with the ids of the providers
+		* that have had session data change.
+		*/
+		export const onDidChangeSessions: Event<{ [providerId: string]: AuthenticationSessionsChangeEvent; }>;
+	}
+
+	//#endregion
+
+	//#region @alexdima - resolvers
 
 	export interface RemoteAuthorityResolverContext {
 		resolveAttempt: number;
@@ -30,20 +202,20 @@ declare module 'vscode' {
 	}
 
 	export interface ResolvedOptions {
-		extensionHostEnv?: { [key: string]: string | null };
+		extensionHostEnv?: { [key: string]: string | null; };
 	}
 
 	export interface TunnelOptions {
-		remoteAddress: { port: number, host: string };
+		remoteAddress: { port: number, host: string; };
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
 		label?: string;
 	}
 
 	export interface TunnelDescription {
-		remoteAddress: { port: number, host: string };
+		remoteAddress: { port: number, host: string; };
 		//The complete local address(ex. localhost:1234)
-		localAddress: string;
+		localAddress: { port: number, host: string; } | string;
 	}
 
 	export interface Tunnel extends TunnelDescription {
@@ -53,7 +225,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Used as part of the ResolverResult if the extension has any candidate, published, or forwarded ports.
+	 * Used as part of the ResolverResult if the extension has any candidate,
+	 * published, or forwarded ports.
 	 */
 	export interface TunnelInformation {
 		/**
@@ -63,7 +236,6 @@ declare module 'vscode' {
 		 */
 		environmentTunnels?: TunnelDescription[];
 
-		hideCandidatePorts?: boolean;
 	}
 
 	export type ResolverResult = ResolvedAuthority & ResolvedOptions & TunnelInformation;
@@ -83,6 +255,11 @@ declare module 'vscode' {
 		 * When implemented, the core will use this to forward ports.
 		 */
 		tunnelFactory?: (tunnelOptions: TunnelOptions) => Thenable<Tunnel> | undefined;
+
+		/**
+		 * Provides filtering for candidate ports.
+		 */
+		showCandidatePort?: (host: string, port: number, detail: string) => Thenable<boolean>;
 	}
 
 	export namespace workspace {
@@ -92,6 +269,17 @@ declare module 'vscode' {
 		 * @param tunnelOptions The `localPort` is a suggestion only. If that port is not available another will be chosen.
 		 */
 		export function openTunnel(tunnelOptions: TunnelOptions): Thenable<Tunnel>;
+
+		/**
+		 * Gets an array of the currently available tunnels. This does not include environment tunnels, only tunnels that have been created by the user.
+		 * Note that these are of type TunnelDescription and cannot be disposed.
+		 */
+		export let tunnels: Thenable<TunnelDescription[]>;
+
+		/**
+		 * Fired when the list of tunnels has changed.
+		 */
+		export const onDidChangeTunnels: Event<void>;
 	}
 
 	export interface ResourceLabelFormatter {
@@ -102,6 +290,8 @@ declare module 'vscode' {
 
 	export interface ResourceLabelFormatting {
 		label: string; // myLabel:/${path}
+		// TODO@isidorn
+		// eslint-disable-next-line vscode-dts-literal-or-types
 		separator: '/' | '\\' | '';
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
@@ -112,221 +302,6 @@ declare module 'vscode' {
 	export namespace workspace {
 		export function registerRemoteAuthorityResolver(authorityPrefix: string, resolver: RemoteAuthorityResolver): Disposable;
 		export function registerResourceLabelFormatter(formatter: ResourceLabelFormatter): Disposable;
-	}
-
-	//#endregion
-
-	//#region Semantic tokens: https://github.com/microsoft/vscode/issues/86415
-
-	export class SemanticTokensLegend {
-		public readonly tokenTypes: string[];
-		public readonly tokenModifiers: string[];
-
-		constructor(tokenTypes: string[], tokenModifiers: string[]);
-	}
-
-	export class SemanticTokensBuilder {
-		constructor();
-		push(line: number, char: number, length: number, tokenType: number, tokenModifiers: number): void;
-		build(): Uint32Array;
-	}
-
-	export class SemanticTokens {
-		/**
-		 * The result id of the tokens.
-		 *
-		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
-		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
-		 */
-		readonly resultId?: string;
-		readonly data: Uint32Array;
-
-		constructor(data: Uint32Array, resultId?: string);
-	}
-
-	export class SemanticTokensEdits {
-		/**
-		 * The result id of the tokens.
-		 *
-		 * On a next call to `provideSemanticTokens`, if VS Code still holds in memory this result,
-		 * the result id will be passed in as `SemanticTokensRequestOptions.previousResultId`.
-		 */
-		readonly resultId?: string;
-		readonly edits: SemanticTokensEdit[];
-
-		constructor(edits: SemanticTokensEdit[], resultId?: string);
-	}
-
-	export class SemanticTokensEdit {
-		readonly start: number;
-		readonly deleteCount: number;
-		readonly data?: Uint32Array;
-
-		constructor(start: number, deleteCount: number, data?: Uint32Array);
-	}
-
-	export interface SemanticTokensRequestOptions {
-		readonly ranges?: readonly Range[];
-		/**
-		 * The previous result id that the editor still holds in memory.
-		 *
-		 * Only when this is set it is safe for a `SemanticTokensProvider` to return `SemanticTokensEdits`.
-		 */
-		readonly previousResultId?: string;
-	}
-
-	/**
-	 * The semantic tokens provider interface defines the contract between extensions and
-	 * semantic tokens.
-	 */
-	export interface SemanticTokensProvider {
-		/**
-		 * A file can contain many tokens, perhaps even hundreds of thousands of tokens. Therefore, to improve
-		 * the memory consumption around describing semantic tokens, we have decided to avoid allocating an object
-		 * for each token and we represent tokens from a file as an array of integers. Furthermore, the position
-		 * of each token is expressed relative to the token before it because most tokens remain stable relative to
-		 * each other when edits are made in a file.
-		 *
-		 *
-		 * ---
-		 * In short, each token takes 5 integers to represent, so a specific token `i` in the file consists of the following fields:
-		 *  - at index `5*i`   - `deltaLine`: token line number, relative to the previous token
-		 *  - at index `5*i+1` - `deltaStart`: token start character, relative to the previous token (relative to 0 or the previous token's start if they are on the same line)
-		 *  - at index `5*i+2` - `length`: the length of the token. A token cannot be multiline.
-		 *  - at index `5*i+3` - `tokenType`: will be looked up in `SemanticTokensLegend.tokenTypes`
-		 *  - at index `5*i+4` - `tokenModifiers`: each set bit will be looked up in `SemanticTokensLegend.tokenModifiers`
-		 *
-		 *
-		 *
-		 * ---
-		 * ### How to encode tokens
-		 *
-		 * Here is an example for encoding a file with 3 tokens:
-		 * ```
-		 *    { line: 2, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
-		 *    { line: 2, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
-		 *    { line: 5, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
-		 * ```
-		 *
-		 * 1. First of all, a legend must be devised. This legend must be provided up-front and capture all possible token types.
-		 * For this example, we will choose the following legend which must be passed in when registering the provider:
-		 * ```
-		 *    tokenTypes: ['properties', 'types', 'classes'],
-		 *    tokenModifiers: ['private', 'static']
-		 * ```
-		 *
-		 * 2. The first transformation step is to encode `tokenType` and `tokenModifiers` as integers using the legend. Token types are looked
-		 * up by index, so a `tokenType` value of `1` means `tokenTypes[1]`. Multiple token modifiers can be set by using bit flags,
-		 * so a `tokenModifier` value of `3` is first viewed as binary `0b00000011`, which means `[tokenModifiers[0], tokenModifiers[1]]` because
-		 * bits 0 and 1 are set. Using this legend, the tokens now are:
-		 * ```
-		 *    { line: 2, startChar:  5, length: 3, tokenType: 0, tokenModifiers: 3 },
-		 *    { line: 2, startChar: 10, length: 4, tokenType: 1, tokenModifiers: 0 },
-		 *    { line: 5, startChar:  2, length: 7, tokenType: 2, tokenModifiers: 0 }
-		 * ```
-		 *
-		 * 3. The next steps is to encode each token relative to the previous token in the file. In this case, the second token
-		 * is on the same line as the first token, so the `startChar` of the second token is made relative to the `startChar`
-		 * of the first token, so it will be `10 - 5`. The third token is on a different line than the second token, so the
-		 * `startChar` of the third token will not be altered:
-		 * ```
-		 *    { deltaLine: 2, deltaStartChar: 5, length: 3, tokenType: 0, tokenModifiers: 3 },
-		 *    { deltaLine: 0, deltaStartChar: 5, length: 4, tokenType: 1, tokenModifiers: 0 },
-		 *    { deltaLine: 3, deltaStartChar: 2, length: 7, tokenType: 2, tokenModifiers: 0 }
-		 * ```
-		 *
-		 * 4. Finally, the last step is to inline each of the 5 fields for a token in a single array, which is a memory friendly representation:
-		 * ```
-		 *    // 1st token,  2nd token,  3rd token
-		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
-		 * ```
-		 *
-		 *
-		 *
-		 * ---
-		 * ### How tokens change when the document changes
-		 *
-		 * Let's look at how tokens might change.
-		 *
-		 * Continuing with the above example, suppose a new line was inserted at the top of the file.
-		 * That would make all the tokens move down by one line (notice how the line has changed for each one):
-		 * ```
-		 *    { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
-		 *    { line: 3, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
-		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
-		 * ```
-		 * The integer encoding of the tokens does not change substantially because of the delta-encoding of positions:
-		 * ```
-		 *    // 1st token,  2nd token,  3rd token
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
-		 * ```
-		 * It is possible to express these new tokens in terms of an edit applied to the previous tokens:
-		 * ```
-		 *    [  2,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
-		 *
-		 *    edit: { start:  0, deleteCount: 1, data: [3] } // replace integer at offset 0 with 3
-		 * ```
-		 *
-		 * Furthermore, let's assume that a new token has appeared on line 4:
-		 * ```
-		 *    { line: 3, startChar:  5, length: 3, tokenType: "properties", tokenModifiers: ["private", "static"] },
-		 *    { line: 3, startChar: 10, length: 4, tokenType: "types",      tokenModifiers: [] },
-		 *    { line: 4, startChar:  3, length: 5, tokenType: "properties", tokenModifiers: ["static"] },
-		 *    { line: 6, startChar:  2, length: 7, tokenType: "classes",    tokenModifiers: [] }
-		 * ```
-		 * The integer encoding of the tokens is:
-		 * ```
-		 *    // 1st token,  2nd token,  3rd token,  4th token
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]
-		 * ```
-		 * Again, it is possible to express these new tokens in terms of an edit applied to the previous tokens:
-		 * ```
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  3,2,7,2,0 ]
-		 *    [  3,5,3,0,3,  0,5,4,1,0,  1,3,5,0,2,  2,2,7,2,0, ]
-		 *
-		 *    edit: { start: 10, deleteCount: 1, data: [1,3,5,0,2,2] } // replace integer at offset 10 with [1,3,5,0,2,2]
-		 * ```
-		 *
-		 *
-		 *
-		 * ---
-		 * ### When to return `SemanticTokensEdits`
-		 *
-		 * When doing edits, it is possible that multiple edits occur until VS Code decides to invoke the semantic tokens provider.
-		 * In principle, each call to `provideSemanticTokens` can return a full representations of the semantic tokens, and that would
-		 * be a perfectly reasonable semantic tokens provider implementation.
-		 *
-		 * However, when having a language server running in a separate process, transferring all the tokens between processes
-		 * might be slow, so VS Code allows to return the new tokens expressed in terms of multiple edits applied to the previous
-		 * tokens.
-		 *
-		 * To clearly define what "previous tokens" means, it is possible to return a `resultId` with the semantic tokens. If the
-		 * editor still has in memory the previous result, the editor will pass in options the previous `resultId` at
-		 * `SemanticTokensRequestOptions.previousResultId`. Only when the editor passes in the previous `resultId`, it is allowed
-		 * that a semantic tokens provider returns the new tokens expressed as edits to be applied to the previous result. Even in this
-		 * case, the semantic tokens provider needs to return a new `resultId` that will identify these new tokens as a basis
-		 * for the next request.
-		 *
-		 * *NOTE 1*: It is illegal to return `SemanticTokensEdits` if `options.previousResultId` is not set.
-		 * *NOTE 2*: All edits in `SemanticTokensEdits` contain indices in the old integers array, so they all refer to the previous result state.
-		 */
-		provideSemanticTokens(document: TextDocument, options: SemanticTokensRequestOptions, token: CancellationToken): ProviderResult<SemanticTokens | SemanticTokensEdits>;
-	}
-
-	export namespace languages {
-		/**
-		 * Register a semantic tokens provider.
-		 *
-		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A semantic tokens provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerSemanticTokensProvider(selector: DocumentSelector, provider: SemanticTokensProvider, legend: SemanticTokensLegend): Disposable;
 	}
 
 	//#endregion
@@ -351,7 +326,7 @@ declare module 'vscode' {
 	//#region read/write in chunks: https://github.com/microsoft/vscode/issues/84515
 
 	export interface FileSystemProvider {
-		open?(resource: Uri, options: { create: boolean }): number | Thenable<number>;
+		open?(resource: Uri, options: { create: boolean; }): number | Thenable<number>;
 		close?(fd: number): void | Thenable<void>;
 		read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
 		write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): number | Thenable<number>;
@@ -393,7 +368,7 @@ declare module 'vscode' {
 
 	/**
 	 * A file glob pattern to match file paths against.
-	 * TODO@roblou - merge this with the GlobPattern docs/definition in vscode.d.ts.
+	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
 	 * @see [GlobPattern](#GlobPattern)
 	 */
 	export type GlobString = string;
@@ -666,10 +641,15 @@ declare module 'vscode' {
 
 		/**
 		 * A [glob pattern](#GlobPattern) that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined` only default excludes will
-		 * apply, when `null` no excludes will apply.
+		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
+		 * apply.
 		 */
-		exclude?: GlobPattern | null;
+		exclude?: GlobPattern;
+
+		/**
+		 * Whether to use the default and user-configured excludes. Defaults to true.
+		 */
+		useDefaultExcludes?: boolean;
 
 		/**
 		 * The maximum number of results to search for
@@ -793,9 +773,9 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Debug:
+	//#region debug
 
-	// deprecated
+	// deprecated debug API
 
 	export interface DebugConfigurationProvider {
 		/**
@@ -810,7 +790,7 @@ declare module 'vscode' {
 	//#region LogLevel: https://github.com/microsoft/vscode/issues/85992
 
 	/**
-	 * The severity level of a log message
+	 * @deprecated DO NOT USE, will be removed
 	 */
 	export enum LogLevel {
 		Trace = 1,
@@ -824,19 +804,19 @@ declare module 'vscode' {
 
 	export namespace env {
 		/**
-		 * Current logging level.
+		 * @deprecated DO NOT USE, will be removed
 		 */
 		export const logLevel: LogLevel;
 
 		/**
-		 * An [event](#Event) that fires when the log level has changed.
+		 * @deprecated DO NOT USE, will be removed
 		 */
 		export const onDidChangeLogLevel: Event<LogLevel>;
 	}
 
 	//#endregion
 
-	//#region Joao: SCM validation
+	//#region @joaomoreno: SCM validation
 
 	/**
 	 * Represents the validation type of the Source Control input.
@@ -886,7 +866,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joao: SCM selected provider
+	//#region @joaomoreno: SCM selected provider
 
 	export interface SourceControl {
 
@@ -899,21 +879,6 @@ declare module 'vscode' {
 		 * An event signaling when the selection state changes.
 		 */
 		readonly onDidChangeSelection: Event<boolean>;
-	}
-
-	//#endregion
-
-	//#region Joao: SCM Input Box
-
-	/**
-	 * Represents the input box in the Source Control viewlet.
-	 */
-	export interface SourceControlInputBox {
-
-		/**
-			* Controls whether the input box is visible (default is `true`).
-			*/
-		visible: boolean;
 	}
 
 	//#endregion
@@ -942,38 +907,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal exit status https://github.com/microsoft/vscode/issues/62103
-
-	export interface TerminalExitStatus {
-		/**
-		 * The exit code that a terminal exited with, it can have the following values:
-		 * - Zero: the terminal process or custom execution succeeded.
-		 * - Non-zero: the terminal process or custom execution failed.
-		 * - `undefined`: the user forcibly closed the terminal or a custom execution exited
-		 *   without providing an exit code.
-		 */
-		readonly code: number | undefined;
-	}
-
-	export interface Terminal {
-		/**
-		 * The exit status of the terminal, this will be undefined while the terminal is active.
-		 *
-		 * **Example:** Show a notification with the exit code when the terminal exits with a
-		 * non-zero exit code.
-		 * ```typescript
-		 * window.onDidCloseTerminal(t => {
-		 *   if (t.exitStatus && t.exitStatus.code) {
-		 *   	vscode.window.showInformationMessage(`Exit code: ${t.exitStatus.code}`);
-		 *   }
-		 * });
-		 * ```
-		 */
-		readonly exitStatus: TerminalExitStatus | undefined;
-	}
-
-	//#endregion
-
 	//#region Terminal dimensions property and change event https://github.com/microsoft/vscode/issues/55718
 
 	/**
@@ -990,7 +923,7 @@ declare module 'vscode' {
 		readonly dimensions: TerminalDimensions;
 	}
 
-	namespace window {
+	export namespace window {
 		/**
 		 * An event which fires when the [dimensions](#Terminal.dimensions) of the terminal change.
 		 */
@@ -1008,7 +941,38 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh -> exclusive document filters
+
+
+	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
+
+	export namespace window {
+		/**
+		 * Register a [TerminalLinkHandler](#TerminalLinkHandler) that can be used to intercept and
+		 * handle links that are activated within terminals.
+		 * @param handler The link handler being registered.
+		 * @return A disposable that unregisters the link handler.
+		 */
+		export function registerTerminalLinkHandler(handler: TerminalLinkHandler): Disposable;
+	}
+
+	/**
+	 * Describes how to handle terminal links.
+	 */
+	export interface TerminalLinkHandler {
+		/**
+		 * Handles a link that is activated within the terminal.
+		 *
+		 * @param terminal The terminal the link was activated on.
+		 * @param link The text of the link activated.
+		 * @return Whether the link was handled, if the link was handled this link will not be
+		 * considered by any other extension or by the default built-in link handler.
+		 */
+		handleLink(terminal: Terminal, link: string): ProviderResult<boolean>;
+	}
+
+	//#endregion
+
+	//#region @jrieken -> exclusive document filters
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
@@ -1016,7 +980,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Alex - OnEnter enhancement
+	//#region @alexdima - OnEnter enhancement
 	export interface OnEnterRule {
 		/**
 		 * This rule will only execute if the text above the this line matches this regular expression.
@@ -1136,157 +1100,379 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Custom editors: https://github.com/microsoft/vscode/issues/77131
+	//#region OnTypeRename: https://github.com/microsoft/vscode/issues/88424
 
 	/**
-	 * Defines the editing functionality of a webview editor. This allows the webview editor to hook into standard
-	 * editor events such as `undo` or `save`.
-	 *
-	 * @param EditType Type of edits. Edit objects must be json serializable.
+	 * The rename provider interface defines the contract between extensions and
+	 * the live-rename feature.
 	 */
-	interface WebviewCustomEditorEditingDelegate<EditType> {
+	export interface OnTypeRenameProvider {
 		/**
-		 * Save a resource.
+		 * Provide a list of ranges that can be live renamed together.
 		 *
-		 * @param resource Resource being saved.
-		 *
-		 * @return Thenable signaling that the save has completed.
+		 * @param document The document in which the command was invoked.
+		 * @param position The position at which the command was invoked.
+		 * @param token A cancellation token.
+		 * @return A list of ranges that can be live-renamed togehter. The ranges must have
+		 * identical length and contain identical text content. The ranges cannot overlap.
 		 */
-		save(resource: Uri): Thenable<void>;
-
-		/**
-		 * Save an existing resource at a new path.
-		 *
-		 * @param resource Resource being saved.
-		 * @param targetResource Location to save to.
-		 *
-		 * @return Thenable signaling that the save has completed.
-		 */
-		saveAs(resource: Uri, targetResource: Uri): Thenable<void>;
-
-		/**
-		 * Event triggered by extensions to signal to VS Code that an edit has occurred.
-		 */
-		readonly onEdit: Event<{ readonly resource: Uri, readonly edit: EditType }>;
-
-		/**
-		 * Apply a set of edits.
-		 *
-		 * Note that is not invoked when `onEdit` is called as `onEdit` implies also updating the view to reflect the edit.
-		 *
-		 * @param resource Resource being edited.
-		 * @param edit Array of edits. Sorted from oldest to most recent.
-		 *
-		 * @return Thenable signaling that the change has completed.
-		 */
-		applyEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
-
-		/**
-		 * Undo a set of edits.
-		 *
-		 * This is triggered when a user undoes an edit or when revert is called on a file.
-		 *
-		 * @param resource Resource being edited.
-		 * @param edit Array of edits. Sorted from most recent to oldest.
-		 *
-		 * @return Thenable signaling that the change has completed.
-		 */
-		undoEdits(resource: Uri, edits: readonly EditType[]): Thenable<void>;
+		provideOnTypeRenameRanges(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range[]>;
 	}
 
-	export interface WebviewCustomEditorProvider {
+	namespace languages {
 		/**
-		 * Resolve a webview editor for a given resource.
+		 * Register a rename provider that works on type.
 		 *
-		 * To resolve a webview editor, a provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider should also take ownership of the passed in `WebviewPanel`.
+		 * Multiple providers can be registered for a language. In that case providers are sorted
+		 * by their [score](#languages.match) and the best-matching provider is used. Failure
+		 * of the selected provider will cause a failure of the whole operation.
 		 *
-		 * @param resource Resource being resolved.
-		 * @param webview Webview being resolved. The provider should take ownership of this webview.
-		 *
-		 * @return Thenable indicating that the webview editor has been resolved.
+		 * @param selector A selector that defines the documents this provider is applicable to.
+		 * @param provider An on type rename provider.
+		 * @param stopPattern Stop on type renaming when input text matches the regular expression. Defaults to `^\s`.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		resolveWebviewEditor(
-			resource: Uri,
-			webview: WebviewPanel,
-		): Thenable<void>;
+		export function registerOnTypeRenameProvider(selector: DocumentSelector, provider: OnTypeRenameProvider, stopPattern?: RegExp): Disposable;
+	}
+
+	//#endregion
+
+	//#region Custom editor https://github.com/microsoft/vscode/issues/77131
+
+	/**
+	 * Represents a custom document used by a [`CustomEditorProvider`](#CustomEditorProvider).
+	 *
+	 * Custom documents are only used within a given `CustomEditorProvider`. The lifecycle of a `CustomDocument` is
+	 * managed by VS Code. When no more references remain to a `CustomDocument`, it is disposed of.
+	 */
+	interface CustomDocument {
+		/**
+		 * The associated uri for this document.
+		 */
+		readonly uri: Uri;
 
 		/**
-		 * Controls the editing functionality of a webview editor. This allows the webview editor to hook into standard
-		 * editor events such as `undo` or `save`.
+		 * Dispose of the custom document.
 		 *
-		 * WebviewEditors that do not have `editingCapability` are considered to be readonly. Users can still interact
-		 * with readonly editors, but these editors will not integrate with VS Code's standard editor functionality.
+		 * This is invoked by VS Code when there are no more references to a given `CustomDocument` (for example when
+		 * all editors associated with the document have been closed.)
 		 */
-		readonly editingDelegate?: WebviewCustomEditorEditingDelegate<unknown>;
+		dispose(): void;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an [`CustomDocument`](#CustomDocument).
+	 *
+	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
+	 */
+	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: T;
+
+		/**
+		 * Undo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user undoes this edit. To implement `undo`, your
+		 * extension should restore the document and editor to the state they were in just before this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		undo(): Thenable<void> | void;
+
+		/**
+		 * Redo the edit operation.
+		 *
+		 * This is invoked by VS Code when the user redoes this edit. To implement `redo`, your
+		 * extension should restore the document and editor to the state they were in just after this
+		 * edit was added to VS Code's internal edit stack by `onDidChangeCustomDocument`.
+		 */
+		redo(): Thenable<void> | void;
+
+		/**
+		 * Display name describing the edit.
+		 *
+		 * This is shown in the UI to users.
+		 */
+		readonly label?: string;
+	}
+
+	/**
+	 * Event triggered by extensions to signal to VS Code that the content of a [`CustomDocument`](#CustomDocument)
+	 * has changed.
+	 *
+	 * @see [`CustomDocumentProvider.onDidChangeCustomDocument`](#CustomDocumentProvider.onDidChangeCustomDocument).
+	 */
+	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
+		/**
+		 * The document that the change is for.
+		 */
+		readonly document: T;
+	}
+
+	/**
+	 * A backup for an [`CustomDocument`](#CustomDocument).
+	 */
+	interface CustomDocumentBackup {
+		/**
+		 * Unique identifier for the backup.
+		 *
+		 * This id is passed back to your extension in `openCustomDocument` when opening a custom editor from a backup.
+		 */
+		readonly id: string;
+
+		/**
+		 * Delete the current backup.
+		 *
+		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
+		 * is made or when the file is saved.
+		 */
+		delete(): void;
+	}
+
+	/**
+	 * Additional information used to implement [`CustomEditableDocument.backup`](#CustomEditableDocument.backup).
+	 */
+	interface CustomDocumentBackupContext {
+		/**
+		 * Suggested file location to write the new backup.
+		 *
+		 * Note that your extension is free to ignore this and use its own strategy for backup.
+		 *
+		 * For editors for workspace resource, this destination will be in the workspace storage. The path may not
+		 */
+		readonly destination: Uri;
+	}
+
+	/**
+	 * Additional information about the opening custom document.
+	 */
+	interface CustomDocumentOpenContext {
+		/**
+		 * The id of the backup to restore the document from or `undefined` if there is no backup.
+		 *
+		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
+		 * the user's workspace.
+		 */
+		readonly backupId?: string;
+	}
+
+	/**
+	 * Provider for readonly custom editors that use a custom document model.
+	 *
+	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
+	 *
+	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
+	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
+	 *
+	 * @param T Type of the custom document returned by this provider.
+	 */
+	export interface CustomReadonlyEditorProvider<T extends CustomDocument = CustomDocument> {
+
+		/**
+		 * Create a new document for a given resource.
+		 *
+		 * `openCustomDocument` is called when the first editor for a given resource is opened, and the resolve document
+		 * is passed to `resolveCustomEditor`. The resolved `CustomDocument` is re-used for subsequent editor opens.
+		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
+		 * this point will trigger another call to `openCustomDocument`.
+		 *
+		 * @param uri Uri of the document to open.
+		 * @param openContext Additional information about the opening custom document.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 *
+		 * @return The custom document.
+		 */
+		openCustomDocument(uri: Uri, openContext: CustomDocumentOpenContext, token: CancellationToken): Thenable<T> | T;
+
+		/**
+		 * Resolve a custom editor for a given resource.
+		 *
+		 * This is called whenever the user opens a new editor for this `CustomEditorProvider`.
+		 *
+		 * To resolve a custom editor, the provider must fill in its initial html content and hook up all
+		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
+		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
+		 *
+		 * @param document Document for the resource being resolved.
+		 * @param webviewPanel Webview to resolve.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 *
+		 * @return Optional thenable indicating that the custom editor has been resolved.
+		 */
+		resolveCustomEditor(document: T, webviewPanel: WebviewPanel, token: CancellationToken): Thenable<void> | void;
+	}
+
+	/**
+	 * Provider for editiable custom editors that use a custom document model.
+	 *
+	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
+	 * This gives extensions full control over actions such as edit, save, and backup.
+	 *
+	 * You should use this type of custom editor when dealing with binary files or more complex scenarios. For simple
+	 * text based documents, use [`CustomTextEditorProvider`](#CustomTextEditorProvider) instead.
+	 *
+	 * @param T Type of the custom document returned by this provider.
+	 */
+	export interface CustomEditorProvider<T extends CustomDocument = CustomDocument> extends CustomReadonlyEditorProvider<T> {
+		/**
+		 * Signal that an edit has occurred inside a custom editor.
+		 *
+		 * This event must be fired by your extension whenever an edit happens in a custom editor. An edit can be
+		 * anything from changing some text, to cropping an image, to reordering a list. Your extension is free to
+		 * define what an edit is and what data is stored on each edit.
+		 *
+		 * Firing `onDidChange` causes VS Code to mark the editors as being dirty. This is cleared when the user either
+		 * saves or reverts the file.
+		 *
+		 * Editors that support undo/redo must fire a `CustomDocumentEditEvent` whenever an edit happens. This allows
+		 * users to undo and redo the edit using VS Code's standard VS Code keyboard shortcuts. VS Code will also mark
+		 * the editor as no longer being dirty if the user undoes all edits to the last saved state.
+		 *
+		 * Editors that support editing but cannot use VS Code's standard undo/redo mechanism must fire a `CustomDocumentContentChangeEvent`.
+		 * The only way for a user to clear the dirty state of an editor that does not support undo/redo is to either
+		 * `save` or `revert` the file.
+		 *
+		 * An editor should only ever fire `CustomDocumentEditEvent` events, or only ever fire `CustomDocumentContentChangeEvent` events.
+		 */
+		readonly onDidChangeCustomDocument: Event<CustomDocumentEditEvent<T>> | Event<CustomDocumentContentChangeEvent<T>>;
+
+		/**
+		 * Save a custom document.
+		 *
+		 * This method is invoked by VS Code when the user saves a custom editor. This can happen when the user
+		 * triggers save while the custom editor is active, by commands such as `save all`, or by auto save if enabled.
+		 *
+		 * To implement `save`, the implementer must persist the custom editor. This usually means writing the
+		 * file data for the custom document to disk. After `save` completes, any associated editor instances will
+		 * no longer be marked as dirty.
+		 *
+		 * @param document Document to save.
+		 * @param cancellation Token that signals the save is no longer required (for example, if another save was triggered).
+		 *
+		 * @return Thenable signaling that saving has completed.
+		 */
+		saveCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
+
+		/**
+		 * Save a custom document to a different location.
+		 *
+		 * This method is invoked by VS Code when the user triggers 'save as' on a custom editor. The implementer must
+		 * persist the custom editor to `destination`.
+		 *
+		 * When the user accepts save as, the current editor is be replaced by an non-dirty editor for the newly saved file.
+		 *
+		 * @param document Document to save.
+		 * @param destination Location to save to.
+		 * @param cancellation Token that signals the save is no longer required.
+		 *
+		 * @return Thenable signaling that saving has completed.
+		 */
+		saveCustomDocumentAs(document: T, destination: Uri, cancellation: CancellationToken): Thenable<void>;
+
+		/**
+		 * Revert a custom document to its last saved state.
+		 *
+		 * This method is invoked by VS Code when the user triggers `File: Revert File` in a custom editor. (Note that
+		 * this is only used using VS Code's `File: Revert File` command and not on a `git revert` of the file).
+		 *
+		 * To implement `revert`, the implementer must make sure all editor instances (webviews) for `document`
+		 * are displaying the document in the same state is saved in. This usually means reloading the file from the
+		 * workspace.
+		 *
+		 * @param document Document to revert.
+		 * @param cancellation Token that signals the revert is no longer required.
+		 *
+		 * @return Thenable signaling that the change has completed.
+		 */
+		revertCustomDocument(document: T, cancellation: CancellationToken): Thenable<void>;
+
+		/**
+		 * Back up a dirty custom document.
+		 *
+		 * Backups are used for hot exit and to prevent data loss. Your `backup` method should persist the resource in
+		 * its current state, i.e. with the edits applied. Most commonly this means saving the resource to disk in
+		 * the `ExtensionContext.storagePath`. When VS Code reloads and your custom editor is opened for a resource,
+		 * your extension should first check to see if any backups exist for the resource. If there is a backup, your
+		 * extension should load the file contents from there instead of from the resource in the workspace.
+		 *
+		 * `backup` is triggered whenever an edit it made. Calls to `backup` are debounced so that if multiple edits are
+		 * made in quick succession, `backup` is only triggered after the last one. `backup` is not invoked when
+		 * `auto save` is enabled (since auto save already persists resource ).
+		 *
+		 * @param document Document to backup.
+		 * @param context Information that can be used to backup the document.
+		 * @param cancellation Token that signals the current backup since a new backup is coming in. It is up to your
+		 * extension to decided how to respond to cancellation. If for example your extension is backing up a large file
+		 * in an operation that takes time to complete, your extension may decide to finish the ongoing backup rather
+		 * than cancelling it to ensure that VS Code has some valid backup.
+		 */
+		backupCustomDocument(document: T, context: CustomDocumentBackupContext, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 	}
 
 	namespace window {
 		/**
-		 * Register a new provider for webview editors of a given type.
-		 *
-		 * @param viewType  Type of the webview editor provider.
-		 * @param provider Resolves webview editors.
-		 * @param options Content settings for a webview panels the provider is given.
-		 *
-		 * @return Disposable that unregisters the `WebviewCustomEditorProvider`.
+		 * Temporary overload for `registerCustomEditorProvider` that takes a `CustomEditorProvider`.
 		 */
-		export function registerWebviewCustomEditorProvider(
+		export function registerCustomEditorProvider2(
 			viewType: string,
-			provider: WebviewCustomEditorProvider,
-			options?: WebviewPanelOptions,
+			provider: CustomReadonlyEditorProvider | CustomEditorProvider,
+			options?: {
+				readonly webviewOptions?: WebviewPanelOptions;
+
+				/**
+				 * Only applies to `CustomReadonlyEditorProvider | CustomEditorProvider`.
+				 *
+				 * Indicates that the provider allows multiple editor instances to be open at the same time for
+				 * the same resource.
+				 *
+				 * If not set, VS Code only allows one editor instance to be open at a time for each resource. If the
+				 * user tries to open a second editor instance for the resource, the first one is instead moved to where
+				 * the second one was to be opened.
+				 *
+				 * When set, users can split and create copies of the custom editor. The custom editor must make sure it
+				 * can properly synchronize the states of all editor instances for a resource so that they are consistent.
+				 */
+				readonly supportsMultipleEditorsPerDocument?: boolean;
+			}
 		): Disposable;
 	}
 
-	//#endregion
+	// #endregion
 
-	//#region insert/replace completions: https://github.com/microsoft/vscode/issues/10266
+	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
 
-	export interface CompletionItem {
+	// TODO: Also for custom editor
+
+	export interface CustomTextEditorProvider {
+
 
 		/**
-		 * A range or a insert and replace range selecting the text that should be replaced by this completion item.
+		 * Handle when the underlying resource for a custom editor is renamed.
 		 *
-		 * When omitted, the range of the [current word](#TextDocument.getWordRangeAtPosition) is used as replace-range
-		 * and as insert-range the start of the [current word](#TextDocument.getWordRangeAtPosition) to the
-		 * current position is used.
+		 * This allows the webview for the editor be preserved throughout the rename. If this method is not implemented,
+		 * VS Code will destory the previous custom editor and create a replacement one.
 		 *
-		 * *Note 1:* A range must be a [single line](#Range.isSingleLine) and it must
-		 * [contain](#Range.contains) the position at which completion has been [requested](#CompletionItemProvider.provideCompletionItems).
-		 * *Note 2:* A insert range must be a prefix of a replace range, that means it must be contained and starting at the same position.
+		 * @param newDocument New text document to use for the custom editor.
+		 * @param existingWebviewPanel Webview panel for the custom editor.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 *
+		 * @return Thenable indicating that the webview editor has been moved.
 		 */
-		range2?: Range | { inserting: Range; replacing: Range; };
+		moveCustomTextEditor?(newDocument: TextDocument, existingWebviewPanel: WebviewPanel, token: CancellationToken): Thenable<void>;
 	}
 
 	//#endregion
+
 
 	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
 
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 		/**
-		* An optional flag to sort the final results by index of first query match in label. Defaults to true.
-		*/
-		sortByLabel: boolean;
-	}
-
-	//#endregion
-
-	//#region Surfacing reasons why a code action cannot be applied to users: https://github.com/microsoft/vscode/issues/85160
-
-	export interface CodeAction {
-		/**
-		 * Marks that the code action cannot currently be applied.
-		 *
-		 * Disabled code actions will be surfaced in the refactor UI but cannot be applied.
+		 * An optional flag to sort the final results by index of first query match in label. Defaults to true.
 		 */
-		disabled?: {
-			/**
-			 * Human readable description of why the code action is currently disabled.
-			 *
-			 * This is displayed in the UI.
-			 */
-			reason: string;
-		};
+		sortByLabel: boolean;
 	}
 
 	//#endregion
@@ -1303,216 +1489,575 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Language specific settings: https://github.com/microsoft/vscode/issues/26707
+	//#region @rebornix: Notebook
 
-	export type ConfigurationScope = Uri | TextDocument | WorkspaceFolder | { uri?: Uri, languageId: string };
-
-	/**
-	 * An event describing the change in Configuration
-	 */
-	export interface ConfigurationChangeEvent {
-
-		/**
-		 * Returns `true` if the given section is affected in the provided scope.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param scope A scope in which to check.
-		 * @return `true` if the given section is affected in the provided scope.
-		 */
-		affectsConfiguration(section: string, scope?: ConfigurationScope): boolean;
+	export enum CellKind {
+		Markdown = 1,
+		Code = 2
 	}
 
-	export namespace workspace {
-
-		/**
-		 * Get a workspace configuration object.
-		 *
-		 * When a section-identifier is provided only that part of the configuration
-		 * is returned. Dots in the section-identifier are interpreted as child-access,
-		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
-		 *
-		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
-		 *
-		 * @param section A dot-separated identifier.
-		 * @return The full configuration or a subset.
-		 */
-		export function getConfiguration(section?: string | undefined, scope?: ConfigurationScope | null): WorkspaceConfiguration;
-
+	export enum CellOutputKind {
+		Text = 1,
+		Error = 2,
+		Rich = 3
 	}
 
-	/**
-	 * Represents the configuration. It is a merged view of
-	 *
-	 * - *Default Settings*
-	 * - *Global (User) Settings*
-	 * - *Workspace settings*
-	 * - *Workspace Folder settings* - From one of the [Workspace Folders](#workspace.workspaceFolders) under which requested resource belongs to.
-	 * - *Language settings* - Settings defined under requested language.
-	 *
-	 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get)) is computed by overriding or merging the values in the following order.
-	 *
-	 * ```
-	 * `defaultValue`
-	 * `globalValue` (if defined)
-	 * `workspaceValue` (if defined)
-	 * `workspaceFolderValue` (if defined)
-	 * `defaultLanguageValue` (if defined)
-	 * `globalLanguageValue` (if defined)
-	 * `workspaceLanguageValue` (if defined)
-	 * `workspaceLanguageValue` (if defined)
-	 * ```
-	 * **Note:** Only `object` value types are merged and all other value types are overridden.
-	 *
-	 * Example 1: Overriding
-	 *
-	 * ```ts
-	 * defaultValue = 'on';
-	 * globalValue = 'relative'
-	 * workspaceFolderValue = 'off'
-	 * value = 'off'
-	 * ```
-	 *
-	 * Example 2: Language Values
-	 *
-	 * ```ts
-	 * defaultValue = 'on';
-	 * globalValue = 'relative'
-	 * workspaceFolderValue = 'off'
-	 * globalLanguageValue = 'on'
-	 * value = 'on'
-	 * ```
-	 *
-	 * Example 3: Object Values
-	 *
-	 * ```ts
-	 * defaultValue = { "a": 1, "b": 2 };
-	 * globalValue = { "b": 3, "c": 4 };
-	 * value = { "a": 1, "b": 3, "c": 4 };
-	 * ```
-	 *
-	 * *Note:* Workspace and Workspace Folder configurations contains `launch` and `tasks` settings. Their basename will be
-	 * part of the section identifier. The following snippets shows how to retrieve all configurations
-	 * from `launch.json`:
-	 *
-	 * ```ts
-	 * // launch.json configuration
-	 * const config = workspace.getConfiguration('launch', vscode.workspace.workspaceFolders[0].uri);
-	 *
-	 * // retrieve values
-	 * const values = config.get('configurations');
-	 * ```
-	 *
-	 * Refer to [Settings](https://code.visualstudio.com/docs/getstarted/settings) for more information.
-	 */
-	export interface WorkspaceConfiguration {
+	export interface CellStreamOutput {
+		outputKind: CellOutputKind.Text;
+		text: string;
+	}
+
+	export interface CellErrorOutput {
+		outputKind: CellOutputKind.Error;
+		/**
+		 * Exception Name
+		 */
+		ename: string;
+		/**
+		 * Exception Value
+		 */
+		evalue: string;
+		/**
+		 * Exception call stack
+		 */
+		traceback: string[];
+	}
+
+	export interface CellDisplayOutput {
+		outputKind: CellOutputKind.Rich;
+		/**
+		 * { mime_type: value }
+		 *
+		 * Example:
+		 * ```json
+		 * {
+		 *   "outputKind": vscode.CellOutputKind.Rich,
+		 *   "data": {
+		 *      "text/html": [
+		 *          "<h1>Hello</h1>"
+		 *       ],
+		 *      "text/plain": [
+		 *        "<IPython.lib.display.IFrame at 0x11dee3e80>"
+		 *      ]
+		 *   }
+		 * }
+		 */
+		data: { [key: string]: any; };
+	}
+
+	export type CellOutput = CellStreamOutput | CellErrorOutput | CellDisplayOutput;
+
+	export enum NotebookCellRunState {
+		Running = 1,
+		Idle = 2,
+		Success = 3,
+		Error = 4
+	}
+
+	export interface NotebookCellMetadata {
+		/**
+		 * Controls if the content of a cell is editable or not.
+		 */
+		editable?: boolean;
 
 		/**
-		 * Retrieve all information about a configuration setting. A configuration value
-		 * often consists of a *default* value, a global or installation-wide value,
-		 * a workspace-specific value, folder-specific value
-		 * and language-specific values (if [WorkspaceConfiguration](#WorkspaceConfiguration) is scoped to a language).
-		 *
-		 * *Note:* The configuration name must denote a leaf in the configuration tree
-		 * (`editor.fontSize` vs `editor`) otherwise no result is returned.
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @return Information about a configuration setting or `undefined`.
+		 * Controls if the cell is executable.
+		 * This metadata is ignored for markdown cell.
 		 */
-		inspect<T>(section: string): {
-			key: string;
-
-			defaultValue?: T;
-			globalValue?: T;
-			workspaceValue?: T,
-			workspaceFolderValue?: T,
-
-			defaultLanguageValue?: T;
-			userLanguageValue?: T;
-			workspaceLanguageValue?: T;
-			workspaceFolderLanguageValue?: T;
-
-			languages?: string[];
-
-		} | undefined;
+		runnable?: boolean;
 
 		/**
-		 * Update a configuration value. The updated configuration values are persisted.
-		 *
-		 * A value can be changed in
-		 *
-		 * - [Global settings](#ConfigurationTarget.Global): Changes the value for all instances of the editor.
-		 * - [Workspace settings](#ConfigurationTarget.Workspace): Changes the value for current workspace, if available.
-		 * - [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder): Changes the value for settings from one of the [Workspace Folders](#workspace.workspaceFolders) under which the requested resource belongs to.
-		 * - Language settings: Changes the value for the requested languageId.
-		 *
-		 * *Note:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
-		 *
-		 * @param section Configuration name, supports _dotted_ names.
-		 * @param value The new value.
-		 * @param configurationTarget The [configuration target](#ConfigurationTarget) or a boolean value.
-		 *	- If `true` updates [Global settings](#ConfigurationTarget.Global).
-		 *	- If `false` updates [Workspace settings](#ConfigurationTarget.Workspace).
-		 *	- If `undefined` or `null` updates to [Workspace folder settings](#ConfigurationTarget.WorkspaceFolder) if configuration is resource specific,
-		 * 	otherwise to [Workspace settings](#ConfigurationTarget.Workspace).
-		 * @param scopeToLanguage Whether to update the value in the scope of requested languageId or not.
-		 *	- If `true` updates the value under the requested languageId.
-		 *	- If `undefined` updates the value under the requested languageId only if the configuration is defined for the language.
-		 * @throws error while updating
-		 *	- configuration which is not registered.
-		 *	- window configuration to workspace folder
-		 *	- configuration to workspace or workspace folder when no workspace is opened.
-		 *	- configuration to workspace folder when there is no workspace folder settings.
-		 *	- configuration to workspace folder when [WorkspaceConfiguration](#WorkspaceConfiguration) is not scoped to a resource.
+		 * The order in which this cell was executed.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, scopeToLanguage?: boolean): Thenable<void>;
+		executionOrder?: number;
+
+		/**
+		 * A status message to be shown in the cell's status bar
+		 */
+		statusMessage?: string;
+
+		/**
+		 * The cell's current run state
+		 */
+		runState?: NotebookCellRunState;
+	}
+
+	export interface NotebookCell {
+		readonly uri: Uri;
+		readonly cellKind: CellKind;
+		readonly document: TextDocument;
+		// API remove `source` or doc it as shorthand for document.getText()
+		readonly source: string;
+		language: string;
+		outputs: CellOutput[];
+		metadata: NotebookCellMetadata;
+	}
+
+	export interface NotebookDocumentMetadata {
+		/**
+		 * Controls if users can add or delete cells
+		 * Defaults to true
+		 */
+		editable?: boolean;
+
+		/**
+		 * Controls whether the full notebook can be run at once.
+		 * Defaults to true
+		 */
+		runnable?: boolean;
+
+		/**
+		 * Default value for [cell editable metadata](#NotebookCellMetadata.editable).
+		 * Defaults to true.
+		 */
+		cellEditable?: boolean;
+
+		/**
+		 * Default value for [cell runnable metadata](#NotebookCellMetadata.runnable).
+		 * Defaults to true.
+		 */
+		cellRunnable?: boolean;
+
+		/**
+		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Defaults to true.
+		 */
+		hasExecutionOrder?: boolean;
+
+		displayOrder?: GlobPattern[];
+	}
+
+	export interface NotebookDocument {
+		readonly uri: Uri;
+		readonly fileName: string;
+		readonly isDirty: boolean;
+		readonly cells: NotebookCell[];
+		languages: string[];
+		displayOrder?: GlobPattern[];
+		metadata: NotebookDocumentMetadata;
+	}
+
+	export interface NotebookConcatTextDocument {
+		isClosed: boolean;
+		dispose(): void;
+		onDidChange: Event<void>;
+		version: number;
+		getText(): string;
+		getText(range: Range): string;
+		offsetAt(position: Position): number;
+		positionAt(offset: number): Position;
+		locationAt(positionOrRange: Position | Range): Location;
+		positionAt(location: Location): Position;
+	}
+
+	export interface NotebookEditorCellEdit {
+		insert(index: number, content: string | string[], language: string, type: CellKind, outputs: CellOutput[], metadata: NotebookCellMetadata | undefined): void;
+		delete(index: number): void;
+	}
+
+	export interface NotebookEditor {
+		/**
+		 * The document associated with this notebook editor.
+		 */
+		readonly document: NotebookDocument;
+
+		/**
+		 * The primary selected cell on this notebook editor.
+		 */
+		readonly selection?: NotebookCell;
+		viewColumn?: ViewColumn;
+		/**
+		 * Fired when the output hosting webview posts a message.
+		 */
+		readonly onDidReceiveMessage: Event<any>;
+		/**
+		 * Post a message to the output hosting webview.
+		 *
+		 * Messages are only delivered if the editor is live.
+		 *
+		 * @param message Body of the message. This must be a string or other json serilizable object.
+		 */
+		postMessage(message: any): Thenable<boolean>;
+
+		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
+	}
+
+	export interface NotebookOutputSelector {
+		type: string;
+		subTypes?: string[];
+	}
+
+	export interface NotebookOutputRenderer {
+		/**
+		 *
+		 * @returns HTML fragment. We can probably return `CellOutput` instead of string ?
+		 *
+		 */
+		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
+		preloads?: Uri[];
+	}
+
+	export interface NotebookDocumentChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+
+		/**
+		 * An array of content changes.
+		 */
+		// readonly contentChanges: ReadonlyArray<TextDocumentContentChangeEvent>;
+	}
+
+	export interface NotebookCellData {
+		readonly cellKind: CellKind;
+		readonly source: string;
+		language: string;
+		outputs: CellOutput[];
+		metadata: NotebookCellMetadata;
+	}
+
+	export interface NotebookData {
+		readonly cells: NotebookCellData[];
+		readonly languages: string[];
+		readonly metadata: NotebookDocumentMetadata;
+	}
+
+	interface NotebookDocumentEditEvent {
+
+		/**
+		 * The document that the edit is for.
+		 */
+		readonly document: NotebookDocument;
+	}
+
+	export interface NotebookContentProvider {
+		openNotebook(uri: Uri): NotebookData | Promise<NotebookData>;
+		saveNotebook(document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		saveNotebookAs(targetResource: Uri, document: NotebookDocument, cancellation: CancellationToken): Promise<void>;
+		readonly onDidChangeNotebook: Event<NotebookDocumentEditEvent>;
+
+		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
+		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+
+		/**
+		 * Responsible for filling in outputs for the cell
+		 */
+		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
+	}
+
+	export namespace notebook {
+		export function registerNotebookContentProvider(
+			notebookType: string,
+			provider: NotebookContentProvider
+		): Disposable;
+
+		export function registerNotebookOutputRenderer(
+			type: string,
+			outputSelector: NotebookOutputSelector,
+			renderer: NotebookOutputRenderer
+		): Disposable;
+
+		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+		// export const onDidChangeVisibleNotebookEditors: Event<NotebookEditor[]>;
+
+		// remove activeNotebookDocument, now that there is activeNotebookEditor.document
+		export let activeNotebookDocument: NotebookDocument | undefined;
+
+		export let activeNotebookEditor: NotebookEditor | undefined;
+
+		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
+
+		/**
+		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
+		 * but a selector can be provided to narrow to down the set of cells.
+		 *
+		 * @param notebook
+		 * @param selector
+		 */
+		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
 	}
 
 	//#endregion
 
-	//#region color theme access
+	//#region @connor4312 extension mode: https://github.com/microsoft/vscode/issues/95926
 
 	/**
-	 * Represents a color theme kind.
+	 * The ExtensionMode is provided on the `ExtensionContext` and indicates the
+	 * mode the specific extension is running in.
 	 */
-	export enum ColorThemeKind {
-		Light = 1,
-		Dark = 2,
-		HighContrast = 3
+	export enum ExtensionMode {
+		/**
+		 * The extension is installed normally (for example, from the marketplace
+		 * or VSIX) in VS Code.
+		 */
+		Release = 1,
+
+		/**
+		 * The extension is running from an `--extensionDevelopmentPath` provided
+		 * when launching VS Code.
+		 */
+		Development = 2,
+
+		/**
+		 * The extension is running from an `--extensionDevelopmentPath` and
+		 * the extension host is running unit tests.
+		 */
+		Test = 3,
 	}
 
-	/**
-	 * Represents a color theme.
-	 */
-	export interface ColorTheme {
-
+	export interface ExtensionContext {
 		/**
-		 * The kind of this color theme: light, dark or high contrast.
+		 * The mode the extension is running in. This is specific to the current
+		 * extension. One extension may be in `ExtensionMode.Development` while
+		 * other extensions in the host run in `ExtensionMode.Release`.
 		 */
-		readonly kind: ColorThemeKind;
-	}
-
-	export namespace window {
-		/**
-		 * The currently active color theme as configured in the settings. The active
-		 * theme can be changed via the `workbench.colorTheme` setting.
-		 */
-		export let activeColorTheme: ColorTheme;
-
-		/**
-		 * An [event](#Event) which fires when the active theme changes or one of it's colors chnage.
-		 */
-		export const onDidChangeActiveColorTheme: Event<ColorTheme>;
+		readonly extensionMode: ExtensionMode;
 	}
 
 	//#endregion
-
 
 	//#region https://github.com/microsoft/vscode/issues/39441
 
-	export interface CompletionList {
-		isDetailsResolved?: boolean;
+	export interface CompletionItem {
+		/**
+		 * Will be merged into CompletionItem#label
+		 */
+		label2?: CompletionItemLabel;
+	}
+
+	export interface CompletionItemLabel {
+		/**
+		 * The function or variable. Rendered leftmost.
+		 */
+		name: string;
+
+		/**
+		 * The parameters without the return type. Render after `name`.
+		 */
+		parameters?: string;
+
+		/**
+		 * The fully qualified name, like package name or file path. Rendered after `signature`.
+		 */
+		qualifier?: string;
+
+		/**
+		 * The return-type of a function or type of a property/variable. Rendered rightmost.
+		 */
+		type?: string;
 	}
 
 	//#endregion
 
+
+	//#region @eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
+
+	export class TimelineItem {
+		/**
+		 * A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred.
+		 */
+		timestamp: number;
+
+		/**
+		 * A human-readable string describing the timeline item.
+		 */
+		label: string;
+
+		/**
+		 * Optional id for the timeline item. It must be unique across all the timeline items provided by this source.
+		 *
+		 * If not provided, an id is generated using the timeline item's timestamp.
+		 */
+		id?: string;
+
+		/**
+		 * The icon path or [ThemeIcon](#ThemeIcon) for the timeline item.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri; } | ThemeIcon;
+
+		/**
+		 * A human readable string describing less prominent details of the timeline item.
+		 */
+		description?: string;
+
+		/**
+		 * The tooltip text when you hover over the timeline item.
+		 */
+		detail?: string;
+
+		/**
+		 * The [command](#Command) that should be executed when the timeline item is selected.
+		 */
+		command?: Command;
+
+		/**
+		 * Context value of the timeline item. This can be used to contribute specific actions to the item.
+		 * For example, a timeline item is given a context value as `commit`. When contributing actions to `timeline/item/context`
+		 * using `menus` extension point, you can specify context value for key `timelineItem` in `when` expression like `timelineItem == commit`.
+		 * ```
+		 *	"contributes": {
+		 *		"menus": {
+		 *			"timeline/item/context": [
+		 *				{
+		 *					"command": "extension.copyCommitId",
+		 *					"when": "timelineItem == commit"
+		 *				}
+		 *			]
+		 *		}
+		 *	}
+		 * ```
+		 * This will show the `extension.copyCommitId` action only for items where `contextValue` is `commit`.
+		 */
+		contextValue?: string;
+
+		/**
+		 * @param label A human-readable string describing the timeline item
+		 * @param timestamp A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred
+		 */
+		constructor(label: string, timestamp: number);
+	}
+
+	export interface TimelineChangeEvent {
+		/**
+		 * The [uri](#Uri) of the resource for which the timeline changed.
+		 */
+		uri: Uri;
+
+		/**
+		 * A flag which indicates whether the entire timeline should be reset.
+		 */
+		reset?: boolean;
+	}
+
+	export interface Timeline {
+		readonly paging?: {
+			/**
+			 * A provider-defined cursor specifying the starting point of timeline items which are after the ones returned.
+			 * Use `undefined` to signal that there are no more items to be returned.
+			 */
+			readonly cursor: string | undefined;
+		};
+
+		/**
+		 * An array of [timeline items](#TimelineItem).
+		 */
+		readonly items: readonly TimelineItem[];
+	}
+
+	export interface TimelineOptions {
+		/**
+		 * A provider-defined cursor specifying the starting point of the timeline items that should be returned.
+		 */
+		cursor?: string;
+
+		/**
+		 * An optional maximum number timeline items or the all timeline items newer (inclusive) than the timestamp or id that should be returned.
+		 * If `undefined` all timeline items should be returned.
+		 */
+		limit?: number | { timestamp: number; id?: string; };
+	}
+
+	export interface TimelineProvider {
+		/**
+		 * An optional event to signal that the timeline for a source has changed.
+		 * To signal that the timeline for all resources (uris) has changed, do not pass any argument or pass `undefined`.
+		 */
+		onDidChange?: Event<TimelineChangeEvent | undefined>;
+
+		/**
+		 * An identifier of the source of the timeline items. This can be used to filter sources.
+		 */
+		readonly id: string;
+
+		/**
+		 * A human-readable string describing the source of the timeline items. This can be used as the display label when filtering sources.
+		 */
+		readonly label: string;
+
+		/**
+		 * Provide [timeline items](#TimelineItem) for a [Uri](#Uri).
+		 *
+		 * @param uri The [uri](#Uri) of the file to provide the timeline for.
+		 * @param options A set of options to determine how results should be returned.
+		 * @param token A cancellation token.
+		 * @return The [timeline result](#TimelineResult) or a thenable that resolves to such. The lack of a result
+		 * can be signaled by returning `undefined`, `null`, or an empty array.
+		 */
+		provideTimeline(uri: Uri, options: TimelineOptions, token: CancellationToken): ProviderResult<Timeline>;
+	}
+
+	export namespace workspace {
+		/**
+		 * Register a timeline provider.
+		 *
+		 * Multiple providers can be registered. In that case, providers are asked in
+		 * parallel and the results are merged. A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
+		 *
+		 * @param scheme A scheme or schemes that defines which documents this provider is applicable to. Can be `*` to target all documents.
+		 * @param provider A timeline provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		*/
+		export function registerTimelineProvider(scheme: string | string[], provider: TimelineProvider): Disposable;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/86788
+
+	export interface CodeActionProviderMetadata {
+		/**
+		 * Static documentation for a class of code actions.
+		 *
+		 * The documentation is shown in the code actions menu if either:
+		 *
+		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
+		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
+		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
+		 *   VS Code will use the documentation for `RefactorExtract` intead of the documentation for `Refactor`.
+		 *
+		 * - Any code actions of `kind` are returned by the provider.
+		 */
+		readonly documentation?: ReadonlyArray<{ readonly kind: CodeActionKind, readonly command: Command; }>;
+	}
+
+	//#endregion
+
+	//#region Dialog title: https://github.com/microsoft/vscode/issues/82871
+
+	/**
+	 * Options to configure the behaviour of a file open dialog.
+	 *
+	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
+	 * which enforces to open either files or folder, but *not both*.
+	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * and the editor then silently adjusts the options to select files.
+	 */
+	export interface OpenDialogOptions {
+		/**
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on open dialogs.
+		 */
+		title?: string;
+	}
+
+	/**
+	 * Options to configure the behaviour of a file save dialog.
+	 */
+	export interface SaveDialogOptions {
+		/**
+		 * Dialog title.
+		 *
+		 * Depending on the underlying operating system this parameter might be ignored, since some
+		 * systems do not present title on save dialogs.
+		 */
+		title?: string;
+	}
+
+	//#endregion
 }

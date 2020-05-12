@@ -7,6 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
+import { Command } from 'vs/editor/common/modes';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -28,6 +29,11 @@ export interface IStatusbarEntry {
 	readonly text: string;
 
 	/**
+	 * Text to be read out by the screen reader.
+	 */
+	readonly ariaLabel: string;
+
+	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
 	readonly tooltip?: string;
@@ -45,15 +51,10 @@ export interface IStatusbarEntry {
 	/**
 	 * An optional id of a command that is known to the workbench to execute on click
 	 */
-	readonly command?: string;
+	readonly command?: string | Command;
 
 	/**
-	 * Optional arguments for the command.
-	 */
-	readonly arguments?: any[];
-
-	/**
-	 * Wether to show a beak above the status bar entry.
+	 * Whether to show a beak above the status bar entry.
 	 */
 	readonly showBeak?: boolean;
 }
@@ -88,6 +89,21 @@ export interface IStatusbarService {
 	 * Allows to update an entry's visibility with the provided ID.
 	 */
 	updateEntryVisibility(id: string, visible: boolean): void;
+
+	/**
+	 * Focused the status bar. If one of the status bar entries was focused, focuses it directly.
+	 */
+	focus(preserveEntryFocus?: boolean): void;
+
+	/**
+	 * Focuses the next status bar entry. If none focused, focuses the first.
+	 */
+	focusNextEntry(): void;
+
+	/**
+	 * Focuses the previous status bar entry. If none focused, focuses the last.
+	 */
+	focusPreviousEntry(): void;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

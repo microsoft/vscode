@@ -7,21 +7,24 @@ import { CancelablePromise, RunOnceScheduler, createCancelablePromise, disposabl
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { toDisposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { StableEditorScrollState } from 'vs/editor/browser/core/editorState';
-import * as editorBrowser from 'vs/editor/browser/editorBrowser';
-import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { ICodeEditor, MouseTargetType, IViewZoneChangeAccessor, IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { registerEditorContribution, ServicesAccessor, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { CodeLensProviderRegistry, CodeLens } from 'vs/editor/common/modes';
+import { CodeLensProviderRegistry, CodeLens, Command } from 'vs/editor/common/modes';
 import { CodeLensModel, getCodeLensData, CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { CodeLensWidget, CodeLensHelper } from 'vs/editor/contrib/codelens/codelensWidget';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICodeLensCache } from 'vs/editor/contrib/codelens/codeLensCache';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { createStyleSheet } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { hash } from 'vs/base/common/hash';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { localize } from 'vs/nls';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
-export class CodeLensContribution implements editorCommon.IEditorContribution {
+export class CodeLensContribution implements IEditorContribution {
 
 	public static readonly ID: string = 'css.editor.codeLens';
 
@@ -40,7 +43,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 	private _detectVisibleLenses: RunOnceScheduler | undefined;
 
 	constructor(
-		private readonly _editor: editorBrowser.ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ICodeLensCache private readonly _codeLensCache: ICodeLensCache
@@ -64,8 +67,12 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		}));
 		this._onModelChange();
 
-		this._styleClassName = hash(this._editor.getId()).toString(16);
-		this._styleElement = createStyleSheet();
+		this._styleClassName = '_' + hash(this._editor.getId()).toString(16);
+		this._styleElement = dom.createStyleSheet(
+			dom.isInShadowDOM(this._editor.getContainerDomNode())
+				? this._editor.getContainerDomNode()
+				: undefined
+		);
 		this._updateLensStyle();
 	}
 
@@ -81,7 +88,13 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const lineHeight = options.get(EditorOption.lineHeight);
 
-		const newStyle = `.monaco-editor .codelens-decoration.${this._styleClassName} { height: ${Math.round(lineHeight * 1.1)}px; line-height: ${lineHeight}px; font-size: ${Math.round(fontInfo.fontSize * 0.9)}px; padding-right: ${Math.round(fontInfo.fontSize * 0.45)}px;}`;
+
+		const height = Math.round(lineHeight * 1.1);
+		const fontSize = Math.round(fontInfo.fontSize * 0.9);
+		const newStyle = `
+		.monaco-editor .codelens-decoration.${this._styleClassName} { height: ${height}px; line-height: ${lineHeight}px; font-size: ${fontSize}px; padding-right: ${Math.round(fontInfo.fontSize * 0.45)}px;}
+		.monaco-editor .codelens-decoration.${this._styleClassName} > a > .codicon { line-height: ${lineHeight}px; font-size: ${fontSize}px; }
+		`;
 		this._styleElement.innerHTML = newStyle;
 	}
 
@@ -223,7 +236,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		}));
 		this._localToDispose.add(this._editor.onMouseUp(e => {
-			if (e.target.type !== editorBrowser.MouseTargetType.CONTENT_WIDGET) {
+			if (e.target.type !== MouseTargetType.CONTENT_WIDGET) {
 				return;
 			}
 			let target = e.target.element;
@@ -243,7 +256,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 		scheduler.schedule();
 	}
 
-	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor | undefined, viewZoneChangeAccessor: editorBrowser.IViewZoneChangeAccessor | undefined): void {
+	private _disposeAllLenses(decChangeAccessor: IModelDecorationsChangeAccessor | undefined, viewZoneChangeAccessor: IViewZoneChangeAccessor | undefined): void {
 		const helper = new CodeLensHelper();
 		for (const lens of this._lenses) {
 			lens.dispose(helper, viewZoneChangeAccessor);
@@ -300,7 +313,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 						groupsIndex++;
 						codeLensIndex++;
 					} else {
-						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], <editorBrowser.IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
+						this._lenses.splice(codeLensIndex, 0, new CodeLensWidget(groups[groupsIndex], <IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
 						codeLensIndex++;
 						groupsIndex++;
 					}
@@ -314,7 +327,7 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 
 				// Create extra symbols
 				while (groupsIndex < groups.length) {
-					this._lenses.push(new CodeLensWidget(groups[groupsIndex], <editorBrowser.IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
+					this._lenses.push(new CodeLensWidget(groups[groupsIndex], <IActiveCodeEditor>this._editor, this._styleClassName, helper, viewZoneAccessor, () => this._detectVisibleLenses && this._detectVisibleLenses.schedule()));
 					groupsIndex++;
 				}
 
@@ -392,6 +405,70 @@ export class CodeLensContribution implements editorCommon.IEditorContribution {
 			}
 		});
 	}
+
+	getLenses(): readonly CodeLensWidget[] {
+		return this._lenses;
+	}
 }
 
 registerEditorContribution(CodeLensContribution.ID, CodeLensContribution);
+
+registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'codelens.showLensesInCurrentLine',
+			precondition: EditorContextKeys.hasCodeLensProvider,
+			label: localize('showLensOnLine', "Show CodeLens Commands For Current Line"),
+			alias: 'Show CodeLens Commands For Current Line',
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const quickInputService = accessor.get(IQuickInputService);
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
+
+		const lineNumber = editor.getSelection().positionLineNumber;
+		const codelensController = editor.getContribution<CodeLensContribution>(CodeLensContribution.ID);
+		const items: { label: string, command: Command }[] = [];
+
+		for (let lens of codelensController.getLenses()) {
+			if (lens.getLineNumber() === lineNumber) {
+				for (let item of lens.getItems()) {
+					const { command } = item.symbol;
+					if (command) {
+						items.push({
+							label: command.title,
+							command: command
+						});
+					}
+				}
+			}
+		}
+
+		if (items.length === 0) {
+			// We dont want an empty picker
+			return;
+		}
+
+		const item = await quickInputService.pick(items, { canPickMany: false });
+		if (!item) {
+			// Nothing picked
+			return;
+		}
+
+		try {
+			await commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
+		} catch (err) {
+			notificationService.error(err);
+		}
+	}
+});
+
+

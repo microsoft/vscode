@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/screencast';
+import 'vs/css!./media/actions';
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
@@ -17,7 +17,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -25,6 +25,8 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { clamp } from 'vs/base/common/numbers';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 class InspectContextKeysAction extends Action {
 
@@ -39,7 +41,7 @@ class InspectContextKeysAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const disposables = new DisposableStore();
 
 		const stylesheet = createStyleSheet();
@@ -83,8 +85,6 @@ class InspectContextKeysAction extends Action {
 
 			dispose(disposables);
 		}, null, disposables);
-
-		return Promise.resolve();
 	}
 }
 
@@ -99,7 +99,7 @@ class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
@@ -114,7 +114,7 @@ class ToggleScreencastModeAction extends Action {
 
 		const disposables = new DisposableStore();
 
-		const container = this.layoutService.getWorkbenchElement();
+		const container = this.layoutService.container;
 		const mouseMarker = append(container, $('.screencast-mouse'));
 		disposables.add(toDisposable(() => mouseMarker.remove()));
 
@@ -210,13 +210,41 @@ class LogStorageAction extends Action {
 	}
 }
 
+class LogWorkingCopiesAction extends Action {
+
+	static readonly ID = 'workbench.action.logWorkingCopies';
+	static readonly LABEL = nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies");
+
+	constructor(
+		id: string,
+		label: string,
+		@ILogService private logService: ILogService,
+		@IWorkingCopyService private workingCopyService: IWorkingCopyService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const msg = [
+			`Dirty Working Copies:`,
+			...this.workingCopyService.dirtyWorkingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+			``,
+			`All Working Copies:`,
+			...this.workingCopyService.workingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+		];
+
+		this.logService.info(msg.join('\n'));
+	}
+}
+
 // --- Actions Registration
 
 const developerCategory = nls.localize('developer', "Developer");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Screencast Mode', developerCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.create(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(InspectContextKeysAction), 'Developer: Inspect Context Keys', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleScreencastModeAction), 'Developer: Toggle Screencast Mode', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(LogStorageAction), 'Developer: Log Storage Database Contents', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(LogWorkingCopiesAction), 'Developer: Log Working Copies', developerCategory);
 
 // Screencast Mode
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);

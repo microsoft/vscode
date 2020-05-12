@@ -8,10 +8,10 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions, editorOptionsRegistry, ValidatedEditorOptions, IEnvironmentalOptions, IComputedEditorOptions, ConfigurationChangedEvent, EDITOR_MODEL_DEFAULTS, EditorOption, FindComputedEditorOptionValueById, ComputeOptionsMemory } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IConfiguration, IDimension } from 'vs/editor/common/editorCommon';
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -278,15 +278,17 @@ function deepCloneAndMigrateOptions(_options: IEditorOptions): IEditorOptions {
 	return options;
 }
 
-export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
+export abstract class CommonEditorConfiguration extends Disposable implements IConfiguration {
 
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
 
 	public readonly isSimpleWidget: boolean;
+	private _computeOptionsMemory: ComputeOptionsMemory;
 	public options!: ComputedEditorOptions;
 
 	private _isDominatedByLongLines: boolean;
+	private _viewLineCount: number;
 	private _lineNumbersDigitCount: number;
 
 	private _rawOptions: IEditorOptions;
@@ -298,6 +300,8 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this.isSimpleWidget = isSimpleWidget;
 
 		this._isDominatedByLongLines = false;
+		this._computeOptionsMemory = new ComputeOptionsMemory();
+		this._viewLineCount = 1;
 		this._lineNumbersDigitCount = 1;
 
 		this._rawOptions = deepCloneAndMigrateOptions(_options);
@@ -308,7 +312,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
-	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
+	public observeReferenceElement(dimension?: IDimension): void {
 	}
 
 	public dispose(): void {
@@ -342,11 +346,13 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		const partialEnv = this._getEnvConfiguration();
 		const bareFontInfo = BareFontInfo.createFromValidatedSettings(this._validatedOptions, partialEnv.zoomLevel, this.isSimpleWidget);
 		const env: IEnvironmentalOptions = {
+			memory: this._computeOptionsMemory,
 			outerWidth: partialEnv.outerWidth,
 			outerHeight: partialEnv.outerHeight,
 			fontInfo: this.readConfiguration(bareFontInfo),
 			extraEditorClassName: partialEnv.extraEditorClassName,
 			isDominatedByLongLines: this._isDominatedByLongLines,
+			viewLineCount: this._viewLineCount,
 			lineNumbersDigitCount: this._lineNumbersDigitCount,
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
@@ -405,11 +411,19 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	public setMaxLineNumber(maxLineNumber: number): void {
-		let digitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
-		if (this._lineNumbersDigitCount === digitCount) {
+		const lineNumbersDigitCount = CommonEditorConfiguration._digitCount(maxLineNumber);
+		if (this._lineNumbersDigitCount === lineNumbersDigitCount) {
 			return;
 		}
-		this._lineNumbersDigitCount = digitCount;
+		this._lineNumbersDigitCount = lineNumbersDigitCount;
+		this._recomputeOptions();
+	}
+
+	public setViewLineCount(viewLineCount: number): void {
+		if (this._viewLineCount === viewLineCount) {
+			return;
+		}
+		this._viewLineCount = viewLineCount;
 		this._recomputeOptions();
 	}
 
@@ -432,7 +446,7 @@ export const editorConfigurationBaseNode = Object.freeze<IConfigurationNode>({
 	order: 5,
 	type: 'object',
 	title: nls.localize('editorConfigurationTitle', "Editor"),
-	scope: ConfigurationScope.RESOURCE_LANGUAGE,
+	scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
 });
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -484,6 +498,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: true,
 			description: nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
+		'editor.semanticHighlighting.enabled': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('semanticHighlighting.enabled', "Controls whether the semanticHighlighting is shown for the languages that support it.")
+		},
 		'editor.stablePeek': {
 			type: 'boolean',
 			default: false,
@@ -507,7 +526,7 @@ const editorConfiguration: IConfigurationNode = {
 		'diffEditor.ignoreTrimWhitespace': {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('ignoreTrimWhitespace', "Controls whether the diff editor shows changes in leading or trailing whitespace as diffs.")
+			description: nls.localize('ignoreTrimWhitespace', "When enabled, the diff editor ignores changes in leading or trailing whitespace.")
 		},
 		'diffEditor.renderIndicators': {
 			type: 'boolean',

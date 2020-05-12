@@ -8,6 +8,7 @@ import { debounce, throttle } from './decorators';
 import { fromGitUri, toGitUri } from './uri';
 import { Model, ModelChangeEvent, OriginalResourceChangeEvent } from './model';
 import { filterEvent, eventToPromise, isDescendant, pathEquals, EmptyDisposable } from './util';
+import { Repository } from './repository';
 
 interface CacheRow {
 	uri: Uri;
@@ -16,6 +17,21 @@ interface CacheRow {
 
 const THREE_MINUTES = 1000 * 60 * 3;
 const FIVE_MINUTES = 1000 * 60 * 5;
+
+function sanitizeRef(ref: string, path: string, repository: Repository): string {
+	if (ref === '~') {
+		const fileUri = Uri.file(path);
+		const uriString = fileUri.toString();
+		const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
+		return indexStatus ? '' : 'HEAD';
+	}
+
+	if (/^~\d$/.test(ref)) {
+		return `:${ref[1]}`;
+	}
+
+	return ref;
+}
 
 export class GitFileSystemProvider implements FileSystemProvider {
 
@@ -31,9 +47,9 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		this.disposables.push(
 			model.onDidChangeRepository(this.onDidChangeRepository, this),
 			model.onDidChangeOriginalResource(this.onDidChangeOriginalResource, this),
-			workspace.registerFileSystemProvider('gitfs', this, { isReadonly: true, isCaseSensitive: true }),
+			workspace.registerFileSystemProvider('git', this, { isReadonly: true, isCaseSensitive: true }),
 			workspace.registerResourceLabelFormatter({
-				scheme: 'gitfs',
+				scheme: 'git',
 				formatting: {
 					label: '${path} (git)',
 					separator: '/'
@@ -116,15 +132,21 @@ export class GitFileSystemProvider implements FileSystemProvider {
 		return EmptyDisposable;
 	}
 
-	stat(uri: Uri): FileStat {
-		const { submoduleOf } = fromGitUri(uri);
+	async stat(uri: Uri): Promise<FileStat> {
+		const { submoduleOf, path, ref } = fromGitUri(uri);
 		const repository = submoduleOf ? this.model.getRepository(submoduleOf) : this.model.getRepository(uri);
-
 		if (!repository) {
 			throw FileSystemError.FileNotFound();
 		}
 
-		return { type: FileType.File, size: 0, mtime: this.mtime, ctime: 0 };
+		let size = 0;
+		try {
+			const details = await repository.getObjectDetails(sanitizeRef(ref, path, repository), path);
+			size = details.size;
+		} catch {
+			// noop
+		}
+		return { type: FileType.File, size: size, mtime: this.mtime, ctime: 0 };
 	}
 
 	readDirectory(): Thenable<[string, FileType][]> {
@@ -136,7 +158,7 @@ export class GitFileSystemProvider implements FileSystemProvider {
 	}
 
 	async readFile(uri: Uri): Promise<Uint8Array> {
-		let { path, ref, submoduleOf } = fromGitUri(uri);
+		const { path, ref, submoduleOf } = fromGitUri(uri);
 
 		if (submoduleOf) {
 			const repository = this.model.getRepository(submoduleOf);
@@ -165,17 +187,8 @@ export class GitFileSystemProvider implements FileSystemProvider {
 
 		this.cache.set(uri.toString(), cacheValue);
 
-		if (ref === '~') {
-			const fileUri = Uri.file(path);
-			const uriString = fileUri.toString();
-			const [indexStatus] = repository.indexGroup.resourceStates.filter(r => r.resourceUri.toString() === uriString);
-			ref = indexStatus ? '' : 'HEAD';
-		} else if (/^~\d$/.test(ref)) {
-			ref = `:${ref[1]}`;
-		}
-
 		try {
-			return await repository.buffer(ref, path);
+			return await repository.buffer(sanitizeRef(ref, path, repository), path);
 		} catch (err) {
 			return new Uint8Array(0);
 		}

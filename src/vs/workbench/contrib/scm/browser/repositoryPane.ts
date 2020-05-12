@@ -5,8 +5,7 @@
 
 import 'vs/css!./media/scmViewlet';
 import { Event, Emitter } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { basename, dirname, isEqual } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { append, $, addClass, toggleClass, trackFocus, removeClass } from 'vs/base/browser/dom';
@@ -25,36 +24,56 @@ import { IAction, IActionViewItem, ActionRunner, Action } from 'vs/base/common/a
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { SCMMenus } from './menus';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
+import { IThemeService, LIGHT, registerThemingParticipant, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar } from './util';
-import { attachBadgeStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { format } from 'vs/base/common/strings';
-import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ThrottledDelayer, disposableTimeout } from 'vs/base/common/async';
+import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
+import { WorkbenchCompressibleObjectTree, TreeResourceNavigator, IOpenEvent } from 'vs/platform/list/browser/listService';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import * as platform from 'vs/base/common/platform';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ISequence, ISplice } from 'vs/base/common/sequence';
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
-import { IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten, find } from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
-import { IWorkbenchThemeService, IFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { Hasher } from 'vs/base/common/hash';
+import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
+import { ITextModel } from 'vs/editor/common/model';
+import { IEditorConstructionOptions } from 'vs/editor/common/config/editorOptions';
+import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import * as platform from 'vs/base/common/platform';
+import { format } from 'vs/base/common/strings';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { Schemas } from 'vs/base/common/network';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ModesHoverController } from 'vs/editor/contrib/hover/hover';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
+import { LinkDetector } from 'vs/editor/contrib/links/links';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IModeService } from 'vs/editor/common/services/modeService';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -133,13 +152,13 @@ interface ResourceTemplate {
 	disposables: IDisposable;
 }
 
-class MultipleSelectionActionRunner extends ActionRunner {
+class RepositoryPaneActionRunner extends ActionRunner {
 
 	constructor(private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[]) {
 		super();
 	}
 
-	runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -148,7 +167,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
 		const args = flatten(actualContext.map(e => ResourceTree.isResourceNode(e) ? ResourceTree.collect(e) : [e]));
-		return action.run(...args);
+		await action.run(...args);
 	}
 }
 
@@ -161,7 +180,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		private viewModelProvider: () => ViewModel,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
-		private getSelectedResources: () => (ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>)[],
+		private actionRunner: ActionRunner,
 		private themeService: IThemeService,
 		private menus: SCMMenus
 	) { }
@@ -173,7 +192,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
-			actionRunner: new MultipleSelectionActionRunner(this.getSelectedResources)
+			actionRunner: this.actionRunner
 		});
 
 		const decorationIcon = append(element, $('.decoration-icon'));
@@ -187,7 +206,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 
 		const elementDisposables = new DisposableStore();
 		const resourceOrFolder = node.element;
-		const theme = this.themeService.getTheme();
+		const theme = this.themeService.getColorTheme();
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
 		const icon = iconResource && (theme.type === LIGHT ? iconResource.decorations.icon : iconResource.decorations.iconDark);
 
@@ -372,6 +391,39 @@ class SCMResourceIdentityProvider implements IIdentityProvider<TreeElement> {
 	}
 }
 
+export class SCMAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
+
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
+	getWidgetAriaLabel(): string {
+		return localize('scm', "Source Control Management");
+	}
+
+	getAriaLabel(element: TreeElement): string {
+		if (ResourceTree.isResourceNode(element)) {
+			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
+		} else if (isSCMResourceGroup(element)) {
+			return element.label;
+		} else {
+			const result: string[] = [];
+
+			result.push(basename(element.sourceUri));
+
+			if (element.decorations.tooltip) {
+				result.push(element.decorations.tooltip);
+			}
+
+			const path = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true, noPrefix: true });
+
+			if (path) {
+				result.push(path);
+			}
+
+			return result.join(', ');
+		}
+	}
+}
+
 interface IGroupItem {
 	readonly group: ISCMResourceGroup;
 	readonly resources: ISCMResource[];
@@ -381,8 +433,8 @@ interface IGroupItem {
 
 function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompressedTreeElement<TreeElement> {
 	const children = mode === ViewModelMode.List
-		? Iterator.map(Iterator.fromArray(item.resources), element => ({ element, incompressible: true }))
-		: Iterator.map(item.tree.root.children, node => asTreeElement(node, true));
+		? Iterable.map(item.resources, element => ({ element, incompressible: true }))
+		: Iterable.map(item.tree.root.children, node => asTreeElement(node, true));
 
 	return { element: item.group, children, incompressible: true, collapsible: true };
 }
@@ -390,7 +442,7 @@ function groupItemAsTreeElement(item: IGroupItem, mode: ViewModelMode): ICompres
 function asTreeElement(node: IResourceNode<ISCMResource, ISCMResourceGroup>, forceIncompressible: boolean): ICompressedTreeElement<TreeElement> {
 	return {
 		element: (node.childrenCount === 0 && node.element) ? node.element : node,
-		children: Iterator.map(node.children, node => asTreeElement(node, false)),
+		children: Iterable.map(node.children, node => asTreeElement(node, false)),
 		incompressible: !!node.element || forceIncompressible
 	};
 }
@@ -554,6 +606,12 @@ class ViewModel {
 	dispose(): void {
 		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
+
+		for (const item of this.items) {
+			item.disposable.dispose();
+		}
+
+		this.items = [];
 	}
 }
 
@@ -579,20 +637,15 @@ export class ToggleViewModeAction extends Action {
 	}
 }
 
-function convertValidationType(type: InputValidationType): MessageType {
-	switch (type) {
-		case InputValidationType.Information: return MessageType.INFO;
-		case InputValidationType.Warning: return MessageType.WARNING;
-		case InputValidationType.Error: return MessageType.ERROR;
-	}
-}
-
 export class RepositoryPane extends ViewPane {
+	private readonly defaultInputFontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif';
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
-	private inputBoxContainer!: HTMLElement;
-	private inputBox!: InputBox;
+	private inputContainer!: HTMLElement;
+	private validationContainer!: HTMLElement;
+	private inputEditor!: CodeEditorWidget;
+	private inputModel!: ITextModel;
 	private listContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private viewModel!: ViewModel;
@@ -606,19 +659,24 @@ export class RepositoryPane extends ViewPane {
 		readonly repository: ISCMRepository,
 		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IWorkbenchThemeService protected themeService: IWorkbenchThemeService,
+		@IThemeService protected themeService: IThemeService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService,
-		@IStorageService private storageService: IStorageService
+		@IStorageService private storageService: IStorageService,
+		@IModelService private modelService: IModelService,
+		@IModeService private modeService: IModeService,
+		@IOpenerService openerService: IOpenerService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 		this.menus = instantiationService.createInstance(SCMMenus, this.repository.provider);
 		this._register(this.menus);
@@ -651,60 +709,142 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	protected renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		const focusTracker = trackFocus(container);
 		this._register(focusTracker.onDidFocus(() => this.repository.focus()));
 		this._register(focusTracker);
 
 		// Input
-		this.inputBoxContainer = append(container, $('.scm-editor'));
+		this.inputContainer = append(container, $('.scm-editor'));
+		const editorContainer = append(this.inputContainer, $('.scm-editor-container'));
 
+		const placeholderTextContainer = append(editorContainer, $('.scm-editor-placeholder'));
 		const updatePlaceholder = () => {
 			const binding = this.keybindingService.lookupKeybinding('scm.acceptInput');
 			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
-			const placeholder = format(this.repository.input.placeholder, label);
+			const placeholderText = format(this.repository.input.placeholder, label);
 
-			this.inputBox.setPlaceHolder(placeholder);
+			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
+			placeholderTextContainer.textContent = placeholderText;
 		};
+
+		this.validationContainer = append(editorContainer, $('.scm-editor-validation'));
 
 		const validationDelayer = new ThrottledDelayer<any>(200);
 		const validate = () => {
-			return this.repository.input.validateInput(this.inputBox.value, this.inputBox.inputElement.selectionStart || 0).then(result => {
+			const position = this.inputEditor.getSelection()?.getStartPosition();
+			const offset = position && this.inputModel.getOffsetAt(position);
+			const value = this.inputModel.getValue();
+
+			return this.repository.input.validateInput(value, offset || 0).then(result => {
 				if (!result) {
-					this.inputBox.inputElement.removeAttribute('aria-invalid');
-					this.inputBox.hideMessage();
+					removeClass(editorContainer, 'validation-info');
+					removeClass(editorContainer, 'validation-warning');
+					removeClass(editorContainer, 'validation-error');
+					removeClass(this.validationContainer, 'validation-info');
+					removeClass(this.validationContainer, 'validation-warning');
+					removeClass(this.validationContainer, 'validation-error');
+					this.validationContainer.textContent = null;
 				} else {
-					this.inputBox.inputElement.setAttribute('aria-invalid', 'true');
-					this.inputBox.showMessage({ content: result.message, type: convertValidationType(result.type) });
+					toggleClass(editorContainer, 'validation-info', result.type === InputValidationType.Information);
+					toggleClass(editorContainer, 'validation-warning', result.type === InputValidationType.Warning);
+					toggleClass(editorContainer, 'validation-error', result.type === InputValidationType.Error);
+					toggleClass(this.validationContainer, 'validation-info', result.type === InputValidationType.Information);
+					toggleClass(this.validationContainer, 'validation-warning', result.type === InputValidationType.Warning);
+					toggleClass(this.validationContainer, 'validation-error', result.type === InputValidationType.Error);
+					this.validationContainer.textContent = result.message;
 				}
 			});
 		};
 
 		const triggerValidation = () => validationDelayer.trigger(validate);
 
-		this.inputBox = new InputBox(this.inputBoxContainer, this.contextViewService, { flexibleHeight: true, flexibleMaxHeight: 134 });
-		this.inputBox.setEnabled(this.isBodyVisible());
-		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
-		this._register(this.inputBox);
+		const editorOptions: IEditorConstructionOptions = {
+			...getSimpleEditorOptions(),
+			lineDecorationsWidth: 4,
+			dragAndDrop: false,
+			cursorWidth: 1,
+			fontSize: 13,
+			lineHeight: 20,
+			fontFamily: this.getInputEditorFontFamily(),
+			wrappingStrategy: 'advanced',
+			wrappingIndent: 'none',
+			padding: { top: 3, bottom: 3 },
+			quickSuggestions: false
+		};
+		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
+			isSimpleWidget: true,
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				SuggestController.ID,
+				SnippetController2.ID,
+				MenuPreventer.ID,
+				SelectionClipboardContributionID,
+				ContextMenuController.ID,
+				ColorDetector.ID,
+				ModesHoverController.ID,
+				LinkDetector.ID
+			])
+		};
 
-		this._register(this.inputBox.onDidChange(triggerValidation, null));
+		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
+		const instantiationService = this.instantiationService.createChild(services);
+		this.inputEditor = instantiationService.createInstance(CodeEditorWidget, editorContainer, editorOptions, codeEditorWidgetOptions);
 
-		const onKeyUp = domEvent(this.inputBox.inputElement, 'keyup');
-		const onMouseUp = domEvent(this.inputBox.inputElement, 'mouseup');
-		this._register(Event.any<any>(onKeyUp, onMouseUp)(triggerValidation, null));
+		this._register(this.inputEditor);
 
-		this.inputBox.value = this.repository.input.value;
-		this._register(this.inputBox.onDidChange(value => this.repository.input.value = value, null));
-		this._register(this.repository.input.onDidChange(value => this.inputBox.value = value, null));
+		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
+		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
+
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
+		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
+
+		let query: string | undefined;
+
+		if (this.repository.provider.rootUri) {
+			query = `rootUri=${encodeURIComponent(this.repository.provider.rootUri.toString())}`;
+		}
+
+		const uri = URI.from({
+			scheme: Schemas.vscode,
+			path: `scm/${this.repository.provider.contextValue}/${this.repository.provider.id}/input`,
+			query
+		});
+
+		this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
+
+		const mode = this.modeService.create('scminput');
+		this.inputModel = this.modelService.getModel(uri) || this.modelService.createModel('', mode, uri);
+		this.inputEditor.setModel(this.inputModel);
+
+		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
+
+		// Keep model in sync with API
+		this.inputModel.setValue(this.repository.input.value);
+		this._register(this.repository.input.onDidChange(value => {
+			if (value === this.inputModel.getValue()) {
+				return;
+			}
+			this.inputModel.setValue(value);
+			this.inputEditor.setPosition(this.inputModel.getFullModelRange().getEndPosition());
+		}));
+
+		// Keep API in sync with model and update placeholder and validation
+		toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+		this.inputModel.onDidChangeContent(() => {
+			this.repository.input.value = this.inputModel.getValue();
+			toggleClass(placeholderTextContainer, 'hidden', this.inputModel.getValueLength() > 0);
+			triggerValidation();
+		});
 
 		updatePlaceholder();
 		this._register(this.repository.input.onDidChangePlaceholder(updatePlaceholder, null));
 		this._register(this.keybindingService.onDidUpdateKeybindings(updatePlaceholder, null));
 
-		this._register(this.inputBox.onDidHeightChange(() => this.layoutBody()));
+		const onDidChangeContentHeight = Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged);
+		this._register(onDidChangeContentHeight(() => this.layoutBody()));
 
-		if (this.repository.provider.onDidChangeCommitTemplate) {
-			this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
-		}
+		this._register(this.repository.provider.onDidChangeCommitTemplate(this.onDidChangeCommitTemplate, this));
 
 		this.onDidChangeCommitTemplate();
 
@@ -726,9 +866,13 @@ export class RepositoryPane extends ViewPane {
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
+		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		this._register(actionRunner);
+		this._register(actionRunner.onDidBeforeRun(() => this.tree.domFocus()));
+
 		const renderers = [
 			new ResourceGroupRenderer(actionViewItemProvider, this.themeService, this.menus),
-			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, () => this.getSelectedResources(), this.themeService, this.menus)
+			new ResourceRenderer(() => this.viewModel, this.listLabels, actionViewItemProvider, actionRunner, this.themeService, this.menus)
 		];
 
 		const filter = new SCMTreeFilter();
@@ -736,7 +880,7 @@ export class RepositoryPane extends ViewPane {
 		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
 		const identityProvider = new SCMResourceIdentityProvider();
 
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchCompressibleObjectTree, WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>>(
+		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleObjectTree,
 			'SCM Tree Repo',
 			this.listContainer,
@@ -750,13 +894,12 @@ export class RepositoryPane extends ViewPane {
 				keyboardNavigationLabelProvider,
 				overrideStyles: {
 					listBackground: SIDE_BAR_BACKGROUND
-				}
-			});
+				},
+				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
+			}) as WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 
-		this._register(Event.chain(this.tree.onDidOpen)
-			.map(e => e.elements[0])
-			.filter(e => !!e && !isSCMResourceGroup(e) && !ResourceTree.isResourceNode(e))
-			.on(this.open, this));
+		const navigator = this._register(new TreeResourceNavigator(this.tree, { openOnSelection: false }));
+		this._register(navigator.onDidOpenResource(this.open, this));
 
 		this._register(Event.chain(this.tree.onDidPin)
 			.map(e => e.elements[0])
@@ -766,7 +909,7 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree);
 
-		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
+		let viewMode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
 
 		const rootUri = this.repository.provider.rootUri;
 
@@ -774,11 +917,11 @@ export class RepositoryPane extends ViewPane {
 			const storageMode = this.storageService.get(`scm.repository.viewMode:${rootUri.toString()}`, StorageScope.WORKSPACE) as ViewModelMode;
 
 			if (typeof storageMode === 'string') {
-				mode = storageMode;
+				viewMode = storageMode;
 			}
 		}
 
-		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, mode);
+		this.viewModel = this.instantiationService.createInstance(ViewModel, this.repository.provider.groups, this.tree, viewMode);
 		this._register(this.viewModel);
 
 		addClass(this.listContainer, 'file-icon-themable-tree');
@@ -820,19 +963,29 @@ export class RepositoryPane extends ViewPane {
 			return;
 		}
 
+		if (width !== undefined) {
+			super.layoutBody(height, width);
+		}
+
 		this.cachedHeight = height;
+		this.cachedWidth = width;
 
 		if (this.repository.input.visible) {
-			removeClass(this.inputBoxContainer, 'hidden');
-			this.inputBox.layout();
+			removeClass(this.inputContainer, 'hidden');
 
-			const editorHeight = this.inputBox.height;
-			const listHeight = height - (editorHeight + 12 /* margin */);
+			const editorContentHeight = this.inputEditor.getContentHeight();
+			const editorHeight = Math.min(editorContentHeight, 134);
+			this.inputEditor.layout({ height: editorHeight, width: width! - 12 - 16 - 2 });
+
+			this.validationContainer.style.top = `${editorHeight + 1}px`;
+
+			const listHeight = height - (editorHeight + 5 + 2 + 5);
 			this.listContainer.style.height = `${listHeight}px`;
 			this.tree.layout(listHeight, width);
 		} else {
-			addClass(this.inputBoxContainer, 'hidden');
+			addClass(this.inputContainer, 'hidden');
 
+			this.inputEditor.onHide();
 			this.listContainer.style.height = `${height}px`;
 			this.tree.layout(height, width);
 		}
@@ -843,7 +996,7 @@ export class RepositoryPane extends ViewPane {
 
 		if (this.isExpanded()) {
 			if (this.repository.input.visible) {
-				this.inputBox.focus();
+				this.inputEditor.focus();
 			} else {
 				this.tree.domFocus();
 			}
@@ -853,8 +1006,13 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	private _onDidChangeVisibility(visible: boolean): void {
-		this.inputBox.setEnabled(visible);
 		this.viewModel.setVisible(visible);
+
+		if (this.repository.input.visible && visible) {
+			this.inputEditor.onVisible();
+		} else {
+			this.inputEditor.onHide();
+		}
 	}
 
 	getActions(): IAction[] {
@@ -885,19 +1043,23 @@ export class RepositoryPane extends ViewPane {
 		return this.repository.provider;
 	}
 
-	private open(e: ISCMResource): void {
-		e.open();
+	private open(e: IOpenEvent<TreeElement | null>): void {
+		if (!e.element || isSCMResourceGroup(e.element) || ResourceTree.isResourceNode(e.element)) {
+			return;
+		}
+
+		e.element.open(!!e.editorOptions.preserveFocus);
 	}
 
 	private pin(): void {
-		const activeControl = this.editorService.activeControl;
+		const activeEditorPane = this.editorService.activeEditorPane;
 
-		if (activeControl) {
-			activeControl.group.pinEditor(activeControl.input);
+		if (activeEditorPane) {
+			activeEditorPane.group.pinEditor(activeEditorPane.input);
 		}
 	}
 
-	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement>): void {
+	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		if (!e.element) {
 			return;
 		}
@@ -917,11 +1079,14 @@ export class RepositoryPane extends ViewPane {
 			actions = this.menus.getResourceContextActions(element);
 		}
 
+		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
+		actionRunner.onDidBeforeRun(() => this.tree.domFocus());
+
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => element,
-			actionRunner: new MultipleSelectionActionRunner(() => this.getSelectedResources())
+			actionRunner
 		});
 	}
 
@@ -938,17 +1103,33 @@ export class RepositoryPane extends ViewPane {
 		const oldCommitTemplate = this.commitTemplate;
 		this.commitTemplate = this.repository.provider.commitTemplate;
 
-		if (this.inputBox.value && this.inputBox.value !== oldCommitTemplate) {
+		const value = this.inputModel.getValue();
+
+		if (value && value !== oldCommitTemplate) {
 			return;
 		}
 
-		this.inputBox.value = this.commitTemplate;
+		this.inputModel.setValue(this.commitTemplate);
 	}
 
 	private updateInputBoxVisibility(): void {
 		if (this.cachedHeight) {
 			this.layoutBody(this.cachedHeight);
 		}
+	}
+
+	private getInputEditorFontFamily(): string {
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily');
+
+		if (inputFontFamily.toLowerCase() === 'editor') {
+			return this.configurationService.getValue<string>('editor.fontFamily');
+		}
+
+		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
+			return inputFontFamily;
+		}
+
+		return this.defaultInputFontFamily;
 	}
 }
 
@@ -974,3 +1155,81 @@ export class RepositoryViewDescriptor implements IViewDescriptor {
 		this.ctorDescriptor = new SyncDescriptor(RepositoryPane, [repository]);
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const inputBackgroundColor = theme.getColor(inputBackground);
+	if (inputBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container .monaco-editor-background,
+		.scm-viewlet .scm-editor-container .monaco-editor,
+		.scm-viewlet .scm-editor-container .monaco-editor .margin
+		{ background-color: ${inputBackgroundColor}; }`);
+	}
+
+	const inputForegroundColor = theme.getColor(inputForeground);
+	if (inputForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container .mtk1 { color: ${inputForegroundColor}; }`);
+	}
+
+	const inputBorderColor = theme.getColor(inputBorder);
+	if (inputBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container { outline: 1px solid ${inputBorderColor}; }`);
+	}
+
+	const focusBorderColor = theme.getColor(focusBorder);
+	if (focusBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.synthetic-focus { outline: 1px solid ${focusBorderColor}; }`);
+	}
+
+	const inputPlaceholderForegroundColor = theme.getColor(inputPlaceholderForeground);
+	if (inputPlaceholderForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-placeholder { color: ${inputPlaceholderForegroundColor}; }`);
+	}
+
+	const inputValidationInfoBorderColor = theme.getColor(inputValidationInfoBorder);
+	if (inputValidationInfoBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-info { outline: 1px solid ${inputValidationInfoBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { border: 1px solid ${inputValidationInfoBorderColor}; }`);
+	}
+
+	const inputValidationInfoBackgroundColor = theme.getColor(inputValidationInfoBackground);
+	if (inputValidationInfoBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { background-color: ${inputValidationInfoBackgroundColor}; }`);
+	}
+
+	const inputValidationInfoForegroundColor = theme.getColor(inputValidationInfoForeground);
+	if (inputValidationInfoForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-info { color: ${inputValidationInfoForegroundColor}; }`);
+	}
+
+	const inputValidationWarningBorderColor = theme.getColor(inputValidationWarningBorder);
+	if (inputValidationWarningBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-warning { outline: 1px solid ${inputValidationWarningBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { border: 1px solid ${inputValidationWarningBorderColor}; }`);
+	}
+
+	const inputValidationWarningBackgroundColor = theme.getColor(inputValidationWarningBackground);
+	if (inputValidationWarningBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { background-color: ${inputValidationWarningBackgroundColor}; }`);
+	}
+
+	const inputValidationWarningForegroundColor = theme.getColor(inputValidationWarningForeground);
+	if (inputValidationWarningForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-warning { color: ${inputValidationWarningForegroundColor}; }`);
+	}
+
+	const inputValidationErrorBorderColor = theme.getColor(inputValidationErrorBorder);
+	if (inputValidationErrorBorderColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-container.validation-error { outline: 1px solid ${inputValidationErrorBorderColor}; }`);
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { border: 1px solid ${inputValidationErrorBorderColor}; }`);
+	}
+
+	const inputValidationErrorBackgroundColor = theme.getColor(inputValidationErrorBackground);
+	if (inputValidationErrorBackgroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { background-color: ${inputValidationErrorBackgroundColor}; }`);
+	}
+
+	const inputValidationErrorForegroundColor = theme.getColor(inputValidationErrorForeground);
+	if (inputValidationErrorForegroundColor) {
+		collector.addRule(`.scm-viewlet .scm-editor-validation.validation-error { color: ${inputValidationErrorForegroundColor}; }`);
+	}
+});

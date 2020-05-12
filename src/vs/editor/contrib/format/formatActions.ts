@@ -12,7 +12,7 @@ import { EditorAction, registerEditorAction, registerEditorContribution, Service
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CharacterSet } from 'vs/editor/common/core/characterClassifier';
 import { Range } from 'vs/editor/common/core/range';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -25,8 +25,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Progress } from 'vs/platform/progress/common/progress';
 
-class FormatOnType implements editorCommon.IEditorContribution {
+class FormatOnType implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.autoFormat';
 
@@ -138,7 +139,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			}
 
 			if (isNonEmptyArray(edits)) {
-				FormattingEdit.execute(this._editor, edits);
+				FormattingEdit.execute(this._editor, edits, true);
 				alertFormattingEdits(edits);
 			}
 
@@ -149,7 +150,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 	}
 }
 
-class FormatOnPaste implements editorCommon.IEditorContribution {
+class FormatOnPaste implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.formatOnPaste';
 
@@ -191,7 +192,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		this._callOnModel.add(this.editor.onDidPaste(range => this._trigger(range)));
+		this._callOnModel.add(this.editor.onDidPaste(({ range }) => this._trigger(range)));
 	}
 
 	private _trigger(range: Range): void {
@@ -212,7 +213,7 @@ class FormatDocumentAction extends EditorAction {
 			id: 'editor.action.formatDocument',
 			label: nls.localize('formatDocument.label', "Format Document"),
 			alias: 'Format Document',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
+			precondition: ContextKeyExpr.and(EditorContextKeys.notInCompositeEditor, EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentFormattingProvider),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
@@ -230,7 +231,7 @@ class FormatDocumentAction extends EditorAction {
 	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
 		if (editor.hasModel()) {
 			const instaService = accessor.get(IInstantiationService);
-			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, CancellationToken.None);
+			await instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None);
 		}
 	}
 }

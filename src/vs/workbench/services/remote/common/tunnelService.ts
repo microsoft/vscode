@@ -101,7 +101,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	private async tryDisposeTunnel(remoteHost: string, remotePort: number, tunnel: { refcount: number, readonly value: Promise<RemoteTunnel> }): Promise<void> {
 		if (tunnel.refcount <= 0) {
 			const disposePromise: Promise<void> = tunnel.value.then(tunnel => {
-				tunnel.dispose();
+				tunnel.dispose(true);
 				this._onTunnelClosed.fire({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
 			});
 			if (this._tunnels.has(remoteHost)) {

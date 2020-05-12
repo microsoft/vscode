@@ -23,6 +23,7 @@ The server implements the following capabilities of the language server protocol
 - [Code Formatting](https://microsoft.github.io/language-server-protocol/specification#textDocument_rangeFormatting) supporting ranges and formatting the whole document.
 - [Folding Ranges](https://microsoft.github.io/language-server-protocol/specification#textDocument_foldingRange) for all folding ranges in the document.
 - Semantic Selection for semantic selection for one or multiple cursor positions.
+- [Goto Definition](https://microsoft.github.io/language-server-protocol/specification#textDocument_definition) for $ref references in JSON schemas
 - [Diagnostics (Validation)](https://microsoft.github.io/language-server-protocol/specification#textDocument_publishDiagnostics) are pushed for all open documents
    - syntax errors
    - structural validation based on the document's [JSON schema](http://json-schema.org/).
@@ -46,6 +47,8 @@ The client can send the following initialization options to the server:
 
 - `provideFormatter: boolean | undefined`. If defined, the value defines whether the server provides the `documentRangeFormattingProvider` capability on initialization. If undefined, the setting `json.format.enable` is used to determine whether formatting is provided. The formatter will then be registered through dynamic registration. If the client does not support dynamic registration, no formatter will be available.
 - `handledSchemaProtocols`: The URI schemas handles by the server. See section `Schema configuration` below.
+- `customCapabilities`: Additional non-LSP client capabilities:
+  - `rangeFormatting: { editLimit: x } }`: For performance reasons, limit the number of edits returned by the range formatter to `x`.
 
 ### Settings
 
@@ -60,7 +63,7 @@ The server supports the following settings:
   - `format`
     - `enable`: Whether the server should register the formatting support. This option is only applicable if the client supports *dynamicRegistration* for *rangeFormatting* and `initializationOptions.provideFormatter` is not defined.
     - `schema`: Configures association of file names to schema URL or schemas and/or associations of schema URL to schema content.
-	  - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard.
+	  - `fileMatch`: an array of file names or paths (separated by `/`). `*` can be used as a wildcard. Exclusion patterns can also be defined and start with '!'. A file matches when there at least one matching pattern and the last matching pattern is not an exclusion pattern.
 	  - `url`: The URL of the schema, optional when also a schema is provided.
 	  - `schema`: The schema content.
     - `resultLimit`: The max number foldig ranges and otline symbols to be computed (for performance reasons)

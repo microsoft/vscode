@@ -11,6 +11,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('SnippetSession', function () {
 
@@ -26,7 +27,7 @@ suite('SnippetSession', function () {
 	}
 
 	setup(function () {
-		model = TextModel.createFromString('function foo() {\n    console.log(a);\n}');
+		model = createTextModel('function foo() {\n    console.log(a);\n}');
 		editor = createTestCodeEditor({ model: model }) as IActiveCodeEditor;
 		editor.setSelections([new Selection(1, 1, 1, 1), new Selection(2, 5, 2, 5)]);
 		assert.equal(model.getEOL(), '\n');

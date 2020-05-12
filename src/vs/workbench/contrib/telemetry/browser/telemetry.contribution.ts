@@ -19,8 +19,8 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { extname, basename, isEqual, isEqualOrParent, joinPath } from 'vs/base/common/resources';
+import { ITextFileService, ITextFileSaveEvent, ITextFileLoadEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { guessMimeTypes } from 'vs/base/common/mime';
@@ -58,7 +58,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewletService viewletService: IViewletService,
-		@ITextFileService textFileService: ITextFileService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
 
@@ -111,7 +111,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
 			theme: themeService.getColorTheme().id,
 			language,
-			pinnedViewlets: activityBarService.getPinnedViewletIds(),
+			pinnedViewlets: activityBarService.getPinnedViewContainerIds(),
 			restoredViewlet: activeViewlet ? activeViewlet.getId() : undefined,
 			restoredEditors: editorService.visibleEditors.length,
 			startupKind: lifecycleService.startupKind
@@ -124,15 +124,15 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		this._register(configurationTelemetry(telemetryService, configurationService));
 
 		//  Files Telemetry
-		this._register(textFileService.models.onModelLoaded(m => this.onTextFileModelLoaded(m)));
-		this._register(textFileService.models.onModelSaved(m => this.onTextFileModelSaved(m)));
+		this._register(textFileService.files.onDidLoad(e => this.onTextFileModelLoaded(e)));
+		this._register(textFileService.files.onDidSave(e => this.onTextFileModelSaved(e)));
 
 		// Lifecycle
 		this._register(lifecycleService.onShutdown(() => this.dispose()));
 	}
 
-	private onTextFileModelLoaded(model: ITextFileEditorModel): void {
-		const settingsType = this.getTypeIfSettings(model.resource);
+	private onTextFileModelLoaded(e: ITextFileLoadEvent): void {
+		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsReadClassification = {
 				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -142,12 +142,12 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		} else {
 			type FileGetClassification = {} & FileTelemetryDataFragment;
 
-			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(model.resource));
+			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(e.model.resource, e.reason));
 		}
 	}
 
-	private onTextFileModelSaved(model: ITextFileEditorModel): void {
-		const settingsType = this.getTypeIfSettings(model.resource);
+	private onTextFileModelSaved(e: ITextFileSaveEvent): void {
+		const settingsType = this.getTypeIfSettings(e.model.resource);
 		if (settingsType) {
 			type SettingsWrittenClassification = {
 				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -155,7 +155,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
 		} else {
 			type FilePutClassfication = {} & FileTelemetryDataFragment;
-			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(model.resource));
+			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
 		}
 	}
 
@@ -175,7 +175,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		}
 
 		// Check for snippets
-		if (isEqualOrParent(resource, joinPath(this.environmentService.userRoamingDataHome, 'snippets'))) {
+		if (isEqualOrParent(resource, this.environmentService.snippetsHome)) {
 			return 'snippets';
 		}
 

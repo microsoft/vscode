@@ -50,6 +50,8 @@ export interface WorkspaceFolderTaskResult extends WorkspaceTaskResult {
 	workspaceFolder: IWorkspaceFolder;
 }
 
+export const USER_TASKS_GROUP_KEY = 'settings';
+
 export interface ITaskService {
 	_serviceBrand: undefined;
 	onDidStateChange: Event<TaskEvent>;
@@ -67,19 +69,23 @@ export interface ITaskService {
 	terminate(task: Task): Promise<TaskTerminateResponse>;
 	terminateAll(): Promise<TaskTerminateResponse[]>;
 	tasks(filter?: TaskFilter): Promise<Task[]>;
+	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
+	readRecentTasks(): Promise<(Task | ConfiguringTask)[]>;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */
 	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
+	tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined>;
 	getTasksForGroup(group: string): Promise<Task[]>;
 	getRecentlyUsedTasks(): LinkedMap<string, string>;
+	migrateRecentTasks(tasks: Task[]): Promise<void>;
 	createSorter(): TaskSorter;
 
-	needsFolderQualification(): boolean;
+	getTaskDescription(task: Task | ConfiguringTask): string | undefined;
 	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask, properties?: {}, openConfig?: boolean): Promise<void>;
-	openConfig(task: CustomTask | undefined): Promise<void>;
+	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<void>;
 
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 

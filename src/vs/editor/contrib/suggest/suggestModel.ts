@@ -142,10 +142,10 @@ export class SuggestModel implements IDisposable {
 		}));
 
 		let editorIsComposing = false;
-		this._toDispose.add(this._editor.onCompositionStart(() => {
+		this._toDispose.add(this._editor.onDidCompositionStart(() => {
 			editorIsComposing = true;
 		}));
-		this._toDispose.add(this._editor.onCompositionEnd(() => {
+		this._toDispose.add(this._editor.onDidCompositionEnd(() => {
 			// refilter when composition ends
 			editorIsComposing = false;
 			this._refilterCompletionItems();
@@ -233,7 +233,7 @@ export class SuggestModel implements IDisposable {
 		};
 
 		this._triggerCharacterListener.add(this._editor.onDidType(checkTriggerCharacter));
-		this._triggerCharacterListener.add(this._editor.onCompositionEnd(checkTriggerCharacter));
+		this._triggerCharacterListener.add(this._editor.onDidCompositionEnd(checkTriggerCharacter));
 	}
 
 	// --- trigger/retrigger/cancel suggest
@@ -286,9 +286,7 @@ export class SuggestModel implements IDisposable {
 		) {
 			// Early exit if nothing needs to be done!
 			// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
-			if (this._state !== State.Idle) {
-				this.cancel();
-			}
+			this.cancel();
 			return;
 		}
 
@@ -513,6 +511,8 @@ export class SuggestModel implements IDisposable {
 		if (!suggestOptions.showFolders) { result.add(CompletionItemKind.Folder); }
 		if (!suggestOptions.showTypeParameters) { result.add(CompletionItemKind.TypeParameter); }
 		if (!suggestOptions.showSnippets) { result.add(CompletionItemKind.Snippet); }
+		if (!suggestOptions.showUsers) { result.add(CompletionItemKind.User); }
+		if (!suggestOptions.showIssues) { result.add(CompletionItemKind.Issue); }
 
 		return result;
 	}

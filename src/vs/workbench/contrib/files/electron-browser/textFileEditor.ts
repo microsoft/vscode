@@ -24,6 +24,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 /**
  * An implementation of editor for file system resources.
@@ -37,23 +38,24 @@ export class NativeTextFileEditor extends TextFileEditor {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
-		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
+		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IElectronService private readonly electronService: IElectronService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
-		@IExplorerService explorerService: IExplorerService
+		@IExplorerService explorerService: IExplorerService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, configurationService, editorService, themeService, editorGroupService, textFileService, explorerService);
+		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, configurationService);
 	}
 
 	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {
 
 		// Allow to restart with higher memory limit if the file is too large
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
-			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
+			const memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.textResourceConfigurationService.getValue<number>(undefined, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
 			throw createErrorWithActions(nls.localize('fileTooLargeForHeapError', "To open a file of this size, you need to restart and allow it to use more memory"), {
 				actions: [

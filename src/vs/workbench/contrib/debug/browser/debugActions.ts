@@ -7,10 +7,9 @@ import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IEnablement, IBreakpoint, IDebugSession, ILaunch, IConfig } from 'vs/workbench/contrib/debug/common/debug';
 import { Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -82,7 +81,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = configurationManager.selectedConfiguration.name ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
 	}
 
-	async run(event?: any): Promise<any> {
+	async run(): Promise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return;
@@ -106,8 +105,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		}
 
 		if (launch) {
-			const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-			return launch.openConfigFile(sideBySide, false);
+			return launch.openConfigFile(false);
 		}
 	}
 }
@@ -115,6 +113,7 @@ export class ConfigureAction extends AbstractDebugAction {
 export class StartAction extends AbstractDebugAction {
 	static ID = 'workbench.action.debug.start';
 	static LABEL = nls.localize('startDebug', "Start Debugging");
+	static GET_CONFIG_AND_LAUNCH: (() => Promise<{ config: IConfig, launch: ILaunch } | undefined>) | undefined;
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
@@ -129,9 +128,17 @@ export class StartAction extends AbstractDebugAction {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
-	run(): Promise<boolean> {
-		const { launch, name } = this.debugService.getConfigurationManager().selectedConfiguration;
-		return this.debugService.startDebugging(launch, name, { noDebug: this.isNoDebug() });
+	async run(): Promise<boolean> {
+		if (StartAction.GET_CONFIG_AND_LAUNCH) {
+			const picked = await StartAction.GET_CONFIG_AND_LAUNCH();
+			if (picked) {
+				return this.debugService.startDebugging(picked.launch, picked.config, { noDebug: this.isNoDebug() });
+			}
+			return Promise.resolve(false);
+		} else {
+			let { launch, name } = this.debugService.getConfigurationManager().selectedConfiguration;
+			return this.debugService.startDebugging(launch, name, { noDebug: this.isNoDebug() });
+		}
 	}
 
 	protected isNoDebug(): boolean {
@@ -160,7 +167,7 @@ export class StartAction extends AbstractDebugAction {
 
 export class RunAction extends StartAction {
 	static readonly ID = 'workbench.action.debug.run';
-	static LABEL = nls.localize('startWithoutDebugging', "Run (Start Without Debugging)");
+	static LABEL = nls.localize('startWithoutDebugging', "Start Without Debugging");
 
 	protected isNoDebug(): boolean {
 		return true;
@@ -174,13 +181,13 @@ export class SelectAndStartAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IQuickOpenService private readonly quickOpenService: IQuickOpenService
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super(id, label, '', debugService, keybindingService);
 	}
 
-	run(): Promise<any> {
-		return this.quickOpenService.show('debug ');
+	async run(): Promise<any> {
+		this.quickInputService.quickAccess.show('debug ');
 	}
 }
 
@@ -393,20 +400,18 @@ export class CopyValueAction extends Action {
 	async run(): Promise<any> {
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		const session = this.debugService.getViewModel().focusedSession;
-
-		if (typeof this.value === 'string') {
-			return this.clipboardService.writeText(this.value);
+		if (!stackFrame || !session) {
+			return;
 		}
 
-		if (stackFrame && session && this.value.evaluateName) {
-			try {
-				const evaluation = await session.evaluate(this.value.evaluateName, stackFrame.frameId, this.context);
-				this.clipboardService.writeText(evaluation.body.result);
-			} catch (e) {
-				this.clipboardService.writeText(this.value.value);
-			}
-		} else {
-			this.clipboardService.writeText(this.value.value);
+		const context = session.capabilities.supportsClipboardContext ? 'clipboard' : this.context;
+		const toEvaluate = typeof this.value === 'string' ? this.value : this.value.evaluateName || this.value.value;
+
+		try {
+			const evaluation = await session.evaluate(toEvaluate, stackFrame.frameId, context);
+			this.clipboardService.writeText(evaluation.body.result);
+		} catch (e) {
+			this.clipboardService.writeText(typeof this.value === 'string' ? this.value : this.value.value);
 		}
 	}
 }

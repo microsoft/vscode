@@ -18,7 +18,7 @@ import { LineBreakData, ISimpleModel, SplitLine, SplitLinesCollection } from 'vs
 import { ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor ViewModel - SplitLinesCollection', () => {
 	test('SplitLine', () => {
@@ -95,12 +95,9 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = config.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = config.options.get(EditorOption.wrappingIndent);
 
-		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(
-			wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters
-		);
+		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
-		const model = TextModel.createFromString([
+		const model = createTextModel([
 			'int main() {',
 			'\tprintf("Hello world!");',
 			'}',
@@ -112,9 +109,11 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		const linesCollection = new SplitLinesCollection(
 			model,
 			lineBreaksComputerFactory,
+			lineBreaksComputerFactory,
+			fontInfo,
 			model.getOptions().tabSize,
+			'simple',
 			wrappingInfo.wrappingColumn,
-			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 			wrappingIndent
 		);
 
@@ -349,7 +348,7 @@ suite('SplitLinesCollection', () => {
 		};
 		const LANGUAGE_ID = 'modelModeTest1';
 		languageRegistration = modes.TokenizationRegistry.register(LANGUAGE_ID, tokenizationSupport);
-		model = TextModel.createFromString(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
+		model = createTextModel(_text.join('\n'), undefined, new modes.LanguageIdentifier(LANGUAGE_ID, 0));
 		// force tokenization
 		model.forceTokenization(model.getLineCount());
 	});
@@ -747,17 +746,16 @@ suite('SplitLinesCollection', () => {
 		const wordWrapBreakBeforeCharacters = configuration.options.get(EditorOption.wordWrapBreakBeforeCharacters);
 		const wrappingIndent = configuration.options.get(EditorOption.wrappingIndent);
 
-		const factory = new MonospaceLineBreaksComputerFactory(
-			wordWrapBreakBeforeCharacters,
-			wordWrapBreakAfterCharacters
-		);
+		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const linesCollection = new SplitLinesCollection(
 			model,
-			factory,
+			lineBreaksComputerFactory,
+			lineBreaksComputerFactory,
+			fontInfo,
 			model.getOptions().tabSize,
+			'simple',
 			wrappingInfo.wrappingColumn,
-			fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth,
 			wrappingIndent
 		);
 

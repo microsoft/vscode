@@ -96,7 +96,7 @@ export class TextAreaState {
 		return new TextAreaState(text, 0, text.length, null, null);
 	}
 
-	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean, couldBeTypingAtOffset0: boolean): ITypeData {
+	public static deduceInput(previousState: TextAreaState, currentState: TextAreaState, couldBeEmojiInput: boolean): ITypeData {
 		if (!previousState) {
 			// This is the EMPTY state
 			return {
@@ -115,18 +115,6 @@ export class TextAreaState {
 		let currentValue = currentState.value;
 		let currentSelectionStart = currentState.selectionStart;
 		let currentSelectionEnd = currentState.selectionEnd;
-
-		if (couldBeTypingAtOffset0 && previousValue.length > 0 && previousSelectionStart === previousSelectionEnd && currentSelectionStart === currentSelectionEnd) {
-			// See https://github.com/Microsoft/vscode/issues/42251
-			// where typing always happens at offset 0 in the textarea
-			// when using a custom title area in OSX and moving the window
-			if (!strings.startsWith(currentValue, previousValue) && strings.endsWith(currentValue, previousValue)) {
-				// Looks like something was typed at offset 0
-				// ==> pretend we placed the cursor at offset 0 to begin with...
-				previousSelectionStart = 0;
-				previousSelectionEnd = 0;
-			}
-		}
 
 		// Strip the previous suffix from the value (without interfering with the current selection)
 		const previousSuffix = previousValue.substring(previousSelectionEnd);

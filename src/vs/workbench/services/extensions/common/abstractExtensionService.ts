@@ -10,7 +10,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { BetterMergeId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -68,7 +68,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		@INotificationService protected readonly _notificationService: INotificationService,
 		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
-		@IExtensionEnablementService protected readonly _extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService protected readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService protected readonly _fileService: IFileService,
 		@IProductService protected readonly _productService: IProductService
 	) {
@@ -457,12 +457,12 @@ class ProposedApiController {
 		@IProductService productService: IProductService
 	) {
 		// Make enabled proposed API be lowercase for case insensitive comparison
-		this.enableProposedApiFor = (environmentService.args['enable-proposed-api'] || []).map(id => id.toLowerCase());
+		this.enableProposedApiFor = (environmentService.extensionEnabledProposedApi || []).map(id => id.toLowerCase());
 
 		this.enableProposedApiForAll =
 			!environmentService.isBuilt || // always allow proposed API when running out of sources
 			(!!environmentService.extensionDevelopmentLocationURI && productService.quality !== 'stable') || // do not allow proposed API against stable builds when developing an extension
-			(this.enableProposedApiFor.length === 0 && 'enable-proposed-api' in environmentService.args); // always allow proposed API if --enable-proposed-api is provided without extension ID
+			(this.enableProposedApiFor.length === 0 && Array.isArray(environmentService.extensionEnabledProposedApi)); // always allow proposed API if --enable-proposed-api is provided without extension ID
 
 		this.productAllowProposedApi = new Set<string>();
 		if (isNonEmptyArray(productService.extensionAllowedProposedApi)) {

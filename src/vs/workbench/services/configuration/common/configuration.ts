@@ -17,10 +17,10 @@ export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
 export const launchSchemaId = 'vscode://schemas/launch';
 export const tasksSchemaId = 'vscode://schemas/tasks';
 
-export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.RESOURCE_LANGUAGE];
-export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.RESOURCE_LANGUAGE, ConfigurationScope.MACHINE_OVERRIDABLE];
-export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.RESOURCE_LANGUAGE, ConfigurationScope.MACHINE_OVERRIDABLE];
-export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE, ConfigurationScope.RESOURCE_LANGUAGE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
+export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
 
 export const TASKS_CONFIGURATION_KEY = 'tasks';
 export const LAUNCH_CONFIGURATION_KEY = 'launch';
@@ -40,3 +40,5 @@ export interface IConfigurationCache {
 	remove(key: ConfigurationKey): Promise<void>;
 
 }
+
+export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';

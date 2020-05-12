@@ -5,22 +5,23 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { isEqual, basenameOrAuthority, basename, joinPath, dirname } from 'vs/base/common/resources';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
-import { ltrim, endsWith } from 'vs/base/common/strings';
+import { ltrim } from 'vs/base/common/strings';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, WORKSPACE_EXTENSION, toWorkspaceIdentifier, isWorkspaceIdentifier, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
-import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting } from 'vs/platform/label/common/label';
+import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent } from 'vs/platform/label/common/label';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -89,19 +90,21 @@ class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ResourceLabelFormattersHandler, LifecyclePhase.Restored);
 
-export class LabelService implements ILabelService {
+export class LabelService extends Disposable implements ILabelService {
+
 	_serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[] = [];
-	private readonly _onDidChangeFormatters = new Emitter<void>();
+
+	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>());
+	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-	) { }
-
-	get onDidChangeFormatters(): Event<void> {
-		return this._onDidChangeFormatters.event;
+		@IPathService private readonly pathService: IPathService
+	) {
+		super();
 	}
 
 	findFormatting(resource: URI): ResourceLabelFormatting | undefined {
@@ -132,7 +135,7 @@ export class LabelService implements ILabelService {
 
 	private doGetUriLabel(resource: URI, formatting?: ResourceLabelFormatting, options: { relative?: boolean, noPrefix?: boolean, endWithSeparator?: boolean } = {}): string {
 		if (!formatting) {
-			return getPathLabel(resource.path, this.environmentService, options.relative ? this.contextService : undefined);
+			return getPathLabel(resource.path, { userHome: this.pathService.resolvedUserHome }, options.relative ? this.contextService : undefined);
 		}
 
 		let label: string | undefined;
@@ -199,7 +202,7 @@ export class LabelService implements ILabelService {
 
 			// Workspace: Saved
 			let filename = basename(workspace.configPath);
-			if (endsWith(filename, WORKSPACE_EXTENSION)) {
+			if (filename.endsWith(WORKSPACE_EXTENSION)) {
 				filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 			}
 			let label;
@@ -226,12 +229,12 @@ export class LabelService implements ILabelService {
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
 		this.formatters.push(formatter);
-		this._onDidChangeFormatters.fire();
+		this._onDidChangeFormatters.fire({ scheme: formatter.scheme });
 
 		return {
 			dispose: () => {
 				this.formatters = this.formatters.filter(f => f !== formatter);
-				this._onDidChangeFormatters.fire();
+				this._onDidChangeFormatters.fire({ scheme: formatter.scheme });
 			}
 		};
 	}
@@ -263,7 +266,10 @@ export class LabelService implements ILabelService {
 		}
 
 		if (formatting.tildify && !forceNoTildify) {
-			label = tildify(label, this.environmentService.userHome);
+			const userHome = this.pathService.resolvedUserHome;
+			if (userHome) {
+				label = tildify(label, userHome.fsPath);
+			}
 		}
 		if (formatting.authorityPrefix && resource.authority) {
 			label = formatting.authorityPrefix + label;
@@ -274,7 +280,7 @@ export class LabelService implements ILabelService {
 
 	private appendSeparatorIfMissing(label: string, formatting: ResourceLabelFormatting): string {
 		let appendedLabel = label;
-		if (!endsWith(label, formatting.separator)) {
+		if (!label.endsWith(formatting.separator)) {
 			appendedLabel += formatting.separator;
 		}
 		return appendedLabel;

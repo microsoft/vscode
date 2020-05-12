@@ -7,12 +7,15 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ShutdownReason, StartupKind, handleVetos, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { ipcRenderer as ipc } from 'electron';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import Severity from 'vs/base/common/severity';
+import { localize } from 'vs/nls';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class NativeLifecycleService extends AbstractLifecycleService {
 
@@ -24,7 +27,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
-		@IElectronEnvironmentService private readonly electronEnvironmentService: IElectronEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IStorageService readonly storageService: IStorageService,
 		@ILogService readonly logService: ILogService
 	) {
@@ -54,7 +57,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	}
 
 	private registerListeners(): void {
-		const windowId = this.electronEnvironmentService.windowId;
+		const windowId = this.environmentService.configuration.windowId;
 
 		// Main side indicates that window is about to unload, check for vetos
 		ipc.on('vscode:onBeforeUnload', (_event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
@@ -107,10 +110,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			reason
 		});
 
-		return handleVetos(vetos, err => {
-			this.notificationService.error(toErrorMessage(err));
-			onUnexpectedError(err);
-		});
+		return handleVetos(vetos, error => this.onShutdownError(reason, error));
 	}
 
 	private async handleWillShutdown(reason: ShutdownReason): Promise<void> {
@@ -128,9 +128,34 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		try {
 			await Promise.all(joiners);
 		} catch (error) {
-			this.notificationService.error(toErrorMessage(error));
-			onUnexpectedError(error);
+			this.onShutdownError(reason, error);
 		}
+	}
+
+	private onShutdownError(reason: ShutdownReason, error: Error): void {
+		let message: string;
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				message = localize('errorClose', "An unexpected error prevented the window from closing ({0}).", toErrorMessage(error));
+				break;
+			case ShutdownReason.QUIT:
+				message = localize('errorQuit', "An unexpected error prevented the application from closing ({0}).", toErrorMessage(error));
+				break;
+			case ShutdownReason.RELOAD:
+				message = localize('errorReload', "An unexpected error prevented the window from reloading ({0}).", toErrorMessage(error));
+				break;
+			case ShutdownReason.LOAD:
+				message = localize('errorLoad', "An unexpected error prevented the window from changing it's workspace ({0}).", toErrorMessage(error));
+				break;
+		}
+
+		this.notificationService.notify({
+			severity: Severity.Error,
+			message,
+			sticky: true
+		});
+
+		onUnexpectedError(error);
 	}
 }
 

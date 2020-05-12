@@ -13,7 +13,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
-import { IViewPaneContainer } from 'vs/workbench/common/viewPaneContainer';
+import { IViewPaneContainer } from 'vs/workbench/common/views';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 
@@ -86,7 +86,7 @@ export interface IExtensionsWorkbenchService {
 	installVersion(extension: IExtension, version: string): Promise<IExtension>;
 	reinstall(extension: IExtension): Promise<IExtension>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
-	open(extension: IExtension, sideByside?: boolean): Promise<any>;
+	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): Promise<any>;
 	checkForUpdates(): Promise<void>;
 }
 
@@ -124,7 +124,7 @@ export class ExtensionContainers extends Disposable {
 		this.containers.forEach(c => c.extension = extension);
 	}
 
-	private update(extension: IExtension): void {
+	private update(extension: IExtension | undefined): void {
 		for (const container of this.containers) {
 			if (extension && container.extension) {
 				if (areSameExtensions(container.extension.identifier, extension.identifier)) {
@@ -140,3 +140,5 @@ export class ExtensionContainers extends Disposable {
 		}
 	}
 }
+
+export const TOGGLE_IGNORE_EXTENSION_ACTION_ID = 'workbench.extensions.action.toggleIgnoreExtension';

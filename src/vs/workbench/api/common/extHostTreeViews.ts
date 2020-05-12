@@ -153,7 +153,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 	}
 }
 
-type Root = null | undefined;
+type Root = null | undefined | void;
 type TreeData<T> = { message: boolean, element: T | Root | false };
 
 interface TreeNode extends IDisposable {
@@ -237,7 +237,7 @@ class ExtHostTreeView<T> extends Disposable {
 				result.message = true;
 			}
 			return result;
-		}, 200)(({ message, elements }) => {
+		}, 200, true)(({ message, elements }) => {
 			if (elements.length) {
 				this.refreshQueue = this.refreshQueue.then(() => {
 					const _promiseCallback = promiseCallback;

@@ -41,18 +41,18 @@ export class JSONEditingService implements IJSONEditingService {
 
 	private async doWriteConfiguration(resource: URI, values: IJSONValue[], save: boolean): Promise<void> {
 		const reference = await this.resolveAndValidate(resource, save);
-		await this.writeToBuffer(reference.object.textEditorModel, values);
+		await this.writeToBuffer(reference.object.textEditorModel, values, save);
 
 		reference.dispose();
 	}
 
-	private async writeToBuffer(model: ITextModel, values: IJSONValue[]): Promise<any> {
+	private async writeToBuffer(model: ITextModel, values: IJSONValue[], save: boolean): Promise<any> {
 		let hasEdits: boolean = false;
 		for (const value of values) {
 			const edit = this.getEdits(model, value)[0];
 			hasEdits = this.applyEditsToBuffer(edit, model);
 		}
-		if (hasEdits) {
+		if (hasEdits && save) {
 			return this.textFileService.save(model.uri);
 		}
 	}

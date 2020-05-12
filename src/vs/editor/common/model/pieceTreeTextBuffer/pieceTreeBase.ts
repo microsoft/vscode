@@ -269,7 +269,7 @@ export class PieceTreeBase {
 	protected _buffers!: StringBuffer[]; // 0 is change buffer, others are readonly original buffer.
 	protected _lineCnt!: number;
 	protected _length!: number;
-	protected _EOL!: string;
+	protected _EOL!: '\r\n' | '\n';
 	protected _EOLLength!: number;
 	protected _EOLNormalized!: boolean;
 	private _lastChangeBufferPos!: BufferCursor;
@@ -351,7 +351,7 @@ export class PieceTreeBase {
 	}
 
 	// #region Buffer API
-	public getEOL(): string {
+	public getEOL(): '\r\n' | '\n' {
 		return this._EOL;
 	}
 
@@ -670,7 +670,7 @@ export class PieceTreeBase {
 		if (searcher._wordSeparators) {
 			searchText = buffer.buffer.substring(start, end);
 			offsetInBuffer = (offset: number) => offset + start;
-			searcher.reset(-1);
+			searcher.reset(0);
 		} else {
 			searchText = buffer.buffer;
 			offsetInBuffer = (offset: number) => offset;
