@@ -308,8 +308,7 @@ export abstract class ViewPane extends Pane implements IView {
 	style(styles: IPaneStyles): void {
 		super.style(styles);
 
-		const icon = this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon;
-
+		const icon = this.getIcon();
 		if (this.iconContainer) {
 			const fgColor = styles.headerForeground || this.themeService.getColorTheme().getColor(foreground);
 			if (URI.isUri(icon)) {
@@ -324,9 +323,13 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 	}
 
+	private getIcon(): string | URI {
+		return this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon || 'codicon-window';
+	}
+
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
 		this.iconContainer = append(container, $('.icon', undefined));
-		const icon = this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon;
+		const icon = this.getIcon();
 
 		let cssClass: string | undefined = undefined;
 		if (URI.isUri(icon)) {

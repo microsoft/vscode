@@ -82,7 +82,8 @@
 
 /* Call stack */
 
-.debug-pane .debug-call-stack-title {
+.debug-pane.expanded .debug-call-stack-title,
+.debug-pane.vertical .debug-call-stack-title {
 	display: flex;
 	width: 100%;
 }

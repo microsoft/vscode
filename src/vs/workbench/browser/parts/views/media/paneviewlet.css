@@ -37,8 +37,8 @@
 	-webkit-margin-after: 0;
 }
 
-.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > h3.title,
-.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .description {
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header h3.title,
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header .description {
 	display: none;
 }
 
