@@ -948,6 +948,30 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.statusBar.focusFirst',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Home,
+	when: CONTEXT_STATUS_BAR_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const statusBarService = accessor.get(IStatusbarService);
+		statusBarService.focus(false);
+		statusBarService.focusNextEntry();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.statusBar.focusLast',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.End,
+	when: CONTEXT_STATUS_BAR_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const statusBarService = accessor.get(IStatusbarService);
+		statusBarService.focus(false);
+		statusBarService.focusPreviousEntry();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'workbench.statusBar.clearFocus',
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.Escape,
