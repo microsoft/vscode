@@ -78,6 +78,11 @@ declare module 'vscode' {
 		readonly displayName: string;
 
 		/**
+		 * Whether it is possible to be signed into multiple accounts at once.
+		 */
+		supportsMultipleAccounts: boolean;
+
+		/**
 		 * An [event](#Event) which fires when the array of sessions has changed, or data
 		 * within a session has changed.
 		 */
@@ -143,6 +148,7 @@ declare module 'vscode' {
 		export function getSession(providerId: string, scopes: string[], options: GetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
+		 * @deprecated
 		 * Get existing authentication sessions. Rejects if a provider with providerId is not
 		 * registered, or if the user does not consent to sharing authentication information with
 		 * the extension.
@@ -150,9 +156,10 @@ declare module 'vscode' {
 		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication
 		 * provider
 		 */
-		export function getSessions(providerId: string, scopes: string[]): Thenable<readonly AuthenticationSession[]>;
+		export function getSessions(providerId: string, scopes: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
+		 * @deprecated
 		* Prompt a user to login to create a new authenticaiton session. Rejects if a provider with
 		* providerId is not registered, or if the user does not consent to sharing authentication
 		* information with the extension.
@@ -163,6 +170,7 @@ declare module 'vscode' {
 		export function login(providerId: string, scopes: string[]): Thenable<AuthenticationSession>;
 
 		/**
+		 * @deprecated
 		* Logout of a specific session.
 		* @param providerId The id of the provider to use
 		* @param sessionId The session id to remove

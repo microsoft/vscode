@@ -52,8 +52,18 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		const orderedScopes = scopes.sort().join(' ');
 		const sessions = (await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes);
 		if (sessions.length) {
-			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
+			if (!provider.supportsMultipleAccounts) {
+				const session = sessions[0];
+				const allowed = await this._proxy.$getSessionsPrompt(provider.id, session.account.displayName, provider.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
+				if (allowed) {
+					return session;
+				} else {
+					throw new Error('User did not consent to login.');
+				}
+			}
+
+			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
 			const selected = await this._proxy.$getSession(provider.id, provider.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName, sessions, scopes, !!options.clearSessionPreference);
 			return sessions.find(session => session.id === selected.id);
 		} else {
