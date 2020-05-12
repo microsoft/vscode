@@ -3,6 +3,9 @@
 	"assignees": {
 		"JacksonKearl": {
 			"assign": true
+		},
+		"bpasero": {
+			"assign": true
 		}
 	},
 	"labels": {
@@ -10,6 +13,24 @@
 			"applyLabel": true,
 			"assign": [
 				"JacksonKearl"
+			]
+		},
+		"workbench-editors": {
+			"applyLabel": false,
+			"assign": [
+				"bpasero"
+			]
+		},
+		"workbench-history": {
+			"applyLabel": false,
+			"assign": [
+				"bpasero"
+			]
+		},
+		"workbench-notifications": {
+			"applyLabel": false,
+			"assign": [
+				"bpasero"
 			]
 		}
 	}
