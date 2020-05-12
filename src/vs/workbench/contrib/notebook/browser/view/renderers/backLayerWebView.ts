@@ -327,9 +327,6 @@ ${loaderJs}
 				// Move focus off the focus sink - single use
 				focusFirstFocusableInCell(cellId);
 			}, 50);
-
-			console.log(cellId, outputId);
-			console.log(document.activeElement);
 		});
 
 		return element;

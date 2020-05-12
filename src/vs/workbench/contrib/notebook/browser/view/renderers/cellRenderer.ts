@@ -701,7 +701,7 @@ export class CellLanguageStatusBarItem extends Disposable {
 	) {
 		super();
 		this.labelElement = DOM.append(container, $('.cell-language-picker'));
-		this.labelElement.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
+		this.labelElement.tabIndex = 0;
 
 		this._register(DOM.addDisposableListener(this.labelElement, DOM.EventType.CLICK, () => {
 			this.instantiationService.invokeFunction(accessor => {
@@ -904,6 +904,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 
 		const outputContainer = DOM.append(container, $('.output'));
+		const focusSink = DOM.append(container, $('.cell-editor-focus-sink'));
+		focusSink.setAttribute('tabindex', '0');
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
 		const templateData: CodeCellRenderTemplate = {
@@ -928,6 +930,13 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		};
 
 		this.dndController.registerDragHandle(templateData, () => new CodeCellDragImageRenderer().getDragImage(templateData, templateData.editor, 'code'));
+
+		disposables.add(DOM.addDisposableListener(focusSink, DOM.EventType.FOCUS, () => {
+			if (templateData.currentRenderedCell) {
+				this.notebookEditor.focusNotebookCell(templateData.currentRenderedCell, 'output');
+			}
+		}));
+
 		return templateData;
 	}
 
