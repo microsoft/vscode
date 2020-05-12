@@ -392,3 +392,9 @@ export function getSyncAreaLabel(source: SyncResource): string {
 		case SyncResource.GlobalState: return localize('ui state label', "UI State");
 	}
 }
+
+// Commands
+export const TURN_ON_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOn';
+export const TURN_OFF_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOff';
+export const MANAGE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
+export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';
