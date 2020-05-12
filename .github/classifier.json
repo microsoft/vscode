@@ -32,6 +32,12 @@
 			"assign": [
 				"bpasero"
 			]
+		},
+		"workbench-tabs": {
+			"applyLabel": false,
+			"assign": [
+				"bpasero"
+			]
 		}
 	}
 }
