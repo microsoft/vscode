@@ -39,6 +39,7 @@ import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as platform from 'vs/base/common/platform';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -261,6 +262,10 @@ export class SuggestController implements IEditorContribution {
 		const modelVersionNow = model.getAlternativeVersionId();
 		const { item } = event;
 
+		//
+		const tasks: Promise<any>[] = [];
+		const cts = new CancellationTokenSource();
+
 		// pushing undo stops *before* additional text edits and
 		// *after* the main edit
 		if (!(flags & InsertFlags.NoBeforeUndoStop)) {
@@ -273,10 +278,66 @@ export class SuggestController implements IEditorContribution {
 		// keep item in memory
 		this._memoryService.memorize(model, this.editor.getPosition(), item);
 
-		const scrollState = StableEditorScrollState.capture(this.editor);
 
 		if (Array.isArray(item.completion.additionalTextEdits)) {
-			this.editor.executeEdits('suggestController.additionalTextEdits', item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+			// sync additional edits
+			const scrollState = StableEditorScrollState.capture(this.editor);
+			this.editor.executeEdits(
+				'suggestController.additionalTextEdits.sync',
+				item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+			);
+			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
+
+		} else if (!item.isResolved) {
+			// async additional edits
+			let position: IPosition | undefined;
+
+			const docListener = model.onDidChangeContent(e => {
+				if (e.isFlush) {
+					cts.cancel();
+					docListener.dispose();
+					return;
+				}
+				for (let change of e.changes) {
+					const thisPosition = Range.getEndPosition(change.range);
+					if (!position || Position.isBefore(thisPosition, position)) {
+						position = thisPosition;
+					}
+				}
+			});
+
+			let oldFlags = flags;
+			flags |= InsertFlags.NoAfterUndoStop;
+			let didType = false;
+			let typeListener = this.editor.onWillType(() => {
+				typeListener.dispose();
+				didType = true;
+				if (!(oldFlags & InsertFlags.NoAfterUndoStop)) {
+					this.editor.pushUndoStop();
+				}
+			});
+
+			tasks.push(item.resolve(cts.token).then(() => {
+				if (!item.completion.additionalTextEdits || cts.token.isCancellationRequested) {
+					return;
+				}
+				if (position && item.completion.additionalTextEdits.some(edit => Position.isBefore(position!, Range.getStartPosition(edit.range)))) {
+					return;
+				}
+				if (didType) {
+					this.editor.pushUndoStop();
+				}
+				this.editor.executeEdits(
+					'suggestController.additionalTextEdits.async',
+					item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
+				);
+				if (didType || !(oldFlags & InsertFlags.NoAfterUndoStop)) {
+					this.editor.pushUndoStop();
+				}
+			}).finally(() => {
+				docListener.dispose();
+				typeListener.dispose();
+			}));
 		}
 
 		let { insertText } = item.completion;
@@ -292,8 +353,6 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
 		});
 
-		scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
-
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
 			this.editor.pushUndoStop();
 		}
@@ -301,7 +360,6 @@ export class SuggestController implements IEditorContribution {
 		if (!item.completion.command) {
 			// done
 			this.model.cancel();
-			this.model.clear();
 
 		} else if (item.completion.command.id === TriggerSuggestAction.id) {
 			// retigger
@@ -309,14 +367,16 @@ export class SuggestController implements IEditorContribution {
 
 		} else {
 			// exec command, done
-			this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : []))
-				.catch(onUnexpectedError)
-				.finally(() => this.model.clear()); // <- clear only now, keep commands alive
+			tasks.push(this._commandService.executeCommand(item.completion.command.id, ...(item.completion.command.arguments ? [...item.completion.command.arguments] : [])).catch(onUnexpectedError));
 			this.model.cancel();
 		}
 
 		if (flags & InsertFlags.KeepAlternativeSuggestions) {
 			this._alternatives.value.set(event, next => {
+
+				// cancel resolving of additional edits
+				cts.cancel();
+
 				// this is not so pretty. when inserting the 'next'
 				// suggestion we undo until we are at the state at
 				// which we were before inserting the previous suggestion...
@@ -334,6 +394,12 @@ export class SuggestController implements IEditorContribution {
 		}
 
 		this._alertCompletionItem(item);
+
+		// clear only now - after all tasks are done
+		Promise.all(tasks).finally(() => {
+			this.model.clear();
+			cts.dispose();
+		});
 	}
 
 	getOverwriteInfo(item: CompletionItem, toggleMode: boolean): { overwriteBefore: number, overwriteAfter: number } {
