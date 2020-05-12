@@ -131,6 +131,11 @@ export interface CommitOptions {
 	empty?: boolean;
 }
 
+export interface BranchQuery {
+	readonly includeUpstream?: boolean;
+	readonly contains?: string;
+}
+
 export interface Repository {
 
 	readonly rootUri: Uri;
@@ -170,6 +175,7 @@ export interface Repository {
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
 	deleteBranch(name: string, force?: boolean): Promise<void>;
 	getBranch(name: string): Promise<Branch>;
+	getBranches(query: BranchQuery): Promise<string[]>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
 	getMergeBase(ref1: string, ref2: string): Promise<string>;

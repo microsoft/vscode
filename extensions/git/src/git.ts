@@ -15,7 +15,7 @@ import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes,
 import { CancellationToken, Progress, Uri } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -768,6 +768,21 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(line => /^(\S+)\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line)!)
 		.filter(m => !!m)
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
+}
+
+function parseBranches(raw: string): string[] {
+	// Some examples of what could be parsed here
+	// 	origin/HEAD -> origin/master
+	// 	origin/alexr00/issue1713
+	// 	origin/alexr00/issue1763
+	// 	origin/alexr00/issue1787
+	// 	origin/master
+	// 	alexr00/issue1787
+	//  * master
+
+	return raw.split('\n')
+		.filter(line => !!line)
+		.map(line => /^(\*\s)?([^\s]+(\s|$))(->\s?.*$)?/.exec(line.trim())![2]);
 }
 
 export interface PullOptions {
@@ -1911,6 +1926,18 @@ export class Repository {
 		} catch (err) {
 			return { name, type: RefType.Head, commit };
 		}
+	}
+
+	async getBranches(query: BranchQuery): Promise<string[]> {
+		const args: string[] = ['branch'];
+		if (query.includeUpstream) {
+			args.push('-r');
+		}
+		if (query.contains) {
+			args.push('--contains', query.contains);
+		}
+		const result = await this.run(args);
+		return result.stdout ? parseBranches(result.stdout) : [];
 	}
 
 	// TODO: Support core.commentChar
