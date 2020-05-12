@@ -23,7 +23,7 @@ suite('TypeScript Fix All', () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
-	test('Should fix unreachable code', async () => {
+	test('Fix all should remove unreachable code', async () => {
 		const editor = await createTestEditor(testDocumentUri,
 			`function foo() {`,
 			`    return 1;`,
@@ -35,16 +35,16 @@ suite('TypeScript Fix All', () => {
 			`};`,
 		);
 
-		await wait(2500);
+		await wait(2000);
 
 		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
 			testDocumentUri,
 			emptyRange,
 			vscode.CodeActionKind.SourceFixAll
 		);
-		assert.strictEqual(fixes?.length, 1);
 
 		await vscode.workspace.applyEdit(fixes![0].edit!);
+
 		assert.strictEqual(editor.document.getText(), joinLines(
 			`function foo() {`,
 			`    return 1;`,
@@ -53,9 +53,10 @@ suite('TypeScript Fix All', () => {
 			`    return 3;`,
 			`};`,
 		));
+
 	});
 
-	test('Should implement interfaces', async () => {
+	test('Fix all should implement interfaces', async () => {
 		const editor = await createTestEditor(testDocumentUri,
 			`interface I {`,
 			`    x: number;`,
@@ -64,14 +65,13 @@ suite('TypeScript Fix All', () => {
 			`class B implements I {}`,
 		);
 
-		await wait(2500);
+		await wait(2000);
 
 		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
 			testDocumentUri,
 			emptyRange,
 			vscode.CodeActionKind.SourceFixAll
 		);
-		assert.strictEqual(fixes?.length, 1);
 
 		await vscode.workspace.applyEdit(fixes![0].edit!);
 		assert.strictEqual(editor.document.getText(), joinLines(
@@ -84,6 +84,35 @@ suite('TypeScript Fix All', () => {
 			`class B implements I {`,
 			`    x: number;`,
 			`}`,
+		));
+	});
+
+	test('Remove unused should handle nested ununused', async () => {
+		const editor = await createTestEditor(testDocumentUri,
+			`export const _ = 1;`,
+			`function unused() {`,
+			`    const a = 1;`,
+			`}`,
+			`function used() {`,
+			`    const a = 1;`,
+			`}`,
+			`used();`
+		);
+
+		await wait(2000);
+
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
+			testDocumentUri,
+			emptyRange,
+			vscode.CodeActionKind.Source.append('removeUnused')
+		);
+
+		await vscode.workspace.applyEdit(fixes![0].edit!);
+		assert.strictEqual(editor.document.getText(), joinLines(
+			`export const _ = 1;`,
+			`function used() {`,
+			`}`,
+			`used();`
 		));
 	});
 });

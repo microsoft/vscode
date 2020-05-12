@@ -11,6 +11,6 @@ export const unusedLabel = 7028;
 export const fallThroughCaseInSwitch = 7029;
 export const notAllCodePathsReturnAValue = 7030;
 export const incorrectlyImplementsInterface = 2420;
-export const cannotFindName = 2552;
+export const cannotFindName = [2552, 2304];
 export const extendsShouldBeImplements = 2689;
 export const asyncOnlyAllowedInAsyncFunctions = 1308;

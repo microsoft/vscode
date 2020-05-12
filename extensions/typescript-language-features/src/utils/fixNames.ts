@@ -12,4 +12,5 @@ export const unreachableCode = 'fixUnreachableCode';
 export const unusedIdentifier = 'unusedIdentifier';
 export const forgottenThisPropertyAccess = 'forgottenThisPropertyAccess';
 export const spelling = 'spelling';
+export const fixImport = 'import';
 export const addMissingAwait = 'addMissingAwait';
