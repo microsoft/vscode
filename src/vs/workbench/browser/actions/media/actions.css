@@ -29,7 +29,7 @@
 	z-index: 100000;
 	pointer-events: none;
 	color: #eee;
-	line-height: calc(1 / 0.56);
+	line-height: 1.75em;
 	text-align: center;
 	transition: opacity 0.3s ease-out;
 	white-space: nowrap;
