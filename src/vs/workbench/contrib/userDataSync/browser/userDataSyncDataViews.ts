@@ -12,7 +12,7 @@ import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeVie
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -32,7 +32,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.viewsEnablementContext = CONTEXT_ENABLE_VIEWS.bindTo(contextKeyService);
@@ -47,13 +47,15 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 	}
 
 	private registerViews(container: ViewContainer): void {
-		this.registerView(container, true);
-		this.registerView(container, false);
+		this.registerView(container, true, true);
+		this.registerView(container, false, false);
 	}
 
-	private registerView(container: ViewContainer, remote: boolean): void {
+	private registerView(container: ViewContainer, remote: boolean, showByDefault: boolean): void {
 		const that = this;
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}DataView`;
+		const showByDefaultContext = new RawContextKey<boolean>(id, showByDefault);
+		const viewEnablementContext = showByDefaultContext.bindTo(this.contextKeyService);
 		const name = remote ? localize('remote title', "Synced Data") : localize('local title', "Local Backup");
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
 		treeView.showCollapseAllAction = true;
@@ -69,7 +71,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
-			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_VIEWS),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_VIEWS, showByDefaultContext),
 			canToggleVisibility: true,
 			canMoveView: true,
 			treeView,
@@ -96,6 +98,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 				const viewsService = accessor.get(IViewsService);
 				const viewContainer = viewDescriptorService.getViewContainerByViewId(id);
 				that.viewsEnablementContext.set(true);
+				viewEnablementContext.set(true);
 				if (viewContainer) {
 					const model = viewDescriptorService.getViewContainerModel(viewContainer);
 					if (model.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === id)) {
