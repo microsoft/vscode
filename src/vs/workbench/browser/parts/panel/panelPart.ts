@@ -215,11 +215,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				}
 
 				if (isActive) {
-					// Only try to open the panel if it has been created and visible
-					if (!activePanel && this.element && this.layoutService.isVisible(Parts.PANEL_PART)) {
-						this.doOpenPanel(panel.id);
-					}
-
 					this.compositeBar.activateComposite(panel.id);
 				}
 			}
@@ -263,7 +258,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		const cachedTitle = this.getPlaceholderViewContainers().filter(panel => panel.id === viewContainer.id)[0]?.name;
+		const cachedTitle = this.getCachedPanels().filter(panel => panel.id === viewContainer.id)[0]?.name;
 
 		const activity: IActivity = {
 			id: viewContainer.id,
@@ -288,7 +283,14 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (viewContainerModel.activeViewDescriptors.length) {
 			this.compositeBar.addComposite(viewContainer);
 		} else if (viewContainer.hideIfEmpty) {
-			this.hideComposite(viewContainer.id);
+			if (this.extensionsRegistered) {
+				this.hideComposite(viewContainer.id);
+			} else {
+				const cachedPanels = this.getCachedPanels().filter(p => p.id === viewContainer.id)[0];
+				if (this.shouldBeHidden(viewContainer.id, cachedPanels)) {
+					this.hideComposite(viewContainer.id);
+				}
+			}
 		}
 	}
 
@@ -367,10 +369,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
-					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
-				}
+				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+					const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+
+					if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
+						this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
+					}
+				});
 			}
 		}
 
@@ -548,7 +553,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return {
 			updateTitle: (id, title, keybinding) => {
 				const action = this.compositeBar.getAction(id);
-				if (action) {
+				if (this.extensionsRegistered && action) {
 					action.label = title;
 				}
 			},
@@ -609,8 +614,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 			if (panel) {
 				compositeActions = {
-					activityAction: new PanelActivityAction(assertIsDefined(this.getPanel(compositeId)), this),
-					pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
+					activityAction: new PanelActivityAction(assertIsDefined(panel), this),
+					pinnedAction: new ToggleCompositePinnedAction(panel, this.compositeBar)
 				};
 			} else {
 				compositeActions = {
@@ -692,7 +697,13 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
+
+				const views: { when: string | undefined }[] = [];
+				for (const { when } of viewContainerModel.allViewDescriptors) {
+					views.push({ when: when ? when.serialize() : undefined });
+				}
+
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible, views });
 				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
 			}
 		}
