@@ -361,8 +361,20 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 		try {
 			await main.run(argv);
+
 			// Flush the remaining data in AI adapter.
-			await combinedAppender(...appenders).flush();
+			// If it does not complete in 2 seconds, exit the process.
+			const flushTelemetry = (promise: Promise<any>, ms: number): Promise<any> => {
+				const timeout = new Promise((resolve) => {
+					const id = setTimeout(() => {
+						clearTimeout(id);
+						resolve();
+					}, ms);
+				});
+
+				return Promise.race([promise, timeout]);
+			};
+			await flushTelemetry(combinedAppender(...appenders).flush(), 1000);
 		} finally {
 			disposables.dispose();
 		}
