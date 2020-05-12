@@ -700,13 +700,6 @@ export class MoveFocusedViewAction extends Action {
 		const currentLocation = this.viewDescriptorService.getViewLocationById(focusedViewId)!;
 		const isViewSolo = this.viewDescriptorService.getViewContainerModel(currentContainer).allViewDescriptors.length === 1;
 
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
-			items.push({
-				id: '_.sidebar.newcontainer',
-				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Container in Side Bar")
-			});
-		}
-
 		const pinnedViewlets = this.activityBarService.getVisibleViewContainerIds();
 		items.push(...pinnedViewlets
 			.filter(viewletId => {
@@ -728,13 +721,6 @@ export class MoveFocusedViewAction extends Action {
 			label: nls.localize('panel', "Panel")
 		});
 
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
-			items.push({
-				id: '_.panel.newcontainer',
-				label: nls.localize('moveFocusedView.newContainerInPanel', "New Container in Panel"),
-			});
-		}
-
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		items.push(...pinnedPanels
 			.filter(panel => {
@@ -750,6 +736,24 @@ export class MoveFocusedViewAction extends Action {
 					label: this.viewDescriptorService.getViewContainerById(panel.id)!.name
 				};
 			}));
+
+		items.push({
+			type: 'separator',
+		});
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
+			items.push({
+				id: '_.panel.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInPanel', "New Entry in Panel"),
+			});
+		}
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
+			items.push({
+				id: '_.sidebar.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Entry in Side Bar")
+			});
+		}
 
 		quickPick.items = items;
 
