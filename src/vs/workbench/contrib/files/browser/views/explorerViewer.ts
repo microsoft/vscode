@@ -945,7 +945,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		// Calculate files and bytes to upload
-		const scanNotification = this.notificationService.notify({
+		const notification = this.notificationService.notify({
 			sticky: true,
 			severity: Severity.Info,
 			message: `Scanning files...`,
@@ -954,42 +954,31 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		});
 
-		const stats = { currentFile: 1, currentSize: 0, totalFiles: 0, totalSize: 0 };
+		const stats = { totalFiles: 0, totalSize: 0 };
 		for (let entry of entries) {
 			const itemStats = await this.scanFileEntity(entry);
 			stats.totalFiles += itemStats.totalFiles;
 			stats.totalSize += itemStats.totalSize;
 		}
-		scanNotification.close();
+
+		if (entries.length === 1 && entries[0].isFile) {
+			notification.updateMessage(`Uploading ${entries[0].name}`);
+		} else {
+			notification.updateMessage(`Uploading ${stats.totalFiles} files...`);
+		}
+		notification.progress.total(stats.totalSize);
 
 		// Start upload
-		const uploadNotification = this.notificationService.notify({
-			sticky: true,
-			severity: Severity.Info,
-			message: entries.length === 1 && entries[0].isFile ? `Uploading ${entries[0].name}` : `Uploading ${stats.currentSize}/${stats.totalFiles} files...`,
-			progress: {
-				total: stats.totalSize
-			}
-		});
-
 		for (let entry of entries) {
-			await this.uploadFileEntry(entry, target.resource, target, () => {
-				stats.currentFile++;
-				if (stats.currentFile >= stats.totalFiles) {
-					uploadNotification.updateMessage(`Uploading ${stats.totalFiles}/${stats.totalFiles} file${stats.totalFiles > 1 ? 's' : ''}...`);
-				} else {
-					uploadNotification.updateMessage(`Uploading ${stats.currentFile}/${stats.totalFiles} file${stats.totalFiles > 1 ? 's' : ''}...`);
-				}
-			}, (bytesUploaded: number) => {
-				stats.currentSize += bytesUploaded;
-				uploadNotification.progress.worked(bytesUploaded);
+			await this.uploadFileEntry(entry, target.resource, target, (bytes: number) => {
+				notification.progress.worked(bytes);
 			});
 
 			if (entries.length === 1 && entry.isFile) {
 				await this.editorService.openEditor({ resource: joinPath(target.resource, entry.name), options: { pinned: true } });
 			}
 		}
-		uploadNotification.close();
+		notification.close();
 	}
 
 	private async scanFileEntity(entry: any): Promise<{ totalFiles: number, totalSize: number }> {
@@ -1022,7 +1011,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		return stats;
 	}
 
-	private async uploadFileEntry(entry: any, parentResource: URI, target: ExplorerItem | undefined, processedFileCallback: (file: any) => void, processedBytesCallback: (bytes: number) => void): Promise<void> {
+	private async uploadFileEntry(entry: any, parentResource: URI, target: ExplorerItem | undefined, progressCallback: (bytes: number) => void): Promise<void> {
 		const resource = joinPath(parentResource, entry.name);
 
 		if (entry.isFile) {
@@ -1038,11 +1027,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			let readableStream = new FileReadableStream(file);
 			readableStream.on('progress', bytes => {
-				processedBytesCallback(bytes);
+				progressCallback(bytes);
 			});
 			await this.fileService.writeFile(resource, readableStream);
-
-			processedFileCallback(file);
 
 			const reader = new FileReader();
 			reader.readAsArrayBuffer(file);
@@ -1064,7 +1051,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				dirReader.readEntries(resolve, reject);
 			});
 			for (let childEntry of childEntries) {
-				await this.uploadFileEntry(childEntry, resource, folderTarget, processedFileCallback, processedBytesCallback);
+				await this.uploadFileEntry(childEntry, resource, folderTarget, progressCallback);
 			}
 		}
 	}
