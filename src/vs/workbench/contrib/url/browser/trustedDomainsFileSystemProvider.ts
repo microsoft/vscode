@@ -12,10 +12,9 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { readTrustedDomains, TRUSTED_DOMAINS_CONTENT_STORAGE_KEY, TRUSTED_DOMAINS_STORAGE_KEY } from 'vs/workbench/contrib/url/browser/trustedDomains';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { assertIsDefined } from 'vs/base/common/types';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 const TRUSTED_DOMAINS_SCHEMA = 'trustedDomains';
 
@@ -47,7 +46,7 @@ const CONFIG_PLACEHOLDER_TEXT = `[
 	// "https://microsoft.com"
 ]`;
 
-function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDomains: string[], userTrustedDomains: string[]) {
+function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDomains: string[], userTrustedDomains: string[], workspaceTrustedDomains: string[]) {
 	let content = CONFIG_HELP_TEXT_PRE;
 
 	if (defaultTrustedDomains.length > 0) {
@@ -58,9 +57,17 @@ function computeTrustedDomainContent(defaultTrustedDomains: string[], trustedDom
 	} else {
 		content += `// By default, VS Code trusts "localhost".\n`;
 	}
+
 	if (userTrustedDomains.length) {
 		content += `//\n// Additionally, the following domains are trusted based on your current GitHub login:\n`;
 		userTrustedDomains.forEach(d => {
+			content += `// - "${d}"\n`;
+		});
+	}
+
+	if (workspaceTrustedDomains.length) {
+		content += `//\n// Further, the following domains are trusted based on your workspace configuration:\n`;
+		workspaceTrustedDomains.forEach(d => {
 			content += `// - "${d}"\n`;
 		});
 	}
@@ -85,9 +92,8 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IProductService private readonly productService: IProductService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 	) {
 		this.fileService.registerProvider(TRUSTED_DOMAINS_SCHEMA, this);
 
@@ -105,14 +111,14 @@ export class TrustedDomainsFileSystemProvider implements IFileSystemProviderWith
 			StorageScope.GLOBAL
 		);
 
-		const { defaultTrustedDomains, trustedDomains, userDomains } = await readTrustedDomains(this.storageService, this.productService, this.authenticationService);
+		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this.instantiationService.invokeFunction(readTrustedDomains);
 		if (
 			!trustedDomainsContent ||
 			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_PRE) === -1 ||
 			trustedDomainsContent.indexOf(CONFIG_HELP_TEXT_AFTER) === -1 ||
-			[...defaultTrustedDomains, ...trustedDomains, ...userDomains].some(d => !assertIsDefined(trustedDomainsContent).includes(d))
+			[...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains].some(d => !assertIsDefined(trustedDomainsContent).includes(d))
 		) {
-			trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains, userDomains);
+			trustedDomainsContent = computeTrustedDomainContent(defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains);
 		}
 
 		const buffer = VSBuffer.fromString(trustedDomainsContent).buffer;
