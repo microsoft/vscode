@@ -21,11 +21,12 @@ export function merge(localExtensions: ISyncExtension[], remoteExtensions: ISync
 	const updated: ISyncExtension[] = [];
 
 	if (!remoteExtensions) {
+		const remote = localExtensions.filter(({ identifier }) => ignoredExtensions.every(id => id.toLowerCase() !== identifier.id.toLowerCase()));
 		return {
 			added,
 			removed,
 			updated,
-			remote: localExtensions.filter(({ identifier }) => ignoredExtensions.every(id => id.toLowerCase() !== identifier.id.toLowerCase()))
+			remote: remote.length > 0 ? remote : null
 		};
 	}
 
