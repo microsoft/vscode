@@ -6,6 +6,9 @@
 		},
 		"bpasero": {
 			"assign": true
+		},
+		"Tyriar": {
+			"assign": true
 		}
 	},
 	"labels": {
@@ -13,6 +16,12 @@
 			"applyLabel": true,
 			"assign": [
 				"JacksonKearl"
+			]
+		},
+		"integrated-terminal": {
+			"applyLabel": true,
+			"assign": [
+				"Tyriar"
 			]
 		},
 		"workbench-editors": {
