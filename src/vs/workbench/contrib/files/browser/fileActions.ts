@@ -13,7 +13,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as strings from 'vs/base/common/strings';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { VIEWLET_ID, AutoReveal, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, IExplorerService, IFilesConfiguration, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
@@ -983,7 +983,7 @@ async function openExplorerAndCreate(accessor: ServicesAccessor, isFolder: boole
 			await refreshIfSeparator(value, explorerService);
 
 			isFolder ?
-				await explorerService.select(created.resource, AutoReveal.On) :
+				await explorerService.select(created.resource, true) :
 				await editorService.openEditor({ resource: created.resource, options: { pinned: true } });
 		} catch (error) {
 			onErrorWithRetry(notificationService, error, () => onSuccess(value));

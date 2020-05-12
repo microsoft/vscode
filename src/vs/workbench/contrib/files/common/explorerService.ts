@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IFilesConfiguration, AutoReveal, SortOrder, IExplorerView } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IFilesConfiguration, SortOrder, IExplorerView } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
@@ -150,7 +150,7 @@ export class ExplorerService implements IExplorerService {
 		return !!this.editable && (this.editable.stat === stat || !stat);
 	}
 
-	async select(resource: URI, reveal?: AutoReveal | boolean): Promise<void> {
+	async select(resource: URI, reveal?: boolean | string): Promise<void> {
 		if (!this.view) {
 			return;
 		}
@@ -196,7 +196,7 @@ export class ExplorerService implements IExplorerService {
 			const resource = this.editorService.activeEditor ? this.editorService.activeEditor.resource : undefined;
 			const autoReveal = this.configurationService.getValue<IFilesConfiguration>().explorer.autoReveal;
 
-			if (reveal && resource && autoReveal && autoReveal !== AutoReveal.Off) {
+			if (reveal && resource && autoReveal) {
 				// We did a top level refresh, reveal the active file #67118
 				this.select(resource, autoReveal);
 			}

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, AutoReveal, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, IExplorerService, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext } from 'vs/workbench/contrib/files/common/files';
 import { NewFolderAction, NewFileAction, FileCopiedContext, RefreshExplorerView, CollapseExplorerView } from 'vs/workbench/contrib/files/browser/fileActions';
 import { toResource, SideBySideEditor } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -147,7 +147,7 @@ export class ExplorerView extends ViewPane {
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
 	private dragHandler!: DelayedDragHandler;
-	private autoReveal: AutoReveal | boolean = AutoReveal.Off;
+	private autoReveal: boolean | string = false;
 	private actions: IAction[] | undefined;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 
@@ -279,7 +279,7 @@ export class ExplorerView extends ViewPane {
 					await this.setTreeInput();
 				}
 				// Find resource to focus from active editor input if set
-				this.selectActiveFile(false, AutoReveal.On);
+				this.selectActiveFile(false, true);
 			}
 		}));
 	}
@@ -301,7 +301,7 @@ export class ExplorerView extends ViewPane {
 		this.tree.domFocus();
 
 		const focused = this.tree.getFocus();
-		if (focused.length === 1 && this.autoReveal && this.autoReveal !== AutoReveal.Off) {
+		if (focused.length === 1 && this.autoReveal) {
 			this.tree.reveal(focused[0], 0.5);
 		}
 	}
@@ -334,7 +334,7 @@ export class ExplorerView extends ViewPane {
 	}
 
 	private selectActiveFile(deselect?: boolean, reveal = this.autoReveal): void {
-		if (this.autoReveal && this.autoReveal !== AutoReveal.Off) {
+		if (this.autoReveal) {
 			const activeFile = this.getActiveFile();
 			if (activeFile) {
 				const focus = this.tree.getFocus();
@@ -681,11 +681,10 @@ export class ExplorerView extends ViewPane {
 			}
 
 			try {
-				console.log(reveal);
-				if (reveal && reveal !== AutoReveal.Off) {
+				if (reveal) {
 					// Don't scroll to the item if it's already visible,
 					// or if set not to.
-					if (reveal !== AutoReveal.HighlightNoScroll && this.tree.getRelativeTop(item) === null) {
+					if (reveal !== 'highlightNoScroll' && this.tree.getRelativeTop(item) === null) {
 						this.tree.reveal(item, 0.5);
 					}
 				}

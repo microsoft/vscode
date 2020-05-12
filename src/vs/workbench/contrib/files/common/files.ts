@@ -58,7 +58,7 @@ export interface IExplorerService {
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
 	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
 	 */
-	select(resource: URI, reveal?: AutoReveal | boolean): Promise<void>;
+	select(resource: URI, reveal?: boolean | string): Promise<void>;
 
 	registerView(contextAndRefreshProvider: IExplorerView): void;
 }
@@ -66,7 +66,7 @@ export interface IExplorerService {
 export interface IExplorerView {
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
-	selectResource(resource: URI | undefined, reveal?: AutoReveal | boolean): Promise<void>;
+	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
 	setTreeInput(): Promise<void>;
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
@@ -121,7 +121,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		openEditors: {
 			visible: number;
 		};
-		autoReveal: AutoReveal | boolean;
+		autoReveal: boolean | string;
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
@@ -137,13 +137,6 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 export interface IFileResource {
 	resource: URI;
 	isDirectory?: boolean;
-}
-
-// May also be true or false, for backwards compatibility or simplicity.
-export const enum AutoReveal {
-	On = 'on',
-	Off = 'off',
-	HighlightNoScroll = 'highlightNoScroll'
 }
 
 export const enum SortOrder {

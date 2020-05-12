@@ -9,7 +9,7 @@ import { isFunction, assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, AutoReveal, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, TextEditorOptions, IEditorCloseEvent, Verbosity } from 'vs/workbench/common/editor';
@@ -241,7 +241,7 @@ export class TextFileEditor extends BaseTextEditor {
 		if (this.contextService.isInsideWorkspace(input.resource)) {
 			await this.viewletService.openViewlet(VIEWLET_ID);
 
-			this.explorerService.select(input.resource, AutoReveal.On);
+			this.explorerService.select(input.resource, true);
 		}
 	}
 
