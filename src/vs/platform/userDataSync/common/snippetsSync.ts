@@ -256,6 +256,19 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 	}
 
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
+		const local = await this.getSnippetsFileContents();
+		const localSnippets = this.toSnippetsContents(local);
+		const snippets = this.parseSnippets(syncData);
+		const { added, updated, removed } = merge(localSnippets, snippets, localSnippets);
+		this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<ISinppetsSyncPreviewResult>({
+			added, removed, updated, remote: snippets, remoteUserData, local, lastSyncUserData, conflicts: [], resolvedConflicts: {},
+			hasLocalChanged: Object.keys(added).length > 0 || removed.length > 0 || Object.keys(updated).length > 0,
+			hasRemoteChanged: true
+		}));
+		await this.apply();
+	}
+
 	protected getPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISinppetsSyncPreviewResult> {
 		if (!this.syncPreviewResultPromise) {
 			this.syncPreviewResultPromise = createCancelablePromise(token => this.generatePreview(remoteUserData, lastSyncUserData, token));

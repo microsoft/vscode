@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncEnablementService, ISyncPreviewResult } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 
@@ -38,6 +38,8 @@ class TestSynchroniser extends AbstractSynchroniser {
 		await this.apply(remoteUserData.ref);
 		return this.syncResult.status || SyncStatus.Idle;
 	}
+
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> { }
 
 	async apply(ref: string): Promise<void> {
 		ref = await this.userDataSyncStoreService.write(this.resource, '', ref);

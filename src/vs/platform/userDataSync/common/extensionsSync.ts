@@ -200,6 +200,18 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return SyncStatus.Idle;
 	}
 
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
+		const localExtensions = await this.getLocalExtensions();
+		const syncExtensions = this.parseExtensions(syncData);
+		const { added, updated, removed } = merge(localExtensions, syncExtensions, localExtensions, [], this.getIgnoredExtensions());
+
+		await this.apply({
+			added, removed, updated, remote: syncExtensions, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
+			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
+			hasRemoteChanged: true
+		});
+	}
+
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionsSyncPreviewResult> {
 		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? this.parseExtensions(remoteUserData.syncData) : null;
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? this.parseExtensions(lastSyncUserData.syncData!) : null;
