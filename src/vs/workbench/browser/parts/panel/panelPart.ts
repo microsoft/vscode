@@ -402,6 +402,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private createEmptyPanelMessage(): void {
+		const contentArea = this.getContentArea()!;
 		this.emptyPanelMessageElement = document.createElement('div');
 		addClass(this.emptyPanelMessageElement, 'empty-panel-message-area');
 
@@ -410,7 +411,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		messageElement.innerText = localize('panel.emptyMessage', "No panels to display. Drag a view into the panel.");
 
 		this.emptyPanelMessageElement.appendChild(messageElement);
-		this.element.appendChild(this.emptyPanelMessageElement);
+		contentArea.appendChild(this.emptyPanelMessageElement);
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.emptyPanelMessageElement, {
 			onDragOver: (e) => {
