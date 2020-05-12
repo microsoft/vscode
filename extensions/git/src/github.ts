@@ -56,7 +56,8 @@ export class GithubCredentialProviderManager {
 	}
 
 	private refresh(): void {
-		this.enabled = workspace.getConfiguration('git', null).get('githubAuthentication', true);
+		const config = workspace.getConfiguration('git', null);
+		this.enabled = config.get<boolean>('enabled', true) && config.get('githubAuthentication', true);
 	}
 
 	dispose(): void {
