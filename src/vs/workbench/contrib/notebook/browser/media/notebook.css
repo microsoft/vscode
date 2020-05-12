@@ -341,6 +341,15 @@
 
 .notebookOverlay .cell .monaco-progress-container {
 	top: -5px;
+
+	position: absolute;
+	left: 0;
+	z-index: 5;
+	height: 2px;
+}
+
+.notebookOverlay .cell .monaco-progress-container .progress-bit {
+	height: 2px;
 }
 
 .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.cell-has-toolbar-actions.focused > .monaco-toolbar,
