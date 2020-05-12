@@ -113,6 +113,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
 	included?: boolean;
 	tags?: string[];
+	disallowSyncIgnore?: boolean;
 }
 
 export interface IConfigurationExtensionInfo {
@@ -325,6 +326,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					continue;
 				} else {
 					this.configurationProperties[key] = properties[key];
+				}
+
+				if (!properties[key].deprecationMessage && properties[key].markdownDeprecationMessage) {
+					// If not set, default deprecationMessage to the markdown source
+					properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
 				}
 
 				propertyKeys.push(key);

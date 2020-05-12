@@ -28,12 +28,7 @@ export interface IPanelService {
 	/**
 	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
 	 */
-	openPanel(id: string, focus?: boolean): IPanel | undefined;
-
-	/**
-	 * Opens a panel with the given identifier and pass keyboard focus to it if specified.
-	 */
-	openPanelAsync(id?: string, focus?: boolean): Promise<IPanel | undefined>;
+	openPanel(id?: string, focus?: boolean): Promise<IPanel | undefined>;
 
 	/**
 	 * Returns the current active panel or null if none

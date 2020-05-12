@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IUserDataSyncUtilService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncUtilService, getDefaultIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourcePropertiesService, ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 class UserDataSyncUtilService implements IUserDataSyncUtilService {
 
@@ -22,14 +21,13 @@ class UserDataSyncUtilService implements IUserDataSyncUtilService {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextResourcePropertiesService private readonly textResourcePropertiesService: ITextResourcePropertiesService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
-	public async updateConfigurationValue(key: string, value: any): Promise<void> {
-		await this.configurationService.updateValue(key, value, ConfigurationTarget.USER);
+	async resolveDefaultIgnoredSettings(): Promise<string[]> {
+		return getDefaultIgnoredSettings();
 	}
 
-	public async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
+	async resolveUserBindings(userBindings: string[]): Promise<IStringDictionary<string>> {
 		const keys: IStringDictionary<string> = {};
 		for (const userbinding of userBindings) {
 			keys[userbinding] = this.keybindingsService.resolveUserBinding(userbinding).map(part => part.getUserSettingsLabel()).join(' ');

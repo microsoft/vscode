@@ -6,8 +6,8 @@
 import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IResourceEditor, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { IResourceEditorInputType, IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
@@ -17,7 +17,8 @@ import { trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { mapToSerializable } from 'vs/base/common/map';
+import { domEvent } from 'vs/base/browser/event';
+import { memoize } from 'vs/base/common/decorators';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -59,12 +60,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private workspaceProvider: IWorkspaceProvider;
 
 	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -78,21 +79,23 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	private _onDidChangeFocus: Event<boolean> | undefined;
+	@memoize
 	get onDidChangeFocus(): Event<boolean> {
-		if (!this._onDidChangeFocus) {
-			const focusTracker = this._register(trackFocus(window));
-			this._onDidChangeFocus = Event.any(
-				Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-				Event.map(focusTracker.onDidBlur, () => this.hasFocus)
-			);
-		}
+		const focusTracker = this._register(trackFocus(window));
 
-		return this._onDidChangeFocus;
+		return Event.latch(Event.any(
+			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
+			Event.map(focusTracker.onDidBlur, () => this.hasFocus),
+			Event.map(domEvent(window.document, 'visibilitychange'), () => this.hasFocus)
+		));
 	}
 
 	get hasFocus(): boolean {
 		return document.hasFocus();
+	}
+
+	async hadLastFocus(): Promise<boolean> {
+		return true;
 	}
 
 	async focus(): Promise<void> {
@@ -110,18 +113,21 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+		const payload = this.preservePayload();
+
 		for (let i = 0; i < toOpen.length; i++) {
 			const openable = toOpen[i];
 			openable.label = openable.label || this.getRecentLabel(openable);
 
+
 			// Folder
 			if (isFolderToOpen(openable)) {
-				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */) });
+				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 			}
 
 			// Workspace
 			else if (isWorkspaceToOpen(openable)) {
-				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */) });
+				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 			}
 
 			// File
@@ -129,7 +135,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Same Window: open via editor service in current window
 				if (this.shouldReuse(options, true /* file */)) {
-					const inputs: IResourceEditor[] = await pathsToEditors([openable], this.fileService);
+					const inputs: IResourceEditorInputType[] = await pathsToEditors([openable], this.fileService);
 					this.editorService.openEditors(inputs);
 				}
 
@@ -138,10 +144,31 @@ export class BrowserHostService extends Disposable implements IHostService {
 					const environment = new Map<string, string>();
 					environment.set('openFile', openable.fileUri.toString());
 
-					this.workspaceProvider.open(undefined, { payload: mapToSerializable(environment) });
+					this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
 				}
 			}
 		}
+	}
+
+	private preservePayload(): Array<unknown> | undefined {
+
+		// Selectively copy payload: for now only extension debugging properties are considered
+		let newPayload: Array<unknown> | undefined = undefined;
+		if (this.environmentService.extensionDevelopmentLocationURI) {
+			newPayload = new Array();
+
+			newPayload.push(['extensionDevelopmentPath', this.environmentService.extensionDevelopmentLocationURI.toString()]);
+
+			if (this.environmentService.debugExtensionHost.debugId) {
+				newPayload.push(['debugId', this.environmentService.debugExtensionHost.debugId]);
+			}
+
+			if (this.environmentService.debugExtensionHost.port) {
+				newPayload.push(['inspect-brk-extensions', String(this.environmentService.debugExtensionHost.port)]);
+			}
+		}
+
+		return newPayload;
 	}
 
 	private getRecentLabel(openable: IWindowOpenable): string {
@@ -173,7 +200,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async toggleFullScreen(): Promise<void> {
-		const target = this.layoutService.getWorkbenchElement();
+		const target = this.layoutService.container;
 
 		// Chromium
 		if (document.fullscreen !== undefined) {

@@ -6,7 +6,7 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/dynamicWebviewEditorOverlay';
-import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewOverlay, WebviewElement, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WebviewIconManager } from 'vs/workbench/contrib/webview/browser/webviewIconManager';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
@@ -26,7 +26,7 @@ export class ElectronWebviewService implements IWebviewService {
 		this._iconManager = this._instantiationService.createInstance(WebviewIconManager);
 	}
 
-	createWebview(
+	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions
@@ -39,11 +39,11 @@ export class ElectronWebviewService implements IWebviewService {
 		}
 	}
 
-	createWebviewEditorOverlay(
+	createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-	): WebviewEditorOverlay {
+	): WebviewOverlay {
 		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions);
 	}
 

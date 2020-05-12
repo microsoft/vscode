@@ -56,6 +56,20 @@ export function raceCancellation<T>(promise: Promise<T>, token: CancellationToke
 	return Promise.race([promise, new Promise<T>(resolve => token.onCancellationRequested(() => resolve(defaultValue)))]);
 }
 
+export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T> {
+	let promiseResolve: (() => void) | undefined = undefined;
+
+	const timer = setTimeout(() => {
+		promiseResolve?.();
+		onTimeout?.();
+	}, timeout);
+
+	return Promise.race([
+		promise.finally(() => clearTimeout(timer)),
+		new Promise<T>(resolve => promiseResolve = resolve)
+	]);
+}
+
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const item = callback();
@@ -750,7 +764,7 @@ export class IdleValue<T> {
 		this._handle.dispose();
 	}
 
-	getValue(): T {
+	get value(): T {
 		if (!this._didRun) {
 			this._handle.dispose();
 			this._executor();
@@ -779,3 +793,107 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 
 	throw lastError;
 }
+
+//#region Task Sequentializer
+
+interface IPendingTask {
+	taskId: number;
+	cancel: () => void;
+	promise: Promise<void>;
+}
+
+interface ISequentialTask {
+	promise: Promise<void>;
+	promiseResolve: () => void;
+	promiseReject: (error: Error) => void;
+	run: () => Promise<void>;
+}
+
+export interface ITaskSequentializerWithPendingTask {
+	readonly pending: Promise<void>;
+}
+
+export class TaskSequentializer {
+	private _pending?: IPendingTask;
+	private _next?: ISequentialTask;
+
+	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
+		if (!this._pending) {
+			return false;
+		}
+
+		if (typeof taskId === 'number') {
+			return this._pending.taskId === taskId;
+		}
+
+		return !!this._pending;
+	}
+
+	get pending(): Promise<void> | undefined {
+		return this._pending ? this._pending.promise : undefined;
+	}
+
+	cancelPending(): void {
+		this._pending?.cancel();
+	}
+
+	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
+		this._pending = { taskId: taskId, cancel: () => onCancel?.(), promise };
+
+		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));
+
+		return promise;
+	}
+
+	private donePending(taskId: number): void {
+		if (this._pending && taskId === this._pending.taskId) {
+
+			// only set pending to done if the promise finished that is associated with that taskId
+			this._pending = undefined;
+
+			// schedule the next task now that we are free if we have any
+			this.triggerNext();
+		}
+	}
+
+	private triggerNext(): void {
+		if (this._next) {
+			const next = this._next;
+			this._next = undefined;
+
+			// Run next task and complete on the associated promise
+			next.run().then(next.promiseResolve, next.promiseReject);
+		}
+	}
+
+	setNext(run: () => Promise<void>): Promise<void> {
+
+		// this is our first next task, so we create associated promise with it
+		// so that we can return a promise that completes when the task has
+		// completed.
+		if (!this._next) {
+			let promiseResolve: () => void;
+			let promiseReject: (error: Error) => void;
+			const promise = new Promise<void>((resolve, reject) => {
+				promiseResolve = resolve;
+				promiseReject = reject;
+			});
+
+			this._next = {
+				run,
+				promise,
+				promiseResolve: promiseResolve!,
+				promiseReject: promiseReject!
+			};
+		}
+
+		// we have a previous next task, just overwrite it
+		else {
+			this._next.run = run;
+		}
+
+		return this._next.promise;
+	}
+}
+
+//#endregion

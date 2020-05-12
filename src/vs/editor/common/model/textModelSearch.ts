@@ -515,7 +515,7 @@ export class Searcher {
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
 
-	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp, ) {
+	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
 		this._wordSeparators = wordSeparators;
 		this._searchRegex = searchRegex;
 		this._prevMatchStartIndex = -1;

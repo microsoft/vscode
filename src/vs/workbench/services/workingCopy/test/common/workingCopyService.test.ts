@@ -8,70 +8,69 @@ import { IWorkingCopy, IWorkingCopyBackup } from 'vs/workbench/services/workingC
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { TestWorkingCopyService } from 'vs/workbench/test/workbenchTestServices';
+import { TestWorkingCopyService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { basename } from 'vs/base/common/resources';
 
-suite('WorkingCopyService', () => {
+export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
-	class TestWorkingCopy extends Disposable implements IWorkingCopy {
+	private readonly _onDidChangeDirty = this._register(new Emitter<void>());
+	readonly onDidChangeDirty = this._onDidChangeDirty.event;
 
-		private readonly _onDidChangeDirty = this._register(new Emitter<void>());
-		readonly onDidChangeDirty = this._onDidChangeDirty.event;
+	private readonly _onDidChangeContent = this._register(new Emitter<void>());
+	readonly onDidChangeContent = this._onDidChangeContent.event;
 
-		private readonly _onDidChangeContent = this._register(new Emitter<void>());
-		readonly onDidChangeContent = this._onDidChangeContent.event;
+	private readonly _onDispose = this._register(new Emitter<void>());
+	readonly onDispose = this._onDispose.event;
 
-		private readonly _onDispose = this._register(new Emitter<void>());
-		readonly onDispose = this._onDispose.event;
+	readonly capabilities = 0;
 
-		readonly capabilities = 0;
+	readonly name = basename(this.resource);
 
-		readonly name = basename(this.resource);
+	private dirty = false;
 
-		private dirty = false;
+	constructor(public readonly resource: URI, isDirty = false) {
+		super();
 
-		constructor(public readonly resource: URI, isDirty = false) {
-			super();
+		this.dirty = isDirty;
+	}
 
-			this.dirty = isDirty;
-		}
-
-		setDirty(dirty: boolean): void {
-			if (this.dirty !== dirty) {
-				this.dirty = dirty;
-				this._onDidChangeDirty.fire();
-			}
-		}
-
-		setContent(content: string): void {
-			this._onDidChangeContent.fire();
-		}
-
-		isDirty(): boolean {
-			return this.dirty;
-		}
-
-		async save(options?: ISaveOptions): Promise<boolean> {
-			return true;
-		}
-
-		async revert(options?: IRevertOptions): Promise<boolean> {
-			this.setDirty(false);
-
-			return true;
-		}
-
-		async backup(): Promise<IWorkingCopyBackup> {
-			return {};
-		}
-
-		dispose(): void {
-			this._onDispose.fire();
-
-			super.dispose();
+	setDirty(dirty: boolean): void {
+		if (this.dirty !== dirty) {
+			this.dirty = dirty;
+			this._onDidChangeDirty.fire();
 		}
 	}
+
+	setContent(content: string): void {
+		this._onDidChangeContent.fire();
+	}
+
+	isDirty(): boolean {
+		return this.dirty;
+	}
+
+	async save(options?: ISaveOptions): Promise<boolean> {
+		return true;
+	}
+
+	async revert(options?: IRevertOptions): Promise<void> {
+		this.setDirty(false);
+	}
+
+	async backup(): Promise<IWorkingCopyBackup> {
+		return {};
+	}
+
+	dispose(): void {
+		this._onDispose.fire();
+
+		super.dispose();
+	}
+}
+
+suite('WorkingCopyService', () => {
+
 
 	test('registry - basics', () => {
 		const service = new TestWorkingCopyService();
@@ -112,8 +111,8 @@ suite('WorkingCopyService', () => {
 		assert.equal(service.dirtyCount, 1);
 		assert.equal(service.dirtyWorkingCopies.length, 1);
 		assert.equal(service.dirtyWorkingCopies[0], copy1);
-		assert.equal(service.getWorkingCopies(copy1.resource).length, 1);
-		assert.equal(service.getWorkingCopies(copy1.resource)[0], copy1);
+		assert.equal(service.workingCopies.length, 1);
+		assert.equal(service.workingCopies[0], copy1);
 		assert.equal(service.isDirty(resource1), true);
 		assert.equal(service.hasDirty, true);
 		assert.equal(onDidChangeDirty.length, 1);
@@ -167,7 +166,7 @@ suite('WorkingCopyService', () => {
 		assert.equal(onDidChangeDirty[3], copy2);
 	});
 
-	test('registry - multiple copies on same resource', () => {
+	test('registry - multiple copies on same resource throws', () => {
 		const service = new TestWorkingCopyService();
 
 		const onDidChangeDirty: IWorkingCopy[] = [];
@@ -176,37 +175,10 @@ suite('WorkingCopyService', () => {
 		const resource = URI.parse('custom://some/folder/custom.txt');
 
 		const copy1 = new TestWorkingCopy(resource);
-		const unregister1 = service.registerWorkingCopy(copy1);
+		service.registerWorkingCopy(copy1);
 
 		const copy2 = new TestWorkingCopy(resource);
-		const unregister2 = service.registerWorkingCopy(copy2);
 
-		assert.equal(service.getWorkingCopies(copy1.resource).length, 2);
-		assert.equal(service.getWorkingCopies(copy1.resource)[0], copy1);
-		assert.equal(service.getWorkingCopies(copy1.resource)[1], copy2);
-
-		copy1.setDirty(true);
-
-		assert.equal(service.dirtyCount, 1);
-		assert.equal(onDidChangeDirty.length, 1);
-		assert.equal(service.isDirty(resource), true);
-
-		copy2.setDirty(true);
-
-		assert.equal(service.dirtyCount, 2);
-		assert.equal(onDidChangeDirty.length, 2);
-		assert.equal(service.isDirty(resource), true);
-
-		unregister1.dispose();
-
-		assert.equal(service.dirtyCount, 1);
-		assert.equal(onDidChangeDirty.length, 3);
-		assert.equal(service.isDirty(resource), true);
-
-		unregister2.dispose();
-
-		assert.equal(service.dirtyCount, 0);
-		assert.equal(onDidChangeDirty.length, 4);
-		assert.equal(service.isDirty(resource), false);
+		assert.throws(() => service.registerWorkingCopy(copy2));
 	});
 });

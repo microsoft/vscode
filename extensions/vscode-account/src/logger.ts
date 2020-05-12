@@ -5,13 +5,13 @@
 
 import * as vscode from 'vscode';
 
-type LogLevel = 'Trace' | 'Info' | 'Error';
+type LogLevel = 'Info' | 'Error';
 
 class Log {
 	private output: vscode.OutputChannel;
 
 	constructor() {
-		this.output = vscode.window.createOutputChannel('Account');
+		this.output = vscode.window.createOutputChannel('Microsoft Authentication');
 	}
 
 	private data2String(data: any): string {

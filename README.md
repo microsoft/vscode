@@ -44,7 +44,7 @@ please see the document [How to Contribute](https://github.com/Microsoft/vscode/
 
 * Ask a question on [Stack Overflow](https://stackoverflow.com/questions/tagged/vscode)
 * [Request a new feature](CONTRIBUTING.md)
-* Up vote [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
+* Upvote [popular feature requests](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
 * [File an issue](https://github.com/Microsoft/vscode/issues)
 * Follow [@code](https://twitter.com/code) and let us know what you think!
 

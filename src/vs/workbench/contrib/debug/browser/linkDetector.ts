@@ -7,12 +7,12 @@ import * as osPath from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
@@ -38,7 +38,7 @@ export class LinkDetector {
 		@IEditorService private readonly editorService: IEditorService,
 		@IFileService private readonly fileService: IFileService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IPathService private readonly pathService: IPathService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		// noop
@@ -120,7 +120,10 @@ export class LinkDetector {
 		}
 
 		if (path[0] === '~') {
-			path = osPath.join(this.environmentService.userHome, path.substring(1));
+			const userHome = this.pathService.resolvedUserHome;
+			if (userHome) {
+				path = osPath.join(userHome.fsPath, path.substring(1));
+			}
 		}
 
 		const link = this.createLink(text);

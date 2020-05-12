@@ -12,13 +12,12 @@ import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurat
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, InstallOperation, IExtensionTipsService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionTipsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionTipsService } from 'vs/workbench/contrib/extensions/browser/extensionTipsService';
-import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/electron-browser/extensionEnablementService.test';
+import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -27,7 +26,7 @@ import { IPager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestContextService, TestSharedProcessService } from 'vs/workbench/test/workbenchTestServices';
+import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -40,6 +39,14 @@ import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
+import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
+import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-browser/experimentService.test';
+import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -61,6 +68,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IProgressService, ProgressService);
+		instantiationService.stub(IStorageKeysSyncRegistryService, new StorageKeysSyncRegistryService());
+		instantiationService.stub(IProductService, {});
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IURLService, URLService);
@@ -90,7 +99,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
-		instantiationService.set(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
+		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
+		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
+		instantiationService.stub(IExtensionRecommendationsService, {});
 
 		instantiationService.stub(INotificationService, { prompt: () => null! });
 	});

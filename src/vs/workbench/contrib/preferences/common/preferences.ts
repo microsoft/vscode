@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditor } from 'vs/workbench/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
@@ -43,7 +43,7 @@ export interface ISearchProvider {
 	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null>;
 }
 
-export interface IKeybindingsEditor extends IEditor {
+export interface IKeybindingsEditorPane extends IEditorPane {
 
 	readonly activeKeybindingEntry: IKeybindingItemEntry | null;
 	readonly onDefineWhenExpression: Event<IKeybindingItemEntry>;
@@ -83,6 +83,7 @@ export const SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING = 'settings.action.edi
 export const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_FROM_SEARCH = 'settings.action.focusSettingsFromSearch';
 export const SETTINGS_EDITOR_COMMAND_FOCUS_SETTINGS_LIST = 'settings.action.focusSettingsList';
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
+export const SETTINGS_EDITOR_COMMAND_FOCUS_TOC = 'settings.action.focusTOC';
 
 export const SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON = 'settings.switchToJSON';
 export const SETTINGS_EDITOR_COMMAND_FILTER_MODIFIED = 'settings.filterByModified';

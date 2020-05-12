@@ -96,10 +96,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					// shellArgs: this._terminalService._getDefaultShellArgs(configProvider),
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
-					env: args.env
 				};
+				// @ts-ignore
 				delete args.cwd;
-				delete args.env;
 				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
 			}
 
@@ -115,7 +114,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 		} else if (args.kind === 'external') {
 
-			runInExternalTerminal(args, await this._configurationService.getConfigProvider());
+			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
 		return super.$runInTerminal(args);
 	}

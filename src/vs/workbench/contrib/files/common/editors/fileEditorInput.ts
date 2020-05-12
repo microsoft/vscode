@@ -5,18 +5,21 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EncodingMode, IFileEditorInput, Verbosity, TextResourceEditorInput } from 'vs/workbench/common/editor';
+import { EncodingMode, IFileEditorInput, Verbosity, TextResourceEditorInput, GroupIdentifier, IMoveResult, isTextEditorPane } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService, ModelState, LoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, TextFileEditorModelState, TextFileLoadReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IReference, dispose } from 'vs/base/common/lifecycle';
+import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { isEqual } from 'vs/base/common/resources';
+import { Event } from 'vs/base/common/event';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 const enum ForceOpenAs {
 	None,
@@ -34,7 +37,10 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
+	private model: ITextFileEditorModel | undefined = undefined;
 	private cachedTextFileModelReference: IReference<ITextFileEditorModel> | undefined = undefined;
+
+	private modelListeners: DisposableStore = this._register(new DisposableStore());
 
 	constructor(
 		resource: URI,
@@ -51,6 +57,8 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	) {
 		super(resource, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
 
+		this.model = this.textFileService.files.get(resource);
+
 		if (preferredEncoding) {
 			this.setPreferredEncoding(preferredEncoding);
 		}
@@ -58,12 +66,55 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		if (preferredMode) {
 			this.setPreferredMode(preferredMode);
 		}
+
+		// If a file model already exists, make sure to wire it in
+		if (this.model) {
+			this.registerModelListeners(this.model);
+		}
+	}
+
+	protected registerListeners(): void {
+		super.registerListeners();
+
+		// Attach to model that matches our resource once created
+		this._register(this.textFileService.files.onDidCreate(model => this.onDidCreateTextFileModel(model)));
+	}
+
+	private onDidCreateTextFileModel(model: ITextFileEditorModel): void {
+
+		// Once the text file model is created, we keep it inside
+		// the input to be able to implement some methods properly
+		if (isEqual(model.resource, this.resource)) {
+			this.model = model;
+
+			this.registerModelListeners(model);
+		}
+	}
+
+	private registerModelListeners(model: ITextFileEditorModel): void {
+
+		// Clear any old
+		this.modelListeners.clear();
+
+		// re-emit some events from the model
+		this.modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+		this.modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
+
+		// important: treat save errors as potential dirty change because
+		// a file that is in save conflict or error will report dirty even
+		// if auto save is turned on.
+		this.modelListeners.add(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
+
+		// remove model association once it gets disposed
+		this.modelListeners.add(Event.once(model.onDispose)(() => {
+			this.modelListeners.clear();
+			this.model = undefined;
+		}));
 	}
 
 	getEncoding(): string | undefined {
-		const textModel = this.textFileService.files.get(this.resource);
-		if (textModel) {
-			return textModel.getEncoding();
+		if (this.model) {
+			return this.model.getEncoding();
 		}
 
 		return this.preferredEncoding;
@@ -76,15 +127,14 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	setEncoding(encoding: string, mode: EncodingMode): void {
 		this.setPreferredEncoding(encoding);
 
-		const textModel = this.textFileService.files.get(this.resource);
-		if (textModel) {
-			textModel.setEncoding(encoding, mode);
-		}
+		this.model?.setEncoding(encoding, mode);
 	}
 
 	setPreferredEncoding(encoding: string): void {
 		this.preferredEncoding = encoding;
-		this.setForceOpenAsText(); // encoding is a good hint to open the file as text
+
+		// encoding is a good hint to open the file as text
+		this.setForceOpenAsText();
 	}
 
 	getPreferredMode(): string | undefined {
@@ -94,15 +144,14 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	setMode(mode: string): void {
 		this.setPreferredMode(mode);
 
-		const textModel = this.textFileService.files.get(this.resource);
-		if (textModel) {
-			textModel.setMode(mode);
-		}
+		this.model?.setMode(mode);
 	}
 
 	setPreferredMode(mode: string): void {
 		this.preferredMode = mode;
-		this.setForceOpenAsText(); // mode is a good hint to open the file as text
+
+		// mode is a good hint to open the file as text
+		this.setForceOpenAsText();
 	}
 
 	setForceOpenAsText(): void {
@@ -126,13 +175,18 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	}
 
 	private decorateLabel(label: string): string {
-		const model = this.textFileService.files.get(this.resource);
+		const orphaned = this.model?.hasState(TextFileEditorModelState.ORPHAN);
+		const readonly = this.isReadonly();
 
-		if (model?.hasState(ModelState.ORPHAN)) {
+		if (orphaned && readonly) {
+			return localize('orphanedReadonlyFile', "{0} (deleted, read-only)", label);
+		}
+
+		if (orphaned) {
 			return localize('orphanedFile', "{0} (deleted)", label);
 		}
 
-		if (this.isReadonly()) {
+		if (readonly) {
 			return localize('readonlyFile', "{0} (read-only)", label);
 		}
 
@@ -140,21 +194,19 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	}
 
 	isDirty(): boolean {
-		const model = this.textFileService.files.get(this.resource);
-		if (!model) {
-			return false;
+		return !!(this.model?.isDirty());
+	}
+
+	isReadonly(): boolean {
+		if (this.model) {
+			return this.model.isReadonly();
 		}
 
-		return model.isDirty();
+		return super.isReadonly();
 	}
 
 	isSaving(): boolean {
-		const model = this.textFileService.files.get(this.resource);
-		if (!model) {
-			return false;
-		}
-
-		if (model.hasState(ModelState.SAVED) || model.hasState(ModelState.CONFLICT) || model.hasState(ModelState.ERROR)) {
+		if (this.model?.hasState(TextFileEditorModelState.SAVED) || this.model?.hasState(TextFileEditorModelState.CONFLICT) || this.model?.hasState(TextFileEditorModelState.ERROR)) {
 			return false; // require the model to be dirty and not in conflict or error state
 		}
 
@@ -190,7 +242,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 				encoding: this.preferredEncoding,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
-				reason: LoadReason.EDITOR
+				reason: TextFileLoadReason.EDITOR
 			});
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
@@ -198,7 +250,7 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 			// resolve() ensures we are not creating model references for these kind of resources.
 			// In addition we have a bit of payload to take into account (encoding, reload) that the text resolver does not handle yet.
 			if (!this.cachedTextFileModelReference) {
-				this.cachedTextFileModelReference = await this.createTextModelReference();
+				this.cachedTextFileModelReference = await this.textModelResolverService.createModelReference(this.resource) as IReference<ITextFileEditorModel>;
 			}
 
 			return this.cachedTextFileModelReference.object;
@@ -217,38 +269,36 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 		}
 	}
 
-	private async createTextModelReference(): Promise<IReference<ITextFileEditorModel>> {
-		const reference = await this.textModelResolverService.createModelReference(this.resource) as IReference<ITextFileEditorModel>;
-
-		// Fire an initial dirty change if the model is already dirty
-		const model = reference.object;
-		if (model.isDirty()) {
-			this._onDidChangeDirty.fire();
-		}
-
-		this.registerModelListeners(model);
-
-		return reference;
-	}
-
-	private registerModelListeners(model: ITextFileEditorModel): void {
-
-		// re-emit some events from the model
-		this._register(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
-
-		// important: treat save errors as potential dirty change because
-		// a file that is in save conflict or error will report dirty even
-		// if auto save is turned on.
-		this._register(model.onDidSaveError(() => this._onDidChangeDirty.fire()));
-	}
-
 	private async doResolveAsBinary(): Promise<BinaryEditorModel> {
 		return this.instantiationService.createInstance(BinaryEditorModel, this.resource, this.getName()).load();
 	}
 
 	isResolved(): boolean {
-		return !!this.textFileService.files.get(this.resource);
+		return !!this.model;
+	}
+
+	move(group: GroupIdentifier, target: URI): IMoveResult {
+		return {
+			editor: {
+				resource: target,
+				encoding: this.getEncoding(),
+				options: {
+					viewState: this.getViewStateFor(group)
+				}
+			}
+		};
+	}
+
+	private getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
+		for (const editorPane of this.editorService.visibleEditorPanes) {
+			if (editorPane.group.id === group && isEqual(editorPane.input.resource, this.resource)) {
+				if (isTextEditorPane(editorPane)) {
+					return editorPane.getViewState();
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	matches(otherInput: unknown): boolean {
@@ -264,6 +314,9 @@ export class FileEditorInput extends TextResourceEditorInput implements IFileEdi
 	}
 
 	dispose(): void {
+
+		// Model
+		this.model = undefined;
 
 		// Model reference
 		dispose(this.cachedTextFileModelReference);

@@ -10,6 +10,7 @@ import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditOptions, IBulkEditResult, IBulkEditService, IBulkEditPreviewHandler } from 'vs/editor/browser/services/bulkEditService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { WorkspaceFileEdit, WorkspaceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -18,27 +19,29 @@ import { localize } from 'vs/nls';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, IProgressStep, emptyProgress } from 'vs/platform/progress/common/progress';
+import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { SingleModelEditStackElement, MultiModelEditStackElement } from 'vs/editor/common/model/editStack';
 
 type ValidationResult = { canApply: true } | { canApply: false, reason: URI };
 
 class ModelEditTask implements IDisposable {
 
-	private readonly _model: ITextModel;
+	public readonly model: ITextModel;
 
 	protected _edits: IIdentifiedSingleEditOperation[];
 	private _expectedModelVersionId: number | undefined;
 	protected _newEol: EndOfLineSequence | undefined;
 
 	constructor(private readonly _modelReference: IReference<IResolvedTextEditorModel>) {
-		this._model = this._modelReference.object.textEditorModel;
+		this.model = this._modelReference.object.textEditorModel;
 		this._edits = [];
 	}
 
@@ -66,7 +69,7 @@ class ModelEditTask implements IDisposable {
 		// create edit operation
 		let range: Range;
 		if (!edit.range) {
-			range = this._model.getFullModelRange();
+			range = this.model.getFullModelRange();
 		} else {
 			range = Range.lift(edit.range);
 		}
@@ -74,23 +77,23 @@ class ModelEditTask implements IDisposable {
 	}
 
 	validate(): ValidationResult {
-		if (typeof this._expectedModelVersionId === 'undefined' || this._model.getVersionId() === this._expectedModelVersionId) {
+		if (typeof this._expectedModelVersionId === 'undefined' || this.model.getVersionId() === this._expectedModelVersionId) {
 			return { canApply: true };
 		}
-		return { canApply: false, reason: this._model.uri };
+		return { canApply: false, reason: this.model.uri };
+	}
+
+	getBeforeCursorState(): Selection[] | null {
+		return null;
 	}
 
 	apply(): void {
 		if (this._edits.length > 0) {
 			this._edits = mergeSort(this._edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-			this._model.pushStackElement();
-			this._model.pushEditOperations([], this._edits, () => []);
-			this._model.pushStackElement();
+			this.model.pushEditOperations(null, this._edits, () => null);
 		}
 		if (this._newEol !== undefined) {
-			this._model.pushStackElement();
-			this._model.pushEOL(this._newEol);
-			this._model.pushStackElement();
+			this.model.pushEOL(this._newEol);
 		}
 	}
 }
@@ -104,18 +107,18 @@ class EditorEditTask extends ModelEditTask {
 		this._editor = editor;
 	}
 
+	getBeforeCursorState(): Selection[] | null {
+		return this._editor.getSelections();
+	}
+
 	apply(): void {
 		if (this._edits.length > 0) {
 			this._edits = mergeSort(this._edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-			this._editor.pushUndoStop();
 			this._editor.executeEdits('', this._edits);
-			this._editor.pushUndoStop();
 		}
 		if (this._newEol !== undefined) {
 			if (this._editor.hasModel()) {
-				this._editor.pushUndoStop();
 				this._editor.getModel().pushEOL(this._newEol);
-				this._editor.pushUndoStop();
 			}
 		}
 	}
@@ -127,11 +130,13 @@ class BulkEditModel implements IDisposable {
 	private _tasks: ModelEditTask[] | undefined;
 
 	constructor(
+		private readonly _label: string | undefined,
 		private readonly _editor: ICodeEditor | undefined,
 		private readonly _progress: IProgress<void>,
 		edits: WorkspaceTextEdit[],
 		@IEditorWorkerService private readonly _editorWorker: IEditorWorkerService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
+		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService
 	) {
 		edits.forEach(this._addEdit, this);
 	}
@@ -214,10 +219,31 @@ class BulkEditModel implements IDisposable {
 	}
 
 	apply(): void {
-		for (const task of this._tasks!) {
+		const tasks = this._tasks!;
+
+		if (tasks.length === 1) {
+			// This edit touches a single model => keep things simple
+			for (const task of tasks) {
+				task.model.pushStackElement();
+				task.apply();
+				task.model.pushStackElement();
+				this._progress.report(undefined);
+			}
+			return;
+		}
+
+		const multiModelEditStackElement = new MultiModelEditStackElement(
+			this._label || localize('workspaceEdit', "Workspace Edit"),
+			tasks.map(t => new SingleModelEditStackElement(t.model, t.getBeforeCursorState()))
+		);
+		this._undoRedoService.pushElement(multiModelEditStackElement);
+
+		for (const task of tasks) {
 			task.apply();
 			this._progress.report(undefined);
 		}
+
+		multiModelEditStackElement.close();
 	}
 }
 
@@ -225,11 +251,13 @@ type Edit = WorkspaceFileEdit | WorkspaceTextEdit;
 
 class BulkEdit {
 
+	private readonly _label: string | undefined;
 	private readonly _edits: Edit[] = [];
 	private readonly _editor: ICodeEditor | undefined;
 	private readonly _progress: IProgress<IProgressStep>;
 
 	constructor(
+		label: string | undefined,
 		editor: ICodeEditor | undefined,
 		progress: IProgress<IProgressStep> | undefined,
 		edits: Edit[],
@@ -237,10 +265,12 @@ class BulkEdit {
 		@ILogService private readonly _logService: ILogService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
+		this._label = label;
 		this._editor = editor;
-		this._progress = progress || emptyProgress;
+		this._progress = progress || Progress.None;
 		this._edits = edits;
 	}
 
@@ -309,7 +339,7 @@ class BulkEdit {
 				if (options.overwrite === undefined && options.ignoreIfExists && await this._fileService.exists(edit.newUri)) {
 					continue; // not overwriting, but ignoring, and the target file exists
 				}
-				await this._textFileService.move(edit.oldUri, edit.newUri, options.overwrite);
+				await this._workingCopyFileService.move(edit.oldUri, edit.newUri, options.overwrite);
 
 			} else if (!edit.newUri && edit.oldUri) {
 				// delete file
@@ -318,7 +348,7 @@ class BulkEdit {
 					if (useTrash && !(this._fileService.hasCapability(edit.oldUri, FileSystemProviderCapabilities.Trash))) {
 						useTrash = false; // not supported by provider
 					}
-					await this._textFileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });
+					await this._workingCopyFileService.delete(edit.oldUri, { useTrash, recursive: options.recursive });
 				} else if (!options.ignoreIfNotExists) {
 					throw new Error(`${edit.oldUri} does not exist and can not be deleted`);
 				}
@@ -335,7 +365,7 @@ class BulkEdit {
 	private async _performTextEdits(edits: WorkspaceTextEdit[], progress: IProgress<void>): Promise<void> {
 		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
-		const model = this._instaService.createInstance(BulkEditModel, this._editor, progress, edits);
+		const model = this._instaService.createInstance(BulkEditModel, this._label, this._editor, progress, edits);
 
 		await model.prepare();
 
@@ -402,9 +432,8 @@ export class BulkEditService implements IBulkEditService {
 		}
 
 		// try to find code editor
-		// todo@joh, prefer editor that gets edited
 		if (!codeEditor) {
-			let candidate = this._editorService.activeTextEditorWidget;
+			let candidate = this._editorService.activeTextEditorControl;
 			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}
@@ -414,7 +443,7 @@ export class BulkEditService implements IBulkEditService {
 			// If the code editor is readonly still allow bulk edits to be applied #68549
 			codeEditor = undefined;
 		}
-		const bulkEdit = this._instaService.createInstance(BulkEdit, codeEditor, options?.progress, edits);
+		const bulkEdit = this._instaService.createInstance(BulkEdit, options?.quotableLabel || options?.label, codeEditor, options?.progress, edits);
 		return bulkEdit.perform().then(() => {
 			return { ariaSummary: bulkEdit.ariaMessage() };
 		}).catch(err => {

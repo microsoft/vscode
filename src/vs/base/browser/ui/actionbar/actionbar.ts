@@ -104,7 +104,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		return this._action.enabled;
 	}
 
-	setActionContext(newContext: any): void {
+	setActionContext(newContext: unknown): void {
 		this._context = newContext;
 	}
 
@@ -133,6 +133,18 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 				DOM.addClass(element, 'active');
 			}
 		}));
+
+		if (platform.isMacintosh) {
+			// macOS: allow to trigger the button when holding Ctrl+key and pressing the
+			// main mouse button. This is for scenarios where e.g. some interaction forces
+			// the Ctrl+key to be pressed and hold but the user still wants to interact
+			// with the actions (for example quick access in quick navigation mode).
+			this._register(DOM.addDisposableListener(element, DOM.EventType.CONTEXT_MENU, e => {
+				if (e.button === 0 && e.ctrlKey === true) {
+					this.onClick(e);
+				}
+			}));
+		}
 
 		this._register(DOM.addDisposableListener(element, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e, true);
@@ -166,17 +178,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 
-		let context: any;
-		if (types.isUndefinedOrNull(this._context)) {
-			context = event;
-		} else {
-			context = this._context;
-
-			if (types.isObject(context)) {
-				context.event = event;
-			}
-		}
-
+		const context = types.isUndefinedOrNull(this._context) ? undefined : this._context;
 		this.actionRunner.run(this._action, context);
 	}
 
@@ -248,7 +250,7 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	private cssClass?: string;
 
-	constructor(context: any, action: IAction, options: IActionViewItemOptions = {}) {
+	constructor(context: unknown, action: IAction, options: IActionViewItemOptions = {}) {
 		super(context, action, options);
 
 		this.options = options;
@@ -263,7 +265,6 @@ export class ActionViewItem extends BaseActionViewItem {
 		if (this.element) {
 			this.label = DOM.append(this.element, DOM.$('a.action-label'));
 		}
-
 
 		if (this.label) {
 			if (this._action.id === Separator.ID) {
@@ -423,7 +424,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 	options: IActionBarOptions;
 
 	private _actionRunner: IActionRunner;
-	private _context: any;
+	private _context: unknown;
 
 	// View Items
 	viewItems: IActionViewItem[];
@@ -476,27 +477,27 @@ export class ActionBar extends Disposable implements IActionRunner {
 			DOM.addClass(this.domNode, 'animated');
 		}
 
-		let previousKey: KeyCode;
-		let nextKey: KeyCode;
+		let previousKeys: KeyCode[];
+		let nextKeys: KeyCode[];
 
 		switch (this.options.orientation) {
 			case ActionsOrientation.HORIZONTAL:
-				previousKey = KeyCode.LeftArrow;
-				nextKey = KeyCode.RightArrow;
+				previousKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
 				break;
 			case ActionsOrientation.HORIZONTAL_REVERSE:
-				previousKey = KeyCode.RightArrow;
-				nextKey = KeyCode.LeftArrow;
+				previousKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' reverse';
 				break;
 			case ActionsOrientation.VERTICAL:
-				previousKey = KeyCode.UpArrow;
-				nextKey = KeyCode.DownArrow;
+				previousKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
+				nextKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
 				this.domNode.className += ' vertical';
 				break;
 			case ActionsOrientation.VERTICAL_REVERSE:
-				previousKey = KeyCode.DownArrow;
-				nextKey = KeyCode.UpArrow;
+				previousKeys = [KeyCode.RightArrow, KeyCode.DownArrow];
+				nextKeys = [KeyCode.LeftArrow, KeyCode.UpArrow];
 				this.domNode.className += ' vertical reverse';
 				break;
 		}
@@ -505,12 +506,12 @@ export class ActionBar extends Disposable implements IActionRunner {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = true;
 
-			if (event.equals(previousKey)) {
+			if (previousKeys && (event.equals(previousKeys[0]) || event.equals(previousKeys[1]))) {
 				this.focusPrevious();
-			} else if (event.equals(nextKey)) {
+			} else if (nextKeys && (event.equals(nextKeys[0]) || event.equals(nextKeys[1]))) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
-				this.cancel();
+				this._onDidCancel.fire();
 			} else if (this.isTriggerKeyEvent(event)) {
 				// Staying out of the else branch even if not triggered
 				if (this.options.triggerKeys && this.options.triggerKeys.keyDown) {
@@ -633,8 +634,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 			// Prevent native context menu on actions
 			this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
-				e.preventDefault();
-				e.stopPropagation();
+				DOM.EventHelper.stop(e, true);
 			}));
 
 			let item: IActionViewItem | undefined;
@@ -813,15 +813,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 		}
 	}
 
-	private cancel(): void {
-		if (document.activeElement instanceof HTMLElement) {
-			document.activeElement.blur(); // remove focus from focused action
-		}
-
-		this._onDidCancel.fire();
-	}
-
-	run(action: IAction, context?: any): Promise<void> {
+	run(action: IAction, context?: unknown): Promise<void> {
 		return this._actionRunner.run(action, context);
 	}
 
@@ -838,7 +830,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 export class SelectActionViewItem extends BaseActionViewItem {
 	protected selectBox: SelectBox;
 
-	constructor(ctx: any, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
+	constructor(ctx: unknown, action: IAction, options: ISelectOptionItem[], selected: number, contextViewProvider: IContextViewProvider, selectBoxOptions?: ISelectBoxOptions) {
 		super(ctx, action);
 
 		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
@@ -880,4 +872,52 @@ export class SelectActionViewItem extends BaseActionViewItem {
 	render(container: HTMLElement): void {
 		this.selectBox.render(container);
 	}
+}
+
+export function prepareActions(actions: IAction[]): IAction[] {
+	if (!actions.length) {
+		return actions;
+	}
+
+	// Clean up leading separators
+	let firstIndexOfAction = -1;
+	for (let i = 0; i < actions.length; i++) {
+		if (actions[i].id === Separator.ID) {
+			continue;
+		}
+
+		firstIndexOfAction = i;
+		break;
+	}
+
+	if (firstIndexOfAction === -1) {
+		return [];
+	}
+
+	actions = actions.slice(firstIndexOfAction);
+
+	// Clean up trailing separators
+	for (let h = actions.length - 1; h >= 0; h--) {
+		const isSeparator = actions[h].id === Separator.ID;
+		if (isSeparator) {
+			actions.splice(h, 1);
+		} else {
+			break;
+		}
+	}
+
+	// Clean up separator duplicates
+	let foundAction = false;
+	for (let k = actions.length - 1; k >= 0; k--) {
+		const isSeparator = actions[k].id === Separator.ID;
+		if (isSeparator && !foundAction) {
+			actions.splice(k, 1);
+		} else if (!isSeparator) {
+			foundAction = true;
+		} else if (isSeparator) {
+			foundAction = false;
+		}
+	}
+
+	return actions;
 }

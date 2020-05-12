@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+declare let MonacoEnvironment: monaco.Environment | undefined;
+
 declare namespace monaco {
 
-	// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
-
 	export type Thenable<T> = PromiseLike<T>;
+
+	export interface Environment {
+		baseUrl?: string;
+		getWorker?(workerId: string, label: string): Worker;
+		getWorkerUrl?(workerId: string, label: string): string;
+	}
 
 	export interface IDisposable {
 		dispose(): void;

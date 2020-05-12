@@ -23,8 +23,8 @@ class ExtensionTunnel implements vscode.Tunnel {
 	onDidDispose: Event<void> = this._onDispose.event;
 
 	constructor(
-		public readonly remoteAddress: { port: number; host: string; },
-		public readonly localAddress: string,
+		public readonly remoteAddress: { port: number, host: string },
+		public readonly localAddress: { port: number, host: string } | string,
 		private readonly _dispose: () => void) { }
 
 	dispose(): void {
@@ -39,8 +39,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions) => Thenable<vscode.Tunnel> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, vscode.Tunnel>> = new Map();
-	private _onDidTunnelsChange: Emitter<void> = new Emitter<void>();
-	onDidTunnelsChange: vscode.Event<void> = this._onDidTunnelsChange.event;
+	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
+	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -52,6 +52,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			this.registerCandidateFinder();
 		}
 	}
+
 	async openTunnel(forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
 		const tunnel = await this._proxy.$openTunnel(forward);
 		if (tunnel) {
@@ -91,6 +92,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		} else {
 			this._forwardPortProvider = undefined;
 		}
+		await this._proxy.$tunnelServiceReady();
 		return toDisposable(() => {
 			this._forwardPortProvider = undefined;
 		});
@@ -107,7 +109,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async $onDidTunnelsChange(): Promise<void> {
-		this._onDidTunnelsChange.fire();
+		this._onDidChangeTunnels.fire();
 	}
 
 	$forwardPort(tunnelOptions: TunnelOptions): Promise<TunnelDto> | undefined {
@@ -134,8 +136,14 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}
 
 		const ports: { host: string, port: number, detail: string }[] = [];
-		const tcp: string = fs.readFileSync('/proc/net/tcp', 'utf8');
-		const tcp6: string = fs.readFileSync('/proc/net/tcp6', 'utf8');
+		let tcp: string = '';
+		let tcp6: string = '';
+		try {
+			tcp = fs.readFileSync('/proc/net/tcp', 'utf8');
+			tcp6 = fs.readFileSync('/proc/net/tcp6', 'utf8');
+		} catch (e) {
+			// File reading error. No additional handling needed.
+		}
 		const procSockets: string = await (new Promise(resolve => {
 			exec('ls -l /proc/[0-9]*/fd/[0-9]* | grep socket:', (error, stdout, stderr) => {
 				resolve(stdout);

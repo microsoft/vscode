@@ -25,6 +25,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { stripCodicons } from 'vs/base/common/codicons';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
@@ -138,7 +139,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		// Submenu
 		if (entry instanceof ContextSubMenu) {
 			return {
-				label: unmnemonicLabel(entry.label),
+				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
 				submenu: this.createMenu(delegate, entry.entries, onHide)
 			};
 		}
@@ -155,7 +156,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			}
 
 			const item: IContextMenuItem = {
-				label: unmnemonicLabel(entry.label),
+				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
 				checked: !!entry.checked,
 				type,
 				enabled: !!entry.enabled,
@@ -191,7 +192,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 	private async runAction(actionRunner: IActionRunner, actionToRun: IAction, delegate: IContextMenuDelegate, event: IContextMenuEvent): Promise<void> {
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: actionToRun.id, from: 'contextMenu' });
 
-		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : event;
+		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
 
 		const runnable = actionRunner.run(actionToRun, context);
 		if (runnable) {

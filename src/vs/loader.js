@@ -923,7 +923,11 @@ var AMDLoader;
                 var hashDataNow = _this._crypto.createHash('md5').update(scriptSource, 'utf8').digest();
                 if (!hashData.equals(hashDataNow)) {
                     moduleManager.getConfig().onError(new Error("FAILED TO VERIFY CACHED DATA, deleting stale '" + cachedDataPath + "' now, but a RESTART IS REQUIRED"));
-                    _this._fs.unlink(cachedDataPath, function (err) { return moduleManager.getConfig().onError(err); });
+                    _this._fs.unlink(cachedDataPath, function (err) {
+                        if (err) {
+                            moduleManager.getConfig().onError(err);
+                        }
+                    });
                 }
             }, Math.ceil(5000 * (1 + Math.random())));
         };
@@ -1486,6 +1490,10 @@ var AMDLoader;
             };
             result.getStats = function () {
                 return _this.getLoaderEvents();
+            };
+            result.config = function (params, shouldOverwrite) {
+                if (shouldOverwrite === void 0) { shouldOverwrite = false; }
+                _this.configure(params, shouldOverwrite);
             };
             result.__$__nodeRequire = AMDLoader.global.nodeRequire;
             return result;

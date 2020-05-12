@@ -10,7 +10,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
 import { VariableResolver, Variable, Text } from 'vs/editor/contrib/snippet/snippetParser';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace, pad, endsWith } from 'vs/base/common/strings';
+import { getLeadingWhitespace, commonPrefixLength, isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -244,15 +244,15 @@ export class TimeBasedVariableResolver implements VariableResolver {
 		} else if (name === 'CURRENT_YEAR_SHORT') {
 			return String(new Date().getFullYear()).slice(-2);
 		} else if (name === 'CURRENT_MONTH') {
-			return pad((new Date().getMonth().valueOf() + 1), 2);
+			return String(new Date().getMonth().valueOf() + 1).padStart(2, '0');
 		} else if (name === 'CURRENT_DATE') {
-			return pad(new Date().getDate().valueOf(), 2);
+			return String(new Date().getDate().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_HOUR') {
-			return pad(new Date().getHours().valueOf(), 2);
+			return String(new Date().getHours().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_MINUTE') {
-			return pad(new Date().getMinutes().valueOf(), 2);
+			return String(new Date().getMinutes().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_SECOND') {
-			return pad(new Date().getSeconds().valueOf(), 2);
+			return String(new Date().getSeconds().valueOf()).padStart(2, '0');
 		} else if (name === 'CURRENT_DAY_NAME') {
 			return TimeBasedVariableResolver.dayNames[new Date().getDay()];
 		} else if (name === 'CURRENT_DAY_NAME_SHORT') {
@@ -300,7 +300,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 		}
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
-		if (endsWith(filename, WORKSPACE_EXTENSION)) {
+		if (filename.endsWith(WORKSPACE_EXTENSION)) {
 			filename = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 		}
 		return filename;
@@ -312,7 +312,7 @@ export class WorkspaceBasedVariableResolver implements VariableResolver {
 
 		let filename = path.basename(workspaceIdentifier.configPath.path);
 		let folderpath = workspaceIdentifier.configPath.fsPath;
-		if (endsWith(folderpath, filename)) {
+		if (folderpath.endsWith(filename)) {
 			folderpath = folderpath.substr(0, folderpath.length - filename.length - 1);
 		}
 		return (folderpath ? normalizeDriveLetter(folderpath) : '/');

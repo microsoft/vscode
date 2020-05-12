@@ -116,7 +116,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 	}
 
 	private readonly _workspaceFolders: vscode.WorkspaceFolder[] = [];
-	private readonly _structure = TernarySearchTree.forPaths<vscode.WorkspaceFolder>();
+	private readonly _structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>();
 
 	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], configuration: URI | null, private _isUntitled: boolean) {
 		super(id, folders.map(f => new WorkspaceFolder(f)), configuration);
@@ -124,7 +124,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 		// setup the workspace folder data structure
 		folders.forEach(folder => {
 			this._workspaceFolders.push(folder);
-			this._structure.set(folder.uri.toString(), folder);
+			this._structure.set(folder.uri, folder);
 		});
 	}
 
@@ -141,15 +141,15 @@ class ExtHostWorkspaceImpl extends Workspace {
 	}
 
 	getWorkspaceFolder(uri: URI, resolveParent?: boolean): vscode.WorkspaceFolder | undefined {
-		if (resolveParent && this._structure.get(uri.toString())) {
+		if (resolveParent && this._structure.get(uri)) {
 			// `uri` is a workspace folder so we check for its parent
 			uri = dirname(uri);
 		}
-		return this._structure.findSubstr(uri.toString());
+		return this._structure.findSubstr(uri);
 	}
 
 	resolveWorkspaceFolder(uri: URI): vscode.WorkspaceFolder | undefined {
-		return this._structure.get(uri.toString());
+		return this._structure.get(uri);
 	}
 }
 
@@ -473,7 +473,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
-			disregardExcludeSettings: options.exclude === null,
+			disregardExcludeSettings: typeof options.useDefaultExcludes === 'boolean' ? !options.useDefaultExcludes : true,
 			fileEncoding: options.encoding,
 			maxResults: options.maxResults,
 			previewOptions,

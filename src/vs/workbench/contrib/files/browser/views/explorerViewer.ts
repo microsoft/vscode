@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
@@ -29,7 +29,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensions, compareFileNames } from 'vs/base/common/comparers';
+import { compareFileExtensionsNumeric, compareFileNamesNumeric } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
@@ -37,7 +37,7 @@ import { Schemas } from 'vs/base/common/network';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { IDialogService, IConfirmation, getFileNamesMessage } from 'vs/platform/dialogs/common/dialogs';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { URI } from 'vs/base/common/uri';
@@ -55,7 +55,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
-import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IEditorInput } from 'vs/workbench/common/editor';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -227,7 +227,7 @@ export interface IFileTemplateData {
 	container: HTMLElement;
 }
 
-export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IAccessibilityProvider<ExplorerItem>, IDisposable {
+export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
 	private config: IFilesConfiguration;
@@ -252,6 +252,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				this.config = this.configurationService.getValue();
 			}
 		});
+	}
+
+	getWidgetAriaLabel(): string {
+		return localize('treeAriaLabel', "Files Explorer");
 	}
 
 	get templateId(): string {
@@ -376,13 +380,13 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const inputBox = new InputBox(label.element, this.contextViewService, {
 			validationOptions: {
 				validation: (value) => {
-					const content = editableData.validationMessage(value);
-					if (!content) {
+					const message = editableData.validationMessage(value);
+					if (!message || message.severity !== Severity.Error) {
 						return null;
 					}
 
 					return {
-						content,
+						content: message.content,
 						formatContent: true,
 						type: MessageType.ERROR
 					};
@@ -391,10 +395,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel.")
 		});
 		const styler = attachInputBoxStyler(inputBox, this.themeService);
-
-		inputBox.onDidChange(value => {
-			label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
-		});
 
 		const lastDot = value.lastIndexOf('.');
 
@@ -412,8 +412,27 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}
 		});
 
+		const showInputBoxNotification = () => {
+			if (inputBox.isInputValid()) {
+				const message = editableData.validationMessage(inputBox.value);
+				if (message) {
+					inputBox.showMessage({
+						content: message.content,
+						formatContent: true,
+						type: message.severity === Severity.Info ? MessageType.INFO : message.severity === Severity.Warning ? MessageType.WARNING : MessageType.ERROR
+					});
+				} else {
+					inputBox.hideMessage();
+				}
+			}
+		};
+		showInputBoxNotification();
+
 		const toDispose = [
 			inputBox,
+			inputBox.onDidChange(value => {
+				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
+			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					if (inputBox.validate()) {
@@ -422,6 +441,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				} else if (e.equals(KeyCode.Escape)) {
 					done(false, true);
 				}
+			}),
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
+				showInputBoxNotification();
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
@@ -473,28 +495,70 @@ interface CachedParsedExpression {
 	parsed: glob.ParsedExpression;
 }
 
+/**
+ * Respectes files.exclude setting in filtering out content from the explorer.
+ * Makes sure that visible editors are always shown in the explorer even if they are filtered out by settings.
+ */
 export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	private hiddenExpressionPerRoot: Map<string, CachedParsedExpression>;
-	private workspaceFolderChangeListener: IDisposable;
+	private hiddenUris = new Set<URI>();
+	private editorsAffectingFilter = new Set<IEditorInput>();
+	private _onDidChange = new Emitter<void>();
+	private toDispose: IDisposable[] = [];
 
 	constructor(
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExplorerService private readonly explorerService: IExplorerService
+		@IExplorerService private readonly explorerService: IExplorerService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		this.hiddenExpressionPerRoot = new Map<string, CachedParsedExpression>();
-		this.workspaceFolderChangeListener = this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration());
+		this.toDispose.push(this.contextService.onDidChangeWorkspaceFolders(() => this.updateConfiguration()));
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('files.exclude')) {
+				this.updateConfiguration();
+			}
+		}));
+		this.toDispose.push(this.editorService.onDidVisibleEditorsChange(() => {
+			const editors = this.editorService.visibleEditors;
+			let shouldFire = false;
+			this.hiddenUris.forEach(u => {
+				editors.forEach(e => {
+					if (e.resource && isEqualOrParent(e.resource, u)) {
+						// A filtered resource suddenly became visible since user opened an editor
+						shouldFire = true;
+					}
+				});
+			});
+
+			this.editorsAffectingFilter.forEach(e => {
+				if (editors.indexOf(e) === -1) {
+					// Editor that was affecting filtering is no longer visible
+					shouldFire = true;
+				}
+			});
+			if (shouldFire) {
+				this.editorsAffectingFilter.clear();
+				this.hiddenUris.clear();
+				this._onDidChange.fire();
+			}
+		}));
+		this.updateConfiguration();
 	}
 
-	updateConfiguration(): boolean {
-		let needsRefresh = false;
+	get onDidChange(): Event<void> {
+		return this._onDidChange.event;
+	}
+
+	private updateConfiguration(): void {
+		let shouldFire = false;
 		this.contextService.getWorkspace().folders.forEach(folder => {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>({ resource: folder.uri });
 			const excludesConfig: glob.IExpression = configuration?.files?.exclude || Object.create(null);
 
-			if (!needsRefresh) {
+			if (!shouldFire) {
 				const cached = this.hiddenExpressionPerRoot.get(folder.uri.toString());
-				needsRefresh = !cached || !equals(cached.original, excludesConfig);
+				shouldFire = !cached || !equals(cached.original, excludesConfig);
 			}
 
 			const excludesConfigCopy = deepClone(excludesConfig); // do not keep the config, as it gets mutated under our hoods
@@ -502,11 +566,28 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 			this.hiddenExpressionPerRoot.set(folder.uri.toString(), { original: excludesConfigCopy, parsed: glob.parse(excludesConfigCopy) });
 		});
 
-		return needsRefresh;
+		if (shouldFire) {
+			this.editorsAffectingFilter.clear();
+			this.hiddenUris.clear();
+			this._onDidChange.fire();
+		}
 	}
 
 	filter(stat: ExplorerItem, parentVisibility: TreeVisibility): TreeFilterResult<FuzzyScore> {
+		const isVisible = this.isVisible(stat, parentVisibility);
+		if (isVisible) {
+			this.hiddenUris.delete(stat.resource);
+		} else {
+			this.hiddenUris.add(stat.resource);
+		}
+
+		return isVisible;
+	}
+
+	private isVisible(stat: ExplorerItem, parentVisibility: TreeVisibility): boolean {
+		stat.isExcluded = false;
 		if (parentVisibility === TreeVisibility.Hidden) {
+			stat.isExcluded = true;
 			return false;
 		}
 		if (this.explorerService.getEditableData(stat) || stat.isRoot) {
@@ -515,15 +596,23 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 
 		// Hide those that match Hidden Patterns
 		const cached = this.hiddenExpressionPerRoot.get(stat.root.resource.toString());
-		if (cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) {
+		if ((cached && cached.parsed(path.relative(stat.root.resource.path, stat.resource.path), stat.name, name => !!(stat.parent && stat.parent.getChild(name)))) || stat.parent?.isExcluded) {
+			stat.isExcluded = true;
+			const editors = this.editorService.visibleEditors;
+			const editor = editors.find(e => e.resource && isEqualOrParent(e.resource, stat.resource));
+			if (editor) {
+				this.editorsAffectingFilter.add(editor);
+				return true; // Show all opened files and their parents
+			}
+
 			return false; // hidden through pattern
 		}
 
 		return true;
 	}
 
-	public dispose(): void {
-		dispose(this.workspaceFolderChangeListener);
+	dispose(): void {
+		dispose(this.toDispose);
 	}
 }
 
@@ -565,7 +654,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				}
 
 				if (statA.isDirectory && statB.isDirectory) {
-					return compareFileNames(statA.name, statB.name);
+					return compareFileNamesNumeric(statA.name, statB.name);
 				}
 
 				break;
@@ -599,17 +688,17 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		// Sort Files
 		switch (sortOrder) {
 			case 'type':
-				return compareFileExtensions(statA.name, statB.name);
+				return compareFileExtensionsNumeric(statA.name, statB.name);
 
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
 					return (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
 				}
 
-				return compareFileNames(statA.name, statB.name);
+				return compareFileNamesNumeric(statA.name, statB.name);
 
 			default: /* 'default', 'mixed', 'filesFirst' */
-				return compareFileNames(statA.name, statB.name);
+				return compareFileNamesNumeric(statA.name, statB.name);
 		}
 	}
 }
@@ -641,10 +730,9 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@ITextFileService private textFileService: ITextFileService,
+		@IWorkingCopyFileService private workingCopyFileService: IWorkingCopyFileService,
 		@IHostService private hostService: IHostService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IWorkingCopyService private workingCopyService: IWorkingCopyService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
 		this.toDispose = [];
 
@@ -802,7 +890,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		const items = FileDragAndDrop.getStatsFromDragAndDropData(data as ElementsDragAndDropData<ExplorerItem, ExplorerItem[]>, originalEvent);
 		if (items && items.length && originalEvent.dataTransfer) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, items, originalEvent);
+			this.instantiationService.invokeFunction(fillResourceDataTransfers, items, undefined, originalEvent);
 
 			// The only custom data transfer we set from the explorer is a file transfer
 			// to be able to DND between multiple code file explorers across windows
@@ -877,7 +965,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
 		const droppedResources = extractResources(originalEvent, true);
 		// Check for dropped external files to be folders
-		const result = await this.fileService.resolveAll(droppedResources);
+		const result = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
 
 		// Pass focus to window
 		this.hostService.focus();
@@ -945,15 +1033,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					const sourceFile = resource;
 					const targetFile = joinPath(target.resource, basename(sourceFile));
 
-					// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
-					// of the target file would replace the contents of the added file. since we already
-					// confirmed the overwrite before, this is OK.
-					if (this.workingCopyService.isDirty(targetFile)) {
-						await Promise.all(this.workingCopyService.getWorkingCopies(targetFile).map(workingCopy => workingCopy.revert({ soft: true })));
-					}
-
-					const copyTarget = joinPath(target.resource, basename(sourceFile));
-					const stat = await this.textFileService.copy(sourceFile, copyTarget, true);
+					const stat = await this.workingCopyFileService.copy(sourceFile, targetFile, true);
 					// if we only add one file, just open it directly
 					if (resources.length === 1 && !stat.isDirectory) {
 						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
@@ -1040,7 +1120,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = await this.textFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
+			const stat = await this.workingCopyFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
 			if (!stat.isDirectory) {
 				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
@@ -1056,7 +1136,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		try {
-			await this.textFileService.move(source.resource, targetResource);
+			await this.workingCopyFileService.move(source.resource, targetResource);
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1065,7 +1145,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.textFileService.move(source.resource, targetResource, true /* overwrite */);
+						await this.workingCopyFileService.move(source.resource, targetResource, true /* overwrite */);
 					} catch (error) {
 						this.notificationService.error(error);
 					}

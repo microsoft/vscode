@@ -48,7 +48,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor: ServicesAccessor) => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
-		const resource = activeInput ? activeInput.getResource() : null;
+		const resource = activeInput ? activeInput.resource : null;
 		const resources = resource ? [resource] : [];
 		revealResourcesInOS(resources, accessor.get(IElectronService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}

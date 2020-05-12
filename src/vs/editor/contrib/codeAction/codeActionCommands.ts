@@ -39,7 +39,6 @@ function contextKeyForSupportedActions(kind: CodeActionKind) {
 
 const argsSchema: IJSONSchema = {
 	type: 'object',
-	required: ['kind'],
 	defaultSnippets: [{ body: { kind: '' } }],
 	properties: {
 		'kind': {
@@ -164,7 +163,7 @@ export async function applyCodeAction(
 	});
 
 	if (action.edit) {
-		await bulkEditService.apply(action.edit, { editor });
+		await bulkEditService.apply(action.edit, { editor, label: action.title });
 	}
 
 	if (action.command) {

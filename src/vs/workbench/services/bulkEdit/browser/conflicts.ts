@@ -50,7 +50,7 @@ export class ConflictDetector {
 		}
 
 		// listen to file changes
-		this._disposables.add(fileService.onFileChanges(e => {
+		this._disposables.add(fileService.onDidFilesChange(e => {
 			for (let change of e.changes) {
 
 				if (modelService.getModel(change.resource)) {
@@ -87,7 +87,7 @@ export class ConflictDetector {
 	}
 
 	list(): URI[] {
-		return this._conflicts.keys();
+		return [...this._conflicts.keys()];
 	}
 
 	hasConflicts(): boolean {

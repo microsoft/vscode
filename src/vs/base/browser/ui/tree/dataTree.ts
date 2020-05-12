@@ -8,7 +8,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { ITreeNode, ITreeModel, ITreeElement, ITreeRenderer, ITreeSorter, IDataSource, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { Iterator } from 'vs/base/common/iterator';
+import { Iterable } from 'vs/base/common/iterator';
 
 export interface IDataTreeOptions<T, TFilterData = void> extends IAbstractTreeOptions<T, TFilterData> {
 	readonly sorter?: ITreeSorter<T>;
@@ -37,7 +37,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		private dataSource: IDataSource<TInput, T>,
 		options: IDataTreeOptions<T, TFilterData> = {}
 	) {
-		super(user, container, delegate, renderers, options);
+		super(user, container, delegate, renderers, options as IDataTreeOptions<T | null, TFilterData>);
 		this.identityProvider = options.identityProvider;
 	}
 
@@ -158,9 +158,9 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 		this.model.setChildren((element === this.input ? null : element) as T, this.iterate(element, isCollapsed).elements, onDidCreateNode, onDidDeleteNode);
 	}
 
-	private iterate(element: TInput | T, isCollapsed?: (el: T) => boolean | undefined): { elements: Iterator<ITreeElement<T>>, size: number } {
-		const children = this.dataSource.getChildren(element);
-		const elements = Iterator.map<any, ITreeElement<T>>(Iterator.fromArray(children), element => {
+	private iterate(element: TInput | T, isCollapsed?: (el: T) => boolean | undefined): { elements: Iterable<ITreeElement<T>>, size: number } {
+		const children = [...this.dataSource.getChildren(element)];
+		const elements = Iterable.map(children, element => {
 			const { elements: children, size } = this.iterate(element, isCollapsed);
 			const collapsible = this.dataSource.hasChildren ? this.dataSource.hasChildren(element) : undefined;
 			const collapsed = size === 0 ? undefined : (isCollapsed && isCollapsed(element));
@@ -182,7 +182,7 @@ export class DataTree<TInput, T, TFilterData = void> extends AbstractTree<T | nu
 			throw new TreeError(this.user, 'Can\'t get tree view state without an identity provider');
 		}
 
-		const getId = (element: T) => this.identityProvider!.getId(element).toString();
+		const getId = (element: T | null) => this.identityProvider!.getId(element!).toString();
 		const focus = this.getFocus().map(getId);
 		const selection = this.getSelection().map(getId);
 

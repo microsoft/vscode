@@ -40,6 +40,7 @@ import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Progress } from 'vs/platform/progress/common/progress';
 
 const $ = dom.$;
 
@@ -503,34 +504,33 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		messageElement.innerText = message;
 
 		if (source || code) {
-			if (typeof code === 'string') {
+			// Code has link
+			if (code && typeof code !== 'string') {
+				const sourceAndCodeElement = $('span');
+				if (source) {
+					const sourceElement = dom.append(sourceAndCodeElement, $('span'));
+					sourceElement.innerText = source;
+				}
+				this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
+				this._codeLink.setAttribute('href', code.target.toString());
+
+				this._codeLink.onclick = (e) => {
+					this._openerService.open(code.target);
+					e.preventDefault();
+					e.stopPropagation();
+				};
+
+				const codeElement = dom.append(this._codeLink, $('span'));
+				codeElement.innerText = code.value;
+
+				const detailsElement = dom.append(markerElement, sourceAndCodeElement);
+				detailsElement.style.opacity = '0.6';
+				detailsElement.style.paddingLeft = '6px';
+			} else {
 				const detailsElement = dom.append(markerElement, $('span'));
 				detailsElement.style.opacity = '0.6';
 				detailsElement.style.paddingLeft = '6px';
 				detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
-			} else {
-				if (code) {
-					const sourceAndCodeElement = $('span');
-					if (source) {
-						const sourceElement = dom.append(sourceAndCodeElement, $('span'));
-						sourceElement.innerText = source;
-					}
-					this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
-					this._codeLink.setAttribute('href', code.link.toString());
-
-					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.link);
-						e.preventDefault();
-						e.stopPropagation();
-					};
-
-					const codeElement = dom.append(this._codeLink, $('span'));
-					codeElement.innerText = code.value;
-
-					const detailsElement = dom.append(markerElement, sourceAndCodeElement);
-					detailsElement.style.opacity = '0.6';
-					detailsElement.style.paddingLeft = '6px';
-				}
 			}
 		}
 
@@ -567,7 +567,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				commandId: NextMarkerAction.ID,
 				run: () => {
 					this.hide();
-					MarkerController.get(this._editor).show(markerHover.marker);
+					MarkerController.get(this._editor).showAtMarker(markerHover.marker);
 					this._editor.focus();
 				}
 			}));
@@ -579,7 +579,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		setTimeout(() => quickfixPlaceholderElement.style.opacity = '1', 200);
 		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
 		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
-
 
 		const codeActionsPromise = this.getCodeActions(markerHover.marker);
 		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
@@ -608,6 +607,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					showing = true;
 					const controller = QuickFixController.get(this._editor);
 					const elementPosition = dom.getDomNodePagePosition(target);
+					// Hide the hover pre-emptively, otherwise the editor can close the code actions
+					// context menu as well when using keyboard navigation
+					this.hide();
 					controller.showCodeActions(markerCodeActionTrigger, actions, {
 						x: elementPosition.left + 6,
 						y: elementPosition.top + elementPosition.height + 6
@@ -626,6 +628,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
 				markerCodeActionTrigger,
+				Progress.None,
 				cancellationToken);
 		});
 	}
@@ -633,15 +636,15 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
 		const actionContainer = dom.append(parent, $('div.action-container'));
 		const action = dom.append(actionContainer, $('a.action'));
+		action.setAttribute('href', '#');
+		action.setAttribute('role', 'button');
 		if (actionOptions.iconClass) {
 			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
 		}
 		const label = dom.append(action, $('span'));
-		label.textContent = actionOptions.label;
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		if (keybinding) {
-			label.title = `${actionOptions.label} (${keybinding.getLabel()})`;
-		}
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
 		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
 			e.stopPropagation();
 			e.preventDefault();
@@ -683,4 +686,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor-hover .hover-contents a.code-link span:hover { color: ${linkFg}; }`);
 	}
 });
-

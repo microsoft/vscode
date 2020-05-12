@@ -12,6 +12,7 @@ import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifec
 import { State, IUpdate, StateType, UpdateType } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -31,11 +32,15 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		@ILifecycleMainService lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
 		super(lifecycleMainService, configurationService, environmentService, requestService, logService);
+	}
+
+	initialize(): void {
+		super.initialize();
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
 		this.onRawUpdateDownloaded(this.onUpdateDownloaded, this, this.disposables);

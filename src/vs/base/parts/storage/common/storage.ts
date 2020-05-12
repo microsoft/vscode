@@ -18,16 +18,17 @@ export enum StorageHint {
 }
 
 export interface IStorageOptions {
-	hint?: StorageHint;
+	readonly hint?: StorageHint;
 }
 
 export interface IUpdateRequest {
-	insert?: Map<string, string>;
-	delete?: Set<string>;
+	readonly insert?: Map<string, string>;
+	readonly delete?: Set<string>;
 }
 
 export interface IStorageItemsChangeEvent {
-	items: Map<string, string>;
+	readonly changed?: Map<string, string>;
+	readonly deleted?: Set<string>;
 }
 
 export interface IStorageDatabase {
@@ -73,25 +74,23 @@ export class Storage extends Disposable implements IStorage {
 
 	private static readonly DEFAULT_FLUSH_DELAY = 100;
 
-	private readonly _onDidChangeStorage: Emitter<string> = this._register(new Emitter<string>());
-	readonly onDidChangeStorage: Event<string> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<string>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
 	private state = StorageState.None;
 
-	private cache: Map<string, string> = new Map<string, string>();
+	private cache = new Map<string, string>();
 
-	private flushDelayer: ThrottledDelayer<void>;
+	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(Storage.DEFAULT_FLUSH_DELAY));
 
-	private pendingDeletes: Set<string> = new Set<string>();
-	private pendingInserts: Map<string, string> = new Map();
+	private pendingDeletes = new Set<string>();
+	private pendingInserts = new Map<string, string>();
 
 	constructor(
-		protected database: IStorageDatabase,
-		private options: IStorageOptions = Object.create(null)
+		protected readonly database: IStorageDatabase,
+		private readonly options: IStorageOptions = Object.create(null)
 	) {
 		super();
-
-		this.flushDelayer = this._register(new ThrottledDelayer(Storage.DEFAULT_FLUSH_DELAY));
 
 		this.registerListeners();
 	}
@@ -104,10 +103,11 @@ export class Storage extends Disposable implements IStorage {
 		// items that change external require us to update our
 		// caches with the values. we just accept the value and
 		// emit an event if there is a change.
-		e.items.forEach((value, key) => this.accept(key, value));
+		e.changed?.forEach((value, key) => this.accept(key, value));
+		e.deleted?.forEach(key => this.accept(key, undefined));
 	}
 
-	private accept(key: string, value: string): void {
+	private accept(key: string, value: string | undefined): void {
 		if (this.state === StorageState.Closed) {
 			return; // Return early if we are already closed
 		}
@@ -144,7 +144,7 @@ export class Storage extends Disposable implements IStorage {
 
 	async init(): Promise<void> {
 		if (this.state !== StorageState.None) {
-			return Promise.resolve(); // either closed or already initialized
+			return; // either closed or already initialized
 		}
 
 		this.state = StorageState.Initialized;
@@ -153,7 +153,7 @@ export class Storage extends Disposable implements IStorage {
 			// return early if we know the storage file does not exist. this is a performance
 			// optimization to not load all items of the underlying storage if we know that
 			// there can be no items because the storage does not exist.
-			return Promise.resolve();
+			return;
 		}
 
 		this.cache = await this.database.getItems();
@@ -294,13 +294,13 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 
 	readonly onDidChangeItemsExternal = Event.None;
 
-	private items = new Map<string, string>();
+	private readonly items = new Map<string, string>();
 
-	getItems(): Promise<Map<string, string>> {
-		return Promise.resolve(this.items);
+	async getItems(): Promise<Map<string, string>> {
+		return this.items;
 	}
 
-	updateItems(request: IUpdateRequest): Promise<void> {
+	async updateItems(request: IUpdateRequest): Promise<void> {
 		if (request.insert) {
 			request.insert.forEach((value, key) => this.items.set(key, value));
 		}
@@ -308,11 +308,7 @@ export class InMemoryStorageDatabase implements IStorageDatabase {
 		if (request.delete) {
 			request.delete.forEach(key => this.items.delete(key));
 		}
-
-		return Promise.resolve();
 	}
 
-	close(): Promise<void> {
-		return Promise.resolve();
-	}
+	async close(): Promise<void> { }
 }

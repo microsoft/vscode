@@ -11,31 +11,38 @@ import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALL
 import { Thread, StackFrame, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MenuId, IMenu, IMenuService } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { createAndFillInContextMenuActions, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeRenderer, ITreeNode, ITreeContextMenuEvent, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { TreeResourceNavigator, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { createMatches, FuzzyScore } from 'vs/base/common/filters';
 import { Event } from 'vs/base/common/event';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { STOP_ID, STOP_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, RESTART_SESSION_ID, RESTART_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STEP_INTO_LABEL, STEP_INTO_ID, STEP_OUT_LABEL, STEP_OUT_ID, PAUSE_ID, PAUSE_LABEL, CONTINUE_ID, CONTINUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { commonSuffixLength } from 'vs/base/common/strings';
+import { posix } from 'vs/base/common/path';
 
 const $ = dom.$;
 
@@ -58,7 +65,7 @@ export function getContext(element: CallStackItem | null): any {
 export function getContextForContributedActions(element: CallStackItem | null): string | number {
 	if (element instanceof StackFrame) {
 		if (element.source.inMemory) {
-			return element.source.raw.path || element.source.reference || '';
+			return element.source.raw.path || element.source.reference || element.source.name;
 		}
 
 		return element.source.uri.toString();
@@ -73,6 +80,26 @@ export function getContextForContributedActions(element: CallStackItem | null): 
 	return '';
 }
 
+export function getSpecificSourceName(stackFrame: IStackFrame): string {
+	// To reduce flashing of the path name and the way we fetch stack frames
+	// We need to compute the source name based on the other frames in the stale call stack
+	let callStack = (<Thread>stackFrame.thread).getStaleCallStack();
+	callStack = callStack.length > 0 ? callStack : stackFrame.thread.getCallStack();
+	const otherSources = callStack.map(sf => sf.source).filter(s => s !== stackFrame.source);
+	let suffixLength = 0;
+	otherSources.forEach(s => {
+		if (s.name === stackFrame.source.name) {
+			suffixLength = Math.max(suffixLength, commonSuffixLength(stackFrame.source.uri.path, s.uri.path));
+		}
+	});
+	if (suffixLength === 0) {
+		return stackFrame.source.name;
+	}
+
+	const from = Math.max(0, stackFrame.source.uri.path.lastIndexOf(posix.sep, stackFrame.source.uri.path.length - suffixLength - 1));
+	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substr(from);
+}
+
 export class CallStackView extends ViewPane {
 	private pauseMessage!: HTMLSpanElement;
 	private pauseMessageLabel!: HTMLSpanElement;
@@ -83,7 +110,7 @@ export class CallStackView extends ViewPane {
 	private callStackItemType: IContextKey<string>;
 	private dataSource!: CallStackDataSource;
 	private tree!: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
-	private contributedContextMenu: IMenu;
+	private menu: IMenu;
 	private parentSessionToExpand = new Set<IDebugSession>();
 	private selectionNeedsUpdate = false;
 
@@ -98,12 +125,15 @@ export class CallStackView extends ViewPane {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super({ ...(options as IViewPaneOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
-		this.contributedContextMenu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		this._register(this.contributedContextMenu);
+		this.menu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
+		this._register(this.menu);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
@@ -116,22 +146,21 @@ export class CallStackView extends ViewPane {
 				this.pauseMessageLabel.title = thread.stoppedDetails.text || '';
 				dom.toggleClass(this.pauseMessageLabel, 'exception', thread.stoppedDetails.reason === 'exception');
 				this.pauseMessage.hidden = false;
-				if (this.toolbar) {
-					this.toolbar.setActions([])();
-				}
+				this.updateActions();
 
 			} else {
 				this.pauseMessage.hidden = true;
-				if (this.toolbar) {
-					const collapseAction = new CollapseAction(this.tree, true, 'explorer-action codicon-collapse-all');
-					this.toolbar.setActions([collapseAction])();
-				}
+				this.updateActions();
 			}
 
 			this.needsRefresh = false;
 			this.dataSource.deemphasizedStackFramesToShow = [];
 			this.tree.updateChildren().then(() => {
-				this.parentSessionToExpand.forEach(s => this.tree.expand(s));
+				try {
+					this.parentSessionToExpand.forEach(s => this.tree.expand(s));
+				} catch (e) {
+					// Ignore tree expand errors if element no longer present
+				}
 				this.parentSessionToExpand.clear();
 				if (this.selectionNeedsUpdate) {
 					this.selectionNeedsUpdate = false;
@@ -150,21 +179,31 @@ export class CallStackView extends ViewPane {
 		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
 	}
 
+	getActions(): IAction[] {
+		if (this.pauseMessage.hidden) {
+			return [new CollapseAction(() => this.tree, true, 'explorer-action codicon-collapse-all')];
+		}
+
+		return [];
+	}
+
 	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		dom.addClass(this.element, 'debug-pane');
 		dom.addClass(container, 'debug-call-stack');
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		this.tree = this.instantiationService.createInstance<typeof WorkbenchAsyncDataTree, WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
-			new SessionsRenderer(this.instantiationService, this.debugService),
+		const sessionsRenderer = this.instantiationService.createInstance(SessionsRenderer, this.menu);
+		this.tree = <WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
+			sessionsRenderer,
 			new ThreadsRenderer(this.instantiationService),
 			this.instantiationService.createInstance(StackFramesRenderer),
 			new ErrorsRenderer(),
-			new LoadMoreRenderer(),
-			new ShowMoreRenderer()
+			new LoadMoreRenderer(this.themeService),
+			new ShowMoreRenderer(this.themeService)
 		], this.dataSource, {
 			accessibilityProvider: new CallStackAccessibilityProvider(),
-			ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack"),
 			identityProvider: {
 				getId: (element: CallStackItem) => {
 					if (typeof element === 'string') {
@@ -197,7 +236,7 @@ export class CallStackView extends ViewPane {
 			},
 			expandOnlyOnTwistieClick: true,
 			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
+				listBackground: this.getBackgroundColor()
 			}
 		});
 
@@ -293,6 +332,7 @@ export class CallStackView extends ViewPane {
 	}
 
 	layoutBody(height: number, width: number): void {
+		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
@@ -362,12 +402,15 @@ export class CallStackView extends ViewPane {
 			this.callStackItemType.reset();
 		}
 
-		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.contributedContextMenu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, actions, this.contextMenuService);
+
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
-			getActions: () => actions,
+			getActions: () => result.secondary,
 			getActionsContext: () => getContext(element),
 			onHide: () => dispose(actionsDisposable)
 		});
@@ -390,6 +433,7 @@ interface ISessionTemplateData {
 	stateLabel: HTMLSpanElement;
 	label: HighlightedLabel;
 	actionBar: ActionBar;
+	elementDisposable: IDisposable[];
 }
 
 interface IErrorTemplateData {
@@ -398,6 +442,7 @@ interface IErrorTemplateData {
 
 interface ILabelTemplateData {
 	label: HTMLElement;
+	toDispose: IDisposable;
 }
 
 interface IStackFrameTemplateData {
@@ -413,8 +458,12 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 	static readonly ID = 'session';
 
 	constructor(
-		private readonly instantiationService: IInstantiationService,
-		private readonly debugService: IDebugService
+		private menu: IMenu,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IDebugService private readonly debugService: IDebugService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) { }
 
 	get templateId(): string {
@@ -423,30 +472,50 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
 		const session = dom.append(container, $('.session'));
+		dom.append(session, $('.codicon.codicon-bug'));
 		const name = dom.append(session, $('.name'));
 		const state = dom.append(session, $('.state'));
-		const stateLabel = dom.append(state, $('span.label'));
+		const stateLabel = dom.append(state, $('span.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
-		const actionBar = new ActionBar(session);
+		const actionBar = new ActionBar(session, {
+			actionViewItemProvider: action => {
+				if (action instanceof MenuItemAction) {
+					// We need the MenuEntryActionViewItem so the icon would get rendered
+					return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService, this.contextMenuService);
+				}
 
-		return { session, name, state, stateLabel, label, actionBar };
+				return undefined;
+			}
+		});
+
+		return { session, name, state, stateLabel, label, actionBar, elementDisposable: [] };
 	}
 
 	renderElement(element: ITreeNode<IDebugSession, FuzzyScore>, _: number, data: ISessionTemplateData): void {
 		const session = element.element;
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
 		data.label.set(session.getLabel(), createMatches(element.filterData));
-		const thread = session.getAllThreads().filter(t => t.stopped).pop();
+		const thread = session.getAllThreads().find(t => t.stopped);
 
-		data.actionBar.clear();
-		const actions = getActions(this.instantiationService, element.element);
-		data.actionBar.push(actions, { icon: true, label: false });
+		const setActionBar = () => {
+			const actions = getActions(this.instantiationService, element.element);
+
+			const primary: IAction[] = actions;
+			const secondary: IAction[] = [];
+			const result = { primary, secondary };
+			data.elementDisposable.push(createAndFillInActionBarActions(this.menu, { arg: getContextForContributedActions(session), shouldForwardArgs: true }, result, g => /^inline/.test(g)));
+
+			data.actionBar.clear();
+			data.actionBar.push(primary, { icon: true, label: false });
+		};
+		setActionBar();
+		data.elementDisposable.push(this.menu.onDidChange(() => setActionBar()));
 		data.stateLabel.hidden = false;
 
 		if (thread && thread.stoppedDetails) {
 			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
 		} else {
-			const hasChildSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === session).length > 0;
+			const hasChildSessions = this.debugService.getModel().getSessions().find(s => s.parentSession === session);
 			if (!hasChildSessions) {
 				data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 			} else {
@@ -457,6 +526,10 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 
 	disposeTemplate(templateData: ISessionTemplateData): void {
 		templateData.actionBar.dispose();
+	}
+
+	disposeElement(_element: ITreeNode<IDebugSession, FuzzyScore>, _: number, templateData: ISessionTemplateData): void {
+		dispose(templateData.elementDisposable);
 	}
 }
 
@@ -511,7 +584,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		const file = dom.append(stackFrame, $('.file'));
 		const fileName = dom.append(file, $('span.file-name'));
 		const wrapper = dom.append(file, $('span.line-number-wrapper'));
-		const lineNumber = dom.append(wrapper, $('span.line-number'));
+		const lineNumber = dom.append(wrapper, $('span.line-number.monaco-count-badge'));
 		const label = new HighlightedLabel(labelDiv, false);
 		const actionBar = new ActionBar(stackFrame);
 
@@ -523,7 +596,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		dom.toggleClass(data.stackFrame, 'disabled', !stackFrame.source || !stackFrame.source.available || isDeemphasized(stackFrame));
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
-		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle' && stackFrame.range.startLineNumber !== undefined;
+		const hasActions = !!stackFrame.thread.session.capabilities.supportsRestartFrame && stackFrame.presentationHint !== 'label' && stackFrame.presentationHint !== 'subtle';
 		dom.toggleClass(data.stackFrame, 'has-actions', hasActions);
 
 		data.file.title = stackFrame.source.inMemory ? stackFrame.source.uri.path : this.labelService.getUriLabel(stackFrame.source.uri);
@@ -531,7 +604,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}
 		data.label.set(stackFrame.name, createMatches(element.filterData), stackFrame.name);
-		data.fileName.textContent = stackFrame.getSpecificSourceName();
+		data.fileName.textContent = getSpecificSourceName(stackFrame);
 		if (stackFrame.range.startLineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
 			if (stackFrame.range.startColumn) {
@@ -584,14 +657,21 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, FuzzyScore,
 	static readonly ID = 'loadMore';
 	static readonly LABEL = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 
+	constructor(private readonly themeService: IThemeService) { }
+
 	get templateId(): string {
 		return LoadMoreRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IErrorTemplateData {
+	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.load-more'));
+		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
+			if (colors.textLinkForeground) {
+				label.style.color = colors.textLinkForeground.toString();
+			}
+		});
 
-		return { label };
+		return { label, toDispose };
 	}
 
 	renderElement(element: ITreeNode<ThreadAndSessionIds, FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -599,21 +679,29 @@ class LoadMoreRenderer implements ITreeRenderer<ThreadAndSessionIds, FuzzyScore,
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
-		// noop
+		templateData.toDispose.dispose();
 	}
 }
 
 class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], FuzzyScore, ILabelTemplateData> {
 	static readonly ID = 'showMore';
 
+	constructor(private readonly themeService: IThemeService) { }
+
+
 	get templateId(): string {
 		return ShowMoreRenderer.ID;
 	}
 
-	renderTemplate(container: HTMLElement): IErrorTemplateData {
+	renderTemplate(container: HTMLElement): ILabelTemplateData {
 		const label = dom.append(container, $('.show-more'));
+		const toDispose = attachStylerCallback(this.themeService, { textLinkForeground }, colors => {
+			if (colors.textLinkForeground) {
+				label.style.color = colors.textLinkForeground.toString();
+			}
+		});
 
-		return { label };
+		return { label, toDispose };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame[], FuzzyScore>, index: number, data: ILabelTemplateData): void {
@@ -626,13 +714,20 @@ class ShowMoreRenderer implements ITreeRenderer<IStackFrame[], FuzzyScore, ILabe
 	}
 
 	disposeTemplate(templateData: ILabelTemplateData): void {
-		// noop
+		templateData.toDispose.dispose();
 	}
 }
 
 class CallStackDelegate implements IListVirtualDelegate<CallStackItem> {
 
 	getHeight(element: CallStackItem): number {
+		if (element instanceof StackFrame && element.presentationHint === 'label') {
+			return 16;
+		}
+		if (element instanceof ThreadAndSessionIds || element instanceof Array) {
+			return 16;
+		}
+
 		return 22;
 	}
 
@@ -678,7 +773,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
 		if (isDebugSession(element)) {
 			const threads = element.getAllThreads();
-			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || (this.debugService.getModel().getSessions().filter(s => s.parentSession === element).length > 0);
+			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || !!(this.debugService.getModel().getSessions().find(s => s.parentSession === element));
 		}
 
 		return isDebugModel(element) || (element instanceof Thread && element.stopped);
@@ -771,13 +866,18 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	}
 }
 
-class CallStackAccessibilityProvider implements IAccessibilityProvider<CallStackItem> {
+class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallStackItem> {
+
+	getWidgetAriaLabel(): string {
+		return nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'callStackAriaLabel' }, "Debug Call Stack");
+	}
+
 	getAriaLabel(element: CallStackItem): string {
 		if (element instanceof Thread) {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", element.name, element.range.startLineNumber, element.getSpecificSourceName());
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}, callstack, debug", element.name, element.range.startLineNumber, getSpecificSourceName(element));
 		}
 		if (isDebugSession(element)) {
 			return nls.localize('sessionLabel', "Debug Session {0}", element.getLabel());

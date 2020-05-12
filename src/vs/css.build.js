@@ -53,7 +53,7 @@ var CSSBuildLoaderPlugin;
         BrowserCSSLoader.prototype._insertLinkNode = function (linkNode) {
             this._pendingLoads++;
             var head = document.head || document.getElementsByTagName('head')[0];
-            var other = head.getElementsByTagName('link') || document.head.getElementsByTagName('script');
+            var other = head.getElementsByTagName('link') || head.getElementsByTagName('script');
             if (other.length > 0) {
                 head.insertBefore(linkNode, other[other.length - 1]);
             }

@@ -23,6 +23,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { MessageBoxOptions } from 'electron';
+import { fromNow } from 'vs/base/common/date';
 
 interface IMassagedMessageBoxOptions {
 
@@ -216,17 +217,23 @@ class NativeDialogService implements IDialogService {
 		}
 
 		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
-		const detail = nls.localize('aboutDetail',
-			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
-			version,
-			product.commit || 'Unknown',
-			product.date || 'Unknown',
-			process.versions['electron'],
-			process.versions['chrome'],
-			process.versions['node'],
-			process.versions['v8'],
-			`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
-		);
+
+		const detailString = (useAgo: boolean): string => {
+			return nls.localize('aboutDetail',
+				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
+				version,
+				product.commit || 'Unknown',
+				product.date ? `${product.date}${useAgo ? ' (' + fromNow(new Date(product.date), true) + ')' : ''}` : 'Unknown',
+				process.versions['electron'],
+				process.versions['chrome'],
+				process.versions['node'],
+				process.versions['v8'],
+				`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
+			);
+		};
+
+		const detail = detailString(true);
+		const detailToCopy = detailString(false);
 
 		const ok = nls.localize('okButton', "OK");
 		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
@@ -249,7 +256,7 @@ class NativeDialogService implements IDialogService {
 		});
 
 		if (buttons[result.response] === copy) {
-			this.clipboardService.writeText(detail);
+			this.clipboardService.writeText(detailToCopy);
 		}
 	}
 }

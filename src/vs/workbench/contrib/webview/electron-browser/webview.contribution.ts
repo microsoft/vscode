@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh } from 'vs/base/common/platform';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { SyncActionDescriptor, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -19,22 +19,20 @@ registerSingleton(IWebviewService, ElectronWebviewService, true);
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
 actionRegistry.registerWorkbenchAction(
-	SyncActionDescriptor.create(webviewCommands.OpenWebviewDeveloperToolsAction, webviewCommands.OpenWebviewDeveloperToolsAction.ID, webviewCommands.OpenWebviewDeveloperToolsAction.LABEL),
+	SyncActionDescriptor.from(webviewCommands.OpenWebviewDeveloperToolsAction),
 	webviewCommands.OpenWebviewDeveloperToolsAction.ALIAS,
 	webviewDeveloperCategory);
 
 function registerWebViewCommands(editorId: string): void {
 	const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', editorId), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */)!;
 
-	new webviewCommands.SelectAllWebviewEditorCommand(contextKeyExpr).register();
-
 	// These commands are only needed on MacOS where we have to disable the menu bar commands
 	if (isMacintosh) {
-		new webviewCommands.CopyWebviewEditorCommand(contextKeyExpr).register();
-		new webviewCommands.PasteWebviewEditorCommand(contextKeyExpr).register();
-		new webviewCommands.CutWebviewEditorCommand(contextKeyExpr).register();
-		new webviewCommands.UndoWebviewEditorCommand(contextKeyExpr).register();
-		new webviewCommands.RedoWebviewEditorCommand(contextKeyExpr).register();
+		registerAction2(class extends webviewCommands.CopyWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
+		registerAction2(class extends webviewCommands.PasteWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
+		registerAction2(class extends webviewCommands.CutWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
+		registerAction2(class extends webviewCommands.UndoWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
+		registerAction2(class extends webviewCommands.RedoWebviewEditorCommand { constructor() { super(contextKeyExpr); } });
 	}
 }
 

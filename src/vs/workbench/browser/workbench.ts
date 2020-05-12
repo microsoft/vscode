@@ -6,7 +6,7 @@
 import 'vs/workbench/browser/style';
 
 import { localize } from 'vs/nls';
-import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
+import { Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { addClasses, addClass, removeClasses } from 'vs/base/browser/dom';
 import { runWhenIdle } from 'vs/base/common/async';
 import { getZoomLevel, isFirefox, isSafari, isChrome } from 'vs/base/browser/browser';
@@ -16,7 +16,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isWeb, isNative, isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
-import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IWorkbenchLayoutService, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { IStorageService, WillSaveStateReason, StorageScope } from 'vs/platform/storage/common/storage';
@@ -33,7 +32,7 @@ import { NotificationsAlerts } from 'vs/workbench/browser/parts/notifications/no
 import { NotificationsStatus } from 'vs/workbench/browser/parts/notifications/notificationsStatus';
 import { registerNotificationCommands } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsToasts } from 'vs/workbench/browser/parts/notifications/notificationsToasts';
-import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { setARIAContainer } from 'vs/base/browser/ui/aria/aria';
 import { readFontInfo, restoreFontInfo, serializeFontInfo } from 'vs/editor/browser/config/configuration';
@@ -46,17 +45,18 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Extensions as PanelExtensions, PanelRegistry } from 'vs/workbench/browser/panel';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 
 export class Workbench extends Layout {
 
 	private readonly _onBeforeShutdown = this._register(new Emitter<BeforeShutdownEvent>());
-	readonly onBeforeShutdown: Event<BeforeShutdownEvent> = this._onBeforeShutdown.event;
+	readonly onBeforeShutdown = this._onBeforeShutdown.event;
 
 	private readonly _onWillShutdown = this._register(new Emitter<WillShutdownEvent>());
-	readonly onWillShutdown: Event<WillShutdownEvent> = this._onWillShutdown.event;
+	readonly onWillShutdown = this._onWillShutdown.event;
 
 	private readonly _onShutdown = this._register(new Emitter<void>());
-	readonly onShutdown: Event<void> = this._onShutdown.event;
+	readonly onShutdown = this._onShutdown.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -132,9 +132,6 @@ export class Workbench extends Layout {
 			// Configure emitter leak warning threshold
 			setGlobalLeakWarningThreshold(175);
 
-			// ARIA
-			setARIAContainer(document.body);
-
 			// Services
 			const instantiationService = this.initServices(this.serviceCollection);
 
@@ -167,7 +164,7 @@ export class Workbench extends Layout {
 
 				// Restore
 				try {
-					await this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), lifecycleService);
+					await this.restoreWorkbench(accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IViewDescriptorService), accessor.get(IViewletService), accessor.get(IPanelService), accessor.get(ILogService), lifecycleService);
 				} catch (error) {
 					onUnexpectedError(error);
 				}
@@ -219,7 +216,6 @@ export class Workbench extends Layout {
 	}
 
 	private startRegistries(accessor: ServicesAccessor): void {
-		Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar).start(accessor);
 		Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).start(accessor);
 		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).start(accessor);
 	}
@@ -321,6 +317,9 @@ export class Workbench extends Layout {
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
+		// ARIA
+		setARIAContainer(this.container);
+
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
 		const workbenchClasses = coalesce([
@@ -351,7 +350,7 @@ export class Workbench extends Layout {
 			{ id: Parts.SIDEBAR_PART, role: 'complementary', classes: ['sidebar', this.state.sideBar.position === Position.LEFT ? 'left' : 'right'] },
 			{ id: Parts.EDITOR_PART, role: 'main', classes: ['editor'], options: { restorePreviousState: this.state.editor.restoreEditors } },
 			{ id: Parts.PANEL_PART, role: 'complementary', classes: ['panel', positionToString(this.state.panel.position)] },
-			{ id: Parts.STATUSBAR_PART, role: 'contentinfo', classes: ['statusbar'] }
+			{ id: Parts.STATUSBAR_PART, role: 'status', classes: ['statusbar'] }
 		].forEach(({ id, role, classes, options }) => {
 			const partContainer = this.createPart(id, role, classes);
 
@@ -370,6 +369,9 @@ export class Workbench extends Layout {
 		addClasses(part, 'part', ...classes);
 		part.id = id;
 		part.setAttribute('role', role);
+		if (role === 'status') {
+			part.setAttribute('aria-live', 'off');
+		}
 
 		return part;
 	}
@@ -384,8 +386,12 @@ export class Workbench extends Layout {
 
 		// Visibility
 		this._register(notificationsCenter.onDidChangeVisibility(() => {
-			notificationsStatus.update(notificationsCenter.isVisible);
+			notificationsStatus.update(notificationsCenter.isVisible, notificationsToasts.isVisible);
 			notificationsToasts.update(notificationsCenter.isVisible);
+		}));
+
+		this._register(notificationsToasts.onDidChangeVisibility(() => {
+			notificationsStatus.update(notificationsCenter.isVisible, notificationsToasts.isVisible);
 		}));
 
 		// Register Commands
@@ -395,6 +401,7 @@ export class Workbench extends Layout {
 	private async restoreWorkbench(
 		editorService: IEditorService,
 		editorGroupService: IEditorGroupsService,
+		viewDescriptorService: IViewDescriptorService,
 		viewletService: IViewletService,
 		panelService: IPanelService,
 		logService: ILogService,
@@ -410,7 +417,7 @@ export class Workbench extends Layout {
 			await editorGroupService.whenRestored;
 
 			// then see for editors to open as instructed
-			let editors: IResourceEditor[];
+			let editors: IResourceEditorInputType[];
 			if (Array.isArray(this.state.editor.editorsToOpen)) {
 				editors = this.state.editor.editorsToOpen;
 			} else {
@@ -431,7 +438,7 @@ export class Workbench extends Layout {
 
 				const viewlet = await viewletService.openViewlet(this.state.sideBar.viewletToRestore);
 				if (!viewlet) {
-					await viewletService.openViewlet(viewletService.getDefaultViewletId()); // fallback to default viewlet as needed
+					await viewletService.openViewlet(viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id); // fallback to default viewlet as needed
 				}
 
 				mark('didRestoreViewlet');
@@ -443,9 +450,9 @@ export class Workbench extends Layout {
 			restorePromises.push((async () => {
 				mark('willRestorePanel');
 
-				const panel = await panelService.openPanelAsync(this.state.panel.panelToRestore);
+				const panel = await panelService.openPanel(this.state.panel.panelToRestore!);
 				if (!panel) {
-					panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
+					await panelService.openPanel(Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId()); // fallback to default panel as needed
 				}
 
 				mark('didRestorePanel');

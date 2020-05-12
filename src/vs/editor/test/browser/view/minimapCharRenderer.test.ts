@@ -10,22 +10,6 @@ import { MinimapCharRendererFactory } from 'vs/editor/browser/viewParts/minimap/
 
 suite('MinimapCharRenderer', () => {
 
-	let sampleData: Uint8ClampedArray | null = null;
-
-	suiteSetup(() => {
-		sampleData = new Uint8ClampedArray(Constants.SAMPLED_CHAR_HEIGHT * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
-	});
-
-	suiteTeardown(() => {
-		sampleData = null;
-	});
-
-	setup(() => {
-		for (let i = 0; i < sampleData!.length; i++) {
-			sampleData![i] = 0;
-		}
-	});
-
 	const sampleD = [
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xD0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x78, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xD0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x78, 0x00, 0x00, 0x00, 0x00,
@@ -45,7 +29,13 @@ suite('MinimapCharRenderer', () => {
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	];
 
-	function setSampleData(charCode: number, data: number[]) {
+	function getSampleData() {
+		const charCode = 'd'.charCodeAt(0);
+		const result = new Uint8ClampedArray(Constants.SAMPLED_CHAR_HEIGHT * Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT);
+		for (let i = 0; i < result.length; i++) {
+			result[i] = 0;
+		}
+
 		const rowWidth = Constants.SAMPLED_CHAR_WIDTH * Constants.RGBA_CHANNELS_CNT * Constants.CHAR_COUNT;
 		let chIndex = charCode - Constants.START_CH_CODE;
 
@@ -55,13 +45,15 @@ suite('MinimapCharRenderer', () => {
 			let outputOffset = globalOutputOffset;
 			for (let j = 0; j < Constants.SAMPLED_CHAR_WIDTH; j++) {
 				for (let channel = 0; channel < Constants.RGBA_CHANNELS_CNT; channel++) {
-					sampleData![outputOffset] = data[inputOffset];
+					result[outputOffset] = sampleD[inputOffset];
 					inputOffset++;
 					outputOffset++;
 				}
 			}
 			globalOutputOffset += rowWidth;
 		}
+
+		return result;
 	}
 
 	function createFakeImageData(width: number, height: number): ImageData {
@@ -73,8 +65,8 @@ suite('MinimapCharRenderer', () => {
 	}
 
 	test('letter d @ 2x', () => {
-		setSampleData('d'.charCodeAt(0), sampleD);
-		let renderer = MinimapCharRendererFactory.createFromSampleData(sampleData!, 2);
+		const sampleData = getSampleData();
+		let renderer = MinimapCharRendererFactory.createFromSampleData(sampleData, 2);
 
 		let background = new RGBA8(0, 0, 0, 255);
 		let color = new RGBA8(255, 255, 255, 255);
@@ -86,7 +78,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 2] = background.b;
 			imageData.data[4 * i + 3] = 255;
 		}
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 2, false);
+		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 2, false, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
@@ -94,16 +86,16 @@ suite('MinimapCharRenderer', () => {
 		}
 
 		assert.deepEqual(actual, [
-			0x2E, 0x2E, 0x2E, 0xFF, 0xAD, 0xAD, 0xAD, 0xFF,
+			0x2D, 0x2D, 0x2D, 0xFF, 0xAC, 0xAC, 0xAC, 0xFF,
 			0xC6, 0xC6, 0xC6, 0xFF, 0xC8, 0xC8, 0xC8, 0xFF,
-			0xC1, 0xC1, 0xC1, 0xFF, 0xCC, 0xCC, 0xCC, 0xFF,
+			0xC0, 0xC0, 0xC0, 0xFF, 0xCB, 0xCB, 0xCB, 0xFF,
 			0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0xFF,
 		]);
 	});
 
 	test('letter d @ 1x', () => {
-		setSampleData('d'.charCodeAt(0), sampleD);
-		let renderer = MinimapCharRendererFactory.createFromSampleData(sampleData!, 1);
+		const sampleData = getSampleData();
+		let renderer = MinimapCharRendererFactory.createFromSampleData(sampleData, 1);
 
 		let background = new RGBA8(0, 0, 0, 255);
 		let color = new RGBA8(255, 255, 255, 255);
@@ -116,7 +108,7 @@ suite('MinimapCharRenderer', () => {
 			imageData.data[4 * i + 3] = 255;
 		}
 
-		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 1, false);
+		renderer.renderChar(imageData, 0, 0, 'd'.charCodeAt(0), color, background, 1, false, false);
 
 		let actual: number[] = [];
 		for (let i = 0; i < imageData.data.length; i++) {
@@ -125,7 +117,7 @@ suite('MinimapCharRenderer', () => {
 
 		assert.deepEqual(actual, [
 			0xCB, 0xCB, 0xCB, 0xFF,
-			0x82, 0x82, 0x82, 0xFF,
+			0x81, 0x81, 0x81, 0xFF,
 		]);
 	});
 

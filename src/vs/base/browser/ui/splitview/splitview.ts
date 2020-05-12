@@ -110,7 +110,7 @@ abstract class ViewItem<TLayoutContext> {
 	get snap(): boolean { return !!this.view.snap; }
 
 	set enabled(enabled: boolean) {
-		this.container.style.pointerEvents = enabled ? null : 'none';
+		this.container.style.pointerEvents = enabled ? '' : 'none';
 	}
 
 	constructor(
@@ -951,7 +951,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			position += this.viewItems[i].size;
 
 			if (this.sashItems[i].sash === sash) {
-				return Math.min(position, this.contentSize - 2);
+				return position;
 			}
 		}
 

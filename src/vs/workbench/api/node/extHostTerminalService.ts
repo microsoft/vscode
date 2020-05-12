@@ -20,13 +20,19 @@ import { ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostD
 import { ExtHostDocumentsAndEditors, IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { getSystemShell, detectAvailableShells } from 'vs/workbench/contrib/terminal/node/terminal';
 import { getMainProcessParentEnv } from 'vs/workbench/contrib/terminal/node/terminalEnvironment';
-import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
+import { BaseExtHostTerminalService, ExtHostTerminal, EnvironmentVariableCollection } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
+import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
+import { MergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableCollection';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	private _variableResolver: ExtHostVariableResolverService | undefined;
 	private _lastActiveWorkspace: IWorkspaceFolder | undefined;
+
+	private _environmentVariableCollections: Map<string, EnvironmentVariableCollection> = new Map();
 
 	// TODO: Pull this from main side
 	private _isWorkspaceShellAllowed: boolean = false;
@@ -46,15 +52,15 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, { name, shellPath, shellArgs }, name);
-		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
+		terminal.create(shellPath, shellArgs);
 		return terminal;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, options, options.name);
-		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
 		this._terminals.push(terminal);
+		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env, /*options.waitOnExit*/ undefined, options.strictEnv, options.hideFromUser);
 		return terminal;
 	}
 
@@ -191,6 +197,12 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			baseEnv
 		);
 
+		// Apply extension environment variable collections to the environment
+		if (!shellLaunchConfig.strictEnv) {
+			const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
+			mergedCollection.applyToProcessEnvironment(env);
+		}
+
 		this._proxy.$sendResolvedLaunchConfig(id, shellLaunchConfig);
 		// Fork the process and listen for messages
 		this._logService.debug(`Terminal process launching on ext host`, shellLaunchConfig, initialCwd, cols, rows, env);
@@ -200,19 +212,52 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		this._setupExtHostProcessListeners(id, new TerminalProcess(shellLaunchConfig, initialCwd, cols, rows, env, enableConpty, this._logService));
 	}
 
-	public $requestAvailableShells(): Promise<IShellDefinitionDto[]> {
+	public $getAvailableShells(): Promise<IShellDefinitionDto[]> {
 		return detectAvailableShells();
 	}
 
-	public async $requestDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
+	public async $getDefaultShellAndArgs(useAutomationShell: boolean): Promise<IShellAndArgsDto> {
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		return Promise.resolve({
+		return {
 			shell: this.getDefaultShell(useAutomationShell, configProvider),
 			args: this.getDefaultShellArgs(useAutomationShell, configProvider)
-		});
+		};
 	}
 
 	public $acceptWorkspacePermissionsChanged(isAllowed: boolean): void {
 		this._isWorkspaceShellAllowed = isAllowed;
+	}
+
+	public getEnvironmentVariableCollection(extension: IExtensionDescription): vscode.EnvironmentVariableCollection {
+		let collection = this._environmentVariableCollections.get(extension.identifier.value);
+		if (!collection) {
+			collection = new EnvironmentVariableCollection();
+			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
+		}
+		return collection;
+	}
+
+	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
+		const serialized = serializeEnvironmentVariableCollection(collection.map);
+		this._proxy.$setEnvironmentVariableCollection(extensionIdentifier, collection.persistent, serialized.length === 0 ? undefined : serialized);
+	}
+
+	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
+		collections.forEach(entry => {
+			const extensionIdentifier = entry[0];
+			const collection = new EnvironmentVariableCollection(entry[1]);
+			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
+		});
+	}
+
+	private _setEnvironmentVariableCollection(extensionIdentifier: string, collection: EnvironmentVariableCollection): void {
+		this._environmentVariableCollections.set(extensionIdentifier, collection);
+		collection.onDidChangeCollection(() => {
+			// When any collection value changes send this immediately, this is done to ensure
+			// following calls to createTerminal will be created with the new environment. It will
+			// result in more noise by sending multiple updates when called but collections are
+			// expected to be small.
+			this._syncEnvironmentVariableCollection(extensionIdentifier, collection!);
+		});
 	}
 }

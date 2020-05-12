@@ -24,7 +24,7 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IBaseResourceInput {
+export interface IBaseResourceEditorInput {
 
 	/**
 	 * Optional options to use when opening the text input.
@@ -60,12 +60,12 @@ export interface IBaseResourceInput {
 	readonly forceUntitled?: boolean;
 }
 
-export interface IResourceInput extends IBaseResourceInput {
+export interface IResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * The resource URI of the resource to open.
 	 */
-	resource: URI;
+	readonly resource: URI;
 
 	/**
 	 * The encoding of the text input if known.
@@ -171,6 +171,12 @@ export interface IEditorOptions {
 	readonly pinned?: boolean;
 
 	/**
+	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
+	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
+	 */
+	readonly sticky?: boolean;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	readonly index?: number;
@@ -215,6 +221,26 @@ export interface ITextEditorSelection {
 	readonly endColumn?: number;
 }
 
+export const enum TextEditorSelectionRevealType {
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically.
+	 */
+	Center = 0,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 */
+	CenterIfOutsideViewport = 1,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 */
+	NearTop = 2,
+	/**
+	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
+	 * Only if it lies outside the viewport
+	 */
+	NearTopIfOutsideViewport = 3,
+}
+
 export interface ITextEditorOptions extends IEditorOptions {
 
 	/**
@@ -228,7 +254,8 @@ export interface ITextEditorOptions extends IEditorOptions {
 	readonly viewState?: object;
 
 	/**
-	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
+	 * Option to control the text editor selection reveal type.
+	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
-	readonly revealInCenterIfOutsideViewport?: boolean;
+	readonly selectionRevealType?: TextEditorSelectionRevealType;
 }

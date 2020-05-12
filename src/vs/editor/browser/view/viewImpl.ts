@@ -115,10 +115,10 @@ export class View extends ViewEventHandler {
 		this.eventDispatcher.addEventHandler(this);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, themeService.getTheme(), model, this.eventDispatcher);
+		this._context = new ViewContext(configuration, themeService.getColorTheme(), model, this.eventDispatcher);
 
-		this._register(themeService.onThemeChange(theme => {
-			this._context.theme = theme;
+		this._register(themeService.onDidColorThemeChange(theme => {
+			this._context.theme.update(theme);
 			this.eventDispatcher.emit(new viewEvents.ViewThemeChangedEvent());
 			this.render(true, false);
 		}));
@@ -136,6 +136,8 @@ export class View extends ViewEventHandler {
 
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName(this.getEditorClassName());
+		// Set role 'code' for better screen reader support https://github.com/microsoft/vscode/issues/93438
+		this.domNode.setAttribute('role', 'code');
 
 		this.overflowGuardContainer = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowGuardContainer, PartFingerprint.OverflowGuard);

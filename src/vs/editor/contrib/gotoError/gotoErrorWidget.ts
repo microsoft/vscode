@@ -8,11 +8,10 @@ import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarker, MarkerSeverity, IRelatedInformation } from 'vs/platform/markers/common/markers';
-import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { registerColor, oneOf, textLinkForeground, editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoForeground, editorInfoBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ITheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IColorTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
@@ -27,6 +26,10 @@ import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/action
 import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class MessageWidget {
 
@@ -52,11 +55,11 @@ class MessageWidget {
 
 		const domNode = document.createElement('div');
 		domNode.className = 'descriptioncontainer';
-		domNode.setAttribute('aria-live', 'assertive');
-		domNode.setAttribute('role', 'alert');
 
 		this._messageBlock = document.createElement('div');
 		dom.addClass(this._messageBlock, 'message');
+		this._messageBlock.setAttribute('aria-live', 'assertive');
+		this._messageBlock.setAttribute('role', 'alert');
 		domNode.appendChild(this._messageBlock);
 
 		this._relatedBlock = document.createElement('div');
@@ -88,7 +91,8 @@ class MessageWidget {
 		dispose(this._disposables);
 	}
 
-	update({ source, message, relatedInformation, code }: IMarker): void {
+	update(marker: IMarker): void {
+		const { source, message, relatedInformation, code } = marker;
 		let sourceAndCodeLength = (source?.length || 0) + '()'.length;
 		if (code) {
 			if (typeof code === 'string') {
@@ -106,6 +110,7 @@ class MessageWidget {
 		}
 
 		dom.clearNode(this._messageBlock);
+		this._messageBlock.setAttribute('aria-label', this.getAriaLabel(marker));
 		this._editor.applyFontInfo(this._messageBlock);
 		let lastLineElement = this._messageBlock;
 		for (const line of lines) {
@@ -134,10 +139,10 @@ class MessageWidget {
 					detailsElement.appendChild(codeElement);
 				} else {
 					this._codeLink = dom.$('a.code-link');
-					this._codeLink.setAttribute('href', `${code.link.toString()}`);
+					this._codeLink.setAttribute('href', `${code.target.toString()}`);
 
 					this._codeLink.onclick = (e) => {
-						this._openerService.open(code.link);
+						this._openerService.open(code.target);
 						e.preventDefault();
 						e.stopPropagation();
 					};
@@ -192,9 +197,37 @@ class MessageWidget {
 	getHeightInLines(): number {
 		return Math.min(17, this._lines);
 	}
+
+	private getAriaLabel(marker: IMarker): string {
+		let severityLabel = '';
+		switch (marker.severity) {
+			case MarkerSeverity.Error:
+				severityLabel = nls.localize('Error', "Error");
+				break;
+			case MarkerSeverity.Warning:
+				severityLabel = nls.localize('Warning', "Warning");
+				break;
+			case MarkerSeverity.Info:
+				severityLabel = nls.localize('Info', "Info");
+				break;
+			case MarkerSeverity.Hint:
+				severityLabel = nls.localize('Hint', "Hint");
+				break;
+		}
+
+		let ariaLabel = nls.localize('marker aria', "{0} at {1}. ", severityLabel, marker.startLineNumber + ':' + marker.startColumn);
+		const model = this._editor.getModel();
+		if (model && (marker.startLineNumber <= model.getLineCount()) && (marker.startLineNumber >= 1)) {
+			const lineContent = model.getLineContent(marker.startLineNumber);
+			ariaLabel = `${lineContent}, ${ariaLabel}`;
+		}
+		return ariaLabel;
+	}
 }
 
 export class MarkerNavigationWidget extends PeekViewWidget {
+
+	static readonly TitleMenu = new MenuId('gotoErrorTitleMenu');
 
 	private _parentContainer!: HTMLElement;
 	private _container!: HTMLElement;
@@ -210,21 +243,23 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	constructor(
 		editor: ICodeEditor,
-		private readonly actions: ReadonlyArray<IAction>,
-		private readonly _themeService: IThemeService,
-		private readonly _openerService: IOpenerService
+		@IThemeService private readonly _themeService: IThemeService,
+		@IOpenerService private readonly _openerService: IOpenerService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(editor, { showArrow: true, showFrame: true, isAccessible: true });
 		this._severity = MarkerSeverity.Warning;
 		this._backgroundColor = Color.white;
 
-		this._applyTheme(_themeService.getTheme());
-		this._callOnDispose.add(_themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(_themeService.getColorTheme());
+		this._callOnDispose.add(_themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 
 		this.create();
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		this._backgroundColor = theme.getColor(editorMarkerNavigationBackground);
 		let colorId = editorMarkerNavigationError;
 		if (this._severity === MarkerSeverity.Warning) {
@@ -260,7 +295,14 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
-		this._actionbarWidget!.push(this.actions, { label: false, icon: true, index: 0 });
+
+		this._disposables.add(this._actionbarWidget!.actionRunner.onDidBeforeRun(e => this.editor.focus()));
+
+		const actions: IAction[] = [];
+		const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
+		createAndFillInActionBarActions(menu, undefined, actions);
+		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
+		menu.dispose();
 	}
 
 	protected _fillTitleIcon(container: HTMLElement): void {
@@ -269,7 +311,8 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 	protected _getActionBarOptions(): IActionBarOptions {
 		return {
-			orientation: ActionsOrientation.HORIZONTAL
+			orientation: ActionsOrientation.HORIZONTAL,
+			actionViewItemProvider: action => action instanceof MenuItemAction ? this._instantiationService.createInstance(MenuEntryActionViewItem, action) : undefined
 		};
 	}
 
@@ -286,7 +329,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._disposables.add(this._message);
 	}
 
-	show(where: Position, heightInLines: number): void {
+	show(): void {
 		throw new Error('call showAtMarker');
 	}
 
@@ -299,7 +342,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 
 		// update frame color (only applied on 'show')
 		this._severity = marker.severity;
-		this._applyTheme(this._themeService.getTheme());
+		this._applyTheme(this._themeService.getColorTheme());
 
 		// show
 		let range = Range.lift(marker);
@@ -316,7 +359,7 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		}
 		this._icon.className = `codicon ${SeverityIcon.className(MarkerSeverity.toSeverity(this._severity))}`;
 
-		this.editor.revealPositionInCenter(position, ScrollType.Smooth);
+		this.editor.revealPositionNearTop(position, ScrollType.Smooth);
 		this.editor.focus();
 	}
 

@@ -25,8 +25,12 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.Range | null> {
+		if (this.client.apiVersion.lt(API.v310)) {
+			return null;
+		}
+
 		const response = await this.execRename(document, position, token);
-		if (!response || response.type !== 'response' || !response.body) {
+		if (response?.type !== 'response' || !response.body) {
 			return null;
 		}
 
@@ -35,14 +39,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			return Promise.reject<vscode.Range>(renameInfo.localizedErrorMessage);
 		}
 
-		if (this.client.apiVersion.gte(API.v310)) {
-			const triggerSpan = renameInfo.triggerSpan;
-			if (triggerSpan) {
-				return typeConverters.Range.fromTextSpan(triggerSpan);
-			}
-		}
-
-		return null;
+		return typeConverters.Range.fromTextSpan(renameInfo.triggerSpan);
 	}
 
 	public async provideRenameEdits(
@@ -61,17 +58,15 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 			return Promise.reject<vscode.WorkspaceEdit>(renameInfo.localizedErrorMessage);
 		}
 
-
-		if (this.client.apiVersion.gte(API.v310)) {
-			if (renameInfo.fileToRename) {
-				const edits = await this.renameFile(renameInfo.fileToRename, newName, token);
-				if (edits) {
-					return edits;
-				} else {
-					return Promise.reject<vscode.WorkspaceEdit>(localize('fileRenameFail', "An error occurred while renaming file"));
-				}
+		if (renameInfo.fileToRename) {
+			const edits = await this.renameFile(renameInfo.fileToRename, newName, token);
+			if (edits) {
+				return edits;
+			} else {
+				return Promise.reject<vscode.WorkspaceEdit>(localize('fileRenameFail', "An error occurred while renaming file"));
 			}
 		}
+
 		return this.updateLocs(response.body.locs, newName);
 	}
 
@@ -104,11 +99,9 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		const edit = new vscode.WorkspaceEdit();
 		for (const spanGroup of locations) {
 			const resource = this.client.toResource(spanGroup.file);
-			if (resource) {
-				for (const textSpan of spanGroup.locs as Proto.RenameTextSpan[]) {
-					edit.replace(resource, typeConverters.Range.fromTextSpan(textSpan),
-						(textSpan.prefixText || '') + newName + (textSpan.suffixText || ''));
-				}
+			for (const textSpan of spanGroup.locs) {
+				edit.replace(resource, typeConverters.Range.fromTextSpan(textSpan),
+					(textSpan.prefixText || '') + newName + (textSpan.suffixText || ''));
 			}
 		}
 		return edit;

@@ -148,7 +148,16 @@ class ConsumerFileSystem implements vscode.FileSystem {
 		}
 
 		// file system error
-		throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
+		switch (err.name) {
+			case files.FileSystemProviderErrorCode.FileExists: throw FileSystemError.FileExists(err.message);
+			case files.FileSystemProviderErrorCode.FileNotFound: throw FileSystemError.FileNotFound(err.message);
+			case files.FileSystemProviderErrorCode.FileNotADirectory: throw FileSystemError.FileNotADirectory(err.message);
+			case files.FileSystemProviderErrorCode.FileIsADirectory: throw FileSystemError.FileIsADirectory(err.message);
+			case files.FileSystemProviderErrorCode.NoPermissions: throw FileSystemError.NoPermissions(err.message);
+			case files.FileSystemProviderErrorCode.Unavailable: throw FileSystemError.Unavailable(err.message);
+
+			default: throw new FileSystemError(err.message, err.name as files.FileSystemProviderErrorCode);
+		}
 	}
 }
 

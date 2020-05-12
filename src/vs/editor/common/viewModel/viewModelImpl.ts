@@ -21,9 +21,9 @@ import { ViewLayout } from 'vs/editor/common/viewLayout/viewLayout';
 import { IViewModelLinesCollection, IdentityLinesCollection, SplitLinesCollection, ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { ICoordinatesConverter, IOverviewRulerDecorations, IViewModel, MinimapLinesRenderingData, ViewLineData, ViewLineRenderingData, ViewModelDecoration } from 'vs/editor/common/viewModel/viewModel';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { ITheme } from 'vs/platform/theme/common/themeService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
+import { EditorTheme } from 'vs/editor/common/view/viewContext';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -33,6 +33,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly configuration: IConfiguration;
 	private readonly model: ITextModel;
 	private readonly _tokenizeViewportSoon: RunOnceScheduler;
+	private readonly _updateConfigurationViewLineCount: RunOnceScheduler;
 	private hasFocus: boolean;
 	private viewportStartLine: number;
 	private viewportStartLineTrackedRange: string | null;
@@ -56,6 +57,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.configuration = configuration;
 		this.model = model;
 		this._tokenizeViewportSoon = this._register(new RunOnceScheduler(() => this.tokenizeViewport(), 50));
+		this._updateConfigurationViewLineCount = this._register(new RunOnceScheduler(() => this._updateConfigurationViewLineCountNow(), 0));
 		this.hasFocus = false;
 		this.viewportStartLine = -1;
 		this.viewportStartLineTrackedRange = null;
@@ -130,6 +132,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				this._endEmit();
 			}
 		}));
+
+		this._updateConfigurationViewLineCountNow();
 	}
 
 	public dispose(): void {
@@ -140,6 +144,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.lines.dispose();
 		this.invalidateMinimapColorCache();
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+	}
+
+	private _updateConfigurationViewLineCountNow(): void {
+		this.configuration.setViewLineCount(this.lines.getViewLineCount());
 	}
 
 	public tokenizeViewport(): void {
@@ -172,7 +180,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		if (this.lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent)) {
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 
@@ -180,12 +188,14 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				// Never change the scroll position from 0 to something else...
 				restorePreviousViewportStart = true;
 			}
+
+			this._updateConfigurationViewLineCount.schedule();
 		}
 
 		if (e.hasChanged(EditorOption.readOnly)) {
 			// Must read again all decorations due to readOnly filtering
 			this.decorations.reset();
-			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
 
 		eventsCollector.emit(new viewEvents.ViewConfigurationChangedEvent(e));
@@ -291,7 +301,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 					this.decorations.onLineMappingChanged();
 				}
 			} finally {
@@ -301,6 +311,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			// Update the configuration and reset the centered view line
 			this.viewportStartLine = -1;
 			this.configuration.setMaxLineNumber(this.model.getLineCount());
+			this._updateConfigurationViewLineCountNow();
 
 			// Recover viewport
 			if (!this.hasFocus && this.model.getAttachedEditorCount() >= 2 && this.viewportStartLineTrackedRange) {
@@ -354,10 +365,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					const eventsCollector = this._beginEmit();
 					eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 				} finally {
 					this._endEmit();
 				}
+				this._updateConfigurationViewLineCount.schedule();
 			}
 		}));
 
@@ -365,7 +377,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			this.decorations.onModelDecorationsChanged();
 			try {
 				const eventsCollector = this._beginEmit();
-				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(e));
 			} finally {
 				this._endEmit();
 			}
@@ -379,7 +391,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			if (lineMappingChanged) {
 				eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 				eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
+				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
 				this.viewLayout.onHeightMaybeChanged();
@@ -387,10 +399,29 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		} finally {
 			this._endEmit();
 		}
+		this._updateConfigurationViewLineCount.schedule();
+	}
+
+	public getVisibleRangesPlusViewportAboveBelow(): Range[] {
+		const layoutInfo = this.configuration.options.get(EditorOption.layoutInfo);
+		const lineHeight = this.configuration.options.get(EditorOption.lineHeight);
+		const linesAround = Math.max(20, Math.round(layoutInfo.height / lineHeight));
+		const partialData = this.viewLayout.getLinesViewportData();
+		const startViewLineNumber = Math.max(1, partialData.completelyVisibleStartLineNumber - linesAround);
+		const endViewLineNumber = Math.min(this.getLineCount(), partialData.completelyVisibleEndLineNumber + linesAround);
+
+		return this._toModelVisibleRanges(new Range(
+			startViewLineNumber, this.getLineMinColumn(startViewLineNumber),
+			endViewLineNumber, this.getLineMaxColumn(endViewLineNumber)
+		));
 	}
 
 	public getVisibleRanges(): Range[] {
 		const visibleViewRange = this.getCompletelyVisibleViewRange();
+		return this._toModelVisibleRanges(visibleViewRange);
+	}
+
+	private _toModelVisibleRanges(visibleViewRange: Range): Range[] {
 		const visibleRange = this.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
 		const hiddenAreas = this.lines.getHiddenAreas();
 
@@ -595,7 +626,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		);
 	}
 
-	public getAllOverviewRulerDecorations(theme: ITheme): IOverviewRulerDecorations {
+	public getAllOverviewRulerDecorations(theme: EditorTheme): IOverviewRulerDecorations {
 		return this.lines.getAllOverviewRulerDecorations(this.editorId, filterValidationDecorations(this.configuration.options), theme);
 	}
 

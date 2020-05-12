@@ -1,6 +1,4 @@
 // @ts-check
-// todo@jackson
-/* eslint code-no-unexternalized-strings: 0 */
 
 const mappings = [
 	['bat', 'source.batchfile'],
@@ -40,6 +38,7 @@ const mappings = [
 	['perl', 'source.perl'],
 	['php', 'source.php'],
 	['pl', 'source.perl'],
+	['pm', 'source.perl'],
 	['ps1', 'source.powershell'],
 	['pug', 'text.pug'],
 	['py', 'source.python'],
@@ -56,6 +55,7 @@ const mappings = [
 	['vb', 'source.asp.vb.net'],
 	['xml', 'text.xml'],
 	['yaml', 'source.yaml'],
+	['yml', 'source.yaml'],
 ];
 
 const scopes = {
@@ -104,43 +104,43 @@ mappings.forEach(([ext, scope, regexp]) =>
 	repository[ext] = {
 		name: scopes.resultBlock.meta,
 		begin: `^(?!\\s)(.*?)([^\\\\\\/\\n]*${regexp || `\\.${ext}`})(:)$`,
-		end: "^(?!\\s)",
+		end: '^(?!\\s)',
 		beginCaptures: {
-			"0": { name: scopes.resultBlock.path.meta },
-			"1": { name: scopes.resultBlock.path.dirname },
-			"2": { name: scopes.resultBlock.path.basename },
-			"3": { name: scopes.resultBlock.path.colon },
+			'0': { name: scopes.resultBlock.path.meta },
+			'1': { name: scopes.resultBlock.path.dirname },
+			'2': { name: scopes.resultBlock.path.basename },
+			'3': { name: scopes.resultBlock.path.colon },
 		},
 		patterns: [
 			{
 				name: [scopes.resultBlock.result.meta, scopes.resultBlock.result.metaMultiLine].join(' '),
-				begin: "^  ((\\d+) )",
-				while: "^  ((\\d+)(:))|((\\d+) )",
+				begin: '^  (?:\\s*)((\\d+) )',
+				while: '^  (?:\\s*)(?:((\\d+)(:))|((\\d+) ))',
 				beginCaptures: {
-					"0": { name: scopes.resultBlock.result.prefix.meta },
-					"1": { name: scopes.resultBlock.result.prefix.metaContext },
-					"2": { name: scopes.resultBlock.result.prefix.lineNumber },
+					'0': { name: scopes.resultBlock.result.prefix.meta },
+					'1': { name: scopes.resultBlock.result.prefix.metaContext },
+					'2': { name: scopes.resultBlock.result.prefix.lineNumber },
 				},
 				whileCaptures: {
-					"0": { name: scopes.resultBlock.result.prefix.meta },
-					"1": { name: scopes.resultBlock.result.prefix.metaMatch },
-					"2": { name: scopes.resultBlock.result.prefix.lineNumber },
-					"3": { name: scopes.resultBlock.result.prefix.colon },
+					'0': { name: scopes.resultBlock.result.prefix.meta },
+					'1': { name: scopes.resultBlock.result.prefix.metaMatch },
+					'2': { name: scopes.resultBlock.result.prefix.lineNumber },
+					'3': { name: scopes.resultBlock.result.prefix.colon },
 
-					"4": { name: scopes.resultBlock.result.prefix.metaContext },
-					"5": { name: scopes.resultBlock.result.prefix.lineNumber },
+					'4': { name: scopes.resultBlock.result.prefix.metaContext },
+					'5': { name: scopes.resultBlock.result.prefix.lineNumber },
 				},
 				patterns: [{ include: scope }]
 			},
 			{
-				begin: "^  ((\\d+)(:))",
-				while: "(?=not)possible",
+				begin: '^  (?:\\s*)((\\d+)(:))',
+				while: '(?=not)possible',
 				name: [scopes.resultBlock.result.meta, scopes.resultBlock.result.metaSingleLine].join(' '),
 				beginCaptures: {
-					"0": { name: scopes.resultBlock.result.prefix.meta },
-					"1": { name: scopes.resultBlock.result.prefix.metaMatch },
-					"2": { name: scopes.resultBlock.result.prefix.lineNumber },
-					"3": { name: scopes.resultBlock.result.prefix.colon },
+					'0': { name: scopes.resultBlock.result.prefix.meta },
+					'1': { name: scopes.resultBlock.result.prefix.metaMatch },
+					'2': { name: scopes.resultBlock.result.prefix.lineNumber },
+					'3': { name: scopes.resultBlock.result.prefix.colon },
 				},
 				patterns: [{ include: scope }]
 			}
@@ -149,10 +149,10 @@ mappings.forEach(([ext, scope, regexp]) =>
 
 const header = [
 	{
-		begin: "^(# Query): ",
-		end: "\n",
+		begin: '^(# Query): ',
+		end: '\n',
 		name: scopes.header.meta,
-		beginCaptures: { "1": { name: scopes.header.key }, },
+		beginCaptures: { '1': { name: scopes.header.key }, },
 		patterns: [
 			{
 				match: '(\\\\n)|(\\\\\\\\)',
@@ -169,10 +169,10 @@ const header = [
 		]
 	},
 	{
-		begin: "^(# Flags): ",
-		end: "\n",
+		begin: '^(# Flags): ',
+		end: '\n',
 		name: scopes.header.meta,
-		beginCaptures: { "1": { name: scopes.header.key }, },
+		beginCaptures: { '1': { name: scopes.header.key }, },
 		patterns: [
 			{
 				match: '(RegExp|CaseSensitive|IgnoreExcludeSettings|WordMatch)',
@@ -182,10 +182,10 @@ const header = [
 		]
 	},
 	{
-		begin: "^(# ContextLines): ",
-		end: "\n",
+		begin: '^(# ContextLines): ',
+		end: '\n',
 		name: scopes.header.meta,
-		beginCaptures: { "1": { name: scopes.header.key }, },
+		beginCaptures: { '1': { name: scopes.header.key }, },
 		patterns: [
 			{
 				match: '\\d',
@@ -195,42 +195,42 @@ const header = [
 		]
 	},
 	{
-		match: "^(# (?:Including|Excluding)): (.*)$",
+		match: '^(# (?:Including|Excluding)): (.*)$',
 		name: scopes.header.meta,
 		captures: {
-			"1": { name: scopes.header.key },
-			"2": { name: scopes.header.value }
+			'1': { name: scopes.header.key },
+			'2': { name: scopes.header.value }
 		}
 	},
 ];
 
 const plainText = [
 	{
-		match: "^(?!\\s)(.*?)([^\\\\\\/\\n]*)(:)$",
+		match: '^(?!\\s)(.*?)([^\\\\\\/\\n]*)(:)$',
 		name: [scopes.resultBlock.meta, scopes.resultBlock.path.meta].join(' '),
 		captures: {
-			"1": { name: scopes.resultBlock.path.dirname },
-			"2": { name: scopes.resultBlock.path.basename },
-			"3": { name: scopes.resultBlock.path.colon }
+			'1': { name: scopes.resultBlock.path.dirname },
+			'2': { name: scopes.resultBlock.path.basename },
+			'3': { name: scopes.resultBlock.path.colon }
 		}
 	},
 	{
-		match: "^  ((\\d+)(:))|((\\d+)( ))(.*)",
+		match: '^  (?:\\s*)(?:((\\d+)(:))|((\\d+)( ))(.*))',
 		name: [scopes.resultBlock.meta, scopes.resultBlock.result.meta].join(' '),
 		captures: {
-			"1": { name: [scopes.resultBlock.result.prefix.meta, scopes.resultBlock.result.prefix.metaMatch].join(' ') },
-			"2": { name: scopes.resultBlock.result.prefix.lineNumber },
-			"3": { name: scopes.resultBlock.result.prefix.colon },
+			'1': { name: [scopes.resultBlock.result.prefix.meta, scopes.resultBlock.result.prefix.metaMatch].join(' ') },
+			'2': { name: scopes.resultBlock.result.prefix.lineNumber },
+			'3': { name: scopes.resultBlock.result.prefix.colon },
 
-			"4": { name: [scopes.resultBlock.result.prefix.meta, scopes.resultBlock.result.prefix.metaContext].join(' ') },
-			"5": { name: scopes.resultBlock.result.prefix.lineNumber },
+			'4': { name: [scopes.resultBlock.result.prefix.meta, scopes.resultBlock.result.prefix.metaContext].join(' ') },
+			'5': { name: scopes.resultBlock.result.prefix.lineNumber },
 		}
 	}
 ];
 
 const tmLanguage = {
-	"information_for_contributors": "This file is generated from ./generateTMLanguage.js.",
-	name: "Search Results",
+	'information_for_contributors': 'This file is generated from ./generateTMLanguage.js.',
+	name: 'Search Results',
 	scopeName: scopes.root,
 	patterns: [
 		...header,

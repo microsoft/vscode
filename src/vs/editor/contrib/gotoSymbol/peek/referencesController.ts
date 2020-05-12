@@ -217,10 +217,10 @@ export abstract class ReferencesController implements IEditorContribution {
 	}
 
 	closeWidget(focusEditor = true): void {
-		this._referenceSearchVisible.reset();
-		this._disposables.clear();
 		dispose(this._widget);
 		dispose(this._model);
+		this._referenceSearchVisible.reset();
+		this._disposables.clear();
 		this._widget = undefined;
 		this._model = undefined;
 		if (focusEditor) {

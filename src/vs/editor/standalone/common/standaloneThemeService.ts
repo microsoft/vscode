@@ -5,7 +5,7 @@
 
 import { ITokenThemeRule, TokenTheme } from 'vs/editor/common/modes/supports/tokenization';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 export const IStandaloneThemeService = createDecorator<IStandaloneThemeService>('themeService');
 
@@ -20,7 +20,7 @@ export interface IStandaloneThemeData {
 	colors: IColors;
 }
 
-export interface IStandaloneTheme extends ITheme {
+export interface IStandaloneTheme extends IColorTheme {
 	tokenTheme: TokenTheme;
 	themeName: string;
 }
@@ -32,5 +32,5 @@ export interface IStandaloneThemeService extends IThemeService {
 
 	defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
-	getTheme(): IStandaloneTheme;
+	getColorTheme(): IStandaloneTheme;
 }

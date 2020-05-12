@@ -33,6 +33,7 @@ import {
 	RunOptionsDTO
 } from 'vs/workbench/api/common/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
@@ -512,7 +513,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
-				const workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
+				const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
 				if (workspaceFolder) {
 					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task | undefined) => {
 						if (!task) {
@@ -604,7 +605,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 				return URI.parse(`${info.scheme}://${info.authority}${path}`);
 			},
 			context: this._extHostContext,
-			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables> => {
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables> => {
 				const vars: string[] = [];
 				toResolve.variables.forEach(item => vars.push(item));
 				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, { process: toResolve.process, variables: vars })).then(values => {
@@ -613,7 +614,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						partiallyResolvedVars.push(entry.value);
 					});
 					return new Promise<ResolvedVariables>((resolve, reject) => {
-						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks').then(resolvedVars => {
+						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks', undefined, target).then(resolvedVars => {
 							const result: ResolvedVariables = {
 								process: undefined,
 								variables: new Map<string, string>()

@@ -11,9 +11,10 @@ export class RuntimeExtensionsInput extends EditorInput {
 
 	static readonly ID = 'workbench.runtimeExtensions.input';
 
-	constructor() {
-		super();
-	}
+	readonly resource = URI.from({
+		scheme: 'runtime-extensions',
+		path: 'default'
+	});
 
 	getTypeId(): string {
 		return RuntimeExtensionsInput.ID;
@@ -36,12 +37,5 @@ export class RuntimeExtensionsInput extends EditorInput {
 
 	supportsSplitEditor(): boolean {
 		return false;
-	}
-
-	getResource(): URI {
-		return URI.from({
-			scheme: 'runtime-extensions',
-			path: 'default'
-		});
 	}
 }

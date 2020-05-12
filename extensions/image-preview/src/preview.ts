@@ -13,7 +13,7 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 const localize = nls.loadMessageBundle();
 
 
-export class PreviewManager implements vscode.WebviewCustomEditorProvider {
+export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
@@ -27,11 +27,15 @@ export class PreviewManager implements vscode.WebviewCustomEditorProvider {
 		private readonly zoomStatusBarEntry: ZoomStatusBarEntry,
 	) { }
 
-	public async resolveWebviewEditor(
-		resource: vscode.Uri,
+	public async openCustomDocument(uri: vscode.Uri) {
+		return { uri, dispose: () => { } };
+	}
+
+	public async resolveCustomEditor(
+		document: vscode.CustomDocument,
 		webviewEditor: vscode.WebviewPanel,
 	): Promise<void> {
-		const preview = new Preview(this.extensionRoot, resource, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
+		const preview = new Preview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 
@@ -175,7 +179,7 @@ class Preview extends Disposable {
 
 	private async render() {
 		if (this._previewState !== PreviewState.Disposed) {
-			this.webviewEditor.webview.html = await this.getWebiewContents();
+			this.webviewEditor.webview.html = await this.getWebviewContents();
 		}
 	}
 
@@ -199,7 +203,7 @@ class Preview extends Disposable {
 		}
 	}
 
-	private async getWebiewContents(): Promise<string> {
+	private async getWebviewContents(): Promise<string> {
 		const version = Date.now().toString();
 		const settings = {
 			isMac: process.platform === 'darwin',
@@ -245,9 +249,9 @@ class Preview extends Disposable {
 
 		// Avoid adding cache busting if there is already a query string
 		if (resource.query) {
-			return webviewEditor.webview.asWebviewUri(resource).toString(true);
+			return webviewEditor.webview.asWebviewUri(resource).toString();
 		}
-		return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString(true);
+		return webviewEditor.webview.asWebviewUri(resource).with({ query: `version=${version}` }).toString();
 	}
 
 	private extensionResource(path: string) {

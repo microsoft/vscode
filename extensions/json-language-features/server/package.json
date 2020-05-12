@@ -1,7 +1,7 @@
 {
   "name": "vscode-json-languageserver",
   "description": "JSON language server",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "author": "Microsoft Corporation",
   "license": "MIT",
   "engines": {
@@ -12,10 +12,10 @@
   },
   "main": "./out/jsonServerMain",
   "dependencies": {
-    "jsonc-parser": "^2.2.0",
-    "request-light": "^0.2.5",
-    "vscode-json-languageservice": "^3.4.12",
-    "vscode-languageserver": "^6.0.1",
+    "jsonc-parser": "^2.2.1",
+    "request-light": "^0.3.0",
+    "vscode-json-languageservice": "^3.6.0",
+    "vscode-languageserver": "^6.1.1",
     "vscode-uri": "^2.1.1"
   },
   "devDependencies": {

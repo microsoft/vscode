@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as mkdirp from 'mkdirp';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectElectronDriver, IDisposable, IElement, Thenable } from './driver';
-import { connect as connectPuppeteerDriver, launch } from './puppeteerDriver';
+import { connect as connectPlaywrightDriver, launch } from './playwrightDriver';
 import { Logger } from './logger';
 import { ncp } from 'ncp';
 import { URI } from 'vscode-uri';
@@ -101,8 +101,8 @@ export interface SpawnOptions {
 	remote?: boolean;
 	/** Run in the web */
 	web?: boolean;
-	/** Run in headless mode (only applies when web is true) */
-	headless?: boolean;
+	/** A specific browser to use (requires web: true) */
+	browser?: 'chromium' | 'webkit' | 'firefox';
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -115,25 +115,32 @@ async function createDriverHandle(): Promise<string> {
 }
 
 export async function spawn(options: SpawnOptions): Promise<Code> {
-	const codePath = options.codePath;
-	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
-	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 	const handle = await createDriverHandle();
+
+	let child: cp.ChildProcess | undefined;
+	let connectDriver: typeof connectElectronDriver;
+
+	if (options.web) {
+		await launch(options.userDataDir, options.workspacePath, options.codePath);
+		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options.browser);
+		return connect(connectDriver, child, '', handle, options.logger);
+	}
+
+	const env = process.env;
+	const codePath = options.codePath;
+	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
 	const args = [
 		options.workspacePath,
-		'--skip-getting-started',
 		'--skip-release-notes',
-		'--sticky-quickopen',
 		'--disable-telemetry',
 		'--disable-updates',
 		'--disable-crash-reporter',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
+		`--disable-restore-windows`,
 		'--driver', handle
 	];
-
-	const env = process.env;
 
 	if (options.remote) {
 		// Replace workspace path with URI
@@ -169,19 +176,12 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.push(...options.extraArgs);
 	}
 
-	let child: cp.ChildProcess | undefined;
-	let connectDriver: typeof connectElectronDriver;
-
-	if (options.web) {
-		await launch(args);
-		connectDriver = connectPuppeteerDriver.bind(connectPuppeteerDriver, !!options.headless);
-	} else {
-		const spawnOptions: cp.SpawnOptions = { env };
-		child = cp.spawn(electronPath, args, spawnOptions);
-		instances.add(child);
-		child.once('exit', () => instances.delete(child!));
-		connectDriver = connectElectronDriver;
-	}
+	const electronPath = codePath ? getBuildElectronPath(codePath) : getDevElectronPath();
+	const spawnOptions: cp.SpawnOptions = { env };
+	child = cp.spawn(electronPath, args, spawnOptions);
+	instances.add(child);
+	child.once('exit', () => instances.delete(child!));
+	connectDriver = connectElectronDriver;
 	return connect(connectDriver, child, outPath, handle, options.logger);
 }
 

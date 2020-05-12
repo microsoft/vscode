@@ -25,7 +25,7 @@
 		}],
 		"snippets": [{
 			"language": "groovy",
-			"path": "./snippets/groovy.json"
+			"path": "./snippets/groovy.code-snippets"
 		}]
 	}
 }

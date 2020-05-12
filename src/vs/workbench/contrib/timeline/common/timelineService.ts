@@ -3,231 +3,243 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+// import { basename } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ITimelineService, TimelineProvider, TimelineItem } from './timeline';
+import { ITimelineService, TimelineChangeEvent, TimelineOptions, TimelineProvidersChangeEvent, TimelineProvider, InternalTimelineOptions, TimelinePaneId } from './timeline';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export class TimelineService implements ITimelineService {
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeProviders = new Emitter<void>();
-	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
+	private readonly _onDidChangeProviders = new Emitter<TimelineProvidersChangeEvent>();
+	readonly onDidChangeProviders: Event<TimelineProvidersChangeEvent> = this._onDidChangeProviders.event;
 
-	private readonly _onDidChangeTimeline = new Emitter<URI | undefined>();
-	readonly onDidChangeTimeline: Event<URI | undefined> = this._onDidChangeTimeline.event;
+	private readonly _onDidChangeTimeline = new Emitter<TimelineChangeEvent>();
+	readonly onDidChangeTimeline: Event<TimelineChangeEvent> = this._onDidChangeTimeline.event;
+	private readonly _onDidChangeUri = new Emitter<URI>();
+	readonly onDidChangeUri: Event<URI> = this._onDidChangeUri.event;
 
-	private readonly _providers = new Map<string, TimelineProvider>();
-	private readonly _providerSubscriptions = new Map<string, IDisposable>();
+	private readonly providers = new Map<string, TimelineProvider>();
+	private readonly providerSubscriptions = new Map<string, IDisposable>();
 
-	constructor(@ILogService private readonly logService: ILogService) {
+	constructor(
+		@ILogService private readonly logService: ILogService,
+		@IViewsService protected viewsService: IViewsService,
+	) {
+		// let source = 'fast-source';
 		// this.registerTimelineProvider({
-		// 	source: 'local-history',
-		// 	sourceDescription: 'Local History',
-		// 	async provideTimeline(uri: URI, token: CancellationToken) {
-		// 		return [
-		// 			{
-		// 				id: '1',
-		// 				label: 'Undo Timeline1',
-		// 				description: uri.toString(true),
-		// 				date: Date.now()
-		// 			},
-		// 			{
-		// 				id: '2',
-		// 				label: 'Undo Timeline2',
-		// 				description: uri.toString(true),
-		// 				date: Date.now() - 100
+		// 	scheme: '*',
+		// 	id: source,
+		// 	label: 'Fast Source',
+		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
+		// 		if (options.cursor === undefined) {
+		// 			return Promise.resolve<Timeline>({
+		// 				source: source,
+		// 				items: [
+		// 					{
+		// 						handle: `${source}|1`,
+		// 						id: '1',
+		// 						label: 'Fast Timeline1',
+		// 						description: '',
+		// 						timestamp: Date.now(),
+		// 						source: source
+		// 					},
+		// 					{
+		// 						handle: `${source}|2`,
+		// 						id: '2',
+		// 						label: 'Fast Timeline2',
+		// 						description: '',
+		// 						timestamp: Date.now() - 3000000000,
+		// 						source: source
+		// 					}
+		// 				],
+		// 				paging: {
+		// 					cursor: 'next'
+		// 				}
+		// 			});
+		// 		}
+		// 		return Promise.resolve<Timeline>({
+		// 			source: source,
+		// 			items: [
+		// 				{
+		// 					handle: `${source}|3`,
+		// 					id: '3',
+		// 					label: 'Fast Timeline3',
+		// 					description: '',
+		// 					timestamp: Date.now() - 4000000000,
+		// 					source: source
+		// 				},
+		// 				{
+		// 					handle: `${source}|4`,
+		// 					id: '4',
+		// 					label: 'Fast Timeline4',
+		// 					description: '',
+		// 					timestamp: Date.now() - 300000000000,
+		// 					source: source
+		// 				}
+		// 			],
+		// 			paging: {
+		// 				cursor: undefined
 		// 			}
-		// 		];
+		// 		});
+		// 	},
+		// 	dispose() { }
+		// });
+
+		// let source = 'slow-source';
+		// this.registerTimelineProvider({
+		// 	scheme: '*',
+		// 	id: source,
+		// 	label: 'Slow Source',
+		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
+		// 		return new Promise<Timeline>(resolve => setTimeout(() => {
+		// 			resolve({
+		// 				source: source,
+		// 				items: [
+		// 					{
+		// 						handle: `${source}|1`,
+		// 						id: '1',
+		// 						label: 'Slow Timeline1',
+		// 						description: basename(uri.fsPath),
+		// 						timestamp: Date.now(),
+		// 						source: source
+		// 					},
+		// 					{
+		// 						handle: `${source}|2`,
+		// 						id: '2',
+		// 						label: 'Slow Timeline2',
+		// 						description: basename(uri.fsPath),
+		// 						timestamp: new Date(0).getTime(),
+		// 						source: source
+		// 					}
+		// 				]
+		// 			});
+		// 		}, 5000));
+		// 	},
+		// 	dispose() { }
+		// });
+
+		// source = 'very-slow-source';
+		// this.registerTimelineProvider({
+		// 	scheme: '*',
+		// 	id: source,
+		// 	label: 'Very Slow Source',
+		// 	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: { cacheResults?: boolean | undefined; }) {
+		// 		return new Promise<Timeline>(resolve => setTimeout(() => {
+		// 			resolve({
+		// 				source: source,
+		// 				items: [
+		// 					{
+		// 						handle: `${source}|1`,
+		// 						id: '1',
+		// 						label: 'VERY Slow Timeline1',
+		// 						description: basename(uri.fsPath),
+		// 						timestamp: Date.now(),
+		// 						source: source
+		// 					},
+		// 					{
+		// 						handle: `${source}|2`,
+		// 						id: '2',
+		// 						label: 'VERY Slow Timeline2',
+		// 						description: basename(uri.fsPath),
+		// 						timestamp: new Date(0).getTime(),
+		// 						source: source
+		// 					}
+		// 				]
+		// 			});
+		// 		}, 10000));
 		// 	},
 		// 	dispose() { }
 		// });
 	}
 
-	async getTimeline(uri: URI, token: CancellationToken, sources?: Set<string>) {
-		this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)})`);
+	getSources() {
+		return [...this.providers.values()].map(p => ({ id: p.id, label: p.label }));
+	}
 
-		const requests: Promise<[string, TimelineItem[]]>[] = [];
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions) {
+		this.logService.trace(`TimelineService#getTimeline(${id}): uri=${uri.toString(true)}`);
 
-		for (const provider of this._providers.values()) {
-			if (sources && !sources.has(provider.source)) {
-				continue;
-			}
-
-			requests.push(provider.provideTimeline(uri, token).then(p => [provider.source, p]));
+		const provider = this.providers.get(id);
+		if (provider === undefined) {
+			return undefined;
 		}
 
-		const timelines = await Promise.all(requests);
-
-		const timeline = [];
-		for (const [source, items] of timelines) {
-			if (items.length === 0) {
-				continue;
+		if (typeof provider.scheme === 'string') {
+			if (provider.scheme !== '*' && provider.scheme !== uri.scheme) {
+				return undefined;
 			}
-
-			timeline.push(...items.map(item => ({ ...item, source: source })));
+		} else if (!provider.scheme.includes(uri.scheme)) {
+			return undefined;
 		}
 
-		// const requests = new Map<string, Promise<TimelineItem[] | CancellationErrorWithId<string>>>();
+		return {
+			result: provider.provideTimeline(uri, options, tokenSource.token, internalOptions)
+				.then(result => {
+					if (result === undefined) {
+						return undefined;
+					}
 
-		// for (const provider of this._providers.values()) {
-		// 	if (sources && !sources.has(provider.source)) {
-		// 		continue;
-		// 	}
+					result.items = result.items.map(item => ({ ...item, source: provider.id }));
+					result.items.sort((a, b) => (b.timestamp - a.timestamp) || b.source.localeCompare(a.source, undefined, { numeric: true, sensitivity: 'base' }));
 
-		// 	requests.set(provider.source, provider.provideTimeline(uri, token));
-		// }
-
-		// // TODO[ECA]: What should the timeout be for waiting for individual providers?
-		// const timelines = await raceAll(requests /*, 5000*/);
-
-		// const timeline = [];
-		// for (const [source, items] of timelines) {
-		// 	if (items instanceof CancellationError) {
-		// 		this.logService.trace(`TimelineService#getTimeline(${uri.toString(true)}) source=${source} cancelled`);
-		// 		continue;
-		// 	}
-
-		// 	if (items.length === 0) {
-		// 		continue;
-		// 	}
-
-		// 	timeline.push(...items.map(item => ({ ...item, source: source })));
-		// }
-
-		timeline.sort((a, b) => b.timestamp - a.timestamp);
-		return timeline;
+					return result;
+				}),
+			options: options,
+			source: provider.id,
+			tokenSource: tokenSource,
+			uri: uri
+		};
 	}
 
 	registerTimelineProvider(provider: TimelineProvider): IDisposable {
-		this.logService.trace(`TimelineService#registerTimelineProvider: source=${provider.source}`);
+		this.logService.trace(`TimelineService#registerTimelineProvider: id=${provider.id}`);
 
-		const source = provider.source;
+		const id = provider.id;
 
-		const existing = this._providers.get(source);
-		// For now to deal with https://github.com/microsoft/vscode/issues/89553 allow any overwritting here (still will be blocked in the Extension Host)
-		// TODO[ECA]: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
-		// if (existing && !existing.replaceable) {
-		// 	throw new Error(`Timeline Provider ${source} already exists.`);
-		// }
+		const existing = this.providers.get(id);
 		if (existing) {
+			// For now to deal with https://github.com/microsoft/vscode/issues/89553 allow any overwritting here (still will be blocked in the Extension Host)
+			// TODO@eamodio: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
+			// throw new Error(`Timeline Provider ${id} already exists.`);
 			try {
 				existing?.dispose();
 			}
 			catch { }
 		}
 
-		this._providers.set(source, provider);
+		this.providers.set(id, provider);
 		if (provider.onDidChange) {
-			this._providerSubscriptions.set(source, provider.onDidChange(uri => this.onProviderTimelineChanged(provider.source, uri)));
+			this.providerSubscriptions.set(id, provider.onDidChange(e => this._onDidChangeTimeline.fire(e)));
 		}
-		this._onDidChangeProviders.fire();
+		this._onDidChangeProviders.fire({ added: [id] });
 
 		return {
 			dispose: () => {
-				this._providers.delete(source);
-				this._onDidChangeProviders.fire();
+				this.providers.delete(id);
+				this._onDidChangeProviders.fire({ removed: [id] });
 			}
 		};
 	}
 
-	unregisterTimelineProvider(source: string): void {
-		this.logService.trace(`TimelineService#unregisterTimelineProvider: source=${source}`);
+	unregisterTimelineProvider(id: string): void {
+		this.logService.trace(`TimelineService#unregisterTimelineProvider: id=${id}`);
 
-		if (!this._providers.has(source)) {
+		if (!this.providers.has(id)) {
 			return;
 		}
 
-		this._providers.delete(source);
-		this._providerSubscriptions.delete(source);
-		this._onDidChangeProviders.fire();
+		this.providers.delete(id);
+		this.providerSubscriptions.delete(id);
+		this._onDidChangeProviders.fire({ removed: [id] });
 	}
 
-	private onProviderTimelineChanged(source: string, uri: URI | undefined) {
-		// console.log(`TimelineService.onProviderTimelineChanged: source=${source} uri=${uri?.toString(true)}`);
-
-		this._onDidChangeTimeline.fire(uri);
+	setUri(uri: URI) {
+		this.viewsService.openView(TimelinePaneId, true);
+		this._onDidChangeUri.fire(uri);
 	}
 }
-
-// function* map<T, TMapped>(source: Iterable<T> | IterableIterator<T>, mapper: (item: T) => TMapped): Iterable<TMapped> {
-// 	for (const item of source) {
-// 		yield mapper(item);
-// 	}
-// }
-
-// class CancellationError<TPromise = any> extends Error {
-// 	constructor(public readonly promise: TPromise, message: string) {
-// 		super(message);
-// 	}
-// }
-
-// class CancellationErrorWithId<T, TPromise = any> extends CancellationError<TPromise> {
-// 	constructor(public readonly id: T, promise: TPromise, message: string) {
-// 		super(promise, message);
-// 	}
-// }
-
-// function raceAll<TPromise>(
-// 	promises: Promise<TPromise>[],
-// 	timeout?: number
-// ): Promise<(TPromise | CancellationError<Promise<TPromise>>)[]>;
-// function raceAll<TPromise, T>(
-// 	promises: Map<T, Promise<TPromise>>,
-// 	timeout?: number
-// ): Promise<Map<T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>>>;
-// function raceAll<TPromise, T>(
-// 	ids: Iterable<T>,
-// 	fn: (id: T) => Promise<TPromise>,
-// 	timeout?: number
-// ): Promise<Map<T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>>>;
-// async function raceAll<TPromise, T>(
-// 	promisesOrIds: Promise<TPromise>[] | Map<T, Promise<TPromise>> | Iterable<T>,
-// 	timeoutOrFn?: number | ((id: T) => Promise<TPromise>),
-// 	timeout?: number
-// ) {
-// 	let promises;
-// 	if (timeoutOrFn !== undefined && typeof timeoutOrFn !== 'number') {
-// 		promises = new Map(
-// 			map<T, [T, Promise<TPromise>]>(promisesOrIds as Iterable<T>, id => [id, timeoutOrFn(id)])
-// 		);
-// 	} else {
-// 		timeout = timeoutOrFn;
-// 		promises = promisesOrIds as Promise<TPromise>[] | Map<T, Promise<TPromise>>;
-// 	}
-
-// 	if (promises instanceof Map) {
-// 		return new Map(
-// 			await Promise.all(
-// 				map<[T, Promise<TPromise>], Promise<[T, TPromise | CancellationErrorWithId<T, Promise<TPromise>>]>>(
-// 					promises.entries(),
-// 					timeout === undefined
-// 						? ([id, promise]) => promise.then(p => [id, p])
-// 						: ([id, promise]) =>
-// 							Promise.race([
-// 								promise,
-
-// 								new Promise<CancellationErrorWithId<T, Promise<TPromise>>>(resolve =>
-// 									setTimeout(() => resolve(new CancellationErrorWithId(id, promise, 'TIMED OUT')), timeout!)
-// 								)
-// 							]).then(p => [id, p])
-// 				)
-// 			)
-// 		);
-// 	}
-
-// 	return Promise.all(
-// 		timeout === undefined
-// 			? promises
-// 			: promises.map(p =>
-// 				Promise.race([
-// 					p,
-// 					new Promise<CancellationError<Promise<TPromise>>>(resolve =>
-// 						setTimeout(() => resolve(new CancellationError(p, 'TIMED OUT')), timeout!)
-// 					)
-// 				])
-// 			)
-// 	);
-// }

@@ -10,11 +10,10 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { editorCursorForeground, editorOverviewRulerBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ITheme } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class Settings {
@@ -42,7 +41,7 @@ class Settings {
 	public readonly x: number[];
 	public readonly w: number[];
 
-	constructor(config: IConfiguration, theme: ITheme) {
+	constructor(config: IConfiguration, theme: EditorTheme) {
 		const options = config.options;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.pixelRatio = options.get(EditorOption.pixelRatio);
@@ -61,7 +60,10 @@ class Settings {
 		const minimapOpts = options.get(EditorOption.minimap);
 		const minimapEnabled = minimapOpts.enabled;
 		const minimapSide = minimapOpts.side;
-		const backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null);
+		const backgroundColor = minimapEnabled
+			? theme.getColor(editorOverviewRulerBackground) || TokenizationRegistry.getDefaultBackground()
+			: null;
+
 		if (backgroundColor === null || minimapSide === 'left') {
 			this.backgroundColor = null;
 		} else {
@@ -277,7 +279,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return true;
+		if (e.affectsOverviewRuler) {
+			return true;
+		}
+		return false;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;

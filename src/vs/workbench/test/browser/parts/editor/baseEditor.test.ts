@@ -11,7 +11,7 @@ import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
@@ -19,6 +19,7 @@ import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/brow
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { dispose } from 'vs/base/common/lifecycle';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 const NullThemeService = new TestThemeService();
 
@@ -64,6 +65,9 @@ class MyInputFactory implements IEditorInputFactory {
 }
 
 class MyInput extends EditorInput {
+
+	readonly resource = undefined;
+
 	getPreferredEditorId(ids: string[]) {
 		return ids[1];
 	}
@@ -78,6 +82,9 @@ class MyInput extends EditorInput {
 }
 
 class MyOtherInput extends EditorInput {
+
+	readonly resource = undefined;
+
 	getTypeId(): string {
 		return '';
 	}
@@ -86,7 +93,7 @@ class MyOtherInput extends EditorInput {
 		return null;
 	}
 }
-class MyResourceInput extends ResourceEditorInput { }
+class MyResourceEditorInput extends ResourceEditorInput { }
 
 suite('Workbench base editor', () => {
 
@@ -97,11 +104,9 @@ suite('Workbench base editor', () => {
 
 		assert(!e.isVisible());
 		assert(!e.input);
-		assert(!e.options);
 
 		await e.setInput(input, options, CancellationToken.None);
 		assert.strictEqual(input, e.input);
-		assert.strictEqual(options, e.options);
 		const group = new TestEditorGroupView(1);
 		e.setVisible(true, group);
 		assert(e.isVisible());
@@ -114,7 +119,6 @@ suite('Workbench base editor', () => {
 		e.setVisible(false, group);
 		assert(!e.isVisible());
 		assert(!e.input);
-		assert(!e.options);
 		assert(!e.getControl());
 	});
 
@@ -150,11 +154,11 @@ suite('Workbench base editor', () => {
 	test('Editor Lookup favors specific class over superclass (match on specific class)', function () {
 		let d1 = EditorDescriptor.create(MyEditor, 'id1', 'name');
 
-		const disposable = EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceInput)]);
+		const disposable = EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceEditorInput)]);
 
 		let inst = workbenchInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'myEditor');
 
 		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
@@ -166,7 +170,7 @@ suite('Workbench base editor', () => {
 	test('Editor Lookup favors specific class over superclass (match on super class)', function () {
 		let inst = workbenchInstantiationService();
 
-		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
+		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceEditorInput, 'fake', '', URI.file('/fake'), undefined))!.instantiate(inst);
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
 	});
 
@@ -248,6 +252,37 @@ suite('Workbench base editor', () => {
 		assert.ok(!memento.loadEditorState(testGroup0, URI.file('/E')));
 	});
 
+	test('EditorMemento - move', function () {
+		const testGroup0 = new TestEditorGroupView(0);
+
+		const editorGroupService = new TestEditorGroupsService([testGroup0]);
+
+		interface TestViewState { line: number; }
+
+		const rawMemento = Object.create(null);
+		let memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService);
+
+		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-1.txt'), { line: 1 });
+		memento.saveEditorState(testGroup0, URI.file('/some/folder/file-2.txt'), { line: 2 });
+		memento.saveEditorState(testGroup0, URI.file('/some/other/file.txt'), { line: 3 });
+
+		memento.moveEditorState(URI.file('/some/folder/file-1.txt'), URI.file('/some/folder/file-moved.txt'));
+
+		let res = memento.loadEditorState(testGroup0, URI.file('/some/folder/file-1.txt'));
+		assert.ok(!res);
+
+		res = memento.loadEditorState(testGroup0, URI.file('/some/folder/file-moved.txt'));
+		assert.equal(res?.line, 1);
+
+		memento.moveEditorState(URI.file('/some/folder'), URI.file('/some/folder-moved'));
+
+		res = memento.loadEditorState(testGroup0, URI.file('/some/folder-moved/file-moved.txt'));
+		assert.equal(res?.line, 1);
+
+		res = memento.loadEditorState(testGroup0, URI.file('/some/folder-moved/file-2.txt'));
+		assert.equal(res?.line, 2);
+	});
+
 	test('EditoMemento - use with editor input', function () {
 		const testGroup0 = new TestEditorGroupView(0);
 
@@ -256,7 +291,7 @@ suite('Workbench base editor', () => {
 		}
 
 		class TestEditorInput extends EditorInput {
-			constructor(private resource: URI, private id = 'testEditorInputForMementoTest') {
+			constructor(public resource: URI, private id = 'testEditorInputForMementoTest') {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
@@ -264,10 +299,6 @@ suite('Workbench base editor', () => {
 
 			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
-			}
-
-			getResource(): URI {
-				return this.resource;
 			}
 		}
 

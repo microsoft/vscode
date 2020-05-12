@@ -43,39 +43,14 @@
 	min-width: 20px;
 	width: 20px;
 	height: 20px;
+	line-height: 20px;
 	display: flex;
 	flex: initial;
+	justify-content: center;
 	margin-left: 3px;
 	background-position: center center;
 	background-repeat: no-repeat;
 	cursor: pointer;
-}
-
-.monaco-workbench .simple-find-part .button.previous {
-	background-image: url('images/chevron-previous-light.svg');
-}
-
-.monaco-workbench .simple-find-part .button.next {
-	background-image: url('images/chevron-next-light.svg');
-}
-
-.monaco-workbench .simple-find-part .button.close-fw {
-	background-image: url('images/close-light.svg');
-}
-
-.hc-black .monaco-workbench .simple-find-part .button.previous,
-.vs-dark .monaco-workbench .simple-find-part .button.previous {
-	background-image: url('images/chevron-previous-dark.svg');
-}
-
-.hc-black .monaco-workbench .simple-find-part .button.next,
-.vs-dark .monaco-workbench .simple-find-part .button.next {
-	background-image: url('images/chevron-next-dark.svg');
-}
-
-.hc-black .monaco-workbench .simple-find-part .button.close-fw,
-.vs-dark .monaco-workbench .simple-find-part .button.close-fw {
-	background-image: url('images/close-dark.svg');
 }
 
 .monaco-workbench .simple-find-part .button.disabled {

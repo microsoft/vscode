@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { DebugModel, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import * as sinon from 'sinon';
-import { MockRawSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { MockRawSession, createMockDebugModel } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { Range } from 'vs/editor/common/core/range';
@@ -14,11 +14,12 @@ import { IDebugSessionOptions, State } from 'vs/workbench/contrib/debug/common/d
 import { NullOpenerService } from 'vs/platform/opener/common/opener';
 import { createDecorationsForStackFrame } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Constants } from 'vs/base/common/uint';
-import { getContext, getContextForContributedActions } from 'vs/workbench/contrib/debug/browser/callStackView';
+import { getContext, getContextForContributedActions, getSpecificSourceName } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { getStackFrameThreadAndSessionToFocus } from 'vs/workbench/contrib/debug/browser/debugService';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export function createMockSession(model: DebugModel, name = 'mockSession', options?: IDebugSessionOptions): DebugSession {
-	return new DebugSession({ resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
+	return new DebugSession(generateUuid(), { resolved: { name, type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, options, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
 }
 
 function createTwoStackFrames(session: DebugSession): { firstStackFrame: StackFrame, secondStackFrame: StackFrame } {
@@ -52,7 +53,7 @@ suite('Debug - CallStack', () => {
 	let rawSession: MockRawSession;
 
 	setup(() => {
-		model = new DebugModel([], [], [], [], [], <any>{ isDirty: (e: any) => false });
+		model = createMockDebugModel();
 		rawSession = new MockRawSession();
 	});
 
@@ -249,8 +250,8 @@ suite('Debug - CallStack', () => {
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
 
-		assert.equal(firstStackFrame.getSpecificSourceName(), '.../b/c/d/internalModule.js');
-		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
+		assert.equal(getSpecificSourceName(firstStackFrame), '.../b/c/d/internalModule.js');
+		assert.equal(getSpecificSourceName(secondStackFrame), '.../x/c/d/internalModule.js');
 	});
 
 	test('stack frame toString()', () => {
@@ -363,7 +364,7 @@ suite('Debug - CallStack', () => {
 			get state(): State {
 				return State.Stopped;
 			}
-		}({ resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!);
+		}(generateUuid(), { resolved: { name: 'stoppedSession', type: 'node', request: 'launch' }, unresolved: undefined }, undefined!, model, undefined, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!);
 
 		const runningSession = createMockSession(model);
 		model.addSession(runningSession);

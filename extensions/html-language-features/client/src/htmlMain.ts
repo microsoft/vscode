@@ -21,13 +21,12 @@ import { EMPTY_ELEMENTS } from './htmlEmptyTagsShared';
 import { activateTagClosing } from './tagClosing';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import { getCustomDataPathsInAllWorkspaces, getCustomDataPathsFromAllExtensions } from './customData';
-import { activateMirrorCursor } from './mirrorCursor';
 
 namespace TagCloseRequest {
 	export const type: RequestType<TextDocumentPositionParams, string, any, any> = new RequestType('html/tag');
 }
-namespace MatchingTagPositionRequest {
-	export const type: RequestType<TextDocumentPositionParams, Position | null, any, any> = new RequestType('html/matchingTagPosition');
+namespace OnTypeRenameRequest {
+	export const type: RequestType<TextDocumentPositionParams, Range[] | null, any, any> = new RequestType('html/onTypeRename');
 }
 
 // experimental: semantic tokens
@@ -131,14 +130,6 @@ export function activate(context: ExtensionContext) {
 		disposable = activateTagClosing(tagRequestor, { html: true, handlebars: true }, 'html.autoClosingTags');
 		toDispose.push(disposable);
 
-		const matchingTagPositionRequestor = (document: TextDocument, position: Position) => {
-			let param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
-			return client.sendRequest(MatchingTagPositionRequest.type, param);
-		};
-
-		disposable = activateMirrorCursor(matchingTagPositionRequestor, { html: true, handlebars: true }, 'html.mirrorCursorOnMatchingTag');
-		toDispose.push(disposable);
-
 		disposable = client.onTelemetry(e => {
 			if (telemetryReporter) {
 				telemetryReporter.sendTelemetryEvent(e.key, e.data);
@@ -175,6 +166,16 @@ export function activate(context: ExtensionContext) {
 				toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
 			}
 		});
+
+		disposable = languages.registerOnTypeRenameProvider(documentSelector, {
+			async provideOnTypeRenameRanges(document, position) {
+				const param = client.code2ProtocolConverter.asTextDocumentPositionParams(document, position);
+				const response = await client.sendRequest(OnTypeRenameRequest.type, param);
+
+				return response || [];
+			}
+		});
+		toDispose.push(disposable);
 
 	});
 

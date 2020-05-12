@@ -8,8 +8,9 @@ import { Part } from 'vs/workbench/browser/part';
 import * as Types from 'vs/base/common/types';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { append, $, hide } from 'vs/base/browser/dom';
-import { TestStorageService, TestLayoutService } from 'vs/workbench/test/workbenchTestServices';
+import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { StorageScope } from 'vs/platform/storage/common/storage';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 class SimplePart extends Part {
 

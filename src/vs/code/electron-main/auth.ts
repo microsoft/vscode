@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { BrowserWindow, app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, app, AuthInfo, WebContents, Event as ElectronEvent } from 'electron';
 
 type LoginEvent = {
 	event: ElectronEvent;
@@ -49,7 +49,7 @@ export class ProxyAuthHandler extends Disposable {
 
 		event.preventDefault();
 
-		const opts: any = {
+		const opts: BrowserWindowConstructorOptions = {
 			alwaysOnTop: true,
 			skipTaskbar: true,
 			resizable: false,

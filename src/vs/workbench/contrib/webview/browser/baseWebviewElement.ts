@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass } from 'vs/base/browser/dom';
+import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -20,11 +21,13 @@ export const enum WebviewMessageChannels {
 	didScroll = 'did-scroll',
 	didFocus = 'did-focus',
 	didBlur = 'did-blur',
+	didLoad = 'did-load',
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
 	loadResource = 'load-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
+	wheel = 'did-scroll-wheel'
 }
 
 interface IKeydownEvent {
@@ -117,6 +120,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleFocusChange(true);
 		}));
 
+		this._register(this.on(WebviewMessageChannels.wheel, (event: IMouseWheelEvent) => {
+			this._onDidWheel.fire(event);
+		}));
+
 		this._register(this.on(WebviewMessageChannels.didBlur, () => {
 			this.handleFocusChange(false);
 		}));
@@ -147,17 +154,26 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
+	private readonly _onDidReload = this._register(new Emitter<void>());
+	public readonly onDidReload = this._onDidReload.event;
+
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
 
 	private readonly _onDidScroll = this._register(new Emitter<{ readonly scrollYPercentage: number; }>());
 	public readonly onDidScroll = this._onDidScroll.event;
 
+	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
+	public readonly onDidWheel = this._onDidWheel.event;
+
 	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
 	public readonly onDidUpdateState = this._onDidUpdateState.event;
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
+
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	public readonly onDidBlur = this._onDidBlur.event;
 
 	public sendMessage(data: any): void {
 		this._send('message', data);
@@ -204,6 +220,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	public reload(): void {
 		this.doUpdateContent();
+		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
+			this._onDidReload.fire();
+			subscription.dispose();
+		}));
 	}
 
 	public set html(value: string) {
@@ -258,6 +278,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		this._focused = isFocused;
 		if (isFocused) {
 			this._onDidFocus.fire();
+		} else {
+			this._onDidBlur.fire();
 		}
 	}
 
@@ -284,6 +306,12 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	windowDidDragEnd(): void {
 		if (this.element) {
 			this.element.style.pointerEvents = '';
+		}
+	}
+
+	public selectAll() {
+		if (this.element) {
+			this._send('execCommand', 'selectAll');
 		}
 	}
 }

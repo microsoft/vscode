@@ -46,7 +46,7 @@ export class ConfigureLocaleAction extends Action {
 			.concat({ label: localize('installAdditionalLanguages', "Install additional languages...") });
 	}
 
-	public async run(event?: any): Promise<void> {
+	public async run(): Promise<void> {
 		const languageOptions = await this.getLanguageOptions();
 		const currentLanguageIndex = firstIndex(languageOptions, l => l.label === language);
 
@@ -61,9 +61,10 @@ export class ConfigureLocaleAction extends Action {
 			if (selectedLanguage === languageOptions[languageOptions.length - 1]) {
 				return this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
 					.then(viewlet => viewlet?.getViewPaneContainer())
-					.then((viewlet: IExtensionsViewPaneContainer) => {
-						viewlet.search('@category:"language packs"');
-						viewlet.focus();
+					.then(viewlet => {
+						const extensionsViewlet = viewlet as IExtensionsViewPaneContainer;
+						extensionsViewlet.search('@category:"language packs"');
+						extensionsViewlet.focus();
 					});
 			}
 

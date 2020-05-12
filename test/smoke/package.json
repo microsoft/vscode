@@ -27,7 +27,7 @@
     "rimraf": "^2.6.1",
     "strip-json-comments": "^2.0.1",
     "tmp": "0.0.33",
-    "typescript": "2.9.2",
+    "typescript": "3.7.5",
     "watch": "^1.0.2"
   }
 }

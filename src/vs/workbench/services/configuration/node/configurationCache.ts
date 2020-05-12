@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as pfs from 'vs/base/node/pfs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/path';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationCache, ConfigurationKey } from 'vs/workbench/services/configuration/common/configuration';
-import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService';
 
 export class ConfigurationCache implements IConfigurationCache {
 
 	private readonly cachedConfigurations: Map<string, CachedConfiguration> = new Map<string, CachedConfiguration>();
 
-	constructor(private readonly environmentService: IWorkbenchEnvironmentService) {
+	constructor(private readonly environmentService: INativeEnvironmentService) {
 	}
 
 	read(key: ConfigurationKey): Promise<string> {
@@ -48,7 +47,7 @@ class CachedConfiguration {
 
 	constructor(
 		{ type, key }: ConfigurationKey,
-		environmentService: IEnvironmentService
+		environmentService: INativeEnvironmentService
 	) {
 		this.cachedConfigurationFolderPath = join(environmentService.userDataPath, 'CachedConfigurations', type, key);
 		this.cachedConfigurationFilePath = join(this.cachedConfigurationFolderPath, type === 'workspaces' ? 'workspace.json' : 'configuration.json');

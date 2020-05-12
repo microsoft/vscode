@@ -7,9 +7,9 @@ import 'vs/css!./welcomeOverlay';
 import * as dom from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickopen/browser/commandsHandler';
+import { ShowAllCommandsAction } from 'vs/workbench/contrib/quickaccess/browser/commandsQuickAccess';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -22,6 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { textPreformatForeground, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -156,7 +157,7 @@ class WelcomeOverlay extends Disposable {
 	private _overlay!: HTMLElement;
 
 	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -168,8 +169,8 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private create(): void {
-		const offset = this.layoutService.getTitleBarOffset();
-		this._overlay = dom.append(this.layoutService.getWorkbenchElement(), $('.welcomeOverlay'));
+		const offset = this.layoutService.offset?.top ?? 0;
+		this._overlay = dom.append(this.layoutService.container, $('.welcomeOverlay'));
 		this._overlay.style.top = `${offset}px`;
 		this._overlay.style.height = `calc(100% - ${offset}px)`;
 		this._overlay.style.display = 'none';
@@ -213,7 +214,7 @@ class WelcomeOverlay extends Disposable {
 	}
 
 	private updateProblemsKey() {
-		const problems = document.querySelector('div[id="workbench.parts.statusbar"] .statusbar-item.left .codicon.codicon-warning');
+		const problems = document.querySelector(`div[id="workbench.parts.statusbar"] .statusbar-item.left ${Codicon.warning.cssSelector}`);
 		const key = this._overlay.querySelector('.key.problems') as HTMLElement;
 		if (problems instanceof HTMLElement) {
 			const target = problems.getBoundingClientRect();
@@ -258,10 +259,10 @@ class WelcomeOverlay extends Disposable {
 }
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.create(WelcomeOverlayAction, WelcomeOverlayAction.ID, WelcomeOverlayAction.LABEL), 'Help: User Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.from(WelcomeOverlayAction), 'Help: User Interface Overview', localize('help', "Help"));
 
 Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions)
-	.registerWorkbenchAction(SyncActionDescriptor.create(HideWelcomeOverlayAction, HideWelcomeOverlayAction.ID, HideWelcomeOverlayAction.LABEL, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
+	.registerWorkbenchAction(SyncActionDescriptor.from(HideWelcomeOverlayAction, { primary: KeyCode.Escape }, OVERLAY_VISIBLE), 'Help: Hide Interface Overview', localize('help', "Help"));
 
 // theming
 

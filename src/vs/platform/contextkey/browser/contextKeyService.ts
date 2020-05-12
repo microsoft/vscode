@@ -8,7 +8,7 @@ import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { keys } from 'vs/base/common/map';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID } from 'vs/platform/contextkey/common/contextkey';
+import { IContext, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IReadableSet, SET_CONTEXT_COMMAND_ID, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingResolver';
 
 const KEYBINDING_CONTEXT_ATTR = 'data-keybinding-context';
@@ -142,6 +142,10 @@ class ConfigAwareContextValuesContainer extends Context {
 			case 'string':
 				value = configValue;
 				break;
+			default:
+				if (Array.isArray(configValue)) {
+					value = JSON.stringify(configValue);
+				}
 		}
 
 		this._values.set(key, value);
@@ -265,7 +269,7 @@ export abstract class AbstractContextKeyService implements IContextKeyService {
 		return new ScopedContextKeyService(this, domNode);
 	}
 
-	public contextMatchesRules(rules: ContextKeyExpr | undefined): boolean {
+	public contextMatchesRules(rules: ContextKeyExpression | undefined): boolean {
 		if (this._isDisposed) {
 			throw new Error(`AbstractContextKeyService has been disposed`);
 		}

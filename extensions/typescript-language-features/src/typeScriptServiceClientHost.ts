@@ -15,33 +15,37 @@ import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
 import TypeScriptServiceClient from './typescriptServiceClient';
+import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
+import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { PluginManager } from './utils/plugins';
 import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
-import { flatten, coalesce } from './utils/arrays';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
-	6133, 	// variable is declared but never used
-	6138, 	// property is declared but its value is never read
-	6192, 	// All imports are unused
-	7027,	// unreachable code detected
-	7028,	// unused label
-	7029,	// fall through case in switch
-	7030	// not all code paths return a value
+	errorCodes.variableDeclaredButNeverUsed,
+	errorCodes.propertyDeclaretedButNeverUsed,
+	errorCodes.allImportsAreUnused,
+	errorCodes.unreachableCode,
+	errorCodes.unusedLabel,
+	errorCodes.fallThroughCaseInSwitch,
+	errorCodes.notAllCodePathsReturnAValue,
 ];
 
 export default class TypeScriptServiceClientHost extends Disposable {
-	private readonly typingsStatus: TypingsStatus;
+
 	private readonly client: TypeScriptServiceClient;
 	private readonly languages: LanguageProvider[] = [];
 	private readonly languagePerId = new Map<string, LanguageProvider>();
+
+	private readonly typingsStatus: TypingsStatus;
 	private readonly versionStatus: VersionStatus;
+
 	private readonly fileConfigurationManager: FileConfigurationManager;
 
 	private reportStyleCheckAsWarnings: boolean = true;
@@ -55,18 +59,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		onCompletionAccepted: (item: vscode.CompletionItem) => void,
 	) {
 		super();
-		const handleProjectCreateOrDelete = () => {
-			this.triggerAllDiagnostics();
-		};
-		const handleProjectChange = () => {
-			setTimeout(() => {
-				this.triggerAllDiagnostics();
-			}, 1500);
-		};
-		const configFileWatcher = this._register(vscode.workspace.createFileSystemWatcher('**/[tj]sconfig.json'));
-		configFileWatcher.onDidCreate(handleProjectCreateOrDelete, this, this._disposables);
-		configFileWatcher.onDidDelete(handleProjectCreateOrDelete, this, this._disposables);
-		configFileWatcher.onDidChange(handleProjectChange, this, this._disposables);
 
 		const allModeIds = this.getAllModeIds(descriptions, pluginManager);
 		this.client = this._register(new TypeScriptServiceClient(
@@ -83,7 +75,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this._disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this._disposables);
 
-		this.versionStatus = this._register(new VersionStatus(resource => this.client.toPath(resource)));
+		this.versionStatus = this._register(new VersionStatus(this.client, commandManager));
 
 		this._register(new AtaProgressReporter(this.client));
 		this.typingsStatus = this._register(new TypingsStatus(this.client));
@@ -106,23 +98,31 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onReady(() => {
 			const languages = new Set<string>();
 			for (const plugin of pluginManager.plugins) {
-				for (const language of plugin.languages) {
-					languages.add(language);
+				if (plugin.configNamespace && plugin.languages.length) {
+					this.registerExtensionLanguageProvider({
+						id: plugin.configNamespace,
+						modeIds: Array.from(plugin.languages),
+						diagnosticSource: 'ts-plugin',
+						diagnosticLanguage: DiagnosticLanguage.TypeScript,
+						diagnosticOwner: 'typescript',
+						isExternal: true
+					}, onCompletionAccepted);
+				} else {
+					for (const language of plugin.languages) {
+						languages.add(language);
+					}
 				}
 			}
+
 			if (languages.size) {
-				const description: LanguageDescription = {
+				this.registerExtensionLanguageProvider({
 					id: 'typescript-plugins',
 					modeIds: Array.from(languages.values()),
 					diagnosticSource: 'ts-plugin',
 					diagnosticLanguage: DiagnosticLanguage.TypeScript,
 					diagnosticOwner: 'typescript',
 					isExternal: true
-				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
-				this.languages.push(manager);
-				this._register(manager);
-				this.languagePerId.set(description.id, manager);
+				}, onCompletionAccepted);
 			}
 		});
 
@@ -132,6 +132,13 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
+	}
+
+	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {
+		const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
+		this.languages.push(manager);
+		this._register(manager);
+		this.languagePerId.set(description.id, manager);
 	}
 
 	private getAllModeIds(descriptions: LanguageDescription[], pluginManager: PluginManager) {
@@ -183,12 +190,9 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	private populateService(): void {
 		this.fileConfigurationManager.reset();
 
-		// See https://github.com/Microsoft/TypeScript/issues/5530
-		vscode.workspace.saveAll(false).then(() => {
-			for (const language of this.languagePerId.values()) {
-				language.reInitialize();
-			}
-		});
+		for (const language of this.languagePerId.values()) {
+			language.reInitialize();
+		}
 	}
 
 	private async diagnosticsReceived(

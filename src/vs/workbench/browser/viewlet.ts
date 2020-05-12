@@ -20,7 +20,6 @@ import { URI } from 'vs/base/common/uri';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { AsyncDataTree } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { AbstractTree } from 'vs/base/browser/ui/tree/abstractTree';
-import { assertIsDefined } from 'vs/base/common/types';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -68,7 +67,7 @@ export abstract class Viewlet extends PaneComposite implements IViewlet {
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 
-	public static create<Services extends BrandedService[]>(
+	static create<Services extends BrandedService[]>(
 		ctor: { new(...services: Services): Viewlet },
 		id: string,
 		name: string,
@@ -97,7 +96,6 @@ export const Extensions = {
 };
 
 export class ViewletRegistry extends CompositeRegistry<Viewlet> {
-	private defaultViewletId: string | undefined;
 
 	/**
 	 * Registers a viewlet to the platform.
@@ -110,9 +108,6 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 	 * Deregisters a viewlet to the platform.
 	 */
 	deregisterViewlet(id: string): void {
-		if (id === this.defaultViewletId) {
-			throw new Error('Cannot deregister default viewlet');
-		}
 		super.deregisterComposite(id);
 	}
 
@@ -130,19 +125,6 @@ export class ViewletRegistry extends CompositeRegistry<Viewlet> {
 		return this.getComposites() as ViewletDescriptor[];
 	}
 
-	/**
-	 * Sets the id of the viewlet that should open on startup by default.
-	 */
-	setDefaultViewletId(id: string): void {
-		this.defaultViewletId = id;
-	}
-
-	/**
-	 * Gets the id of the viewlet that should open on startup by default.
-	 */
-	getDefaultViewletId(): string {
-		return assertIsDefined(this.defaultViewletId);
-	}
 }
 
 Registry.add(Extensions.Viewlets, new ViewletRegistry());
@@ -165,17 +147,16 @@ export class ShowViewletAction extends Action {
 		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
-	run(): Promise<any> {
+	async run(): Promise<void> {
 
 		// Pass focus to viewlet if not open or focused
 		if (this.otherViewletShowing() || !this.sidebarHasFocus()) {
-			return this.viewletService.openViewlet(this.viewletId, true);
+			await this.viewletService.openViewlet(this.viewletId, true);
+			return;
 		}
 
 		// Otherwise pass focus to editor group
 		this.editorGroupService.activeGroup.focus();
-
-		return Promise.resolve(true);
 	}
 
 	private otherViewletShowing(): boolean {
@@ -194,11 +175,11 @@ export class ShowViewletAction extends Action {
 }
 
 export class CollapseAction extends Action {
-	constructor(tree: AsyncDataTree<any, any, any> | AbstractTree<any, any, any>, enabled: boolean, clazz?: string) {
-		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, () => {
+	// We need a tree getter because the action is sometimes instantiated too early
+	constructor(treeGetter: () => AsyncDataTree<any, any, any> | AbstractTree<any, any, any>, enabled: boolean, clazz?: string) {
+		super('workbench.action.collapse', nls.localize('collapse', "Collapse All"), clazz, enabled, async () => {
+			const tree = treeGetter();
 			tree.collapseAll();
-
-			return Promise.resolve(undefined);
 		});
 	}
 }

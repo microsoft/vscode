@@ -53,15 +53,13 @@ export class WalkThroughInput extends EditorInput {
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
 
+	get resource() { return this.options.resource; }
+
 	constructor(
-		private options: WalkThroughInputOptions,
+		private readonly options: WalkThroughInputOptions,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
-	}
-
-	getResource(): URI {
-		return this.options.resource;
 	}
 
 	getTypeId(): string {
@@ -99,7 +97,7 @@ export class WalkThroughInput extends EditorInput {
 		if (!this.promise) {
 			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {
-					if (strings.endsWith(this.getResource().path, '.html')) {
+					if (strings.endsWith(this.resource.path, '.html')) {
 						return new WalkThroughModel(ref, []);
 					}
 

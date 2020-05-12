@@ -5,7 +5,6 @@
 
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
-import { assign } from 'vs/base/common/objects';
 import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/product/common/product';
 import { parseMainProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
@@ -23,10 +22,11 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleLogMainService, MultiplexLogService, getLogLevel } from 'vs/platform/log/common/log';
 import { StateService } from 'vs/platform/state/node/stateService';
 import { IStateService } from 'vs/platform/state/node/state';
-import { IEnvironmentService, ParsedArgs } from 'vs/platform/environment/common/environment';
-import { EnvironmentService, xdgRuntimeDir } from 'vs/platform/environment/node/environmentService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
+import { EnvironmentService, xdgRuntimeDir, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
+import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { RequestMainService } from 'vs/platform/request/electron-main/requestMainService';
 import * as fs from 'fs';
@@ -42,6 +42,11 @@ import { once } from 'vs/base/common/functional';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemProvider';
+import { Schemas } from 'vs/base/common/network';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 class ExpectedError extends Error {
 	readonly isExpected = true;
@@ -93,12 +98,11 @@ class CodeMain {
 		// log file access on Windows (https://github.com/Microsoft/vscode/issues/41218)
 		const bufferLogService = new BufferLogService();
 
-		const [instantiationService, instanceEnvironment] = this.createServices(args, bufferLogService);
+		const [instantiationService, instanceEnvironment, environmentService] = this.createServices(args, bufferLogService);
 		try {
 
 			// Init services
 			await instantiationService.invokeFunction(async accessor => {
-				const environmentService = accessor.get(IEnvironmentService);
 				const configurationService = accessor.get(IConfigurationService);
 				const stateService = accessor.get(IStateService);
 
@@ -115,15 +119,18 @@ class CodeMain {
 
 			// Startup
 			await instantiationService.invokeFunction(async accessor => {
-				const environmentService = accessor.get(IEnvironmentService);
 				const logService = accessor.get(ILogService);
 				const lifecycleMainService = accessor.get(ILifecycleMainService);
+				const fileService = accessor.get(IFileService);
 				const configurationService = accessor.get(IConfigurationService);
 
-				const mainIpcServer = await this.doStartup(logService, environmentService, lifecycleMainService, instantiationService, true);
+				const mainIpcServer = await this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, true);
 
 				bufferLogService.logger = new SpdLogService('main', environmentService.logsPath, bufferLogService.getLevel());
-				once(lifecycleMainService.onWillShutdown)(() => (configurationService as ConfigurationService).dispose());
+				once(lifecycleMainService.onWillShutdown)(() => {
+					fileService.dispose();
+					(configurationService as ConfigurationService).dispose();
+				});
 
 				return instantiationService.createInstance(CodeApplication, mainIpcServer, instanceEnvironment).startup();
 			});
@@ -132,7 +139,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(args: ParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment] {
+	private createServices(args: ParsedArgs, bufferLogService: BufferLogService): [IInstantiationService, IProcessEnvironment, INativeEnvironmentService] {
 		const services = new ServiceCollection();
 
 		const environmentService = new EnvironmentService(args, process.execPath);
@@ -143,17 +150,23 @@ class CodeMain {
 		process.once('exit', () => logService.dispose());
 		services.set(ILogService, logService);
 
-		services.set(IConfigurationService, new ConfigurationService(environmentService.settingsResource));
+		const fileService = new FileService(logService);
+		services.set(IFileService, fileService);
+		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
+
+		services.set(IConfigurationService, new ConfigurationService(environmentService.settingsResource, fileService));
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 		services.set(IStateService, new SyncDescriptor(StateService));
 		services.set(IRequestService, new SyncDescriptor(RequestMainService));
 		services.set(IThemeMainService, new SyncDescriptor(ThemeMainService));
 		services.set(ISignService, new SyncDescriptor(SignService));
+		services.set(IStorageKeysSyncRegistryService, new SyncDescriptor(StorageKeysSyncRegistryService));
 
-		return [new InstantiationService(services, true), instanceEnvironment];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentService];
 	}
 
-	private initServices(environmentService: IEnvironmentService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
+	private initServices(environmentService: INativeEnvironmentService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
 
 		// Environment service (paths)
 		const environmentServiceInitialization = Promise.all<void | undefined>([
@@ -174,7 +187,7 @@ class CodeMain {
 		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
 	}
 
-	private patchEnvironment(environmentService: IEnvironmentService): IProcessEnvironment {
+	private patchEnvironment(environmentService: INativeEnvironmentService): IProcessEnvironment {
 		const instanceEnvironment: IProcessEnvironment = {
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle
 		};
@@ -186,12 +199,12 @@ class CodeMain {
 			}
 		});
 
-		assign(process.env, instanceEnvironment);
+		Object.assign(process.env, instanceEnvironment);
 
 		return instanceEnvironment;
 	}
 
-	private async doStartup(logService: ILogService, environmentService: IEnvironmentService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
+	private async doStartup(args: ParsedArgs, logService: ILogService, environmentService: INativeEnvironmentService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, retry: boolean): Promise<Server> {
 
 		// Try to setup a server for running. If that succeeds it means
 		// we are the first instance to startup. Otherwise it is likely
@@ -247,7 +260,7 @@ class CodeMain {
 					throw error;
 				}
 
-				return this.doStartup(logService, environmentService, lifecycleMainService, instantiationService, false);
+				return this.doStartup(args, logService, environmentService, lifecycleMainService, instantiationService, false);
 			}
 
 			// Tests from CLI require to be the only instance currently
@@ -263,7 +276,7 @@ class CodeMain {
 			// Skip this if we are running with --wait where it is expected that we wait for a while.
 			// Also skip when gathering diagnostics (--status) which can take a longer time.
 			let startupWarningDialogHandle: NodeJS.Timeout | undefined = undefined;
-			if (!environmentService.wait && !environmentService.status) {
+			if (!args.wait && !args.status) {
 				startupWarningDialogHandle = setTimeout(() => {
 					this.showStartupWarningDialog(
 						localize('secondInstanceNoResponse', "Another instance of {0} is running but not responding", product.nameShort),
@@ -275,7 +288,7 @@ class CodeMain {
 			const launchService = createChannelSender<ILaunchMainService>(client.getChannel('launch'), { disableMarshalling: true });
 
 			// Process Info
-			if (environmentService.args.status) {
+			if (args.status) {
 				return instantiationService.invokeFunction(async accessor => {
 					// Create a diagnostic service connected to the existing shared process
 					const sharedProcessClient = await connect(environmentService.sharedIPCHandle, 'main');
@@ -297,7 +310,7 @@ class CodeMain {
 
 			// Send environment over...
 			logService.trace('Sending env to running instance...');
-			await launchService.start(environmentService.args, process.env as IProcessEnvironment);
+			await launchService.start(args, process.env as IProcessEnvironment);
 
 			// Cleanup
 			client.dispose();
@@ -311,7 +324,7 @@ class CodeMain {
 		}
 
 		// Print --status usage info
-		if (environmentService.args.status) {
+		if (args.status) {
 			logService.warn('Warning: The --status argument can only be used if Code is already running. Please run it again after Code has started.');
 
 			throw new ExpectedError('Terminating...');
@@ -329,7 +342,7 @@ class CodeMain {
 		return server;
 	}
 
-	private handleStartupDataDirError(environmentService: IEnvironmentService, error: NodeJS.ErrnoException): void {
+	private handleStartupDataDirError(environmentService: INativeEnvironmentService, error: NodeJS.ErrnoException): void {
 		if (error.code === 'EACCES' || error.code === 'EPERM') {
 			const directories = [environmentService.userDataPath];
 

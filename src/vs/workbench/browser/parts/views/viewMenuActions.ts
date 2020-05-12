@@ -36,7 +36,7 @@ export class ViewMenuActions extends Disposable {
 		const updateActions = () => {
 			this.primaryActions = [];
 			this.secondaryActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(menu, undefined, { primary: this.primaryActions, secondary: this.secondaryActions });
+			this.titleActionsDisposable.value = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary: this.primaryActions, secondary: this.secondaryActions });
 			this._onDidChangeTitle.fire();
 		};
 		this._register(menu.onDidChange(updateActions));
@@ -45,7 +45,7 @@ export class ViewMenuActions extends Disposable {
 		const contextMenu = this._register(this.menuService.createMenu(contextMenuId, scopedContextKeyService));
 		const updateContextMenuActions = () => {
 			this.contextMenuActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(contextMenu, undefined, { primary: [], secondary: this.contextMenuActions });
+			this.titleActionsDisposable.value = createAndFillInActionBarActions(contextMenu, { shouldForwardArgs: true }, { primary: [], secondary: this.contextMenuActions });
 		};
 		this._register(contextMenu.onDidChange(updateContextMenuActions));
 		updateContextMenuActions();

@@ -71,7 +71,7 @@ class ReplacePreviewModel extends Disposable {
 		const sourceModel = ref.object.textEditorModel;
 		const sourceModelModeId = sourceModel.getLanguageIdentifier().language;
 		const replacePreviewModel = this.modelService.createModel(createTextBufferFactoryFromSnapshot(sourceModel.createSnapshot()), this.modeService.create(sourceModelModeId), replacePreviewUri);
-		this._register(fileMatch.onChange(modelChange => this.update(sourceModel, replacePreviewModel, fileMatch, modelChange)));
+		this._register(fileMatch.onChange(({ forceUpdateModel }) => this.update(sourceModel, replacePreviewModel, fileMatch, forceUpdateModel)));
 		this._register(this.searchWorkbenchService.searchModel.onReplaceTermChanged(() => this.update(sourceModel, replacePreviewModel, fileMatch)));
 		this._register(fileMatch.onDispose(() => replacePreviewModel.dispose())); // TODO@Sandeep we should not dispose a model directly but rather the reference (depends on https://github.com/Microsoft/vscode/issues/17073)
 		this._register(replacePreviewModel.onWillDispose(() => this.dispose()));
@@ -104,14 +104,7 @@ export class ReplaceService implements IReplaceService {
 		const edits: WorkspaceTextEdit[] = this.createEdits(arg, resource);
 		await this.bulkEditorService.apply({ edits }, { progress });
 
-		return Promise.all(edits.map(e => {
-			const model = this.textFileService.files.get(e.resource);
-			if (model) {
-				return model.save();
-			}
-
-			return Promise.resolve(undefined);
-		}));
+		return Promise.all(edits.map(e => this.textFileService.files.get(e.resource)?.save()));
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {

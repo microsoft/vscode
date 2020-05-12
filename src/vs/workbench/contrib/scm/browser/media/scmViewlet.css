@@ -8,17 +8,6 @@
 	flex: 1;
 }
 
-.scm-viewlet .empty-message {
-	box-sizing: border-box;
-	height: 100%;
-	padding: 10px 22px 0 22px;
-}
-
-.scm-viewlet:not(.empty) .empty-message,
-.scm-viewlet.empty .monaco-pane-view {
-	display: none;
-}
-
 .scm-viewlet .scm-status {
 	height: 100%;
 	position: relative;
@@ -162,6 +151,10 @@
 	height: 100%;
 	background-position: 50% 50%;
 	background-repeat: no-repeat;
+}
+
+.scm-viewlet .monaco-list-row .resource > .name > .monaco-icon-label > .actions .action-label.codicon {
+	line-height: 22px;
 }
 
 .scm-viewlet .scm-editor {

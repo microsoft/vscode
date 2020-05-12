@@ -145,7 +145,7 @@ export class TunnelService extends AbstractTunnelService {
 		}
 
 		if (this._tunnelProvider) {
-			const tunnel = this._tunnelProvider.forwardPort({ remoteAddress: { host: remoteHost, port: remotePort } });
+			const tunnel = this._tunnelProvider.forwardPort({ remoteAddress: { host: remoteHost, port: remotePort }, localAddressPort: localPort });
 			if (tunnel) {
 				this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			}

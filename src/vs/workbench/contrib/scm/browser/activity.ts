@@ -59,7 +59,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 			return false;
 		}
 
-		const resource = this.editorService.activeEditor.getResource();
+		const resource = this.editorService.activeEditor.resource;
 
 		if (!resource) {
 			return false;
@@ -156,11 +156,13 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		const disposables = new DisposableStore();
 		for (const c of commands) {
+			const tooltip = `${label} - ${c.tooltip}`;
+
 			disposables.add(this.statusbarService.addEntry({
 				text: c.title,
-				tooltip: `${label} - ${c.tooltip}`,
-				command: c.id,
-				arguments: c.arguments
+				ariaLabel: c.tooltip || label,
+				tooltip,
+				command: c
 			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
@@ -182,7 +184,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable.value = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+			this.badgeDisposable.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'scm-viewlet-label' });
 		} else {
 			this.badgeDisposable.clear();
 		}

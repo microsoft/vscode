@@ -14,7 +14,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { ITreeModel, ITreeNode, ITreeRenderer, ITreeEvent, ITreeMouseEvent, ITreeContextMenuEvent, ITreeFilter, ITreeNavigator, ICollapseStateChangeEvent, ITreeDragAndDrop, TreeDragOverBubble, TreeVisibility, TreeFilterResult, ITreeModelSpliceEvent, TreeMouseEventTarget } from 'vs/base/browser/ui/tree/tree';
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IDragAndDropData, StaticDND, DragAndDropData } from 'vs/base/browser/dnd';
-import { range, equals, distinctES6, fromSet } from 'vs/base/common/arrays';
+import { range, equals, distinctES6 } from 'vs/base/common/arrays';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { domEvent } from 'vs/base/browser/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
@@ -26,6 +26,7 @@ import { values } from 'vs/base/common/map';
 import { clamp } from 'vs/base/common/numbers';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { SetMap } from 'vs/base/common/collections';
+import { treeItemExpandedIcon, treeFilterOnTypeOnIcon, treeFilterOnTypeOffIcon, treeFilterClearIcon } from 'vs/base/browser/ui/tree/treeIcons';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -162,9 +163,30 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 		},
 		accessibilityProvider: options.accessibilityProvider && {
 			...options.accessibilityProvider,
+			getSetSize(node) {
+				const model = modelProvider();
+				const ref = model.getNodeLocation(node);
+				const parentRef = model.getParentNodeLocation(ref);
+				const parentNode = model.getNode(parentRef);
+
+				return parentNode.visibleChildrenCount;
+			},
+			getPosInSet(node) {
+				return node.visibleChildIndex + 1;
+			},
+			isChecked: options.accessibilityProvider && options.accessibilityProvider.isChecked ? (node) => {
+				return options.accessibilityProvider!.isChecked!(node.element);
+			} : undefined,
+			getRole: options.accessibilityProvider && options.accessibilityProvider.getRole ? (node) => {
+				return options.accessibilityProvider!.getRole!(node.element);
+			} : () => 'treeitem',
 			getAriaLabel(e) {
 				return options.accessibilityProvider!.getAriaLabel(e.element);
 			},
+			getWidgetAriaLabel() {
+				return options.accessibilityProvider!.getWidgetAriaLabel();
+			},
+			getWidgetRole: options.accessibilityProvider && options.accessibilityProvider.getWidgetRole ? () => options.accessibilityProvider!.getWidgetRole!() : () => 'tree',
 			getAriaLevel(node) {
 				return node.depth;
 			},
@@ -178,26 +200,7 @@ function asListOptions<T, TFilterData, TRef>(modelProvider: () => ITreeModel<T, 
 				return options.keyboardNavigationLabelProvider!.getKeyboardNavigationLabel(node.element);
 			}
 		},
-		enableKeyboardNavigation: options.simpleKeyboardNavigation,
-		ariaProvider: {
-			getSetSize(node) {
-				const model = modelProvider();
-				const ref = model.getNodeLocation(node);
-				const parentRef = model.getParentNodeLocation(ref);
-				const parentNode = model.getNode(parentRef);
-
-				return parentNode.visibleChildrenCount;
-			},
-			getPosInSet(node) {
-				return node.visibleChildIndex + 1;
-			},
-			isChecked: options.ariaProvider && options.ariaProvider.isChecked ? (node) => {
-				return options.ariaProvider!.isChecked!(node.element);
-			} : undefined,
-			getRole: options.ariaProvider && options.ariaProvider.getRole ? (node) => {
-				return options.ariaProvider!.getRole!(node.element);
-			} : undefined
-		}
+		enableKeyboardNavigation: options.simpleKeyboardNavigation
 	};
 }
 
@@ -403,10 +406,10 @@ class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer
 		}
 
 		if (node.collapsible && (!this.hideTwistiesOfChildlessElements || node.visibleChildrenCount > 0)) {
-			addClasses(templateData.twistie, 'codicon', 'codicon-chevron-down', 'collapsible');
+			addClasses(templateData.twistie, treeItemExpandedIcon.classNames, 'collapsible');
 			toggleClass(templateData.twistie, 'collapsed', node.collapsed);
 		} else {
-			removeClasses(templateData.twistie, 'codicon', 'codicon-chevron-down', 'collapsible', 'collapsed');
+			removeClasses(templateData.twistie, treeItemExpandedIcon.classNames, 'collapsible', 'collapsed');
 		}
 
 		if (node.collapsible) {
@@ -644,14 +647,14 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		const controls = append(this.domNode, $('.controls'));
 
 		this._filterOnType = !!tree.options.filterOnType;
-		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter.codicon.codicon-list-selection'));
+		this.filterOnTypeDomNode = append(controls, $<HTMLInputElement>('input.filter'));
 		this.filterOnTypeDomNode.type = 'checkbox';
 		this.filterOnTypeDomNode.checked = this._filterOnType;
 		this.filterOnTypeDomNode.tabIndex = -1;
-		this.updateFilterOnTypeTitle();
+		this.updateFilterOnTypeTitleAndIcon();
 		domEvent(this.filterOnTypeDomNode, 'input')(this.onDidChangeFilterOnType, this, this.disposables);
 
-		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear.codicon.codicon-close'));
+		this.clearDomNode = append(controls, $<HTMLInputElement>('button.clear' + treeFilterClearIcon.cssSelector));
 		this.clearDomNode.tabIndex = -1;
 		this.clearDomNode.title = localize('clear', "Clear");
 
@@ -857,13 +860,17 @@ class TypeFilterController<T, TFilterData> implements IDisposable {
 		this.tree.refilter();
 		this.tree.domFocus();
 		this.render();
-		this.updateFilterOnTypeTitle();
+		this.updateFilterOnTypeTitleAndIcon();
 	}
 
-	private updateFilterOnTypeTitle(): void {
+	private updateFilterOnTypeTitleAndIcon(): void {
 		if (this.filterOnType) {
+			removeClasses(this.filterOnTypeDomNode, treeFilterOnTypeOffIcon.classNames);
+			addClasses(this.filterOnTypeDomNode, treeFilterOnTypeOnIcon.classNames);
 			this.filterOnTypeDomNode.title = localize('disable filter on type', "Disable Filter on Type");
 		} else {
+			removeClasses(this.filterOnTypeDomNode, treeFilterOnTypeOnIcon.classNames);
+			addClasses(this.filterOnTypeDomNode, treeFilterOnTypeOffIcon.classNames);
 			this.filterOnTypeDomNode.title = localize('enable filter on type', "Enable Filter on Type");
 		}
 	}
@@ -1320,7 +1327,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 					set.add(node);
 				}
 
-				return fromSet(set);
+				return values(set);
 			}).event;
 
 		if (_options.keyboardSupport !== false) {
@@ -1442,6 +1449,14 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		const index = this.view.lastVisibleIndex;
 		const node = this.view.element(index);
 		return node.element;
+	}
+
+	get ariaLabel(): string {
+		return this.view.ariaLabel;
+	}
+
+	set ariaLabel(value: string) {
+		this.view.ariaLabel = value;
 	}
 
 	domFocus(): void {

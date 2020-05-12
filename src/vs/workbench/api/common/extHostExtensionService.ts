@@ -16,7 +16,7 @@ import { ExtHostConfiguration, IExtHostConfiguration } from 'vs/workbench/api/co
 import { ActivatedExtension, EmptyExtension, ExtensionActivationReason, ExtensionActivationTimes, ExtensionActivationTimesBuilder, ExtensionsActivator, IExtensionAPI, IExtensionModule, HostExtension, ExtensionActivationTimesFragment } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtHostStorage, IExtHostStorage } from 'vs/workbench/api/common/extHostStorage';
 import { ExtHostWorkspace, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { ExtensionActivationError } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionActivationError, checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import * as errors from 'vs/base/common/errors';
@@ -25,14 +25,15 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { Schemas } from 'vs/base/common/network';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ExtensionMemento } from 'vs/workbench/api/common/extHostMemento';
-import { RemoteAuthorityResolverError } from 'vs/workbench/api/common/extHostTypes';
-import { ResolvedAuthority, ResolvedOptions } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { RemoteAuthorityResolverError, ExtensionMode } from 'vs/workbench/api/common/extHostTypes';
+import { ResolvedAuthority, ResolvedOptions, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
+import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 
 interface ITestRunner {
 	/** Old test runner API, as exported from `vscode/lib/testrunner` */
@@ -78,6 +79,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	protected readonly _extHostConfiguration: ExtHostConfiguration;
 	protected readonly _logService: ILogService;
 	protected readonly _extHostTunnelService: IExtHostTunnelService;
+	protected readonly _extHostTerminalService: IExtHostTerminalService;
 
 	protected readonly _mainThreadWorkspaceProxy: MainThreadWorkspaceShape;
 	protected readonly _mainThreadTelemetryProxy: MainThreadTelemetryShape;
@@ -90,7 +92,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	private readonly _storage: ExtHostStorage;
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
-	private _extensionPathIndex: Promise<TernarySearchTree<IExtensionDescription>> | null;
+	private _extensionPathIndex: Promise<TernarySearchTree<string, IExtensionDescription>> | null;
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver; };
 
@@ -107,7 +109,8 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		@ILogService logService: ILogService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IExtensionStoragePaths storagePath: IExtensionStoragePaths,
-		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService
+		@IExtHostTunnelService extHostTunnelService: IExtHostTunnelService,
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
 	) {
 		this._hostUtils = hostUtils;
 		this._extHostContext = extHostContext;
@@ -117,6 +120,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		this._extHostConfiguration = extHostConfiguration;
 		this._logService = logService;
 		this._extHostTunnelService = extHostTunnelService;
+		this._extHostTerminalService = extHostTerminalService;
 		this._disposables = new DisposableStore();
 
 		this._mainThreadWorkspaceProxy = this._extHostContext.getProxy(MainContext.MainThreadWorkspace);
@@ -194,7 +198,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		} catch (err) {
 			// TODO: write to log once we have one
 		}
-		await allPromises;
+		await Promise.all(allPromises);
 	}
 
 	public isActivated(extensionId: ExtensionIdentifier): boolean {
@@ -236,7 +240,7 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 	}
 
 	// create trie to enable fast 'filename -> extension id' look up
-	public getExtensionPathIndex(): Promise<TernarySearchTree<IExtensionDescription>> {
+	public getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>> {
 		if (!this._extensionPathIndex) {
 			const tree = TernarySearchTree.forPaths<IExtensionDescription>();
 			const extensions = this._registry.getAllExtensionDescriptions().map(ext => {
@@ -354,8 +358,12 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 
 		const globalState = new ExtensionMemento(extensionDescription.identifier.value, true, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
+		const extensionMode = extensionDescription.isUnderDevelopment
+			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
+			: ExtensionMode.Release;
 
 		this._logService.trace(`ExtensionService#loadExtensionContext ${extensionDescription.identifier.value}`);
+
 		return Promise.all([
 			globalState.whenReady,
 			workspaceState.whenReady,
@@ -366,11 +374,17 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 				globalState,
 				workspaceState,
 				subscriptions: [],
+				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				get storagePath() { return that._storagePath.workspaceValue(extensionDescription); },
 				get globalStoragePath() { return that._storagePath.globalValue(extensionDescription); },
-				asAbsolutePath: (relativePath: string) => { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
-				get logPath() { return path.join(that._initData.logsLocation.fsPath, extensionDescription.identifier.value); }
+				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
+				get logPath() { return path.join(that._initData.logsLocation.fsPath, extensionDescription.identifier.value); },
+				get extensionMode() {
+					checkProposedApiEnabled(extensionDescription);
+					return extensionMode;
+				},
+				get environmentVariableCollection() { return that._extHostTerminalService.getEnvironmentVariableCollection(extensionDescription); }
 			});
 		});
 	}
@@ -448,10 +462,11 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 		const fileNames: string[] = [];
 		const globPatterns: string[] = [];
 
+		const localWithRemote = !this._initData.remote.isRemote && !!this._initData.remote.authority;
 		for (const activationEvent of activationEvents) {
 			if (/^workspaceContains:/.test(activationEvent)) {
 				const fileNameOrGlob = activationEvent.substr('workspaceContains:'.length);
-				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
+				if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0 || localWithRemote) {
 					globPatterns.push(fileNameOrGlob);
 				} else {
 					fileNames.push(fileNameOrGlob);
@@ -640,7 +655,14 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 
 		const resolver = this._resolvers[authorityPrefix];
 		if (!resolver) {
-			throw new Error(`No remote extension installed to resolve ${authorityPrefix}.`);
+			return {
+				type: 'error',
+				error: {
+					code: RemoteAuthorityResolverErrorCode.NoResolverFound,
+					message: `No remote extension installed to resolve ${authorityPrefix}.`,
+					detail: undefined
+				}
+			};
 		}
 
 		try {
@@ -783,6 +805,6 @@ export interface IExtHostExtensionService extends AbstractExtHostExtensionServic
 	deactivateAll(): Promise<void>;
 	getExtensionExports(extensionId: ExtensionIdentifier): IExtensionAPI | null | undefined;
 	getExtensionRegistry(): Promise<ExtensionDescriptionRegistry>;
-	getExtensionPathIndex(): Promise<TernarySearchTree<IExtensionDescription>>;
+	getExtensionPathIndex(): Promise<TernarySearchTree<string, IExtensionDescription>>;
 	registerRemoteAuthorityResolver(authorityPrefix: string, resolver: vscode.RemoteAuthorityResolver): vscode.Disposable;
 }

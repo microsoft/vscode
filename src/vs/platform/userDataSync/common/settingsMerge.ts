@@ -10,8 +10,10 @@ import { values } from 'vs/base/common/map';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions, Edit, getEOL } from 'vs/base/common/jsonFormatter';
 import * as contentUtil from 'vs/platform/userDataSync/common/content';
-import { IConflictSetting } from 'vs/platform/userDataSync/common/userDataSync';
-import { firstIndex } from 'vs/base/common/arrays';
+import { IConflictSetting, getDisallowedIgnoredSettings } from 'vs/platform/userDataSync/common/userDataSync';
+import { firstIndex, distinct } from 'vs/base/common/arrays';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { startsWith } from 'vs/base/common/strings';
 
 export interface IMergeResult {
 	localContent: string | null;
@@ -19,6 +21,30 @@ export interface IMergeResult {
 	hasConflicts: boolean;
 	conflictsSettings: IConflictSetting[];
 }
+
+export function getIgnoredSettings(defaultIgnoredSettings: string[], configurationService: IConfigurationService, settingsContent?: string): string[] {
+	let value: string[] = [];
+	if (settingsContent) {
+		const setting = parse(settingsContent);
+		if (setting) {
+			value = setting['sync.ignoredSettings'];
+		}
+	} else {
+		value = configurationService.getValue<string[]>('sync.ignoredSettings');
+	}
+	const added: string[] = [], removed: string[] = [...getDisallowedIgnoredSettings()];
+	if (Array.isArray(value)) {
+		for (const key of value) {
+			if (startsWith(key, '-')) {
+				removed.push(key.substring(1));
+			} else {
+				added.push(key);
+			}
+		}
+	}
+	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => removed.indexOf(setting) === -1));
+}
+
 
 export function updateIgnoredSettings(targetContent: string, sourceContent: string, ignoredSettings: string[], formattingOptions: FormattingOptions): string {
 	if (ignoredSettings.length) {
@@ -72,8 +98,13 @@ export function merge(originalLocalContent: string, originalRemoteContent: strin
 		return { conflictsSettings: [], localContent: updateIgnoredSettings(originalRemoteContent, originalLocalContent, ignoredSettings, formattingOptions), remoteContent: null, hasConflicts: false };
 	}
 
-	/* remote and local has changed */
+	/* local is empty and not synced before */
+	if (baseContent === null && isEmpty(originalLocalContent)) {
+		const localContent = areSame(originalLocalContent, originalRemoteContent, ignoredSettings) ? null : updateIgnoredSettings(originalRemoteContent, originalLocalContent, ignoredSettings, formattingOptions);
+		return { conflictsSettings: [], localContent, remoteContent: null, hasConflicts: false };
+	}
 
+	/* remote and local has changed */
 	let localContent = originalLocalContent;
 	let remoteContent = originalRemoteContent;
 	const local = parse(originalLocalContent);
@@ -230,6 +261,11 @@ export function areSame(localContent: string, remoteContent: string, ignoredSett
 	}
 
 	return true;
+}
+
+export function isEmpty(content: string): boolean {
+	const nodes = parseSettings(content);
+	return nodes.length === 0;
 }
 
 function compare(from: IStringDictionary<any> | null, to: IStringDictionary<any>, ignored: Set<string>): { added: Set<string>, removed: Set<string>, updated: Set<string> } {
@@ -550,15 +586,17 @@ function parseSettings(content: string): INode[] {
 			if (hierarchyLevel === 0) {
 				if (sep === ',') {
 					const node = nodes.pop();
-					nodes.push({
-						startOffset: node!.startOffset,
-						endOffset: node!.endOffset,
-						value: node!.value,
-						setting: {
-							key: node!.setting!.key,
-							hasCommaSeparator: true
-						}
-					});
+					if (node) {
+						nodes.push({
+							startOffset: node.startOffset,
+							endOffset: node.endOffset,
+							value: node.value,
+							setting: {
+								key: node.setting!.key,
+								hasCommaSeparator: true
+							}
+						});
+					}
 				}
 			}
 		},

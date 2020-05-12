@@ -31,11 +31,23 @@ import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contri
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { contrastBorder, editorFindMatch, editorFindMatchBorder, editorFindMatchHighlight, editorFindMatchHighlightBorder, editorFindRangeHighlight, editorFindRangeHighlightBorder, editorWidgetBackground, editorWidgetBorder, editorWidgetResizeBorder, errorForeground, inputActiveOptionBorder, inputActiveOptionBackground, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationWarningForeground, widgetShadow, editorWidgetForeground, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
+
+const findSelectionIcon = registerIcon('find-selection', Codicon.selection);
+const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight);
+const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown);
+
+export const findCloseIcon = registerIcon('find-close', Codicon.close);
+export const findReplaceIcon = registerIcon('find-replace', Codicon.replace);
+export const findReplaceAllIcon = registerIcon('find-replace-all', Codicon.replaceAll);
+export const findPreviousMatchIcon = registerIcon('find-previous-match', Codicon.arrowUp);
+export const findNextMatchIcon = registerIcon('find-next-match', Codicon.arrowDown);
 
 export interface IFindController {
 	replace(): void;
@@ -56,7 +68,7 @@ const NLS_REPLACE_ALL_BTN_LABEL = nls.localize('label.replaceAllButton', "Replac
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace mode");
 const NLS_MATCHES_COUNT_LIMIT_TITLE = nls.localize('title.matchesCountLimit', "Only the first {0} results are highlighted, but all find operations work on the entire text.", MATCHES_LIMIT);
 const NLS_MATCHES_LOCATION = nls.localize('label.matchesLocation', "{0} of {1}");
-const NLS_NO_RESULTS = nls.localize('label.noResults', "No Results");
+const NLS_NO_RESULTS = nls.localize('label.noResults', "No results");
 
 const FIND_WIDGET_INITIAL_WIDTH = 419;
 const PART_WIDTH = 275;
@@ -152,6 +164,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		themeService: IThemeService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
+		storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -163,6 +176,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._storageService = storageService;
 		this._notificationService = notificationService;
 
+		storageKeysSyncRegistryService.registerStorageKey({ key: ctrlEnterReplaceAllWarningPromptedKey, version: 1 });
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
 
 		this._isVisible = false;
@@ -244,8 +258,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 			this._viewZone = new FindWidgetViewZone(0); // Put it before the first line then users can scroll beyond the first line.
 		}
 
-		this._applyTheme(themeService.getTheme());
-		this._register(themeService.onThemeChange(this._applyTheme.bind(this)));
+		this._applyTheme(themeService.getColorTheme());
+		this._register(themeService.onDidColorThemeChange(this._applyTheme.bind(this)));
 
 		this._register(this._codeEditor.onDidChangeModel(() => {
 			if (!this._isVisible) {
@@ -360,6 +374,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (e.updateHistory) {
 			this._delayedUpdateHistory();
 		}
+		if (e.loop) {
+			this._updateButtons();
+		}
 	}
 
 	private _delayedUpdateHistory() {
@@ -405,7 +422,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		this._matchesCount.appendChild(document.createTextNode(label));
 
-		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString), true);
+		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
@@ -415,11 +432,20 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (label === NLS_NO_RESULTS) {
 			return searchString === ''
 				? nls.localize('ariaSearchNoResultEmpty', "{0} found", label)
-				: nls.localize('ariaSearchNoResult', "{0} found for {1}", label, searchString);
+				: nls.localize('ariaSearchNoResult', "{0} found for '{1}'", label, searchString);
 		}
-		return currentMatch
-			? nls.localize('ariaSearchNoResultWithLineNum', "{0} found for {1} at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn)
-			: nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for {1}", label, searchString);
+		if (currentMatch) {
+			const ariaLabel = nls.localize('ariaSearchNoResultWithLineNum', "{0} found for '{1}', at {2}", label, searchString, currentMatch.startLineNumber + ':' + currentMatch.startColumn);
+			const model = this._codeEditor.getModel();
+			if (model && (currentMatch.startLineNumber <= model.getLineCount()) && (currentMatch.startLineNumber >= 1)) {
+				const lineContent = model.getLineContent(currentMatch.startLineNumber);
+				return `${lineContent}, ${ariaLabel}`;
+			}
+
+			return ariaLabel;
+		}
+
+		return nls.localize('ariaSearchNoResultWithLineNumNoCurrentMatch', "{0} found for '{1}'", label, searchString);
 	}
 
 	/**
@@ -446,14 +472,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		let findInputIsNonEmpty = (this._state.searchString.length > 0);
 		let matchesCount = this._state.matchesCount ? true : false;
-		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
-		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
+		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
+		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateForward());
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
 		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-right', !this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-down', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
 		let canReplace = !this._codeEditor.getOption(EditorOption.readOnly);
@@ -603,7 +627,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 				return;
 			} else {
-				const scrollAdjustment = this._getHeight();
+				let scrollAdjustment = this._getHeight();
+
+				// if the editor has top padding, factor that into the zone height
+				scrollAdjustment -= this._codeEditor.getOption(EditorOption.padding).top;
+				if (scrollAdjustment <= 0) {
+					return;
+				}
+
 				viewZone.heightInPx = scrollAdjustment;
 				this._viewZoneId = accessor.addZone(viewZone);
 
@@ -627,7 +658,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		});
 	}
 
-	private _applyTheme(theme: ITheme) {
+	private _applyTheme(theme: IColorTheme) {
 		let inputStyles: IFindInputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
 			inputActiveOptionBackground: theme.getColor(inputActiveOptionBackground),
@@ -670,7 +701,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 
 		const editorWidth = layoutInfo.width;
-		const minimapWidth = layoutInfo.minimapWidth;
+		const minimapWidth = layoutInfo.minimap.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -908,7 +939,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return null;
 				}
 				try {
-					new RegExp(value);
+					// use `g` and `u` which are also used by the TextModel search
+					new RegExp(value, 'gu');
 					return null;
 				} catch (e) {
 					return { content: e.message };
@@ -967,7 +999,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
-			className: 'codicon codicon-arrow-up',
+			className: findPreviousMatchIcon.classNames,
 			onTrigger: () => {
 				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
 			}
@@ -976,7 +1008,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Next button
 		this._nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
-			className: 'codicon codicon-arrow-down',
+			className: findNextMatchIcon.classNames,
 			onTrigger: () => {
 				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
 			}
@@ -994,7 +1026,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new Checkbox({
-			actionClassName: 'codicon codicon-selection',
+			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false
 		}));
@@ -1020,7 +1052,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Close button
 		this._closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
-			className: 'codicon codicon-close',
+			className: findCloseIcon.classNames,
 			onTrigger: () => {
 				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
@@ -1083,7 +1115,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceOneAction),
-			className: 'codicon codicon-replace',
+			className: findReplaceIcon.classNames,
 			onTrigger: () => {
 				this._controller.replace();
 			},
@@ -1098,7 +1130,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceAllAction),
-			className: 'codicon codicon-replace-all',
+			className: findReplaceAllIcon.classNames,
 			onTrigger: () => {
 				this._controller.replaceAll();
 			}
@@ -1128,8 +1160,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._showViewZone();
 			}
 		}));
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-down', this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-right', !this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
 		// Widget
@@ -1188,7 +1218,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				// 1. never resized before, double click should maximizes it
 				// 2. users resized it already but its width is the same as default
 				const layoutInfo = this._codeEditor.getLayoutInfo();
-				width = layoutInfo.width - 28 - layoutInfo.minimapWidth - 15;
+				width = layoutInfo.width - 28 - layoutInfo.minimap.minimapWidth - 15;
 				this._resized = true;
 			} else {
 				/**
@@ -1272,10 +1302,13 @@ export class SimpleButton extends Widget {
 
 	public setExpanded(expanded: boolean): void {
 		this._domNode.setAttribute('aria-expanded', String(!!expanded));
-	}
-
-	public toggleClass(className: string, shouldHaveIt: boolean): void {
-		dom.toggleClass(this._domNode, className, shouldHaveIt);
+		if (expanded) {
+			dom.removeClasses(this._domNode, findCollapsedIcon.classNames);
+			dom.addClasses(this._domNode, findExpandedIcon.classNames);
+		} else {
+			dom.removeClasses(this._domNode, findExpandedIcon.classNames);
+			dom.addClasses(this._domNode, findCollapsedIcon.classNames);
+		}
 	}
 }
 

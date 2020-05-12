@@ -17,7 +17,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId, ColorId } from 'vs/editor/common/modes';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -26,10 +26,13 @@ import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMH
 import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/services/textMate/common/textMateService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition } from 'vs/workbench/services/themes/common/colorThemeData';
-import { TokenStylingRule, TokenStyleData } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
+import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import type { IEditorSemanticHighlightingOptions } from 'vs/editor/common/config/editorOptions';
+
+export interface IEditorSemanticHighlightingOptions {
+	enabled?: boolean;
+}
 
 class InspectEditorTokensController extends Disposable implements IEditorContribution {
 
@@ -190,12 +193,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private readonly _editor: IActiveCodeEditor;
 	private readonly _modeService: IModeService;
 	private readonly _themeService: IWorkbenchThemeService;
+	private readonly _textMateService: ITextMateService;
 	private readonly _notificationService: INotificationService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _model: ITextModel;
 	private readonly _domNode: HTMLElement;
-	private readonly _grammar: Promise<IGrammar | null>;
-	private readonly _semanticTokens: Promise<SemanticTokensResult | null>;
 	private readonly _currentRequestCancellationTokenSource: CancellationTokenSource;
 
 	constructor(
@@ -211,16 +213,17 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		this._editor = editor;
 		this._modeService = modeService;
 		this._themeService = themeService;
+		this._textMateService = textMateService;
 		this._notificationService = notificationService;
 		this._configurationService = configurationService;
 		this._model = this._editor.getModel();
 		this._domNode = document.createElement('div');
 		this._domNode.className = 'token-inspect-widget';
 		this._currentRequestCancellationTokenSource = new CancellationTokenSource();
-		this._grammar = textMateService.createGrammar(this._model.getLanguageIdentifier().language);
-		this._semanticTokens = this._computeSemanticTokens();
 		this._beginCompute(this._editor.getPosition());
 		this._register(this._editor.onDidChangeCursorPosition((e) => this._beginCompute(this._editor.getPosition())));
+		this._register(themeService.onDidColorThemeChange(_ => this._beginCompute(this._editor.getPosition())));
+		this._register(configurationService.onDidChangeConfiguration(e => e.affectsConfiguration('editor.semanticHighlighting.enabled') && this._beginCompute(this._editor.getPosition())));
 		this._editor.addContentWidget(this);
 	}
 
@@ -236,15 +239,19 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _beginCompute(position: Position): void {
+		const grammar = this._textMateService.createGrammar(this._model.getLanguageIdentifier().language);
+		const semanticTokens = this._computeSemanticTokens(position);
+
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
 
-		Promise.all([this._grammar, this._semanticTokens]).then(([grammar, semanticTokens]) => {
+		Promise.all([grammar, semanticTokens]).then(([grammar, semanticTokens]) => {
 			if (this._isDisposed) {
 				return;
 			}
 			let text = this._compute(grammar, semanticTokens, position);
 			this._domNode.innerHTML = text;
+			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);
 		}, (err) => {
 			this._notificationService.warn(err);
@@ -257,6 +264,9 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _isSemanticColoringEnabled() {
+		if (!this._themeService.getColorTheme().semanticHighlighting) {
+			return false;
+		}
 		const options = this._configurationService.getValue<IEditorSemanticHighlightingOptions>('editor.semanticHighlighting', { overrideIdentifier: this._model.getLanguageIdentifier().language, resource: this._model.uri });
 		return options && options.enabled;
 	}
@@ -284,10 +294,6 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		result += `<tr><td class="tiw-metadata-key">language</td><td class="tiw-metadata-value">${escape(tmMetadata?.languageIdentifier.language || '')}</td></tr>`;
 		result += `<tr><td class="tiw-metadata-key">standard token type</td><td class="tiw-metadata-value">${this._tokenTypeToString(tmMetadata?.tokenType || StandardTokenType.Other)}</td></tr>`;
 
-		result += `</tbody></table>`;
-
-		result += `<hr class="tiw-metadata-separator"/>`;
-		result += `<table class="tiw-metadata-table"><tbody>`;
 		result += this._formatMetadata(semMetadata, tmMetadata);
 		result += `</tbody></table>`;
 
@@ -302,9 +308,9 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline'];
 				const propertiesByDefValue: { [rule: string]: string[] } = {};
 				const allDefValues = []; // remember the order
-				// first collect to detect when the same rule is used fro multiple properties
+				// first collect to detect when the same rule is used for multiple properties
 				for (let property of properties) {
-					if (semanticTokenInfo.metadata[property]) {
+					if (semanticTokenInfo.metadata[property] !== undefined) {
 						const definition = semanticTokenInfo.definitions[property];
 						const defValue = this._renderTokenStyleDefinition(definition, property);
 						let properties = propertiesByDefValue[defValue];
@@ -471,7 +477,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return token && token.data;
 	}
 
-	private async _computeSemanticTokens(): Promise<SemanticTokensResult | null> {
+	private async _computeSemanticTokens(position: Position): Promise<SemanticTokensResult | null> {
 		if (!this._isSemanticColoringEnabled()) {
 			return null;
 		}
@@ -484,11 +490,22 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				return { tokens, legend: provider.getLegend() };
 			}
 		}
+		const rangeTokenProviders = DocumentRangeSemanticTokensProviderRegistry.ordered(this._model);
+		if (rangeTokenProviders.length) {
+			const provider = rangeTokenProviders[0];
+			const lineNumber = position.lineNumber;
+			const range = new Range(lineNumber, 1, lineNumber, this._model.getLineMaxColumn(lineNumber));
+			const tokens = await Promise.resolve(provider.provideDocumentRangeSemanticTokens(this._model, range, this._currentRequestCancellationTokenSource.token));
+			if (this.isSemanticTokens(tokens)) {
+				return { tokens, legend: provider.getLegend() };
+			}
+		}
 		return null;
 	}
 
 	private _getSemanticTokenAtPosition(semanticTokens: SemanticTokensResult, pos: Position): ISemanticTokenInfo | null {
 		const tokenData = semanticTokens.tokens.data;
+		const defaultLanguage = this._model.getLanguageIdentifier().language;
 		let lastLine = 0;
 		let lastCharacter = 0;
 		const posLine = pos.lineNumber - 1, posCharacter = pos.column - 1; // to 0-based position
@@ -497,13 +514,23 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const line = lastLine + lineDelta; // 0-based
 			const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta; // 0-based
 			if (posLine === line && character <= posCharacter && posCharacter < character + len) {
-				const type = semanticTokens.legend.tokenTypes[typeIdx];
-				const modifiers = semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k);
+				const type = semanticTokens.legend.tokenTypes[typeIdx] || 'not in legend (ignored)';
+				const modifiers = [];
+				let modifierSet = modSet;
+				for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < semanticTokens.legend.tokenModifiers.length; modifierIndex++) {
+					if (modifierSet & 1) {
+						modifiers.push(semanticTokens.legend.tokenModifiers[modifierIndex]);
+					}
+					modifierSet = modifierSet >> 1;
+				}
+				if (modifierSet > 0) {
+					modifiers.push('not in legend (ignored)');
+				}
 				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
 				const definitions = {};
 				const colorMap = this._themeService.getColorTheme().tokenColorMap;
-				const theme = this._themeService.getTheme() as ColorThemeData;
-				const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, true, definitions);
+				const theme = this._themeService.getColorTheme() as ColorThemeData;
+				const tokenStyle = theme.getTokenStyleMetadata(type, modifiers, defaultLanguage, true, definitions);
 
 				let metadata: IDecodedMetadata | undefined = undefined;
 				if (tokenStyle) {
@@ -529,35 +556,35 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		if (definition === undefined) {
 			return '';
 		}
-		const theme = this._themeService.getTheme() as ColorThemeData;
+		const theme = this._themeService.getColorTheme() as ColorThemeData;
 
-		const isTokenStylingRule = (d: any): d is TokenStylingRule => !!d.value;
 		if (Array.isArray(definition)) {
-			for (const d of definition) {
-				const matchingRule = findMatchingThemeRule(theme, d, false);
-				if (matchingRule) {
-					return `${escape(d.join(' '))}<br><code class="tiw-theme-selector">${matchingRule.rawSelector}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
-				}
+			const scopesDefinition: TextMateThemingRuleDefinitions = {};
+			theme.resolveScopes(definition, scopesDefinition);
+			const matchingRule = scopesDefinition[property];
+			if (matchingRule && scopesDefinition.scope) {
+				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope.join(', ') : String(matchingRule.scope);
+				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${strScopes}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return '';
-		} else if (isTokenStylingRule(definition)) {
+		} else if (SemanticTokenRule.is(definition)) {
 			const scope = theme.getTokenStylingRuleScope(definition);
 			if (scope === 'setting') {
-				return `User settings`; // todo: print selector and style once selector is a string
+				return `User settings: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`;
 			} else if (scope === 'theme') {
-				return `Color theme`; // todo: print selector and style once selector is a string
-			}
-			return '';
-		} else if (typeof definition === 'string') {
-			const [type, ...modifiers] = definition.split('.');
-			const definitions: TokenStyleDefinitions = {};
-			const m = theme.getTokenStyleMetadata(type, modifiers, true, definitions);
-			if (m && definitions.foreground) {
-				return this._renderTokenStyleDefinition(definitions[property], property);
+				return `Color theme: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`;
 			}
 			return '';
 		} else {
-			return String(definition[property]);
+			const style = theme.resolveTokenStyleValue(definition);
+			return `Default: ${style ? this._renderStyleProperty(style, property) : ''}`;
+		}
+	}
+
+	private _renderStyleProperty(style: TokenStyle, property: keyof TokenStyleData) {
+		switch (property) {
+			case 'foreground': return style.foreground ? Color.Format.CSS.formatHexA(style.foreground, true) : '';
+			default: return style[property] !== undefined ? String(style[property]) : '';
 		}
 	}
 

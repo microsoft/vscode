@@ -42,7 +42,9 @@ const canUseFastRenderedViewLine = (function () {
 	return true;
 })();
 
-const alwaysRenderInlineSelection = (browser.isEdgeOrIE);
+let monospaceAssumptionsAreValid = true;
+
+const alwaysRenderInlineSelection = (browser.isEdge);
 
 export class DomReadingContext {
 
@@ -74,6 +76,7 @@ export class ViewLineOptions {
 	public readonly renderControlCharacters: boolean;
 	public readonly spaceWidth: number;
 	public readonly middotWidth: number;
+	public readonly wsmiddotWidth: number;
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly canUseHalfwidthRightwardsArrow: boolean;
 	public readonly lineHeight: number;
@@ -88,6 +91,7 @@ export class ViewLineOptions {
 		this.renderControlCharacters = options.get(EditorOption.renderControlCharacters);
 		this.spaceWidth = fontInfo.spaceWidth;
 		this.middotWidth = fontInfo.middotWidth;
+		this.wsmiddotWidth = fontInfo.wsmiddotWidth;
 		this.useMonospaceOptimizations = (
 			fontInfo.isMonospace
 			&& !options.get(EditorOption.disableMonospaceOptimizations)
@@ -105,6 +109,7 @@ export class ViewLineOptions {
 			&& this.renderControlCharacters === other.renderControlCharacters
 			&& this.spaceWidth === other.spaceWidth
 			&& this.middotWidth === other.middotWidth
+			&& this.wsmiddotWidth === other.wsmiddotWidth
 			&& this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.canUseHalfwidthRightwardsArrow === other.canUseHalfwidthRightwardsArrow
 			&& this.lineHeight === other.lineHeight
@@ -192,7 +197,7 @@ export class ViewLine implements IVisibleLine {
 				const endColumn = (selection.endLineNumber === lineNumber ? selection.endColumn : lineData.maxColumn);
 
 				if (startColumn < endColumn) {
-					if (this._options.renderWhitespace !== 'selection') {
+					if (options.themeType === HIGH_CONTRAST || this._options.renderWhitespace !== 'selection') {
 						actualInlineDecorations.push(new LineDecoration(startColumn, endColumn, 'inline-selected-text', InlineDecorationType.Regular));
 					} else {
 						if (!selectionsOnLine) {
@@ -219,6 +224,7 @@ export class ViewLine implements IVisibleLine {
 			lineData.startVisibleColumn,
 			options.spaceWidth,
 			options.middotWidth,
+			options.wsmiddotWidth,
 			options.stopRenderingLineAfter,
 			options.renderWhitespace,
 			options.renderControlCharacters,
@@ -244,7 +250,7 @@ export class ViewLine implements IVisibleLine {
 		sb.appendASCIIString('</div>');
 
 		let renderedViewLine: IRenderedViewLine | null = null;
-		if (canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
+		if (monospaceAssumptionsAreValid && canUseFastRenderedViewLine && lineData.isBasicASCII && options.useMonospaceOptimizations && output.containsForeignElements === ForeignElementType.None) {
 			if (lineData.content.length < 300 && renderLineInput.lineTokens.getCount() < 100) {
 				// Browser rounding errors have been observed in Chrome and IE, so using the fast
 				// view line only for short lines. Please test before removing the length check...
@@ -298,6 +304,29 @@ export class ViewLine implements IVisibleLine {
 			return true;
 		}
 		return this._renderedViewLine.getWidthIsFast();
+	}
+
+	public needsMonospaceFontCheck(): boolean {
+		if (!this._renderedViewLine) {
+			return false;
+		}
+		return (this._renderedViewLine instanceof FastRenderedViewLine);
+	}
+
+	public monospaceAssumptionsAreValid(): boolean {
+		if (!this._renderedViewLine) {
+			return monospaceAssumptionsAreValid;
+		}
+		if (this._renderedViewLine instanceof FastRenderedViewLine) {
+			return this._renderedViewLine.monospaceAssumptionsAreValid();
+		}
+		return monospaceAssumptionsAreValid;
+	}
+
+	public onMonospaceAssumptionsInvalidated(): void {
+		if (this._renderedViewLine && this._renderedViewLine instanceof FastRenderedViewLine) {
+			this._renderedViewLine = this._renderedViewLine.toSlowRenderedLine();
+		}
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): VisibleRanges | null {
@@ -376,6 +405,24 @@ class FastRenderedViewLine implements IRenderedViewLine {
 
 	public getWidthIsFast(): boolean {
 		return true;
+	}
+
+	public monospaceAssumptionsAreValid(): boolean {
+		if (!this.domNode) {
+			return monospaceAssumptionsAreValid;
+		}
+		const expectedWidth = this.getWidth();
+		const actualWidth = (<HTMLSpanElement>this.domNode.domNode.firstChild).offsetWidth;
+		if (Math.abs(expectedWidth - actualWidth) >= 2) {
+			// more than 2px off
+			console.warn(`monospace assumptions have been violated, therefore disabling monospace optimizations!`);
+			monospaceAssumptionsAreValid = false;
+		}
+		return monospaceAssumptionsAreValid;
+	}
+
+	public toSlowRenderedLine(): RenderedViewLine {
+		return createRenderedLine(this.domNode, this.input, this._characterMapping, false, ForeignElementType.None);
 	}
 
 	public getVisibleRangesForRange(startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {
@@ -569,7 +616,15 @@ class RenderedViewLine implements IRenderedViewLine {
 		if (!r || r.length === 0) {
 			return -1;
 		}
-		return r[0].left;
+		const result = r[0].left;
+		if (this.input.isBasicASCII) {
+			const charOffset = this._characterMapping.getAbsoluteOffsets();
+			const expectedResult = Math.round(this.input.spaceWidth * charOffset[column - 1]);
+			if (Math.abs(expectedResult - result) <= 1) {
+				return expectedResult;
+			}
+		}
+		return result;
 	}
 
 	private _readRawVisibleRangesForRange(domNode: FastDomNode<HTMLElement>, startColumn: number, endColumn: number, context: DomReadingContext): HorizontalRange[] | null {

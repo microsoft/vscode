@@ -168,6 +168,8 @@ class RenameController implements IEditorContribution {
 		if (this._cts.token.isCancellationRequested) {
 			return undefined;
 		}
+		this._cts.dispose();
+		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range);
 
 		// do rename at location
 		let selection = this.editor.getSelection();
@@ -180,7 +182,7 @@ class RenameController implements IEditorContribution {
 		}
 
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.getValue().getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview);
+		const inputFieldResult = await this._renameInputField.value.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, this._cts.token);
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
@@ -206,7 +208,8 @@ class RenameController implements IEditorContribution {
 			this._bulkEditService.apply(renameResult, {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
-				label: nls.localize('label', "Renaming '{0}'", loc?.text)
+				label: nls.localize('label', "Renaming '{0}'", loc?.text),
+				quotableLabel: nls.localize('quotableLabel', "Renaming {0}", loc?.text),
 			}).then(result => {
 				if (result.ariaSummary) {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));
@@ -227,11 +230,11 @@ class RenameController implements IEditorContribution {
 	}
 
 	acceptRenameInput(wantsPreview: boolean): void {
-		this._renameInputField.getValue().acceptInput(wantsPreview);
+		this._renameInputField.value.acceptInput(wantsPreview);
 	}
 
 	cancelRenameInput(): void {
-		this._renameInputField.getValue().cancelInput(true);
+		this._renameInputField.value.cancelInput(true);
 	}
 }
 

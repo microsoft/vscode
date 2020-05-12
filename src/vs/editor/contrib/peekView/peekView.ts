@@ -17,7 +17,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IOptions, IStyles, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
 import * as nls from 'vs/nls';
-import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -25,6 +25,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { registerColor, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { Codicon } from 'vs/base/common/codicons';
 
 
 export const IPeekViewService = createDecorator<IPeekViewService>('IPeekViewService');
@@ -57,7 +58,7 @@ registerSingleton(IPeekViewService, class implements IPeekViewService {
 
 export namespace PeekContext {
 	export const inPeekEditor = new RawContextKey<boolean>('inReferenceSearchEditor', true);
-	export const notInPeekEditor: ContextKeyExpr = inPeekEditor.toNegated();
+	export const notInPeekEditor = inPeekEditor.toNegated();
 }
 
 class PeekContextController implements IEditorContribution {
@@ -186,7 +187,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 		this._actionbarWidget = new ActionBar(actionsContainer, actionBarOptions);
 		this._disposables.add(this._actionbarWidget);
 
-		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), 'codicon-close', true, () => {
+		this._actionbarWidget.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => {
 			this.dispose();
 			return Promise.resolve();
 		}), { label: false, icon: true });

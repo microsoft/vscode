@@ -7,6 +7,7 @@ import { getLocation, parse, visit } from 'jsonc-parser';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { SettingsDocument } from './settingsDocumentHelper';
+import { provideInstalledExtensionProposals } from './extensionsProposals';
 const localize = nls.loadMessageBundle();
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -80,7 +81,7 @@ function registerExtensionsCompletionsInExtensionsDocument(): vscode.Disposable 
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'recommendations') {
 				const extensionsContent = <IExtensionsContent>parse(document.getText());
-				return provideInstalledExtensionProposals(extensionsContent, range);
+				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], range, false);
 			}
 			return [];
 		}
@@ -94,39 +95,11 @@ function registerExtensionsCompletionsInWorkspaceConfigurationDocument(): vscode
 			const range = document.getWordRangeAtPosition(position) || new vscode.Range(position, position);
 			if (location.path[0] === 'extensions' && location.path[1] === 'recommendations') {
 				const extensionsContent = <IExtensionsContent>parse(document.getText())['extensions'];
-				return provideInstalledExtensionProposals(extensionsContent, range);
+				return provideInstalledExtensionProposals(extensionsContent && extensionsContent.recommendations || [], range, false);
 			}
 			return [];
 		}
 	});
-}
-
-function provideInstalledExtensionProposals(extensionsContent: IExtensionsContent, range: vscode.Range): vscode.ProviderResult<vscode.CompletionItem[] | vscode.CompletionList> {
-	const alreadyEnteredExtensions = extensionsContent && extensionsContent.recommendations || [];
-	if (Array.isArray(alreadyEnteredExtensions)) {
-		const knownExtensionProposals = vscode.extensions.all.filter(e =>
-			!(e.id.startsWith('vscode.')
-				|| e.id === 'Microsoft.vscode-markdown'
-				|| alreadyEnteredExtensions.indexOf(e.id) > -1));
-		if (knownExtensionProposals.length) {
-			return knownExtensionProposals.map(e => {
-				const item = new vscode.CompletionItem(e.id);
-				const insertText = `"${e.id}"`;
-				item.kind = vscode.CompletionItemKind.Value;
-				item.insertText = insertText;
-				item.range = range;
-				item.filterText = insertText;
-				return item;
-			});
-		} else {
-			const example = new vscode.CompletionItem(localize('exampleExtension', "Example"));
-			example.insertText = '"vscode.csharp"';
-			example.kind = vscode.CompletionItemKind.Value;
-			example.range = range;
-			return [example];
-		}
-	}
-	return undefined;
 }
 
 vscode.languages.registerDocumentSymbolProvider({ pattern: '**/launch.json', language: 'jsonc' }, {

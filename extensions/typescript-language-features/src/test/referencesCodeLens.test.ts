@@ -91,6 +91,19 @@ suite('TypeScript References', () => {
 		const codeLenses = await getCodeLenses(testDocumentUri);
 		assert.strictEqual(codeLenses?.length, 0);
 	});
+
+	test('Should not show duplicate references on ES5 class (https://github.com/microsoft/vscode/issues/90396)', async () => {
+		const testDocumentUri = vscode.Uri.parse('untitled:test3.js');
+		await createTestEditor(testDocumentUri,
+			`function A() {`,
+			`    console.log("hi");`,
+			`}`,
+			`A.x = {};`,
+		);
+
+		const codeLenses = await getCodeLenses(testDocumentUri);
+		assert.strictEqual(codeLenses?.length, 1);
+	});
 });
 
 function getCodeLenses(document: vscode.Uri): Thenable<readonly vscode.CodeLens[] | undefined> {

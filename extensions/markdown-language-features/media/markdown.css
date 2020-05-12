@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 html, body {
-	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-family: var(--vscode-markdown-font-family, system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
 	font-size: var(--vscode-markdown-font-size, 14px);
 	padding: 0 26px;
 	line-height: var(--vscode-markdown-line-height, 22px);
@@ -157,7 +157,7 @@ blockquote {
 }
 
 code {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--vscode-editor-font-family, Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback");
 	font-size: 1em;
 	line-height: 1.357em;
 }

@@ -6,30 +6,28 @@
 import 'vs/css!./media/paneviewlet';
 import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
-import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener } from 'vs/base/browser/dom';
-import { IDisposable, combinedDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { ColorIdentifier, activeContrastBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { attachStyler, IColorMapping, attachButtonStyler, attachLinkStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_SECTION_HEADER_FOREGROUND, SIDE_BAR_SECTION_HEADER_BACKGROUND, SIDE_BAR_SECTION_HEADER_BORDER, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
+import { append, $, trackFocus, toggleClass, EventType, isAncestor, Dimension, addDisposableListener, removeClass, addClass, createCSSRule, asCSSUrl, addClasses } from 'vs/base/browser/dom';
+import { IDisposable, combinedDisposable, dispose, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { firstIndex } from 'vs/base/common/arrays';
-import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
-import { IActionViewItem, ActionsOrientation, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IAction } from 'vs/base/common/actions';
+import { IActionViewItem, ActionsOrientation, Separator, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { prepareActions } from 'vs/workbench/browser/actions';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PaneView, IPaneViewOptions, IPaneOptions, Pane, DefaultPaneDndController } from 'vs/base/browser/ui/splitview/paneview';
+import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
+import { PaneView, IPaneViewOptions, IPaneOptions, Pane, IPaneStyles } from 'vs/base/browser/ui/splitview/paneview';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewContainersRegistry, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IViewDescriptor, ViewContainer, IViewDescriptorService, ViewContainerLocation, IViewPaneContainer, IViewsRegistry, IViewContentDescriptor, IAddedViewDescriptorRef, IViewDescriptorRef, IViewContainerModel } from 'vs/workbench/common/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { assertIsDefined } from 'vs/base/common/types';
-import { PersistentContributableViewsModel, IAddedViewDescriptorRef, IViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
+import { assertIsDefined, isString } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -38,20 +36,121 @@ import { Component } from 'vs/workbench/common/component';
 import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { parseLinkedText } from 'vs/base/common/linkedText';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { Link } from 'vs/platform/opener/browser/link';
+import { CompositeDragAndDropObserver, DragAndDropObserver } from 'vs/workbench/browser/dnd';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { CompositeProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
+import { IProgressIndicator } from 'vs/platform/progress/common/progress';
+import { RunOnceScheduler } from 'vs/base/common/async';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollbarVisibility } from 'vs/base/common/scrollable';
+import { URI } from 'vs/base/common/uri';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
 	headerForeground?: ColorIdentifier;
 	headerBackground?: ColorIdentifier;
 	headerBorder?: ColorIdentifier;
+	leftBorder?: ColorIdentifier;
 }
 
 export interface IViewPaneOptions extends IPaneOptions {
-	actionRunner?: IActionRunner;
 	id: string;
-	title: string;
 	showActionsAlways?: boolean;
 	titleMenuId?: MenuId;
+}
+
+type WelcomeActionClassification = {
+	viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	uri: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
+
+const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
+
+interface IItem {
+	readonly descriptor: IViewContentDescriptor;
+	visible: boolean;
+}
+
+class ViewWelcomeController {
+
+	private _onDidChange = new Emitter<void>();
+	readonly onDidChange = this._onDidChange.event;
+
+	private defaultItem: IItem | undefined;
+	private items: IItem[] = [];
+	get contents(): IViewContentDescriptor[] {
+		const visibleItems = this.items.filter(v => v.visible);
+
+		if (visibleItems.length === 0 && this.defaultItem) {
+			return [this.defaultItem.descriptor];
+		}
+
+		return visibleItems.map(v => v.descriptor);
+	}
+
+	private contextKeyService: IContextKeyService;
+	private disposables = new DisposableStore();
+
+	constructor(
+		private id: string,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		this.contextKeyService = contextKeyService.createScoped();
+		this.disposables.add(this.contextKeyService);
+
+		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
+		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
+		this.onDidChangeViewWelcomeContent();
+	}
+
+	private onDidChangeViewWelcomeContent(): void {
+		const descriptors = viewsRegistry.getViewWelcomeContent(this.id);
+
+		this.items = [];
+
+		for (const descriptor of descriptors) {
+			if (descriptor.when === 'default') {
+				this.defaultItem = { descriptor, visible: true };
+			} else {
+				const visible = descriptor.when ? this.contextKeyService.contextMatchesRules(descriptor.when) : true;
+				this.items.push({ descriptor, visible });
+			}
+		}
+
+		this._onDidChange.fire();
+	}
+
+	private onDidChangeContext(): void {
+		let didChange = false;
+
+		for (const item of this.items) {
+			if (!item.descriptor.when || item.descriptor.when === 'default') {
+				continue;
+			}
+
+			const visible = this.contextKeyService.contextMatchesRules(item.descriptor.when);
+
+			if (item.visible === visible) {
+				continue;
+			}
+
+			item.visible = visible;
+			didChange = true;
+		}
+
+		if (didChange) {
+			this._onDidChange.fire();
+		}
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
 }
 
 export abstract class ViewPane extends Pane implements IView {
@@ -70,6 +169,9 @@ export abstract class ViewPane extends Pane implements IView {
 	protected _onDidChangeTitleArea = this._register(new Emitter<void>());
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
+	protected _onDidChangeViewWelcomeState = this._register(new Emitter<void>());
+	readonly onDidChangeViewWelcomeState: Event<void> = this._onDidChangeViewWelcomeState.event;
+
 	private focusedViewContextKey: IContextKey<string>;
 
 	private _isVisible: boolean = false;
@@ -77,33 +179,53 @@ export abstract class ViewPane extends Pane implements IView {
 	title: string;
 
 	private readonly menuActions: ViewMenuActions;
+	private progressBar!: ProgressBar;
+	private progressIndicator!: IProgressIndicator;
 
-	protected actionRunner?: IActionRunner;
-	protected toolbar?: ToolBar;
+	private toolbar?: ToolBar;
 	private readonly showActionsAlways: boolean = false;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
+	private iconContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
+
+	private bodyContainer!: HTMLElement;
+	private viewWelcomeContainer!: HTMLElement;
+	private viewWelcomeDisposable: IDisposable = Disposable.None;
+	private viewWelcomeController: ViewWelcomeController;
 
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IViewDescriptorService protected viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IOpenerService protected openerService: IOpenerService,
+		@IThemeService protected themeService: IThemeService,
+		@ITelemetryService protected telemetryService: ITelemetryService,
 	) {
-		super(options);
+		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
 		this.id = options.id;
 		this.title = options.title;
-		this.actionRunner = options.actionRunner;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
 		this.menuActions = this._register(instantiationService.createInstance(ViewMenuActions, this.id, options.titleMenuId || MenuId.ViewTitle, MenuId.ViewTitleContext));
 		this._register(this.menuActions.onDidChangeTitle(() => this.updateActions()));
+
+		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
+	}
+
+	get headerVisible(): boolean {
+		return super.headerVisible;
+	}
+
+	set headerVisible(visible: boolean) {
+		super.headerVisible = visible;
+		toggleClass(this.element, 'merged-header', !visible);
 	}
 
 	setVisible(visible: boolean): void {
@@ -143,7 +265,10 @@ export abstract class ViewPane extends Pane implements IView {
 			this._onDidFocus.fire();
 		}));
 		this._register(focusTracker.onDidBlur(() => {
-			this.focusedViewContextKey.reset();
+			if (this.focusedViewContextKey.get() === this.id) {
+				this.focusedViewContextKey.reset();
+			}
+
 			this._onDidBlur.fire();
 		}));
 	}
@@ -162,11 +287,14 @@ export abstract class ViewPane extends Pane implements IView {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			ariaLabel: nls.localize('viewToolbarAriaLabel', "{0} actions", this.title),
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
-			actionRunner: this.actionRunner
 		});
 
 		this._register(this.toolbar);
 		this.setActions();
+
+		this._register(this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!.onDidChangeContainerInfo(({ title }) => {
+			this.updateTitle(this.title);
+		}));
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
@@ -177,28 +305,135 @@ export abstract class ViewPane extends Pane implements IView {
 		this.twistiesContainer = append(container, $('.twisties.codicon.codicon-chevron-right'));
 	}
 
-	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		this.titleContainer = append(container, $('h3.title', undefined, title));
+	style(styles: IPaneStyles): void {
+		super.style(styles);
+
+		const icon = this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon;
+
+		if (this.iconContainer) {
+			const fgColor = styles.headerForeground || this.themeService.getColorTheme().getColor(foreground);
+			if (URI.isUri(icon)) {
+				// Apply background color to activity bar item provided with iconUrls
+				this.iconContainer.style.backgroundColor = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.color = '';
+			} else {
+				// Apply foreground color to activity bar items provided with codicons
+				this.iconContainer.style.color = fgColor ? fgColor.toString() : '';
+				this.iconContainer.style.backgroundColor = '';
+			}
+		}
 	}
 
-	protected updateTitle(title: string): void {
-		if (this.titleContainer) {
-			this.titleContainer.textContent = title;
+	protected renderHeaderTitle(container: HTMLElement, title: string): void {
+		this.iconContainer = append(container, $('.icon', undefined));
+		const icon = this.viewDescriptorService.getViewDescriptorById(this.id)?.containerIcon;
+
+		let cssClass: string | undefined = undefined;
+		if (URI.isUri(icon)) {
+			cssClass = `view-${this.id.replace(/[\.\:]/g, '-')}`;
+			const iconClass = `.pane-header .icon.${cssClass}`;
+
+			createCSSRule(iconClass, `
+				mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				mask-size: 24px;
+				-webkit-mask: ${asCSSUrl(icon)} no-repeat 50% 50%;
+				-webkit-mask-size: 16px;
+			`);
+		} else if (isString(icon)) {
+			addClass(this.iconContainer, 'codicon');
+			cssClass = icon;
 		}
+
+		if (cssClass) {
+			addClasses(this.iconContainer, cssClass);
+		}
+
+		const calculatedTitle = this.calculateTitle(title);
+		this.titleContainer = append(container, $('h3.title', undefined, calculatedTitle));
+		this.iconContainer.title = calculatedTitle;
+		this.iconContainer.setAttribute('aria-label', calculatedTitle);
+	}
+
+	updateTitle(title: string): void {
+		const calculatedTitle = this.calculateTitle(title);
+		if (this.titleContainer) {
+			this.titleContainer.textContent = calculatedTitle;
+		}
+
+		if (this.iconContainer) {
+			this.iconContainer.title = calculatedTitle;
+			this.iconContainer.setAttribute('aria-label', calculatedTitle);
+		}
+
 		this.title = title;
 		this._onDidChangeTitleArea.fire();
 	}
 
+	private calculateTitle(title: string): string {
+		const viewContainer = this.viewDescriptorService.getViewContainerByViewId(this.id)!;
+		const model = this.viewDescriptorService.getViewContainerModel(viewContainer);
+		const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.id)!;
+		const isDefault = this.viewDescriptorService.getDefaultContainerById(this.id) === viewContainer;
+
+		if (!isDefault && viewDescriptor.containerTitle && model.title !== viewDescriptor.containerTitle) {
+			return `${viewDescriptor.containerTitle}: ${title}`;
+		}
+
+		return title;
+	}
+
+	private scrollableElement!: DomScrollableElement;
+
+	protected renderBody(container: HTMLElement): void {
+		this.bodyContainer = container;
+
+		const viewWelcomeContainer = append(container, $('.welcome-view'));
+		this.viewWelcomeContainer = $('.welcome-view-content', { tabIndex: 0 });
+		this.scrollableElement = this._register(new DomScrollableElement(this.viewWelcomeContainer, {
+			alwaysConsumeMouseWheel: true,
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Visible,
+		}));
+
+		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
+
+		const onViewWelcomeChange = Event.any(this.viewWelcomeController.onDidChange, this.onDidChangeViewWelcomeState);
+		this._register(onViewWelcomeChange(this.updateViewWelcome, this));
+		this.updateViewWelcome();
+	}
+
+	protected layoutBody(height: number, width: number): void {
+		this.viewWelcomeContainer.style.height = `${height}px`;
+		this.viewWelcomeContainer.style.width = `${width}px`;
+		this.scrollableElement.scanDomNode();
+	}
+
+	getProgressIndicator() {
+		if (this.progressBar === undefined) {
+			// Progress bar
+			this.progressBar = this._register(new ProgressBar(this.element));
+			this._register(attachProgressBarStyler(this.progressBar, this.themeService));
+			this.progressBar.hide();
+		}
+
+		if (this.progressIndicator === undefined) {
+			this.progressIndicator = this.instantiationService.createInstance(CompositeProgressIndicator, assertIsDefined(this.progressBar), this.id, this.isBodyVisible());
+		}
+		return this.progressIndicator;
+	}
+
 	protected getProgressLocation(): string {
-		return this.viewDescriptorService.getViewContainer(this.id)!.id;
+		return this.viewDescriptorService.getViewContainerByViewId(this.id)!.id;
 	}
 
 	protected getBackgroundColor(): string {
-		return this.viewDescriptorService.getViewLocation(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND;
+		return this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND;
 	}
 
 	focus(): void {
-		if (this.element) {
+		if (this.shouldShowWelcome()) {
+			this.viewWelcomeContainer.focus();
+		} else if (this.element) {
 			this.element.focus();
 			this._onDidFocus.fire();
 		}
@@ -225,15 +460,15 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	getActions(): IAction[] {
-		return this.menuActions ? this.menuActions.getPrimaryActions() : [];
+		return this.menuActions.getPrimaryActions();
 	}
 
 	getSecondaryActions(): IAction[] {
-		return this.menuActions ? this.menuActions.getSecondaryActions() : [];
+		return this.menuActions.getSecondaryActions();
 	}
 
 	getContextMenuActions(): IAction[] {
-		return this.menuActions ? this.menuActions.getContextMenuActions() : [];
+		return this.menuActions.getContextMenuActions();
 	}
 
 	getActionViewItem(action: IAction): IActionViewItem | undefined {
@@ -254,16 +489,314 @@ export abstract class ViewPane extends Pane implements IView {
 	saveState(): void {
 		// Subclasses to implement for saving state
 	}
+
+	private updateViewWelcome(): void {
+		this.viewWelcomeDisposable.dispose();
+
+		if (!this.shouldShowWelcome()) {
+			removeClass(this.bodyContainer, 'welcome');
+			this.viewWelcomeContainer.innerHTML = '';
+			this.scrollableElement.scanDomNode();
+			return;
+		}
+
+		const contents = this.viewWelcomeController.contents;
+
+		if (contents.length === 0) {
+			removeClass(this.bodyContainer, 'welcome');
+			this.viewWelcomeContainer.innerHTML = '';
+			this.scrollableElement.scanDomNode();
+			return;
+		}
+
+		const disposables = new DisposableStore();
+		addClass(this.bodyContainer, 'welcome');
+		this.viewWelcomeContainer.innerHTML = '';
+
+		let buttonIndex = 0;
+
+		for (const { content, preconditions } of contents) {
+			const lines = content.split('\n');
+
+			for (let line of lines) {
+				line = line.trim();
+
+				if (!line) {
+					continue;
+				}
+
+				const linkedText = parseLinkedText(line);
+
+				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+					const node = linkedText.nodes[0];
+					const button = new Button(this.viewWelcomeContainer, { title: node.title, supportCodicons: true });
+					button.label = node.label;
+					button.onDidClick(_ => {
+						this.telemetryService.publicLog2<{ viewId: string, uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
+						this.openerService.open(node.href);
+					}, null, disposables);
+					disposables.add(button);
+					disposables.add(attachButtonStyler(button, this.themeService));
+
+					if (preconditions) {
+						const precondition = preconditions[buttonIndex];
+
+						if (precondition) {
+							const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+							updateEnablement();
+
+							const keys = new Set();
+							precondition.keys().forEach(key => keys.add(key));
+							const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+							onDidChangeContext(updateEnablement, null, disposables);
+						}
+					}
+
+					buttonIndex++;
+				} else {
+					const p = append(this.viewWelcomeContainer, $('p'));
+
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.instantiationService.createInstance(Link, node);
+							append(p, link.el);
+							disposables.add(link);
+							disposables.add(attachLinkStyler(link, this.themeService));
+						}
+					}
+				}
+			}
+		}
+
+		this.scrollableElement.scanDomNode();
+		this.viewWelcomeDisposable = disposables;
+	}
+
+	shouldShowWelcome(): boolean {
+		return false;
+	}
 }
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
 	mergeViewWithContainerWhenSingleView: boolean;
-	donotShowContainerTitleWhenMergedWithContainer?: boolean;
 }
 
 interface IViewPaneItem {
 	pane: ViewPane;
 	disposable: IDisposable;
+}
+
+const enum DropDirection {
+	UP,
+	DOWN,
+	LEFT,
+	RIGHT
+}
+
+class ViewPaneDropOverlay extends Themable {
+
+	private static readonly OVERLAY_ID = 'monaco-workbench-pane-drop-overlay';
+
+	private container!: HTMLElement;
+	private overlay!: HTMLElement;
+
+	private _currentDropOperation: DropDirection | undefined;
+
+	// private currentDropOperation: IDropOperation | undefined;
+	private _disposed: boolean | undefined;
+
+	private cleanupOverlayScheduler: RunOnceScheduler;
+
+	get currentDropOperation(): DropDirection | undefined {
+		return this._currentDropOperation;
+	}
+
+	constructor(
+		private paneElement: HTMLElement,
+		private orientation: Orientation | undefined,
+		protected themeService: IThemeService
+	) {
+		super(themeService);
+		this.cleanupOverlayScheduler = this._register(new RunOnceScheduler(() => this.dispose(), 300));
+
+		this.create();
+	}
+
+	get disposed(): boolean {
+		return !!this._disposed;
+	}
+
+	private create(): void {
+		// Container
+		this.container = document.createElement('div');
+		this.container.id = ViewPaneDropOverlay.OVERLAY_ID;
+		this.container.style.top = '0px';
+
+		// Parent
+		this.paneElement.appendChild(this.container);
+		addClass(this.paneElement, 'dragged-over');
+		this._register(toDisposable(() => {
+			this.paneElement.removeChild(this.container);
+			removeClass(this.paneElement, 'dragged-over');
+		}));
+
+		// Overlay
+		this.overlay = document.createElement('div');
+		addClass(this.overlay, 'pane-overlay-indicator');
+		this.container.appendChild(this.overlay);
+
+		// Overlay Event Handling
+		this.registerListeners();
+
+		// Styles
+		this.updateStyles();
+	}
+
+	protected updateStyles(): void {
+
+		// Overlay drop background
+		this.overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
+
+		// Overlay contrast border (if any)
+		const activeContrastBorderColor = this.getColor(activeContrastBorder);
+		this.overlay.style.outlineColor = activeContrastBorderColor || '';
+		this.overlay.style.outlineOffset = activeContrastBorderColor ? '-2px' : '';
+		this.overlay.style.outlineStyle = activeContrastBorderColor ? 'dashed' : '';
+		this.overlay.style.outlineWidth = activeContrastBorderColor ? '2px' : '';
+
+		this.overlay.style.borderColor = activeContrastBorderColor || '';
+		this.overlay.style.borderStyle = 'solid' || '';
+		this.overlay.style.borderWidth = '0px';
+	}
+
+	private registerListeners(): void {
+		this._register(new DragAndDropObserver(this.container, {
+			onDragEnter: e => undefined,
+			onDragOver: e => {
+
+				// Position overlay
+				this.positionOverlay(e.offsetX, e.offsetY);
+
+				// Make sure to stop any running cleanup scheduler to remove the overlay
+				if (this.cleanupOverlayScheduler.isScheduled()) {
+					this.cleanupOverlayScheduler.cancel();
+				}
+			},
+
+			onDragLeave: e => this.dispose(),
+			onDragEnd: e => this.dispose(),
+
+			onDrop: e => {
+				// Dispose overlay
+				this.dispose();
+			}
+		}));
+
+		this._register(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
+			// Under some circumstances we have seen reports where the drop overlay is not being
+			// cleaned up and as such the editor area remains under the overlay so that you cannot
+			// type into the editor anymore. This seems related to using VMs and DND via host and
+			// guest OS, though some users also saw it without VMs.
+			// To protect against this issue we always destroy the overlay as soon as we detect a
+			// mouse event over it. The delay is used to guarantee we are not interfering with the
+			// actual DROP event that can also trigger a mouse over event.
+			if (!this.cleanupOverlayScheduler.isScheduled()) {
+				this.cleanupOverlayScheduler.schedule();
+			}
+		}));
+	}
+
+	private positionOverlay(mousePosX: number, mousePosY: number): void {
+		const paneWidth = this.paneElement.clientWidth;
+		const paneHeight = this.paneElement.clientHeight;
+
+		const splitWidthThreshold = paneWidth / 2;
+		const splitHeightThreshold = paneHeight / 2;
+
+		let dropDirection: DropDirection | undefined;
+
+		if (this.orientation === Orientation.VERTICAL) {
+			if (mousePosY < splitHeightThreshold) {
+				dropDirection = DropDirection.UP;
+			} else if (mousePosY >= splitHeightThreshold) {
+				dropDirection = DropDirection.DOWN;
+			}
+		} else if (this.orientation === Orientation.HORIZONTAL) {
+			if (mousePosX < splitWidthThreshold) {
+				dropDirection = DropDirection.LEFT;
+			} else if (mousePosX >= splitWidthThreshold) {
+				dropDirection = DropDirection.RIGHT;
+			}
+		}
+
+		// Draw overlay based on split direction
+		switch (dropDirection) {
+			case DropDirection.UP:
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
+				break;
+			case DropDirection.DOWN:
+				this.doPositionOverlay({ bottom: '0', left: '0', width: '100%', height: '50%' });
+				break;
+			case DropDirection.LEFT:
+				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
+				break;
+			case DropDirection.RIGHT:
+				this.doPositionOverlay({ top: '0', right: '0', width: '50%', height: '100%' });
+				break;
+			default:
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+		}
+
+		if ((this.orientation === Orientation.VERTICAL && paneHeight <= 25) ||
+			(this.orientation === Orientation.HORIZONTAL && paneWidth <= 25)) {
+			this.doUpdateOverlayBorder(dropDirection);
+		} else {
+			this.doUpdateOverlayBorder(undefined);
+		}
+
+		// Make sure the overlay is visible now
+		this.overlay.style.opacity = '1';
+
+		// Enable transition after a timeout to prevent initial animation
+		setTimeout(() => addClass(this.overlay, 'overlay-move-transition'), 0);
+
+		// Remember as current split direction
+		this._currentDropOperation = dropDirection;
+	}
+
+	private doUpdateOverlayBorder(direction: DropDirection | undefined): void {
+		this.overlay.style.borderTopWidth = direction === DropDirection.UP ? '2px' : '0px';
+		this.overlay.style.borderLeftWidth = direction === DropDirection.LEFT ? '2px' : '0px';
+		this.overlay.style.borderBottomWidth = direction === DropDirection.DOWN ? '2px' : '0px';
+		this.overlay.style.borderRightWidth = direction === DropDirection.RIGHT ? '2px' : '0px';
+	}
+
+	private doPositionOverlay(options: { top?: string, bottom?: string, left?: string, right?: string, width: string, height: string }): void {
+
+		// Container
+		this.container.style.height = '100%';
+
+		// Overlay
+		this.overlay.style.top = options.top || '';
+		this.overlay.style.left = options.left || '';
+		this.overlay.style.bottom = options.bottom || '';
+		this.overlay.style.right = options.right || '';
+		this.overlay.style.width = options.width;
+		this.overlay.style.height = options.height;
+	}
+
+
+	contains(element: HTMLElement): boolean {
+		return element === this.container || element === this.overlay;
+	}
+
+	dispose(): void {
+		super.dispose();
+
+		this._disposed = true;
+	}
 }
 
 export class ViewPaneContainer extends Component implements IViewPaneContainer {
@@ -280,11 +813,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private didLayout = false;
 	private dimension: Dimension | undefined;
 
-	protected actionRunner: IActionRunner | undefined;
-
 	private readonly visibleViewsCountFromCache: number | undefined;
 	private readonly visibleViewsStorageId: string;
-	protected readonly viewsModel: PersistentContributableViewsModel;
+	protected readonly viewContainerModel: IViewContainerModel;
 	private viewDisposables: IDisposable[] = [];
 
 	private readonly _onTitleAreaUpdate: Emitter<void> = this._register(new Emitter<void>());
@@ -310,13 +841,16 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return this.paneItems.map(i => i.pane);
 	}
 
-	protected get length(): number {
+	get views(): IView[] {
+		return this.panes;
+	}
+
+	get length(): number {
 		return this.paneItems.length;
 	}
 
 	constructor(
 		id: string,
-		viewPaneContainerStateStorageId: string,
 		private options: IViewPaneContainerOptions,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,
@@ -332,34 +866,93 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		super(id, themeService, storageService);
 
-		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
+		const container = this.viewDescriptorService.getViewContainerById(id);
 		if (!container) {
 			throw new Error('Could not find container');
 		}
 
-		// Use default pane dnd controller if not specified
-		if (!this.options.dnd) {
-			this.options.dnd = new DefaultPaneDndController();
-		}
 
 		this.viewContainer = container;
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
 		this.visibleViewsCountFromCache = this.storageService.getNumber(this.visibleViewsStorageId, StorageScope.WORKSPACE, undefined);
 		this._register(toDisposable(() => this.viewDisposables = dispose(this.viewDisposables)));
-		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewPaneContainerStateStorageId));
+		this.viewContainerModel = this.viewDescriptorService.getViewContainerModel(container);
 	}
 
 	create(parent: HTMLElement): void {
+		const options = this.options as IPaneViewOptions;
+		options.orientation = this.orientation;
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 
+		let overlay: ViewPaneDropOverlay | undefined;
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
+			onDragEnter: (e) => {
+				if (!overlay && this.panes.length === 0) {
+					const dropData = e.dragAndDropData.getData();
+					if (dropData.type === 'view') {
+
+						const oldViewContainer = this.viewDescriptorService.getViewContainerByViewId(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dropData.id);
+
+						if (oldViewContainer !== this.viewContainer && (!viewDescriptor || !viewDescriptor.canMoveView || this.viewContainer.rejectAddedViews)) {
+							return;
+						}
+
+						overlay = new ViewPaneDropOverlay(parent, undefined, this.themeService);
+					}
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
+						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
+						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
+
+						if (!viewsToMove.some(v => !v.canMoveView)) {
+							overlay = new ViewPaneDropOverlay(parent, undefined, this.themeService);
+						}
+					}
+
+				}
+			},
+			onDragLeave: (e) => {
+				overlay?.dispose();
+				overlay = undefined;
+			},
+			onDrop: (e) => {
+				if (overlay) {
+					const dropData = e.dragAndDropData.getData();
+					const viewsToMove: IViewDescriptor[] = [];
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id) {
+						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
+						const allViews = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
+						if (!allViews.some(v => !v.canMoveView)) {
+							viewsToMove.push(...allViews);
+						}
+					} else if (dropData.type === 'view') {
+						const oldViewContainer = this.viewDescriptorService.getViewContainerByViewId(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dropData.id);
+						if (oldViewContainer !== this.viewContainer && viewDescriptor && viewDescriptor.canMoveView) {
+							this.viewDescriptorService.moveViewsToContainer([viewDescriptor], this.viewContainer);
+						}
+					}
+
+					if (viewsToMove.length > 0) {
+						this.viewDescriptorService.moveViewsToContainer(viewsToMove, this.viewContainer);
+					}
+				}
+
+				overlay?.dispose();
+				overlay = undefined;
+			}
+		}));
+
 		this._register(this.onDidSashChange(() => this.saveViewSizes()));
-		this.viewsModel.onDidAdd(added => this.onDidAddViewDescriptors(added));
-		this.viewsModel.onDidRemove(removed => this.onDidRemoveViewDescriptors(removed));
-		const addedViews: IAddedViewDescriptorRef[] = this.viewsModel.visibleViewDescriptors.map((viewDescriptor, index) => {
-			const size = this.viewsModel.getSize(viewDescriptor.id);
-			const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
+		this._register(this.viewContainerModel.onDidAddVisibleViewDescriptors(added => this.onDidAddViewDescriptors(added)));
+		this._register(this.viewContainerModel.onDidRemoveVisibleViewDescriptors(removed => this.onDidRemoveViewDescriptors(removed)));
+		const addedViews: IAddedViewDescriptorRef[] = this.viewContainerModel.visibleViewDescriptors.map((viewDescriptor, index) => {
+			const size = this.viewContainerModel.getSize(viewDescriptor.id);
+			const collapsed = this.viewContainerModel.isCollapsed(viewDescriptor.id);
 			return ({ viewDescriptor, index, size, collapsed });
 		});
 		if (addedViews.length) {
@@ -377,15 +970,17 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	getTitle(): string {
+		const containerTitle = this.viewContainerModel.title;
+
 		if (this.isViewMergedWithContainer()) {
 			const paneItemTitle = this.paneItems[0].pane.title;
-			if (this.options.donotShowContainerTitleWhenMergedWithContainer || this.viewContainer.name === paneItemTitle) {
+			if (containerTitle === paneItemTitle) {
 				return this.paneItems[0].pane.title;
 			}
-			return paneItemTitle ? `${this.viewContainer.name}: ${paneItemTitle}` : this.viewContainer.name;
+			return paneItemTitle ? `${containerTitle}: ${paneItemTitle}` : containerTitle;
 		}
 
-		return this.viewContainer.name;
+		return containerTitle;
 	}
 
 	private showContextMenu(event: StandardMouseEvent): void {
@@ -409,28 +1004,32 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	getContextMenuActions(viewDescriptor?: IViewDescriptor): IAction[] {
 		const result: IAction[] = [];
 
+		let showHide = true;
 		if (!viewDescriptor && this.isViewMergedWithContainer()) {
-			viewDescriptor = this.viewDescriptorService.getViewDescriptor(this.panes[0].id) || undefined;
+			viewDescriptor = this.viewDescriptorService.getViewDescriptorById(this.panes[0].id) || undefined;
+			showHide = false;
 		}
 
 		if (viewDescriptor) {
-			result.push(<IAction>{
-				id: `${viewDescriptor.id}.removeView`,
-				label: nls.localize('hideView', "Hide"),
-				enabled: viewDescriptor.canToggleVisibility,
-				run: () => this.toggleViewVisibility(viewDescriptor!.id)
-			});
+			if (showHide) {
+				result.push(<IAction>{
+					id: `${viewDescriptor.id}.removeView`,
+					label: nls.localize('hideView', "Hide"),
+					enabled: viewDescriptor.canToggleVisibility,
+					run: () => this.toggleViewVisibility(viewDescriptor!.id)
+				});
+			}
 			const view = this.getView(viewDescriptor.id);
 			if (view) {
 				result.push(...view.getContextMenuActions());
 			}
 		}
 
-		const viewToggleActions = this.viewsModel.viewDescriptors.map(viewDescriptor => (<IAction>{
+		const viewToggleActions = this.viewContainerModel.activeViewDescriptors.map(viewDescriptor => (<IAction>{
 			id: `${viewDescriptor.id}.toggleVisibility`,
 			label: viewDescriptor.name,
-			checked: this.viewsModel.isVisible(viewDescriptor.id),
-			enabled: viewDescriptor.canToggleVisibility,
+			checked: this.viewContainerModel.isVisible(viewDescriptor.id),
+			enabled: viewDescriptor.canToggleVisibility && (!this.viewContainerModel.isVisible(viewDescriptor.id) || this.viewContainerModel.visibleViewDescriptors.length > 1),
 			run: () => this.toggleViewVisibility(viewDescriptor.id)
 		}));
 
@@ -480,8 +1079,20 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 
+	private get orientation(): Orientation {
+		if (this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Sidebar) {
+			return Orientation.VERTICAL;
+		} else {
+			return this.layoutService.getPanelPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		}
+	}
+
 	layout(dimension: Dimension): void {
 		if (this.paneview) {
+			if (this.paneview.orientation !== this.orientation) {
+				this.paneview.flipOrientation(dimension.height, dimension.width);
+			}
+
 			this.paneview.layout(dimension.height, dimension.width);
 		}
 
@@ -532,7 +1143,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	protected updateTitleArea(): void {
 		this._onTitleAreaUpdate.fire();
-
 	}
 
 	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
@@ -547,7 +1157,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		// Save size only when the layout has happened
 		if (this.didLayout) {
 			for (const view of this.panes) {
-				this.viewsModel.setSize(view.id, this.getPaneSize(view));
+				this.viewContainerModel.setSize(view.id, this.getPaneSize(view));
 			}
 		}
 	}
@@ -556,10 +1166,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		// Restore sizes only when the layout has happened
 		if (this.didLayout) {
 			let initialSizes;
-			for (let i = 0; i < this.viewsModel.visibleViewDescriptors.length; i++) {
+			for (let i = 0; i < this.viewContainerModel.visibleViewDescriptors.length; i++) {
 				const pane = this.panes[i];
-				const viewDescriptor = this.viewsModel.visibleViewDescriptors[i];
-				const size = this.viewsModel.getSize(viewDescriptor.id);
+				const viewDescriptor = this.viewContainerModel.visibleViewDescriptors[i];
+				const size = this.viewContainerModel.getSize(viewDescriptor.id);
 
 				if (typeof size === 'number') {
 					this.resizePane(pane, size);
@@ -574,9 +1184,13 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	private computeInitialSizes(): Map<string, number> {
 		const sizes: Map<string, number> = new Map<string, number>();
 		if (this.dimension) {
-			const totalWeight = this.viewsModel.visibleViewDescriptors.reduce((totalWeight, { weight }) => totalWeight + (weight || 20), 0);
-			for (const viewDescriptor of this.viewsModel.visibleViewDescriptors) {
-				sizes.set(viewDescriptor.id, this.dimension.height * (viewDescriptor.weight || 20) / totalWeight);
+			const totalWeight = this.viewContainerModel.visibleViewDescriptors.reduce((totalWeight, { weight }) => totalWeight + (weight || 20), 0);
+			for (const viewDescriptor of this.viewContainerModel.visibleViewDescriptors) {
+				if (this.orientation === Orientation.VERTICAL) {
+					sizes.set(viewDescriptor.id, this.dimension.height * (viewDescriptor.weight || 20) / totalWeight);
+				} else {
+					sizes.set(viewDescriptor.id, this.dimension.width * (viewDescriptor.weight || 20) / totalWeight);
+				}
 			}
 		}
 		return sizes;
@@ -600,18 +1214,17 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		});
 	}
 
-	openView(id: string, focus?: boolean): IView {
-		if (focus) {
-			this.focus();
-		}
+	openView(id: string, focus?: boolean): IView | undefined {
 		let view = this.getView(id);
 		if (!view) {
 			this.toggleViewVisibility(id);
 		}
-		view = this.getView(id)!;
-		view.setExpanded(true);
-		if (focus) {
-			view.focus();
+		view = this.getView(id);
+		if (view) {
+			view.setExpanded(true);
+			if (focus) {
+				view.focus();
+			}
 		}
 		return view;
 	}
@@ -624,9 +1237,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				{
 					id: viewDescriptor.id,
 					title: viewDescriptor.name,
-					actionRunner: this.getActionRunner(),
-					expanded: !collapsed,
-					minimumBodySize: this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel ? 0 : 120
+					expanded: !collapsed
 				});
 
 			pane.render();
@@ -637,7 +1248,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			});
 
 			const collapseDisposable = Event.latch(Event.map(pane.onDidChange, () => !pane.isExpanded()))(collapsed => {
-				this.viewsModel.setCollapsed(viewDescriptor.id, collapsed);
+				this.viewContainerModel.setCollapsed(viewDescriptor.id, collapsed);
 			});
 
 			this.viewDisposables.splice(index, 0, combinedDisposable(contextMenuDisposable, collapseDisposable));
@@ -655,14 +1266,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return panes;
 	}
 
-	getActionRunner(): IActionRunner {
-		if (!this.actionRunner) {
-			this.actionRunner = new ActionRunner();
-		}
-
-		return this.actionRunner;
-	}
-
 	private onDidRemoveViewDescriptors(removed: IViewDescriptorRef[]): void {
 		removed = removed.sort((a, b) => b.index - a.index);
 		const panesToRemove: ViewPane[] = [];
@@ -672,17 +1275,19 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			panesToRemove.push(this.panes[index]);
 		}
 		this.removePanes(panesToRemove);
-		dispose(panesToRemove);
 	}
 
 	protected toggleViewVisibility(viewId: string): void {
-		const visible = !this.viewsModel.isVisible(viewId);
-		type ViewsToggleVisibilityClassification = {
-			viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-			visible: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-		};
-		this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
-		this.viewsModel.setVisible(viewId, visible);
+		// Check if view is active
+		if (this.viewContainerModel.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === viewId)) {
+			const visible = !this.viewContainerModel.isVisible(viewId);
+			type ViewsToggleVisibilityClassification = {
+				viewId: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+				visible: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			this.telemetryService.publicLog2<{ viewId: String, visible: boolean }, ViewsToggleVisibilityClassification>('views.toggleVisibility', { viewId, visible });
+			this.viewContainerModel.setVisible(viewId, visible);
+		}
 	}
 
 	private addPane(pane: ViewPane, size: number, index = this.paneItems.length - 1): void {
@@ -692,6 +1297,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.updateTitleArea();
 			}
 		});
+
 		const onDidChangeVisibility = pane.onDidChangeBodyVisibility(() => this._onDidChangeViewVisibility.fire(pane));
 		const onDidChange = pane.onDidChange(() => {
 			if (pane === this.lastFocusedPane && !pane.isExpanded()) {
@@ -704,13 +1310,136 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			headerForeground: SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: SIDE_BAR_SECTION_HEADER_BACKGROUND,
 			headerBorder: SIDE_BAR_SECTION_HEADER_BORDER,
+			leftBorder: PANEL_BORDER,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, pane);
-		const disposable = combinedDisposable(onDidFocus, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
-		const paneItem: IViewPaneItem = { pane: pane, disposable };
+		const disposable = combinedDisposable(pane, onDidFocus, onDidChangeTitleArea, paneStyler, onDidChange, onDidChangeVisibility);
+		const paneItem: IViewPaneItem = { pane, disposable };
 
 		this.paneItems.splice(index, 0, paneItem);
 		assertIsDefined(this.paneview).addPane(pane, size, index);
+
+		let overlay: ViewPaneDropOverlay | undefined;
+
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(pane.draggableElement, () => { return { type: 'view', id: pane.id }; }, {}));
+
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(pane.dropTargetElement, {
+			onDragEnter: (e) => {
+				if (!overlay) {
+					const dropData = e.dragAndDropData.getData();
+					if (dropData.type === 'view' && dropData.id !== pane.id) {
+
+						const oldViewContainer = this.viewDescriptorService.getViewContainerByViewId(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dropData.id);
+
+						if (oldViewContainer !== this.viewContainer && (!viewDescriptor || !viewDescriptor.canMoveView || this.viewContainer.rejectAddedViews)) {
+							return;
+						}
+
+						overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.themeService);
+					}
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id && !this.viewContainer.rejectAddedViews) {
+						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
+						const viewsToMove = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
+
+						if (!viewsToMove.some(v => !v.canMoveView)) {
+							overlay = new ViewPaneDropOverlay(pane.dropTargetElement, this.orientation ?? Orientation.VERTICAL, this.themeService);
+						}
+					}
+				}
+			},
+			onDragLeave: (e) => {
+				overlay?.dispose();
+				overlay = undefined;
+			},
+			onDrop: (e) => {
+				if (overlay) {
+					const dropData = e.dragAndDropData.getData();
+					const viewsToMove: IViewDescriptor[] = [];
+					let anchorView: IViewDescriptor | undefined;
+
+					if (dropData.type === 'composite' && dropData.id !== this.viewContainer.id && !this.viewContainer.rejectAddedViews) {
+						const container = this.viewDescriptorService.getViewContainerById(dropData.id)!;
+						const allViews = this.viewDescriptorService.getViewContainerModel(container).allViewDescriptors;
+
+						if (allViews.length > 0 && !allViews.some(v => !v.canMoveView)) {
+							viewsToMove.push(...allViews);
+							anchorView = allViews[0];
+						}
+					} else if (dropData.type === 'view') {
+						const oldViewContainer = this.viewDescriptorService.getViewContainerByViewId(dropData.id);
+						const viewDescriptor = this.viewDescriptorService.getViewDescriptorById(dropData.id);
+						if (oldViewContainer !== this.viewContainer && viewDescriptor && viewDescriptor.canMoveView && !this.viewContainer.rejectAddedViews) {
+							viewsToMove.push(viewDescriptor);
+						}
+
+						if (viewDescriptor) {
+							anchorView = viewDescriptor;
+						}
+					}
+
+					if (viewsToMove) {
+						this.viewDescriptorService.moveViewsToContainer(viewsToMove, this.viewContainer);
+					}
+
+					if (anchorView) {
+						if (overlay.currentDropOperation === DropDirection.DOWN ||
+							overlay.currentDropOperation === DropDirection.RIGHT) {
+
+							const fromIndex = this.panes.findIndex(p => p.id === anchorView!.id);
+							let toIndex = this.panes.findIndex(p => p.id === pane.id);
+
+							if (fromIndex >= 0 && toIndex >= 0) {
+								if (fromIndex > toIndex) {
+									toIndex++;
+								}
+
+								if (toIndex < this.panes.length && toIndex !== fromIndex) {
+									this.movePane(this.panes[fromIndex], this.panes[toIndex]);
+								}
+							}
+						}
+
+						if (overlay.currentDropOperation === DropDirection.UP ||
+							overlay.currentDropOperation === DropDirection.LEFT) {
+							const fromIndex = this.panes.findIndex(p => p.id === anchorView!.id);
+							let toIndex = this.panes.findIndex(p => p.id === pane.id);
+
+							if (fromIndex >= 0 && toIndex >= 0) {
+								if (fromIndex < toIndex) {
+									toIndex--;
+								}
+
+								if (toIndex >= 0 && toIndex !== fromIndex) {
+									this.movePane(this.panes[fromIndex], this.panes[toIndex]);
+								}
+							}
+						}
+
+						if (viewsToMove.length > 1) {
+							viewsToMove.slice(1).forEach(view => {
+								let toIndex = this.panes.findIndex(p => p.id === anchorView!.id);
+								let fromIndex = this.panes.findIndex(p => p.id === view.id);
+								if (fromIndex >= 0 && toIndex >= 0) {
+									if (fromIndex > toIndex) {
+										toIndex++;
+									}
+
+									if (toIndex < this.panes.length && toIndex !== fromIndex) {
+										this.movePane(this.panes[fromIndex], this.panes[toIndex]);
+										anchorView = view;
+									}
+								}
+							});
+						}
+					}
+				}
+
+				overlay?.dispose();
+				overlay = undefined;
+			}
+		}));
 	}
 
 	removePanes(panes: ViewPane[]): void {
@@ -747,8 +1476,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		const fromIndex = firstIndex(this.paneItems, item => item.pane === from);
 		const toIndex = firstIndex(this.paneItems, item => item.pane === to);
 
-		const fromViewDescriptor = this.viewsModel.visibleViewDescriptors[fromIndex];
-		const toViewDescriptor = this.viewsModel.visibleViewDescriptors[toIndex];
+		const fromViewDescriptor = this.viewContainerModel.visibleViewDescriptors[fromIndex];
+		const toViewDescriptor = this.viewContainerModel.visibleViewDescriptors[toIndex];
 
 		if (fromIndex < 0 || fromIndex >= this.paneItems.length) {
 			return;
@@ -763,7 +1492,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 		assertIsDefined(this.paneview).movePane(from, to);
 
-		this.viewsModel.move(fromViewDescriptor.id, toViewDescriptor.id);
+		this.viewContainerModel.move(fromViewDescriptor.id, toViewDescriptor.id);
+
+		this.updateTitleArea();
 	}
 
 	resizePane(pane: ViewPane, size: number): void {
@@ -789,7 +1520,8 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 		if (!this.areExtensionsReady) {
 			if (this.visibleViewsCountFromCache === undefined) {
-				return false;
+				// TODO @sbatten fix hack for #91367
+				return this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
 			}
 			// Check in cache so that view do not jump. See #29609
 			return this.visibleViewsCountFromCache === 1;

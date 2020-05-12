@@ -7,9 +7,12 @@ import { URI } from 'vs/base/common/uri';
 import { DefaultEndOfLine, ITextModelCreationOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 
 export function withEditorModel(text: string[], callback: (model: TextModel) => void): void {
-	let model = TextModel.createFromString(text.join('\n'));
+	let model = createTextModel(text.join('\n'));
 	callback(model);
 	model.dispose();
 }
@@ -36,5 +39,8 @@ export function createTextModel(text: string, _options: IRelaxedTextModelCreatio
 		isForSimpleWidget: (typeof _options.isForSimpleWidget === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.isForSimpleWidget : _options.isForSimpleWidget),
 		largeFileOptimizations: (typeof _options.largeFileOptimizations === 'undefined' ? TextModel.DEFAULT_CREATION_OPTIONS.largeFileOptimizations : _options.largeFileOptimizations),
 	};
-	return TextModel.createFromString(text, options, languageIdentifier, uri);
+	const dialogService = new TestDialogService();
+	const notificationService = new TestNotificationService();
+	const undoRedoService = new UndoRedoService(dialogService, notificationService);
+	return new TextModel(text, options, languageIdentifier, uri, undoRedoService);
 }

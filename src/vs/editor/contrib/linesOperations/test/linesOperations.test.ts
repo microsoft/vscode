@@ -317,7 +317,7 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.equal(model.getLineContent(1), 'one');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
 
-					editor.trigger('keyboard', Handler.Undo, {});
+					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 					assert.equal(model.getLineContent(1), 'Typing some text here on line one');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 31, 1, 31));
 				});
@@ -447,7 +447,7 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.equal(model.getLineContent(1), 'hello my dear world');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
 
-					editor.trigger('keyboard', Handler.Undo, {});
+					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 					assert.equal(model.getLineContent(1), 'hello my dear');
 					assert.deepEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
 				});
@@ -815,13 +815,13 @@ suite('Editor Contrib - Line Operations', () => {
 					new Selection(2, 4, 2, 4)
 				]);
 
-				editor.trigger('tests', Handler.Undo, {});
+				CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(1, 6, 1, 6),
 					new Selection(3, 4, 3, 4)
 				]);
-				editor.trigger('tests', Handler.Redo, {});
+				CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 				assert.deepEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(2, 4, 2, 4)
@@ -955,6 +955,25 @@ suite('Editor Contrib - Line Operations', () => {
 			executeAction(indentLinesAction, editor);
 			assert.equal(model.getLineContent(1), '\tSome text');
 			assert.deepEqual(editor.getSelection(), new Selection(1, 2, 1, 2));
+		});
+
+		model.dispose();
+	});
+
+	test('Indenting on empty line should move cursor', () => {
+		const model = createTextModel(
+			[
+				''
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor) => {
+			const indentLinesAction = new IndentLinesAction();
+			editor.setPosition(new Position(1, 1));
+
+			executeAction(indentLinesAction, editor);
+			assert.equal(model.getLineContent(1), '    ');
+			assert.deepEqual(editor.getSelection(), new Selection(1, 5, 1, 5));
 		});
 
 		model.dispose();

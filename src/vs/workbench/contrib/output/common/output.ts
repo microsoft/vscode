@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IOutputChannelDescriptor } from 'vs/workbench/services/output/common/output';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * Mime type used by the output editor.
@@ -39,9 +40,9 @@ export const LOG_SCHEME = 'log';
 export const LOG_MODE_ID = 'log';
 
 /**
- * Output panel id
+ * Output view id
  */
-export const OUTPUT_PANEL_ID = 'workbench.panel.output';
+export const OUTPUT_VIEW_ID = 'workbench.panel.output';
 
 export const OUTPUT_SERVICE_ID = 'outputService';
 
@@ -50,6 +51,8 @@ export const MAX_OUTPUT_LENGTH = 10000 /* Max. number of output lines to show in
 export const CONTEXT_IN_OUTPUT = new RawContextKey<boolean>('inOutput', false);
 
 export const CONTEXT_ACTIVE_LOG_OUTPUT = new RawContextKey<boolean>('activeLogOutput', false);
+
+export const CONTEXT_OUTPUT_SCROLL_LOCK = new RawContextKey<boolean>(`outputView.scrollLock`, false);
 
 export const IOutputService = createDecorator<IOutputService>(OUTPUT_SERVICE_ID);
 
@@ -64,6 +67,11 @@ export interface IOutputService {
 	 * Channel should be first registered via OutputChannelRegistry.
 	 */
 	getChannel(id: string): IOutputChannel | undefined;
+
+	/**
+	 * Given the channel id returns the registered output channel descriptor.
+	 */
+	getChannelDescriptor(id: string): IOutputChannelDescriptor | undefined;
 
 	/**
 	 * Returns an array of all known output channels descriptors.
@@ -100,9 +108,9 @@ export interface IOutputChannel {
 	label: string;
 
 	/**
-	 * Returns the value indicating whether the channel has scroll locked.
+	 * URI of the output channel.
 	 */
-	scrollLock: boolean;
+	uri: URI;
 
 	/**
 	 * Appends output to the channel.
