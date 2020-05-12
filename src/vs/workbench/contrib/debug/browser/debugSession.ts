@@ -35,6 +35,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
+import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export class DebugSession implements IDebugSession {
 
@@ -848,7 +849,12 @@ export class DebugSession implements IDebugSession {
 					// and the user opted in telemetry
 					if (this.raw.customTelemetryService && this.telemetryService.isOptedIn) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
-						this.raw.customTelemetryService.publicLog(event.body.output, event.body.data);
+						let data = event.body.data;
+						if (!this.raw.customTelemetryService.sendErrorTelemetry && event.body.data) {
+							data = filterExceptionsFromTelemetry(event.body.data);
+						}
+
+						this.raw.customTelemetryService.publicLog(event.body.output, data);
 					}
 
 					return;
