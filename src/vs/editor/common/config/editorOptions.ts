@@ -643,6 +643,16 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 * Defaults to false.
 	 */
 	originalEditable?: boolean;
+	/**
+	 * Original editor should be have code lens enabled?
+	 * Defaults to false.
+	 */
+	originalCodeLens?: boolean;
+	/**
+	 * Original editor should be have code lens enabled?
+	 * Defaults to false.
+	 */
+	modifiedCodeLens?: boolean;
 }
 
 //#endregion
