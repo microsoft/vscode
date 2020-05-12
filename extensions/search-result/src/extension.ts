@@ -96,7 +96,7 @@ export function activate(context: vscode.ExtensionContext) {
 					.filter(({ type }) => type === 'file')
 					.map(({ location }) => ({ range: location.originSelectionRange!, target: location.targetUri }));
 			}
-		}),
+		} as any /* TODO@matt */),
 
 		vscode.window.onDidChangeActiveTextEditor(editor => {
 			if (editor?.document.languageId === 'search-result') {
