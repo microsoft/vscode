@@ -12,6 +12,7 @@ import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
+let NOTEBOOK_EDITOR_INPUT_HANDLE = 0;
 export class NotebookEditorInput extends EditorInput {
 
 	private static readonly _instances = new Map<string, NotebookEditorInput>();
@@ -35,6 +36,17 @@ export class NotebookEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.notebook';
 	private textModel: NotebookEditorModel | null = null;
 
+	private _group: GroupIdentifier | undefined;
+
+	public get group(): GroupIdentifier | undefined {
+		return this._group;
+	}
+
+	public updateGroup(group: GroupIdentifier): void {
+		this._group = group;
+	}
+
+	readonly id: number = NOTEBOOK_EDITOR_INPUT_HANDLE++;
 	constructor(
 		public resource: URI,
 		public name: string,

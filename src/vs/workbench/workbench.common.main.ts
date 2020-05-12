@@ -185,7 +185,7 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
-import 'vs/workbench/contrib/url/common/url.contribution';
+import 'vs/workbench/contrib/url/browser/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.contribution';

@@ -65,7 +65,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -113,38 +113,21 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
+		const payload = this.preservePayload();
+
 		for (let i = 0; i < toOpen.length; i++) {
 			const openable = toOpen[i];
 			openable.label = openable.label || this.getRecentLabel(openable);
 
-			// selectively copy payload: for now only extension debugging properties are considered
-			const originalPayload = this.workspaceProvider.payload;
-			let newPayload: Array<unknown> | undefined = undefined;
-			if (originalPayload && Array.isArray(originalPayload)) {
-				for (let pair of originalPayload) {
-					if (Array.isArray(pair) && pair.length === 2) {
-						switch (pair[0]) {
-							case 'extensionDevelopmentPath':
-							case 'debugId':
-							case 'inspect-brk-extensions':
-								if (!newPayload) {
-									newPayload = new Array();
-								}
-								newPayload.push(pair);
-								break;
-						}
-					}
-				}
-			}
 
 			// Folder
 			if (isFolderToOpen(openable)) {
-				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload: newPayload });
+				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 			}
 
 			// Workspace
 			else if (isWorkspaceToOpen(openable)) {
-				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload: newPayload });
+				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 			}
 
 			// File
@@ -165,6 +148,27 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			}
 		}
+	}
+
+	private preservePayload(): Array<unknown> | undefined {
+
+		// Selectively copy payload: for now only extension debugging properties are considered
+		let newPayload: Array<unknown> | undefined = undefined;
+		if (this.environmentService.extensionDevelopmentLocationURI) {
+			newPayload = new Array();
+
+			newPayload.push(['extensionDevelopmentPath', this.environmentService.extensionDevelopmentLocationURI.toString()]);
+
+			if (this.environmentService.debugExtensionHost.debugId) {
+				newPayload.push(['debugId', this.environmentService.debugExtensionHost.debugId]);
+			}
+
+			if (this.environmentService.debugExtensionHost.port) {
+				newPayload.push(['inspect-brk-extensions', String(this.environmentService.debugExtensionHost.port)]);
+			}
+		}
+
+		return newPayload;
 	}
 
 	private getRecentLabel(openable: IWindowOpenable): string {

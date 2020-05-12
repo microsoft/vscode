@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 
 export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
-		onDidChangeNotebook: new vscode.EventEmitter<void>().event,
+		onDidChangeNotebook: new vscode.EventEmitter<vscode.NotebookDocumentEditEvent>().event,
 		openNotebook: async (_resource: vscode.Uri) => {
 			return {
 				languages: ['typescript'],

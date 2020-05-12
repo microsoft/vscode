@@ -510,31 +510,31 @@ export const TITLE_BAR_ACTIVE_FOREGROUND = registerColor('titleBar.activeForegro
 	dark: '#CCCCCC',
 	light: '#333333',
 	hc: '#FFFFFF'
-}, nls.localize('titleBarActiveForeground', "Title bar foreground when the window is active. Note that this color is currently only supported on macOS."));
+}, nls.localize('titleBarActiveForeground', "Title bar foreground when the window is active."));
 
 export const TITLE_BAR_INACTIVE_FOREGROUND = registerColor('titleBar.inactiveForeground', {
 	dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, 0.6),
 	light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, 0.6),
 	hc: null
-}, nls.localize('titleBarInactiveForeground', "Title bar foreground when the window is inactive. Note that this color is currently only supported on macOS."));
+}, nls.localize('titleBarInactiveForeground', "Title bar foreground when the window is inactive."));
 
 export const TITLE_BAR_ACTIVE_BACKGROUND = registerColor('titleBar.activeBackground', {
 	dark: '#3C3C3C',
 	light: '#DDDDDD',
 	hc: '#000000'
-}, nls.localize('titleBarActiveBackground', "Title bar background when the window is active. Note that this color is currently only supported on macOS."));
+}, nls.localize('titleBarActiveBackground', "Title bar background when the window is active."));
 
 export const TITLE_BAR_INACTIVE_BACKGROUND = registerColor('titleBar.inactiveBackground', {
 	dark: transparent(TITLE_BAR_ACTIVE_BACKGROUND, 0.6),
 	light: transparent(TITLE_BAR_ACTIVE_BACKGROUND, 0.6),
 	hc: null
-}, nls.localize('titleBarInactiveBackground', "Title bar background when the window is inactive. Note that this color is currently only supported on macOS."));
+}, nls.localize('titleBarInactiveBackground', "Title bar background when the window is inactive."));
 
 export const TITLE_BAR_BORDER = registerColor('titleBar.border', {
 	dark: null,
 	light: null,
 	hc: contrastBorder
-}, nls.localize('titleBarBorder', "Title bar border color. Note that this color is currently only supported on macOS."));
+}, nls.localize('titleBarBorder', "Title bar border color."));
 
 // < --- Menubar --- >
 

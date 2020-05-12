@@ -45,7 +45,6 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/extensions`, headers: { 'If-Match': '0' } },
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 		]);
@@ -71,13 +70,10 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			// Snippets
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '0' } },
 			// Global state
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/extensions`, headers: { 'If-Match': '0' } },
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 		]);
@@ -384,7 +380,6 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/globalState`, headers: { 'If-Match': '0' } },
 			// Extensions
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
-			{ type: 'POST', url: `${target.url}/v1/resource/extensions`, headers: { 'If-Match': '0' } },
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 		]);

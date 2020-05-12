@@ -5,25 +5,13 @@
 
 import * as vscode from 'vscode';
 
-type LogLevel = 'Trace' | 'Info' | 'Error';
-
-enum Level {
-	Trace = 'trace',
-	Info = 'Info'
-}
+type LogLevel = 'Info' | 'Error';
 
 class Log {
 	private output: vscode.OutputChannel;
-	private level: Level;
 
 	constructor() {
 		this.output = vscode.window.createOutputChannel('Microsoft Authentication');
-		this.level = vscode.workspace.getConfiguration('microsoftAccount').get('logLevel') || Level.Info;
-		vscode.workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('microsoftAccount.logLevel')) {
-				this.level = vscode.workspace.getConfiguration('microsoftAccount').get('logLevel') || Level.Info;
-			}
-		});
 	}
 
 	private data2String(data: any): string {
@@ -42,12 +30,6 @@ class Log {
 
 	public error(message: string, data?: any): void {
 		this.logLevel('Error', message, data);
-	}
-
-	public trace(message: string, data?: any): void {
-		if (this.level === Level.Trace) {
-			this.logLevel('Trace', message, data);
-		}
 	}
 
 	public logLevel(level: LogLevel, message: string, data?: any): void {

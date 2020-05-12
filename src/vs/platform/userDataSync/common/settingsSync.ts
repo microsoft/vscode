@@ -357,7 +357,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 		return remoteUserData.syncData ? this.parseSettingsSyncContent(remoteUserData.syncData.content) : null;
 	}
 
-	private parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
+	parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
 		try {
 			const parsed = <ISettingsSyncContent>JSON.parse(syncContent);
 			return isSettingsSyncContent(parsed) ? parsed : /* migrate */ { settings: syncContent };

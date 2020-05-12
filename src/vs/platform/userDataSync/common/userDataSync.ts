@@ -274,7 +274,7 @@ export interface IUserDataSynchroniser {
 
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	sync(ref?: string): Promise<void>;
+	sync(manifest: IUserDataManifest | null): Promise<void>;
 	stop(): Promise<void>;
 
 	getSyncPreview(): Promise<ISyncPreviewResult>

@@ -79,7 +79,7 @@ suite('TestSynchronizer', () => {
 
 		const promise = Event.toPromise(testObject.onDoSyncCall.event);
 
-		testObject.sync();
+		testObject.sync(await client.manifest());
 		await promise;
 
 		assert.deepEqual(actual, [SyncStatus.Syncing]);
@@ -94,7 +94,7 @@ suite('TestSynchronizer', () => {
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
 		assert.deepEqual(testObject.status, SyncStatus.Idle);
@@ -107,7 +107,7 @@ suite('TestSynchronizer', () => {
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.HasConflicts]);
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
@@ -122,7 +122,7 @@ suite('TestSynchronizer', () => {
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
 
 		try {
-			await testObject.sync();
+			await testObject.sync(await client.manifest());
 			assert.fail('Should fail');
 		} catch (e) {
 			assert.deepEqual(actual, [SyncStatus.Syncing, SyncStatus.Idle]);
@@ -134,12 +134,12 @@ suite('TestSynchronizer', () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
 		const promise = Event.toPromise(testObject.onDoSyncCall.event);
 
-		testObject.sync();
+		testObject.sync(await client.manifest());
 		await promise;
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, []);
 		assert.deepEqual(testObject.status, SyncStatus.Syncing);
@@ -154,7 +154,7 @@ suite('TestSynchronizer', () => {
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, []);
 		assert.deepEqual(testObject.status, SyncStatus.Idle);
@@ -164,11 +164,11 @@ suite('TestSynchronizer', () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
 		testObject.syncResult = { status: SyncStatus.HasConflicts };
 		testObject.syncBarrier.open();
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const actual: SyncStatus[] = [];
 		disposableStore.add(testObject.onDidChangeStatus(status => actual.push(status)));
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(actual, []);
 		assert.deepEqual(testObject.status, SyncStatus.HasConflicts);
@@ -178,7 +178,7 @@ suite('TestSynchronizer', () => {
 		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
 		// Sync once
 		testObject.syncBarrier.open();
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 		testObject.syncBarrier = new Barrier();
 
 		// update remote data before syncing so that 412 is thrown by server
@@ -190,8 +190,9 @@ suite('TestSynchronizer', () => {
 		});
 
 		// Start sycing
-		const { ref } = await userDataSyncStoreService.read(testObject.resource, null);
-		await testObject.sync(ref);
+		const manifest = await client.manifest();
+		const ref = manifest!.latest![testObject.resource];
+		await testObject.sync(await client.manifest());
 
 		assert.deepEqual(server.requests, [
 			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': ref } },
