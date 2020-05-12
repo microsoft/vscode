@@ -18,6 +18,12 @@
 				"JacksonKearl"
 			]
 		},
+		"snippets": {
+			"applyLabel": false,
+			"assign": [
+				"jrieken"
+			]
+		},
 		"integrated-terminal": {
 			"applyLabel": true,
 			"assign": [
