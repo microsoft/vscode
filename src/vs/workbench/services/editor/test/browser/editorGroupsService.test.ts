@@ -369,8 +369,9 @@ suite('EditorGroupsService', () => {
 
 		let activeEditorChangeCounter = 0;
 		let editorDidOpenCounter = 0;
-		let editorCloseCounter1 = 0;
+		let editorCloseCounter = 0;
 		let editorPinCounter = 0;
+		let editorStickyCounter = 0;
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_OPEN) {
 				assert.ok(e.editor);
@@ -380,16 +381,19 @@ suite('EditorGroupsService', () => {
 				activeEditorChangeCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_CLOSE) {
 				assert.ok(e.editor);
-				editorCloseCounter1++;
+				editorCloseCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_PIN) {
 				assert.ok(e.editor);
 				editorPinCounter++;
+			} else if (e.kind === GroupChangeKind.EDITOR_STICKY) {
+				assert.ok(e.editor);
+				editorStickyCounter++;
 			}
 		});
 
-		let editorCloseCounter2 = 0;
+		let editorCloseCounter1 = 0;
 		const editorCloseListener = group.onDidCloseEditor(() => {
-			editorCloseCounter2++;
+			editorCloseCounter1++;
 		});
 
 		let editorWillCloseCounter = 0;
@@ -440,11 +444,17 @@ suite('EditorGroupsService', () => {
 		await group.closeEditor(inputInactive);
 
 		assert.equal(activeEditorChangeCounter, 3);
+		assert.equal(editorCloseCounter, 1);
 		assert.equal(editorCloseCounter1, 1);
-		assert.equal(editorCloseCounter2, 1);
 		assert.equal(editorWillCloseCounter, 1);
 
 		assert.equal(group.activeEditor, input);
+
+		assert.equal(editorStickyCounter, 0);
+		group.stickEditor(input);
+		assert.equal(editorStickyCounter, 1);
+		group.unstickEditor(input);
+		assert.equal(editorStickyCounter, 2);
 
 		editorCloseListener.dispose();
 		editorWillCloseListener.dispose();

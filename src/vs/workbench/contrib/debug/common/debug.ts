@@ -214,7 +214,7 @@ export interface IDebugSession extends ITreeElement {
 
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean, accessTypes?: DebugProtocol.DataBreakpointAccessType[] }>;
+	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean, accessTypes?: DebugProtocol.DataBreakpointAccessType[] } | undefined>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;

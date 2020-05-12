@@ -57,7 +57,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
-
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			this._previousFocusedElements.forEach(element => {
@@ -120,6 +119,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			notebookEditorCursorAtBoundaryContext.set('none');
 		}));
 
+	}
+
+	elementAt(position: number): ICellViewModel {
+		return this.element(this.view.indexAt(position));
+	}
+
+	elementHeight(element: ICellViewModel): number {
+		let index = this._getViewIndexUpperBound(element);
+		if (index === undefined || index < 0 || index >= this.length) {
+			this._getViewIndexUpperBound(element);
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		return this.view.elementHeight(index);
 	}
 
 	protected createMouseController(_options: IListOptions<CellViewModel>): MouseController<CellViewModel> {

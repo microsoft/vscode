@@ -14,6 +14,7 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 			return undefined;
 		}
 		// return an entry per markdown header
+		const editorWidget = editor.getControl();
 		const result: ITableOfContentsEntry[] = [];
 		for (let cell of editor.viewModel.viewCells) {
 			const content = cell.getText();
@@ -27,9 +28,9 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 					result.push({
 						label: matches[j].replace(/^[ \t]*(\#+)/, ''),
 						reveal: () => {
-							editor.revealInCenterIfOutsideViewport(cell);
-							editor.selectElement(cell);
-							editor.focusNotebookCell(cell, 'container');
+							editorWidget.revealInCenterIfOutsideViewport(cell);
+							editorWidget.selectElement(cell);
+							// editor.focusNotebookCell(cell, 'container');
 						}
 					});
 				}

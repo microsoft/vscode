@@ -152,7 +152,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		'scm.inputFontFamily': {
 			type: 'string',
-			description: localize('inputFontFamily', "Controls the font for the input message."),
+			markdownDescription: localize('inputFontFamily', "Controls the font for the input message. Use `default` for the workbench user interface font family, `editor` for the `#editor.fontFamily#`'s value, or a custom font family."),
 			default: 'default'
 		}
 	}

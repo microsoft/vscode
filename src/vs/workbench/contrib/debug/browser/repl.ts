@@ -87,7 +87,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	private replInputContainer!: HTMLElement;
 	private dimension!: dom.Dimension;
 	private replInputLineCount = 1;
-	private model!: ITextModel;
+	private model: ITextModel | undefined;
 	private historyNavigationEnablement!: IContextKey<boolean>;
 	private scopedInstantiationService!: IInstantiationService;
 	private replElementsChangeListener: IDisposable | undefined;
@@ -271,7 +271,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		if (isCodeEditor(activeEditorControl)) {
 			this.modelChangeListener.dispose();
 			this.modelChangeListener = activeEditorControl.onDidChangeModelLanguage(() => this.setMode());
-			if (activeEditorControl.hasModel()) {
+			if (this.model && activeEditorControl.hasModel()) {
 				this.model.setMode(activeEditorControl.getModel().getLanguageIdentifier());
 			}
 		}
@@ -397,16 +397,18 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	getVisibleContent(): string {
 		let text = '';
-		const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
-		const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
-			node.children.forEach(child => {
-				text += child.element.toString().trimRight() + lineDelimiter;
-				if (!child.collapsed && child.children.length) {
-					traverseAndAppend(child);
-				}
-			});
-		};
-		traverseAndAppend(this.tree.getNode());
+		if (this.model) {
+			const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
+			const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
+				node.children.forEach(child => {
+					text += child.element.toString().trimRight() + lineDelimiter;
+					if (!child.collapsed && child.children.length) {
+						traverseAndAppend(child);
+					}
+				});
+			};
+			traverseAndAppend(this.tree.getNode());
+		}
 
 		return removeAnsiEscapeCodes(text);
 	}

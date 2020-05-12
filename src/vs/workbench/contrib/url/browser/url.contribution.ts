@@ -14,10 +14,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IURLService } from 'vs/platform/url/common/url';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/common/externalUriResolver';
-import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/common/trustedDomains';
-import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/common/trustedDomainsFileSystemProvider';
-import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
+import { ExternalUriResolverContribution } from 'vs/workbench/contrib/url/browser/externalUriResolver';
+import { manageTrustedDomainSettingsCommand } from 'vs/workbench/contrib/url/browser/trustedDomains';
+import { TrustedDomainsFileSystemProvider } from 'vs/workbench/contrib/url/browser/trustedDomainsFileSystemProvider';
+import { OpenerValidatorContributions } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
 
 export class OpenUrlAction extends Action {
 	static readonly ID = 'workbench.action.url.openUrl';

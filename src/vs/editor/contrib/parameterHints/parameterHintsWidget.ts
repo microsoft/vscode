@@ -296,10 +296,10 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 
 	private getParameterLabel(signature: modes.SignatureInformation, paramIdx: number): string {
 		const param = signature.parameters[paramIdx];
-		if (typeof param.label === 'string') {
-			return param.label;
-		} else {
+		if (Array.isArray(param.label)) {
 			return signature.label.substring(param.label[0], param.label[1]);
+		} else {
+			return param.label;
 		}
 	}
 
