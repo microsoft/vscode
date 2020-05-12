@@ -359,6 +359,7 @@ export const enum GroupChangeKind {
 	EDITOR_ACTIVE,
 	EDITOR_LABEL,
 	EDITOR_PIN,
+	EDITOR_STICKY,
 	EDITOR_DIRTY
 }
 

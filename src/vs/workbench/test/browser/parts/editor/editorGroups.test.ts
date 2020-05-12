@@ -79,6 +79,8 @@ interface GroupEvents {
 	closed: EditorCloseEvent[];
 	pinned: EditorInput[];
 	unpinned: EditorInput[];
+	sticky: EditorInput[];
+	unsticky: EditorInput[];
 	moved: EditorInput[];
 	disposed: EditorInput[];
 }
@@ -90,6 +92,8 @@ function groupListener(group: EditorGroup): GroupEvents {
 		activated: [],
 		pinned: [],
 		unpinned: [],
+		sticky: [],
+		unsticky: [],
 		moved: [],
 		disposed: []
 	};
@@ -98,6 +102,7 @@ function groupListener(group: EditorGroup): GroupEvents {
 	group.onDidCloseEditor(e => groupEvents.closed.push(e));
 	group.onDidActivateEditor(e => groupEvents.activated.push(e));
 	group.onDidChangeEditorPinned(e => group.isPinned(e) ? groupEvents.pinned.push(e) : groupEvents.unpinned.push(e));
+	group.onDidChangeEditorSticky(e => group.isSticky(e) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e));
 	group.onDidMoveEditor(e => groupEvents.moved.push(e));
 	group.onDidDisposeEditor(e => groupEvents.disposed.push(e));
 
@@ -608,6 +613,12 @@ suite('Workbench editor groups', () => {
 
 		group.pin(sameInput1);
 		assert.equal(events.pinned[0], input1);
+
+		group.stick(sameInput1);
+		assert.equal(events.sticky[0], input1);
+
+		group.unstick(sameInput1);
+		assert.equal(events.unsticky[0], input1);
 
 		group.moveEditor(sameInput1, 1);
 		assert.equal(events.moved[0], input1);
