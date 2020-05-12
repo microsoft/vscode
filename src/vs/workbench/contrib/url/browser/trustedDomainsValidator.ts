@@ -16,10 +16,11 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import {
 	configureOpenerTrustedDomainsHandler,
 	readTrustedDomains
-} from 'vs/workbench/contrib/url/common/trustedDomains';
+} from 'vs/workbench/contrib/url/browser/trustedDomains';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 type TrustedDomainsDialogActionClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
@@ -34,7 +35,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._openerService.registerValidator({ shouldOpen: r => this.validateLink(r) });
 	}
@@ -50,8 +52,8 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 		const { scheme, authority, path, query, fragment } = resource;
 
 		const domainToOpen = `${scheme}://${authority}`;
-		const { defaultTrustedDomains, trustedDomains } = readTrustedDomains(this._storageService, this._productService);
-		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains];
+		const { defaultTrustedDomains, trustedDomains, userDomains, workspaceDomains } = await this._instantiationService.invokeFunction(readTrustedDomains);
+		const allTrustedDomains = [...defaultTrustedDomains, ...trustedDomains, ...userDomains, ...workspaceDomains];
 
 		if (isURLDomainTrusted(resource, allTrustedDomains)) {
 			return true;

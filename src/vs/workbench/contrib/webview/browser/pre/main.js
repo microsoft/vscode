@@ -517,6 +517,8 @@
 						});
 						pendingMessages = [];
 					}
+
+					host.postMessage('did-load');
 				};
 
 				/**

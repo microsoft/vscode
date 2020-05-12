@@ -294,7 +294,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostAuthentication);
@@ -312,6 +313,72 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 	$onDidChangeSessions(id: string, event: modes.AuthenticationSessionsChangeEvent): void {
 		this.authenticationService.sessionsUpdate(id, event);
+	}
+
+	async $getSession(providerId: string, providerName: string, extensionId: string, extensionName: string, potentialSessions: modes.AuthenticationSession[], scopes: string[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession> {
+		if (!potentialSessions.length) {
+			throw new Error('No potential sessions found');
+		}
+
+		if (clearSessionPreference) {
+			this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
+		} else {
+			const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
+			if (existingSessionPreference) {
+				const matchingSession = potentialSessions.find(session => session.id === existingSessionPreference);
+				if (matchingSession) {
+					const allowed = await this.$getSessionsPrompt(providerId, matchingSession.account.displayName, providerName, extensionId, extensionName);
+					if (allowed) {
+						return matchingSession;
+					}
+				}
+			}
+		}
+
+		return new Promise((resolve, reject) => {
+			const quickPick = this.quickInputService.createQuickPick<{ label: string, session?: modes.AuthenticationSession }>();
+			quickPick.ignoreFocusOut = true;
+			const items: { label: string, session?: modes.AuthenticationSession }[] = potentialSessions.map(session => {
+				return {
+					label: session.account.displayName,
+					session
+				};
+			});
+
+			items.push({
+				label: nls.localize('useOtherAccount', "Sign in to another account")
+			});
+
+			quickPick.items = items;
+			quickPick.title = nls.localize('selectAccount', "The extension '{0}' wants to access a {1} account", extensionName, providerName);
+			quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
+
+			quickPick.onDidAccept(async _ => {
+				const selected = quickPick.selectedItems[0];
+
+				const session = selected.session ?? await this.authenticationService.login(providerId, scopes);
+
+				const accountName = session.account.displayName;
+				const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
+				allowList.push({ id: extensionId, name: extensionName });
+				this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
+
+				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL);
+
+				quickPick.dispose();
+				resolve(session);
+			});
+
+			quickPick.onDidHide(_ => {
+				if (!quickPick.selectedItems[0]) {
+					reject('User did not consent to account access');
+				}
+
+				quickPick.dispose();
+			});
+
+			quickPick.show();
+		});
 	}
 
 	async $getSessionsPrompt(providerId: string, accountName: string, providerName: string, extensionId: string, extensionName: string): Promise<boolean> {

@@ -196,6 +196,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get providerIds(): string[] {
 				return extHostAuthentication.providerIds;
 			},
+			hasSessions(providerId: string, scopes: string[]): Thenable<boolean> {
+				return extHostAuthentication.hasSessions(providerId, scopes);
+			},
+			getSession(providerId: string, scopes: string[], options: vscode.authentication.GetSessionOptions): Thenable<vscode.AuthenticationSession | undefined> {
+				return extHostAuthentication.getSession(extension, providerId, scopes, options);
+			},
 			getSessions(providerId: string, scopes: string[]): Thenable<readonly vscode.AuthenticationSession[]> {
 				return extHostAuthentication.getSessions(extension, providerId, scopes);
 			},
@@ -909,10 +915,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidCloseNotebookDocument(): Event<vscode.NotebookDocument> {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidCloseNotebookDocument;
-			},
-			registerNotebookProvider: (viewType: string, provider: vscode.NotebookProvider) => {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookProvider(extension, viewType, provider);
 			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {
 				checkProposedApiEnabled(extension);
