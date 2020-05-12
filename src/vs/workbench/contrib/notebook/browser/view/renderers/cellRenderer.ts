@@ -358,8 +358,6 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		editorPart.style.display = 'none';
 
 		const innerContent = DOM.append(container, $('.cell.markdown'));
-		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-top'));
-		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-bottom'));
 		const foldingIndicator = DOM.append(focusIndicator, DOM.$('.notebook-folding-indicator'));
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
@@ -905,7 +903,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
 
-		DOM.append(container, DOM.$('.cell-insertion-indicator.cell-insertion-indicator-top'));
 		const outputContainer = DOM.append(container, $('.output'));
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 
