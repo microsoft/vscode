@@ -848,7 +848,17 @@ export class DebugSession implements IDebugSession {
 					// and the user opted in telemetry
 					if (this.raw.customTelemetryService && this.telemetryService.isOptedIn) {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
-						this.raw.customTelemetryService.publicLog(event.body.output, event.body.data);
+						let data = event.body.data;
+						if (!this.raw.customTelemetryService.sendErrorTelemetry && event.body.data) {
+							data = {};
+							for (const key of Object.keys(event.body.data)) {
+								if (!key.startsWith('!')) {
+									data[key] = event.body.data[key];
+								}
+							}
+						}
+
+						this.raw.customTelemetryService.publicLog(event.body.output, data);
 					}
 
 					return;

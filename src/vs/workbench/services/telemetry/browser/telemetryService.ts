@@ -36,6 +36,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 	_serviceBrand: undefined;
 
 	private impl: ITelemetryService;
+	public readonly sendErrorTelemetry = false;
 
 	constructor(
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
