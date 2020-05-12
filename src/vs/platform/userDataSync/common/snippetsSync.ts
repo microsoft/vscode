@@ -285,7 +285,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	private async doGeneratePreview(local: IStringDictionary<IFileContent>, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, resolvedConflicts: IStringDictionary<string | null> = {}, token: CancellationToken = CancellationToken.None): Promise<ISinppetsSyncPreviewResult> {
 		const localSnippets = this.toSnippetsContents(local);
 		const remoteSnippets: IStringDictionary<string> | null = remoteUserData.syncData ? this.parseSnippets(remoteUserData.syncData) : null;
-		const lastSyncSnippets: IStringDictionary<string> | null = lastSyncUserData ? this.parseSnippets(lastSyncUserData.syncData!) : null;
+		const lastSyncSnippets: IStringDictionary<string> | null = lastSyncUserData && lastSyncUserData.syncData ? this.parseSnippets(lastSyncUserData.syncData) : null;
 
 		if (remoteSnippets) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote snippets with local snippets...`);

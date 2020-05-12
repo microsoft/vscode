@@ -45,7 +45,7 @@ import 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import 'vs/workbench/browser/parts/panel/panelPart';
 import 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
-import 'vs/workbench/browser/parts/views/views';
+import 'vs/workbench/browser/parts/views/viewsService';
 
 //#endregion
 
@@ -166,6 +166,9 @@ import 'vs/workbench/contrib/search/browser/searchView';
 // Search Editor
 import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 
+// Sash
+import 'vs/workbench/contrib/sash/browser/sash.contribution';
+
 // SCM
 import 'vs/workbench/contrib/scm/browser/scm.contribution';
 import 'vs/workbench/contrib/scm/browser/scmViewlet';
@@ -185,7 +188,7 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
-import 'vs/workbench/contrib/url/common/url.contribution';
+import 'vs/workbench/contrib/url/browser/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.contribution';

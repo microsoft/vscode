@@ -35,6 +35,7 @@ export const ActiveEditorIsReadonlyContext = new RawContextKey<boolean>('activeE
 export const ActiveEditorAvailableEditorIdsContext = new RawContextKey<string>('activeEditorAvailableEditorIds', '');
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const EditorPinnedContext = new RawContextKey<boolean>('editorPinned', false);
+export const EditorStickyContext = new RawContextKey<boolean>('editorSticky', false);
 export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const EditorGroupEditorsCountContext = new RawContextKey<number>('groupEditorsCount', 0);
 export const NoEditorsVisibleContext = EditorsVisibleContext.toNegated();
@@ -1047,6 +1048,12 @@ export class EditorOptions implements IEditorOptions {
 	pinned: boolean | undefined;
 
 	/**
+	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
+	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
+	 */
+	sticky: boolean | undefined;
+
+	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
 	index: number | undefined;
@@ -1109,6 +1116,10 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.pinned === 'boolean') {
 			this.pinned = options.pinned;
+		}
+
+		if (typeof options.sticky === 'boolean') {
+			this.sticky = options.sticky;
 		}
 
 		if (typeof options.inactive === 'boolean') {
@@ -1291,6 +1302,7 @@ export class EditorCommandsContextActionRunner extends ActionRunner {
 export interface IEditorCloseEvent extends IEditorIdentifier {
 	replaced: boolean;
 	index: number;
+	sticky: boolean;
 }
 
 export type GroupIdentifier = number;

@@ -95,7 +95,13 @@
                     "type": "number",
                     "default": 5000,
                     "description": "%json.maxItemsComputed.desc%"
-                }
+                },
+                "json.schemaDownload.enable": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "%json.enableSchemaDownload.desc%",
+                  "tags": ["usesOnlineServices"]
+              }
             }
         },
         "configurationDefaults": {

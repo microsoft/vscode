@@ -11,7 +11,6 @@ import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch
 import { Action, IAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { SyncActionDescriptor, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -19,7 +18,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
-import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
 import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
@@ -30,9 +28,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
-import { isString } from 'vs/base/common/types';
 
-export class ViewletActivityAction extends ActivityAction {
+export class ViewContainerActivityAction extends ActivityAction {
 
 	private static readonly preventDoubleClickDelay = 300;
 
@@ -48,7 +45,6 @@ export class ViewletActivityAction extends ActivityAction {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@ITelemetryService telemetryService: ITelemetryService
 	) {
-		ViewletActivityAction.generateIconCSS(activity);
 		super(activity);
 
 		this.lastRun = 0;
@@ -57,23 +53,7 @@ export class ViewletActivityAction extends ActivityAction {
 		this.telemetryService = telemetryService;
 	}
 
-	private static generateIconCSS(activity: IActivity): void {
-		if (activity.iconUrl) {
-			activity.cssClass = activity.cssClass || `activity-${activity.id.replace(/\./g, '-')}`;
-			const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${activity.cssClass}`;
-			DOM.createCSSRule(iconClass, `
-				mask: ${DOM.asCSSUrl(activity.iconUrl)} no-repeat 50% 50%;
-				mask-size: 24px;
-				-webkit-mask: ${DOM.asCSSUrl(activity.iconUrl)} no-repeat 50% 50%;
-				-webkit-mask-size: 24px;
-			`);
-		}
-	}
-
-	setActivity(activity: IActivity): void {
-		if (activity.iconUrl && this.activity.cssClass !== activity.cssClass) {
-			ViewletActivityAction.generateIconCSS(activity);
-		}
+	updateActivity(activity: IActivity): void {
 		this.activity = activity;
 	}
 
@@ -84,7 +64,7 @@ export class ViewletActivityAction extends ActivityAction {
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
-		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
+		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
 			return;
 		}
 		this.lastRun = now;
@@ -110,30 +90,6 @@ export class ViewletActivityAction extends ActivityAction {
 			action: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 		};
 		this.telemetryService.publicLog2<{ viewletId: String, action: String }, ActivityBarActionClassification>('activityBarAction', { viewletId: this.activity.id, action });
-	}
-}
-
-export class ToggleViewletAction extends Action {
-
-	constructor(
-		private _viewlet: ViewletDescriptor,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewletService private readonly viewletService: IViewletService
-	) {
-		super(_viewlet.id, _viewlet.name);
-	}
-
-	async run(): Promise<void> {
-		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-		const activeViewlet = this.viewletService.getActiveViewlet();
-
-		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet?.getId() === this._viewlet.id) {
-			this.layoutService.setSideBarHidden(true);
-			return;
-		}
-
-		await this.viewletService.openViewlet(this._viewlet.id, true);
 	}
 }
 
@@ -248,23 +204,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 	}
 }
 
-export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
-
-	constructor(
-		id: string,
-		icon: URI | string | undefined,
-		@IViewletService viewletService: IViewletService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService
-	) {
-		super({
-			id,
-			name: id,
-			iconUrl: URI.isUri(icon) ? icon : undefined,
-			cssClass: isString(icon) ? icon : undefined
-		}, viewletService, layoutService, telemetryService);
-	}
-}
+export class PlaceHolderViewContainerActivityAction extends ViewContainerActivityAction { }
 
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
@@ -289,16 +229,16 @@ class SwitchSideBarViewAction extends Action {
 	}
 
 	async run(offset: number): Promise<void> {
-		const pinnedViewletIds = this.activityBarService.getPinnedViewletIds();
+		const visibleViewletIds = this.activityBarService.getVisibleViewContainerIds();
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
 			return;
 		}
 		let targetViewletId: string | undefined;
-		for (let i = 0; i < pinnedViewletIds.length; i++) {
-			if (pinnedViewletIds[i] === activeViewlet.getId()) {
-				targetViewletId = pinnedViewletIds[(i + pinnedViewletIds.length + offset) % pinnedViewletIds.length];
+		for (let i = 0; i < visibleViewletIds.length; i++) {
+			if (visibleViewletIds[i] === activeViewlet.getId()) {
+				targetViewletId = visibleViewletIds[(i + visibleViewletIds.length + offset) % visibleViewletIds.length];
 				break;
 			}
 		}

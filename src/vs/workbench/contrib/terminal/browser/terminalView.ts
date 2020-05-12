@@ -43,6 +43,7 @@ export class TerminalViewPane extends ViewPane {
 	private _terminalContainer: HTMLElement | undefined;
 	private _findWidget: TerminalFindWidget | undefined;
 	private _splitTerminalAction: IAction | undefined;
+	private _bodyDimensions: { width: number, height: number } = { width: 0, height: 0 };
 
 	constructor(
 		options: IViewPaneOptions,
@@ -106,6 +107,8 @@ export class TerminalViewPane extends ViewPane {
 				this._updateTheme();
 				if (hadTerminals) {
 					this._terminalService.getActiveTab()?.setVisible(visible);
+				} else {
+					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
 			}
 		}));
@@ -116,6 +119,8 @@ export class TerminalViewPane extends ViewPane {
 
 	protected layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
+		this._bodyDimensions.width = width;
+		this._bodyDimensions.height = height;
 		this._terminalService.terminalTabs.forEach(t => t.layout(width, height));
 		// Update orientation of split button icon
 		if (this._splitTerminalAction) {

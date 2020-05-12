@@ -80,6 +80,9 @@ interface IUserFriendlyViewDescriptor {
 	name: string;
 	when?: string;
 
+	icon?: string;
+	contextualTitle?: string;
+
 	// From 'remoteViewDescriptor' type
 	group?: string;
 	remoteName?: string | string[];
@@ -98,6 +101,14 @@ const viewDescriptor: IJSONSchema = {
 		},
 		when: {
 			description: localize('vscode.extension.contributes.view.when', 'Condition which must be true to show this view'),
+			type: 'string'
+		},
+		icon: {
+			description: localize('vscode.extension.contributes.view.icon', "Path to the view icon. View icons are displayed when the name of the view cannot be shown. It is recommended that icons be in SVG, though any image file type is accepted."),
+			type: 'string'
+		},
+		contextualTitle: {
+			description: localize('vscode.extension.contributes.view.contextualTitle', "Human-readable context for when the view is moved out of its original location. By default, the view's container name will be used. Will be shown"),
 			type: 'string'
 		},
 	}
@@ -368,6 +379,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private addViews(extensions: readonly IExtensionPointUser<ViewExtensionPointType>[]): void {
+		const viewIds: Set<string> = new Set<string>();
+		const allViewDescriptors: { views: IViewDescriptor[], viewContainer: ViewContainer }[] = [];
+
 		for (const extension of extensions) {
 			const { value, collector } = extension;
 
@@ -386,10 +400,9 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
 				}
 				const container = viewContainer || this.getDefaultViewContainer();
-				const viewIds: string[] = [];
 				const viewDescriptors = coalesce(entry.value.map((item, index) => {
 					// validate
-					if (viewIds.indexOf(item.id) !== -1) {
+					if (viewIds.has(item.id)) {
 						collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}`", item.id));
 						return null;
 					}
@@ -404,11 +417,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 							? container.viewOrderDelegate.getOrder(item.group)
 							: undefined;
 
+					const icon = item.icon ? resources.joinPath(extension.description.extensionLocation, item.icon) : undefined;
 					const viewDescriptor = <ICustomViewDescriptor>{
 						id: item.id,
 						name: item.name,
 						ctorDescriptor: new SyncDescriptor(TreeViewPane),
 						when: ContextKeyExpr.deserialize(item.when),
+						containerIcon: icon || viewContainer?.icon,
+						containerTitle: item.contextualTitle || viewContainer?.name,
 						canToggleVisibility: true,
 						canMoveView: true,
 						treeView: this.instantiationService.createInstance(CustomTreeView, item.id, item.name),
@@ -420,12 +436,16 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						remoteAuthority: item.remoteName || (<any>item).remoteAuthority // TODO@roblou - delete after remote extensions are updated
 					};
 
-					viewIds.push(viewDescriptor.id);
+					viewIds.add(viewDescriptor.id);
 					return viewDescriptor;
 				}));
-				this.viewsRegistry.registerViews(viewDescriptors, container);
+
+				allViewDescriptors.push({ viewContainer: container, views: viewDescriptors });
+
 			});
 		}
+
+		this.viewsRegistry.registerViews2(allViewDescriptors);
 	}
 
 	private getDefaultViewContainer(): ViewContainer {
@@ -459,6 +479,14 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 			}
 			if (descriptor.when && typeof descriptor.when !== 'string') {
 				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'when'));
+				return false;
+			}
+			if (descriptor.icon && typeof descriptor.icon !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'icon'));
+				return false;
+			}
+			if (descriptor.contextualTitle && typeof descriptor.contextualTitle !== 'string') {
+				collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'contextualTitle'));
 				return false;
 			}
 		}

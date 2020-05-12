@@ -344,7 +344,7 @@ export class ExtensionEditor extends BaseEditor {
 		template.builtin.style.display = extension.type === ExtensionType.System ? 'inherit' : 'none';
 
 		template.publisher.textContent = extension.publisherDisplayName;
-		template.version.textContent = extension.version;
+		template.version.textContent = `v${extension.version}`;
 		template.description.textContent = extension.description;
 
 		const extRecommendations = this.extensionRecommendationsService.getAllRecommendationsWithReason();
@@ -412,7 +412,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			this.instantiationService.createInstance(EnableDropDownAction),
 			this.instantiationService.createInstance(DisableDropDownAction, runningExtensions),
-			this.instantiationService.createInstance(RemoteInstallAction),
+			this.instantiationService.createInstance(RemoteInstallAction, false),
 			this.instantiationService.createInstance(LocalInstallAction),
 			combinedInstallAction,
 			systemDisabledWarningAction,

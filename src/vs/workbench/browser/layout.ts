@@ -43,6 +43,8 @@ import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from 'vs/workbench/commo
 import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { URI } from 'vs/base/common/uri';
+import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -171,10 +173,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private panelService!: IPanelService;
 	private titleService!: ITitleService;
 	private viewletService!: IViewletService;
+	private viewDescriptorService!: IViewDescriptorService;
 	private contextService!: IWorkspaceContextService;
 	private backupFileService!: IBackupFileService;
 	private notificationService!: INotificationService;
 	private themeService!: IThemeService;
+	private activityBarService!: IActivityBarService;
+	private statusBarService!: IStatusbarService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -255,10 +260,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.panelService = accessor.get(IPanelService);
 		this.viewletService = accessor.get(IViewletService);
+		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
-		accessor.get(IStatusbarService); // not used, but called to ensure instantiated
-		accessor.get(IActivityBarService); // not used, but called to ensure instantiated
+		this.activityBarService = accessor.get(IActivityBarService);
+		this.statusBarService = accessor.get(IStatusbarService);
 
 		// Listeners
 		this.registerLayoutListeners();
@@ -393,6 +399,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const newMenubarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
+		// Centered Layout
+		this.centerEditorLayout(this.state.editor.centered, skipLayout);
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -489,11 +497,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!this.state.sideBar.hidden) {
 
 			// Only restore last viewlet if window was reloaded or we are in development mode
-			let viewletToRestore: string;
+			let viewletToRestore: string | undefined;
 			if (!this.environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow || isWeb) {
-				viewletToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewletService.getDefaultViewletId());
+				viewletToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
 			} else {
-				viewletToRestore = this.viewletService.getDefaultViewletId();
+				viewletToRestore = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;
 			}
 
 			if (viewletToRestore) {
@@ -639,7 +647,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				if (sidebarState.length) {
-					storageService.store(ActivitybarPart.PINNED_VIEWLETS, JSON.stringify(sidebarState), StorageScope.GLOBAL);
+					storageService.store(ActivitybarPart.PINNED_VIEW_CONTAINERS, JSON.stringify(sidebarState), StorageScope.GLOBAL);
 				}
 			}
 		}
@@ -843,8 +851,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					activeViewlet.focus();
 				}
 				break;
+			case Parts.ACTIVITYBAR_PART:
+				this.activityBarService.focusActivityBar();
+				break;
+			case Parts.STATUSBAR_PART:
+				this.statusBarService.focus();
 			default:
-				// Status Bar, Activity Bar and Title Bar simply pass focus to container
+				// Title Bar simply pass focus to container
 				const container = this.getContainer(part);
 				if (container) {
 					container.focus();
@@ -1198,9 +1211,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
-		if (this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')
-			&& (this.editorGroupService.groups.length > 1 || (activeEditor && activeEditor instanceof SideBySideEditorInput))) {
-			smartActive = false; // Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
+
+		const isSideBySideLayout = activeEditor
+			&& activeEditor instanceof SideBySideEditorInput
+			// DiffEditorInput inherits from SideBySideEditorInput but can still be functionally an inline editor.
+			&& (!(activeEditor instanceof DiffEditorInput) || this.configurationService.getValue('diffEditor.renderSideBySide'));
+
+		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
+		if (
+			isCenteredLayoutAutoResizing
+			&& (this.editorGroupService.groups.length > 1 || isSideBySideLayout)
+		) {
+			smartActive = false;
 		}
 
 		// Enter Centered Editor Layout
@@ -1344,7 +1366,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (viewletToOpen) {
 				const viewlet = this.viewletService.openViewlet(viewletToOpen, true);
 				if (!viewlet) {
-					this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true);
+					this.viewletService.openViewlet(this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id, true);
 				}
 			}
 		}

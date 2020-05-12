@@ -62,6 +62,7 @@ export interface ParsedArgs {
 	'install-source'?: string;
 	'disable-updates'?: boolean;
 	'disable-crash-reporter'?: boolean;
+	'crash-reporter-directory'?: string;
 	'skip-add-to-recently-opened'?: boolean;
 	'max-memory'?: string;
 	'file-write'?: boolean;
@@ -177,6 +178,7 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },
+	'crash-reporter-directory': { type: 'string' },
 	'disable-user-env-probe': { type: 'boolean' },
 	'skip-add-to-recently-opened': { type: 'boolean' },
 	'unity-launch': { type: 'boolean' },

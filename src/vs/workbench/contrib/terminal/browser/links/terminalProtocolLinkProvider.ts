@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, IViewportRange, ILinkProvider, IBufferCellPosition, ILink, IBufferLine } from 'xterm';
+import { Terminal, IViewportRange, IBufferLine } from 'xterm';
 import { ILinkComputerTarget, LinkComputer } from 'vs/editor/common/modes/linkComputer';
-import { getXtermLineContent, convertLinkRangeToBuffer, positionIsInRange } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
+import { getXtermLineContent, convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkHelpers';
 import { TerminalLink, OPEN_FILE_LABEL } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 
-export class TerminalProtocolLinkProvider implements ILinkProvider {
+export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 	private _linkComputerTarget: ILinkComputerTarget | undefined;
 
 	constructor(
@@ -19,10 +20,11 @@ export class TerminalProtocolLinkProvider implements ILinkProvider {
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
+		super();
 	}
 
-	public provideLink(position: IBufferCellPosition, callback: (link: ILink | undefined) => void): void {
-		let startLine = position.y - 1;
+	protected _provideLinks(y: number): TerminalLink[] {
+		let startLine = y - 1;
 		let endLine = startLine;
 
 		const lines: IBufferLine[] = [
@@ -42,24 +44,16 @@ export class TerminalProtocolLinkProvider implements ILinkProvider {
 		this._linkComputerTarget = new TerminalLinkAdapter(this._xterm, startLine, endLine);
 		const links = LinkComputer.computeLinks(this._linkComputerTarget);
 
-		let found = false;
-		links.forEach(link => {
+		return links.map(link => {
 			const range = convertLinkRangeToBuffer(lines, this._xterm.cols, link.range, startLine);
 
 			// Check if the link if within the mouse position
-			if (positionIsInRange(position, range)) {
-				found = true;
-				const uri = link.url
-					? (typeof link.url === 'string' ? URI.parse(link.url) : link.url)
-					: undefined;
-				const label = (uri?.scheme === 'file') ? OPEN_FILE_LABEL : undefined;
-				callback(this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, label));
-			}
+			const uri = link.url
+				? (typeof link.url === 'string' ? URI.parse(link.url) : link.url)
+				: undefined;
+			const label = (uri?.scheme === 'file') ? OPEN_FILE_LABEL : undefined;
+			return this._instantiationService.createInstance(TerminalLink, range, link.url?.toString() || '', this._xterm.buffer.active.viewportY, this._activateCallback, this._tooltipCallback, true, label);
 		});
-
-		if (!found) {
-			callback(undefined);
-		}
 	}
 }
 

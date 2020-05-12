@@ -951,7 +951,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			position += this.viewItems[i].size;
 
 			if (this.sashItems[i].sash === sash) {
-				return Math.min(position, this.contentSize - 2);
+				return position;
 			}
 		}
 

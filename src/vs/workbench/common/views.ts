@@ -21,6 +21,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { SetMap } from 'vs/base/common/collections';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import Severity from 'vs/base/common/severity';
+import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -86,7 +87,7 @@ export interface IViewContainersRegistry {
 	 *
 	 * @returns the registered ViewContainer.
 	 */
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation): ViewContainer;
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, location: ViewContainerLocation, isDefault?: boolean): ViewContainer;
 
 	/**
 	 * Deregisters the given view container
@@ -110,6 +111,11 @@ export interface IViewContainersRegistry {
 	 * Returns the view container location
 	 */
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation;
+
+	/**
+	 * Return the default view container from the given location
+	 */
+	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
 }
 
 interface ViewOrderDelegate {
@@ -126,13 +132,14 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	private readonly _onDidDeregister = this._register(new Emitter<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }>());
 	readonly onDidDeregister: Event<{ viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation }> = this._onDidDeregister.event;
 
-	private viewContainers: Map<ViewContainerLocation, ViewContainer[]> = new Map<ViewContainerLocation, ViewContainer[]>();
+	private readonly viewContainers: Map<ViewContainerLocation, ViewContainer[]> = new Map<ViewContainerLocation, ViewContainer[]>();
+	private readonly defaultViewContainers: ViewContainer[] = [];
 
 	get all(): ViewContainer[] {
 		return flatten(values(this.viewContainers));
 	}
 
-	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation): ViewContainer {
+	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, isDefault?: boolean): ViewContainer {
 		const existing = this.get(viewContainerDescriptor.id);
 		if (existing) {
 			return existing;
@@ -141,6 +148,9 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 		const viewContainer: ViewContainer = viewContainerDescriptor;
 		const viewContainers = getOrSet(this.viewContainers, viewContainerLocation, []);
 		viewContainers.push(viewContainer);
+		if (isDefault) {
+			this.defaultViewContainers.push(viewContainer);
+		}
 		this._onDidRegister.fire({ viewContainer, viewContainerLocation });
 		return viewContainer;
 	}
@@ -171,6 +181,10 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	getViewContainerLocation(container: ViewContainer): ViewContainerLocation {
 		return keys(this.viewContainers).filter(location => this.getViewContainers(location).filter(viewContainer => viewContainer.id === container.id).length > 0)[0];
 	}
+
+	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined {
+		return this.defaultViewContainers.find(viewContainer => this.getViewContainerLocation(viewContainer) === location);
+	}
 }
 
 Registry.add(Extensions.ViewContainersRegistry, new ViewContainersRegistryImpl());
@@ -196,6 +210,8 @@ export interface IViewDescriptor {
 	readonly canMoveView?: boolean;
 
 	readonly containerIcon?: string | URI;
+
+	readonly containerTitle?: string;
 
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
@@ -268,13 +284,15 @@ export interface IViewContentDescriptor {
 
 export interface IViewsRegistry {
 
-	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
+	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }[]>;
 
 	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }>;
 
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
 
 	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
+
+	registerViews2(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void;
 
 	deregisterViews(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
@@ -305,8 +323,8 @@ function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewConten
 
 class ViewsRegistry extends Disposable implements IViewsRegistry {
 
-	private readonly _onViewsRegistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>());
-	readonly onViewsRegistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsRegistered.event;
+	private readonly _onViewsRegistered = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }[]>());
+	readonly onViewsRegistered = this._onViewsRegistered.event;
 
 	private readonly _onViewsDeregistered: Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._register(new Emitter<{ views: IViewDescriptor[], viewContainer: ViewContainer }>());
 	readonly onViewsDeregistered: Event<{ views: IViewDescriptor[], viewContainer: ViewContainer }> = this._onViewsDeregistered.event;
@@ -322,8 +340,12 @@ class ViewsRegistry extends Disposable implements IViewsRegistry {
 	private _viewWelcomeContents = new SetMap<string, IViewContentDescriptor>();
 
 	registerViews(views: IViewDescriptor[], viewContainer: ViewContainer): void {
-		this.addViews(views, viewContainer);
-		this._onViewsRegistered.fire({ views: views, viewContainer });
+		this.registerViews2([{ views, viewContainer }]);
+	}
+
+	registerViews2(views: { views: IViewDescriptor[], viewContainer: ViewContainer }[]): void {
+		views.forEach(({ views, viewContainer }) => this.addViews(views, viewContainer));
+		this._onViewsRegistered.fire(views);
 	}
 
 	deregisterViews(viewDescriptors: IViewDescriptor[], viewContainer: ViewContainer): void {
@@ -443,22 +465,24 @@ export interface IView {
 }
 
 export const IViewsService = createDecorator<IViewsService>('viewsService');
-
 export interface IViewsService {
 
 	_serviceBrand: undefined;
 
+	// View Container APIs
+	readonly onDidChangeViewContainerVisibility: Event<{ id: string, visible: boolean, location: ViewContainerLocation }>;
+	isViewContainerVisible(id: string): boolean;
+	openViewContainer(id: string, focus?: boolean): Promise<IPaneComposite | null>;
+	closeViewContainer(id: string): void;
+	getVisibleViewContainer(location: ViewContainerLocation): ViewContainer | null;
+
+	// View APIs
 	readonly onDidChangeViewVisibility: Event<{ id: string, visible: boolean }>;
-
 	isViewVisible(id: string): boolean;
-
-	getActiveViewWithId<T extends IView>(id: string): T | null;
-
 	openView<T extends IView>(id: string, focus?: boolean): Promise<T | null>;
-
 	closeView(id: string): void;
-
-	getProgressIndicator(id: string): IProgressIndicator | undefined;
+	getActiveViewWithId<T extends IView>(id: string): T | null;
+	getViewProgressIndicator(id: string): IProgressIndicator | undefined;
 }
 
 /**
@@ -473,35 +497,31 @@ export interface IViewDescriptorService {
 
 	_serviceBrand: undefined;
 
-	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
-	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
-	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
+	// ViewContainers
+	readonly viewContainers: ReadonlyArray<ViewContainer>;
+	readonly onDidChangeViewContainers: Event<{ added: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer, location: ViewContainerLocation }> }>;
 
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void;
-
-	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
-
-	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
-
+	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
+	getViewContainerById(id: string): ViewContainer | null;
+	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
+	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
+	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
+	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void;
+
+	// Views
 	getViewDescriptorById(id: string): IViewDescriptor | null;
-
 	getViewContainerByViewId(id: string): ViewContainer | null;
-
-	getViewContainerById(id: string): ViewContainer | null;
-
-	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
-
-	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
-
 	getDefaultContainerById(id: string): ViewContainer | null;
-
 	getViewLocationById(id: string): ViewContainerLocation | null;
 
-	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
+	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[], from: ViewContainer, to: ViewContainer }>;
+	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer): void;
 
-	getViewContainers(): ViewContainer[];
+	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[], from: ViewContainerLocation, to: ViewContainerLocation }>;
+	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
 }
 
 // Custom views

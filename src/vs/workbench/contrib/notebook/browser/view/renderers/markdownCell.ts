@@ -18,6 +18,9 @@ import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/r
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class StatefullMarkdownCell extends Disposable {
 
@@ -35,7 +38,8 @@ export class StatefullMarkdownCell extends Disposable {
 		private templateData: MarkdownCellRenderTemplate,
 		editorOptions: IEditorOptions,
 		renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
-		instantiationService: IInstantiationService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -70,13 +74,20 @@ export class StatefullMarkdownCell extends Disposable {
 					editorHeight = Math.max(lineNum, 1) * lineHeight + EDITOR_TOP_PADDING + EDITOR_BOTTOM_PADDING;
 
 					this.templateData.editorContainer.innerHTML = '';
-					this.editor = instantiationService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
+
+					// create a special context key service that set the inCompositeEditor-contextkey
+					const editorContextKeyService = contextKeyService.createScoped();
+					const editorInstaService = instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
+					EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
+
+					this.editor = editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
 						...this.editorOptions,
 						dimension: {
 							width: width,
 							height: editorHeight
 						}
 					}, {});
+					templateData.currentEditor = this.editor;
 
 					const cts = new CancellationTokenSource();
 					this._register({ dispose() { cts.dispose(true); } });
@@ -98,6 +109,7 @@ export class StatefullMarkdownCell extends Disposable {
 									height: realContentHeight
 								}
 							);
+							editorHeight = realContentHeight;
 						}
 
 						viewCell.attachTextEditor(this.editor!);
@@ -110,6 +122,12 @@ export class StatefullMarkdownCell extends Disposable {
 							width: width,
 							height: editorHeight
 						});
+
+
+						const clientHeight = this.markdownContainer.clientHeight;
+						const totalHeight = editorHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
+						this.viewCell.totalHeight = totalHeight;
+						notebookEditor.layoutNotebookCell(viewCell, totalHeight);
 					});
 				}
 
@@ -231,7 +249,8 @@ export class StatefullMarkdownCell extends Disposable {
 
 	bindEditorListeners(model: ITextModel, dimension?: IDimension) {
 		this.localDisposables.add(model.onDidChangeContent(() => {
-			this.viewCell.setText(model.getLinesContent());
+			// we don't need to update view cell text anymore as the textbuffer is shared
+			this.viewCell.clearHTML();
 			let clientHeight = this.markdownContainer.clientHeight;
 			this.markdownContainer.innerHTML = '';
 			let renderedHTML = this.viewCell.getHTML();

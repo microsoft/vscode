@@ -41,6 +41,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { commonSuffixLength } from 'vs/base/common/strings';
+import { posix } from 'vs/base/common/path';
 
 const $ = dom.$;
 
@@ -76,6 +78,26 @@ export function getContextForContributedActions(element: CallStackItem | null): 
 	}
 
 	return '';
+}
+
+export function getSpecificSourceName(stackFrame: IStackFrame): string {
+	// To reduce flashing of the path name and the way we fetch stack frames
+	// We need to compute the source name based on the other frames in the stale call stack
+	let callStack = (<Thread>stackFrame.thread).getStaleCallStack();
+	callStack = callStack.length > 0 ? callStack : stackFrame.thread.getCallStack();
+	const otherSources = callStack.map(sf => sf.source).filter(s => s !== stackFrame.source);
+	let suffixLength = 0;
+	otherSources.forEach(s => {
+		if (s.name === stackFrame.source.name) {
+			suffixLength = Math.max(suffixLength, commonSuffixLength(stackFrame.source.uri.path, s.uri.path));
+		}
+	});
+	if (suffixLength === 0) {
+		return stackFrame.source.name;
+	}
+
+	const from = Math.max(0, stackFrame.source.uri.path.lastIndexOf(posix.sep, stackFrame.source.uri.path.length - suffixLength - 1));
+	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substr(from);
 }
 
 export class CallStackView extends ViewPane {
@@ -453,7 +475,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		dom.append(session, $('.codicon.codicon-bug'));
 		const name = dom.append(session, $('.name'));
 		const state = dom.append(session, $('.state'));
-		const stateLabel = dom.append(state, $('span.label'));
+		const stateLabel = dom.append(state, $('span.label.monaco-count-badge.long'));
 		const label = new HighlightedLabel(name, false);
 		const actionBar = new ActionBar(session, {
 			actionViewItemProvider: action => {
@@ -473,7 +495,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		const session = element.element;
 		data.session.title = nls.localize({ key: 'session', comment: ['Session is a noun'] }, "Session");
 		data.label.set(session.getLabel(), createMatches(element.filterData));
-		const thread = session.getAllThreads().filter(t => t.stopped).pop();
+		const thread = session.getAllThreads().find(t => t.stopped);
 
 		const setActionBar = () => {
 			const actions = getActions(this.instantiationService, element.element);
@@ -493,7 +515,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		if (thread && thread.stoppedDetails) {
 			data.stateLabel.textContent = thread.stoppedDetails.description || nls.localize('debugStopped', "Paused on {0}", thread.stoppedDetails.reason || '');
 		} else {
-			const hasChildSessions = this.debugService.getModel().getSessions().filter(s => s.parentSession === session).length > 0;
+			const hasChildSessions = this.debugService.getModel().getSessions().find(s => s.parentSession === session);
 			if (!hasChildSessions) {
 				data.stateLabel.textContent = nls.localize({ key: 'running', comment: ['indicates state'] }, "Running");
 			} else {
@@ -562,7 +584,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 		const file = dom.append(stackFrame, $('.file'));
 		const fileName = dom.append(file, $('span.file-name'));
 		const wrapper = dom.append(file, $('span.line-number-wrapper'));
-		const lineNumber = dom.append(wrapper, $('span.line-number'));
+		const lineNumber = dom.append(wrapper, $('span.line-number.monaco-count-badge'));
 		const label = new HighlightedLabel(labelDiv, false);
 		const actionBar = new ActionBar(stackFrame);
 
@@ -582,7 +604,7 @@ class StackFramesRenderer implements ITreeRenderer<IStackFrame, FuzzyScore, ISta
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}
 		data.label.set(stackFrame.name, createMatches(element.filterData), stackFrame.name);
-		data.fileName.textContent = stackFrame.getSpecificSourceName();
+		data.fileName.textContent = getSpecificSourceName(stackFrame);
 		if (stackFrame.range.startLineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
 			if (stackFrame.range.startColumn) {
@@ -751,7 +773,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 	hasChildren(element: IDebugModel | CallStackItem): boolean {
 		if (isDebugSession(element)) {
 			const threads = element.getAllThreads();
-			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || (this.debugService.getModel().getSessions().filter(s => s.parentSession === element).length > 0);
+			return (threads.length > 1) || (threads.length === 1 && threads[0].stopped) || !!(this.debugService.getModel().getSessions().find(s => s.parentSession === element));
 		}
 
 		return isDebugModel(element) || (element instanceof Thread && element.stopped);
@@ -855,7 +877,7 @@ class CallStackAccessibilityProvider implements IListAccessibilityProvider<CallS
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", element.name, element.range.startLineNumber, element.getSpecificSourceName());
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0}, line {1}, {2}, callstack, debug", element.name, element.range.startLineNumber, getSpecificSourceName(element));
 		}
 		if (isDebugSession(element)) {
 			return nls.localize('sessionLabel', "Debug Session {0}", element.getLabel());

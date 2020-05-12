@@ -500,7 +500,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	async run(context?: IEditorIdentifier): Promise<void> {
 		const { group, editor } = getTarget(this.editorService, this.editorGroupService, context);
 		if (group && editor) {
-			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor });
+			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor, excludeSticky: true });
 		}
 	}
 }
@@ -514,7 +514,7 @@ function getTarget(editorService: IEditorService, editorGroupService: IEditorGro
 	return { group: editorGroupService.activeGroup, editor: editorGroupService.activeGroup.activeEditor };
 }
 
-export abstract class BaseCloseAllAction extends Action {
+abstract class BaseCloseAllAction extends Action {
 
 	constructor(
 		id: string,
@@ -554,7 +554,7 @@ export abstract class BaseCloseAllAction extends Action {
 		// to bring each dirty editor to the front so that the user
 		// can review if the files should be changed or not.
 		await Promise.all(this.groupsToClose.map(async groupToClose => {
-			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: this.excludeSticky })) {
 				if (editor.isDirty() && !editor.isSaving() /* ignore editors that are being saved */) {
 					return groupToClose.openEditor(editor);
 				}
@@ -566,7 +566,7 @@ export abstract class BaseCloseAllAction extends Action {
 		const dirtyEditorsToConfirm = new Set<string>();
 		const dirtyEditorsToAutoSave = new Set<IEditorInput>();
 
-		for (const editor of this.editorService.editors) {
+		for (const editor of this.editorService.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: this.excludeSticky }).map(({ editor }) => editor)) {
 			if (!editor.isDirty() || editor.isSaving()) {
 				continue; // only interested in dirty editors (unless in the process of saving)
 			}
@@ -601,20 +601,28 @@ export abstract class BaseCloseAllAction extends Action {
 			confirmation = ConfirmResult.DONT_SAVE;
 		}
 
-		if (confirmation === ConfirmResult.CANCEL) {
-			return;
+		// Handle result from asking user
+		let result: boolean | undefined = undefined;
+		switch (confirmation) {
+			case ConfirmResult.CANCEL:
+				return;
+			case ConfirmResult.DONT_SAVE:
+				result = await this.editorService.revertAll({ soft: true, includeUntitled: true, excludeSticky: this.excludeSticky });
+				break;
+			case ConfirmResult.SAVE:
+				result = await this.editorService.saveAll({ reason: saveReason, includeUntitled: true, excludeSticky: this.excludeSticky });
+				break;
 		}
 
-		if (confirmation === ConfirmResult.DONT_SAVE) {
-			await this.editorService.revertAll({ soft: true, includeUntitled: true });
-		} else {
-			await this.editorService.saveAll({ reason: saveReason, includeUntitled: true });
-		}
 
-		if (!this.workingCopyService.hasDirty) {
+		// Only continue to close editors if we either have no more dirty
+		// editors or the result from the save/revert was successful
+		if (!this.workingCopyService.hasDirty || result) {
 			return this.doCloseAll();
 		}
 	}
+
+	protected abstract get excludeSticky(): boolean;
 
 	protected abstract doCloseAll(): Promise<void>;
 }
@@ -636,8 +644,12 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 		super(id, label, Codicon.closeAll.classNames, workingCopyService, fileDialogService, editorGroupService, editorService, filesConfigurationService);
 	}
 
+	protected get excludeSticky(): boolean {
+		return true;
+	}
+
 	protected async doCloseAll(): Promise<void> {
-		await Promise.all(this.groupsToClose.map(g => g.closeAllEditors()));
+		await Promise.all(this.groupsToClose.map(group => group.closeAllEditors({ excludeSticky: true })));
 	}
 }
 
@@ -656,6 +668,10 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(id, label, undefined, workingCopyService, fileDialogService, editorGroupService, editorService, filesConfigurationService);
+	}
+
+	protected get excludeSticky(): boolean {
+		return false;
 	}
 
 	protected async doCloseAll(): Promise<void> {
@@ -680,12 +696,12 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 
 	async run(context?: IEditorIdentifier): Promise<void> {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
-		await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(async g => {
-			if (groupToSkip && g.id === groupToSkip.id) {
+		await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(async group => {
+			if (groupToSkip && group.id === groupToSkip.id) {
 				return;
 			}
 
-			return g.closeAllEditors();
+			return group.closeAllEditors({ excludeSticky: true });
 		}));
 	}
 }
@@ -707,7 +723,7 @@ export class CloseEditorInAllGroupsAction extends Action {
 	async run(): Promise<void> {
 		const activeEditor = this.editorService.activeEditor;
 		if (activeEditor) {
-			await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => g.closeEditor(activeEditor)));
+			await Promise.all(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(group => group.closeEditor(activeEditor)));
 		}
 	}
 }

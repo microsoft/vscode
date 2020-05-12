@@ -10,7 +10,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { StartAction, ConfigureAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { StartAction, ConfigureAction, SelectAndStartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -117,6 +117,11 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'runAndDebugAction', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
 		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
 	preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR]
+});
+
+viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
+	content: localize({ key: 'detectThenRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"[Detect then Run and Debug{0}](command:{1})", debugKeybindingLabel, SelectAndStartAction.ID)
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {

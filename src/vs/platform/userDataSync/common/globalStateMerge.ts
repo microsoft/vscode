@@ -18,7 +18,7 @@ export interface IMergeResult {
 
 export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, storageKeys: ReadonlyArray<IStorageKey>, previouslySkipped: string[], logService: ILogService): IMergeResult {
 	if (!remoteStorage) {
-		return { remote: localStorage, local: { added: {}, removed: [], updated: {} }, skipped: [] };
+		return { remote: Object.keys(localStorage).length > 0 ? localStorage : null, local: { added: {}, removed: [], updated: {} }, skipped: [] };
 	}
 
 	const localToRemote = compare(localStorage, remoteStorage);

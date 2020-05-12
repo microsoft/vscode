@@ -380,7 +380,6 @@ interface CompletionConfiguration {
 	readonly nameSuggestions: boolean;
 	readonly pathSuggestions: boolean;
 	readonly autoImportSuggestions: boolean;
-	readonly includeAutomaticOptionalChainCompletions: boolean;
 }
 
 namespace CompletionConfiguration {
@@ -388,7 +387,6 @@ namespace CompletionConfiguration {
 	export const nameSuggestions = 'suggest.names';
 	export const pathSuggestions = 'suggest.paths';
 	export const autoImportSuggestions = 'suggest.autoImports';
-	export const includeAutomaticOptionalChainCompletions = 'suggest.includeAutomaticOptionalChainCompletions';
 
 	export function getConfigurationForResource(
 		modeId: string,
@@ -400,12 +398,11 @@ namespace CompletionConfiguration {
 			pathSuggestions: config.get<boolean>(CompletionConfiguration.pathSuggestions, true),
 			autoImportSuggestions: config.get<boolean>(CompletionConfiguration.autoImportSuggestions, true),
 			nameSuggestions: config.get<boolean>(CompletionConfiguration.nameSuggestions, true),
-			includeAutomaticOptionalChainCompletions: config.get<boolean>(CompletionConfiguration.includeAutomaticOptionalChainCompletions, true),
 		};
 	}
 }
 
-class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
+class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<MyCompletionItem> {
 
 	public static readonly triggerCharacters = ['.', '"', '\'', '`', '/', '@', '<', '#'];
 
@@ -428,9 +425,9 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		position: vscode.Position,
 		token: vscode.CancellationToken,
 		context: vscode.CompletionContext
-	): Promise<vscode.CompletionList | null> {
+	): Promise<vscode.CompletionList<MyCompletionItem> | null> {
 		if (this.typingsStatus.isAcquiringTypings) {
-			return Promise.reject<vscode.CompletionList>({
+			return Promise.reject<vscode.CompletionList<MyCompletionItem>>({
 				label: localize(
 					{ key: 'acquiringTypingsLabel', comment: ['Typings refers to the *.d.ts typings files that power our IntelliSense. It should not be localized'] },
 					'Acquiring typings...'),
@@ -456,12 +453,11 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 
 		await this.client.interruptGetErr(() => this.fileConfigurationManager.ensureConfigurationForDocument(document, token));
 
-		const args: Proto.CompletionsRequestArgs & { includeAutomaticOptionalChainCompletions?: boolean } = {
+		const args: Proto.CompletionsRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
 			triggerCharacter: this.getTsTriggerCharacter(context),
-			includeAutomaticOptionalChainCompletions: completionConfiguration.includeAutomaticOptionalChainCompletions,
 		};
 
 		let isNewIdentifierLocation = true;
@@ -535,7 +531,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			useFuzzyWordRangeLogic: this.client.apiVersion.lt(API.v390),
 		};
 
-		const items: vscode.CompletionItem[] = [];
+		const items: MyCompletionItem[] = [];
 		for (let entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
 				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
@@ -565,13 +561,9 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 	}
 
 	public async resolveCompletionItem(
-		item: vscode.CompletionItem,
+		item: MyCompletionItem,
 		token: vscode.CancellationToken
-	): Promise<vscode.CompletionItem | undefined> {
-		if (!(item instanceof MyCompletionItem)) {
-			return undefined;
-		}
-
+	): Promise<MyCompletionItem | undefined> {
 		const filepath = this.client.toOpenedFilePath(item.document);
 		if (!filepath) {
 			return undefined;

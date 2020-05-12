@@ -47,6 +47,7 @@ import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MenuRegistry, MenuId, isIMenuItem } from 'vs/platform/actions/common/actions';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { preferencesEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 
 const $ = DOM.$;
 
@@ -400,7 +401,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 	}
 
 	private createRecordingBadge(container: HTMLElement): HTMLElement {
-		const recordingBadge = DOM.append(container, DOM.$('.recording-badge.disabled'));
+		const recordingBadge = DOM.append(container, DOM.$('.recording-badge.monaco-count-badge.long.disabled'));
 		recordingBadge.textContent = localize('recording', "Recording Keys");
 		this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder, badgeForeground }, colors => {
 			const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
@@ -459,6 +460,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditorP
 			setRowLineHeight: false,
 			horizontalScrolling: false,
 			accessibilityProvider: new AccessibilityProvider(),
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IKeybindingItemEntry) => e.keybindingItem.commandLabel || e.keybindingItem.command },
 			overrideStyles: {
 				listBackground: editorBackground
 			}
@@ -890,7 +892,7 @@ class ActionsColumn extends Column {
 	private createEditAction(keybindingItemEntry: IKeybindingItemEntry): IAction {
 		const keybinding = this.keybindingsService.lookupKeybinding(KEYBINDINGS_EDITOR_COMMAND_DEFINE);
 		return <IAction>{
-			class: 'codicon-edit',
+			class: preferencesEditIcon.classNames,
 			enabled: true,
 			id: 'editKeybinding',
 			tooltip: keybinding ? localize('editKeybindingLabelWithKey', "Change Keybinding {0}", `(${keybinding.getLabel()})`) : localize('editKeybindingLabel', "Change Keybinding"),
@@ -1112,9 +1114,9 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 
 	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
 		let ariaLabel = keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
-		ariaLabel += ' ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
-		ariaLabel += ' ' + keybindingItemEntry.keybindingItem.source;
-		ariaLabel += ' ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
+		ariaLabel += ', ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
+		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.source;
+		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
 		return ariaLabel;
 	}
 

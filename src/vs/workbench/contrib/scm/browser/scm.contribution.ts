@@ -150,6 +150,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			description: localize('autoReveal', "Controls whether the SCM view should automatically reveal and select files when opening them."),
 			default: true
 		},
+		'scm.inputFontFamily': {
+			type: 'string',
+			markdownDescription: localize('inputFontFamily', "Controls the font for the input message. Use `default` for the workbench user interface font family, `editor` for the `#editor.fontFamily#`'s value, or a custom font family."),
+			default: 'default'
+		}
 	}
 });
 

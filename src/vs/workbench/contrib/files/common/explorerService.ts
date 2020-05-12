@@ -168,7 +168,7 @@ export class ExplorerService implements IExplorerService {
 		}
 		const rootUri = workspaceFolder.uri;
 
-		const root = this.roots.filter(r => r.resource.toString() === rootUri.toString()).pop()!;
+		const root = this.roots.find(r => r.resource.toString() === rootUri.toString())!;
 
 		try {
 			const stat = await this.fileService.resolve(rootUri, options);

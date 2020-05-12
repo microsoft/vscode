@@ -81,7 +81,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
-		this._buffer = null;
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
@@ -171,21 +170,16 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 	}
 
-	save() {
-		if (this._textModel && !this._textModel.isDisposed() && this.editState === CellEditState.Editing) {
-			this.model.source = this._textModel.getLinesContent();
-		}
-	}
-
+	/**
+	 * Text model is used for editing.
+	 */
 	async resolveTextModel(): Promise<model.ITextModel> {
 		if (!this._textModel) {
 			const ref = await this._modelService.createModelReference(this.model.uri);
 			this._textModel = ref.object.textEditorModel;
-			this._buffer = this._textModel.getTextBuffer();
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
 				this.editState = CellEditState.Editing;
-				this.model.contentChange();
 				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}

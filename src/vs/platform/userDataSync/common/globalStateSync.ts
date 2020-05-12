@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, ISyncPreviewResult } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncStatus, IUserDataSyncStoreService, IUserDataSyncLogService, IGlobalState, SyncResource, IUserDataSynchroniser, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, IStorageValue, ISyncPreviewResult, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { dirname, joinPath, basename } from 'vs/base/common/resources';
+import { dirname, joinPath, basename, isEqual } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
@@ -41,6 +41,7 @@ interface ILastSyncUserData extends IRemoteUserData {
 
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
+	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/current.json` });
 	protected readonly version: number = 1;
 
 	constructor(
@@ -139,26 +140,42 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 	async stop(): Promise<void> { }
 
 	async getAssociatedResources({ uri }: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
-		return [{ resource: joinPath(uri, 'globalState.json') }];
+		return [{ resource: joinPath(uri, 'globalState.json'), comparableResource: GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI }];
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
+		if (isEqual(uri, GlobalStateSynchroniser.GLOBAL_STATE_DATA_URI)) {
+			const localGlobalState = await this.getLocalGlobalState();
+			return this.format(localGlobalState);
+		}
+
 		let content = await super.resolveContent(uri);
 		if (content) {
 			return content;
 		}
+
 		content = await super.resolveContent(dirname(uri));
 		if (content) {
 			const syncData = this.parseSyncData(content);
 			if (syncData) {
 				switch (basename(uri)) {
 					case 'globalState.json':
-						const edits = format(syncData.content, undefined, {});
-						return applyEdits(syncData.content, edits);
+						return this.format(JSON.parse(syncData.content));
 				}
 			}
 		}
+
 		return null;
+	}
+
+	private format(globalState: IGlobalState): string {
+		const storageKeys = Object.keys(globalState.storage).sort();
+		const storage: IStringDictionary<IStorageValue> = {};
+		storageKeys.forEach(key => storage[key] = globalState.storage[key]);
+		globalState.storage = storage;
+		const content = JSON.stringify(globalState);
+		const edits = format(content, undefined, {});
+		return applyEdits(content, edits);
 	}
 
 	async acceptConflict(conflict: URI, content: string): Promise<void> {

@@ -366,7 +366,7 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
-	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean }> {
+	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null, description: string, canPersist?: boolean } | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debug adapter, can not send '{0}'", 'data breakpoints info'));
 		}
@@ -592,7 +592,7 @@ export class DebugSession implements IDebugSession {
 		}
 
 		const response = await this.raw.loadedSources({});
-		if (response.body && response.body.sources) {
+		if (response && response.body && response.body.sources) {
 			return response.body.sources.map(src => this.getSource(src));
 		} else {
 			return [];
@@ -735,6 +735,7 @@ export class DebugSession implements IDebugSession {
 						await this.raw.configurationDone();
 					} catch (e) {
 						// Disconnect the debug session on configuration done error #10596
+						this.notificationService.error(e);
 						if (this.raw) {
 							this.raw.disconnect();
 						}
@@ -890,8 +891,8 @@ export class DebugSession implements IDebugSession {
 
 		this.rawListeners.push(this.raw.onDidBreakpoint(event => {
 			const id = event.body && event.body.breakpoint ? event.body.breakpoint.id : undefined;
-			const breakpoint = this.model.getBreakpoints().filter(bp => bp.getIdFromAdapter(this.getId()) === id).pop();
-			const functionBreakpoint = this.model.getFunctionBreakpoints().filter(bp => bp.getIdFromAdapter(this.getId()) === id).pop();
+			const breakpoint = this.model.getBreakpoints().find(bp => bp.getIdFromAdapter(this.getId()) === id);
+			const functionBreakpoint = this.model.getFunctionBreakpoints().find(bp => bp.getIdFromAdapter(this.getId()) === id);
 
 			if (event.body.reason === 'new' && event.body.breakpoint.source && event.body.breakpoint.line) {
 				const source = this.getSource(event.body.breakpoint.source);
