@@ -235,23 +235,15 @@ export class NoTabsTitleControl extends TitleControl {
 		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
-		const shouldRelayout = !this.activeLabel.editor && !!editor;
-
 		this.activeLabel = { editor, pinned: isEditorPinned };
 
 		// Update Breadcrumbs
 		if (this.breadcrumbsControl) {
-			let didUpdate = false;
-			let wasHidden = this.breadcrumbsControl.isHidden();
 			if (isGroupActive) {
-				didUpdate = this.breadcrumbsControl.update();
+				this.breadcrumbsControl.update();
 				toggleClass(this.breadcrumbsControl.domNode, 'preview', !isEditorPinned);
 			} else {
 				this.breadcrumbsControl.hide();
-			}
-			if (shouldRelayout && (didUpdate || wasHidden !== this.breadcrumbsControl.isHidden())) {
-				// relayout when hidden-status has changed
-				this.group.relayout();
 			}
 		}
 
