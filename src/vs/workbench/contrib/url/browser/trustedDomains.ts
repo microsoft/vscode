@@ -11,6 +11,7 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
@@ -116,7 +117,7 @@ export async function configureOpenerTrustedDomainsHandler(
 	return [];
 }
 
-export function readTrustedDomains(storageService: IStorageService, productService: IProductService) {
+export async function readTrustedDomains(storageService: IStorageService, productService: IProductService, authenticationService: IAuthenticationService) {
 	const defaultTrustedDomains: string[] = productService.linkProtectionTrustedDomains
 		? [...productService.linkProtectionTrustedDomains]
 		: [];
@@ -129,8 +130,13 @@ export function readTrustedDomains(storageService: IStorageService, productServi
 		}
 	} catch (err) { }
 
+	const userDomains = ((await authenticationService.getSessions('github')) ?? [])
+		.map(session => session.account.displayName)
+		.map(username => `https://github.com/${username}/`);
+
 	return {
 		defaultTrustedDomains,
-		trustedDomains
+		trustedDomains,
+		userDomains
 	};
 }
