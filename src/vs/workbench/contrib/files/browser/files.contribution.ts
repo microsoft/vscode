@@ -373,7 +373,7 @@ configurationRegistry.registerConfiguration({
 		'explorer.autoReveal': {
 			'type': ['boolean', 'string'],
 			'enum': [true, false, 'highlightNoScroll'],
-			'default': 'autoReveal.on',
+			'default': true,
 			'enumDescriptions': [
 				nls.localize('autoReveal.on', 'Files will be revealed and selected.'),
 				nls.localize('autoReveal.off', 'Files will not be revealed and selected.'),
