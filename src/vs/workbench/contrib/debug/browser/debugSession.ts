@@ -592,7 +592,7 @@ export class DebugSession implements IDebugSession {
 		}
 
 		const response = await this.raw.loadedSources({});
-		if (response.body && response.body.sources) {
+		if (response && response.body && response.body.sources) {
 			return response.body.sources.map(src => this.getSource(src));
 		} else {
 			return [];
