@@ -640,8 +640,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 			(async () => {
 				const editor = await this.editorService.openEditor({
 					resource: lastClosedFile.resource,
-					options: { pinned: true, sticky: lastClosedFile.sticky, index: lastClosedFile.index }
+					options: {
+						pinned: true,
+						sticky: lastClosedFile.sticky,
+						index: lastClosedFile.index
+					}
 				});
+
+				// Make the editor sticky after opening it. Even though we provide
+				// the sticky option, the editor service may decide to not respect
+				// the flag given there is also an index provided which maybe outside
+				// of the sticky range
+				if (lastClosedFile.sticky) {
+					editor?.group?.stickEditor(editor.input);
+				}
 
 				// Fix for https://github.com/Microsoft/vscode/issues/67882
 				// If opening of the editor fails, make sure to try the next one
