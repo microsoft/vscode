@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { raceTimeout } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
 import * as path from 'vs/base/common/path';
 import * as semver from 'semver-umd';
@@ -364,17 +365,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 
 			// Flush the remaining data in AI adapter.
 			// If it does not complete in 1 second, exit the process.
-			const flushTelemetry = (promise: Promise<any>, ms: number): Promise<any> => {
-				const timeout = new Promise((resolve) => {
-					const id = setTimeout(() => {
-						clearTimeout(id);
-						resolve();
-					}, ms);
-				});
-
-				return Promise.race([promise, timeout]);
-			};
-			await flushTelemetry(combinedAppender(...appenders).flush(), 1000);
+			await raceTimeout(combinedAppender(...appenders).flush(), 1000);
 		} finally {
 			disposables.dispose();
 		}
