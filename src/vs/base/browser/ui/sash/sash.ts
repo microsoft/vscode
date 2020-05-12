@@ -14,7 +14,6 @@ import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListe
 import { domEvent } from 'vs/base/browser/event';
 
 const DEBUG = false;
-let globalSashSize = 4;
 
 export interface ISashLayoutProvider { }
 
@@ -56,19 +55,20 @@ export const enum SashState {
 	Enabled
 }
 
-const _onDidChangeGlobalSize = new Emitter<number>();
-const onDidChangeGlobalSize: Event<number> = _onDidChangeGlobalSize.event;
+let globalSize = 4;
+const onDidChangeGlobalSize = new Emitter<number>();
 export function setGlobalSashSize(size: number): void {
-	globalSashSize = size;
-	_onDidChangeGlobalSize.fire(size);
+	globalSize = size;
+	onDidChangeGlobalSize.fire(size);
 }
 
 export class Sash extends Disposable {
+
 	private el: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
 	private hidden: boolean;
 	private orientation!: Orientation;
-	private size: number = globalSashSize;
+	private size = globalSize;
 
 	private _state: SashState = SashState.Enabled;
 	get state(): SashState { return this._state; }
@@ -149,7 +149,7 @@ export class Sash extends Disposable {
 		this._register(Gesture.addTarget(this.el));
 		this._register(domEvent(this.el, EventType.Start)(this.onTouchStart, this));
 
-		this._register(onDidChangeGlobalSize(size => {
+		this._register(onDidChangeGlobalSize.event(size => {
 			this.size = size;
 			this.layout();
 		}));
