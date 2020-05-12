@@ -25,7 +25,6 @@
 	position: absolute;
 	background-color: rgba(0, 0, 0 ,0.5);
 	width: 100%;
-	bottom: 20%;
 	left: 0;
 	z-index: 100000;
 	pointer-events: none;
