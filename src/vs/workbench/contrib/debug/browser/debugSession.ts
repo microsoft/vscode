@@ -35,6 +35,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { localize } from 'vs/nls';
 import { canceled } from 'vs/base/common/errors';
+import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common/debugUtils';
 
 export class DebugSession implements IDebugSession {
 
@@ -850,12 +851,7 @@ export class DebugSession implements IDebugSession {
 						// __GDPR__TODO__ We're sending events in the name of the debug extension and we can not ensure that those are declared correctly.
 						let data = event.body.data;
 						if (!this.raw.customTelemetryService.sendErrorTelemetry && event.body.data) {
-							data = {};
-							for (const key of Object.keys(event.body.data)) {
-								if (!key.startsWith('!')) {
-									data[key] = event.body.data[key];
-								}
-							}
+							data = filterExceptionsFromTelemetry(event.body.data);
 						}
 
 						this.raw.customTelemetryService.publicLog(event.body.output, data);
