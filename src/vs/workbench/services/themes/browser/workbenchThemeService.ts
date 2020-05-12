@@ -102,7 +102,8 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@ILogService private readonly logService: ILogService
 	) {
 		this.container = layoutService.container;
-		this.settings = new ThemeConfiguration(configurationService);
+		const defaultThemeType = environmentService.configuration.defaultThemeType || DARK;
+		this.settings = new ThemeConfiguration(configurationService, defaultThemeType);
 
 		this.colorThemeRegistry = new ThemeRegistry(extensionService, colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
 		this.colorThemeWatcher = new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this));
@@ -127,7 +128,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			themeData = ColorThemeData.createUnloadedThemeForThemeType(HIGH_CONTRAST);
 		}
 		if (!themeData) {
-			const defaultThemeType = environmentService.configuration.defaultThemeType || DARK;
 			themeData = ColorThemeData.createUnloadedThemeForThemeType(defaultThemeType);
 		}
 		themeData.setCustomizations(this.settings);
