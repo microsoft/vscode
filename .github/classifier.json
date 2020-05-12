@@ -9,6 +9,9 @@
 		},
 		"Tyriar": {
 			"assign": true
+		},
+		"misolori": {
+			"assign": true
 		}
 	},
 	"labels": {
@@ -52,6 +55,18 @@
 			"applyLabel": false,
 			"assign": [
 				"bpasero"
+			]
+		},
+		"icons-product": {
+			"applyLabel": true,
+			"assign": [
+				"misolori"
+			]
+		},
+		"ux": {
+			"applyLabel": true,
+			"assign": [
+				"misolori"
 			]
 		}
 	}

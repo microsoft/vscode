@@ -7,7 +7,7 @@ import 'vs/css!./media/diffEditor';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -1658,7 +1658,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 		this._sashRatio = null;
 		this._sashPosition = null;
 		this._startSashPosition = null;
-		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this));
+		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this, { orientation: Orientation.VERTICAL }));
 
 		if (this._disableSash) {
 			this._sash.state = SashState.Disabled;

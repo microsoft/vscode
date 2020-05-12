@@ -282,8 +282,8 @@
 	white-space: pre;
 }
 
-.hc-black .monaco-workbench .search-view .replaceMatch,
-.hc-black .monaco-workbench .search-view .findInFileMatch {
+.hc-black.monaco-workbench .search-view .replaceMatch,
+.hc-black.monaco-workbench .search-view .findInFileMatch {
 	background: none !important;
 	box-sizing: border-box;
 }
@@ -309,9 +309,9 @@
 
 /* High Contrast Theming */
 
-.hc-black .monaco-workbench .search-view .foldermatch,
-.hc-black .monaco-workbench .search-view .filematch,
-.hc-black .monaco-workbench .search-view .linematch {
+.hc-black.monaco-workbench .search-view .foldermatch,
+.hc-black.monaco-workbench .search-view .filematch,
+.hc-black.monaco-workbench .search-view .linematch {
 	line-height: 20px;
 }
 
