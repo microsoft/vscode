@@ -324,9 +324,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		// Remove groups from states that no longer exist. Since we modify the
 		// cache and its is a LRU cache make a copy to ensure iteration succeeds
 		const entries = [...cache.entries()];
-		for (const entry of entries) {
-			const resource: string = entry[0];
-			const mapGroupToMemento = entry[1];
+		for (const [resource, mapGroupToMemento] of entries) {
 			Object.keys(mapGroupToMemento).forEach(group => {
 				const groupId: GroupIdentifier = Number(group);
 				if (!this.editorGroupService.getGroup(groupId)) {
