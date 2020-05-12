@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isIPad } from 'vs/base/browser/browser';
 import { createStyleSheet } from 'vs/base/browser/dom';
 import { setGlobalSashSize } from 'vs/base/browser/ui/sash/sash';
 import { Event } from 'vs/base/common/event';
@@ -32,7 +31,7 @@ export class SashSizeController extends Disposable implements IWorkbenchContribu
 	}
 
 	private onDidChangeSizeConfiguration(): void {
-		const size = isIPad ? maxSize : this.configurationService.getValue<number>(this.configurationName);
+		const size = this.configurationService.getValue<number>(this.configurationName);
 
 		if (size && size >= minSize && size <= maxSize) {
 			// Update styles

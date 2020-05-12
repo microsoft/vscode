@@ -10,6 +10,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { SashSizeController, minSize, maxSize } from 'vs/workbench/contrib/sash/browser/sash';
+import { isIPad } from 'vs/base/browser/browser';
 
 // Sash size contribution
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
@@ -22,7 +23,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		'properties': {
 			'workbench.sash.size': {
 				'type': 'number',
-				'default': minSize,
+				'default': isIPad ? maxSize : minSize,
 				'minimum': minSize,
 				'maximum': maxSize,
 				'description': localize('sashSize', "Controls the size of the sash.")
