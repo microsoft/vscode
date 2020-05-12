@@ -427,7 +427,6 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		} else {
 			removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
 		}
-		console.log(newTheme.id);
 		addClasses(this.container, newTheme.id);
 
 		this.currentColorTheme.clearCaches();
