@@ -139,11 +139,10 @@ class ToggleScreencastModeAction extends Action {
 		}));
 
 		const keyboardMarker = append(container, $('.screencast-keyboard'));
-
 		disposables.add(toDisposable(() => keyboardMarker.remove()));
 
 		const updateKeyboardFontSize = () => {
-			keyboardMarker.style.fontSize = `${this.configurationService.getValue<number>('screencastMode.fontSize') || 56}px`;
+			keyboardMarker.style.fontSize = `${clamp(this.configurationService.getValue<number>('screencastMode.fontSize') || 56, 20, 100)}px`;
 		};
 
 		const updateKeyboardMarker = () => {
