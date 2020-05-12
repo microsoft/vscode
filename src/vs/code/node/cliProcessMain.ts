@@ -363,7 +363,7 @@ export async function main(argv: ParsedArgs): Promise<void> {
 			await main.run(argv);
 
 			// Flush the remaining data in AI adapter.
-			// If it does not complete in 2 seconds, exit the process.
+			// If it does not complete in 1 second, exit the process.
 			const flushTelemetry = (promise: Promise<any>, ms: number): Promise<any> => {
 				const timeout = new Promise((resolve) => {
 					const id = setTimeout(() => {
