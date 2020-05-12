@@ -1106,8 +1106,9 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		}
 
 		const onTwistie = hasClass(e.browserEvent.target as HTMLElement, 'monaco-tl-twistie');
+		const onIcon = hasClass(e.browserEvent.target as HTMLElement, 'monaco-icon-label');
 
-		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2 && !onTwistie) {
+		if (!this.tree.openOnSingleClick && e.browserEvent.detail !== 2 && !onTwistie && !onIcon) {
 			return super.onPointer(e);
 		}
 
