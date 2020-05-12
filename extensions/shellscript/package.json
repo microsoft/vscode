@@ -33,14 +33,25 @@
 				".zsh-theme",
 				".ksh",
 				".csh",
-				".cshrc"
+				".cshrc",
+				".tcshrc",
+				".yashrc",
+				".yash_profile"
 			],
 			"filenames": [
-        "APKBUILD",
-        "PKGBUILD",
-        ".envrc"
-      ],
-			"firstLine": "^#!.*\\b(bash|zsh|sh|tcsh|ksh|ash|qsh|csh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
+				"APKBUILD",
+				"PKGBUILD",
+				".envrc",
+				".hushlogin",
+				"zshrc",
+				"zshenv",
+				"zlogin",
+				"zprofile",
+				"zlogout",
+				"bashrc_Apple_Terminal",
+				"zshrc_Apple_Terminal"
+			],
+			"firstLine": "^#!.*\\b(bash|zsh|sh|ksh|dtksh|pdksh|mksh|ash|dash|yash|sh|csh|jcsh|tcsh|itcsh).*|^#\\s*-\\*-[^*]*mode:\\s*shell-script[^*]*-\\*-",
 			"configuration": "./language-configuration.json",
 			"mimetypes": ["text/x-shellscript"]
 		}],
