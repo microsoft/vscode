@@ -278,7 +278,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
 
-		if (options.transformOptimization) {
+		const transformOptimization = getOrDefault(options, o => o.transformOptimization, DefaultOptions.transformOptimization);
+		if (transformOptimization) {
 			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
 		}
 
