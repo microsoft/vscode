@@ -8,24 +8,32 @@ import * as nls from 'vscode-nls';
 import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
+import * as errorCodes from '../utils/errorCodes';
+import * as fixNames from '../utils/fixNames';
 
 const localize = nls.loadMessageBundle();
 
-const autoFixableDiagnosticCodes = new Set<number>([
-	2420, // Incorrectly implemented interface
-	2552, // Cannot find name
-]);
+interface AutoFixableError {
+	readonly code: number;
+	readonly fixName: string;
+}
+
+const fixImplementInterface = Object.freeze<AutoFixableError>({ code: errorCodes.incorrectlyImplementsInterface, fixName: fixNames.classIncorrectlyImplementsInterface });
+const fixUnreachable = Object.freeze<AutoFixableError>({ code: errorCodes.unreachableCode, fixName: fixNames.unreachableCode });
+const fixAsync = Object.freeze<AutoFixableError>({ code: errorCodes.asyncOnlyAllowedInAsyncFunctions, fixName: fixNames.awaitInSyncFunction });
 
 class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 
-	private static readonly kind = vscode.CodeActionKind.SourceFixAll.append('ts');
+	private static readonly fixAllKind = vscode.CodeActionKind.SourceFixAll.append('ts');
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [TypeScriptAutoFixProvider.kind]
+		providedCodeActionKinds: [
+			TypeScriptAutoFixProvider.fixAllKind,
+		]
 	};
 
 	constructor(
@@ -49,35 +57,40 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 			return undefined;
 		}
 
-		const autoFixableDiagnostics = this.getAutoFixableDiagnostics(document);
+		const autoFixes = this.getAutoFixes();
+
+		const autoFixableDiagnostics = this.getAutoFixableDiagnostics(document, autoFixes);
 		if (!autoFixableDiagnostics.length) {
 			return undefined;
 		}
 
-		const fixAllAction = await this.getFixAllCodeAction(document, file, autoFixableDiagnostics, token);
+		const fixAllAction = await this.getFixAllCodeAction(document, file, autoFixableDiagnostics, autoFixes, token);
 		return fixAllAction ? [fixAllAction] : undefined;
 	}
 
 	private getAutoFixableDiagnostics(
-		document: vscode.TextDocument
+		document: vscode.TextDocument,
+		autoFixes: readonly AutoFixableError[],
 	): vscode.Diagnostic[] {
 		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
 			return [];
 		}
 
+		const fixableCodes = new Set(autoFixes.map(x => x.code));
 		return this.diagnosticsManager.getDiagnostics(document.uri)
-			.filter(x => autoFixableDiagnosticCodes.has(x.code as number));
+			.filter(x => fixableCodes.has(+(x.code as number)));
 	}
 
 	private async getFixAllCodeAction(
 		document: vscode.TextDocument,
 		file: string,
 		diagnostics: ReadonlyArray<vscode.Diagnostic>,
+		autoFixes: readonly AutoFixableError[],
 		token: vscode.CancellationToken,
 	): Promise<vscode.CodeAction | undefined> {
 		await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
 
-		const autoFixResponse = await this.getAutoFixEdit(file, diagnostics, token);
+		const autoFixResponse = await this.getAutoFixEdit(file, diagnostics, autoFixes, token);
 		if (!autoFixResponse) {
 			return undefined;
 		}
@@ -88,7 +101,7 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 
 		const codeAction = new vscode.CodeAction(
 			localize('autoFix.label', 'Auto fix'),
-			TypeScriptAutoFixProvider.kind);
+			TypeScriptAutoFixProvider.fixAllKind);
 		codeAction.edit = edit;
 		codeAction.diagnostics = fixedDiagnostics;
 
@@ -98,6 +111,7 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 	private async getAutoFixEdit(
 		file: string,
 		diagnostics: ReadonlyArray<vscode.Diagnostic>,
+		autoFixes: readonly AutoFixableError[],
 		token: vscode.CancellationToken,
 	): Promise<{ edit: vscode.WorkspaceEdit, fixedDiagnostics: vscode.Diagnostic[] } | undefined> {
 		const edit = new vscode.WorkspaceEdit();
@@ -113,7 +127,7 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 			}
 
 			const fix = response.body[0];
-			if (['fixClassIncorrectlyImplementsInterface', 'spelling'].includes(fix.fixName)) {
+			if (autoFixes.some(autoFix => autoFix.fixName.includes(fix.fixName))) {
 				typeConverters.WorkspaceEdit.withFileCodeEdits(edit, this.client, fix.changes);
 				fixedDiagnostics.push(diagnostic);
 			}
@@ -125,6 +139,14 @@ class TypeScriptAutoFixProvider implements vscode.CodeActionProvider {
 
 		return { edit, fixedDiagnostics };
 	}
+
+	private getAutoFixes(): readonly AutoFixableError[] {
+		return [
+			fixImplementInterface,
+			fixUnreachable,
+			fixAsync,
+		];
+	}
 }
 
 export function register(
@@ -133,8 +155,7 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	diagnosticsManager: DiagnosticsManager) {
 	return new VersionDependentRegistration(client, API.v300, () =>
-		new ConfigurationDependentRegistration('typescript', 'experimental.autoFix.enabled', () =>
-			vscode.languages.registerCodeActionsProvider(selector,
-				new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager),
-				TypeScriptAutoFixProvider.metadata)));
+		vscode.languages.registerCodeActionsProvider(selector,
+			new TypeScriptAutoFixProvider(client, fileConfigurationManager, diagnosticsManager),
+			TypeScriptAutoFixProvider.metadata));
 }
