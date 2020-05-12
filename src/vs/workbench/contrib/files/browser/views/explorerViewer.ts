@@ -50,7 +50,7 @@ import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
@@ -939,18 +939,90 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async handleWebExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		const items = (originalEvent as any).dataTransfer.items;
-		for (let item of items) {
-			const entry = item.webkitGetAsEntry();
-			await this.uploadFileEntry(entry, target.resource, target);
+		const entries = [];
+		for (let item of (originalEvent as any).dataTransfer.items) {
+			entries.push(item.webkitGetAsEntry());
+		}
 
-			if (items.length === 1) {
+		// Calculate files and bytes to upload
+		const scanNotification = this.notificationService.notify({
+			sticky: true,
+			severity: Severity.Info,
+			message: `Scanning files...`,
+			progress: {
+				infinite: true
+			}
+		});
+
+		const stats = { currentFile: 1, currentSize: 0, totalFiles: 0, totalSize: 0 };
+		for (let entry of entries) {
+			const itemStats = await this.scanFileEntity(entry);
+			stats.totalFiles += itemStats.totalFiles;
+			stats.totalSize += itemStats.totalSize;
+		}
+		scanNotification.close();
+
+		// Start upload
+		const uploadNotification = this.notificationService.notify({
+			sticky: true,
+			severity: Severity.Info,
+			message: entries.length === 1 && entries[0].isFile ? `Uploading ${entries[0].name}` : `Uploading ${stats.currentSize}/${stats.totalFiles} files...`,
+			progress: {
+				total: stats.totalSize
+			}
+		});
+
+		for (let entry of entries) {
+			await this.uploadFileEntry(entry, target.resource, target, () => {
+				stats.currentFile++;
+				if (stats.currentFile >= stats.totalFiles) {
+					uploadNotification.updateMessage(`Uploading ${stats.totalFiles}/${stats.totalFiles} file${stats.totalFiles > 1 ? 's' : ''}...`);
+				} else {
+					uploadNotification.updateMessage(`Uploading ${stats.currentFile}/${stats.totalFiles} file${stats.totalFiles > 1 ? 's' : ''}...`);
+				}
+			}, (bytesUploaded: number) => {
+				stats.currentSize += bytesUploaded;
+				uploadNotification.progress.worked(bytesUploaded);
+			});
+
+			if (entries.length === 1 && entry.isFile) {
 				await this.editorService.openEditor({ resource: joinPath(target.resource, entry.name), options: { pinned: true } });
 			}
 		}
+		uploadNotification.close();
 	}
 
-	private async uploadFileEntry(entry: any, parentResource: URI, target: ExplorerItem | undefined): Promise<void> {
+	private async scanFileEntity(entry: any): Promise<{ totalFiles: number, totalSize: number }> {
+		let stats = {
+			totalFiles: 0,
+			totalSize: 0
+		};
+		if (entry.isFile) {
+			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
+			stats.totalFiles = 1;
+			stats.totalSize = file.size;
+		} else if (entry.isDirectory) {
+			// Recursive scan files in this directory
+			const dirReader = entry.createReader();
+			const childEntries = await new Promise<any[]>((resolve, reject) => {
+				dirReader.readEntries(resolve, reject);
+			});
+			for (let childEntry of childEntries) {
+				if (childEntry.isFile) {
+					const file = await new Promise<File>((resolve, reject) => childEntry.file(resolve, reject));
+					stats.totalFiles++;
+					stats.totalSize += file.size;
+				} else if (childEntry.isDirectory) {
+					let childStats = await this.scanFileEntity(childEntry);
+					stats.totalFiles += childStats.totalFiles;
+					stats.totalSize += childStats.totalSize;
+				}
+			}
+		}
+		return stats;
+	}
+
+	private async uploadFileEntry(entry: any, parentResource: URI, target: ExplorerItem | undefined, processedFileCallback: (file: any) => void, processedBytesCallback: (bytes: number) => void): Promise<void> {
 		const resource = joinPath(parentResource, entry.name);
 
 		if (entry.isFile) {
@@ -963,6 +1035,15 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 
 			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
+
+			let readableStream = new FileReadableStream(file);
+			readableStream.on('progress', bytes => {
+				processedBytesCallback(bytes);
+			});
+			await this.fileService.writeFile(resource, readableStream);
+
+			processedFileCallback(file);
+
 			const reader = new FileReader();
 			reader.readAsArrayBuffer(file);
 			reader.onload = async (event) => {
@@ -983,7 +1064,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				dirReader.readEntries(resolve, reject);
 			});
 			for (let childEntry of childEntries) {
-				await this.uploadFileEntry(childEntry, resource, folderTarget);
+				await this.uploadFileEntry(childEntry, resource, folderTarget, processedFileCallback, processedBytesCallback);
 			}
 		}
 	}
@@ -1254,4 +1335,98 @@ export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<Exp
 	isIncompressible(stat: ExplorerItem): boolean {
 		return stat.isRoot || !stat.isDirectory || stat instanceof NewExplorerItem || (!stat.parent || stat.parent.isRoot);
 	}
+}
+
+export class FileReadableStream implements VSBufferReadableStream {
+
+	private readonly dataCallbacks: Array<(data: VSBuffer) => void> = [];
+	private readonly errorCallbacks: Array<(err: Error) => void> = [];
+	private readonly progressCallbacks: Array<(bytes: number) => void> = [];
+	private readonly endCallbacks: Array<() => void> = [];
+	private readonly fileSize: number;
+	private readonly bufferSize: number = 1024;
+	private cursor: number = 0;
+	private paused: boolean = false;
+	private reading: boolean = false;
+
+	constructor(private file: any) {
+		this.fileSize = file.size;
+	}
+
+	public pause(): void {
+		this.paused = true;
+	}
+
+	public resume(): void {
+		this.paused = false;
+		if (!this.reading && this.cursor < this.fileSize) {
+			this._read();
+		}
+	}
+
+	public destroy(): void {
+		this.cursor = this.fileSize + 1;
+	}
+
+	private _read() {
+		if (this.reading) {
+			return;
+		}
+		this.reading = true;
+		const fileReader = new FileReader();
+		const blob = this.file.slice(this.cursor, this.cursor + this.bufferSize);
+		fileReader.onload = event => {
+			if (event.target?.result instanceof ArrayBuffer) {
+				let buffer = VSBuffer.wrap(new Uint8Array(event.target.result));
+				this.dataCallbacks.forEach(callback => callback(buffer));
+				this.progressCallbacks.forEach(callback => callback(buffer.byteLength));
+			}
+
+			this.reading = false;
+			this.cursor += this.bufferSize;
+			if (this.cursor >= this.fileSize) {
+				// End of file
+				this.endCallbacks.forEach(callback => callback());
+			} else {
+				// Read next chunk
+				if (!this.paused) {
+					this._read();
+				}
+			}
+		};
+		fileReader.onerror = () => {
+			this.reading = false;
+			let error = new Error(`Error loading file ${this.file.name}`);
+			this.errorCallbacks.forEach(callback => callback(error));
+		};
+		fileReader.readAsArrayBuffer(blob);
+	}
+
+	public on(event: 'data', callback: (data: VSBuffer) => void): void;
+	public on(event: 'error', callback: (err: Error) => void): void;
+	public on(event: 'end', callback: () => void): void;
+	public on(event: 'progress', callback: (bytes: number) => void): void;
+
+	public on(event: any, callback: any) {
+		switch (event) {
+			case 'data':
+				this.dataCallbacks.push(callback);
+				if (!this.reading) {
+					// Start reading after someone is listing
+					this._read();
+				}
+				break;
+			case 'error':
+				this.errorCallbacks.push(callback);
+				break;
+			case 'progress':
+				this.progressCallbacks.push(callback);
+				break;
+			case 'end':
+				this.endCallbacks.push(callback);
+				break;
+		}
+	}
+
+
 }
