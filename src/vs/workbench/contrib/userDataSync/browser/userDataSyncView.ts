@@ -10,18 +10,19 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, RawContextKey, ContextKeyExpr, ContextKeyEqualsExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
-import { pad, uppercaseFirstLetter } from 'vs/base/common/strings';
+import { pad } from 'vs/base/common/strings';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { Codicon } from 'vs/base/common/codicons';
 import { CONTEXT_ACCOUNT_STATE } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
 import { AccountStatus } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncAccount';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const VIEW_CONTAINER_ID = 'workbench.view.sync';
 const CONTEXT_ENABLE_VIEWS = new RawContextKey<boolean>(`showUserDataSyncViews`, false);
@@ -132,8 +133,37 @@ export class UserDataSyncViewContribution implements IWorkbenchContribution {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
+				const { resource } = <{ resource: string }>JSON.parse(handle.$treeItemHandle);
 				const editorService = accessor.get(IEditorService);
-				await editorService.openEditor({ resource: URI.parse(handle.$treeItemHandle) });
+				await editorService.openEditor({ resource: URI.parse(resource) });
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.actions.sync.replaceCurrent`,
+					title: localize('workbench.actions.sync.replaceCurrent', "Download..."),
+					icon: { id: 'codicon/cloud-download' },
+					menu: {
+						id: MenuId.ViewItemContext,
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', viewId), ContextKeyExpr.regex('viewItem', /sync-resource-.*/i)),
+						group: 'inline',
+					},
+				});
+			}
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
+				const dialogService = accessor.get(IDialogService);
+				const userDataSyncService = accessor.get(IUserDataSyncService);
+				const { resource, syncResource } = <{ resource: string, syncResource: SyncResource }>JSON.parse(handle.$treeItemHandle);
+				const result = await dialogService.confirm({
+					message: localize('confirm replace', "Would you like to replace your current {0} with selected?", getSyncAreaLabel(syncResource)),
+					type: 'info',
+					title: localize('preferences sync', "Preferences Sync")
+				});
+				if (result.confirmed) {
+					return userDataSyncService.replace(URI.parse(resource));
+				}
 			}
 		});
 
@@ -179,23 +209,24 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 			return ALL_SYNC_RESOURCES.map(resourceKey => ({
 				handle: resourceKey,
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: uppercaseFirstLetter(resourceKey) },
+				label: { label: getSyncAreaLabel(resourceKey) },
 				themeIcon: FolderThemeIcon,
 			}));
 		}
-		const resourceKey = ALL_SYNC_RESOURCES.filter(key => key === element.handle)[0] as SyncResource;
-		if (resourceKey) {
-			const refHandles = this.remote ? await this.userDataSyncService.getRemoteSyncResourceHandles(resourceKey) : await this.userDataSyncService.getLocalSyncResourceHandles(resourceKey);
+		const syncResource = ALL_SYNC_RESOURCES.filter(key => key === element.handle)[0] as SyncResource;
+		if (syncResource) {
+			const refHandles = this.remote ? await this.userDataSyncService.getRemoteSyncResourceHandles(syncResource) : await this.userDataSyncService.getLocalSyncResourceHandles(syncResource);
 			return refHandles.map(({ uri, created }) => {
+				const handle = JSON.stringify({ resource: uri.toString(), syncResource });
 				return <SyncResourceTreeItem>{
-					handle: uri.toString(),
+					handle,
 					collapsibleState: TreeItemCollapsibleState.Collapsed,
 					label: { label: label(new Date(created)) },
 					description: fromNow(created, true),
 					resourceUri: uri,
-					resource: resourceKey,
+					resource: syncResource,
 					resourceHandle: { uri, created },
-					contextValue: `sync-resource-${resourceKey}`
+					contextValue: `sync-resource-${syncResource}`
 				};
 			});
 		}

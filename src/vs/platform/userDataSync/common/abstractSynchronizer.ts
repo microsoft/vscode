@@ -144,6 +144,33 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 	}
 
+	async replace(uri: URI): Promise<boolean> {
+		const content = await this.resolveContent(uri);
+		if (!content) {
+			return false;
+		}
+
+		const syncData = this.parseSyncData(content);
+		if (!syncData) {
+			return false;
+		}
+
+		await this.stop();
+
+		try {
+			this.logService.trace(`${this.syncResourceLogLabel}: Started resetting ${this.resource.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getLatestRemoteUserData(null, lastSyncUserData);
+			await this.performReplace(syncData, remoteUserData, lastSyncUserData);
+			this.logService.info(`${this.syncResourceLogLabel}: Finished resetting ${this.resource.toLowerCase()}.`);
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+
+		return true;
+	}
+
 	private async getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
 		if (lastSyncUserData) {
 
@@ -323,6 +350,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected abstract readonly version: number;
 	protected abstract performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus>;
+	protected abstract performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void>;
 	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult>;
 }
 

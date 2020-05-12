@@ -16,7 +16,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { isUndefined } from 'vs/base/common/types';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
@@ -209,6 +209,24 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 				}
 			}
 			throw e;
+		}
+	}
+
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
+		const content = this.getKeybindingsContentFromSyncContent(syncData.content);
+
+		if (content !== null) {
+			const fileContent = await this.getLocalFileContent();
+			this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<IFileSyncPreviewResult>({
+				fileContent,
+				remoteUserData,
+				lastSyncUserData,
+				content,
+				hasConflicts: false,
+				hasLocalChanged: true,
+				hasRemoteChanged: true,
+			}));
+			await this.apply();
 		}
 	}
 

@@ -162,6 +162,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
+	async replace(uri: URI): Promise<void> {
+		await this.checkEnablement();
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.replace(uri)) {
+				return;
+			}
+		}
+	}
+
 	async stop(): Promise<void> {
 		await this.checkEnablement();
 		if (this.status === SyncStatus.Idle) {

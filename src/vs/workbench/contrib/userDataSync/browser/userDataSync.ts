@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	CONTEXT_SYNC_STATE, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT,
-	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview
+	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -53,16 +53,6 @@ import { UserDataSyncAccounts, AccountStatus } from 'vs/workbench/contrib/userDa
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
 type ConfigureSyncQuickPickItem = { id: SyncResource, label: string, description?: string };
-
-function getSyncAreaLabel(source: SyncResource): string {
-	switch (source) {
-		case SyncResource.Settings: return localize('settings', "Settings");
-		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
-		case SyncResource.Snippets: return localize('snippets', "User Snippets");
-		case SyncResource.Extensions: return localize('extensions', "Extensions");
-		case SyncResource.GlobalState: return localize('ui state label', "UI State");
-	}
-}
 
 type SyncConflictsClassification = {
 	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
