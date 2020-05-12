@@ -278,14 +278,15 @@ export class SuggestController implements IEditorContribution {
 		// keep item in memory
 		this._memoryService.memorize(model, this.editor.getPosition(), item);
 
-		const scrollState = StableEditorScrollState.capture(this.editor);
 
 		if (Array.isArray(item.completion.additionalTextEdits)) {
 			// sync additional edits
+			const scrollState = StableEditorScrollState.capture(this.editor);
 			this.editor.executeEdits(
 				'suggestController.additionalTextEdits.sync',
 				item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
 			);
+			scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 
 		} else if (!item.isResolved) {
 			// async additional edits
@@ -351,8 +352,6 @@ export class SuggestController implements IEditorContribution {
 			undoStopAfter: false,
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace)
 		});
-
-		scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
 			this.editor.pushUndoStop();
