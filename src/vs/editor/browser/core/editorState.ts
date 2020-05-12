@@ -156,12 +156,13 @@ export class StableEditorScrollState {
 				visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
 			}
 		}
-		return new StableEditorScrollState(visiblePosition, visiblePositionScrollDelta);
+		return new StableEditorScrollState(visiblePosition, visiblePositionScrollDelta, editor.getPosition());
 	}
 
 	constructor(
 		private readonly _visiblePosition: Position | null,
-		private readonly _visiblePositionScrollDelta: number
+		private readonly _visiblePositionScrollDelta: number,
+		private readonly _cursorPosition: Position | null
 	) {
 	}
 
@@ -170,5 +171,16 @@ export class StableEditorScrollState {
 			const visiblePositionScrollTop = editor.getTopForPosition(this._visiblePosition.lineNumber, this._visiblePosition.column);
 			editor.setScrollTop(visiblePositionScrollTop + this._visiblePositionScrollDelta);
 		}
+	}
+
+	public restoreRelativeVerticalPositionOfCursor(editor: ICodeEditor): void {
+		const currentCursorPosition = editor.getPosition();
+
+		if (!this._cursorPosition || !currentCursorPosition) {
+			return;
+		}
+
+		const offset = editor.getTopForLineNumber(currentCursorPosition.lineNumber) - editor.getTopForLineNumber(this._cursorPosition.lineNumber);
+		editor.setScrollTop(editor.getScrollTop() + offset);
 	}
 }

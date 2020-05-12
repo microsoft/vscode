@@ -81,7 +81,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = configurationManager.selectedConfiguration.name ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
 	}
 
-	async run(event?: any): Promise<any> {
+	async run(): Promise<any> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return;
@@ -105,8 +105,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		}
 
 		if (launch) {
-			const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-			return launch.openConfigFile(sideBySide, false);
+			return launch.openConfigFile(false);
 		}
 	}
 }

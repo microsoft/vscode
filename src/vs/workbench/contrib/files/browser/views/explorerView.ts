@@ -30,7 +30,7 @@ import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ExplorerDelegate, ExplorerDataSource, FilesRenderer, ICompressedNavigationController, FilesFilter, FileSorter, FileDragAndDrop, ExplorerCompressionDelegate, isCompressedFolderName } from 'vs/workbench/contrib/files/browser/views/explorerViewer';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -39,7 +39,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
-import { createFileIconThemableTreeContainerScope } from 'vs/workbench/browser/parts/views/views';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -49,7 +48,7 @@ import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { attachStyler, IColorMapping } from 'vs/platform/theme/common/styler';
 import { ColorValue, listDropBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -311,19 +310,13 @@ export class ExplorerView extends ViewPane {
 	}
 
 	async setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void> {
-		let shouldRefresh = true;
 		if (isEditing) {
-			if (stat.parent && stat.parent !== this.tree.getInput()) {
-				shouldRefresh = stat.parent.isDirectoryResolved;
-				await this.tree.expand(stat.parent);
-			}
+			await this.tree.expand(stat.parent!);
 		} else {
 			DOM.removeClass(this.treeContainer, 'highlight');
 		}
 
-		if (shouldRefresh) {
-			await this.refresh(false, stat.parent);
-		}
+		await this.refresh(false, stat.parent, false);
 
 		if (isEditing) {
 			DOM.addClass(this.treeContainer, 'highlight');
@@ -558,14 +551,14 @@ export class ExplorerView extends ViewPane {
 	 * Refresh the contents of the explorer to get up to date data from the disk about the file structure.
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
-	refresh(recursive: boolean, item?: ExplorerItem): Promise<void> {
+	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
 		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item))) {
 			// Tree node doesn't exist yet
 			this.shouldRefresh = true;
 			return Promise.resolve(undefined);
 		}
 
-		if (this.explorerService.isEditable(undefined)) {
+		if (cancelEditing && this.explorerService.isEditable(undefined)) {
 			this.tree.domFocus();
 		}
 
@@ -709,6 +702,10 @@ export class ExplorerView extends ViewPane {
 	}
 
 	collapseAll(): void {
+		if (this.explorerService.isEditable(undefined)) {
+			this.tree.domFocus();
+		}
+
 		const treeInput = this.tree.getInput();
 		if (Array.isArray(treeInput)) {
 			if (hasExpandedRootChild(this.tree, treeInput)) {
@@ -791,4 +788,17 @@ export class ExplorerView extends ViewPane {
 		}
 		super.dispose();
 	}
+}
+
+function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
+	DOM.addClass(container, 'file-icon-themable-tree');
+	DOM.addClass(container, 'show-file-icons');
+
+	const onDidChangeFileIconTheme = (theme: IFileIconTheme) => {
+		DOM.toggleClass(container, 'align-icons-and-twisties', theme.hasFileIcons && !theme.hasFolderIcons);
+		DOM.toggleClass(container, 'hide-arrows', theme.hidesExplorerArrows === true);
+	};
+
+	onDidChangeFileIconTheme(themeService.getFileIconTheme());
+	return themeService.onDidFileIconThemeChange(onDidChangeFileIconTheme);
 }

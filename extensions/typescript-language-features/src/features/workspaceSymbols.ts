@@ -56,7 +56,7 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 		}
 
 		const args: Proto.NavtoRequestArgs = {
-			file: file!, // TS 3.9+ supports using undefined to search all open projects
+			file,
 			searchValue: search,
 			maxResultCount: 256,
 		};

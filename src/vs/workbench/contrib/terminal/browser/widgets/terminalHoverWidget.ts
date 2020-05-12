@@ -34,6 +34,10 @@ export class TerminalHover extends Disposable implements ITerminalWidget {
 		super();
 	}
 
+	dispose() {
+		super.dispose();
+	}
+
 	attach(container: HTMLElement): void {
 		const target = new CellHoverTarget(container, this._targetOptions);
 		this._register(this._instantiationService.createInstance(HoverWidget, container, target, this._text, this._linkHandler, []));

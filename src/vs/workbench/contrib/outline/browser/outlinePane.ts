@@ -9,7 +9,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
 import { createCancelablePromise, TimeoutTimer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { dispose, IDisposable, toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
@@ -238,7 +238,7 @@ class OutlineViewState {
 
 export class OutlinePane extends ViewPane {
 
-	private _disposables = new Array<IDisposable>();
+	private _disposables = new DisposableStore();
 
 	private _editorDisposables = new DisposableStore();
 	private _outlineViewState = new OutlineViewState();
@@ -277,8 +277,8 @@ export class OutlinePane extends ViewPane {
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
-		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
-		this._disposables.push(this.onDidBlur(_ => this._contextKeyFocused.set(false)));
+		this._disposables.add(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
+		this._disposables.add(this.onDidBlur(_ => this._contextKeyFocused.set(false)));
 	}
 
 	dispose(): void {
@@ -305,7 +305,7 @@ export class OutlinePane extends ViewPane {
 
 		this._domNode = container;
 		this._domNode.tabIndex = 0;
-		dom.addClass(container, 'outline-pane');
+		container.classList.add('outline-pane');
 
 		let progressContainer = dom.$('.outline-progress');
 		this._message = dom.$('.outline-message');
@@ -349,9 +349,9 @@ export class OutlinePane extends ViewPane {
 		);
 
 
-		this._disposables.push(this._tree);
-		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
-		this._disposables.push(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
+		this._disposables.add(this._tree);
+		this._disposables.add(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
+		this._disposables.add(this.viewDescriptorService.onDidChangeLocation(({ views }) => {
 			if (views.some(v => v.id === this.id)) {
 				this._tree.updateOptions({ overrideStyles: { listBackground: this.getBackgroundColor() } });
 			}
@@ -452,7 +452,7 @@ export class OutlinePane extends ViewPane {
 	}
 
 	private _showMessage(message: string) {
-		dom.addClass(this._domNode, 'message');
+		this._domNode.classList.add('message');
 		this._tree.setInput(undefined!);
 		this._progressBar.stop().hide();
 		this._message.innerText = escape(message);
@@ -508,7 +508,7 @@ export class OutlinePane extends ViewPane {
 			return this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(textModel.uri)));
 		}
 
-		dom.removeClass(this._domNode, 'message');
+		this._domNode.classList.remove('message');
 
 		if (event && oldModel && textModel.getLineCount() >= 25) {
 			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
@@ -526,7 +526,7 @@ export class OutlinePane extends ViewPane {
 						handle = undefined;
 						resolve(true);
 					}, 2000);
-					this._disposables.push({
+					this._disposables.add({
 						dispose() {
 							clearTimeout(handle);
 							resolve(false);
@@ -614,7 +614,7 @@ export class OutlinePane extends ViewPane {
 			}
 		};
 		updateMarker(textModel, true);
-		this._editorDisposables.add(this._markerDecorationService.onDidChangeMarker(updateMarker));
+		this._editorDisposables.add(Event.debounce(this._markerDecorationService.onDidChangeMarker, (_, e) => e, 64)(updateMarker));
 
 		this._editorDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {

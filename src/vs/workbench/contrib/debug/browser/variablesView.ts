@@ -81,7 +81,7 @@ export class VariablesView extends ViewPane {
 					const scopes = await stackFrame.getScopes();
 					// Expand the first scope if it is not expensive and if there is no expansion state (all are collapsed)
 					if (scopes.every(s => this.tree.getNode(s).collapsed) && scopes.length > 0) {
-						const toExpand = scopes.filter(s => !s.expensive).shift();
+						const toExpand = scopes.find(s => !s.expensive);
 						if (toExpand) {
 							this.tree.expand(toExpand);
 						}
@@ -356,10 +356,10 @@ class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpr
 
 	getAriaLabel(element: IExpression | IScope): string | null {
 		if (element instanceof Scope) {
-			return nls.localize('variableScopeAriaLabel', "Scope {0}, variables, debug", element.name);
+			return nls.localize('variableScopeAriaLabel', "Scope {0}", element.name);
 		}
 		if (element instanceof Variable) {
-			return nls.localize('variableAriaLabel', "{0} value {1}, variables, debug", element.name, element.value);
+			return nls.localize('variableAriaLabel', "{0}, value {1}", element.name, element.value);
 		}
 
 		return null;

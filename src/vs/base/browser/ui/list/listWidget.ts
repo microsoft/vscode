@@ -26,6 +26,7 @@ import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 import { matchesPrefix } from 'vs/base/common/filters';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -344,6 +345,7 @@ class TypeLabelController<T> implements IDisposable {
 
 	private automaticKeyboardNavigation = true;
 	private triggered = false;
+	private previouslyFocused = -1;
 
 	private readonly enabledDisposables = new DisposableStore();
 	private readonly disposables = new DisposableStore();
@@ -393,6 +395,7 @@ class TypeLabelController<T> implements IDisposable {
 		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
 
 		onInput(this.onInput, this, this.enabledDisposables);
+		onClear(this.onClear, this, this.enabledDisposables);
 
 		this.enabled = true;
 		this.triggered = false;
@@ -406,6 +409,19 @@ class TypeLabelController<T> implements IDisposable {
 		this.enabledDisposables.clear();
 		this.enabled = false;
 		this.triggered = false;
+	}
+
+	private onClear(): void {
+		const focus = this.list.getFocus();
+		if (focus.length > 0 && focus[0] === this.previouslyFocused) {
+			// List: re-anounce element on typing end since typed keys will interupt aria label of focused element
+			// Do not announce if there was a focus change at the end to prevent duplication https://github.com/microsoft/vscode/issues/95961
+			const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(focus[0]));
+			if (ariaLabel) {
+				alert(ariaLabel);
+			}
+		}
+		this.previouslyFocused = -1;
 	}
 
 	private onInput(word: string | null): void {
@@ -426,6 +442,7 @@ class TypeLabelController<T> implements IDisposable {
 			const labelStr = label && label.toString();
 
 			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
+				this.previouslyFocused = start;
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 				return;

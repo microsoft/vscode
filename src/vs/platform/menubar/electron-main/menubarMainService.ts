@@ -13,28 +13,26 @@ export class MenubarMainService implements IMenubarService {
 
 	_serviceBrand: undefined;
 
-	private _menubar: Menubar | undefined;
+	private menubar: Promise<Menubar>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService
 	) {
-		// Install Menu
-		this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
-			this._menubar = this.instantiationService.createInstance(Menubar);
-		});
+		this.menubar = this.installMenuBarAfterWindowOpen();
 	}
 
-	updateMenubar(windowId: number, menus: IMenubarData): Promise<void> {
-		return this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen).then(() => {
-			this.logService.trace('menubarService#updateMenubar', windowId);
+	private async installMenuBarAfterWindowOpen(): Promise<Menubar> {
+		await this.lifecycleMainService.when(LifecycleMainPhase.AfterWindowOpen);
 
-			if (this._menubar) {
-				this._menubar.updateMenu(menus, windowId);
-			}
+		return this.instantiationService.createInstance(Menubar);
+	}
 
-			return undefined;
-		});
+	async updateMenubar(windowId: number, menus: IMenubarData): Promise<void> {
+		this.logService.trace('menubarService#updateMenubar', windowId);
+
+		const menubar = await this.menubar;
+		menubar.updateMenu(menus, windowId);
 	}
 }

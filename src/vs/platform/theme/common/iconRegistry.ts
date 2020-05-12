@@ -57,6 +57,11 @@ export interface IIconRegistry {
 	getIcons(): IconContribution[];
 
 	/**
+	 * Get the icon for the given id
+	 */
+	getIcon(id: string): IconContribution | undefined;
+
+	/**
 	 * JSON schema for an object to assign icon values to one of the color contributions.
 	 */
 	getIconSchema(): IJSONSchema;
@@ -130,6 +135,10 @@ class IconRegistry implements IIconRegistry {
 		return Object.keys(this.iconsById).map(id => this.iconsById[id]);
 	}
 
+	public getIcon(id: string): IconContribution | undefined {
+		return this.iconsById[id];
+	}
+
 	public getIconSchema(): IJSONSchema {
 		return this.iconSchema;
 	}
@@ -139,16 +148,34 @@ class IconRegistry implements IIconRegistry {
 	}
 
 	public toString() {
-		let sorter = (a: string, b: string) => {
-			let cat1 = a.indexOf('.') === -1 ? 0 : 1;
-			let cat2 = b.indexOf('.') === -1 ? 0 : 1;
-			if (cat1 !== cat2) {
-				return cat1 - cat2;
+		const sorter = (i1: IconContribution, i2: IconContribution) => {
+			const isThemeIcon1 = ThemeIcon.isThemeIcon(i1.defaults);
+			const isThemeIcon2 = ThemeIcon.isThemeIcon(i2.defaults);
+			if (isThemeIcon1 !== isThemeIcon2) {
+				return isThemeIcon1 ? -1 : 1;
 			}
-			return a.localeCompare(b);
+			return i1.id.localeCompare(i2.id);
+		};
+		const classNames = (i: IconContribution) => {
+			while (ThemeIcon.isThemeIcon(i.defaults)) {
+				i = this.iconsById[i.defaults.id];
+			}
+			return `codicon codicon-${i ? i.id : ''}`;
 		};
 
-		return Object.keys(this.iconsById).sort(sorter).map(k => `- \`${k}\`: ${this.iconsById[k].description}`).join('\n');
+		let reference = [];
+		let docCss = [];
+
+		const contributions = Object.keys(this.iconsById).map(key => this.iconsById[key]);
+
+		for (const i of contributions.sort(sorter)) {
+			reference.push(`|<i class="${classNames(i)}"></i>|${i.id}|${ThemeIcon.isThemeIcon(i.defaults) ? i.defaults.id : ''}|`);
+
+			if (!ThemeIcon.isThemeIcon((i.defaults))) {
+				docCss.push(`.codicon-${i.id}:before { content: "${i.defaults.character}" }`);
+			}
+		}
+		return reference.join('\n') + '\n\n' + docCss.join('\n');
 	}
 
 }
@@ -186,4 +213,4 @@ iconRegistry.onDidChangeSchema(() => {
 });
 
 
-// setTimeout(_ => console.log(colorRegistry.toString()), 5000);
+//setTimeout(_ => console.log(iconRegistry.toString()), 5000);

@@ -10,7 +10,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { LRUCache } from 'vs/base/common/map';
+import { LRUCache, Touch } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
@@ -19,6 +19,7 @@ import { MementoObject } from 'vs/workbench/common/memento';
 import { isEqualOrParent, joinPath } from 'vs/base/common/resources';
 import { isLinux } from 'vs/base/common/platform';
 import { indexOfPath } from 'vs/base/common/extpath';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -171,6 +172,7 @@ interface MapGroupToMemento<T> {
 export class EditorMemento<T> implements IEditorMemento<T> {
 	private cache: LRUCache<string, MapGroupToMemento<T>> | undefined;
 	private cleanedUp = false;
+	private editorDisposables: Map<EditorInput, IDisposable> | undefined;
 
 	constructor(
 		public readonly id: string,
@@ -200,9 +202,18 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		// Automatically clear when editor input gets disposed if any
 		if (resourceOrEditor instanceof EditorInput) {
-			Event.once(resourceOrEditor.onDispose)(() => {
-				this.clearEditorState(resource);
-			});
+			const editor = resourceOrEditor;
+
+			if (!this.editorDisposables) {
+				this.editorDisposables = new Map<EditorInput, IDisposable>();
+			}
+
+			if (!this.editorDisposables.has(editor)) {
+				this.editorDisposables.set(editor, Event.once(resourceOrEditor.onDispose)(() => {
+					this.clearEditorState(resource);
+					this.editorDisposables?.delete(editor);
+				}));
+			}
 		}
 	}
 
@@ -245,7 +256,9 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	moveEditorState(source: URI, target: URI): void {
 		const cache = this.doLoad();
 
-		const cacheKeys = cache.keys();
+		// We need a copy of the keys to not iterate over
+		// newly inserted elements.
+		const cacheKeys = [...cache.keys()];
 		for (const cacheKey of cacheKeys) {
 			const resource = URI.parse(cacheKey);
 
@@ -262,7 +275,8 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 			}
 
-			const value = cache.get(cacheKey);
+			// Don't modify LRU state.
+			const value = cache.get(cacheKey, Touch.None);
 			if (value) {
 				cache.delete(cacheKey);
 				cache.set(targetResource.toString(), value);

@@ -19,7 +19,7 @@ import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
 import * as Platform from 'vs/base/common/platform';
-import { LRUCache } from 'vs/base/common/map';
+import { LRUCache, Touch } from 'vs/base/common/map';
 
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -74,7 +74,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { format } from 'vs/base/common/jsonFormatter';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ITextEditorPane } from 'vs/workbench/common/editor';
+import { ITextEditorPane, SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
@@ -715,9 +715,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const folderToTasksMap: Map<string, any> = new Map();
 		const recentlyUsedTasks = this.getRecentlyUsedTasks();
 		const tasks: (Task | ConfiguringTask)[] = [];
-		for (const key of recentlyUsedTasks.keys()) {
+		for (const entry of recentlyUsedTasks.entries()) {
+			const key = entry[0];
+			const task = JSON.parse(entry[1]);
 			const folder = this.getFolderFromTaskKey(key);
-			const task = JSON.parse(recentlyUsedTasks.get(key)!);
 			if (folder && !folderToTasksMap.has(folder)) {
 				folderToTasksMap.set(folder, []);
 			}
@@ -791,13 +792,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (quickOpenHistoryLimit === 0) {
 			return;
 		}
-		let keys = this._recentlyUsedTasks.keys();
+		let keys = [...this._recentlyUsedTasks.keys()];
 		if (keys.length > quickOpenHistoryLimit) {
 			keys = keys.slice(0, quickOpenHistoryLimit);
 		}
 		const keyValues: [string, string][] = [];
 		for (const key of keys) {
-			keyValues.push([key, this._recentlyUsedTasks.get(key)!]);
+			keyValues.push([key, this._recentlyUsedTasks.get(key, Touch.None)!]);
 		}
 		this.storageService.store(AbstractTaskService.RecentlyUsedTasks_KeyV2, JSON.stringify(keyValues), StorageScope.WORKSPACE);
 	}
@@ -1419,7 +1420,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 
 		const saveAllEditorsAndExecTask = async (task: Task, resolver: ITaskResolver): Promise<ITaskSummary> => {
-			return this.editorService.saveAll().then(() => {
+			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => {
 				return execTask(task, resolver);
 			});
 		};
@@ -1579,7 +1580,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								for (const task of taskSet.tasks) {
 									if (task.type !== this._providerTypes.get(handle)) {
 										this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
-										this.showOutput();
+										if ((task.type !== 'shell') && (task.type !== 'process')) {
+											this.showOutput();
+										}
 										break;
 									}
 								}
@@ -2323,7 +2326,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				taskMap[key] = task;
 			}
 		});
-		const reversed = recentlyUsedTasks.keys().reverse();
+		const reversed = [...recentlyUsedTasks.keys()].reverse();
 		for (const key in reversed) {
 			let task = taskMap[key];
 			if (task) {
@@ -2461,7 +2464,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		ProblemMatcherRegistry.onReady().then(() => {
-			return this.editorService.saveAll().then(() => { // make sure all dirty editors are saved
+			return this.editorService.saveAll({ reason: SaveReason.AUTO }).then(() => { // make sure all dirty editors are saved
 				let executeResult = this.getTaskSystem().rerun();
 				if (executeResult) {
 					return this.handleExecuteResult(executeResult);

@@ -15,8 +15,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch } from 'vs/workbench/contrib/debug/common/debug';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { selectBorder, selectBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -51,9 +50,7 @@ export class StartDebugActionViewItem implements IActionViewItem {
 		this.toDispose = [];
 		this.selectBox = new SelectBox([], -1, contextViewService, undefined, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
 		this.toDispose.push(this.selectBox);
-		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService, {
-			selectBackground: SIDE_BAR_BACKGROUND
-		}));
+		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
 		this.registerListeners();
 	}
@@ -124,9 +121,12 @@ export class StartDebugActionViewItem implements IActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+		this.toDispose.push(attachStylerCallback(this.themeService, { selectBorder, selectBackground }, colors => {
 			this.container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
 			selectBoxContainer.style.borderLeft = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			const selectBackgroundColor = colors.selectBackground ? `${colors.selectBackground}` : '';
+			this.container.style.backgroundColor = selectBackgroundColor;
+			this.start.style.backgroundColor = selectBackgroundColor;
 		}));
 		this.debugService.getConfigurationManager().getDynamicProviders().then(providers => {
 			this.providers = providers;

@@ -266,6 +266,9 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly homeIndicator?: IHomeIndicator;
 
+	/**
+	 * Optional default layout to apply on first time the workspace is opened.
+	 */
 	readonly defaultLayout?: IDefaultLayout;
 
 	//#endregion

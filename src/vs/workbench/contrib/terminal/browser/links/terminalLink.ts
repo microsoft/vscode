@@ -11,6 +11,7 @@ import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminal/brow
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isMacintosh } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export const OPEN_FILE_LABEL = localize('openFile', 'Open file in editor');
 export const FOLDER_IN_WORKSPACE_LABEL = localize('focusFolder', 'Focus folder in explorer');
@@ -18,6 +19,12 @@ export const FOLDER_NOT_IN_WORKSPACE_LABEL = localize('openFolder', 'Open folder
 
 export class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;
+
+	private _tooltipScheduler: RunOnceScheduler | undefined;
+	private _hoverListeners: DisposableStore | undefined;
+
+	private readonly _onLeave = new Emitter<void>();
+	public get onLeave(): Event<void> { return this._onLeave.event; }
 
 	constructor(
 		public readonly range: IBufferRange,
@@ -34,6 +41,14 @@ export class TerminalLink extends DisposableStore implements ILink {
 			pointerCursor: false,
 			underline: this._isHighConfidenceLink
 		};
+	}
+
+	dispose(): void {
+		super.dispose();
+		this._hoverListeners?.dispose();
+		this._hoverListeners = undefined;
+		this._tooltipScheduler?.dispose();
+		this._tooltipScheduler = undefined;
 	}
 
 	activate(event: MouseEvent | undefined, text: string): void {
@@ -54,20 +69,23 @@ export class TerminalLink extends DisposableStore implements ILink {
 		}));
 
 		const timeout = this._configurationService.getValue<number>('editor.hover.delay');
-		const scheduler = new RunOnceScheduler(() => {
+		this._tooltipScheduler = new RunOnceScheduler(() => {
 			this._tooltipCallback(
 				this,
 				convertBufferRangeToViewport(this.range, this._viewportY),
 				this._isHighConfidenceLink ? () => this._enableDecorations() : undefined,
 				this._isHighConfidenceLink ? () => this._disableDecorations() : undefined
 			);
-			this.dispose();
+			// Clear out scheduler until next hover event
+			this._tooltipScheduler?.dispose();
+			this._tooltipScheduler = undefined;
 		}, timeout);
-		this.add(scheduler);
-		scheduler.schedule();
+		this.add(this._tooltipScheduler);
+		this._tooltipScheduler.schedule();
 
 		const origin = { x: event.pageX, y: event.pageY };
-		this.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
+		this._hoverListeners = new DisposableStore();
+		this._hoverListeners.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
 			// Update decorations
 			if (this._isModifierDown(e)) {
 				this._enableDecorations();
@@ -79,13 +97,17 @@ export class TerminalLink extends DisposableStore implements ILink {
 			if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
 				origin.x = e.pageX;
 				origin.y = e.pageY;
-				scheduler.schedule();
+				this._tooltipScheduler?.schedule();
 			}
 		}));
 	}
 
 	leave(): void {
-		this.dispose();
+		this._hoverListeners?.dispose();
+		this._hoverListeners = undefined;
+		this._tooltipScheduler?.dispose();
+		this._tooltipScheduler = undefined;
+		this._onLeave.fire();
 	}
 
 	private _enableDecorations(): void {

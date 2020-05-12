@@ -29,7 +29,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	get rowsContainer(): HTMLElement {
 		return this.view.containerDomNode;
 	}
-	private _previousSelectedElements: CellViewModel[] = [];
+	private _previousFocusedElements: CellViewModel[] = [];
 	private _localDisposableStore = new DisposableStore();
 	private _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
@@ -57,15 +57,14 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
-
-		this._previousSelectedElements = this.getSelectedElements();
-		this._localDisposableStore.add(this.onDidChangeSelection((e) => {
-			this._previousSelectedElements.forEach(element => {
+		this._previousFocusedElements = this.getFocusedElements();
+		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
+			this._previousFocusedElements.forEach(element => {
 				if (e.elements.indexOf(element) < 0) {
 					element.onDeselect();
 				}
 			});
-			this._previousSelectedElements = e.elements;
+			this._previousFocusedElements = e.elements;
 		}));
 
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
@@ -93,7 +92,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		};
 
 		// Cursor Boundary context
-		this._localDisposableStore.add(this.onDidChangeSelection((e) => {
+		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			if (e.elements.length) {
 				cursorSelectionListener?.dispose();
 				textEditorAttachListener?.dispose();
@@ -120,6 +119,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			notebookEditorCursorAtBoundaryContext.set('none');
 		}));
 
+	}
+
+	elementAt(position: number): ICellViewModel {
+		return this.element(this.view.indexAt(position));
+	}
+
+	elementHeight(element: ICellViewModel): number {
+		let index = this._getViewIndexUpperBound(element);
+		if (index === undefined || index < 0 || index >= this.length) {
+			this._getViewIndexUpperBound(element);
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		return this.view.elementHeight(index);
 	}
 
 	protected createMouseController(_options: IListOptions<CellViewModel>): MouseController<CellViewModel> {
@@ -157,7 +170,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 						const cell = this.element(i);
-						if (this._viewModel!.hasCell(cell)) {
+						if (this._viewModel!.hasCell(cell.handle)) {
 							hideOutputs.push(...cell?.model.outputs);
 						} else {
 							deletedOutputs.push(...cell?.model.outputs);
@@ -177,7 +190,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 						for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 							const cell = this.element(i);
-							if (this._viewModel!.hasCell(cell)) {
+							if (this._viewModel!.hasCell(cell.handle)) {
 								hideOutputs.push(...cell?.model.outputs);
 							} else {
 								deletedOutputs.push(...cell?.model.outputs);
@@ -299,7 +312,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				const cell = this.element(i);
-				if (this._viewModel!.hasCell(cell)) {
+				if (this._viewModel!.hasCell(cell.handle)) {
 					hideOutputs.push(...cell?.model.outputs);
 				} else {
 					deletedOutputs.push(...cell?.model.outputs);
@@ -316,6 +329,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
 		// we need to convert start and delete count based on hidden ranges
 		super.splice(start, deleteCount, elements);
+
+		const selectionsLeft = [];
+		this._viewModel!.selectionHandles.forEach(handle => {
+			if (this._viewModel!.hasCell(handle)) {
+				selectionsLeft.push(handle);
+			}
+		});
+
+		if (!selectionsLeft.length && this._viewModel!.viewCells) {
+			// after splice, the selected cells are deleted
+			this._viewModel!.selectionHandles = [this._viewModel!.viewCells[0].handle];
+		}
 	}
 
 	getViewIndex(cell: ICellViewModel) {
@@ -479,7 +504,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		const focused = this.getSelection();
+		const focused = this.getFocus();
 		this.view.updateElementHeight(index, size, focused.length ? focused[0] : null);
 	}
 
@@ -527,7 +552,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 	}
 
-	// TODO@rebornix TEST & Fix potential bugs
 	// List items have real dynamic heights, which means after we set `scrollTop` based on the `elementTop(index)`, the element at `index` might still be removed from the view once all relayouting tasks are done.
 	// For example, we scroll item 10 into the view upwards, in the first round, items 7, 8, 9, 10 are all in the viewport. Then item 7 and 8 resize themselves to be larger and finally item 10 is removed from the view.
 	// To ensure that item 10 is always there, we need to scroll item 10 to the top edge of the viewport.

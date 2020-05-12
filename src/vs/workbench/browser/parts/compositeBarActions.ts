@@ -548,11 +548,8 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 				if (e.eventData.dataTransfer) {
 					e.eventData.dataTransfer.effectAllowed = 'move';
 				}
-
-				// Trigger the action even on drag start to prevent clicks from failing that started a drag
-				if (!this.getAction().checked) {
-					this.getAction().run();
-				}
+				// Remove focus indicator when dragging
+				this.blur();
 			}
 		}));
 

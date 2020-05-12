@@ -374,13 +374,13 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 
 	getAriaLabel(element: IReplElement): string {
 		if (element instanceof Variable) {
-			return localize('replVariableAriaLabel', "Variable {0} has value {1}, read eval print loop, debug", element.name, element.value);
+			return localize('replVariableAriaLabel', "Variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof SimpleReplElement || element instanceof ReplEvaluationInput || element instanceof ReplEvaluationResult) {
-			return localize('replValueOutputAriaLabel', "{0}, read eval print loop, debug", element.value);
+			return localize('replValueOutputAriaLabel', "{0}", element.value);
 		}
 		if (element instanceof RawObjectReplElement) {
-			return localize('replRawObjectAriaLabel', "Repl variable {0} has value {1}, read eval print loop, debug", element.name, element.value);
+			return localize('replRawObjectAriaLabel', "Repl variable {0}, value {1}", element.name, element.value);
 		}
 		if (element instanceof ReplGroup) {
 			return localize('replGroup', "Repl group {0}, read eval print loop, debug", element.name);
