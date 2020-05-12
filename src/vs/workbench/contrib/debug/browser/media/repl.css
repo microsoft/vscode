@@ -59,10 +59,6 @@
 	max-width: 150px;
 }
 
-.repl .repl-tree .monaco-list-row {
-	cursor: text;
-}
-
 .repl .repl-tree .output.expression > .value,
 .repl .repl-tree .evaluation-result.expression > .value {
 	margin-left: 0px;

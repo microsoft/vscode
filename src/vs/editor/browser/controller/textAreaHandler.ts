@@ -30,6 +30,7 @@ import { ViewContext } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 export interface ITextAreaHandlerHelper {
 	visibleRangeForPositionRelativeToEditor(lineNumber: number, column: number): HorizontalPosition | null;
@@ -117,7 +118,7 @@ export class TextAreaHandler extends ViewPart {
 		// Text Area (The focus will always be in the textarea when the cursor is blinking)
 		this.textArea = createFastDomNode(document.createElement('textarea'));
 		PartFingerprints.write(this.textArea, PartFingerprint.TextArea);
-		this.textArea.setClassName('inputarea');
+		this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 		this.textArea.setAttribute('wrap', 'off');
 		this.textArea.setAttribute('autocorrect', 'off');
 		this.textArea.setAttribute('autocapitalize', 'off');
@@ -279,7 +280,7 @@ export class TextAreaHandler extends ViewPart {
 			}
 
 			// Show the textarea
-			this.textArea.setClassName('inputarea ime-input');
+			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 
 			this._viewController.compositionStart('keyboard');
 		}));
@@ -301,7 +302,7 @@ export class TextAreaHandler extends ViewPart {
 			this._visibleTextArea = null;
 			this._render();
 
-			this.textArea.setClassName('inputarea');
+			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
 			this._viewController.compositionEnd('keyboard');
 		}));
 
