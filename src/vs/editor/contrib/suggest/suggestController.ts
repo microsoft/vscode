@@ -327,10 +327,12 @@ export class SuggestController implements IEditorContribution {
 				if (didType) {
 					this.editor.pushUndoStop();
 				}
+				const scrollState = StableEditorScrollState.capture(this.editor);
 				this.editor.executeEdits(
 					'suggestController.additionalTextEdits.async',
 					item.completion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text))
 				);
+				scrollState.restoreRelativeVerticalPositionOfCursor(this.editor);
 				if (didType || !(oldFlags & InsertFlags.NoAfterUndoStop)) {
 					this.editor.pushUndoStop();
 				}
