@@ -247,8 +247,8 @@ steps:
     set -e
     APP_ROOT=$(agent.builddirectory)/VSCode-darwin
     APP_NAME="`ls $APP_ROOT | head -n 1`"
-    "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --version
-  displayName: Verify start after signing
+    "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
+  displayName: Verify start after signing (export configuration)
 
 - script: |
     set -e
