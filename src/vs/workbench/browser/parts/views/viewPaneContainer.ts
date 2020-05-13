@@ -357,7 +357,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.iconContainer.setAttribute('aria-label', calculatedTitle);
 	}
 
-	updateTitle(title: string): void {
+	protected updateTitle(title: string): void {
 		const calculatedTitle = this.calculateTitle(title);
 		if (this.titleContainer) {
 			this.titleContainer.textContent = calculatedTitle;
