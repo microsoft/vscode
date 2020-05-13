@@ -249,14 +249,13 @@ steps:
     APP_NAME="`ls $APP_ROOT | head -n 1`"
     "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --version
   displayName: Verify start after signing
-  
+
 - script: |
     set -e
     VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-    VSCODE_HOCKEYAPP_TOKEN="$(vscode-hockeyapp-token)" \
     ./build/azure-pipelines/darwin/publish.sh
   displayName: Publish
 
