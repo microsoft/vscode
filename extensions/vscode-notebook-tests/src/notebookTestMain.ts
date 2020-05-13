@@ -9,6 +9,14 @@ export function activate(context: vscode.ExtensionContext): any {
 	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
 		onDidChangeNotebook: new vscode.EventEmitter<vscode.NotebookDocumentEditEvent>().event,
 		openNotebook: async (_resource: vscode.Uri) => {
+			if (_resource.path.endsWith('empty.vsctestnb')) {
+				return {
+					languages: ['typescript'],
+					metadata: {},
+					cells: []
+				};
+			}
+
 			return {
 				languages: ['typescript'],
 				metadata: {},

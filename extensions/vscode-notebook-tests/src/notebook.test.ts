@@ -320,3 +320,15 @@ suite('notebook working copy', () => {
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 });
+
+suite('regression', () => {
+	test('microsoft/vscode-github-issue-notebooks#26. Insert template cell in the new empty document', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './empty.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
+	});
+});
