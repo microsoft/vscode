@@ -408,7 +408,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		const messageElement = document.createElement('div');
 		addClass(messageElement, 'empty-panel-message');
-		messageElement.innerText = localize('panel.emptyMessage', "No panels to display. Drag a view into the panel.");
+		messageElement.innerText = localize('panel.emptyMessage', "Drag a view into the panel to display.");
 
 		this.emptyPanelMessageElement.appendChild(messageElement);
 		contentArea.appendChild(this.emptyPanelMessageElement);
