@@ -10,6 +10,7 @@ import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 export class CursorMoveCommands {
 
@@ -174,8 +175,8 @@ export class CursorMoveCommands {
 		const position = context.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
-				? context.validateViewPosition(new Position(_viewPosition.lineNumber, _viewPosition.column), position)
-				: context.convertModelPositionToViewPosition(position)
+				? context.coordinatesConverter.validateViewPosition(new Position(_viewPosition.lineNumber, _viewPosition.column), position)
+				: context.coordinatesConverter.convertModelPositionToViewPosition(position)
 		);
 
 		if (!inSelectionMode || !cursor.modelState.hasSelection()) {
@@ -252,8 +253,8 @@ export class CursorMoveCommands {
 		const position = context.model.validatePosition(_position);
 		const viewPosition = (
 			_viewPosition
-				? context.validateViewPosition(new Position(_viewPosition.lineNumber, _viewPosition.column), position)
-				: context.convertModelPositionToViewPosition(position)
+				? context.coordinatesConverter.validateViewPosition(new Position(_viewPosition.lineNumber, _viewPosition.column), position)
+				: context.coordinatesConverter.convertModelPositionToViewPosition(position)
 		);
 		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0));
 	}
@@ -321,26 +322,24 @@ export class CursorMoveCommands {
 		return null;
 	}
 
-	public static viewportMove(context: CursorContext, cursors: CursorState[], direction: CursorMove.ViewportDirection, inSelectionMode: boolean, value: number): PartialCursorState[] | null {
-		const visibleViewRange = context.getCompletelyVisibleViewRange();
+	public static viewportMove(viewModel: IViewModel, context: CursorContext, cursors: CursorState[], direction: CursorMove.ViewportDirection, inSelectionMode: boolean, value: number): PartialCursorState[] | null {
+		const visibleViewRange = viewModel.getCompletelyVisibleViewRange();
+		const visibleModelRange = context.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
 		switch (direction) {
 			case CursorMove.Direction.ViewPortTop: {
 				// Move to the nth line start in the viewport (from the top)
-				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
 				const modelLineNumber = this._firstLineNumberInRange(context.model, visibleModelRange, value);
 				const modelColumn = context.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
 				return [this._moveToModelPosition(context, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
 			}
 			case CursorMove.Direction.ViewPortBottom: {
 				// Move to the nth line start in the viewport (from the bottom)
-				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
 				const modelLineNumber = this._lastLineNumberInRange(context.model, visibleModelRange, value);
 				const modelColumn = context.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
 				return [this._moveToModelPosition(context, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
 			}
 			case CursorMove.Direction.ViewPortCenter: {
 				// Move to the line start in the viewport center
-				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
 				const modelLineNumber = Math.round((visibleModelRange.startLineNumber + visibleModelRange.endLineNumber) / 2);
 				const modelColumn = context.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
 				return [this._moveToModelPosition(context, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
@@ -413,7 +412,7 @@ export class CursorMoveCommands {
 
 			if (!cursor.viewState.hasSelection() && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
 				// moved over to the previous view line
-				const newViewModelPosition = context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
+				const newViewModelPosition = context.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
 				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
 					// stayed on the same model line => pass wrapping point where 2 view positions map to a single model position
 					newViewState = MoveOperations.moveLeft(context.config, context.viewModel, newViewState, inSelectionMode, 1);
@@ -444,7 +443,7 @@ export class CursorMoveCommands {
 
 			if (!cursor.viewState.hasSelection() && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
 				// moved over to the next view line
-				const newViewModelPosition = context.viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
+				const newViewModelPosition = context.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
 				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
 					// stayed on the same model line => pass wrapping point where 2 view positions map to a single model position
 					newViewState = MoveOperations.moveRight(context.config, context.viewModel, newViewState, inSelectionMode, 1);

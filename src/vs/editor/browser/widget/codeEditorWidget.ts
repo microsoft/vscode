@@ -53,6 +53,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 let EDITOR_ID = 0;
 
@@ -1059,6 +1060,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.cursor;
 	}
 
+	public _getViewModel(): IViewModel | null {
+		if (!this._modelData) {
+			return null;
+		}
+		return this._modelData.viewModel;
+	}
+
 	public pushUndoStop(): boolean {
 		if (!this._modelData) {
 			return false;
@@ -1437,7 +1445,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
 		listenersToRemove.push(model.onWillDispose(() => this.setModel(null)));
 
-		const cursor = new Cursor(this._configuration, model, viewModel);
+		const cursor = new Cursor(this._configuration, model, viewModel, viewModel.coordinatesConverter);
 
 		listenersToRemove.push(cursor.onDidReachMaxCursorCount(() => {
 			this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));

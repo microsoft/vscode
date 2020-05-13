@@ -19,6 +19,7 @@ import { OverviewRulerZone } from 'vs/editor/common/view/overviewZoneManager';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/linesLayout';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IDiffComputationResult } from 'vs/editor/common/services/editorWorkerService';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -668,6 +669,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	_getCursors(): ICursors | null;
 
 	/**
+	 * @internal
+	 */
+	_getViewModel(): IViewModel | null;
+
+	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
 	getLineDecorations(lineNumber: number): IModelDecoration[] | null;
@@ -859,6 +865,11 @@ export interface IActiveCodeEditor extends ICodeEditor {
 	 * @internal
 	 */
 	_getCursors(): ICursors;
+
+	/**
+	 * @internal
+	 */
+	_getViewModel(): IViewModel;
 
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).

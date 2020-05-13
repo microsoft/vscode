@@ -20,6 +20,7 @@ import { RawContentChangedType, ModelRawContentChangedEvent } from 'vs/editor/co
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -182,6 +183,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
 	private readonly _viewModel: IReducedViewModel;
+	private readonly _coordinatesConverter: ICoordinatesConverter;
 	public context: CursorContext;
 	private _cursors: CursorCollection;
 
@@ -193,13 +195,14 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
 
-	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IReducedViewModel) {
+	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IReducedViewModel, coordinatesConverter: ICoordinatesConverter) {
 		super();
 		this._configuration = configuration;
 		this._model = model;
 		this._knownModelVersionId = this._model.getVersionId();
 		this._viewModel = viewModel;
-		this.context = new CursorContext(this._configuration, this._model, this._viewModel);
+		this._coordinatesConverter = coordinatesConverter;
+		this.context = new CursorContext(this._configuration, this._model, this._viewModel, this._coordinatesConverter);
 		this._cursors = new CursorCollection(this.context);
 
 		this._hasFocus = false;
@@ -239,7 +242,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}));
 
 		const updateCursorContext = () => {
-			this.context = new CursorContext(this._configuration, this._model, this._viewModel);
+			this.context = new CursorContext(this._configuration, this._model, this._viewModel, this._coordinatesConverter);
 			this._cursors.updateContext(this.context);
 		};
 		this._register(this._model.onDidChangeLanguage((e) => {

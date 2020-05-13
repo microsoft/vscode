@@ -352,11 +352,6 @@ export class SingleCursorState {
 }
 
 export interface IReducedViewModel extends ICursorSimpleModel, IViewEventEmitter {
-	readonly coordinatesConverter: ICoordinatesConverter;
-
-	getCompletelyVisibleViewRange(): Range;
-	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
-
 }
 
 export class CursorContext {
@@ -364,48 +359,18 @@ export class CursorContext {
 
 	public readonly model: ITextModel;
 	public readonly viewModel: IReducedViewModel;
+	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly config: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IReducedViewModel) {
+	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IReducedViewModel, coordinatesConverter: ICoordinatesConverter) {
 		this.model = model;
 		this.viewModel = viewModel;
+		this.coordinatesConverter = coordinatesConverter;
 		this.config = new CursorConfiguration(
 			this.model.getLanguageIdentifier(),
 			this.model.getOptions(),
 			configuration
 		);
-	}
-
-	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
-	}
-
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this.viewModel.coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
-	}
-
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
-	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
-		return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
-	}
-
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
-	}
-
-	public getCompletelyVisibleViewRange(): Range {
-		return this.viewModel.getCompletelyVisibleViewRange();
-	}
-
-	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
 	}
 }
 
