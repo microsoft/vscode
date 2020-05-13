@@ -120,7 +120,7 @@ export class NotebookEditor extends BaseEditor {
 		const model = await input.resolve();
 
 		const viewState = this.loadTextEditorViewState(input);
-		this._widget.setModel(model, viewState, options);
+		this._widget.setModel(model.notebook, viewState, options);
 	}
 
 	clearInput(): void {

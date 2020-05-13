@@ -39,8 +39,7 @@ import { CellDragAndDropController, CodeCellRenderer, MarkdownCellRenderer, Note
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { CellKind, IOutput, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -48,6 +47,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 const $ = DOM.$;
 
@@ -129,6 +129,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	get viewModel() {
 		return this.notebookViewModel;
+	}
+
+	private _activeKernel: INotebookKernelInfo | undefined = undefined;
+	private readonly _onDidChangeKernel = new Emitter<void>();
+	readonly onDidChangeKernel: Event<void> = this._onDidChangeKernel.event;
+
+	get activeKernel() {
+		return this._activeKernel;
+	}
+
+	set activeKernel(kernel: INotebookKernelInfo | undefined) {
+		this._activeKernel = kernel;
+		this._onDidChangeKernel.fire();
 	}
 
 	private readonly _onDidChangeActiveEditor = this._register(new Emitter<this>());
@@ -342,11 +355,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.list?.domFocus();
 	}
 
-	async setModel(model: NotebookEditorModel, viewState: INotebookEditorViewState | undefined, options: EditorOptions | undefined): Promise<void> {
-		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(model.notebook) || this.webview === null) {
+	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, options: EditorOptions | undefined): Promise<void> {
+		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(textModel) || this.webview === null) {
 			this.detachModel();
-			await this.attachModel(model, viewState);
+			await this.attachModel(textModel, viewState);
 		}
+
+		const availableKernels = this.notebookService.getContributedNotebookKernels(textModel.viewType, textModel.uri);
+		this.activeKernel = availableKernels[0];
+
+		this.localStore.add(this.notebookService.onDidChangeKernels(() => {
+			if (this.activeKernel === undefined) {
+				const availableKernels = this.notebookService.getContributedNotebookKernels(textModel.viewType, textModel.uri);
+				this.activeKernel = availableKernels[0];
+			}
+		}));
 
 		// reveal cell if editor options tell to do so
 		if (options instanceof NotebookEditorOptions && options.cellOptions) {
@@ -391,7 +414,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
 	}
 
-	private async attachModel(model: NotebookEditorModel, viewState: INotebookEditorViewState | undefined) {
+	private async attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
 		if (!this.webview) {
 			this.webview = this.instantiationService.createInstance(BackLayerWebView, this);
 			this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview!.element);
@@ -400,7 +423,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		await this.webview.waitForInitialization();
 
 		this.eventDispatcher = new NotebookEventDispatcher();
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, model.viewType, model.notebook, this.eventDispatcher, this.getLayoutInfo());
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this.eventDispatcher, this.getLayoutInfo());
 		this.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
 		this.updateForMetadata();
@@ -992,12 +1015,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.editorExecutingNotebook!.set(true);
 			this.notebookViewModel!.currentTokenSource = tokenSource;
 
-			const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
-			if (provider) {
-				const viewType = provider.id;
-				const notebookUri = this.notebookViewModel!.uri;
-				return await this.notebookService.executeNotebook(viewType, notebookUri, tokenSource.token);
+			if (this._activeKernel) {
+				await this.notebookService.executeNotebook2(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, this._activeKernel.id, tokenSource.token);
+			} else {
+				const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+				if (provider) {
+					const viewType = provider.id;
+					const notebookUri = this.notebookViewModel!.uri;
+					return await this.notebookService.executeNotebook(viewType, notebookUri, tokenSource.token);
+				}
 			}
+
 		} finally {
 			this.editorExecutingNotebook!.set(false);
 			this.notebookViewModel!.currentTokenSource = undefined;
@@ -1035,7 +1063,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			if (provider) {
 				const viewType = provider.id;
 				const notebookUri = this.notebookViewModel!.uri;
-				return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, tokenSource.token);
+				if (this._activeKernel) {
+					return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id, tokenSource.token);
+				} else {
+					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, tokenSource.token);
+				}
 			}
 		} finally {
 			cell.currentTokenSource = undefined;

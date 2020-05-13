@@ -8,13 +8,15 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -57,6 +59,7 @@ export class MainThreadNotebookDocument extends Disposable {
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, MainThreadNotebookController>();
+	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
 	private readonly _proxy: ExtHostNotebookShape;
 
 	constructor(
@@ -128,6 +131,19 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	async $unregisterNotebookProvider(viewType: string): Promise<void> {
 		this._notebookProviders.delete(viewType);
 		this._notebookService.unregisterNotebookProvider(viewType);
+		return;
+	}
+
+	async $registerNotebookKernel(extension: NotebookExtensionDescription, id: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void> {
+		const kernel = new MainThreadNotebookKernel(this._proxy, id, selectors, extension.id, URI.revive(extension.location), preloads.map(preload => URI.revive(preload)));
+		this._notebookKernels.set(id, kernel);
+		this._notebookService.registerNotebookKernel(kernel);
+		return;
+	}
+
+	async $unregisterNotebookKernel(id: string): Promise<void> {
+		this._notebookKernels.delete(id);
+		this._notebookService.unregisterNotebookKernel(id);
 		return;
 	}
 
@@ -319,5 +335,21 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	async saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean> {
 		return this._proxy.$saveNotebookAs(this._viewType, uri, target, token);
 
+	}
+}
+
+export class MainThreadNotebookKernel implements INotebookKernelInfo {
+	constructor(
+		private readonly _proxy: ExtHostNotebookShape,
+		readonly id: string,
+		readonly selectors: (string | IRelativePattern)[],
+		readonly extension: ExtensionIdentifier,
+		readonly extensionLocation: URI,
+		readonly preloads: URI[]
+	) {
+	}
+
+	async executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void> {
+		return this._proxy.$executeNotebook2(this.id, viewType, uri, handle, token);
 	}
 }

@@ -1747,14 +1747,26 @@ declare module 'vscode' {
 		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
 	}
 
+	export interface NotebookKernel {
+		preloads?: Uri[];
+		executeCell(document: NotebookDocument, cell: NotebookCell, token: CancellationToken): Promise<void>;
+		executeAllCells(document: NotebookDocument, token: CancellationToken): Promise<void>;
+	}
+
 	export namespace notebook {
 		export function registerNotebookContentProvider(
 			notebookType: string,
 			provider: NotebookContentProvider
 		): Disposable;
 
+		export function registerNotebookKernel(
+			id: string,
+			selectors: GlobPattern[],
+			kernel: NotebookKernel
+		): Disposable;
+
 		export function registerNotebookOutputRenderer(
-			type: string,
+			id: string,
 			outputSelector: NotebookOutputSelector,
 			renderer: NotebookOutputRenderer
 		): Disposable;
