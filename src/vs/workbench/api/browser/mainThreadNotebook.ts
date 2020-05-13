@@ -184,7 +184,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
 		if (activeEditorPane?.isNotebookEditor) {
-			const notebookEditor = (activeEditorPane as INotebookEditor);
+			const notebookEditor = (activeEditorPane.getControl() as INotebookEditor);
 
 			if (notebookEditor.viewModel?.handle === handle) {
 				notebookEditor.postMessage(value);
