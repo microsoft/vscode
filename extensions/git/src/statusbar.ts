@@ -66,8 +66,8 @@ class SyncStatusBar {
 	}
 
 	constructor(private repository: Repository) {
-		repository.onDidRunGitStatus(this.onModelChange, this, this.disposables);
-		repository.onDidChangeOperations(this.onOperationsChange, this, this.disposables);
+		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
+		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
 
 		const onEnablementChange = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.enableStatusBarSync'));
 		onEnablementChange(this.updateEnablement, this, this.disposables);
@@ -83,7 +83,7 @@ class SyncStatusBar {
 		this.state = { ... this.state, enabled };
 	}
 
-	private onOperationsChange(): void {
+	private onDidChangeOperations(): void {
 		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
 			this.repository.operations.isRunning(Operation.Push) ||
 			this.repository.operations.isRunning(Operation.Pull);
@@ -91,7 +91,7 @@ class SyncStatusBar {
 		this.state = { ...this.state, isSyncRunning };
 	}
 
-	private onModelChange(): void {
+	private onDidRunGitStatus(): void {
 		this.state = {
 			...this.state,
 			hasRemotes: this.repository.remotes.length > 0,
