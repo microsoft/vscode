@@ -55,7 +55,8 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellEditable: true,
 	cellRunnable: true,
 	hasExecutionOrder: true,
-	displayOrder: NOTEBOOK_DISPLAY_ORDER
+	displayOrder: NOTEBOOK_DISPLAY_ORDER,
+	custom: {}
 };
 
 export interface NotebookDocumentMetadata {
@@ -65,6 +66,7 @@ export interface NotebookDocumentMetadata {
 	cellRunnable: boolean;
 	hasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
+	custom?: { [key: string]: any };
 }
 
 export enum NotebookCellRunState {
@@ -80,9 +82,9 @@ export interface NotebookCellMetadata {
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
-
 	runStartTime?: number;
 	lastRunDuration?: number;
+	custom?: { [key: string]: any };
 }
 
 export interface INotebookDisplayOrder {

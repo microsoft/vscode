@@ -949,6 +949,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				editor.editor.selection = undefined;
 			}
 		}
+
+		if (data.metadata) {
+			editor.editor.document.metadata = {
+				...notebookDocumentMetadataDefaults,
+				...data.metadata
+			};
+		}
 	}
 
 	async $acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta) {
@@ -978,6 +985,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				const viewType = modelData.viewType;
 				if (!this._documents.has(revivedUri.toString())) {
 					let document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, revivedUri, this);
+					if (modelData.metadata) {
+						document.metadata = {
+							...notebookDocumentMetadataDefaults,
+							...modelData.metadata
+						};
+					}
+
 					this._documents.set(revivedUri.toString(), document);
 				}
 

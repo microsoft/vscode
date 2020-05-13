@@ -17,19 +17,25 @@ export function activate(context: vscode.ExtensionContext): any {
 				};
 			}
 
-			return {
+			const dto: vscode.NotebookData = {
 				languages: ['typescript'],
-				metadata: {},
+				metadata: {
+					custom: { testMetadata: false }
+				},
 				cells: [
 					{
 						source: 'test',
 						language: 'typescript',
 						cellKind: vscode.CellKind.Code,
 						outputs: [],
-						metadata: {}
+						metadata: {
+							custom: { testCellMetadata: true }
+						}
 					}
 				]
 			};
+
+			return dto;
 		},
 		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined, _token: vscode.CancellationToken) => {
 			if (!_cell) {

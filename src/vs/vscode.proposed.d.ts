@@ -1590,6 +1590,11 @@ declare module 'vscode' {
 		 * The total duration of the cell's last run
 		 */
 		lastRunDuration?: number;
+
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		[key: string]: any;
 	}
 
 	export interface NotebookCell {
@@ -1635,6 +1640,11 @@ declare module 'vscode' {
 		hasExecutionOrder?: boolean;
 
 		displayOrder?: GlobPattern[];
+
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		[key: string]: any;
 	}
 
 	export interface NotebookDocument {

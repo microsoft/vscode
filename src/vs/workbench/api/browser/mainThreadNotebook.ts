@@ -38,7 +38,7 @@ export class MainThreadNotebookDocument extends Disposable {
 		}));
 		this._register(this._textModel.onDidSelectionChange(e => {
 			const selectionsChange = e ? { selections: e } : null;
-			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange });
+			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange, metadata: null });
 		}));
 	}
 
@@ -250,6 +250,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			document.textModel.insertTemplateCell(mainCell);
 		}
 
+		this._proxy.$acceptEditorPropertiesChanged(uri, { selections: null, metadata: document.textModel.metadata });
+
 		return document.textModel;
 	}
 
@@ -285,7 +287,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			addedDocuments: [{
 				viewType: document.viewType,
 				handle: document.handle,
-				uri: document.uri
+				uri: document.uri,
+				metadata: document.textModel.metadata
 			}]
 		});
 	}
