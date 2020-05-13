@@ -89,9 +89,9 @@ interface ICommand {
 interface IHomeIndicator {
 
 	/**
-	 * The identifier of the command to run when clicking the home indicator.
+	 * The link to open when clicking the home indicator.
 	 */
-	command: string;
+	href: string;
 
 	/**
 	 * The icon name for the home indicator. This needs to be one of the existing
