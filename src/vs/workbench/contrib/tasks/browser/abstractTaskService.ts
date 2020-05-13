@@ -1579,7 +1579,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 								for (const task of taskSet.tasks) {
 									if (task.type !== this._providerTypes.get(handle)) {
 										this._outputChannel.append(nls.localize('unexpectedTaskType', "The task provider for \"{0}\" tasks unexpectedly provided a task of type \"{1}\".\n", this._providerTypes.get(handle), task.type));
-										this.showOutput();
+										if ((task.type !== 'shell') && (task.type !== 'process')) {
+											this.showOutput();
+										}
 										break;
 									}
 								}
