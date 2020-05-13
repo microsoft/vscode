@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { compareFileNames, compareFileExtensions, compareFileNamesNumeric, compareFileExtensionsNumeric } from 'vs/base/common/comparers';
+import { compareFileNames, compareFileExtensions, compareFileNamesMixed, compareFileExtensionsMixed } from 'vs/base/common/comparers';
 import * as assert from 'assert';
 
 const compareLocale = (a: string, b: string) => a.localeCompare(b);
@@ -152,145 +152,145 @@ suite('Comparers', () => {
 
 	});
 
-	test('compareFileNamesNumeric', () => {
+	test('compareFileNamesMixed', () => {
 
 		//
 		// Comparisons with the same results as compareFileNames
 		//
 
 		// name-only comparisons
-		assert(compareFileNamesNumeric(null, null) === 0, 'null should be equal');
-		assert(compareFileNamesNumeric(null, 'abc') < 0, 'null should be come before real values');
-		assert(compareFileNamesNumeric('', '') === 0, 'empty should be equal');
-		assert(compareFileNamesNumeric('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileNamesNumeric('z', 'A') > 0, 'z comes is after A regardless of case');
-		assert(compareFileNamesNumeric('Z', 'a') > 0, 'Z comes after a regardless of case');
+		assert(compareFileNamesMixed(null, null) === 0, 'null should be equal');
+		assert(compareFileNamesMixed(null, 'abc') < 0, 'null should be come before real values');
+		assert(compareFileNamesMixed('', '') === 0, 'empty should be equal');
+		assert(compareFileNamesMixed('abc', 'abc') === 0, 'equal names should be equal');
+		assert(compareFileNamesMixed('z', 'A') > 0, 'z comes is after A regardless of case');
+		assert(compareFileNamesMixed('Z', 'a') > 0, 'Z comes after a regardless of case');
 
 		// name plus extension comparisons
-		assert(compareFileNamesNumeric('file.ext', 'file.ext') === 0, 'equal full names should be equal');
-		assert(compareFileNamesNumeric('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileNamesNumeric('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileNamesNumeric('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
+		assert(compareFileNamesMixed('file.ext', 'file.ext') === 0, 'equal full names should be equal');
+		assert(compareFileNamesMixed('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
+		assert(compareFileNamesMixed('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
+		assert(compareFileNamesMixed('bbb.aaa', 'aaa.bbb') > 0, 'files should be compared by names even if extensions compare differently');
 
 		// dotfile comparisons
-		assert(compareFileNamesNumeric('.abc', '.abc') === 0, 'equal dotfile names should be equal');
-		assert(compareFileNamesNumeric('.env.', '.gitattributes') < 0, 'filenames starting with dots and with extensions should still sort properly');
-		assert(compareFileNamesNumeric('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileNamesNumeric('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
-		assert(compareFileNamesNumeric('.aaa_env', '.aaa.env') < 0, 'and underscore in a dotfile name will sort before a dot');
+		assert(compareFileNamesMixed('.abc', '.abc') === 0, 'equal dotfile names should be equal');
+		assert(compareFileNamesMixed('.env.', '.gitattributes') < 0, 'filenames starting with dots and with extensions should still sort properly');
+		assert(compareFileNamesMixed('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
+		assert(compareFileNamesMixed('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
+		assert(compareFileNamesMixed('.aaa_env', '.aaa.env') < 0, 'and underscore in a dotfile name will sort before a dot');
 
 		// dotfile vs non-dotfile comparisons
-		assert(compareFileNamesNumeric(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileNamesNumeric('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileNamesNumeric('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileNamesNumeric('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
-		assert(compareFileNamesNumeric('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
+		assert(compareFileNamesMixed(null, '.abc') < 0, 'null should come before dotfiles');
+		assert(compareFileNamesMixed('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
+		assert(compareFileNamesMixed('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
+		assert(compareFileNamesMixed('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
+		assert(compareFileNamesMixed('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
 
 		// numeric comparisons
-		assert(compareFileNamesNumeric('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileNamesNumeric('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileNamesNumeric('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileNamesNumeric('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileNamesNumeric('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileNamesNumeric('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
+		assert(compareFileNamesMixed('1', '1') === 0, 'numerically equal full names should be equal');
+		assert(compareFileNamesMixed('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
+		assert(compareFileNamesMixed('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
+		assert(compareFileNamesMixed('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order even when they are multiple digits long');
+		assert(compareFileNamesMixed('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
+		assert(compareFileNamesMixed('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
 
 		//
 		// Comparisons with different results than compareFileNames
 		//
 
 		// name-only comparisons
-		assert(compareFileNamesNumeric('a', 'A') === compareLocale('a', 'A'), 'the same letter sorts by locale');
-		assert(compareFileNamesNumeric('â', 'Â') === compareLocale('â', 'Â'), 'the same accented letter sorts by locale');
-		assert.deepEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNamesNumeric), ['artichoke', 'Artichoke', 'art', 'Art'].sort(compareLocale), 'words with the same root and different cases sort in locale order');
-		assert.deepEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNamesNumeric), ['email', 'Email', 'émail', 'Émail'].sort(compareLocale), 'the same base characters with different case or accents sort in locale order');
+		assert(compareFileNamesMixed('a', 'A') === compareLocale('a', 'A'), 'the same letter sorts by locale');
+		assert(compareFileNamesMixed('â', 'Â') === compareLocale('â', 'Â'), 'the same accented letter sorts by locale');
+		assert.deepEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileNamesMixed), ['artichoke', 'Artichoke', 'art', 'Art'].sort(compareLocale), 'words with the same root and different cases sort in locale order');
+		assert.deepEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileNamesMixed), ['email', 'Email', 'émail', 'Émail'].sort(compareLocale), 'the same base characters with different case or accents sort in locale order');
 
 		// name plus extensions comparisons
-		assert(compareFileNamesNumeric('aggregate.go', 'aggregate_repo.go') < 0, 'compares the name first, then the extension');
+		assert(compareFileNamesMixed('aggregate.go', 'aggregate_repo.go') < 0, 'compares the name first, then the extension');
 
 		// numeric comparisons
-		assert(compareFileNamesNumeric('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest number first');
-		assert(compareFileNamesNumeric('abc.txt1', 'abc.txt01') < 0, 'same name plus extensions with equal numbers sort shortest number first');
-		assert(compareFileNamesNumeric('art01', 'Art01') === compareLocaleNumeric('art01', 'Art01'), 'a numerically equivalent word of a different case compares numerically based on locale');
+		assert(compareFileNamesMixed('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest number first');
+		assert(compareFileNamesMixed('abc.txt1', 'abc.txt01') < 0, 'same name plus extensions with equal numbers sort shortest number first');
+		assert(compareFileNamesMixed('art01', 'Art01') === compareLocaleNumeric('art01', 'Art01'), 'a numerically equivalent word of a different case compares numerically based on locale');
 
 	});
 
-	test('compareFileExtensionsNumeric', () => {
+	test('compareFileExtensionsMixed', () => {
 
 		//
 		// Comparisons with the same result as compareFileExtensions
 		//
 
 		// name-only comparisons
-		assert(compareFileExtensionsNumeric(null, null) === 0, 'null should be equal');
-		assert(compareFileExtensionsNumeric(null, 'abc') < 0, 'null should come before real files without extensions');
-		assert(compareFileExtensionsNumeric('', '') === 0, 'empty should be equal');
-		assert(compareFileExtensionsNumeric('abc', 'abc') === 0, 'equal names should be equal');
-		assert(compareFileExtensionsNumeric('z', 'A') > 0, 'z comes after A');
-		assert(compareFileExtensionsNumeric('Z', 'a') > 0, 'Z comes after a');
+		assert(compareFileExtensionsMixed(null, null) === 0, 'null should be equal');
+		assert(compareFileExtensionsMixed(null, 'abc') < 0, 'null should come before real files without extensions');
+		assert(compareFileExtensionsMixed('', '') === 0, 'empty should be equal');
+		assert(compareFileExtensionsMixed('abc', 'abc') === 0, 'equal names should be equal');
+		assert(compareFileExtensionsMixed('z', 'A') > 0, 'z comes after A');
+		assert(compareFileExtensionsMixed('Z', 'a') > 0, 'Z comes after a');
 
 		// name plus extension comparisons
-		assert(compareFileExtensionsNumeric('file.ext', 'file.ext') === 0, 'equal full filenames should be equal');
-		assert(compareFileExtensionsNumeric('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
-		assert(compareFileExtensionsNumeric('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
-		assert(compareFileExtensionsNumeric('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
-		assert(compareFileExtensionsNumeric('agg.go', 'aggrepo.go') < 0, 'shorter names sort before longer names');
-		assert(compareFileExtensionsNumeric('agg.go', 'agg_repo.go') < 0, 'shorter names short before longer names even when the longer name contains an underscore');
-		assert(compareFileExtensionsNumeric('a.MD', 'b.md') < 0, 'when extensions are the same except for case, the files sort by name');
+		assert(compareFileExtensionsMixed('file.ext', 'file.ext') === 0, 'equal full filenames should be equal');
+		assert(compareFileExtensionsMixed('a.ext', 'b.ext') < 0, 'if equal extensions, filenames should be compared');
+		assert(compareFileExtensionsMixed('file.aaa', 'file.bbb') < 0, 'files with equal names should be compared by extensions');
+		assert(compareFileExtensionsMixed('bbb.aaa', 'aaa.bbb') < 0, 'files should be compared by extension first');
+		assert(compareFileExtensionsMixed('agg.go', 'aggrepo.go') < 0, 'shorter names sort before longer names');
+		assert(compareFileExtensionsMixed('agg.go', 'agg_repo.go') < 0, 'shorter names short before longer names even when the longer name contains an underscore');
+		assert(compareFileExtensionsMixed('a.MD', 'b.md') < 0, 'when extensions are the same except for case, the files sort by name');
 
 		// dotfile comparisons
-		assert(compareFileExtensionsNumeric('.abc', '.abc') === 0, 'equal dotfiles should be equal');
-		assert(compareFileExtensionsNumeric('.md', '.Gitattributes') > 0, 'dotfiles sort alphabetically regardless of case');
+		assert(compareFileExtensionsMixed('.abc', '.abc') === 0, 'equal dotfiles should be equal');
+		assert(compareFileExtensionsMixed('.md', '.Gitattributes') > 0, 'dotfiles sort alphabetically regardless of case');
 
 		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensionsNumeric(null, '.abc') < 0, 'null should come before dotfiles');
-		assert(compareFileExtensionsNumeric('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
-		assert(compareFileExtensionsNumeric('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
+		assert(compareFileExtensionsMixed(null, '.abc') < 0, 'null should come before dotfiles');
+		assert(compareFileExtensionsMixed('.env', 'aaa.env') < 0, 'dotfiles come before filenames with extensions');
+		assert(compareFileExtensionsMixed('.MD', 'a.md') < 0, 'dotfiles sort before lowercase files');
 
 		// numeric comparisons
-		assert(compareFileExtensionsNumeric('1', '1') === 0, 'numerically equal full names should be equal');
-		assert(compareFileExtensionsNumeric('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
-		assert(compareFileExtensionsNumeric('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsNumeric('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order');
-		assert(compareFileExtensionsNumeric('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
-		assert(compareFileExtensionsNumeric('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
-		assert(compareFileExtensionsNumeric('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsNumeric('txt.abc1', 'txt.abc1') === 0, 'equal extensions with numbers should be equal');
-		assert(compareFileExtensionsNumeric('txt.abc1', 'txt.abc2') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
-		assert(compareFileExtensionsNumeric('txt.abc2', 'txt.abc10') < 0, 'extensions with numbers should be in numerical order even when they are multiple digits long');
-		assert(compareFileExtensionsNumeric('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, filenames should be compared');
-		assert(compareFileExtensionsNumeric('a10.txt', 'A2.txt') > 0, 'filenames with number and case differences compare numerically');
+		assert(compareFileExtensionsMixed('1', '1') === 0, 'numerically equal full names should be equal');
+		assert(compareFileExtensionsMixed('abc1.txt', 'abc1.txt') === 0, 'equal filenames with numbers should be equal');
+		assert(compareFileExtensionsMixed('abc1.txt', 'abc2.txt') < 0, 'filenames with numbers should be in numerical order, not alphabetical order');
+		assert(compareFileExtensionsMixed('abc2.txt', 'abc10.txt') < 0, 'filenames with numbers should be in numerical order');
+		assert(compareFileExtensionsMixed('abc02.txt', 'abc010.txt') < 0, 'filenames with numbers that have leading zeros sort numerically');
+		assert(compareFileExtensionsMixed('abc1.10.txt', 'abc1.2.txt') > 0, 'numbers with dots between them are treated as two separate numbers, not one decimal number');
+		assert(compareFileExtensionsMixed('abc2.txt2', 'abc1.txt10') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
+		assert(compareFileExtensionsMixed('txt.abc1', 'txt.abc1') === 0, 'equal extensions with numbers should be equal');
+		assert(compareFileExtensionsMixed('txt.abc1', 'txt.abc2') < 0, 'extensions with numbers should be in numerical order, not alphabetical order');
+		assert(compareFileExtensionsMixed('txt.abc2', 'txt.abc10') < 0, 'extensions with numbers should be in numerical order even when they are multiple digits long');
+		assert(compareFileExtensionsMixed('a.ext1', 'b.ext1') < 0, 'if equal extensions with numbers, filenames should be compared');
+		assert(compareFileExtensionsMixed('a10.txt', 'A2.txt') > 0, 'filenames with number and case differences compare numerically');
 
 		// Same extension comparison that has the same result as compareFileExtensions, but a different result than compareFileNames
 		// This is an edge case caused by compareFileNames comparing the whole name all at once instead of the name and then the extension.
-		assert(compareFileExtensionsNumeric('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, names sort in dictionary order');
+		assert(compareFileExtensionsMixed('aggregate.go', 'aggregate_repo.go') < 0, 'when extensions are equal, names sort in dictionary order');
 
 		//
 		// Comparisons with different results than compareFileExtensions
 		//
 
 		// name-only comparisons
-		assert(compareFileExtensionsNumeric('a', 'A') === compareLocale('a', 'A'), 'the same letter of different case sorts by locale');
-		assert(compareFileExtensionsNumeric('â', 'Â') === compareLocale('â', 'Â'), 'the same accented letter of different case sorts by locale');
-		assert.deepEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileExtensionsNumeric), ['artichoke', 'Artichoke', 'art', 'Art'].sort(compareLocale), 'words with the same root and different cases sort in locale order');
-		assert.deepEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileExtensionsNumeric), ['email', 'Email', 'émail', 'Émail'].sort((a, b) => a.localeCompare(b)), 'the same base characters with different case or accents sort in locale order');
+		assert(compareFileExtensionsMixed('a', 'A') === compareLocale('a', 'A'), 'the same letter of different case sorts by locale');
+		assert(compareFileExtensionsMixed('â', 'Â') === compareLocale('â', 'Â'), 'the same accented letter of different case sorts by locale');
+		assert.deepEqual(['artichoke', 'Artichoke', 'art', 'Art'].sort(compareFileExtensionsMixed), ['artichoke', 'Artichoke', 'art', 'Art'].sort(compareLocale), 'words with the same root and different cases sort in locale order');
+		assert.deepEqual(['email', 'Email', 'émail', 'Émail'].sort(compareFileExtensionsMixed), ['email', 'Email', 'émail', 'Émail'].sort((a, b) => a.localeCompare(b)), 'the same base characters with different case or accents sort in locale order');
 
 		// name plus extension comparisons
-		assert(compareFileExtensionsNumeric('a.MD', 'a.md') === compareLocale('MD', 'md'), 'case differences in extensions sort by locale');
-		assert(compareFileExtensionsNumeric('a.md', 'A.md') === compareLocale('a', 'A'), 'case differences in names sort by locale');
+		assert(compareFileExtensionsMixed('a.MD', 'a.md') === compareLocale('MD', 'md'), 'case differences in extensions sort by locale');
+		assert(compareFileExtensionsMixed('a.md', 'A.md') === compareLocale('a', 'A'), 'case differences in names sort by locale');
 
 		// dotfile comparisons
-		assert(compareFileExtensionsNumeric('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
-		assert(compareFileExtensionsNumeric('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
+		assert(compareFileExtensionsMixed('.env', '.aaa.env') > 0, 'dotfiles sort alphabetically when they contain multiple dots');
+		assert(compareFileExtensionsMixed('.env', '.env.aaa') < 0, 'dotfiles with the same root sort shortest first');
 
 		// dotfile vs non-dotfile comparisons
-		assert(compareFileExtensionsNumeric('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
-		assert(compareFileExtensionsNumeric('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
+		assert(compareFileExtensionsMixed('.env', 'aaa') < 0, 'dotfiles come before filenames without extensions');
+		assert(compareFileExtensionsMixed('.md', 'A.MD') < 0, 'dotfiles sort before uppercase files');
 
 		// numeric comparisons
-		assert(compareFileExtensionsNumeric('abc.txt01', 'abc.txt1') > 0, 'extensions with equal numbers should be in shortest-first order');
-		assert(compareFileExtensionsNumeric('art01', 'Art01') === compareLocaleNumeric('art01', 'Art01'), 'a numerically equivalent word of a different case compares numerically based on locale');
-		assert(compareFileExtensionsNumeric('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest string first');
-		assert(compareFileExtensionsNumeric('txt.abc01', 'txt.abc1') > 0, 'extensions with equivalent numbers sort shortest extension first');
+		assert(compareFileExtensionsMixed('abc.txt01', 'abc.txt1') > 0, 'extensions with equal numbers should be in shortest-first order');
+		assert(compareFileExtensionsMixed('art01', 'Art01') === compareLocaleNumeric('art01', 'Art01'), 'a numerically equivalent word of a different case compares numerically based on locale');
+		assert(compareFileExtensionsMixed('abc02.txt', 'abc002.txt') < 0, 'filenames with equivalent numbers and leading zeros sort shortest string first');
+		assert(compareFileExtensionsMixed('txt.abc01', 'txt.abc1') > 0, 'extensions with equivalent numbers sort shortest extension first');
 
 	});
 });

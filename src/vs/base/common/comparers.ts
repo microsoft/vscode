@@ -49,8 +49,8 @@ export function compareFileNames(one: string | null, other: string | null, caseS
 	return result;
 }
 
-/** Compares filenames by name then extension, sorting numbers numerically instead of alphabetically. */
-export function compareFileNamesNumeric(one: string | null, other: string | null): number {
+/** Compares filenames by name then extension, mixing uppercase and lowercase names together. */
+export function compareFileNamesMixed(one: string | null, other: string | null): number {
 	const [oneName, oneExtension] = extractNameAndExtension(one, true);
 	const [otherName, otherExtension] = extractNameAndExtension(other, true);
 	const collatorNumeric = intlFileNameCollatorNumeric.getValue().collator;
@@ -123,8 +123,8 @@ export function compareFileExtensions(one: string | null, other: string | null):
 	return result;
 }
 
-/** Compares filenames by extenson, then by name. Sorts numbers numerically, not alphabetically. */
-export function compareFileExtensionsNumeric(one: string | null, other: string | null): number {
+/** Compares filenames by extenson, then by name, mixing uppercase and lowercase names together */
+export function compareFileExtensionsMixed(one: string | null, other: string | null): number {
 	const [oneName, oneExtension] = extractNameAndExtension(one, true);
 	const [otherName, otherExtension] = extractNameAndExtension(other, true);
 	const collatorNumeric = intlFileNameCollatorNumeric.getValue().collator;
