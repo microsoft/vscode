@@ -2629,6 +2629,11 @@ declare namespace monaco.editor {
 		*/
 		renderFinalNewline?: boolean;
 		/**
+		 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS), NEXT LINE (NEL).
+		 * Defaults to true.
+		 */
+		removeUnusualLineTerminators?: boolean;
+		/**
 		 * Should the corresponding line be selected when clicking on the line number?
 		 * Defaults to true.
 		 */
@@ -3901,49 +3906,50 @@ declare namespace monaco.editor {
 		quickSuggestions = 70,
 		quickSuggestionsDelay = 71,
 		readOnly = 72,
-		renameOnType = 73,
-		renderControlCharacters = 74,
-		renderIndentGuides = 75,
-		renderFinalNewline = 76,
-		renderLineHighlight = 77,
-		renderLineHighlightOnlyWhenFocus = 78,
-		renderValidationDecorations = 79,
-		renderWhitespace = 80,
-		revealHorizontalRightPadding = 81,
-		roundedSelection = 82,
-		rulers = 83,
-		scrollbar = 84,
-		scrollBeyondLastColumn = 85,
-		scrollBeyondLastLine = 86,
-		scrollPredominantAxis = 87,
-		selectionClipboard = 88,
-		selectionHighlight = 89,
-		selectOnLineNumbers = 90,
-		showFoldingControls = 91,
-		showUnused = 92,
-		snippetSuggestions = 93,
-		smoothScrolling = 94,
-		stopRenderingLineAfter = 95,
-		suggest = 96,
-		suggestFontSize = 97,
-		suggestLineHeight = 98,
-		suggestOnTriggerCharacters = 99,
-		suggestSelection = 100,
-		tabCompletion = 101,
-		useTabStops = 102,
-		wordSeparators = 103,
-		wordWrap = 104,
-		wordWrapBreakAfterCharacters = 105,
-		wordWrapBreakBeforeCharacters = 106,
-		wordWrapColumn = 107,
-		wordWrapMinified = 108,
-		wrappingIndent = 109,
-		wrappingStrategy = 110,
-		editorClassName = 111,
-		pixelRatio = 112,
-		tabFocusMode = 113,
-		layoutInfo = 114,
-		wrappingInfo = 115
+		removeUnusualLineTerminators = 73,
+		renameOnType = 74,
+		renderControlCharacters = 75,
+		renderIndentGuides = 76,
+		renderFinalNewline = 77,
+		renderLineHighlight = 78,
+		renderLineHighlightOnlyWhenFocus = 79,
+		renderValidationDecorations = 80,
+		renderWhitespace = 81,
+		revealHorizontalRightPadding = 82,
+		roundedSelection = 83,
+		rulers = 84,
+		scrollbar = 85,
+		scrollBeyondLastColumn = 86,
+		scrollBeyondLastLine = 87,
+		scrollPredominantAxis = 88,
+		selectionClipboard = 89,
+		selectionHighlight = 90,
+		selectOnLineNumbers = 91,
+		showFoldingControls = 92,
+		showUnused = 93,
+		snippetSuggestions = 94,
+		smoothScrolling = 95,
+		stopRenderingLineAfter = 96,
+		suggest = 97,
+		suggestFontSize = 98,
+		suggestLineHeight = 99,
+		suggestOnTriggerCharacters = 100,
+		suggestSelection = 101,
+		tabCompletion = 102,
+		useTabStops = 103,
+		wordSeparators = 104,
+		wordWrap = 105,
+		wordWrapBreakAfterCharacters = 106,
+		wordWrapBreakBeforeCharacters = 107,
+		wordWrapColumn = 108,
+		wordWrapMinified = 109,
+		wrappingIndent = 110,
+		wrappingStrategy = 111,
+		editorClassName = 112,
+		pixelRatio = 113,
+		tabFocusMode = 114,
+		layoutInfo = 115,
+		wrappingInfo = 116
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4019,6 +4025,7 @@ declare namespace monaco.editor {
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, ValidQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
 		readOnly: IEditorOption<EditorOption.readOnly, boolean>;
+		removeUnusualLineTerminators: IEditorOption<EditorOption.removeUnusualLineTerminators, boolean>;
 		renameOnType: IEditorOption<EditorOption.renameOnType, boolean>;
 		renderControlCharacters: IEditorOption<EditorOption.renderControlCharacters, boolean>;
 		renderIndentGuides: IEditorOption<EditorOption.renderIndentGuides, boolean>;

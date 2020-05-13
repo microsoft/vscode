@@ -232,7 +232,7 @@ export class NoTabsTitleControl extends TitleControl {
 	private redraw(): void {
 		const editor = withNullAsUndefined(this.group.activeEditor);
 
-		const isEditorPinned = this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false;
+		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		this.activeLabel = { editor, pinned: isEditorPinned };

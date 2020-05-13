@@ -211,6 +211,8 @@ export interface IViewDescriptor {
 
 	readonly containerIcon?: string | URI;
 
+	readonly containerTitle?: string;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 

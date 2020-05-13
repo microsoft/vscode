@@ -33,6 +33,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'pull': return this.service.pull();
 			case 'sync': return this.service.sync();
 			case 'stop': this.service.stop(); return Promise.resolve();
+			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();

@@ -25,6 +25,7 @@ import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } fro
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { ICompositeCodeEditor } from 'vs/editor/common/editorCommon';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -136,7 +137,7 @@ export interface INotebookEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
-export interface INotebookEditor {
+export interface INotebookEditor extends ICompositeCodeEditor {
 
 	/**
 	 * Notebook view model attached to the current editor
@@ -354,6 +355,8 @@ export interface INotebookEditor {
 }
 
 export interface INotebookCellList {
+	elementAt(position: number): ICellViewModel;
+	elementHeight(element: ICellViewModel): number;
 	onWillScroll: Event<ScrollEvent>;
 	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
 	onDidChangeContentHeight: Event<number>;

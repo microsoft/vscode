@@ -12,7 +12,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
-import { VIEW_CONTAINER_ID } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncView';
+import { VIEW_CONTAINER_ID } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
 
 export class UserDataSyncTrigger extends Disposable {
 

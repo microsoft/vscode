@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
 import { basename, isEqual } from 'vs/base/common/resources';
@@ -24,7 +24,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { NotebookEditor, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
@@ -44,12 +44,15 @@ import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/toc/tocProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 
 // Output renderers registration
 
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
+import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -76,10 +79,11 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 				resource: input.resource,
 				name: input.name,
 				viewType: input.viewType,
+				group: input.group
 			});
 		}
 		deserialize(instantiationService: IInstantiationService, raw: string) {
-			type Data = { resource: URI, name: string, viewType: string };
+			type Data = { resource: URI, name: string, viewType: string, group: number };
 			const data = <Data>parse(raw);
 			if (!data) {
 				return undefined;
@@ -88,7 +92,13 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 			if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
 				return undefined;
 			}
-			return NotebookEditorInput.getOrCreate(instantiationService, resource, name, viewType);
+
+			const input = NotebookEditorInput.getOrCreate(instantiationService, resource, name, viewType);
+			if (typeof data.group === 'number') {
+				input.updateGroup(data.group);
+			}
+
+			return input;
 		}
 	}
 );
@@ -97,17 +107,19 @@ function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): Note
 	return notebookService.getContributedNotebookProviders(uri)[0];
 }
 
-export class NotebookContribution implements IWorkbenchContribution {
+export class NotebookContribution extends Disposable implements IWorkbenchContribution {
 	private _resourceMapping = new ResourceMap<NotebookEditorInput>();
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService private readonly editorService: EditorServiceImpl,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 
 	) {
-		this.editorService.overrideOpenEditor({
+		super();
+
+		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
 				const currentEditorForResource = group?.editors.find(editor => isEqual(editor.resource, resource));
 
@@ -126,14 +138,24 @@ export class NotebookContribution implements IWorkbenchContribution {
 				});
 			},
 			open: (editor, options, group, id) => this.onEditorOpening(editor, options, group, id)
-		});
+		}));
 
-		this.editorService.onDidActiveEditorChange(() => {
+		this._register(this.editorService.onDidActiveEditorChange(() => {
 			if (this.editorService.activeEditor && this.editorService.activeEditor! instanceof NotebookEditorInput) {
 				let editorInput = this.editorService.activeEditor! as NotebookEditorInput;
 				this.notebookService.updateActiveNotebookDocument(editorInput.viewType!, editorInput.resource!);
 			}
-		});
+		}));
+
+		this._register(this.editorService.onDidCloseEditor(({ editor }) => {
+			if (!(editor instanceof NotebookEditorInput)) {
+				return;
+			}
+
+			if (!this.editorService.editors.some(other => other === editor)) {
+				editor.dispose();
+			}
+		}));
 	}
 
 	getUserAssociatedEditors(resource: URI) {
@@ -156,6 +178,23 @@ export class NotebookContribution implements IWorkbenchContribution {
 	}
 
 	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id: string | undefined): IOpenEditorOverride | undefined {
+		if (originalInput instanceof NotebookEditorInput) {
+			if ((originalInput.group === group.id || originalInput.group === undefined) && (originalInput.viewType === id || typeof id !== 'string')) {
+				// No need to do anything
+				originalInput.updateGroup(group.id);
+				return undefined;
+			} else {
+				// Create a copy of the input.
+				// Unlike normal editor inputs, we do not want to share custom editor inputs
+				// between multiple editors / groups.
+				const copiedInput = this.instantiationService.createInstance(NotebookEditorInput, originalInput.resource, originalInput.name, originalInput.viewType);
+				copiedInput.updateGroup(group.id);
+				return {
+					override: this.editorService.openEditor(copiedInput, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group)
+				};
+			}
+		}
+
 		let resource = originalInput.resource;
 		if (!resource) {
 			return undefined;
@@ -181,6 +220,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 			const input = this._resourceMapping.get(resource);
 
 			if (!input!.isDisposed()) {
+				input?.updateGroup(group.id);
 				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
 			}
 		}
@@ -199,6 +239,8 @@ export class NotebookContribution implements IWorkbenchContribution {
 					input = NotebookEditorInput.getOrCreate(this.instantiationService, data.notebook, name, info.id);
 					this._resourceMapping.set(data.notebook, input);
 				}
+
+				input.updateGroup(group.id);
 				return { override: this.editorService.openEditor(input, new NotebookEditorOptions({ ...options, forceReload: true, cellOptions: { resource, options } }), group) };
 			}
 		}
@@ -211,6 +253,7 @@ export class NotebookContribution implements IWorkbenchContribution {
 		}
 
 		const input = NotebookEditorInput.getOrCreate(this.instantiationService, resource, originalInput.getName(), info.id);
+		input.updateGroup(group.id);
 		this._resourceMapping.set(resource, input);
 
 		return { override: this.editorService.openEditor(input, options, group) };

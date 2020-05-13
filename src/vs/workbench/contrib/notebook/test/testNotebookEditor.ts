@@ -21,6 +21,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, CellUri, INotebookEditorModel, IOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
 export class TestCell extends NotebookCellTextModel {
 	constructor(
 		public viewType: string,
@@ -42,6 +43,8 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
+	activeCodeEditor: IEditor | undefined;
 	getDomNode(): HTMLElement {
 		throw new Error('Method not implemented.');
 	}

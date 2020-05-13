@@ -16,6 +16,10 @@
 	flex-direction: column;
 }
 
+.monaco-pane-view .pane.horizontal:not(.expanded) {
+	flex-direction: row;
+}
+
 .monaco-pane-view .pane > .pane-header {
 	font-size: 11px;
 	font-weight: bold;
@@ -26,6 +30,11 @@
 	align-items: center;
 }
 
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {
+	flex-direction: column;
+	width: 22px;
+}
+
 .monaco-pane-view .pane > .pane-header > .twisties {
 	width: 20px;
 	display: flex;
@@ -34,6 +43,11 @@
 	transform-origin: center;
 	color: inherit;
 	flex-shrink: 0;
+}
+
+.monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header > .twisties {
+	margin-top: 2px;
+	margin-bottom: 2px;
 }
 
 .monaco-pane-view .pane > .pane-header.expanded > .twisties::before {
@@ -132,6 +146,7 @@
 	width: 100%;
 	height: 100%;
 	min-height: 22px;
+	min-width: 19px;
 
 	pointer-events: none; /* very important to not take events away from the parent */
 	transition: opacity 150ms ease-out;

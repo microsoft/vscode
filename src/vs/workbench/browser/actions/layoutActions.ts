@@ -11,7 +11,7 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchExtensions } from 'vs/
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
@@ -542,6 +542,117 @@ export abstract class ToggleViewAction extends Action {
 }
 
 // --- Move View with Command
+export class MoveViewAction extends Action {
+	static readonly ID = 'workbench.action.moveView';
+	static readonly LABEL = nls.localize('moveView', "Move View");
+
+	constructor(
+		id: string,
+		label: string,
+		@IViewDescriptorService private viewDescriptorService: IViewDescriptorService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IQuickInputService private quickInputService: IQuickInputService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IActivityBarService private activityBarService: IActivityBarService,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, label);
+	}
+
+	private getViewItems(): Array<IQuickPickItem | IQuickPickSeparator> {
+		const results: Array<IQuickPickItem | IQuickPickSeparator> = [];
+
+		const viewlets = this.activityBarService.getVisibleViewContainerIds();
+		viewlets.forEach(viewletId => {
+			const container = this.viewDescriptorService.getViewContainerById(viewletId)!;
+			const containerModel = this.viewDescriptorService.getViewContainerModel(container);
+
+			let hasAddedView = false;
+			containerModel.visibleViewDescriptors.forEach(viewDescriptor => {
+				if (viewDescriptor.canMoveView) {
+					if (!hasAddedView) {
+						results.push({
+							type: 'separator',
+							label: nls.localize('sidebarContainer', "Side Bar / {0}", containerModel.title)
+						});
+						hasAddedView = true;
+					}
+
+					results.push({
+						id: viewDescriptor.id,
+						label: viewDescriptor.name
+					});
+				}
+			});
+		});
+
+		const panels = this.panelService.getPinnedPanels();
+		panels.forEach(panel => {
+			const container = this.viewDescriptorService.getViewContainerById(panel.id)!;
+			const containerModel = this.viewDescriptorService.getViewContainerModel(container);
+
+			let hasAddedView = false;
+			containerModel.visibleViewDescriptors.forEach(viewDescriptor => {
+				if (viewDescriptor.canMoveView) {
+					if (!hasAddedView) {
+						results.push({
+							type: 'separator',
+							label: nls.localize('panelContainer', "Panel / {0}", containerModel.title)
+						});
+						hasAddedView = true;
+					}
+
+					results.push({
+						id: viewDescriptor.id,
+						label: viewDescriptor.name
+					});
+				}
+			});
+		});
+
+		return results;
+	}
+
+	private async getView(viewId?: string): Promise<string> {
+		const quickPick = this.quickInputService.createQuickPick();
+		quickPick.placeholder = nls.localize('moveFocusedView.selectView', "Select a View to Move");
+		quickPick.items = this.getViewItems();
+		quickPick.selectedItems = quickPick.items.filter(item => (item as IQuickPickItem).id === viewId) as IQuickPickItem[];
+
+		return new Promise((resolve, reject) => {
+			quickPick.onDidAccept(() => {
+				const viewId = quickPick.selectedItems[0];
+				resolve(viewId.id);
+				quickPick.hide();
+			});
+
+			quickPick.onDidHide(() => reject());
+
+			quickPick.show();
+		});
+	}
+
+	async run(): Promise<void> {
+		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
+		let viewId: string;
+
+		if (focusedViewId && this.viewDescriptorService.getViewDescriptorById(focusedViewId)?.canMoveView) {
+			viewId = focusedViewId;
+		}
+
+		viewId = await this.getView(viewId!);
+
+		if (!viewId) {
+			return;
+		}
+
+		this.instantiationService.createInstance(MoveFocusedViewAction, MoveFocusedViewAction.ID, MoveFocusedViewAction.LABEL).run(viewId);
+	}
+}
+
+registry.registerWorkbenchAction(SyncActionDescriptor.from(MoveViewAction), 'View: Move View', viewCategory);
+
+// --- Move Focused View with Command
 export class MoveFocusedViewAction extends Action {
 	static readonly ID = 'workbench.action.moveFocusedView';
 	static readonly LABEL = nls.localize('moveFocusedView', "Move Focused View");
@@ -560,8 +671,8 @@ export class MoveFocusedViewAction extends Action {
 		super(id, label);
 	}
 
-	async run(): Promise<void> {
-		const focusedViewId = FocusedViewContext.getValue(this.contextKeyService);
+	async run(viewId: string): Promise<void> {
+		const focusedViewId = viewId || FocusedViewContext.getValue(this.contextKeyService);
 
 		if (focusedViewId === undefined || focusedViewId.trim() === '') {
 			this.notificationService.error(nls.localize('moveFocusedView.error.noFocusedView', "There is no view currently focused."));
@@ -579,24 +690,30 @@ export class MoveFocusedViewAction extends Action {
 		quickPick.title = nls.localize('moveFocusedView.title', "View: Move {0}", viewDescriptor.name);
 
 		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
+		const currentContainer = this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!;
+		const currentLocation = this.viewDescriptorService.getViewLocationById(focusedViewId)!;
+		const isViewSolo = this.viewDescriptorService.getViewContainerModel(currentContainer).allViewDescriptors.length === 1;
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
+			items.push({
+				id: '_.panel.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInPanel', "New Panel Entry"),
+			});
+		}
+
+		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
+			items.push({
+				id: '_.sidebar.newcontainer',
+				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Side Bar Entry")
+			});
+		}
 
 		items.push({
 			type: 'separator',
 			label: nls.localize('sidebar', "Side Bar")
 		});
 
-		const currentContainer = this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!;
-		const currentLocation = this.viewDescriptorService.getViewLocationById(focusedViewId)!;
-		const isViewSolo = this.viewDescriptorService.getViewContainerModel(currentContainer).allViewDescriptors.length === 1;
-
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.Sidebar)) {
-			items.push({
-				id: '_.sidebar.newcontainer',
-				label: nls.localize('moveFocusedView.newContainerInSidebar', "New Container in Side Bar")
-			});
-		}
-
-		const pinnedViewlets = this.activityBarService.getPinnedViewContainerIds();
+		const pinnedViewlets = this.activityBarService.getVisibleViewContainerIds();
 		items.push(...pinnedViewlets
 			.filter(viewletId => {
 				if (viewletId === this.viewDescriptorService.getViewContainerByViewId(focusedViewId)!.id) {
@@ -616,13 +733,6 @@ export class MoveFocusedViewAction extends Action {
 			type: 'separator',
 			label: nls.localize('panel', "Panel")
 		});
-
-		if (!(isViewSolo && currentLocation === ViewContainerLocation.Panel)) {
-			items.push({
-				id: '_.panel.newcontainer',
-				label: nls.localize('moveFocusedView.newContainerInPanel', "New Container in Panel"),
-			});
-		}
 
 		const pinnedPanels = this.panelService.getPinnedPanels();
 		items.push(...pinnedPanels

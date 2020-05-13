@@ -136,7 +136,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 			for (const synchroniser of this.synchronisers) {
 				try {
-					await synchroniser.sync(manifest && manifest.latest ? manifest.latest[synchroniser.resource] : undefined);
+					await synchroniser.sync(manifest);
 				} catch (e) {
 					this.handleSyncError(e, synchroniser.resource);
 					this._syncErrors.push([synchroniser.resource, UserDataSyncError.toUserDataSyncError(e)]);
@@ -159,6 +159,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		} finally {
 			this.updateStatus();
 			this._onSyncErrors.fire(this._syncErrors);
+		}
+	}
+
+	async replace(uri: URI): Promise<void> {
+		await this.checkEnablement();
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.replace(uri)) {
+				return;
+			}
 		}
 	}
 

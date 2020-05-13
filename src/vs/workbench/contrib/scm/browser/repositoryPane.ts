@@ -638,6 +638,7 @@ export class ToggleViewModeAction extends Action {
 }
 
 export class RepositoryPane extends ViewPane {
+	private readonly defaultInputFontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif';
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
@@ -766,13 +767,12 @@ export class RepositoryPane extends ViewPane {
 			cursorWidth: 1,
 			fontSize: 13,
 			lineHeight: 20,
-			fontFamily: ' system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			fontFamily: this.getInputEditorFontFamily(),
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
 			quickSuggestions: false
 		};
-
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -795,6 +795,9 @@ export class RepositoryPane extends ViewPane {
 
 		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
 		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
+
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
+		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
 
 		let query: string | undefined;
 
@@ -1113,6 +1116,20 @@ export class RepositoryPane extends ViewPane {
 		if (this.cachedHeight) {
 			this.layoutBody(this.cachedHeight);
 		}
+	}
+
+	private getInputEditorFontFamily(): string {
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily');
+
+		if (inputFontFamily.toLowerCase() === 'editor') {
+			return this.configurationService.getValue<string>('editor.fontFamily');
+		}
+
+		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
+			return inputFontFamily;
+		}
+
+		return this.defaultInputFontFamily;
 	}
 }
 
