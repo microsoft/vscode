@@ -16,7 +16,7 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 		// return an entry per markdown header
 		const notebookWidget = editor.getControl();
 		const result: ITableOfContentsEntry[] = [];
-		for (let cell of editor.viewModel.viewCells) {
+		for (const cell of editor.viewModel.viewCells) {
 			const content = cell.getText();
 			const regexp = cell.cellKind === CellKind.Markdown
 				? /^[ \t]*(\#+)(.+)$/gm // md: header
@@ -31,7 +31,7 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 						pick() {
 							notebookWidget.revealInCenterIfOutsideViewport(cell);
 							notebookWidget.selectElement(cell);
-							notebookWidget.focusNotebookCell(cell, 'container');
+							notebookWidget.focusNotebookCell(cell, cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
 						},
 						preview() {
 							notebookWidget.revealInCenterIfOutsideViewport(cell);
