@@ -121,7 +121,7 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'detectThenRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Detect then Run and Debug{0}](command:{1})", debugKeybindingLabel, SelectAndStartAction.ID)
+		"[Show](command:{0}) automatic debug configurations.", SelectAndStartAction.ID)
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
