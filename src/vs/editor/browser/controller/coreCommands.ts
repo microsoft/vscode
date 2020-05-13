@@ -500,9 +500,35 @@ export namespace CoreNavigationCommands {
 			cursors.setStates(
 				source,
 				CursorChangeReason.Explicit,
-				CursorMoveCommands.move(cursors.context, cursors.getAll(), args)
+				CursorMoveImpl._move(cursors.context, cursors.getAll(), args)
 			);
 			cursors.reveal(source, true, RevealTarget.Primary, ScrollType.Smooth);
+		}
+
+		private static _move(context: CursorContext, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
+			const inSelectionMode = args.select;
+			const value = args.value;
+
+			switch (args.direction) {
+				case CursorMove_.Direction.Left:
+				case CursorMove_.Direction.Right:
+				case CursorMove_.Direction.Up:
+				case CursorMove_.Direction.Down:
+				case CursorMove_.Direction.WrappedLineStart:
+				case CursorMove_.Direction.WrappedLineFirstNonWhitespaceCharacter:
+				case CursorMove_.Direction.WrappedLineColumnCenter:
+				case CursorMove_.Direction.WrappedLineEnd:
+				case CursorMove_.Direction.WrappedLineLastNonWhitespaceCharacter:
+					return CursorMoveCommands.simpleMove(context, cursors, args.direction, inSelectionMode, value, args.unit);
+
+				case CursorMove_.Direction.ViewPortTop:
+				case CursorMove_.Direction.ViewPortBottom:
+				case CursorMove_.Direction.ViewPortCenter:
+				case CursorMove_.Direction.ViewPortIfOutside:
+					return CursorMoveCommands.viewportMove(context, cursors, args.direction, inSelectionMode, value);
+			}
+
+			return null;
 		}
 	}
 
