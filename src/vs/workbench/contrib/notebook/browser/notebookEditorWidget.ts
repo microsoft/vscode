@@ -71,7 +71,6 @@ export class NotebookEditorOptions extends EditorOptions {
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
-	private _rootElement!: HTMLElement;
 	private overlayContainer!: HTMLElement;
 	private body!: HTMLElement;
 	private webview: BackLayerWebView | null = null;
@@ -83,6 +82,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private localStore: DisposableStore = this._register(new DisposableStore());
 	private fontInfo: BareFontInfo | undefined;
 	private dimension: DOM.Dimension | null = null;
+	private shadowElementViewInfo: { height: number, width: number, top: number; left: number; } | null = null;
 	private editorFocus: IContextKey<boolean> | null = null;
 	private editorEditable: IContextKey<boolean> | null = null;
 	private editorRunnable: IContextKey<boolean> | null = null;
@@ -186,9 +186,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.editorFocus?.set(DOM.isAncestor(document.activeElement, this.overlayContainer));
 	}
 
-	createEditor(parent: HTMLElement): void {
-		this._rootElement = DOM.append(parent, $('.notebook-editor'));
-
+	createEditor(): void {
 		this.overlayContainer = document.createElement('div');
 		const id = generateUuid();
 		this.overlayContainer.id = `notebook-${id}`;
@@ -329,10 +327,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this._register(this.list.onDidChangeFocus(_e => this._onDidChangeActiveEditor.fire(this)));
-	}
-
-	getShadowDomNode() {
-		return this._rootElement;
 	}
 
 	getDomNode() {
@@ -592,22 +586,35 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	// 	return this.editorMemento.loadEditorState(this.group, input.resource);
 	// }
 
-	layout(dimension: DOM.Dimension): void {
+	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
+		if (!shadowElement && this.shadowElementViewInfo === null) {
+			this.dimension = dimension;
+			return;
+		}
+
+		if (shadowElement) {
+			const containerRect = shadowElement.getBoundingClientRect();
+
+			this.shadowElementViewInfo = {
+				height: containerRect.height,
+				width: containerRect.width,
+				top: containerRect.top,
+				left: containerRect.left
+			};
+		}
+
 		this.dimension = new DOM.Dimension(dimension.width, dimension.height);
-		DOM.toggleClass(this._rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
-		DOM.toggleClass(this._rootElement, 'narrow-width', dimension.width < 600);
 		DOM.size(this.body, dimension.width, dimension.height);
 		this.list?.updateOptions({ additionalScrollHeight: this.scrollBeyondLastLine ? dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP : 0 });
 		this.list?.layout(dimension.height - SCROLLABLE_ELEMENT_PADDING_TOP, dimension.width);
 
 		this.overlayContainer.style.visibility = 'visible';
 		this.overlayContainer.style.display = 'block';
-		const containerRect = this._rootElement.getBoundingClientRect();
 		this.overlayContainer.style.position = 'absolute';
-		this.overlayContainer.style.top = `${containerRect.top}px`;
-		this.overlayContainer.style.left = `${containerRect.left}px`;
-		this.overlayContainer.style.width = `${dimension ? dimension.width : containerRect.width}px`;
-		this.overlayContainer.style.height = `${dimension ? dimension.height : containerRect.height}px`;
+		this.overlayContainer.style.top = `${this.shadowElementViewInfo!.top}px`;
+		this.overlayContainer.style.left = `${this.shadowElementViewInfo!.left}px`;
+		this.overlayContainer.style.width = `${dimension ? dimension.width : this.shadowElementViewInfo!.width}px`;
+		this.overlayContainer.style.height = `${dimension ? dimension.height : this.shadowElementViewInfo!.height}px`;
 
 		if (this.webviewTransparentCover) {
 			this.webviewTransparentCover.style.height = `${dimension.height}px`;
