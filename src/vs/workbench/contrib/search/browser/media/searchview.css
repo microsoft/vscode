@@ -256,7 +256,7 @@
 }
 
 /* Adjusts spacing in high contrast mode so that actions are vertically centered */
-.hc-black .search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
+.monaco-workbench.hc-black .search-view .monaco-list .monaco-list-row .monaco-action-bar .action-label {
 	margin-top: 2px;
 }
 
@@ -294,16 +294,16 @@
 
 /* Theming */
 
-.vs .search-view .search-widget .toggle-replace-button:hover {
+.monaco-workbench.vs .search-view .search-widget .toggle-replace-button:hover {
 	background-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-.vs-dark .search-view .search-widget .toggle-replace-button:hover {
+.monaco-workbench.vs-dark .search-view .search-widget .toggle-replace-button:hover {
 	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.vs-dark .search-view .foldermatch,
-.vs-dark .search-view .filematch {
+.monaco-workbench.vs-dark .search-view .foldermatch,
+.monaco-workbench.vs-dark .search-view .filematch {
 	padding: 0;
 }
 
@@ -315,6 +315,6 @@
 	line-height: 20px;
 }
 
-.vs .search-panel .search-view .monaco-inputbox {
+.monaco-workbench.vs .search-panel .search-view .monaco-inputbox {
 	border: 1px solid transparent;
 }

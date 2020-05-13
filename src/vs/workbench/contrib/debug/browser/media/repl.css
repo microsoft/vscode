@@ -44,7 +44,7 @@
 	opacity: 0.25;
 }
 
-.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
+.monaco-workbench.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
 	opacity: 0.4;
 }
 
@@ -99,27 +99,27 @@
 	font-style: italic;
 }
 
-.vs .repl .repl-tree .output.expression > .annotation {
+.monaco-workbench.vs .repl .repl-tree .output.expression > .annotation {
 	color: #007ACC;
 }
 
-.vs-dark .repl .repl-tree .output.expression > .annotation {
+.monaco-workbench.vs-dark .repl .repl-tree .output.expression > .annotation {
 	color: #1B80B2;
 }
 
-.hc-black .repl .repl-tree .output.expression > .annotation {
+.monaco-workbench.hc-black .repl .repl-tree .output.expression > .annotation {
 	color: #0000FF;
 }
 
-.vs .repl .repl-tree .output.expression > .warn {
+.monaco-workbench.vs .repl .repl-tree .output.expression > .warn {
 	color: #cd9731;
 }
 
-.vs-dark .repl .repl-tree .output.expression > .warn {
+.monaco-workbench.vs-dark .repl .repl-tree .output.expression > .warn {
 	color: #cd9731;
 }
 
-.hc-black .repl .repl-tree .output.expression > .warn {
+.monaco-workbench.hc-black .repl .repl-tree .output.expression > .warn {
 	color: #008000;
 }
 
