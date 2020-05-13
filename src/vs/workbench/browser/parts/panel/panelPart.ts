@@ -470,7 +470,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return this.openComposite(id, focus) as Panel;
 	}
 
 	async openPanel(id?: string, focus?: boolean): Promise<Panel | undefined> {
