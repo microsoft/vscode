@@ -17,27 +17,43 @@ export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);
 }
 
-/**
- * Creates a key from a resource URI to be used to resource comparison and for resource maps.
- * URI queries are included, fragments are ignored.
- */
-export function getComparisonKey(resource: URI, caseInsensitivePath = hasToIgnoreCase(resource)): string {
-	let path = resource.path || '/';
-	if (caseInsensitivePath) {
-		path = path.toLowerCase();
-	}
-	return resource.with({ authority: resource.authority.toLowerCase(), path: path, fragment: null }).toString();
-}
-
 // DO NOT EXPORT, DO NOT USE
-function hasToIgnoreCase(resource: URI | undefined): boolean {
+function _hasToIgnoreCase(resource: URI | undefined): boolean {
 	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
 	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
 	return resource && resource.scheme === Schemas.file ? !isLinux : true;
 }
 
-export function basenameOrAuthority(resource: URI): string {
-	return basename(resource) || resource.authority;
+/**
+ * Creates a key from a resource URI to be used to resource comparison and for resource maps.
+ *
+ * **!!! This function is not compatible with URI.toString() !!!**
+ */
+export function getComparisonKey(resource: URI, caseInsensitivePath = _hasToIgnoreCase(resource), ignoreFragment: boolean = false): string {
+	let path = resource.path || '/'; // VERY bogous as it changes the uri
+	if (caseInsensitivePath) {
+		path = path.toLowerCase();
+	}
+	return resource.with({ path, fragment: ignoreFragment ? null : undefined }).toString();
+}
+
+/**
+ * Tests whether two resources are the same.
+ *
+ * **!!! This function is not compatible with uriA.toString() === uriB.toString() !!!**
+ */
+export function isEqual(first: URI | undefined, second: URI | undefined, caseInsensitivePath = _hasToIgnoreCase(first), ignoreFragment: boolean = false): boolean {
+	if (first === second) {
+		return true;
+	}
+	if (!first || !second) {
+		return false;
+	}
+	if (first.scheme !== second.scheme || !isEqualAuthority(first.authority, second.authority)) {
+		return false;
+	}
+	const p1 = first.path || '/', p2 = second.path || '/';
+	return (p1 === p2 || caseInsensitivePath && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
 }
 
 /**
@@ -46,16 +62,21 @@ export function basenameOrAuthority(resource: URI): string {
  * @param base A uri which is "longer"
  * @param parentCandidate A uri which is "shorter" then `base`
  */
-export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = hasToIgnoreCase(base)): boolean {
+export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = _hasToIgnoreCase(base), ignoreFragment: boolean = false): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
-			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignoreCase) && base.query === parentCandidate.query;
+			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignoreCase) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 		}
 		if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-			return extpath.isEqualOrParent(base.path || '/', parentCandidate.path || '/', ignoreCase, '/') && base.query === parentCandidate.query;
+			return extpath.isEqualOrParent(base.path || '/', parentCandidate.path || '/', ignoreCase, '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 		}
 	}
 	return false;
+}
+
+
+export function basenameOrAuthority(resource: URI): string {
+	return basename(resource) || resource.authority;
 }
 
 /**
@@ -63,26 +84,6 @@ export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = ha
  */
 export function isEqualAuthority(a1: string, a2: string) {
 	return a1 === a2 || equalsIgnoreCase(a1, a2);
-}
-
-/**
- * Tests whether two resources are the same.  URI queries must match, fragments are ignored unless requested.
- */
-export function isEqual(first: URI | undefined, second: URI | undefined, caseInsensitivePath = hasToIgnoreCase(first), ignoreFragment = true): boolean {
-	if (first === second) {
-		return true;
-	}
-
-	if (!first || !second) {
-		return false;
-	}
-
-	if (first.scheme !== second.scheme || !isEqualAuthority(first.authority, second.authority)) {
-		return false;
-	}
-
-	const p1 = first.path || '/', p2 = second.path || '/';
-	return (p1 === p2 || caseInsensitivePath && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
 }
 
 export function basename(resource: URI): string {
@@ -214,7 +215,7 @@ export function addTrailingPathSeparator(resource: URI, sep: string = paths.sep)
  * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.
  * The returned relative path always uses forward slashes.
  */
-export function relativePath(from: URI, to: URI, caseInsensitivePath = hasToIgnoreCase(from)): string | undefined {
+export function relativePath(from: URI, to: URI, caseInsensitivePath = _hasToIgnoreCase(from)): string | undefined {
 	if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
 		return undefined;
 	}

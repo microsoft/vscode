@@ -383,7 +383,7 @@ suite('Resources', () => {
 		assertIsEqual(fileURI5, fileURI3, true, false);
 		assertIsEqual(fileURI6, fileURI6, true, true);
 		assertIsEqual(fileURI6, fileURI5, true, false);
-		assertIsEqual(fileURI6, fileURI3, true, true);
+		assertIsEqual(fileURI6, fileURI3, true, false);
 	});
 
 	test('isEqualOrParent', () => {
