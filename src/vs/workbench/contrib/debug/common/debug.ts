@@ -633,10 +633,11 @@ export interface IConfigurationManager {
 	 */
 	readonly selectedConfiguration: {
 		launch: ILaunch | undefined;
+		config: IConfig | undefined;
 		name: string | undefined;
 	};
 
-	selectConfiguration(launch: ILaunch | undefined, name?: string, debugStarted?: boolean): void;
+	selectConfiguration(launch: ILaunch | undefined, name?: string, config?: IConfig): void;
 
 	getLaunches(): ReadonlyArray<ILaunch>;
 
