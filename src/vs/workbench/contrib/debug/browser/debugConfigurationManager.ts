@@ -388,7 +388,7 @@ export class ConfigurationManager implements IConfigurationManager {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 			this.launches.push(this.instantiationService.createInstance(WorkspaceLaunch, this));
 		}
-		this.launches.push(this.instantiationService.createInstance(UserLaunch));
+		this.launches.push(this.instantiationService.createInstance(UserLaunch, this));
 
 		if (this.selectedLaunch && this.launches.indexOf(this.selectedLaunch) === -1) {
 			this.selectConfiguration(undefined);
@@ -566,6 +566,9 @@ export class ConfigurationManager implements IConfigurationManager {
 abstract class AbstractLaunch {
 	protected abstract getConfig(): IGlobalConfig | undefined;
 
+	constructor(protected configurationManager: ConfigurationManager) {
+	}
+
 	getCompound(name: string): ICompound | undefined {
 		const config = this.getConfig();
 		if (!config || !config.compounds) {
@@ -606,6 +609,16 @@ abstract class AbstractLaunch {
 		return config.configurations.find(config => config && config.name === name);
 	}
 
+	async getInitialConfigurationContent(folderUri?: uri, type?: string, token?: CancellationToken): Promise<string> {
+		let content = '';
+		const adapter = await this.configurationManager.guessDebugger(type);
+		if (adapter) {
+			const initialConfigs = await this.configurationManager.provideDebugConfigurations(folderUri, adapter.type, token || CancellationToken.None);
+			content = await adapter.getInitialConfigurationContent(initialConfigs);
+		}
+		return content;
+	}
+
 	get hidden(): boolean {
 		return false;
 	}
@@ -614,14 +627,14 @@ abstract class AbstractLaunch {
 class Launch extends AbstractLaunch implements ILaunch {
 
 	constructor(
-		private configurationManager: ConfigurationManager,
+		configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
 		@IFileService private readonly fileService: IFileService,
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super();
+		super(configurationManager);
 	}
 
 	get uri(): uri {
@@ -645,12 +658,7 @@ class Launch extends AbstractLaunch implements ILaunch {
 			content = fileContent.value.toString();
 		} catch {
 			// launch.json not found: create one by collecting launch configs from debugConfigProviders
-			const adapter = await this.configurationManager.guessDebugger(type);
-
-			if (adapter) {
-				const initialConfigs = await this.configurationManager.provideDebugConfigurations(this.workspace.uri, adapter.type, token || CancellationToken.None);
-				content = await adapter.getInitialConfigurationContent(initialConfigs);
-			}
+			content = await this.getInitialConfigurationContent(this.workspace.uri, type, token);
 			if (content) {
 				created = true; // pin only if config file is created #8727
 				try {
@@ -693,12 +701,12 @@ class Launch extends AbstractLaunch implements ILaunch {
 
 class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	constructor(
-		private configurationManager: ConfigurationManager,
+		configurationManager: ConfigurationManager,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
-		super();
+		super(configurationManager);
 	}
 
 	get workspace(): undefined {
@@ -710,7 +718,7 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	get name(): string {
-		return nls.localize('workspace', "workspace");
+		return nls.localize('workspace', "Workspace");
 	}
 
 	protected getConfig(): IGlobalConfig | undefined {
@@ -718,28 +726,19 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	async openConfigFile(sideBySide: boolean, preserveFocus: boolean, type?: string, token?: CancellationToken): Promise<{ editor: IEditorPane | null, created: boolean }> {
-		const ws = this.contextService.getWorkspace();
-
-		if (ws.folders.length === 0) {
-			return { editor: null, created: false };
-		}
-
 		let launchExistInFile = !!this.getConfig();
 		if (!launchExistInFile) {
 			// Launch property in workspace config not found: create one by collecting launch configs from debugConfigProviders
-			let content = '';
-			const adapter = await this.configurationManager.guessDebugger(type);
-			if (adapter) {
-				const initialConfigs = await this.configurationManager.provideDebugConfigurations(undefined, adapter.type, token || CancellationToken.None);
-				content = await adapter.getInitialConfigurationContent(initialConfigs);
-			}
+			let content = await this.getInitialConfigurationContent(undefined, type, token);
 			if (content) {
 				await this.configurationService.updateValue('launch', json.parse(content), ConfigurationTarget.WORKSPACE);
+			} else {
+				return { editor: null, created: false };
 			}
 		}
 
 		const editor = await this.editorService.openEditor({
-			resource: ws.configuration!,
+			resource: this.contextService.getWorkspace().configuration!,
 			options: { preserveFocus }
 		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 
@@ -753,10 +752,11 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 class UserLaunch extends AbstractLaunch implements ILaunch {
 
 	constructor(
+		configurationManager: ConfigurationManager,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService
 	) {
-		super();
+		super(configurationManager);
 	}
 
 	get workspace(): undefined {

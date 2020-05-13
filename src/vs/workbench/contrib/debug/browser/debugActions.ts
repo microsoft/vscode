@@ -82,7 +82,7 @@ export class ConfigureAction extends AbstractDebugAction {
 	}
 
 	async run(event?: any): Promise<any> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.contextService.getWorkspace().folders.length === 0) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return;
 		}
@@ -97,7 +97,7 @@ export class ConfigureAction extends AbstractDebugAction {
 				launch = launches[0];
 			} else {
 				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, { activeItem: picks[0], placeHolder: nls.localize('selectWorkspaceFolder', "Select a workspace folder to create a launch.json file in") });
+				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, { activeItem: picks[0], placeHolder: nls.localize('selectWorkspaceFolder', "Select a workspace folder to create a launch.json file in or add it to the workspace config file") });
 				if (picked) {
 					launch = picked.launch;
 				}
