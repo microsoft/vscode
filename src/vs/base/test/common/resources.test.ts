@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, hasToIgnoreCase, normalizePath, isAbsolutePath, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath, addTrailingPathSeparator, getComparisonKey } from 'vs/base/common/resources';
+import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, normalizePath, isAbsolutePath, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath, addTrailingPathSeparator, getComparisonKey } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { toSlashes } from 'vs/base/common/extpath';
@@ -236,7 +236,7 @@ suite('Resources', () => {
 	});
 
 	function assertEqualURI(actual: URI, expected: URI, message?: string) {
-		if (!isEqual(expected, actual, hasToIgnoreCase(expected), false)) {
+		if (!isEqual(expected, actual, undefined, false)) {
 			assert.equal(actual.toString(), expected.toString(), message);
 		}
 	}
@@ -346,7 +346,7 @@ suite('Resources', () => {
 
 	});
 
-	function assertIsEqual(u1: URI, u2: URI, ignoreCase: boolean, expected: boolean) {
+	function assertIsEqual(u1: URI, u2: URI, ignoreCase: boolean | undefined, expected: boolean) {
 		assert.equal(isEqual(u1, u2, ignoreCase), expected, `${u1.toString()}${expected ? '===' : '!=='}${u2.toString()}`);
 		assert.equal(getComparisonKey(u1, ignoreCase) === getComparisonKey(u2, ignoreCase), expected, `comparison keys ${u1.toString()}, ${u2.toString()}`);
 		assert.equal(isEqualOrParent(u1, u2, ignoreCase), expected, `isEqualOrParent ${u1.toString()}, ${u2.toString()}`);
@@ -358,7 +358,7 @@ suite('Resources', () => {
 		let fileURI2 = isWindows ? URI.file('C:\\foo\\Bar') : URI.file('/foo/Bar');
 		assertIsEqual(fileURI, fileURI, true, true);
 		assertIsEqual(fileURI, fileURI, false, true);
-		assertIsEqual(fileURI, fileURI, hasToIgnoreCase(fileURI), true);
+		assertIsEqual(fileURI, fileURI, undefined, true);
 		assertIsEqual(fileURI, fileURI2, true, true);
 		assertIsEqual(fileURI, fileURI2, false, false);
 
@@ -366,7 +366,7 @@ suite('Resources', () => {
 		let fileURI4 = URI.parse('foo://server:453/foo/Bar');
 		assertIsEqual(fileURI3, fileURI3, true, true);
 		assertIsEqual(fileURI3, fileURI3, false, true);
-		assertIsEqual(fileURI3, fileURI3, hasToIgnoreCase(fileURI3), true);
+		assertIsEqual(fileURI3, fileURI3, undefined, true);
 		assertIsEqual(fileURI3, fileURI4, true, true);
 		assertIsEqual(fileURI3, fileURI4, false, false);
 
