@@ -12,6 +12,9 @@
 		},
 		"misolori": {
 			"assign": true
+		},
+		"joaomoreno": {
+			"assign": true
 		}
 	},
 	"labels": {
@@ -67,6 +70,12 @@
 			"applyLabel": true,
 			"assign": [
 				"misolori"
+			]
+		},
+		"git": {
+			"applyLabel": false,
+			"assign": [
+				"joaomoreno"
 			]
 		}
 	}
