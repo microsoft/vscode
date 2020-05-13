@@ -495,7 +495,7 @@ export namespace CoreNavigationCommands {
 			this._runCursorMove(cursors, args.source, parsed);
 		}
 
-		_runCursorMove(cursors: ICursors, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
+		private _runCursorMove(cursors: ICursors, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
 			cursors.context.model.pushStackElement();
 			cursors.setStates(
 				source,
@@ -540,9 +540,9 @@ export namespace CoreNavigationCommands {
 
 	class CursorMoveBasedCommand extends CoreEditorCommand {
 
-		private readonly _staticArgs: CursorMove_.ParsedArguments;
+		private readonly _staticArgs: CursorMove_.SimpleMoveArguments;
 
-		constructor(opts: ICommandOptions & { args: CursorMove_.ParsedArguments }) {
+		constructor(opts: ICommandOptions & { args: CursorMove_.SimpleMoveArguments }) {
 			super(opts);
 			this._staticArgs = opts.args;
 		}
@@ -558,7 +558,14 @@ export namespace CoreNavigationCommands {
 					value: cursors.context.config.pageSize
 				};
 			}
-			CursorMove._runCursorMove(cursors, dynamicArgs.source, args);
+
+			cursors.context.model.pushStackElement();
+			cursors.setStates(
+				dynamicArgs.source,
+				CursorChangeReason.Explicit,
+				CursorMoveCommands.simpleMove(cursors.context, cursors.getAll(), args.direction, args.select, args.value, args.unit)
+			);
+			cursors.reveal(dynamicArgs.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -1170,14 +1177,15 @@ export namespace CoreNavigationCommands {
 				);
 			}
 
-			cursors.scrollTo(desiredScrollTop);
+			editor.setScrollTop(desiredScrollTop, ScrollType.Smooth);
 		}
 
 		private _computeDesiredScrollTop(editor: ICodeEditor, context: CursorContext, args: EditorScroll_.ParsedArguments): number {
 
 			if (args.unit === EditorScroll_.Unit.Line) {
 				// scrolling by model lines
-				const visibleModelRange = context.getCompletelyVisibleModelRange();
+				const visibleViewRange = context.getCompletelyVisibleViewRange();
+				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
 
 				let desiredTopModelLineNumber: number;
 				if (args.direction === EditorScroll_.Direction.Up) {

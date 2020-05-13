@@ -281,11 +281,8 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 		}
 
 		const scrollTopDelta = Math.abs(this._context.viewLayout.getCurrentScrollTop() - newScrollPosition.scrollTop);
-		if (e.scrollType === ScrollType.Smooth && scrollTopDelta > this._lineHeight) {
-			this._context.viewLayout.setScrollPositionSmooth(newScrollPosition);
-		} else {
-			this._context.viewLayout.setScrollPositionNow(newScrollPosition);
-		}
+		const scrollType = (scrollTopDelta <= this._lineHeight ? ScrollType.Immediate : e.scrollType);
+		this._context.viewLayout.setScrollPosition(newScrollPosition, scrollType);
 
 		return true;
 	}
@@ -590,15 +587,9 @@ export class ViewLines extends ViewPart implements IVisibleLinesHost<ViewLine>, 
 						this._ensureMaxLineWidth(newScrollLeft.maxHorizontalOffset);
 					}
 					// set `scrollLeft`
-					if (horizontalRevealRequest.scrollType === ScrollType.Smooth) {
-						this._context.viewLayout.setScrollPositionSmooth({
-							scrollLeft: newScrollLeft.scrollLeft
-						});
-					} else {
-						this._context.viewLayout.setScrollPositionNow({
-							scrollLeft: newScrollLeft.scrollLeft
-						});
-					}
+					this._context.viewLayout.setScrollPosition({
+						scrollLeft: newScrollLeft.scrollLeft
+					}, horizontalRevealRequest.scrollType);
 				}
 			}
 		}

@@ -857,33 +857,33 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getCurrentScrollTop();
 	}
 
-	public setScrollLeft(newScrollLeft: number): void {
+	public setScrollLeft(newScrollLeft: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
 		if (!this._modelData) {
 			return;
 		}
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.viewLayout.setScrollPositionNow({
+		this._modelData.viewModel.viewLayout.setScrollPosition({
 			scrollLeft: newScrollLeft
-		});
+		}, scrollType);
 	}
-	public setScrollTop(newScrollTop: number): void {
+	public setScrollTop(newScrollTop: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
 		if (!this._modelData) {
 			return;
 		}
 		if (typeof newScrollTop !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.viewLayout.setScrollPositionNow({
+		this._modelData.viewModel.viewLayout.setScrollPosition({
 			scrollTop: newScrollTop
-		});
+		}, scrollType);
 	}
-	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
+	public setScrollPosition(position: editorCommon.INewScrollPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.viewLayout.setScrollPositionNow(position);
+		this._modelData.viewModel.viewLayout.setScrollPosition(position, scrollType);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState | null {

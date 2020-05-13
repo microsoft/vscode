@@ -258,7 +258,7 @@ export class CursorMoveCommands {
 		return CursorState.fromViewState(cursor.viewState.move(inSelectionMode, viewPosition.lineNumber, viewPosition.column, 0));
 	}
 
-	public static simpleMove(context: CursorContext, cursors: CursorState[], direction: CursorMove.MoveDirection, inSelectionMode: boolean, value: number, unit: CursorMove.Unit): PartialCursorState[] | null {
+	public static simpleMove(context: CursorContext, cursors: CursorState[], direction: CursorMove.SimpleMoveDirection, inSelectionMode: boolean, value: number, unit: CursorMove.Unit): PartialCursorState[] | null {
 		switch (direction) {
 			case CursorMove.Direction.Left: {
 				if (unit === CursorMove.Unit.HalfLine) {
@@ -322,34 +322,31 @@ export class CursorMoveCommands {
 	}
 
 	public static viewportMove(context: CursorContext, cursors: CursorState[], direction: CursorMove.ViewportDirection, inSelectionMode: boolean, value: number): PartialCursorState[] | null {
+		const visibleViewRange = context.getCompletelyVisibleViewRange();
 		switch (direction) {
 			case CursorMove.Direction.ViewPortTop: {
 				// Move to the nth line start in the viewport (from the top)
-				const cursor = cursors[0];
-				const visibleModelRange = context.getCompletelyVisibleModelRange();
+				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
 				const modelLineNumber = this._firstLineNumberInRange(context.model, visibleModelRange, value);
 				const modelColumn = context.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
-				return [this._moveToModelPosition(context, cursor, inSelectionMode, modelLineNumber, modelColumn)];
+				return [this._moveToModelPosition(context, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
 			}
 			case CursorMove.Direction.ViewPortBottom: {
 				// Move to the nth line start in the viewport (from the bottom)
-				const cursor = cursors[0];
-				const visibleModelRange = context.getCompletelyVisibleModelRange();
+				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
 				const modelLineNumber = this._lastLineNumberInRange(context.model, visibleModelRange, value);
 				const modelColumn = context.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
-				return [this._moveToModelPosition(context, cursor, inSelectionMode, modelLineNumber, modelColumn)];
+				return [this._moveToModelPosition(context, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
 			}
 			case CursorMove.Direction.ViewPortCenter: {
 				// Move to the line start in the viewport center
-				const cursor = cursors[0];
-				const visibleModelRange = context.getCompletelyVisibleModelRange();
+				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
 				const modelLineNumber = Math.round((visibleModelRange.startLineNumber + visibleModelRange.endLineNumber) / 2);
 				const modelColumn = context.model.getLineFirstNonWhitespaceColumn(modelLineNumber);
-				return [this._moveToModelPosition(context, cursor, inSelectionMode, modelLineNumber, modelColumn)];
+				return [this._moveToModelPosition(context, cursors[0], inSelectionMode, modelLineNumber, modelColumn)];
 			}
 			case CursorMove.Direction.ViewPortIfOutside: {
 				// Move to a position inside the viewport
-				const visibleViewRange = context.getCompletelyVisibleViewRange();
 				let result: PartialCursorState[] = [];
 				for (let i = 0, len = cursors.length; i < len; i++) {
 					const cursor = cursors[i];
@@ -770,6 +767,13 @@ export namespace CursorMove {
 		value: number;
 	}
 
+	export interface SimpleMoveArguments {
+		direction: SimpleMoveDirection;
+		unit: Unit;
+		select: boolean;
+		value: number;
+	}
+
 	export const enum Direction {
 		Left,
 		Right,
@@ -789,7 +793,7 @@ export namespace CursorMove {
 		ViewPortIfOutside,
 	}
 
-	export type MoveDirection = (
+	export type SimpleMoveDirection = (
 		Direction.Left
 		| Direction.Right
 		| Direction.Up

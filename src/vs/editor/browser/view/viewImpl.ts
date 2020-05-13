@@ -39,7 +39,7 @@ import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
@@ -445,11 +445,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
-		this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+		this._context.viewLayout.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
 		this._context.model.tokenizeViewport();
 		this._renderNow();
 		this.viewLines.updateLineWidths();
-		this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });
+		this._context.viewLayout.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
 	}
 
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {

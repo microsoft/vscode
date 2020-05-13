@@ -616,15 +616,15 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Change the scrollLeft of the editor's viewport.
 	 */
-	setScrollLeft(newScrollLeft: number): void;
+	setScrollLeft(newScrollLeft: number, scrollType?: editorCommon.ScrollType): void;
 	/**
 	 * Change the scrollTop of the editor's viewport.
 	 */
-	setScrollTop(newScrollTop: number): void;
+	setScrollTop(newScrollTop: number, scrollType?: editorCommon.ScrollType): void;
 	/**
 	 * Change the scroll position of the editor's viewport.
 	 */
-	setScrollPosition(position: editorCommon.INewScrollPosition): void;
+	setScrollPosition(position: editorCommon.INewScrollPosition, scrollType?: editorCommon.ScrollType): void;
 
 	/**
 	 * Get an action that is a contribution to this editor.

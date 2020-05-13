@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
-import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, ICursors, PartialCursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, ICursors, PartialCursorState, RevealTarget, IReducedViewModel } from 'vs/editor/common/controller/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -18,7 +18,6 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
 import { RawContentChangedType, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import { dispose } from 'vs/base/common/lifecycle';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
@@ -182,7 +181,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private readonly _configuration: editorCommon.IConfiguration;
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
-	private readonly _viewModel: IViewModel;
+	private readonly _viewModel: IReducedViewModel;
 	public context: CursorContext;
 	private _cursors: CursorCollection;
 
@@ -194,7 +193,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
 
-	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IViewModel) {
+	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IReducedViewModel) {
 		super();
 		this._configuration = configuration;
 		this._model = model;
@@ -324,12 +323,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	public revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: editorCommon.ScrollType) {
 		this.emitCursorRevealRange(source, viewRange, null, verticalType, revealHorizontal, scrollType);
-	}
-
-	public scrollTo(desiredScrollTop: number): void {
-		this._viewModel.viewLayout.setScrollPositionSmooth({
-			scrollTop: desiredScrollTop
-		});
 	}
 
 	public saveState(): editorCommon.ICursorState[] {
