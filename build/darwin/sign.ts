@@ -12,9 +12,14 @@ import * as product from '../../product.json';
 
 async function main(): Promise<void> {
 	const buildDir = process.env['AGENT_BUILDDIRECTORY'];
+	const tempDir = process.env['AGENT_TEMPDIRECTORY'];
 
 	if (!buildDir) {
 		throw new Error('$AGENT_BUILDDIRECTORY not set');
+	}
+
+	if (!tempDir) {
+		throw new Error('$AGENT_TEMPDIRECTORY not set');
 	}
 
 	const appRoot = path.join(buildDir, 'VSCode-darwin');
@@ -32,7 +37,7 @@ async function main(): Promise<void> {
 		hardenedRuntime: true,
 		'pre-auto-entitlements': false,
 		'pre-embed-provisioning-profile': false,
-		keychain: path.join(buildDir, 'buildagent.keychain'),
+		keychain: path.join(tempDir, 'buildagent.keychain'),
 		version: util.getElectronVersion(),
 		identity: '99FM488X57',
 		'gatekeeper-assess': false
