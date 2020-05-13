@@ -10,7 +10,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
@@ -635,7 +635,7 @@ export namespace DocumentSymbol {
 			range: Range.from(info.range),
 			selectionRange: Range.from(info.selectionRange),
 			kind: SymbolKind.from(info.kind),
-			tags: info.tags ? info.tags.map(SymbolTag.from) : []
+			tags: info.tags?.map(SymbolTag.from) ?? []
 		};
 		if (info.children) {
 			result.children = info.children.map(from);

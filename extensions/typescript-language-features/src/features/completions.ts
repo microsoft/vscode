@@ -64,6 +64,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.sortText = tsEntry.sortText;
 		}
 
+		this.tags = tsEntry.tags as any;
 		this.preselect = tsEntry.isRecommended;
 		this.position = position;
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);

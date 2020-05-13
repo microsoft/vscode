@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
@@ -93,11 +93,24 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 
 	private toSymbolInformation(item: Proto.NavtoItem) {
 		const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
-		return new vscode.SymbolInformation(
+		const info = new vscode.SymbolInformation(
 			label,
 			getSymbolKind(item),
 			item.containerName || '',
 			typeConverters.Location.fromTextSpan(this.client.toResource(item.file), item));
+		info.tags = TypeScriptWorkspaceSymbolProvider.getSymbolTags(item);
+		return info;
+	}
+
+	private static getSymbolTags (item: Proto.NavtoItem): vscode.SymbolTag[] | undefined {
+		return item.tags?.map(tag => {
+			switch (tag) {
+				case Proto.SymbolTag.Deprecated:
+					return vscode.SymbolTag.Deprecated;
+				default:
+					throw new Error('Unknown');
+			}
+		});
 	}
 
 	private static getLabel(item: Proto.NavtoItem) {

@@ -78,6 +78,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 				getSymbolKind(item.kind),
 				range,
 				range.contains(selectionRange) ? selectionRange : range);
+			symbolInfo.tags = item.tags;
 
 			for (const child of children) {
 				if (child.spans.some(span => !!range.intersection(typeConverters.Range.fromTextSpan(span)))) {

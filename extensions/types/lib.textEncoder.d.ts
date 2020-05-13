@@ -7,5 +7,5 @@
 //
 // Proper fix: https://github.com/microsoft/TypeScript/issues/31535
 
-declare var TextDecoder: typeof import('util').TextDecoder;
-declare var TextEncoder: typeof import('util').TextEncoder;
+declare let TextDecoder: typeof import('util').TextDecoder;
+declare let TextEncoder: typeof import('util').TextEncoder;

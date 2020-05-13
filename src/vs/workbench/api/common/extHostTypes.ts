@@ -1012,7 +1012,7 @@ export class SymbolInformation {
 	name: string;
 	location!: Location;
 	kind: SymbolKind;
-	tags?: SymbolTag[];
+	tags?: readonly SymbolTag[];
 	containerName: string | undefined;
 
 	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
