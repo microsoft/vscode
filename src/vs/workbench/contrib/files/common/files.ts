@@ -121,7 +121,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		openEditors: {
 			visible: number;
 		};
-		autoReveal: boolean | string;
+		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
