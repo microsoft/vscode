@@ -689,7 +689,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 
 		// Add sash
 		if (this.viewItems.length > 1) {
-			const sash = this.orientation === Orientation.HORIZONTAL
+			const sash = this.orientation === Orientation.VERTICAL
 				? new Sash(this.sashContainer, { getHorizontalSashTop: (sash: Sash) => this.getSashPosition(sash) }, {
 					orientation: Orientation.HORIZONTAL,
 					orthogonalStartSash: this.orthogonalStartSash,
