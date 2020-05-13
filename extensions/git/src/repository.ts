@@ -1050,7 +1050,7 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
 
-	async getBranches(query: BranchQuery): Promise<string[]> {
+	async getBranches(query: BranchQuery): Promise<Ref[]> {
 		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
 	}
 

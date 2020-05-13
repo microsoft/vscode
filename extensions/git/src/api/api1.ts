@@ -159,7 +159,7 @@ export class ApiRepository implements Repository {
 		return this._repository.getBranch(name);
 	}
 
-	getBranches(query: BranchQuery): Promise<string[]> {
+	getBranches(query: BranchQuery): Promise<Ref[]> {
 		return this._repository.getBranches(query);
 	}
 

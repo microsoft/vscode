@@ -770,21 +770,6 @@ export function parseLsFiles(raw: string): LsFilesElement[] {
 		.map(([, mode, object, stage, file]) => ({ mode, object, stage, file }));
 }
 
-function parseBranches(raw: string): string[] {
-	// Some examples of what could be parsed here
-	// 	origin/HEAD -> origin/master
-	// 	origin/alexr00/issue1713
-	// 	origin/alexr00/issue1763
-	// 	origin/alexr00/issue1787
-	// 	origin/master
-	// 	alexr00/issue1787
-	//  * master
-
-	return raw.split('\n')
-		.filter(line => !!line)
-		.map(line => /^(\*\s)?([^\s]+(\s|$))(->\s?.*$)?/.exec(line.trim())![2]);
-}
-
 export interface PullOptions {
 	unshallow?: boolean;
 	tags?: boolean;
@@ -1804,11 +1789,15 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate' }): Promise<Ref[]> {
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate', contains?: string }): Promise<Ref[]> {
 		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
 
 		if (opts && opts.sort && opts.sort !== 'alphabetically') {
 			args.push('--sort', `-${opts.sort}`);
+		}
+
+		if (opts?.contains) {
+			args.push('--contains', opts.contains);
 		}
 
 		const result = await this.run(args);
@@ -1928,16 +1917,9 @@ export class Repository {
 		}
 	}
 
-	async getBranches(query: BranchQuery): Promise<string[]> {
-		const args: string[] = ['branch'];
-		if (query.includeUpstream) {
-			args.push('-r');
-		}
-		if (query.contains) {
-			args.push('--contains', query.contains);
-		}
-		const result = await this.run(args);
-		return result.stdout ? parseBranches(result.stdout) : [];
+	async getBranches(query: BranchQuery): Promise<Ref[]> {
+		const refs = await this.getRefs({ contains: query.contains });
+		return query.remote ? refs : refs.filter(value => !value.remote);
 	}
 
 	// TODO: Support core.commentChar
