@@ -274,8 +274,8 @@ export class ConfigurationManager implements IConfigurationManager {
 								label: config.name,
 								config,
 								buttons: [{
-									iconClass: 'codicon-pin',
-									tooltip: nls.localize('pinLaunchConfig', "Pin Launch Configuration")
+									iconClass: 'codicon-gear',
+									tooltip: nls.localize('configureLaunchConfig', "Configure Debug Configuration in launch.json")
 								}],
 								launch
 							}))));
