@@ -22,6 +22,7 @@ async function main(): Promise<void> {
 		throw new Error('$AGENT_TEMPDIRECTORY not set');
 	}
 
+	const baseDir = path.dirname(__dirname);
 	const appRoot = path.join(buildDir, 'VSCode-darwin');
 	const appName = product.nameLong + '.app';
 	const appFrameworkPath = path.join(appRoot, appName, 'Contents', 'Frameworks');
@@ -33,7 +34,8 @@ async function main(): Promise<void> {
 	const defaultOpts: codesign.SignOptions = {
 		app: path.join(appRoot, appName),
 		platform: 'darwin',
-		entitlements: path.join(__dirname, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
+		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
+		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist'),
 		hardenedRuntime: true,
 		'pre-auto-entitlements': false,
 		'pre-embed-provisioning-profile': false,
@@ -56,22 +58,22 @@ async function main(): Promise<void> {
 	const gpuHelperOpts: codesign.SignOptions = {
 		...defaultOpts,
 		app: path.join(appFrameworkPath, gpuHelperAppName),
-		entitlements: path.join(__dirname, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
-		'entitlements-inherit': path.join(__dirname, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
+		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
+		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'),
 	};
 
 	const pluginHelperOpts: codesign.SignOptions = {
 		...defaultOpts,
 		app: path.join(appFrameworkPath, pluginHelperAppName),
-		entitlements: path.join(__dirname, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
-		'entitlements-inherit': path.join(__dirname, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
+		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
+		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'),
 	};
 
 	const rendererHelperOpts: codesign.SignOptions = {
 		...defaultOpts,
 		app: path.join(appFrameworkPath, rendererHelperAppName),
-		entitlements: path.join(__dirname, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
-		'entitlements-inherit': path.join(__dirname, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
+		entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
+		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
 	};
 
 	await codesign.signAsync(appOpts as any);

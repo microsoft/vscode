@@ -102,7 +102,7 @@
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
     "electron": "7.2.4",
-    "electron-osx-sign": "^0.4.15",
+    "electron-osx-sign": "^0.4.16",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",

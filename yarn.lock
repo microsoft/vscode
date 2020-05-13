@@ -2738,10 +2738,10 @@ editorconfig@^0.15.2:
     semver "^5.6.0"
     sigmund "^1.0.1"
 
-electron-osx-sign@^0.4.15:
-  version "0.4.15"
-  resolved "https://registry.yarnpkg.com/electron-osx-sign/-/electron-osx-sign-0.4.15.tgz#560e190297f0dbf40d4c192e06f160f669c2d015"
-  integrity sha512-1QtPNpjIji9bGZ0VRFwtJUyU1uHi7q3XUAOG0qFsvAUfs5H0T8hbgUfyg3xvPzmF1ruV8T8pQmQ86vNfLrcRiA==
+electron-osx-sign@^0.4.16:
+  version "0.4.16"
+  resolved "https://registry.yarnpkg.com/electron-osx-sign/-/electron-osx-sign-0.4.16.tgz#0be8e579b2d9fa4c12d2a21f063898294b3434aa"
+  integrity sha512-ziMWfc3NmQlwnWLW6EaZq8nH2BWVng/atX5GWsGwhexJYpdW6hsg//MkAfRTRx1kR3Veiqkeiog1ibkbA4x0rg==
   dependencies:
     bluebird "^3.5.0"
     compare-version "^0.1.2"
