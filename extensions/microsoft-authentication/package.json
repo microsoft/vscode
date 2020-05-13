@@ -1,5 +1,5 @@
 {
-	"name": "vscode-account",
+	"name": "microsoft-authentication",
 	"publisher": "vscode",
 	"displayName": "%displayName%",
 	"description": "%description%",
@@ -18,8 +18,8 @@
 	"main": "./out/extension.js",
 	"scripts": {
 		"vscode:prepublish": "npm run compile",
-		"compile": "gulp compile-extension:vscode-account",
-		"watch": "gulp watch-extension:vscode-account"
+		"compile": "gulp compile-extension:microsoft-authentication",
+		"watch": "gulp watch-extension:microsoft-authentication"
 	},
 	"devDependencies": {
 		"typescript": "^3.7.4",
