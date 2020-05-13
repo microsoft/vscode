@@ -7,7 +7,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as modes from 'vs/editor/common/modes';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
+import { IAuthenticationService, AllowedExtension, readAllowedExtensions } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { ExtHostAuthenticationShape, ExtHostContext, IExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -18,11 +18,6 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-
-interface AllowedExtension {
-	id: string;
-	name: string;
-}
 
 const accountUsages = new Map<string, { [accountName: string]: string[] }>();
 
@@ -43,18 +38,6 @@ function addAccountUsage(providerId: string, accountName: string, extensionOrFea
 
 		accountUsages.set(providerId, providerAccountUsage);
 	}
-}
-
-function readAllowedExtensions(storageService: IStorageService, providerId: string, accountName: string): AllowedExtension[] {
-	let trustedExtensions: AllowedExtension[] = [];
-	try {
-		const trustedExtensionSrc = storageService.get(`${providerId}-${accountName}`, StorageScope.GLOBAL);
-		if (trustedExtensionSrc) {
-			trustedExtensions = JSON.parse(trustedExtensionSrc);
-		}
-	} catch (err) { }
-
-	return trustedExtensions;
 }
 
 export class MainThreadAuthenticationProvider extends Disposable {
@@ -226,6 +209,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			return {
 				id: session.id,
 				account: session.account,
+				scopes: session.scopes,
 				getAccessToken: () => {
 					addAccountUsage(this.id, session.account.displayName, nls.localize('sync', "Preferences Sync"));
 					return this._proxy.$getSessionAccessToken(this.id, session.id);
@@ -266,6 +250,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			return {
 				id: session.id,
 				account: session.account,
+				scopes: session.scopes,
 				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
 			};
 		});
@@ -315,6 +300,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		this.authenticationService.sessionsUpdate(id, event);
 	}
 
+	async $requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void> {
+		return this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
+	}
+
 	async $getSession(providerId: string, providerName: string, extensionId: string, extensionName: string, potentialSessions: modes.AuthenticationSession[], scopes: string[], clearSessionPreference: boolean): Promise<modes.AuthenticationSession> {
 		if (!potentialSessions.length) {
 			throw new Error('No potential sessions found');
@@ -359,9 +348,12 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				const session = selected.session ?? await this.authenticationService.login(providerId, scopes);
 
 				const accountName = session.account.displayName;
+
 				const allowList = readAllowedExtensions(this.storageService, providerId, accountName);
-				allowList.push({ id: extensionId, name: extensionName });
-				this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
+				if (!allowList.find(allowed => allowed.id === extensionId)) {
+					allowList.push({ id: extensionId, name: extensionName });
+					this.storageService.store(`${providerId}-${accountName}`, JSON.stringify(allowList), StorageScope.GLOBAL);
+				}
 
 				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL);
 

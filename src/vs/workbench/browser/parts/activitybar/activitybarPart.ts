@@ -6,7 +6,7 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GLOBAL_ACTIVITY_ID, IActivity } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
 import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -97,6 +97,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private globalActivityAction: ActivityAction | undefined;
 	private globalActivityActionBar: ActionBar | undefined;
 	private readonly globalActivity: ICompositeActivity[] = [];
+
+	private accountsActivityAction: ActivityAction | undefined;
 
 	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
@@ -252,6 +254,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		if (viewContainerOrActionId === GLOBAL_ACTIVITY_ID) {
 			return this.showGlobalActivity(badge, clazz, priority);
+		}
+
+		if (viewContainerOrActionId === ACCOUNTS_ACTIIVTY_ID) {
+			if (this.accountsActivityAction) {
+				this.accountsActivityAction.setBadge(badge, clazz);
+
+				return toDisposable(() => this.accountsActivityAction?.setBadge(undefined));
+			}
 		}
 
 		return Disposable.None;
@@ -450,13 +460,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		});
 
 		if (getUserDataSyncStore(this.productService, this.configurationService)) {
-			const profileAction = new ActivityAction({
+			this.accountsActivityAction = new ActivityAction({
 				id: 'workbench.actions.accounts',
 				name: nls.localize('accounts', "Accounts"),
 				cssClass: Codicon.account.classNames
 			});
 
-			this.globalActivityActionBar.push(profileAction);
+			this.globalActivityActionBar.push(this.accountsActivityAction);
 		}
 
 		this.globalActivityActionBar.push(this.globalActivityAction);

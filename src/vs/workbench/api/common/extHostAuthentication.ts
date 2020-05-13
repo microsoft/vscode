@@ -51,11 +51,13 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 		const orderedScopes = scopes.sort().join(' ');
 		const sessions = (await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes);
+		const extensionName = requestingExtension.displayName || requestingExtension.name;
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		if (sessions.length) {
-			const extensionName = requestingExtension.displayName || requestingExtension.name;
+
 			if (!provider.supportsMultipleAccounts) {
 				const session = sessions[0];
-				const allowed = await this._proxy.$getSessionsPrompt(provider.id, session.account.displayName, provider.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
+				const allowed = await this._proxy.$getSessionsPrompt(provider.id, session.account.displayName, provider.displayName, extensionId, extensionName);
 				if (allowed) {
 					return session;
 				} else {
@@ -64,20 +66,20 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			}
 
 			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
-			const selected = await this._proxy.$getSession(provider.id, provider.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName, sessions, scopes, !!options.clearSessionPreference);
+			const selected = await this._proxy.$getSession(provider.id, provider.displayName, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
 			return sessions.find(session => session.id === selected.id);
 		} else {
 			if (options.createIfNone) {
-				const extensionName = requestingExtension.displayName || requestingExtension.name;
 				const isAllowed = await this._proxy.$loginPrompt(provider.displayName, extensionName);
 				if (!isAllowed) {
 					throw new Error('User did not consent to login.');
 				}
 
 				const session = await provider.login(scopes);
-				await this._proxy.$setTrustedExtension(provider.id, session.account.displayName, ExtensionIdentifier.toKey(requestingExtension.identifier), extensionName);
+				await this._proxy.$setTrustedExtension(provider.id, session.account.displayName, extensionId, extensionName);
 				return session;
 			} else {
+				await this._proxy.$requestNewSession(provider.id, scopes, extensionId, extensionName);
 				return undefined;
 			}
 		}
