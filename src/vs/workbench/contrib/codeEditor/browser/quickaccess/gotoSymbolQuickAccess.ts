@@ -25,6 +25,7 @@ import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { SymbolKind } from 'vs/editor/common/modes';
 import { fuzzyScore, createMatches } from 'vs/base/common/filters';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -133,7 +134,8 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 					kind: SymbolKind.File,
 					index: idx,
 					score: 0,
-					label: entry.label,
+					label: entry.icon ? `$(${entry.icon.id}) ${entry.label}` : entry.label,
+					ariaLabel: entry.detail ? `${entry.label}, ${entry.detail}` : entry.label,
 					detail: entry.detail,
 					description: entry.description,
 				};
@@ -232,6 +234,7 @@ Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registe
 //#region toc definition and logic
 
 export interface ITableOfContentsEntry {
+	icon?: ThemeIcon;
 	label: string;
 	detail?: string;
 	description?: string;
