@@ -18,7 +18,7 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IViewModel, ICoordinatesConverter, IViewLayout } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
 
 export interface IColumnSelectData {
@@ -356,8 +356,6 @@ export class SingleCursorState {
 export interface IReducedViewModel extends ICursorSimpleModel {
 	readonly coordinatesConverter: ICoordinatesConverter;
 
-	readonly viewLayout: IViewLayout;
-
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
@@ -404,10 +402,6 @@ export class CursorContext {
 		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
 	}
 
-	public getCurrentScrollTop(): number {
-		return this.viewModel.viewLayout.getCurrentScrollTop();
-	}
-
 	public getCompletelyVisibleViewRange(): Range {
 		return this.viewModel.getCompletelyVisibleViewRange();
 	}
@@ -419,10 +413,6 @@ export class CursorContext {
 
 	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
 		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
-	}
-
-	public getVerticalOffsetForViewLine(viewLineNumber: number): number {
-		return this.viewModel.viewLayout.getVerticalOffsetForLineNumber(viewLineNumber);
 	}
 }
 

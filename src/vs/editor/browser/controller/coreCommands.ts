@@ -1130,7 +1130,7 @@ export namespace CoreNavigationCommands {
 
 		_runEditorScroll(editor: ICodeEditor, cursors: ICursors, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
 
-			const desiredScrollTop = this._computeDesiredScrollTop(cursors.context, args);
+			const desiredScrollTop = this._computeDesiredScrollTop(editor, cursors.context, args);
 
 			if (args.revealCursor) {
 				// must ensure cursor is in new visible range
@@ -1147,7 +1147,7 @@ export namespace CoreNavigationCommands {
 			cursors.scrollTo(desiredScrollTop);
 		}
 
-		private _computeDesiredScrollTop(context: CursorContext, args: EditorScroll_.ParsedArguments): number {
+		private _computeDesiredScrollTop(editor: ICodeEditor, context: CursorContext, args: EditorScroll_.ParsedArguments): number {
 
 			if (args.unit === EditorScroll_.Unit.Line) {
 				// scrolling by model lines
@@ -1162,8 +1162,7 @@ export namespace CoreNavigationCommands {
 					desiredTopModelLineNumber = Math.min(context.model.getLineCount(), visibleModelRange.startLineNumber + args.value);
 				}
 
-				const desiredTopViewPosition = context.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
-				return context.getVerticalOffsetForViewLine(desiredTopViewPosition.lineNumber);
+				return editor.getTopForLineNumber(desiredTopModelLineNumber);
 			}
 
 			let noOfLines: number;
@@ -1175,7 +1174,7 @@ export namespace CoreNavigationCommands {
 				noOfLines = args.value;
 			}
 			const deltaLines = (args.direction === EditorScroll_.Direction.Up ? -1 : 1) * noOfLines;
-			return context.getCurrentScrollTop() + deltaLines * context.config.lineHeight;
+			return editor.getScrollTop() + deltaLines * context.config.lineHeight;
 		}
 	}
 
