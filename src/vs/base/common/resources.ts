@@ -27,22 +27,26 @@ function _hasToIgnoreCase(resource: URI | undefined): boolean {
 /**
  * Creates a key from a resource URI to be used to resource comparison and for resource maps.
  *
- * **!!! This function is not compatible with URI.toString() !!!**
+ * @param resource Uri
+ * @param caseInsensitivePath Ignore casing when comparing path component (defaults mostly to `true`)
+ * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function getComparisonKey(resource: URI, caseInsensitivePath = _hasToIgnoreCase(resource), ignoreFragment: boolean = false): string {
-	let path = resource.path || '/'; // VERY bogous as it changes the uri
-	if (caseInsensitivePath) {
-		path = path.toLowerCase();
-	}
-	return resource.with({ path, fragment: ignoreFragment ? null : undefined }).toString();
+export function getComparisonKey(resource: URI, caseInsensitivePath: boolean = _hasToIgnoreCase(resource), ignoreFragment: boolean = false): string {
+	return resource.with({
+		path: caseInsensitivePath ? resource.path.toLowerCase() : undefined,
+		fragment: ignoreFragment ? null : undefined
+	}).toString();
 }
 
 /**
- * Tests whether two resources are the same.
+ * Tests whether two uris are equal
  *
- * **!!! This function is not compatible with uriA.toString() === uriB.toString() !!!**
+ * @param first Uri
+ * @param second Uri
+ * @param caseInsensitivePath Ignore casing when comparing path component (defaults mostly to `true`)
+ * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function isEqual(first: URI | undefined, second: URI | undefined, caseInsensitivePath = _hasToIgnoreCase(first), ignoreFragment: boolean = false): boolean {
+export function isEqual(first: URI | undefined, second: URI | undefined, caseInsensitivePath: boolean = _hasToIgnoreCase(first), ignoreFragment: boolean = false): boolean {
 	if (first === second) {
 		return true;
 	}
@@ -52,23 +56,25 @@ export function isEqual(first: URI | undefined, second: URI | undefined, caseIns
 	if (first.scheme !== second.scheme || !isEqualAuthority(first.authority, second.authority)) {
 		return false;
 	}
-	const p1 = first.path || '/', p2 = second.path || '/';
+	const p1 = first.path, p2 = second.path;
 	return (p1 === p2 || caseInsensitivePath && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
 }
 
 /**
  * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
- * URI queries must match, fragments are ignored.
+ *
  * @param base A uri which is "longer"
  * @param parentCandidate A uri which is "shorter" then `base`
+ * @param caseInsensitivePath Ignore casing when comparing path component (defaults mostly to `true`)
+ * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreCase = _hasToIgnoreCase(base), ignoreFragment: boolean = false): boolean {
+export function isEqualOrParent(base: URI, parentCandidate: URI, caseInsensitivePath: boolean = _hasToIgnoreCase(base), ignoreFragment: boolean = false): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
-			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignoreCase) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), caseInsensitivePath) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 		}
 		if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-			return extpath.isEqualOrParent(base.path || '/', parentCandidate.path || '/', ignoreCase, '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+			return extpath.isEqualOrParent(base.path, parentCandidate.path, caseInsensitivePath, '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 		}
 	}
 	return false;

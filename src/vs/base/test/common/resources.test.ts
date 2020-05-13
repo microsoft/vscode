@@ -254,14 +254,14 @@ suite('Resources', () => {
 		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/bar/goo'), 'bar/goo');
 		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a/foo/bar/goo'), 'foo/bar/goo');
 		assertRelativePath(URI.parse('foo://a/foo/xoo'), URI.parse('foo://a/foo/bar'), '../bar');
-		assertRelativePath(URI.parse('foo://a/foo/xoo/yoo'), URI.parse('foo://a'), '../../..');
+		assertRelativePath(URI.parse('foo://a/foo/xoo/yoo'), URI.parse('foo://a'), '../../..', true);
 		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/'), '');
 		assertRelativePath(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo'), '');
 		assertRelativePath(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo/'), '');
 		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo'), '');
-		assertRelativePath(URI.parse('foo://a'), URI.parse('foo://a'), '');
+		assertRelativePath(URI.parse('foo://a'), URI.parse('foo://a'), '', true);
 		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a/'), '');
-		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a'), '');
+		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a'), '', true);
 		assertRelativePath(URI.parse('foo://a/foo?q'), URI.parse('foo://a/foo/bar#h'), 'bar', true);
 		assertRelativePath(URI.parse('foo://'), URI.parse('foo://a/b'), undefined);
 		assertRelativePath(URI.parse('foo://a2/b'), URI.parse('foo://a/b'), undefined);
@@ -372,7 +372,9 @@ suite('Resources', () => {
 
 		assertIsEqual(fileURI, fileURI3, true, false);
 
-		assertIsEqual(URI.parse('foo://server'), URI.parse('foo://server/'), true, true);
+		assertIsEqual(URI.parse('file://server'), URI.parse('file://server/'), true, true);
+		assertIsEqual(URI.parse('http://server'), URI.parse('http://server/'), true, true);
+		assertIsEqual(URI.parse('foo://server'), URI.parse('foo://server/'), true, false); // only selected scheme have / as the default path
 		assertIsEqual(URI.parse('foo://server/foo'), URI.parse('foo://server/foo/'), true, false);
 		assertIsEqual(URI.parse('foo://server/foo'), URI.parse('foo://server/foo?'), true, true);
 
