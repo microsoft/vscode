@@ -39,7 +39,7 @@ import { CellDragAndDropController, CodeCellRenderer, MarkdownCellRenderer, Note
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, CellUri, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
@@ -979,7 +979,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return;
 		}
 
-		// return this.progressService.showWhile(this._executeNotebook());
 		return this._executeNotebook();
 	}
 
@@ -993,10 +992,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.editorExecutingNotebook!.set(true);
 			this.notebookViewModel!.currentTokenSource = tokenSource;
 
-			for (let cell of this.notebookViewModel!.viewCells) {
-				if (cell.cellKind === CellKind.Code) {
-					await this._executeNotebookCell(cell, tokenSource);
-				}
+			const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
+			if (provider) {
+				const viewType = provider.id;
+				const notebookUri = this.notebookViewModel!.uri;
+				return await this.notebookService.executeNotebook(viewType, notebookUri, tokenSource.token);
 			}
 		} finally {
 			this.editorExecutingNotebook!.set(false);
@@ -1030,13 +1030,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private async _executeNotebookCell(cell: ICellViewModel, tokenSource: CancellationTokenSource): Promise<void> {
 		try {
 			cell.currentTokenSource = tokenSource;
+
 			const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
 			if (provider) {
 				const viewType = provider.id;
-				const notebookUri = CellUri.parse(cell.uri)?.notebook;
-				if (notebookUri) {
-					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, tokenSource.token);
-				}
+				const notebookUri = this.notebookViewModel!.uri;
+				return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, tokenSource.token);
 			}
 		} finally {
 			cell.currentTokenSource = undefined;

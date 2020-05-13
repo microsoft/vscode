@@ -255,7 +255,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	}
 
 	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
-		this._mainThreadNotebook.executeNotebook(viewType, uri, token);
+		return this._mainThreadNotebook.executeNotebook(viewType, uri, token);
 	}
 
 	onDidReceiveMessage(uri: UriComponents, message: any): void {
