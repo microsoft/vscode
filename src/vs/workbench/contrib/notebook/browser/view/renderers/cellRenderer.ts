@@ -1094,7 +1094,7 @@ export class TimerRenderer {
 		DOM.hide(container);
 	}
 
-	private intervalTimer: NodeJS.Timeout | undefined;
+	private intervalTimer: number | undefined;
 
 	start(startTime: number): IDisposable {
 		this.stop();
@@ -1104,7 +1104,7 @@ export class TimerRenderer {
 			const duration = Date.now() - startTime;
 			this.container.textContent = this.formatDuration(duration);
 		}, 100);
-		this.intervalTimer = intervalTimer;
+		this.intervalTimer = intervalTimer as any;
 
 		return toDisposable(() => {
 			clearInterval(intervalTimer);
