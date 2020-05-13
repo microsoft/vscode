@@ -21,6 +21,7 @@
 }
 
 .monaco-pane-view .pane > .pane-header {
+	height: 22px;
 	font-size: 11px;
 	font-weight: bold;
 	text-transform: uppercase;
@@ -32,6 +33,7 @@
 
 .monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {
 	flex-direction: column;
+	height: 100%;
 	width: 22px;
 }
 
