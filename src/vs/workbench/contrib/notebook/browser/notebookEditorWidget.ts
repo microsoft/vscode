@@ -136,7 +136,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	get activeCodeEditor(): IEditor | undefined {
 		const [focused] = this.list!.getFocusedElements();
-		return this.renderedEditors.get(focused);
+		const candidate = this.renderedEditors.get(focused);
+		return candidate?.hasWidgetFocus() ? candidate : undefined;
 	}
 
 	//#region Editor Core
