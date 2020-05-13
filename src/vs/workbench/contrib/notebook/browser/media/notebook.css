@@ -254,6 +254,10 @@
 	background-color: rgba(255, 255, 255, 0.2);
 }
 
+.notebookOverlay .cell-statusbar-container .cell-run-duration {
+	margin-right: 8px;
+}
+
 .notebookOverlay .cell-statusbar-container .cell-status-message {
 	display: flex;
 	align-items: center;

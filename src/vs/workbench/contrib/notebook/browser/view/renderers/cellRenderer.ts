@@ -18,7 +18,7 @@ import { renderCodicons } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
@@ -32,7 +32,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import * as nls from 'vs/nls';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -830,6 +829,7 @@ class CellEditorStatusBar {
 	readonly cellRunStatusContainer: HTMLElement;
 	readonly statusBarContainer: HTMLElement;
 	readonly languageStatusBarItem: CellLanguageStatusBarItem;
+	readonly durationContainer: HTMLElement;
 
 	constructor(
 		container: HTMLElement,
@@ -839,6 +839,7 @@ class CellEditorStatusBar {
 		const leftStatusBarItems = DOM.append(this.statusBarContainer, $('.cell-status-left'));
 		const rightStatusBarItems = DOM.append(this.statusBarContainer, $('.cell-status-right'));
 		this.cellRunStatusContainer = DOM.append(leftStatusBarItems, $('.cell-run-status'));
+		this.durationContainer = DOM.append(leftStatusBarItems, $('.cell-run-duration'));
 		this.cellStatusMessageContainer = DOM.append(leftStatusBarItems, $('.cell-status-message'));
 		this.languageStatusBarItem = instantiationService.createInstance(CellLanguageStatusBarItem, rightStatusBarItems);
 	}
@@ -902,6 +903,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		disposables.add(progressBar);
 
 		const statusBar = this.instantiationService.createInstance(CellEditorStatusBar, editorPart);
+		const timer = new TimerRenderer(statusBar.durationContainer);
 
 		const outputContainer = DOM.append(container, $('.output'));
 		const focusSink = DOM.append(container, $('.cell-editor-focus-sink'));
@@ -926,6 +928,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			disposables,
 			elementDisposables: new DisposableStore(),
 			bottomCellContainer,
+			timer,
 			toJSON: () => { return {}; }
 		};
 
@@ -970,11 +973,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		} else if (metadata.runState === NotebookCellRunState.Error) {
 			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(error)');
 		} else if (metadata.runState === NotebookCellRunState.Running) {
-			// TODO@roblourens should extensions be able to customize the status message while running to show progress?
-			templateData.cellStatusMessageContainer.textContent = nls.localize('cellRunningStatus', "Running");
 			templateData.cellRunStatusContainer.innerHTML = renderCodicons('$(sync~spin)');
 		} else {
 			templateData.cellRunStatusContainer.innerHTML = '';
+		}
+
+		if (metadata.runState === NotebookCellRunState.Running) {
+			if (metadata.runStartTime) {
+				templateData.elementDisposables.add(templateData.timer.start(metadata.runStartTime));
+			} else {
+				templateData.timer.clear();
+			}
+		} else if (typeof metadata.lastRunDuration === 'number') {
+			templateData.timer.show(metadata.lastRunDuration);
+		} else {
+			templateData.timer.clear();
 		}
 	}
 
@@ -1073,5 +1086,54 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.elementDisposables.clear();
 		this.renderedEditors.delete(element);
 		templateData.focusIndicator.style.height = 'initial';
+	}
+}
+
+export class TimerRenderer {
+	constructor(private readonly container: HTMLElement) {
+		DOM.hide(container);
+	}
+
+	private intervalTimer: NodeJS.Timeout | undefined;
+
+	start(startTime: number): IDisposable {
+		this.stop();
+
+		DOM.show(this.container);
+		const intervalTimer = setInterval(() => {
+			const duration = Date.now() - startTime;
+			this.container.textContent = this.formatDuration(duration);
+		}, 100);
+		this.intervalTimer = intervalTimer;
+
+		return toDisposable(() => {
+			clearInterval(intervalTimer);
+		});
+	}
+
+	stop() {
+		if (this.intervalTimer) {
+			clearInterval(this.intervalTimer);
+		}
+	}
+
+	show(duration: number) {
+		this.stop();
+
+		DOM.show(this.container);
+		this.container.textContent = this.formatDuration(duration);
+	}
+
+	clear() {
+		DOM.hide(this.container);
+		this.stop();
+		this.container.textContent = '';
+	}
+
+	private formatDuration(duration: number) {
+		const seconds = Math.floor(duration / 1000);
+		const tenths = String(duration - seconds * 1000).charAt(0);
+
+		return `${seconds}.${tenths}s`;
 	}
 }

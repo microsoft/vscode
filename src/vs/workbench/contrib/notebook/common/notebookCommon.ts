@@ -80,6 +80,9 @@ export interface NotebookCellMetadata {
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
+
+	runStartTime?: number;
+	lastRunDuration?: number;
 }
 
 export interface INotebookDisplayOrder {

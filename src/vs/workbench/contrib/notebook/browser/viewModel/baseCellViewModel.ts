@@ -360,11 +360,11 @@ export abstract class BaseCellViewModel extends Disposable {
 			: this.metadata?.runnable;
 
 		return {
-			editable,
-			runnable,
-			executionOrder: this.metadata?.executionOrder,
-			runState: this.metadata?.runState,
-			statusMessage: this.metadata?.statusMessage
+			...(this.metadata || {}),
+			...{
+				editable,
+				runnable
+			}
 		};
 	}
 

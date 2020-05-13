@@ -1580,6 +1580,16 @@ declare module 'vscode' {
 		 * The cell's current run state
 		 */
 		runState?: NotebookCellRunState;
+
+		/**
+		 * If the cell is running, the time at which the cell started running
+		 */
+		runStartTime?: number;
+
+		/**
+		 * The total duration of the cell's last run
+		 */
+		lastRunDuration?: number;
 	}
 
 	export interface NotebookCell {
