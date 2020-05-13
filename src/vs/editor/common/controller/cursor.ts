@@ -220,7 +220,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._onModelContentChanged(e);
 		}));
 
-		this._register(viewModel.addEventListener((events: viewEvents.ViewEvent[]) => {
+		this._register(viewModel.addViewEventListener((events: viewEvents.ViewEvent[]) => {
 			if (!containsLineMappingChanged(events)) {
 				return;
 			}
@@ -555,12 +555,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		try {
-			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections, selections));
-		} finally {
-			this._endEmit();
-		}
+		this._emitSingleViewEvent(new viewEvents.ViewCursorStateChangedEvent(viewSelections, selections));
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -604,12 +599,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public emitCursorRevealRange(source: string, viewRange: Range | null, viewSelections: Selection[] | null, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
-		try {
-			const eventsCollector = this._beginEmit();
-			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, viewSelections, verticalType, revealHorizontal, scrollType));
-		} finally {
-			this._endEmit();
-		}
+		this._emitSingleViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, viewSelections, verticalType, revealHorizontal, scrollType));
 	}
 
 	// -----------------------------------------------------------------------------------------------------------

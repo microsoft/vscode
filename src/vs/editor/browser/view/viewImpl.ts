@@ -226,11 +226,11 @@ export class View extends ViewEventHandler {
 		// Pointer handler
 		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
 
-		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
+		this._register(model.addViewEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
 		}));
 
-		this._register(this._cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
+		this._register(this._cursor.addViewEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
 		}));
 	}
