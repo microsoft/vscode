@@ -15,7 +15,7 @@ import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IViewDescriptorService, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsRegistry, Extensions, ViewContentPriority } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
@@ -121,7 +121,8 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'detectThenRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Show](command:{0}) automatic debug configurations.", SelectAndStartAction.ID)
+		"[Show](command:{0}) all automatic debug configurations.", SelectAndStartAction.ID),
+	priority: ViewContentPriority.Lowest
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
