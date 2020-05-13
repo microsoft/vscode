@@ -67,7 +67,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this._previousFocusedElements = e.elements;
 
 			// Force focus out of webview if focus is in webview and I press an arrow key to focus the next cell
-			this.focusView();
+			if (document.activeElement && document.activeElement.tagName.toLowerCase() === 'webview') {
+				this.focusView();
+			}
 		}));
 
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
