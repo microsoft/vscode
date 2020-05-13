@@ -184,7 +184,7 @@ export async function provideSuggestionItems(
 		if (!container) {
 			return;
 		}
-		for (let suggestion of container.suggestions || []) {
+		for (let suggestion of container.suggestions) {
 			if (!options.kindFilter.has(suggestion.kind)) {
 				// fill in default range when missing
 				if (!suggestion.range) {
