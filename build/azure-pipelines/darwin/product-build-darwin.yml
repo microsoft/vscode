@@ -260,6 +260,7 @@ steps:
   displayName: Publish
 
 - script: |
+    AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
     yarn gulp upload-vscode-configuration
   displayName: Upload configuration (for Bing settings search)
   continueOnError: true
