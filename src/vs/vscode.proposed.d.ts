@@ -1594,7 +1594,7 @@ declare module 'vscode' {
 		/**
 		 * Additional attributes of a cell metadata.
 		 */
-		[key: string]: any;
+		custom?: { [key: string]: any };
 	}
 
 	export interface NotebookCell {

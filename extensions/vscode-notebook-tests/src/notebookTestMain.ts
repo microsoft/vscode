@@ -29,7 +29,7 @@ export function activate(context: vscode.ExtensionContext): any {
 						cellKind: vscode.CellKind.Code,
 						outputs: [],
 						metadata: {
-							custom: { testCellMetadata: true }
+							custom: { testCellMetadata: 123 }
 						}
 					}
 				]
