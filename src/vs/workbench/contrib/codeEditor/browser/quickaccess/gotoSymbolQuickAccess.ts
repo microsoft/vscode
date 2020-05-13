@@ -17,15 +17,15 @@ import { ITextModel } from 'vs/editor/common/model';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Action } from 'vs/base/common/actions';
-import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { prepareQuery } from 'vs/base/common/fuzzyScorer';
 import { SymbolKind } from 'vs/editor/common/modes';
 import { fuzzyScore, createMatches } from 'vs/base/common/filters';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -207,28 +207,28 @@ Registry.as<IQuickAccessRegistry>(QuickaccessExtensions.Quickaccess).registerQui
 	]
 });
 
-export class GotoSymbolAction extends Action {
+registerAction2(class GotoSymbolAction extends Action2 {
 
-	static readonly ID = 'workbench.action.gotoSymbol';
-	static readonly LABEL = localize('gotoSymbol', "Go to Symbol in Editor...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: 'workbench.action.gotoSymbol',
+			title: {
+				value: localize('gotoSymbol', "Go to Symbol in Editor..."),
+				original: 'Go to Symbol in Editor...'
+			},
+			f1: true,
+			keybinding: {
+				when: undefined,
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
+			}
+		});
 	}
 
-	async run(): Promise<void> {
-		this.quickInputService.quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX);
+	run(accessor: ServicesAccessor) {
+		accessor.get(IQuickInputService).quickAccess.show(GotoSymbolQuickAccessProvider.PREFIX);
 	}
-}
-
-Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions).registerWorkbenchAction(SyncActionDescriptor.from(GotoSymbolAction, {
-	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_O
-}), 'Go to Symbol in Editor...');
-
+});
 
 //#region toc definition and logic
 
