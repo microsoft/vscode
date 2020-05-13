@@ -273,13 +273,27 @@ export class ConfigurationManager implements IConfigurationManager {
 							picks.push(provider.provideDebugConfigurations!(launch.workspace.uri, token.token).then(configurations => configurations.map(config => ({
 								label: config.name,
 								config,
+								buttons: [{
+									iconClass: 'codicon-pin',
+									tooltip: nls.localize('pinLaunchConfig', "Pin Launch Configuration")
+								}],
 								launch
 							}))));
 						}
 					});
 					const promiseOfPicks = Promise.all(picks).then(result => result.reduce((first, second) => first.concat(second), []));
 
-					const result = await this.quickInputService.pick<{ label: string, launch: ILaunch, config: IConfig }>(promiseOfPicks, { placeHolder: nls.localize('selectConfiguration', "Select Debug Configuration") });
+					const result = await this.quickInputService.pick<{ label: string, launch: ILaunch, config: IConfig }>(promiseOfPicks, {
+						placeHolder: nls.localize('selectConfiguration', "Select Launch Configuration"),
+						onDidTriggerItemButton: async (context) => {
+							await this.quickInputService.cancel();
+							const { launch, config } = context.item;
+							await launch.openConfigFile(false, config.type);
+							// Only Launch have a pin trigger button
+							await (launch as Launch).writeConfiguration(config);
+							this.selectConfiguration(launch, config.name);
+						}
+					});
 					if (!result) {
 						// User canceled quick input we should notify the provider to cancel computing configurations
 						token.cancel();
@@ -697,6 +711,12 @@ class Launch extends AbstractLaunch implements ILaunch {
 			created
 		});
 	}
+
+	async writeConfiguration(configuration: IConfig): Promise<void> {
+		const fullConfig = objects.deepClone(this.getConfig()!);
+		fullConfig.configurations.push(configuration);
+		await this.configurationService.updateValue('launch', fullConfig, { resource: this.workspace.uri }, ConfigurationTarget.WORKSPACE_FOLDER);
+	}
 }
 
 class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
@@ -718,7 +738,7 @@ class WorkspaceLaunch extends AbstractLaunch implements ILaunch {
 	}
 
 	get name(): string {
-		return nls.localize('workspace', "Workspace");
+		return nls.localize('workspace', "workspace");
 	}
 
 	protected getConfig(): IGlobalConfig | undefined {
