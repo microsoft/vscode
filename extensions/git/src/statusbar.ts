@@ -152,6 +152,8 @@ class SyncStatusBar {
 
 export class StatusBarCommands {
 
+	readonly onDidChange: Event<void>;
+
 	private syncStatusBar: SyncStatusBar;
 	private checkoutStatusBar: CheckoutStatusBar;
 	private disposables: Disposable[] = [];
@@ -159,31 +161,12 @@ export class StatusBarCommands {
 	constructor(repository: Repository) {
 		this.syncStatusBar = new SyncStatusBar(repository);
 		this.checkoutStatusBar = new CheckoutStatusBar(repository);
-	}
-
-	get onDidChange(): Event<void> {
-		return anyEvent(
-			this.syncStatusBar.onDidChange,
-			this.checkoutStatusBar.onDidChange
-		);
+		this.onDidChange = anyEvent(this.syncStatusBar.onDidChange, this.checkoutStatusBar.onDidChange);
 	}
 
 	get commands(): Command[] {
-		const result: Command[] = [];
-
-		const checkout = this.checkoutStatusBar.command;
-
-		if (checkout) {
-			result.push(checkout);
-		}
-
-		const sync = this.syncStatusBar.command;
-
-		if (sync) {
-			result.push(sync);
-		}
-
-		return result;
+		return [this.checkoutStatusBar.command, this.syncStatusBar.command]
+			.filter((c): c is Command => !!c);
 	}
 
 	dispose(): void {
