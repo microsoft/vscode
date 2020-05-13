@@ -38,7 +38,7 @@ export interface INotebookService {
 	getRendererInfo(handle: number): INotebookRendererInfo | undefined;
 	resolveNotebook(viewType: string, uri: URI, forceReload: boolean): Promise<NotebookTextModel | undefined>;
 	createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[]): Promise<NotebookTextModel | undefined>;
-	executeNotebook(viewType: string, uri: URI): Promise<void>;
+	executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void>;
 	executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void>;
 
 	getContributedNotebookProviders(resource: URI): readonly NotebookProviderInfo[];
