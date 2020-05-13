@@ -18,7 +18,7 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { IViewModel, ICoordinatesConverter, IViewLayout } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
 
 export interface IColumnSelectData {
@@ -55,9 +55,9 @@ export interface ICursors {
 	getColumnSelectData(): IColumnSelectData;
 	setColumnSelectData(columnSelectData: IColumnSelectData): void;
 
-	setStates(source: string, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
-	reveal(source: string, horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
-	revealRange(source: string, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
+	setStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
+	reveal(source: string | null | undefined, horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
+	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
 	scrollTo(desiredScrollTop: number): void;
 
@@ -353,11 +353,21 @@ export class SingleCursorState {
 	}
 }
 
+export interface IReducedViewModel extends ICursorSimpleModel {
+	readonly coordinatesConverter: ICoordinatesConverter;
+
+	readonly viewLayout: IViewLayout;
+
+	getCompletelyVisibleViewRange(): Range;
+	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
+
+}
+
 export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: ITextModel;
-	public readonly viewModel: IViewModel;
+	public readonly viewModel: IReducedViewModel;
 	public readonly config: CursorConfiguration;
 
 	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IViewModel) {

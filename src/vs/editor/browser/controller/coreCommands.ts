@@ -42,6 +42,19 @@ export abstract class CoreEditorCommand extends EditorCommand {
 	public abstract runCoreEditorCommand(cursors: ICursors, args: any): void;
 }
 
+export abstract class CoreEditorCommand2 extends EditorCommand {
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			// the editor has no view => has no cursors
+			return;
+		}
+		this.runCoreEditorCommand(editor, cursors, args || {});
+	}
+
+	public abstract runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void;
+}
+
 export namespace EditorScroll_ {
 
 	const isEditorScrollArgs = function (arg: any): boolean {
@@ -482,7 +495,7 @@ export namespace CoreNavigationCommands {
 			this._runCursorMove(cursors, args.source, parsed);
 		}
 
-		_runCursorMove(cursors: ICursors, source: string, args: CursorMove_.ParsedArguments): void {
+		_runCursorMove(cursors: ICursors, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
 			cursors.context.model.pushStackElement();
 			cursors.setStates(
 				source,
@@ -1097,7 +1110,7 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	export class EditorScrollImpl extends CoreEditorCommand {
+	export class EditorScrollImpl extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'editorScroll',
@@ -1106,16 +1119,16 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			const parsed = EditorScroll_.parse(args);
 			if (!parsed) {
 				// illegal arguments
 				return;
 			}
-			this._runEditorScroll(cursors, args.source, parsed);
+			this._runEditorScroll(editor, cursors, args.source, parsed);
 		}
 
-		_runEditorScroll(cursors: ICursors, source: string, args: EditorScroll_.ParsedArguments): void {
+		_runEditorScroll(editor: ICodeEditor, cursors: ICursors, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
 
 			const desiredScrollTop = this._computeDesiredScrollTop(cursors.context, args);
 
@@ -1168,7 +1181,7 @@ export namespace CoreNavigationCommands {
 
 	export const EditorScroll: EditorScrollImpl = registerEditorCommand(new EditorScrollImpl());
 
-	export const ScrollLineUp: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const ScrollLineUp: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'scrollLineUp',
@@ -1182,8 +1195,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, cursors, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.WrappedLine,
 				value: 1,
@@ -1193,7 +1206,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollPageUp: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const ScrollPageUp: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'scrollPageUp',
@@ -1208,8 +1221,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, cursors, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.Page,
 				value: 1,
@@ -1219,7 +1232,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollLineDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const ScrollLineDown: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'scrollLineDown',
@@ -1233,8 +1246,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, cursors, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.WrappedLine,
 				value: 1,
@@ -1244,7 +1257,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollPageDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const ScrollPageDown: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'scrollPageDown',
@@ -1259,8 +1272,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, cursors, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.Page,
 				value: 1,

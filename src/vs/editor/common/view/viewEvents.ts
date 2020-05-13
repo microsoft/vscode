@@ -224,9 +224,9 @@ export class ViewRevealRangeRequestEvent {
 	/**
 	 * Source of the call that caused the event.
 	 */
-	readonly source: string;
+	readonly source: string | null | undefined;
 
-	constructor(source: string, range: Range | null, selections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
+	constructor(source: string | null | undefined, range: Range | null, selections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
 		this.source = source;
 		this.range = range;
 		this.selections = selections;

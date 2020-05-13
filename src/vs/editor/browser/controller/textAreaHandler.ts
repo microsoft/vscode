@@ -235,23 +235,23 @@ export class TextAreaHandler extends ViewPart {
 				multicursorText = (typeof e.metadata.multicursorText !== 'undefined' ? e.metadata.multicursorText : null);
 				mode = e.metadata.mode;
 			}
-			this._viewController.paste('keyboard', e.text, pasteOnNewLine, multicursorText, mode);
+			this._viewController.paste(e.text, pasteOnNewLine, multicursorText, mode);
 		}));
 
 		this._register(this._textAreaInput.onCut(() => {
-			this._viewController.cut('keyboard');
+			this._viewController.cut();
 		}));
 
 		this._register(this._textAreaInput.onType((e: ITypeData) => {
 			if (e.replaceCharCnt) {
-				this._viewController.replacePreviousChar('keyboard', e.text, e.replaceCharCnt);
+				this._viewController.replacePreviousChar(e.text, e.replaceCharCnt);
 			} else {
-				this._viewController.type('keyboard', e.text);
+				this._viewController.type(e.text);
 			}
 		}));
 
 		this._register(this._textAreaInput.onSelectionChangeRequest((modelSelection: Selection) => {
-			this._viewController.setSelection('keyboard', modelSelection);
+			this._viewController.setSelection(modelSelection);
 		}));
 
 		this._register(this._textAreaInput.onCompositionStart((e) => {
@@ -282,7 +282,7 @@ export class TextAreaHandler extends ViewPart {
 			// Show the textarea
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME} ime-input`);
 
-			this._viewController.compositionStart('keyboard');
+			this._viewController.compositionStart();
 		}));
 
 		this._register(this._textAreaInput.onCompositionUpdate((e: ICompositionData) => {
@@ -303,7 +303,7 @@ export class TextAreaHandler extends ViewPart {
 			this._render();
 
 			this.textArea.setClassName(`inputarea ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`);
-			this._viewController.compositionEnd('keyboard');
+			this._viewController.compositionEnd();
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {

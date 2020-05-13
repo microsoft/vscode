@@ -639,7 +639,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param source The source of the call.
 	 * @param command The command to execute
 	 */
-	executeCommand(source: string, command: editorCommon.ICommand): void;
+	executeCommand(source: string | null | undefined, command: editorCommon.ICommand): void;
 
 	/**
 	 * Push an "undo stop" in the undo-redo stack.
@@ -653,14 +653,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param edits The edits to execute.
 	 * @param endCursorState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+	executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concomitant) commands on the editor.
 	 * @param source The source of the call.
 	 * @param command The commands to execute
 	 */
-	executeCommands(source: string, commands: (editorCommon.ICommand | null)[]): void;
+	executeCommands(source: string | null | undefined, commands: (editorCommon.ICommand | null)[]): void;
 
 	/**
 	 * @internal
