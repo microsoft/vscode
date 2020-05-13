@@ -1642,9 +1642,9 @@ declare module 'vscode' {
 		displayOrder?: GlobPattern[];
 
 		/**
-		 * Additional attributes of a cell metadata.
+		 * Additional attributes of the document metadata.
 		 */
-		[key: string]: any;
+		custom?: { [key: string]: any };
 	}
 
 	export interface NotebookDocument {
@@ -1685,7 +1685,9 @@ declare module 'vscode' {
 		 * The primary selected cell on this notebook editor.
 		 */
 		readonly selection?: NotebookCell;
+
 		viewColumn?: ViewColumn;
+
 		/**
 		 * Fired when the output hosting webview posts a message.
 		 */

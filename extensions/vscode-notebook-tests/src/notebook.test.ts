@@ -328,7 +328,7 @@ suite('metadata', () => {
 
 		await waitFor(500);
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.equal(vscode.notebook.activeNotebookEditor!.document.metadata.custom['testMetadata'] as boolean, false);
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.metadata.custom!['testMetadata'] as boolean, false);
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.metadata.custom!['testCellMetadata'] as number, 123);
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 	});

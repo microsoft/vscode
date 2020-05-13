@@ -119,6 +119,7 @@ export class NotebookEditorInput extends EditorInput {
 		return this._move(group, target)?.editor;
 	}
 
+	// called when users rename a notebook document
 	move(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (this.textModel) {
 			const contributedNotebookProviders = this.notebookService.getContributedNotebookProviders(target);

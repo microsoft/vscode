@@ -124,6 +124,7 @@ export class NotebookEditor extends BaseEditor {
 	}
 
 	clearInput(): void {
+		// de-ref widget
 		super.clearInput();
 	}
 
