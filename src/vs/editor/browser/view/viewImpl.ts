@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -36,7 +37,6 @@ import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDeco
 import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
-import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
@@ -68,7 +68,7 @@ export class View extends ViewEventHandler {
 
 	private _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
-	private readonly _cursor: Cursor;
+	private _selections: Selection[];
 
 	// The view lines
 	private viewLines: ViewLines;
@@ -98,11 +98,10 @@ export class View extends ViewEventHandler {
 		configuration: IConfiguration,
 		themeService: IThemeService,
 		model: IViewModel,
-		cursor: Cursor,
 		outgoingEvents: ViewOutgoingEvents
 	) {
 		super();
-		this._cursor = cursor;
+		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = outgoingEvents;
 
@@ -229,10 +228,6 @@ export class View extends ViewEventHandler {
 		this._register(model.addViewEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
 		}));
-
-		this._register(this._cursor.addViewEventListener((events: viewEvents.ViewEvent[]) => {
-			this.eventDispatcher.emitMany(events);
-		}));
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
@@ -313,6 +308,10 @@ export class View extends ViewEventHandler {
 	}
 	public onContentSizeChanged(e: viewEvents.ViewContentSizeChangedEvent): boolean {
 		this.outgoingEvents.emitContentSizeChange(e);
+		return false;
+	}
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections;
 		return false;
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
@@ -404,7 +403,7 @@ export class View extends ViewEventHandler {
 		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
 		const viewportData = new ViewportData(
-			this._cursor.getViewSelections(),
+			this._selections,
 			partialViewportData,
 			this._context.viewLayout.getWhitespaceViewportData(),
 			this._context.model

@@ -24,11 +24,11 @@ import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecora
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { IReducedViewModel } from 'vs/editor/common/controller/cursorCommon';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
-export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel, IReducedViewModel {
+export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
 
 	private readonly editorId: number;
 	private readonly configuration: IConfiguration;
@@ -42,6 +42,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
+	public readonly cursor: Cursor;
 	private readonly decorations: ViewModelDecorations;
 
 	constructor(
@@ -88,6 +89,18 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 
 		this.coordinatesConverter = this.lines.createCoordinatesConverter();
+
+		this.cursor = this._register(new Cursor(this.configuration, model, this, this.coordinatesConverter));
+		this._register(this.cursor.addViewEventListener((events) => {
+			try {
+				const eventsCollector = this._beginEmitViewEvents();
+				for (const event of events) {
+					eventsCollector.emit(event);
+				}
+			} finally {
+				this._endEmitViewEvents();
+			}
+		}));
 
 		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
@@ -167,6 +180,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+			this.cursor.onLineMappingChanged();
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 
@@ -192,6 +206,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 			this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this.viewportStartLineDelta }, ScrollType.Immediate);
 		}
+
+		this.cursor.onDidChangeConfiguration(e);
 	}
 
 	private _registerModelEvents(): void {
@@ -288,6 +304,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+					this.cursor.onLineMappingChanged();
 					this.decorations.onLineMappingChanged();
 				}
 			} finally {
@@ -308,6 +325,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this.viewportStartLineDelta }, ScrollType.Immediate);
 				}
 			}
+
+			this.cursor.onModelContentChanged(e);
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
@@ -330,11 +349,17 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this._register(this.model.onDidChangeLanguageConfiguration((e) => {
 			this._emitSingleViewEvent(new viewEvents.ViewLanguageConfigurationEvent());
+			this.cursor.onDidChangeModelLanguageConfiguration();
+		}));
+
+		this._register(this.model.onDidChangeLanguage((e) => {
+			this.cursor.onDidChangeModelLanguage(e);
 		}));
 
 		this._register(this.model.onDidChangeOptions((e) => {
 			// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
 			if (this.lines.setTabSize(this.model.getOptions().tabSize)) {
+				this.cursor.onLineMappingChanged();
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
 				try {
@@ -347,6 +372,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				}
 				this._updateConfigurationViewLineCount.schedule();
 			}
+
+			this.cursor.onDidChangeModelOptions();
 		}));
 
 		this._register(this.model.onDidChangeDecorations((e) => {
@@ -363,6 +390,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 				eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+				this.cursor.onLineMappingChanged();
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
 				this.viewLayout.onHeightMaybeChanged();

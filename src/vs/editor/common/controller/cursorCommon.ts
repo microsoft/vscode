@@ -17,7 +17,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { VerticalRevealType, IViewEventEmitter } from 'vs/editor/common/view/viewEvents';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
 
@@ -351,18 +351,15 @@ export class SingleCursorState {
 	}
 }
 
-export interface IReducedViewModel extends ICursorSimpleModel, IViewEventEmitter {
-}
-
 export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: ITextModel;
-	public readonly viewModel: IReducedViewModel;
+	public readonly viewModel: ICursorSimpleModel;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly config: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IReducedViewModel, coordinatesConverter: ICoordinatesConverter) {
+	constructor(configuration: IConfiguration, model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter) {
 		this.model = model;
 		this.viewModel = viewModel;
 		this.coordinatesConverter = coordinatesConverter;

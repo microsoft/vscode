@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
-import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, ICursors, PartialCursorState, RevealTarget, IReducedViewModel } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, ICursors, PartialCursorState, RevealTarget, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -16,20 +16,11 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { RawContentChangedType, ModelRawContentChangedEvent, IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { dispose } from 'vs/base/common/lifecycle';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
-
-function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
-	for (let i = 0, len = events.length; i < len; i++) {
-		if (events[i].type === viewEvents.ViewEventType.ViewLineMappingChanged) {
-			return true;
-		}
-	}
-	return false;
-}
 
 export class CursorStateChangedEvent {
 	/**
@@ -182,7 +173,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private readonly _configuration: editorCommon.IConfiguration;
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
-	private readonly _viewModel: IReducedViewModel;
+	private readonly _viewModel: ICursorSimpleModel;
 	private readonly _coordinatesConverter: ICoordinatesConverter;
 	public context: CursorContext;
 	private _cursors: CursorCollection;
@@ -195,7 +186,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
 
-	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IReducedViewModel, coordinatesConverter: ICoordinatesConverter) {
+	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter) {
 		super();
 		this._configuration = configuration;
 		this._model = model;
@@ -212,59 +203,50 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._columnSelectData = null;
 		this._autoClosedActions = [];
 		this._prevEditOperationType = EditOperationType.Other;
-
-		this._register(this._model.onDidChangeRawContent((e) => {
-			this._knownModelVersionId = e.versionId;
-			if (this._isHandling) {
-				return;
-			}
-
-			this._onModelContentChanged(e);
-		}));
-
-		this._register(viewModel.addViewEventListener((events: viewEvents.ViewEvent[]) => {
-			if (!containsLineMappingChanged(events)) {
-				return;
-			}
-
-			if (this._knownModelVersionId !== this._model.getVersionId()) {
-				// There are model change events that I didn't yet receive.
-				//
-				// This can happen when editing the model, and the view model receives the change events first,
-				// and the view model emits line mapping changed events, all before the cursor gets a chance to
-				// recover from markers.
-				//
-				// The model change listener above will be called soon and we'll ensure a valid cursor state there.
-				return;
-			}
-			// Ensure valid state
-			this.setStates('viewModel', CursorChangeReason.NotSet, this.getAll());
-		}));
-
-		const updateCursorContext = () => {
-			this.context = new CursorContext(this._configuration, this._model, this._viewModel, this._coordinatesConverter);
-			this._cursors.updateContext(this.context);
-		};
-		this._register(this._model.onDidChangeLanguage((e) => {
-			updateCursorContext();
-		}));
-		this._register(this._model.onDidChangeLanguageConfiguration(() => {
-			updateCursorContext();
-		}));
-		this._register(this._model.onDidChangeOptions(() => {
-			updateCursorContext();
-		}));
-		this._register(this._configuration.onDidChange((e) => {
-			if (CursorConfiguration.shouldRecreate(e)) {
-				updateCursorContext();
-			}
-		}));
 	}
 
 	public dispose(): void {
 		this._cursors.dispose();
 		this._autoClosedActions = dispose(this._autoClosedActions);
 		super.dispose();
+	}
+
+	private _updateCursorContext(): void {
+		this.context = new CursorContext(this._configuration, this._model, this._viewModel, this._coordinatesConverter);
+		this._cursors.updateContext(this.context);
+	}
+
+	public onLineMappingChanged(): void {
+		if (this._knownModelVersionId !== this._model.getVersionId()) {
+			// There are model change events that I didn't yet receive.
+			//
+			// This can happen when editing the model, and the view model receives the change events first,
+			// and the view model emits line mapping changed events, all before the cursor gets a chance to
+			// recover from markers.
+			//
+			// The model change listener above will be called soon and we'll ensure a valid cursor state there.
+			return;
+		}
+		// Ensure valid state
+		this.setStates('viewModel', CursorChangeReason.NotSet, this.getAll());
+	}
+
+	public onDidChangeModelLanguage(e: IModelLanguageChangedEvent): void {
+		this._updateCursorContext();
+	}
+
+	public onDidChangeModelLanguageConfiguration(): void {
+		this._updateCursorContext();
+	}
+
+	public onDidChangeModelOptions(): void {
+		this._updateCursorContext();
+	}
+
+	public onDidChangeConfiguration(e: ConfigurationChangedEvent): void {
+		if (CursorConfiguration.shouldRecreate(e)) {
+			this._updateCursorContext();
+		}
 	}
 
 	public setHasFocus(hasFocus: boolean): void {
@@ -393,7 +375,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this.reveal('restoreState', true, RevealTarget.Primary, editorCommon.ScrollType.Immediate);
 	}
 
-	private _onModelContentChanged(e: ModelRawContentChangedEvent): void {
+	public onModelContentChanged(e: ModelRawContentChangedEvent): void {
+
+		this._knownModelVersionId = e.versionId;
+		if (this._isHandling) {
+			return;
+		}
 
 		const hadFlushEvent = e.containsEvent(RawContentChangedType.Flush);
 		this._prevEditOperationType = EditOperationType.Other;
@@ -439,10 +426,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	public getSelections(): Selection[] {
 		return this._cursors.getSelections();
-	}
-
-	public getViewSelections(): Selection[] {
-		return this._cursors.getViewSelections();
 	}
 
 	public getPosition(): Position {

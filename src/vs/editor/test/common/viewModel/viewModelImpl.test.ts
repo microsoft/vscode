@@ -70,7 +70,7 @@ suite('ViewModel', () => {
 			model.undo();
 			viewLineCount.push(viewModel.getLineCount());
 
-			assert.deepEqual(viewLineCount, [4, 1, 1, 1]);
+			assert.deepEqual(viewLineCount, [4, 1, 1, 1, 1]);
 		});
 	});
 

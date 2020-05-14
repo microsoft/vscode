@@ -14,7 +14,7 @@ import { IViewEventEmitter } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { IReducedViewModel } from 'vs/editor/common/controller/cursorCommon';
+import { ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -94,7 +94,7 @@ export interface ICoordinatesConverter {
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
-export interface IViewModel extends IViewEventEmitter, IReducedViewModel {
+export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 
 	readonly coordinatesConverter: ICoordinatesConverter;
 
