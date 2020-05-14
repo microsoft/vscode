@@ -9,7 +9,7 @@ import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, addClass, EventHelper, removeClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { EDITOR_TITLE_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -136,16 +136,20 @@ export class NoTabsTitleControl extends TitleControl {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
-	closeAllEditors(): void {
-		this.redraw();
-	}
-
 	moveEditor(editor: IEditorInput, fromIndex: number, targetIndex: number): void {
 		this.ifActiveEditorChanged(() => this.redraw());
 	}
 
 	pinEditor(editor: IEditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	stickEditor(editor: IEditorInput): void {
+		// Sticky editors are not presented any different with tabs disabled
+	}
+
+	unstickEditor(editor: IEditorInput): void {
+		// Sticky editors are not presented any different with tabs disabled
 	}
 
 	setActive(isActive: boolean): void {
@@ -219,7 +223,6 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-
 	private ifEditorIsActive(editor: IEditorInput, fn: () => void): void {
 		if (this.group.isActive(editor)) {
 			fn();  // only run if editor is current active
@@ -229,7 +232,7 @@ export class NoTabsTitleControl extends TitleControl {
 	private redraw(): void {
 		const editor = withNullAsUndefined(this.group.activeEditor);
 
-		const isEditorPinned = this.group.activeEditor ? this.group.isPinned(this.group.activeEditor) : false;
+		const isEditorPinned = editor ? this.group.isPinned(editor) : false;
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		this.activeLabel = { editor, pinned: isEditorPinned };
@@ -316,5 +319,11 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Group inactive: only show close action
 		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
+	}
+
+	layout(dimension: Dimension): void {
+		if (this.breadcrumbsControl) {
+			this.breadcrumbsControl.layout(undefined);
+		}
 	}
 }

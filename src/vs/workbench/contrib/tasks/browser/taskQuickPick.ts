@@ -166,13 +166,15 @@ export class TaskQuickPick extends Disposable {
 		picker.ignoreFocusOut = false;
 		picker.show();
 
-		picker.onDidTriggerItemButton(context => {
+		picker.onDidTriggerItemButton(async (context) => {
 			let task = context.item.task;
 			this.quickInputService.cancel();
 			if (ContributedTask.is(task)) {
 				this.taskService.customize(task, undefined, true);
 			} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
-				this.taskService.openConfig(task);
+				if (!(await this.taskService.openConfig(task))) {
+					this.taskService.customize(task, undefined, true);
+				}
 			}
 		});
 

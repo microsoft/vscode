@@ -109,6 +109,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
 			ctorDescriptor: new SyncDescriptor(OpenEditorsView),
+			containerIcon: 'codicon-files',
 			order: 0,
 			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,

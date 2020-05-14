@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 
-import { isURLDomainTrusted } from 'vs/workbench/contrib/url/common/trustedDomainsValidator';
+import { isURLDomainTrusted } from 'vs/workbench/contrib/url/browser/trustedDomainsValidator';
 import { URI } from 'vs/base/common/uri';
 
 function linkAllowedByRules(link: string, rules: string[]) {

@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { CancellationToken, Command, Disposable, Event, EventEmitter, Memento, OutputChannel, ProgressLocation, ProgressOptions, scm, SourceControl, SourceControlInputBox, SourceControlInputBoxValidation, SourceControlInputBoxValidationType, SourceControlResourceDecorations, SourceControlResourceGroup, SourceControlResourceState, ThemeColor, Uri, window, workspace, WorkspaceEdit, Decoration } from 'vscode';
 import * as nls from 'vscode-nls';
-import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions } from './api/git';
+import { Branch, Change, GitErrorCodes, LogOptions, Ref, RefType, Remote, Status, CommitOptions, BranchQuery } from './api/git';
 import { AutoFetcher } from './autofetch';
 import { debounce, memoize, throttle } from './decorators';
 import { Commit, ForcePushMode, GitError, Repository as BaseRepository, Stash, Submodule, LogFileOptions } from './git';
@@ -279,6 +279,7 @@ export const enum Operation {
 	Clean = 'Clean',
 	Branch = 'Branch',
 	GetBranch = 'GetBranch',
+	GetBranches = 'GetBranches',
 	SetBranchUpstream = 'SetBranchUpstream',
 	HashObject = 'HashObject',
 	Checkout = 'Checkout',
@@ -303,6 +304,7 @@ export const enum Operation {
 	CheckIgnore = 'CheckIgnore',
 	GetObjectDetails = 'GetObjectDetails',
 	SubmoduleUpdate = 'SubmoduleUpdate',
+	RebaseAbort = 'RebaseAbort',
 	RebaseContinue = 'RebaseContinue',
 	FindTrackingBranches = 'GetTracking',
 	Apply = 'Apply',
@@ -1048,6 +1050,10 @@ export class Repository implements Disposable {
 		return await this.run(Operation.GetBranch, () => this.repository.getBranch(name));
 	}
 
+	async getBranches(query: BranchQuery): Promise<Ref[]> {
+		return await this.run(Operation.GetBranches, () => this.repository.getBranches(query));
+	}
+
 	async setBranchUpstream(name: string, upstream: string): Promise<void> {
 		await this.run(Operation.SetBranchUpstream, () => this.repository.setBranchUpstream(name, upstream));
 	}
@@ -1329,6 +1335,10 @@ export class Repository implements Disposable {
 			await workspace.applyEdit(edit);
 			await document.save();
 		});
+	}
+
+	async rebaseAbort(): Promise<void> {
+		await this.run(Operation.RebaseAbort, async () => await this.repository.rebaseAbort());
 	}
 
 	checkIgnore(filePaths: string[]): Promise<Set<string>> {

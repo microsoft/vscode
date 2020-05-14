@@ -86,8 +86,6 @@ function timeout(ms: number): Promise<void> {
 	return new Promise<void>(r => setTimeout(r, ms));
 }
 
-// function runInDriver(call: string, args: (string | boolean)[]): Promise<any> {}
-
 let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
@@ -105,8 +103,10 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+		console.log(`Starting built server from '${serverLocation}'`);
 	} else {
 		serverLocation = join(__dirname, '..', '..', '..', `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		console.log(`Starting server out of sources from '${serverLocation}'`);
 	}
 	server = spawn(
 		serverLocation,

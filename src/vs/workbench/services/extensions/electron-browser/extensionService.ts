@@ -614,7 +614,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			}
 		} else {
 			// Install the Extension and reload the window to handle.
-			const message = nls.localize('installResolver', "Extension '{0}' is required to open the remote window.\nOK to install?", recommendation.friendlyName);
+			const message = nls.localize('installResolver', "Extension '{0}' is required to open the remote window.\nDo you want to install the extension?", recommendation.friendlyName);
 			this._notificationService.prompt(Severity.Info, message,
 				[{
 					label: nls.localize('install', 'Install and Reload'),

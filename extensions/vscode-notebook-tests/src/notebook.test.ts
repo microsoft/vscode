@@ -212,7 +212,7 @@ suite('notebook dirty state', () => {
 
 
 		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
-		// await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -270,5 +270,78 @@ suite('notebook undo redo', () => {
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+});
+
+suite('notebook working copy', () => {
+	test('notebook revert on close', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
+
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
+		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
+
+		// close active editor from command will revert the file
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true);
+		assert.equal(vscode.notebook.activeNotebookEditor?.selection !== undefined, true);
+		assert.deepEqual(vscode.notebook.activeNotebookEditor?.document.cells[0], vscode.notebook.activeNotebookEditor?.selection);
+		assert.equal(vscode.notebook.activeNotebookEditor?.selection?.source, 'test');
+
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+
+	test('notebook revert', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
+
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
+		await vscode.commands.executeCommand('default:type', { text: 'var abc = 0;' });
+		await vscode.commands.executeCommand('workbench.action.files.revert');
+
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true);
+		assert.equal(vscode.notebook.activeNotebookEditor?.selection !== undefined, true);
+		assert.deepEqual(vscode.notebook.activeNotebookEditor?.document.cells[0], vscode.notebook.activeNotebookEditor?.selection);
+		assert.deepEqual(vscode.notebook.activeNotebookEditor?.document.cells.length, 1);
+		assert.equal(vscode.notebook.activeNotebookEditor?.selection?.source, 'test');
+
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
+});
+
+suite('metadata', () => {
+	test('custom metadata should be supported', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.metadata.custom!['testMetadata'] as boolean, false);
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.metadata.custom!['testCellMetadata'] as number, 123);
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
+	});
+});
+
+suite('regression', () => {
+	test('microsoft/vscode-github-issue-notebooks#26. Insert template cell in the new empty document', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './empty.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.source, '');
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 	});
 });

@@ -11,16 +11,18 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from '
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo, NotebookDocumentMetadata, CellEditType, ICellDto2, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
+import * as glob from 'vs/base/common/glob';
+import { basename } from 'vs/base/common/resources';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -97,6 +99,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	_serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<number, { extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[] }>();
+	private readonly _notebookKernels = new Map<string, INotebookKernelInfo>();
 	notebookProviderInfoStore: NotebookProviderInfoStore = new NotebookProviderInfoStore();
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
 	private readonly _models: { [modelId: string]: ModelData; };
@@ -105,6 +108,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	private readonly _onDidChangeViewTypes = new Emitter<void>();
 	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
+
+	private readonly _onDidChangeKernels = new Emitter<void>();
+	onDidChangeKernels: Event<void> = this._onDidChangeKernels.event;
 	private cutItems: NotebookCellTextModel[] | undefined;
 
 	modelManager: NotebookEditorModelManager;
@@ -188,6 +194,56 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._notebookRenderers.delete(handle);
 	}
 
+	registerNotebookKernel(notebook: INotebookKernelInfo): void {
+		this._notebookKernels.set(notebook.id, notebook);
+		this._onDidChangeKernels.fire();
+	}
+
+	unregisterNotebookKernel(id: string): void {
+		this._notebookKernels.delete(id);
+		this._onDidChangeKernels.fire();
+	}
+
+	getContributedNotebookKernels(viewType: string, resource: URI): INotebookKernelInfo[] {
+		let kernelInfos: INotebookKernelInfo[] = [];
+		this._notebookKernels.forEach(kernel => {
+			if (this._notebookKernelMatch(resource, kernel!.selectors)) {
+				kernelInfos.push(kernel!);
+			}
+		});
+
+		// sort by extensions
+
+		const notebookContentProvider = this._notebookProviders.get(viewType);
+
+		if (!notebookContentProvider) {
+			return kernelInfos;
+		}
+
+		kernelInfos = kernelInfos.sort((a, b) => {
+			if (a.extension.value === notebookContentProvider!.extensionData.id.value) {
+				return -1;
+			} else if (b.extension.value === notebookContentProvider!.extensionData.id.value) {
+				return 1;
+			} else {
+				return 0;
+			}
+		});
+
+		return kernelInfos;
+	}
+
+	private _notebookKernelMatch(resource: URI, selectors: (string | glob.IRelativePattern)[]): boolean {
+		for (let i = 0; i < selectors.length; i++) {
+			const pattern = typeof selectors[i] !== 'string' ? selectors[i] : selectors[i].toString();
+			if (glob.match(pattern, basename(resource).toLowerCase())) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	getRendererInfo(handle: number): INotebookRendererInfo | undefined {
 		const renderer = this._notebookRenderers.get(handle);
 
@@ -202,13 +258,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return;
 	}
 
-	async resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined> {
+	async createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[]): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
 		}
 
-		const notebookModel = await provider.controller.resolveNotebook(viewType, uri);
+		const notebookModel = await provider.controller.createNotebook(viewType, uri, true, false);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -220,14 +276,47 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			(model) => this._onWillDispose(model),
 		);
 		this._models[modelId] = modelData;
+
+		notebookModel.metadata = metadata;
+		notebookModel.languages = languages;
+
+		notebookModel.applyEdit(notebookModel.versionId, [
+			{
+				editType: CellEditType.Insert,
+				index: 0,
+				cells: cells
+			}
+		]);
+
 		return modelData.model;
 	}
 
-	async executeNotebook(viewType: string, uri: URI): Promise<void> {
+	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean): Promise<NotebookTextModel | undefined> {
+		const provider = this._notebookProviders.get(viewType);
+		if (!provider) {
+			return undefined;
+		}
+
+		let notebookModel: NotebookTextModel | undefined;
+
+		notebookModel = await provider.controller.createNotebook(viewType, uri, false, forceReload);
+
+		// new notebook model created
+		const modelId = MODEL_ID(uri);
+		const modelData = new ModelData(
+			notebookModel!,
+			(model) => this._onWillDispose(model),
+		);
+
+		this._models[modelId] = modelData;
+		return modelData.model;
+	}
+
+	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.executeNotebook(viewType, uri, new CancellationTokenSource().token); // Cancellation for notebooks - TODO
+			return provider.controller.executeNotebook(viewType, uri, token);
 		}
 
 		return;
@@ -237,6 +326,20 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		const provider = this._notebookProviders.get(viewType);
 		if (provider) {
 			await provider.controller.executeNotebookCell(uri, handle, token);
+		}
+	}
+
+	async executeNotebook2(viewType: string, uri: URI, kernelId: string, token: CancellationToken): Promise<void> {
+		const kernel = this._notebookKernels.get(kernelId);
+		if (kernel) {
+			kernel.executeNotebook(viewType, uri, undefined, token);
+		}
+	}
+
+	async executeNotebookCell2(viewType: string, uri: URI, handle: number, kernelId: string, token: CancellationToken): Promise<void> {
+		const kernel = this._notebookKernels.get(kernelId);
+		if (kernel) {
+			kernel.executeNotebook(viewType, uri, handle, token);
 		}
 	}
 
@@ -265,7 +368,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			provider.controller.destoryNotebookDocument(notebook);
+			provider.controller.removeNotebookDocument(notebook);
 		}
 	}
 
@@ -286,6 +389,16 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		if (provider) {
 			return provider.controller.save(resource, token);
+		}
+
+		return false;
+	}
+
+	async saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean> {
+		let provider = this._notebookProviders.get(viewType);
+
+		if (provider) {
+			return provider.controller.saveAs(resource, target, token);
 		}
 
 		return false;

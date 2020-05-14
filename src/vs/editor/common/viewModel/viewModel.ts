@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { INewScrollPosition } from 'vs/editor/common/editorCommon';
+import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
+import { IViewEventEmitter } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
+import { ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -55,8 +55,7 @@ export interface IViewLayout {
 	getFutureViewport(): Viewport;
 
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
-	setScrollPositionNow(position: INewScrollPosition): void;
-	setScrollPositionSmooth(position: INewScrollPosition): void;
+	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
 	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
@@ -95,9 +94,7 @@ export interface ICoordinatesConverter {
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
-export interface IViewModel {
-
-	addEventListener(listener: IViewEventListener): IDisposable;
+export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 
 	readonly coordinatesConverter: ICoordinatesConverter;
 

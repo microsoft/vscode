@@ -57,7 +57,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, themeService, configurationService, keybindingService);
-
 		this._previousFocusedElements = this.getFocusedElements();
 		this._localDisposableStore.add(this.onDidChangeFocus((e) => {
 			this._previousFocusedElements.forEach(element => {
@@ -66,6 +65,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				}
 			});
 			this._previousFocusedElements = e.elements;
+
+			// Force focus out of webview if focus is in webview and I press an arrow key to focus the next cell
+			if (document.activeElement && document.activeElement.tagName.toLowerCase() === 'webview') {
+				this.focusView();
+			}
 		}));
 
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
@@ -122,6 +126,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	}
 
+	elementAt(position: number): ICellViewModel {
+		return this.element(this.view.indexAt(position));
+	}
+
+	elementHeight(element: ICellViewModel): number {
+		let index = this._getViewIndexUpperBound(element);
+		if (index === undefined || index < 0 || index >= this.length) {
+			this._getViewIndexUpperBound(element);
+			throw new ListError(this.listUser, `Invalid index ${index}`);
+		}
+
+		return this.view.elementHeight(index);
+	}
+
 	protected createMouseController(_options: IListOptions<CellViewModel>): MouseController<CellViewModel> {
 		return new NotebookMouseController(this);
 	}
@@ -157,7 +175,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 						const cell = this.element(i);
-						if (this._viewModel!.hasCell(cell)) {
+						if (this._viewModel!.hasCell(cell.handle)) {
 							hideOutputs.push(...cell?.model.outputs);
 						} else {
 							deletedOutputs.push(...cell?.model.outputs);
@@ -177,7 +195,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 						for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 							const cell = this.element(i);
-							if (this._viewModel!.hasCell(cell)) {
+							if (this._viewModel!.hasCell(cell.handle)) {
 								hideOutputs.push(...cell?.model.outputs);
 							} else {
 								deletedOutputs.push(...cell?.model.outputs);
@@ -299,7 +317,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				const cell = this.element(i);
-				if (this._viewModel!.hasCell(cell)) {
+				if (this._viewModel!.hasCell(cell.handle)) {
 					hideOutputs.push(...cell?.model.outputs);
 				} else {
 					deletedOutputs.push(...cell?.model.outputs);
@@ -316,6 +334,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	splice2(start: number, deleteCount: number, elements: CellViewModel[] = []): void {
 		// we need to convert start and delete count based on hidden ranges
 		super.splice(start, deleteCount, elements);
+
+		const selectionsLeft = [];
+		this._viewModel!.selectionHandles.forEach(handle => {
+			if (this._viewModel!.hasCell(handle)) {
+				selectionsLeft.push(handle);
+			}
+		});
+
+		if (!selectionsLeft.length && this._viewModel!.viewCells) {
+			// after splice, the selected cells are deleted
+			this._viewModel!.selectionHandles = [this._viewModel!.viewCells[0].handle];
+		}
 	}
 
 	getViewIndex(cell: ICellViewModel) {

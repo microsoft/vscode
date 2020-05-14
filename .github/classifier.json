@@ -1,0 +1,82 @@
+{
+	"$schema": "https://raw.githubusercontent.com/microsoft/vscode-github-triage-actions/master/classifier/apply/apply-labels/classifier-config.schema.json",
+	"assignees": {
+		"JacksonKearl": {
+			"assign": true
+		},
+		"bpasero": {
+			"assign": true
+		},
+		"Tyriar": {
+			"assign": true
+		},
+		"misolori": {
+			"assign": true
+		},
+		"joaomoreno": {
+			"assign": true
+		}
+	},
+	"labels": {
+		"search-editor": {
+			"applyLabel": true,
+			"assign": [
+				"JacksonKearl"
+			]
+		},
+		"snippets": {
+			"applyLabel": false,
+			"assign": [
+				"jrieken"
+			]
+		},
+		"integrated-terminal": {
+			"applyLabel": true,
+			"assign": [
+				"Tyriar"
+			]
+		},
+		"workbench-editors": {
+			"applyLabel": false,
+			"assign": [
+				"bpasero"
+			]
+		},
+		"workbench-history": {
+			"applyLabel": false,
+			"assign": [
+				"bpasero"
+			]
+		},
+		"workbench-notifications": {
+			"applyLabel": false,
+			"assign": [
+				"bpasero"
+			]
+		},
+		"workbench-tabs": {
+			"applyLabel": false,
+			"assign": [
+				"bpasero"
+			]
+		},
+		"icons-product": {
+			"applyLabel": true,
+			"assign": [
+				"misolori"
+			]
+		},
+		"ux": {
+			"applyLabel": true,
+			"assign": [
+				"misolori"
+			]
+		},
+		"git": {
+			"applyLabel": false,
+			"assign": [
+				"joaomoreno"
+			]
+		}
+	}
+}

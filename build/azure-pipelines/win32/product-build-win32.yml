@@ -149,6 +149,14 @@ steps:
   displayName: Run integration tests (Browser)
   condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
+- task: PublishPipelineArtifact@0
+  inputs:
+    artifactName: crash-dump-windows-$(VSCODE_ARCH)
+    targetPath: .build\crashes
+  displayName: 'Publish Crash Reports'
+  continueOnError: true
+  condition: failed()
+
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
   inputs:
     ConnectedServiceName: 'ESRP CodeSign'
@@ -228,7 +236,6 @@ steps:
     $ErrorActionPreference = "Stop"
     $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
     $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
-    $env:VSCODE_HOCKEYAPP_TOKEN = "$(vscode-hockeyapp-token)"
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
     .\build\azure-pipelines\win32\publish.ps1
   displayName: Publish

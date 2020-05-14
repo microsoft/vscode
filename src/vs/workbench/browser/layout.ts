@@ -44,6 +44,7 @@ import { LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { URI } from 'vs/base/common/uri';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export enum Settings {
 	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible',
@@ -177,6 +178,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private backupFileService!: IBackupFileService;
 	private notificationService!: INotificationService;
 	private themeService!: IThemeService;
+	private activityBarService!: IActivityBarService;
+	private statusBarService!: IStatusbarService;
 
 	protected readonly state = {
 		fullscreen: false,
@@ -260,8 +263,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
 		this.titleService = accessor.get(ITitleService);
 		this.notificationService = accessor.get(INotificationService);
-		accessor.get(IStatusbarService); // not used, but called to ensure instantiated
-		accessor.get(IActivityBarService); // not used, but called to ensure instantiated
+		this.activityBarService = accessor.get(IActivityBarService);
+		this.statusBarService = accessor.get(IStatusbarService);
 
 		// Listeners
 		this.registerLayoutListeners();
@@ -396,6 +399,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const newMenubarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
 		this.setMenubarVisibility(newMenubarVisibility, !!skipLayout);
 
+		// Centered Layout
+		this.centerEditorLayout(this.state.editor.centered, skipLayout);
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -846,8 +851,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					activeViewlet.focus();
 				}
 				break;
+			case Parts.ACTIVITYBAR_PART:
+				this.activityBarService.focusActivityBar();
+				break;
+			case Parts.STATUSBAR_PART:
+				this.statusBarService.focus();
 			default:
-				// Status Bar, Activity Bar and Title Bar simply pass focus to container
+				// Title Bar simply pass focus to container
 				const container = this.getContainer(part);
 				if (container) {
 					container.focus();
@@ -1201,9 +1211,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let smartActive = active;
 		const activeEditor = this.editorService.activeEditor;
-		if (this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize')
-			&& (this.editorGroupService.groups.length > 1 || (activeEditor && activeEditor instanceof SideBySideEditorInput))) {
-			smartActive = false; // Respect the auto resize setting - do not go into centered layout if there is more than 1 group.
+
+		const isSideBySideLayout = activeEditor
+			&& activeEditor instanceof SideBySideEditorInput
+			// DiffEditorInput inherits from SideBySideEditorInput but can still be functionally an inline editor.
+			&& (!(activeEditor instanceof DiffEditorInput) || this.configurationService.getValue('diffEditor.renderSideBySide'));
+
+		const isCenteredLayoutAutoResizing = this.configurationService.getValue('workbench.editor.centeredLayoutAutoResize');
+		if (
+			isCenteredLayoutAutoResizing
+			&& (this.editorGroupService.groups.length > 1 || isSideBySideLayout)
+		) {
+			smartActive = false;
 		}
 
 		// Enter Centered Editor Layout

@@ -61,6 +61,7 @@ export class BreakpointsView extends ViewPane {
 
 	private list!: WorkbenchList<BreakpointItem>;
 	private needsRefresh = false;
+	private ignoreLayout = false;
 
 	constructor(
 		options: IViewletViewOptions,
@@ -79,7 +80,6 @@ export class BreakpointsView extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
-		this.updateSize();
 		this._register(this.debugService.getModel().onDidChangeBreakpoints(() => this.onBreakpointsChange()));
 	}
 
@@ -164,9 +164,19 @@ export class BreakpointsView extends ViewPane {
 	}
 
 	protected layoutBody(height: number, width: number): void {
+		if (this.ignoreLayout) {
+			return;
+		}
+
 		super.layoutBody(height, width);
 		if (this.list) {
 			this.list.layout(height, width);
+		}
+		try {
+			this.ignoreLayout = true;
+			this.updateSize();
+		} finally {
+			this.ignoreLayout = false;
 		}
 	}
 
@@ -350,7 +360,7 @@ class BreakpointsRenderer implements IListRenderer<IBreakpoint, IBreakpointTempl
 
 		data.filePath = dom.append(data.breakpoint, $('span.file-path'));
 		const lineNumberContainer = dom.append(data.breakpoint, $('.line-number-container'));
-		data.lineNumber = dom.append(lineNumberContainer, $('span.line-number'));
+		data.lineNumber = dom.append(lineNumberContainer, $('span.line-number.monaco-count-badge'));
 
 		return data;
 	}

@@ -116,41 +116,43 @@ export class SearchService extends Disposable implements ISearchService {
 		schemesInQuery.forEach(scheme => providerActivations.push(this.extensionService.activateByEvent(`onSearch:${scheme}`)));
 		providerActivations.push(this.extensionService.activateByEvent('onSearch:file'));
 
-		const providerPromise = Promise.all(providerActivations)
-			.then(() => this.extensionService.whenInstalledExtensionsRegistered())
-			.then(() => {
-				// Cancel faster if search was canceled while waiting for extensions
+		const providerPromise = (async () => {
+			await Promise.all(providerActivations);
+			this.extensionService.whenInstalledExtensionsRegistered();
+
+			// Cancel faster if search was canceled while waiting for extensions
+			if (token && token.isCancellationRequested) {
+				return Promise.reject(canceled());
+			}
+
+			const progressCallback = (item: ISearchProgressItem) => {
 				if (token && token.isCancellationRequested) {
-					return Promise.reject(canceled());
+					return;
 				}
 
-				const progressCallback = (item: ISearchProgressItem) => {
-					if (token && token.isCancellationRequested) {
-						return;
-					}
-
-					if (onProgress) {
-						onProgress(item);
-					}
-				};
-
-				return this.searchWithProviders(query, progressCallback, token);
-			})
-			.then(completes => {
-				completes = arrays.coalesce(completes);
-				if (!completes.length) {
-					return {
-						limitHit: false,
-						results: []
-					};
+				if (onProgress) {
+					onProgress(item);
 				}
+			};
 
-				return <ISearchComplete>{
-					limitHit: completes[0] && completes[0].limitHit,
-					stats: completes[0].stats,
-					results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
+			const exists = await Promise.all(query.folderQueries.map(query => this.fileService.exists(query.folder)));
+			query.folderQueries = query.folderQueries.filter((_, i) => exists[i]);
+
+			let completes = await this.searchWithProviders(query, progressCallback, token);
+			completes = arrays.coalesce(completes);
+			if (!completes.length) {
+				return {
+					limitHit: false,
+					results: []
 				};
-			});
+			}
+
+			return <ISearchComplete>{
+				limitHit: completes[0] && completes[0].limitHit,
+				stats: completes[0].stats,
+				results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
+			};
+		})();
 
 		return new Promise((resolve, reject) => {
 			if (token) {

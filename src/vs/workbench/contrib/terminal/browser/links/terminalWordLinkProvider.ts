@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal, ILinkProvider, IViewportRange, IBufferCellPosition, ILink } from 'xterm';
+import { Terminal, IViewportRange } from 'xterm';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLink } from 'vs/workbench/contrib/terminal/browser/links/terminalLink';
@@ -15,8 +15,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { TerminalBaseLinkProvider } from 'vs/workbench/contrib/terminal/browser/links/terminalBaseLinkProvider';
 
-export class TerminalWordLinkProvider implements ILinkProvider {
+export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 	private readonly _fileQueryBuilder = this._instantiationService.createInstance(QueryBuilder);
 
 	constructor(
@@ -30,54 +31,49 @@ export class TerminalWordLinkProvider implements ILinkProvider {
 		@ISearchService private readonly _searchService: ISearchService,
 		@IEditorService private readonly _editorService: IEditorService
 	) {
+		super();
 	}
 
-	public provideLink(position: IBufferCellPosition, callback: (link: ILink | undefined) => void): void {
-		const start: IBufferCellPosition = { x: position.x, y: position.y };
-		const end: IBufferCellPosition = { x: position.x, y: position.y };
-
+	protected _provideLinks(y: number): TerminalLink[] {
 		// TODO: Support wrapping
-		// Expand to the left until a word separator is hit
-		const line = this._xterm.buffer.active.getLine(position.y - 1)!;
-		let text = '';
-		start.x++; // The hovered cell is considered first
-		for (let x = position.x; x > 0; x--) {
-			const cell = line.getCell(x - 1);
-			if (!cell) {
-				break;
-			}
-			const char = cell.getChars();
-			const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-			if (cell.getWidth() !== 0 && config.wordSeparators.indexOf(char) >= 0) {
-				break;
-			}
-			start.x = x;
-			text = char + text;
-		}
-
-		// No links were found (the hovered cell is whitespace)
-		if (text.length === 0) {
-			callback(undefined);
-			return;
-		}
-
-		// Expand to the right until a word separator is hit
-		for (let x = position.x + 1; x <= line.length; x++) {
-			const cell = line.getCell(x - 1);
-			if (!cell) {
-				break;
-			}
-			const char = cell.getChars();
-			const config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
-			if (cell.getWidth() !== 0 && config.wordSeparators.indexOf(char) >= 0) {
-				break;
-			}
-			end.x = x;
-			text += char;
-		}
-
+		// Dispose of all old links if new links are provides, links are only cached for the current line
+		const result: TerminalLink[] = [];
+		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
 		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link));
-		callback(new TerminalLink({ start, end }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
+
+		const line = this._xterm.buffer.active.getLine(y - 1)!;
+		let text = '';
+		let startX = -1;
+		const cellData = line.getCell(0)!;
+		for (let x = 0; x < line.length; x++) {
+			line.getCell(x, cellData);
+			const chars = cellData.getChars();
+			const width = cellData.getWidth();
+
+			// Add a link if this is a separator
+			if (width !== 0 && wordSeparators.indexOf(chars) >= 0) {
+				if (startX !== -1) {
+					result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
+					text = '';
+					startX = -1;
+				}
+				continue;
+			}
+
+			// Mark the start of a link if it hasn't started yet
+			if (startX === -1) {
+				startX = x;
+			}
+
+			text += chars;
+		}
+
+		// Add the final link if there is one
+		if (startX !== -1) {
+			result.push(new TerminalLink({ start: { x: startX + 1, y }, end: { x: line.length, y } }, text, this._xterm.buffer.active.viewportY, activateCallback, this._tooltipCallback, false, localize('searchWorkspace', 'Search workspace'), this._configurationService));
+		}
+
+		return result;
 	}
 
 	private async _activate(link: string) {

@@ -317,6 +317,10 @@ export class AzureActiveDirectoryService {
 	}
 
 	private getCallbackEnvironment(callbackUri: vscode.Uri): string {
+		if (callbackUri.authority.endsWith('.workspaces.github.com')) {
+			return `${callbackUri.authority},`;
+		}
+
 		switch (callbackUri.authority) {
 			case 'online.visualstudio.com':
 				return 'vso,';
@@ -330,7 +334,7 @@ export class AzureActiveDirectoryService {
 	}
 
 	private async loginWithoutLocalServer(scope: string): Promise<IToken> {
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.vscode-account`));
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
 		const nonce = crypto.randomBytes(16).toString('base64');
 		const port = (callbackUri.authority.match(/:([0-9]*)$/) || [])[1] || (callbackUri.scheme === 'https' ? 443 : 80);
 		const callbackEnvironment = this.getCallbackEnvironment(callbackUri);

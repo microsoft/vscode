@@ -26,6 +26,11 @@ export interface IActivityService {
 	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
 
 	/**
+	 * Show accounts activity
+	 */
+	showAccountsActivity(activity: IActivity): IDisposable;
+
+	/**
 	 * Show global activity
 	 */
 	showGlobalActivity(activity: IActivity): IDisposable;

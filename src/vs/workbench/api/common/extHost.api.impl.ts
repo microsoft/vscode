@@ -196,6 +196,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get providerIds(): string[] {
 				return extHostAuthentication.providerIds;
 			},
+			hasSessions(providerId: string, scopes: string[]): Thenable<boolean> {
+				return extHostAuthentication.hasSessions(providerId, scopes);
+			},
+			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Thenable<vscode.AuthenticationSession | undefined> {
+				return extHostAuthentication.getSession(extension, providerId, scopes, options);
+			},
 			getSessions(providerId: string, scopes: string[]): Thenable<readonly vscode.AuthenticationSession[]> {
 				return extHostAuthentication.getSessions(extension, providerId, scopes);
 			},
@@ -262,7 +268,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return initData.environment.appLanguage; },
 			get appName() { return initData.environment.appName; },
-			get appRoot() { return initData.environment.appRoot!.fsPath; },
+			get appRoot() { return initData.environment.appRoot?.fsPath ?? '<UNKNOWN_APP_ROOT>'; },
 			get uriScheme() { return initData.environment.appUriScheme; },
 			get logLevel() {
 				checkProposedApiEnabled(extension);
@@ -910,13 +916,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidCloseNotebookDocument;
 			},
-			registerNotebookProvider: (viewType: string, provider: vscode.NotebookProvider) => {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookProvider(extension, viewType, provider);
-			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider);
+			},
+			registerNotebookKernel: (id: string, selector: vscode.GlobPattern[], kernel: vscode.NotebookKernel) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookKernel(extension, id, selector, kernel);
 			},
 			registerNotebookOutputRenderer: (type: string, outputFilter: vscode.NotebookOutputSelector, renderer: vscode.NotebookOutputRenderer) => {
 				checkProposedApiEnabled(extension);
@@ -993,6 +999,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			EvaluatableExpression: extHostTypes.EvaluatableExpression,
 			EventEmitter: Emitter,
 			ExtensionKind: extHostTypes.ExtensionKind,
+			ExtensionMode: extHostTypes.ExtensionMode,
 			CustomExecution: extHostTypes.CustomExecution,
 			CustomExecution2: extHostTypes.CustomExecution,
 			FileChangeType: extHostTypes.FileChangeType,

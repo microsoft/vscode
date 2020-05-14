@@ -8,13 +8,15 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, CellKind, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -36,7 +38,7 @@ export class MainThreadNotebookDocument extends Disposable {
 		}));
 		this._register(this._textModel.onDidSelectionChange(e => {
 			const selectionsChange = e ? { selections: e } : null;
-			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange });
+			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange, metadata: null });
 		}));
 	}
 
@@ -57,6 +59,7 @@ export class MainThreadNotebookDocument extends Disposable {
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, MainThreadNotebookController>();
+	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
 	private readonly _proxy: ExtHostNotebookShape;
 
 	constructor(
@@ -84,7 +87,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 	registerListeners() {
 		this._register(this._notebookService.onDidChangeActiveEditor(e => {
-			this._proxy.$updateActiveEditor(e.viewType, e.uri);
+			this._proxy.$acceptDocumentAndEditorsDelta({
+				newActiveEditor: e.uri
+			});
 		}));
 
 		const updateOrder = () => {
@@ -129,13 +134,16 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return;
 	}
 
-	async $createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void> {
-		let controller = this._notebookProviders.get(viewType);
+	async $registerNotebookKernel(extension: NotebookExtensionDescription, id: string, label: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void> {
+		const kernel = new MainThreadNotebookKernel(this._proxy, id, label, selectors, extension.id, URI.revive(extension.location), preloads.map(preload => URI.revive(preload)));
+		this._notebookKernels.set(id, kernel);
+		this._notebookService.registerNotebookKernel(kernel);
+		return;
+	}
 
-		if (controller) {
-			controller.createNotebookDocument(handle, viewType, resource);
-		}
-
+	async $unregisterNotebookKernel(id: string): Promise<void> {
+		this._notebookKernels.delete(id);
+		this._notebookService.unregisterNotebookKernel(id);
 		return;
 	}
 
@@ -163,11 +171,6 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		}
 	}
 
-	async resolveNotebook(viewType: string, uri: URI): Promise<number | undefined> {
-		let handle = await this._proxy.$resolveNotebook(viewType, uri);
-		return handle;
-	}
-
 	async $spliceNotebookCellOutputs(viewType: string, resource: UriComponents, cellHandle: number, splices: NotebookCellOutputsSplice[], renderers: number[]): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 		controller?.spliceNotebookCellOutputs(resource, cellHandle, splices, renderers);
@@ -181,7 +184,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
 		if (activeEditorPane?.isNotebookEditor) {
-			const notebookEditor = (activeEditorPane as INotebookEditor);
+			const notebookEditor = (activeEditorPane.getControl() as INotebookEditor);
 
 			if (notebookEditor.viewModel?.handle === handle) {
 				notebookEditor.postMessage(value);
@@ -195,6 +198,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 export class MainThreadNotebookController implements IMainNotebookController {
 	private _mapping: Map<string, MainThreadNotebookDocument> = new Map();
+	static documentHandle: number = 0;
 
 	constructor(
 		private readonly _proxy: ExtHostNotebookShape,
@@ -203,26 +207,52 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	) {
 	}
 
-	async resolveNotebook(viewType: string, uri: URI): Promise<NotebookTextModel | undefined> {
-		// TODO: resolve notebook should wait for all notebook document destory operations to finish.
+	async createNotebook(viewType: string, uri: URI, forBackup: boolean, forceReload: boolean): Promise<NotebookTextModel | undefined> {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook) {
+			if (forceReload) {
+				const data = await this._proxy.$resolveNotebookData(viewType, uri);
+				if (!data) {
+					return;
+				}
+
+				mainthreadNotebook.textModel.languages = data.languages;
+				mainthreadNotebook.textModel.metadata = data.metadata;
+				mainthreadNotebook.textModel.applyEdit(mainthreadNotebook.textModel.versionId, [
+					{ editType: CellEditType.Delete, count: mainthreadNotebook.textModel.cells.length, index: 0 },
+					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
+				]);
+			}
 			return mainthreadNotebook.textModel;
 		}
 
-		let notebookHandle = await this._mainThreadNotebook.resolveNotebook(viewType, uri);
-		if (notebookHandle !== undefined) {
-			mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
-			if (mainthreadNotebook && mainthreadNotebook.textModel.cells.length === 0) {
-				// it's empty, we should create an empty template one
-				const mainCell = mainthreadNotebook.textModel.createCellTextModel([''], mainthreadNotebook.textModel.languages.length ? mainthreadNotebook.textModel.languages[0] : '', CellKind.Code, [], undefined);
-				mainthreadNotebook.textModel.insertTemplateCell(mainCell);
-			}
-			return mainthreadNotebook?.textModel;
+		let document = new MainThreadNotebookDocument(this._proxy, MainThreadNotebookController.documentHandle++, viewType, uri);
+		await this.createNotebookDocument(document);
+
+		if (forBackup) {
+			return document.textModel;
 		}
 
-		return undefined;
+		// open notebook document
+		const data = await this._proxy.$resolveNotebookData(viewType, uri);
+		if (!data) {
+			return;
+		}
+
+		document.textModel.languages = data.languages;
+		document.textModel.metadata = data.metadata;
+
+		if (data.cells.length) {
+			document.textModel.initialize(data!.cells);
+		} else {
+			const mainCell = document.textModel.createCellTextModel([''], document.textModel.languages.length ? document.textModel.languages[0] : '', CellKind.Code, [], undefined);
+			document.textModel.insertTemplateCell(mainCell);
+		}
+
+		this._proxy.$acceptEditorPropertiesChanged(uri, { selections: null, metadata: document.textModel.metadata });
+
+		return document.textModel;
 	}
 
 	async tryApplyEdits(resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean> {
@@ -243,18 +273,39 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	}
 
 	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
-		this._mainThreadNotebook.executeNotebook(viewType, uri, token);
+		return this._mainThreadNotebook.executeNotebook(viewType, uri, token);
 	}
 
 	onDidReceiveMessage(uri: UriComponents, message: any): void {
 		this._proxy.$onDidReceiveMessage(uri, message);
 	}
 
-	// Methods for ExtHost
-	async createNotebookDocument(handle: number, viewType: string, resource: UriComponents): Promise<void> {
-		let document = new MainThreadNotebookDocument(this._proxy, handle, viewType, URI.revive(resource));
-		this._mapping.set(URI.revive(resource).toString(), document);
+	async createNotebookDocument(document: MainThreadNotebookDocument): Promise<void> {
+		this._mapping.set(document.uri.toString(), document);
+
+		await this._proxy.$acceptDocumentAndEditorsDelta({
+			addedDocuments: [{
+				viewType: document.viewType,
+				handle: document.handle,
+				uri: document.uri,
+				metadata: document.textModel.metadata
+			}]
+		});
 	}
+
+	async removeNotebookDocument(notebook: INotebookTextModel): Promise<void> {
+		let document = this._mapping.get(URI.from(notebook.uri).toString());
+
+		if (!document) {
+			return;
+		}
+
+		await this._proxy.$acceptDocumentAndEditorsDelta({ removedDocuments: [notebook.uri] });
+		document.dispose();
+		this._mapping.delete(URI.from(notebook.uri).toString());
+	}
+
+	// Methods for ExtHost
 
 	updateLanguages(resource: UriComponents, languages: string[]) {
 		let document = this._mapping.get(URI.from(resource).toString());
@@ -280,21 +331,29 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		return this._proxy.$executeNotebook(this._viewType, uri, handle, token);
 	}
 
-	async destoryNotebookDocument(notebook: INotebookTextModel): Promise<void> {
-		let document = this._mapping.get(URI.from(notebook.uri).toString());
-
-		if (!document) {
-			return;
-		}
-
-		let removeFromExtHost = await this._proxy.$destoryNotebookDocument(this._viewType, notebook.uri);
-		if (removeFromExtHost) {
-			document.dispose();
-			this._mapping.delete(URI.from(notebook.uri).toString());
-		}
-	}
-
 	async save(uri: URI, token: CancellationToken): Promise<boolean> {
 		return this._proxy.$saveNotebook(this._viewType, uri, token);
+	}
+
+	async saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean> {
+		return this._proxy.$saveNotebookAs(this._viewType, uri, target, token);
+
+	}
+}
+
+export class MainThreadNotebookKernel implements INotebookKernelInfo {
+	constructor(
+		private readonly _proxy: ExtHostNotebookShape,
+		readonly id: string,
+		readonly label: string,
+		readonly selectors: (string | IRelativePattern)[],
+		readonly extension: ExtensionIdentifier,
+		readonly extensionLocation: URI,
+		readonly preloads: URI[]
+	) {
+	}
+
+	async executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void> {
+		return this._proxy.$executeNotebook2(this.id, viewType, uri, handle, token);
 	}
 }

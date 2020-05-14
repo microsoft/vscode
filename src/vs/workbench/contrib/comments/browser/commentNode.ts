@@ -33,6 +33,7 @@ import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
@@ -100,7 +101,7 @@ export class CommentNode extends Disposable {
 
 		this.createHeader(this._commentDetailsContainer);
 
-		this._body = dom.append(this._commentDetailsContainer, dom.$('div.comment-body'));
+		this._body = dom.append(this._commentDetailsContainer, dom.$(`div.comment-body.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
@@ -120,7 +121,7 @@ export class CommentNode extends Disposable {
 	}
 
 	private createHeader(commentDetailsContainer: HTMLElement): void {
-		const header = dom.append(commentDetailsContainer, dom.$('div.comment-title'));
+		const header = dom.append(commentDetailsContainer, dom.$(`div.comment-title.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
 

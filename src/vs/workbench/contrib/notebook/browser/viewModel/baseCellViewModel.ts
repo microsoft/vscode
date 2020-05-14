@@ -123,7 +123,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._dragging = v;
 	}
 
-	constructor(readonly viewType: string, readonly notebookHandle: number, readonly model: NotebookCellTextModel, public id: string) {
+	constructor(readonly viewType: string, readonly model: NotebookCellTextModel, public id: string) {
 		super();
 
 		this._register(model.onDidChangeLanguage(() => {
@@ -204,25 +204,6 @@ export abstract class BaseCellViewModel extends Disposable {
 	getText(): string {
 		return this.model.getValue();
 	}
-
-	getLinesContent(): string[] {
-		if (this._textModel) {
-			return this._textModel.getLinesContent();
-		}
-
-		return this.model.textBuffer.getLinesContent();
-	}
-
-	// setLinesContent(value: string[]) {
-	// 	if (this._textModel) {
-	// 		// TODO @rebornix we should avoid creating a new string here
-	// 		return this._textModel.setValue(value.join('\n'));
-	// 	} else {
-	// 		const range = this.model.getFullModelRange();
-	// 		this.model.textBuffer.
-	// 		this.model.source = value;
-	// 	}
-	// }
 
 	private saveViewState(): void {
 		if (!this._textEditor) {
@@ -379,11 +360,11 @@ export abstract class BaseCellViewModel extends Disposable {
 			: this.metadata?.runnable;
 
 		return {
-			editable,
-			runnable,
-			executionOrder: this.metadata?.executionOrder,
-			runState: this.metadata?.runState,
-			statusMessage: this.metadata?.statusMessage
+			...(this.metadata || {}),
+			...{
+				editable,
+				runnable
+			}
 		};
 	}
 

@@ -154,6 +154,8 @@ if (!opts.web) {
 	} else {
 		quality = Quality.Stable;
 	}
+
+	console.log(`Running desktop smoke tests against ${electronPath}`);
 }
 
 //
@@ -162,14 +164,20 @@ if (!opts.web) {
 else {
 	const testCodeServerPath = opts.build || process.env.VSCODE_REMOTE_SERVER_PATH;
 
-	if (typeof testCodeServerPath === 'string' && !fs.existsSync(testCodeServerPath)) {
-		fail(`Can't find Code server at ${testCodeServerPath}.`);
+	if (typeof testCodeServerPath === 'string') {
+		if (!fs.existsSync(testCodeServerPath)) {
+			fail(`Can't find Code server at ${testCodeServerPath}.`);
+		} else {
+			console.log(`Running web smoke tests against ${testCodeServerPath}`);
+		}
 	}
 
 	if (!testCodeServerPath) {
 		process.env.VSCODE_REPOSITORY = repoPath;
 		process.env.VSCODE_DEV = '1';
 		process.env.VSCODE_CLI = '1';
+
+		console.log(`Running web smoke out of sources`);
 	}
 
 	if (process.env.VSCODE_DEV === '1') {

@@ -2742,3 +2742,27 @@ export class TimelineItem implements vscode.TimelineItem {
 }
 
 //#endregion Timeline
+
+//#region ExtensionContext
+
+export enum ExtensionMode {
+	/**
+	 * The extension is installed normally (for example, from the marketplace
+	 * or VSIX) in VS Code.
+	 */
+	Release = 1,
+
+	/**
+	 * The extension is running from an `--extensionDevelopmentPath` provided
+	 * when launching VS Code.
+	 */
+	Development = 2,
+
+	/**
+	 * The extension is running from an `--extensionDevelopmentPath` and
+	 * the extension host is running unit tests.
+	 */
+	Test = 3,
+}
+
+//#endregion ExtensionContext

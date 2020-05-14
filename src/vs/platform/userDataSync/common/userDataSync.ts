@@ -274,7 +274,8 @@ export interface IUserDataSynchroniser {
 
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	sync(ref?: string): Promise<void>;
+	sync(manifest: IUserDataManifest | null): Promise<void>;
+	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
 	getSyncPreview(): Promise<ISyncPreviewResult>
@@ -330,6 +331,7 @@ export interface IUserDataSyncService {
 	pull(): Promise<void>;
 	sync(): Promise<void>;
 	stop(): Promise<void>;
+	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 
@@ -380,3 +382,19 @@ export function getSyncResourceFromLocalPreview(localPreview: URI, environmentSe
 	localPreview = localPreview.with({ scheme: environmentService.userDataSyncHome.scheme });
 	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
 }
+
+export function getSyncAreaLabel(source: SyncResource): string {
+	switch (source) {
+		case SyncResource.Settings: return localize('settings', "Settings");
+		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
+		case SyncResource.Snippets: return localize('snippets', "User Snippets");
+		case SyncResource.Extensions: return localize('extensions', "Extensions");
+		case SyncResource.GlobalState: return localize('ui state label', "UI State");
+	}
+}
+
+// Commands
+export const TURN_ON_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOn';
+export const TURN_OFF_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOff';
+export const MANAGE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
+export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';

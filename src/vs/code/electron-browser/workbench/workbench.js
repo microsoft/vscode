@@ -49,6 +49,7 @@ bootstrapWindow.load([
  * @param {{
  *	partsSplashPath?: string,
  *	highContrast?: boolean,
+ *	defaultThemeType?: string,
  *	extensionDevelopmentPath?: string[],
  *	folderUri?: object,
  *	workspace?: object
@@ -77,13 +78,27 @@ function showPartsSplash(configuration) {
 	}
 
 	// minimal color configuration (works with or without persisted data)
-	const baseTheme = data ? data.baseTheme : configuration.highContrast ? 'hc-black' : 'vs-dark';
-	const shellBackground = data ? data.colorInfo.editorBackground : configuration.highContrast ? '#000000' : '#1E1E1E';
-	const shellForeground = data ? data.colorInfo.foreground : configuration.highContrast ? '#FFFFFF' : '#CCCCCC';
+	let baseTheme, shellBackground, shellForeground;
+	if (data) {
+		baseTheme = data.baseTheme;
+		shellBackground = data.colorInfo.editorBackground;
+		shellForeground = data.colorInfo.foreground;
+	} else if (configuration.highContrast || configuration.defaultThemeType === 'hc') {
+		baseTheme = 'hc-black';
+		shellBackground = '#000000';
+		shellForeground = '#FFFFFF';
+	} else if (configuration.defaultThemeType === 'vs') {
+		baseTheme = 'vs';
+		shellBackground = '#FFFFFF';
+		shellForeground = '#000000';
+	} else {
+		baseTheme = 'vs-dark';
+		shellBackground = '#1E1E1E';
+		shellForeground = '#CCCCCC';
+	}
 	const style = document.createElement('style');
 	style.className = 'initialShellColors';
 	document.head.appendChild(style);
-	document.body.className = baseTheme;
 	style.innerHTML = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 	if (data && data.layoutInfo) {
@@ -91,6 +106,7 @@ function showPartsSplash(configuration) {
 		const { id, layoutInfo, colorInfo } = data;
 		const splash = document.createElement('div');
 		splash.id = id;
+		splash.className = baseTheme;
 
 		if (layoutInfo.windowBorder) {
 			splash.style.position = 'relative';

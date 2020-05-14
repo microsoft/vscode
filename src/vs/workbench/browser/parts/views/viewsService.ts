@@ -20,7 +20,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { PaneCompositePanel, PanelRegistry, PanelDescriptor, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { PanelRegistry, PanelDescriptor, Extensions as PanelExtensions, Panel } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -127,13 +127,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.deregisterViewletOrPanel(container, location);
 		}
 		for (const { container, location } of added) {
-			this.registerViewletOrPanel(container, location);
+			this.onDidRegisterViewContainer(container, location);
 		}
-	}
-
-	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
-		this.deregisterViewletOrPanel(viewContainer, from);
-		this.registerViewletOrPanel(viewContainer, to);
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
@@ -144,6 +139,11 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.onViewDescriptorsAdded(added, viewContainer);
 			this.onViewDescriptorsRemoved(removed);
 		}));
+	}
+
+	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
+		this.deregisterViewletOrPanel(viewContainer, from);
+		this.registerViewletOrPanel(viewContainer, to);
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
@@ -414,7 +414,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private registerPanel(viewContainer: ViewContainer): void {
 		const that = this;
-		class PaneContainerPanel extends PaneCompositePanel {
+		class PaneContainerPanel extends Panel {
 			constructor(
 				@ITelemetryService telemetryService: ITelemetryService,
 				@IStorageService storageService: IStorageService,
