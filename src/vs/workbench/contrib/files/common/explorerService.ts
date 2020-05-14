@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IFilesConfiguration, SortOrder, LexicographicOptions, IExplorerView } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IFilesConfiguration, ISortOrderConfiguration, SortOrder, LexicographicOptions, IExplorerView } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
@@ -81,12 +81,11 @@ export class ExplorerService implements IExplorerService {
 		return this.model.roots;
 	}
 
-	get sortOrder(): SortOrder {
-		return this._sortOrder;
-	}
-
-	get sortOrderLexicographicOptions(): LexicographicOptions {
-		return this._lexicographicOptions;
+	get sortOrderConfiguration(): ISortOrderConfiguration {
+		return {
+			sortOrder: this._sortOrder,
+			lexicographicOptions: this._lexicographicOptions,
+		};
 	}
 
 	registerView(contextProvider: IExplorerView): void {
@@ -168,7 +167,10 @@ export class ExplorerService implements IExplorerService {
 		}
 
 		// Stat needs to be resolved first and then revealed
-		const options: IResolveFileOptions = { resolveTo: [resource], resolveMetadata: this.sortOrder === SortOrder.Modified };
+		const options: IResolveFileOptions = {
+			resolveTo: [resource],
+			resolveMetadata: this._sortOrder === SortOrder.Modified
+		};
 		const workspaceFolder = this.contextService.getWorkspaceFolder(resource);
 		if (workspaceFolder === null) {
 			return Promise.resolve(undefined);
@@ -223,7 +225,7 @@ export class ExplorerService implements IExplorerService {
 				// Add the new file to its parent (Model)
 				parents.forEach(async p => {
 					// We have to check if the parent is resolved #29177
-					const resolveMetadata = this.sortOrder === `modified`;
+					const resolveMetadata = this._sortOrder === `modified`;
 					if (!p.isDirectoryResolved) {
 						const stat = await this.fileService.resolve(p.resource, { resolveMetadata });
 						if (stat) {

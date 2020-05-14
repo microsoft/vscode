@@ -41,8 +41,7 @@ export const DEFAULT_EDITOR_ID = 'default';
 export interface IExplorerService {
 	_serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
-	readonly sortOrder: SortOrder;
-	readonly sortOrderLexicographicOptions: LexicographicOptions;
+	readonly sortOrderConfiguration: ISortOrderConfiguration;
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
@@ -154,6 +153,11 @@ export const enum LexicographicOptions {
 	Upper = 'upper',
 	Lower = 'lower',
 	Unicode = 'unicode',
+}
+
+export interface ISortOrderConfiguration {
+	sortOrder: SortOrder;
+	lexicographicOptions: LexicographicOptions;
 }
 
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {

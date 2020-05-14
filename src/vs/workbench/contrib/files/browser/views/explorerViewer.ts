@@ -91,7 +91,7 @@ export class ExplorerDataSource implements IAsyncDataSource<ExplorerItem | Explo
 			return Promise.resolve(element);
 		}
 
-		const sortOrder = this.explorerService.sortOrder;
+		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
 		const promise = element.fetchChildren(sortOrder).then(undefined, e => {
 
 			if (element instanceof ExplorerItem && element.isRoot) {
@@ -640,8 +640,8 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 			return 1;
 		}
 
-		const sortOrder = this.explorerService.sortOrder;
-		const lexicographicOptions = this.explorerService.sortOrderLexicographicOptions;
+		const sortOrder = this.explorerService.sortOrderConfiguration.sortOrder;
+		const lexicographicOptions = this.explorerService.sortOrderConfiguration.lexicographicOptions;
 
 		let compareFileNames;
 		let compareFileExtensions;
