@@ -325,7 +325,7 @@ export interface NotebookDataDto {
 
 export namespace CellUri {
 
-	export const scheme = 'vscode-notebook';
+	export const scheme = 'vscode-notebook-cell';
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
