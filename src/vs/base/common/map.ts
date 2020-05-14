@@ -486,11 +486,10 @@ export class ResourceMap<T> implements Map<URI, T> {
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
 	protected readonly map: Map<string, T>;
-	protected readonly ignoreCase?: boolean;
+	protected readonly ignoreCase?: boolean = false; // in the future this should be an uri-comparator
 
-	constructor() {
-		this.map = new Map<string, T>();
-		this.ignoreCase = false; // in the future this should be an uri-comparator
+	constructor(other?: ResourceMap<T>) {
+		this.map = other ? new Map(other.map) : new Map();
 	}
 
 	set(resource: URI, value: T): this {
