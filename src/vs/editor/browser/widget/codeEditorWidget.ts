@@ -985,7 +985,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (source === 'keyboard') {
 				this._onWillType.fire(payload.text);
 			}
-			this._modelData.viewModel.cursor.trigger(source, handlerId, payload);
+			this._modelData.viewModel.cursor.type(payload.text, source);
 			if (source === 'keyboard') {
 				this._onDidType.fire(payload.text);
 			}
@@ -999,7 +999,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				return;
 			}
 			const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
-			this._modelData.viewModel.cursor.trigger(source, handlerId, payload);
+			this._modelData.viewModel.cursor.paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText, source);
 			const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
 			if (source === 'keyboard') {
 				this._onDidPaste.fire(
@@ -1026,7 +1026,20 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 
-		this._modelData.viewModel.cursor.trigger(source, handlerId, payload);
+		switch (handlerId) {
+			case editorCommon.Handler.CompositionStart:
+				this._modelData.viewModel.cursor.startComposition();
+				break;
+			case editorCommon.Handler.CompositionEnd:
+				this._modelData.viewModel.cursor.endComposition(source);
+				break;
+			case editorCommon.Handler.ReplacePreviousChar:
+				this._modelData.viewModel.cursor.replacePreviousChar(<string>payload.text, <number>payload.replaceCharCnt, source);
+				break;
+			case editorCommon.Handler.Cut:
+				this._modelData.viewModel.cursor.cut(source);
+				break;
+		}
 
 		if (handlerId === editorCommon.Handler.CompositionStart) {
 			this._onDidCompositionStart.fire();
@@ -1102,14 +1115,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.cursor.trigger(source, editorCommon.Handler.ExecuteCommand, command);
+		this._modelData.viewModel.cursor.executeCommand(command, source);
 	}
 
 	public executeCommands(source: string | null | undefined, commands: editorCommon.ICommand[]): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.cursor.trigger(source, editorCommon.Handler.ExecuteCommands, commands);
+		this._modelData.viewModel.cursor.executeCommands(commands, source);
 	}
 
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {

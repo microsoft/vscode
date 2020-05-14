@@ -689,7 +689,6 @@ export const EditorType = {
  * @internal
  */
 export const enum Handler {
-	ExecuteCommand = 'executeCommand',
 	ExecuteCommands = 'executeCommands',
 	Type = 'type',
 	ReplacePreviousChar = 'replacePreviousChar',
