@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IExplorerService, IFilesConfiguration, SortOrder, IExplorerView } from 'vs/workbench/contrib/files/common/files';
+import { IExplorerService, IFilesConfiguration, SortOrder, LexicographicOptions, IExplorerView } from 'vs/workbench/contrib/files/common/files';
 import { ExplorerItem, ExplorerModel } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationEvent, FileOperation, IFileService, FileChangesEvent, FILES_EXCLUDE_CONFIG, FileChangeType, IResolveFileOptions } from 'vs/platform/files/common/files';
@@ -35,6 +35,7 @@ export class ExplorerService implements IExplorerService {
 	private readonly disposables = new DisposableStore();
 	private editable: { stat: ExplorerItem, data: IEditableData } | undefined;
 	private _sortOrder: SortOrder;
+	private _lexicographicOptions: LexicographicOptions;
 	private cutItems: ExplorerItem[] | undefined;
 	private view: IExplorerView | undefined;
 	private model: ExplorerModel;
@@ -48,6 +49,7 @@ export class ExplorerService implements IExplorerService {
 		@IEditorService private editorService: IEditorService,
 	) {
 		this._sortOrder = this.configurationService.getValue('explorer.sortOrder');
+		this._lexicographicOptions = this.configurationService.getValue('explorer.sortOrderLexicographicOptions');
 
 		this.model = new ExplorerModel(this.contextService, this.fileService);
 		this.disposables.add(this.model);
@@ -81,6 +83,10 @@ export class ExplorerService implements IExplorerService {
 
 	get sortOrder(): SortOrder {
 		return this._sortOrder;
+	}
+
+	get sortOrderLexicographicOptions(): LexicographicOptions {
+		return this._lexicographicOptions;
 	}
 
 	registerView(contextProvider: IExplorerView): void {
@@ -379,13 +385,22 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {
-		const configSortOrder = configuration?.explorer?.sortOrder || 'default';
+		let shouldRefresh = false;
+
+		const configSortOrder = configuration?.explorer?.sortOrder || SortOrder.Default;
 		if (this._sortOrder !== configSortOrder) {
-			const shouldRefresh = this._sortOrder !== undefined;
+			shouldRefresh = this._sortOrder !== undefined;
 			this._sortOrder = configSortOrder;
-			if (shouldRefresh) {
-				await this.refresh();
-			}
+		}
+
+		const configLexicographicOptions = configuration?.explorer?.sortOrderLexicographicOptions || LexicographicOptions.Default;
+		if (this._lexicographicOptions !== configLexicographicOptions) {
+			shouldRefresh = shouldRefresh || this._lexicographicOptions !== undefined;
+			this._lexicographicOptions = configLexicographicOptions;
+		}
+
+		if (shouldRefresh) {
+			await this.refresh();
 		}
 	}
 

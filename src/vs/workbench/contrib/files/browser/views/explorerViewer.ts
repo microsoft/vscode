@@ -29,7 +29,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { compareFileExtensionsMixed, compareFileNamesMixed } from 'vs/base/common/comparers';
+import { compareFileExtensionsDefault, compareFileNamesDefault, compareFileNamesUpper, compareFileExtensionsUpper, compareFileNamesLower, compareFileExtensionsLower, compareFileNamesUnicode, compareFileExtensionsUnicode } from 'vs/base/common/comparers';
 import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
@@ -641,6 +641,29 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		}
 
 		const sortOrder = this.explorerService.sortOrder;
+		const lexicographicOptions = this.explorerService.sortOrderLexicographicOptions;
+
+		let compareFileNames;
+		let compareFileExtensions;
+		switch (lexicographicOptions) {
+			case 'upper':
+				compareFileNames = compareFileNamesUpper;
+				compareFileExtensions = compareFileExtensionsUpper;
+				break;
+			case 'lower':
+				compareFileNames = compareFileNamesLower;
+				compareFileExtensions = compareFileExtensionsLower;
+				break;
+			case 'unicode':
+				compareFileNames = compareFileNamesUnicode;
+				compareFileExtensions = compareFileExtensionsUnicode;
+				break;
+			default:
+				// 'default'
+				compareFileNames = compareFileNamesDefault;
+				compareFileExtensions = compareFileExtensionsDefault;
+
+		}
 
 		// Sort Directories
 		switch (sortOrder) {
@@ -654,7 +677,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 				}
 
 				if (statA.isDirectory && statB.isDirectory) {
-					return compareFileNamesMixed(statA.name, statB.name);
+					return compareFileNames(statA.name, statB.name);
 				}
 
 				break;
@@ -688,17 +711,17 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		// Sort Files
 		switch (sortOrder) {
 			case 'type':
-				return compareFileExtensionsMixed(statA.name, statB.name);
+				return compareFileExtensions(statA.name, statB.name);
 
 			case 'modified':
 				if (statA.mtime !== statB.mtime) {
 					return (statA.mtime && statB.mtime && statA.mtime < statB.mtime) ? 1 : -1;
 				}
 
-				return compareFileNamesMixed(statA.name, statB.name);
+				return compareFileNames(statA.name, statB.name);
 
 			default: /* 'default', 'mixed', 'filesFirst' */
-				return compareFileNamesMixed(statA.name, statB.name);
+				return compareFileNames(statA.name, statB.name);
 		}
 	}
 }

@@ -42,6 +42,7 @@ export interface IExplorerService {
 	_serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
 	readonly sortOrder: SortOrder;
+	readonly sortOrderLexicographicOptions: LexicographicOptions;
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
@@ -125,6 +126,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
+		sortOrderLexicographicOptions: LexicographicOptions;
 		decorations: {
 			colors: boolean;
 			badges: boolean;
@@ -147,11 +149,10 @@ export const enum SortOrder {
 	Modified = 'modified'
 }
 
-export const enum SortOrderOption {
-	Numeric = 'numeric',
+export const enum LexicographicOptions {
+	Default = 'default',
 	Upper = 'upper',
 	Lower = 'lower',
-	Mixed = 'mixed',
 	Unicode = 'unicode',
 }
 

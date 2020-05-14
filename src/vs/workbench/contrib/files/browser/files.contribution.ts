@@ -14,7 +14,7 @@ import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/wor
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputFactory, EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { VIEWLET_ID, SortOrder, SortOrderOption, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
@@ -396,23 +396,22 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.default', 'Files and folders are sorted by their names. Folders are displayed before files.'),
 				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names. Files are interwoven with folders.'),
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
-				nls.localize('sortOrder.type', 'Files and folders are grouped by extension then sorted by their names. Folders are displayed before files.'),
+				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
 				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date, in descending order. Folders are displayed before files.')
 			],
-			'description': nls.localize('sortOrder', "Controls sorting order of files and folders in the explorer.")
+			'description': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer.")
 		},
-		'explorer.sortOrderOption': {
+		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
-			'enum': [SortOrderOption.Numeric, SortOrderOption.Upper, SortOrderOption.Lower, SortOrderOption.Mixed, SortOrderOption.Unicode],
-			'default': SortOrderOption.Numeric,
+			'enum': [LexicographicOptions.Default, LexicographicOptions.Upper, LexicographicOptions.Lower, LexicographicOptions.Unicode],
+			'default': LexicographicOptions.Default,
 			'enumDescriptions': [
-				nls.localize('sortOrderOption.numeric', 'Uppercase and lowercase names are mixed together. Numbers are sorted numerically, not alphabetically.'),
-				nls.localize('sortOrderOption.upper', 'Uppercase names are grouped together before lowercase names. Numbers are sorted alphabetically.'),
-				nls.localize('sortOrderOption.lower', 'Lowercase names are grouped togehter before uppercase names. Numbers are sorted alphabetically.'),
-				nls.localize('sortOrderOption.mixed', 'Uppercase and lowercase names are mixed together. Numbers are sorted alphabetically.'),
-				nls.localize('sortOrderOption.unicode', 'Names are sorted in unicode order.')
+				nls.localize('sortOrderLexicographicOptions.default', 'Uppercase and lowercase names are mixed together.'),
+				nls.localize('sortOrderLexicographicOptions.upper', 'Uppercase names are grouped together before lowercase names.'),
+				nls.localize('sortOrderLexicographicOptions.lower', 'Lowercase names are grouped togehter before uppercase names.'),
+				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in unicode order.')
 			],
-			'description': nls.localize('SortOrderOption', "Controls how file and folder names are sorted in the explorer.")
+			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the explorer.")
 		},
 		'explorer.decorations.colors': {
 			type: 'boolean',

@@ -27,8 +27,15 @@ const intlFileNameCollatorNumeric: IdleValue<{ collator: Intl.Collator }> = new 
 	};
 });
 
+// Selects an option for grouping names by case
+const enum CaseGrouping {
+	Upper,
+	Lower,
+	None,
+}
+
 // A collator with numeric sorting enabled, and sensitivity to accents and diacritics but not case.
-const intlFileNameCollatorNumericCaseInsenstive: IdleValue<{ collator: Intl.Collator }> = new IdleValue(() => {
+const intlFileNameCollatorNumericCaseInsensitive: IdleValue<{ collator: Intl.Collator }> = new IdleValue(() => {
 	const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'accent' });
 	return {
 		collator: collator
@@ -49,32 +56,32 @@ export function compareFileNames(one: string | null, other: string | null, caseS
 	return result;
 }
 
-/** Compares filenames by name then extension, mixing uppercase and lowercase names together. */
-export function compareFileNamesMixed(one: string | null, other: string | null): number {
-	const [oneName, oneExtension] = extractNameAndExtension(one, true);
-	const [otherName, otherExtension] = extractNameAndExtension(other, true);
-	const collatorNumeric = intlFileNameCollatorNumeric.getValue().collator;
-	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsenstive.getValue().collator;
-	let result;
+/** Compares filenames by name, then by extension. Mixes uppercase and lowercase names together. */
+export function compareFileNamesDefault(one: string | null, other: string | null): number {
+	return compareNamesThenExtensions(one, other, CaseGrouping.None);
+}
 
-	// Check for name differences, comparing numbers numerically instead of alphabetically.
-	result = compareAndDisambiguateByLength(collatorNumeric, oneName, otherName);
-	if (result !== 0) {
-		return result;
+/** Compares filenames by name case, then by name, then by extension. Groups uppercase names before lowercase. */
+export function compareFileNamesUpper(one: string | null, other: string | null) {
+	return compareNamesThenExtensions(one, other, CaseGrouping.Upper);
+}
+
+/** Compares filenames by name case, then by name, then by extension. Groups lowercase names before uppercase. */
+export function compareFileNamesLower(one: string | null, other: string | null) {
+	return compareNamesThenExtensions(one, other, CaseGrouping.Lower);
+}
+
+/** Compares filenames by unicode value, not differentiating between names and extensions. */
+export function compareFileNamesUnicode(one: string | null, other: string | null) {
+	one = one || '';
+	other = other || '';
+
+	// Simply compare both strings. No name vs extension awareness.
+	if (one === other) {
+		return 0;
 	}
 
-	// Check for case insensitive extension differences, comparing numbers numerically instead of alphabetically.
-	result = compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension);
-	if (result !== 0) {
-		return result;
-	}
-
-	// Disambiguate the extension case if needed.
-	if (oneExtension !== otherExtension) {
-		return collatorNumeric.compare(oneExtension, otherExtension);
-	}
-
-	return 0;
+	return one < other ? -1 : 1;
 }
 
 const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
@@ -123,29 +130,34 @@ export function compareFileExtensions(one: string | null, other: string | null):
 	return result;
 }
 
-/** Compares filenames by extenson, then by name, mixing uppercase and lowercase names together */
-export function compareFileExtensionsMixed(one: string | null, other: string | null): number {
+/** Compares filenames by extenson, then by name. Mixes uppercase and lowercase names together */
+export function compareFileExtensionsDefault(one: string | null, other: string | null): number {
+	return compareExtensionsThenNames(one, other, CaseGrouping.None);
+}
+
+/** Compares filenames by extension, then by name case, then by name. Groups uppercase names before lowercase. */
+export function compareFileExtensionsUpper(one: string | null, other: string | null): number {
+	return compareExtensionsThenNames(one, other, CaseGrouping.Upper);
+}
+
+/** Compares filenames by extension, then by name case, then by name. Groups lowercase names before uppercase. */
+export function compareFileExtensionsLower(one: string | null, other: string | null): number {
+	return compareExtensionsThenNames(one, other, CaseGrouping.Lower);
+}
+
+/** Compares filenames by extension unicode value, then by name unicode value. */
+export function compareFileExtensionsUnicode(one: string | null, other: string | null) {
 	const [oneName, oneExtension] = extractNameAndExtension(one, true);
 	const [otherName, otherExtension] = extractNameAndExtension(other, true);
-	const collatorNumeric = intlFileNameCollatorNumeric.getValue().collator;
-	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsenstive.getValue().collator;
-	let result;
 
-	// Check for extension differences, ignoring differences in case and comparing numbers numerically.
-	result = compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension);
-	if (result !== 0) {
-		return result;
-	}
-
-	// Compare names.
-	result = compareAndDisambiguateByLength(collatorNumeric, oneName, otherName);
-	if (result !== 0) {
-		return result;
-	}
-
-	// Disambiguate extension case if needed.
+	// Check for extension differences
 	if (oneExtension !== otherExtension) {
-		return collatorNumeric.compare(oneExtension, otherExtension);
+		return oneExtension < otherExtension ? -1 : 1;
+	}
+
+	// Check for name differences.
+	if (oneName !== otherName) {
+		return oneName < otherName ? -1 : 1;
 	}
 
 	return 0;
@@ -179,6 +191,152 @@ function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, ot
 		return one.length < other.length ? -1 : 1;
 	}
 
+	return 0;
+}
+
+function compareNamesThenExtensions(one: string | null, other: string | null, caseGrouping: CaseGrouping) {
+	const [oneName, oneExtension] = extractNameAndExtension(one, true);
+	const [otherName, otherExtension] = extractNameAndExtension(other, true);
+	const collatorNumeric = intlFileNameCollatorNumeric.getValue().collator;
+	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.getValue().collator;
+	let result = 0;
+
+	// Compare names by case if case grouping is selected.
+	switch (caseGrouping) {
+		case CaseGrouping.Upper:
+			result = compareCaseUpperFirst(oneName, otherName);
+			break;
+		case CaseGrouping.Lower:
+			result = compareCaseLowerFirst(oneName, otherName);
+			break;
+		case CaseGrouping.None:
+			break;
+	}
+	if (result !== 0) {
+		return result;
+	}
+
+	// Check for name differences.
+	result = compareAndDisambiguateByLength(collatorNumeric, oneName, otherName);
+	if (result !== 0) {
+		return result;
+	}
+
+	// Check for case insensitive extension differences.
+	result = compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension);
+	if (result !== 0) {
+		return result;
+	}
+
+	// Disambiguate the extension case if needed.
+	if (oneExtension !== otherExtension) {
+		return collatorNumeric.compare(oneExtension, otherExtension);
+	}
+
+	return 0;
+}
+
+function compareExtensionsThenNames(one: string | null, other: string | null, caseGrouping: CaseGrouping) {
+	const [oneName, oneExtension] = extractNameAndExtension(one, true);
+	const [otherName, otherExtension] = extractNameAndExtension(other, true);
+	const collatorNumeric = intlFileNameCollatorNumeric.getValue().collator;
+	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.getValue().collator;
+	let result;
+
+	// Check for extension differences, ignoring differences in case.
+	result = compareAndDisambiguateByLength(collatorNumericCaseInsensitive, oneExtension, otherExtension);
+	if (result !== 0) {
+		return result;
+	}
+
+	// Compare names by case if case grouping is selected.
+	switch (caseGrouping) {
+		case CaseGrouping.Upper:
+			result = compareCaseUpperFirst(oneName, otherName);
+			break;
+		case CaseGrouping.Lower:
+			result = compareCaseLowerFirst(oneName, otherName);
+			break;
+		case CaseGrouping.None:
+			break;
+	}
+	if (result !== 0) {
+		return result;
+	}
+
+	// Compare names.
+	result = compareAndDisambiguateByLength(collatorNumeric, oneName, otherName);
+	if (result !== 0) {
+		return result;
+	}
+
+	// Disambiguate extension case if needed.
+	if (oneExtension !== otherExtension) {
+		return collatorNumeric.compare(oneExtension, otherExtension);
+	}
+
+	return 0;
+}
+
+/** @returns `true` if the string is starts with a lowercase letter. Otherwise, `false`. */
+function isLower(string: string) {
+	const character = string.charAt(0);
+
+	if (character.toLocaleUpperCase() !== character) {
+		return true;
+	}
+
+	return false;
+}
+
+/** @returns `true` if the string starts with an uppercase letter. Otherwise, `false`. */
+function isUpper(string: string) {
+	const character = string.charAt(0);
+
+	if (character.toLocaleLowerCase() !== character) {
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Compares the case of the provided strings - with lowercase considered less than uppercase
+ *
+ * @returns
+ * ```text
+ *   -1 if one is lowercase and other is uppercase
+ *    1 if one is uppercase and other is lowercase
+ *    0 otherwise
+ * ```
+ */
+function compareCaseLowerFirst(one: string, other: string): number {
+	if (isLower(one) && isUpper(other)) {
+		return -1;
+	}
+	if (isUpper(one) && isLower(other)) {
+		return 1;
+	}
+	return 0;
+}
+
+/**
+ * Compares the case of the provided strings - with uppercase considered less than lowercase
+ *
+ * @returns
+ * ```text
+ *   -1 if one is uppercase and other is lowercase
+ *    1 if one is lowercase and other is uppercase
+ *    0 otherwise
+ * ```
+ */
+function compareCaseUpperFirst(one: string, other: string): number {
+	if (isUpper(one) && isLower(other)) {
+		return -1;
+	}
+	if (isLower(one) && isUpper(other)) {
+		return 1;
+	}
 	return 0;
 }
 
