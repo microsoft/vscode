@@ -15,7 +15,7 @@ import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workb
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BaseHoverWidget } from 'vs/base/browser/ui/hover/baseHoverWidget';
+import { BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/baseHoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 
 const $ = dom.$;
@@ -80,7 +80,7 @@ export class HoverWidget extends BaseHoverWidget {
 			this._actions.forEach(action => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-				this._renderAction(actionsElement, action, keybindingLabel);
+				renderHoverAction(actionsElement, action, keybindingLabel);
 			});
 			statusBarElement.appendChild(actionsElement);
 			this._containerDomNode.appendChild(statusBarElement);

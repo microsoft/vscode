@@ -35,21 +35,21 @@ export abstract class BaseHoverWidget extends Widget {
 	protected _onContentsChange(): void {
 		this._scrollbar.scanDomNode();
 	}
+}
 
-	protected _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null): IDisposable {
-		const actionContainer = dom.append(parent, $('div.action-container'));
-		const action = dom.append(actionContainer, $('a.action'));
-		action.setAttribute('href', '#');
-		action.setAttribute('role', 'button');
-		if (actionOptions.iconClass) {
-			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
-		}
-		const label = dom.append(action, $('span'));
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
-		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(actionContainer);
-		});
+export function renderHoverAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }, keybindingLabel: string | null): IDisposable {
+	const actionContainer = dom.append(parent, $('div.action-container'));
+	const action = dom.append(actionContainer, $('a.action'));
+	action.setAttribute('href', '#');
+	action.setAttribute('role', 'button');
+	if (actionOptions.iconClass) {
+		dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
 	}
+	const label = dom.append(action, $('span'));
+	label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
+	return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
+		e.stopPropagation();
+		e.preventDefault();
+		actionOptions.run(actionContainer);
+	});
 }

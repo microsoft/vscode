@@ -11,7 +11,7 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BaseHoverWidget } from 'vs/base/browser/ui/hover/baseHoverWidget';
+import { BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/baseHoverWidget';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
@@ -142,7 +142,7 @@ export class ContentHoverWidget extends BaseHoverWidget implements IContentWidge
 	protected _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-		return super._renderAction(parent, actionOptions, keybindingLabel);
+		return renderHoverAction(parent, actionOptions, keybindingLabel);
 	}
 
 	private layout(): void {
