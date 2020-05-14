@@ -8,8 +8,9 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IConfiguration, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IConfiguration, IViewState, ScrollType, ICursorState } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
@@ -25,6 +26,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { Cursor } from 'vs/editor/common/controller/cursor';
+import { ICursors } from 'vs/editor/common/controller/cursorCommon';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -826,4 +828,30 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}
 		return result;
 	}
+
+	//#region cursor operations
+
+	public getCursors(): ICursors {
+		return this.cursor;
+	}
+	public getSelection(): Selection {
+		return this.cursor.getSelection();
+	}
+	public getSelections(): Selection[] {
+		return this.cursor.getSelections();
+	}
+	public getPosition(): Position {
+		return this.cursor.getPrimaryCursor().modelState.position;
+	}
+	public setSelections(source: string | null | undefined, selections: readonly ISelection[]): void {
+		this.cursor.setSelections(source, selections);
+	}
+	public saveCursorState(): ICursorState[] {
+		return this.cursor.saveState();
+	}
+	public restoreCursorState(states: ICursorState[]): void {
+		this.cursor.restoreState(states);
+	}
+
+	//#endregion
 }

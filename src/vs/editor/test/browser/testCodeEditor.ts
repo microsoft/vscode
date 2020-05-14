@@ -41,7 +41,7 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 	//#region Testing utils
 	public getCursor(): Cursor | undefined {
-		return this._modelData ? this._modelData.viewModel.cursor : undefined;
+		return this._modelData ? <Cursor>this._modelData.viewModel.getCursors() : undefined;
 	}
 	public registerAndInstantiateContribution<T extends IEditorContribution, Services extends BrandedService[]>(id: string, ctor: new (editor: ICodeEditor, ...services: Services) => T): T {
 		const r: T = this._instantiationService.createInstance(ctor as IEditorContributionCtor, this);
