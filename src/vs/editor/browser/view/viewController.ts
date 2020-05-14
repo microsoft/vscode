@@ -40,8 +40,8 @@ export interface ICommandDelegate {
 	paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
 	type(text: string): void;
 	replacePreviousChar(text: string, replaceCharCnt: number): void;
-	compositionStart(): void;
-	compositionEnd(): void;
+	startComposition(): void;
+	endComposition(): void;
 	cut(): void;
 }
 
@@ -82,11 +82,11 @@ export class ViewController {
 	}
 
 	public compositionStart(): void {
-		this.commandDelegate.compositionStart();
+		this.commandDelegate.startComposition();
 	}
 
 	public compositionEnd(): void {
-		this.commandDelegate.compositionEnd();
+		this.commandDelegate.endComposition();
 	}
 
 	public cut(): void {

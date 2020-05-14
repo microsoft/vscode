@@ -976,40 +976,31 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
 		payload = payload || {};
 
-		// Special case for typing
-		if (handlerId === editorCommon.Handler.Type) {
-			if (!this._modelData || typeof payload.text !== 'string' || payload.text.length === 0) {
-				// nothing to do
+		switch (handlerId) {
+			case editorCommon.Handler.CompositionStart:
+				this._startComposition();
+				return;
+			case editorCommon.Handler.CompositionEnd:
+				this._endComposition(source);
+				return;
+			case editorCommon.Handler.Type: {
+				const args = <Partial<editorCommon.TypePayload>>payload;
+				this._type(source, args.text || '');
 				return;
 			}
-			if (source === 'keyboard') {
-				this._onWillType.fire(payload.text);
-			}
-			this._modelData.viewModel.cursor.type(payload.text, source);
-			if (source === 'keyboard') {
-				this._onDidType.fire(payload.text);
-			}
-			return;
-		}
-
-		// Special case for pasting
-		if (handlerId === editorCommon.Handler.Paste) {
-			if (!this._modelData || typeof payload.text !== 'string' || payload.text.length === 0) {
-				// nothing to do
+			case editorCommon.Handler.ReplacePreviousChar: {
+				const args = <Partial<editorCommon.ReplacePreviousCharPayload>>payload;
+				this._replacePreviousChar(source, args.text || '', args.replaceCharCnt || 0);
 				return;
 			}
-			const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
-			this._modelData.viewModel.cursor.paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText, source);
-			const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
-			if (source === 'keyboard') {
-				this._onDidPaste.fire(
-					{
-						range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
-						mode: payload.mode
-					}
-				);
+			case editorCommon.Handler.Paste: {
+				const args = <Partial<editorCommon.PastePayload>>payload;
+				this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null);
+				return;
 			}
-			return;
+			case editorCommon.Handler.Cut:
+				this._cut(source);
+				return;
 		}
 
 		const action = this.getAction(handlerId);
@@ -1025,28 +1016,64 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this._triggerEditorCommand(source, handlerId, payload)) {
 			return;
 		}
+	}
 
-		switch (handlerId) {
-			case editorCommon.Handler.CompositionStart:
-				this._modelData.viewModel.cursor.startComposition();
-				break;
-			case editorCommon.Handler.CompositionEnd:
-				this._modelData.viewModel.cursor.endComposition(source);
-				break;
-			case editorCommon.Handler.ReplacePreviousChar:
-				this._modelData.viewModel.cursor.replacePreviousChar(<string>payload.text, <number>payload.replaceCharCnt, source);
-				break;
-			case editorCommon.Handler.Cut:
-				this._modelData.viewModel.cursor.cut(source);
-				break;
+	private _startComposition(): void {
+		if (!this._modelData) {
+			return;
 		}
+		this._modelData.viewModel.cursor.startComposition();
+		this._onDidCompositionStart.fire();
+	}
 
-		if (handlerId === editorCommon.Handler.CompositionStart) {
-			this._onDidCompositionStart.fire();
+	private _endComposition(source: string | null | undefined): void {
+		if (!this._modelData) {
+			return;
 		}
-		if (handlerId === editorCommon.Handler.CompositionEnd) {
-			this._onDidCompositionEnd.fire();
+		this._modelData.viewModel.cursor.endComposition(source);
+		this._onDidCompositionEnd.fire();
+	}
+
+	private _type(source: string | null | undefined, text: string): void {
+		if (!this._modelData || text.length === 0) {
+			return;
 		}
+		if (source === 'keyboard') {
+			this._onWillType.fire(text);
+		}
+		this._modelData.viewModel.cursor.type(text, source);
+		if (source === 'keyboard') {
+			this._onDidType.fire(text);
+		}
+	}
+
+	private _replacePreviousChar(source: string | null | undefined, text: string, replaceCharCnt: number): void {
+		if (!this._modelData) {
+			return;
+		}
+		this._modelData.viewModel.cursor.replacePreviousChar(text, replaceCharCnt, source);
+	}
+
+	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
+		if (!this._modelData || text.length === 0) {
+			return;
+		}
+		const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
+		this._modelData.viewModel.cursor.paste(text, pasteOnNewLine, multicursorText, source);
+		const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
+		if (source === 'keyboard') {
+			this._onDidPaste.fire({
+				range: new Range(startPosition.lineNumber, startPosition.column, endPosition.lineNumber, endPosition.column),
+				mode: mode
+			});
+		}
+	}
+
+	private _cut(source: string | null | undefined): void {
+		if (!this._modelData) {
+			return;
+		}
+		this._modelData.viewModel.cursor.cut(source);
 	}
 
 	private _triggerEditorCommand(source: string | null | undefined, handlerId: string, payload: any): boolean {
@@ -1520,22 +1547,22 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					editorCommand.runCoreEditorCommand(viewModel.getCursors(), args);
 				},
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					this.trigger('keyboard', editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText, mode });
+					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
 				},
 				type: (text: string) => {
-					this.trigger('keyboard', editorCommon.Handler.Type, { text });
+					this._type('keyboard', text);
 				},
 				replacePreviousChar: (text: string, replaceCharCnt: number) => {
-					this.trigger('keyboard', editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
+					this._replacePreviousChar('keyboard', text, replaceCharCnt);
 				},
-				compositionStart: () => {
-					this.trigger('keyboard', editorCommon.Handler.CompositionStart, undefined);
+				startComposition: () => {
+					this._startComposition();
 				},
-				compositionEnd: () => {
-					this.trigger('keyboard', editorCommon.Handler.CompositionEnd, undefined);
+				endComposition: () => {
+					this._endComposition('keyboard');
 				},
 				cut: () => {
-					this.trigger('keyboard', editorCommon.Handler.Cut, undefined);
+					this._cut('keyboard');
 				}
 			};
 		} else {
@@ -1544,28 +1571,21 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					editorCommand.runCoreEditorCommand(viewModel.getCursors(), args);
 				},
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					this._commandService.executeCommand(editorCommon.Handler.Paste, {
-						text: text,
-						pasteOnNewLine: pasteOnNewLine,
-						multicursorText: multicursorText,
-						mode
-					});
+					const payload: editorCommon.PastePayload = { text, pasteOnNewLine, multicursorText, mode };
+					this._commandService.executeCommand(editorCommon.Handler.Paste, payload);
 				},
 				type: (text: string) => {
-					this._commandService.executeCommand(editorCommon.Handler.Type, {
-						text: text
-					});
+					const payload: editorCommon.TypePayload = { text };
+					this._commandService.executeCommand(editorCommon.Handler.Type, payload);
 				},
 				replacePreviousChar: (text: string, replaceCharCnt: number) => {
-					this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, {
-						text: text,
-						replaceCharCnt: replaceCharCnt
-					});
+					const payload: editorCommon.ReplacePreviousCharPayload = { text, replaceCharCnt };
+					this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, payload);
 				},
-				compositionStart: () => {
+				startComposition: () => {
 					this._commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
 				},
-				compositionEnd: () => {
+				endComposition: () => {
 					this._commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
 				},
 				cut: () => {
