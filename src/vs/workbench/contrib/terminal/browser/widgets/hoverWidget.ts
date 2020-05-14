@@ -15,19 +15,21 @@ import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workb
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/baseHoverWidget';
+import { HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/baseHoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 
 const $ = dom.$;
 
-export class HoverWidget extends BaseHoverWidget {
+export class HoverWidget extends Widget {
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _mouseTracker: CompositeMouseTracker;
+
+	private readonly _hover: BaseHoverWidget;
 
 	private _isDisposed: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
-	get domNode(): HTMLElement { return this._containerDomNode; }
+	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
 	private readonly _onDispose = new Emitter<void>();
 	get onDispose(): Event<void> { return this._onDispose.event; }
@@ -43,12 +45,14 @@ export class HoverWidget extends BaseHoverWidget {
 	) {
 		super();
 
+		this._hover = this._register(new BaseHoverWidget());
+
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
-		this.onmousedown(this._containerDomNode, e => e.stopPropagation());
+		this.onmousedown(this._hover.containerDomNode, e => e.stopPropagation());
 
 		// Hide hover on escape
-		this.onkeydown(this._containerDomNode, e => {
+		this.onkeydown(this._hover.containerDomNode, e => {
 			if (e.equals(KeyCode.Escape)) {
 				this.dispose();
 			}
@@ -72,7 +76,7 @@ export class HoverWidget extends BaseHoverWidget {
 		});
 		contentsElement.appendChild(markdownElement);
 		rowElement.appendChild(contentsElement);
-		this._domNode.appendChild(rowElement);
+		this._hover.domNode.appendChild(rowElement);
 
 		if (this._actions && this._actions.length > 0) {
 			const statusBarElement = $('div.hover-row.status-bar');
@@ -83,14 +87,14 @@ export class HoverWidget extends BaseHoverWidget {
 				renderHoverAction(actionsElement, action, keybindingLabel);
 			});
 			statusBarElement.appendChild(actionsElement);
-			this._containerDomNode.appendChild(statusBarElement);
+			this._hover.containerDomNode.appendChild(statusBarElement);
 		}
 
-		this._mouseTracker = new CompositeMouseTracker([this._containerDomNode, ..._target.targetElements]);
+		this._mouseTracker = new CompositeMouseTracker([this._hover.containerDomNode, ..._target.targetElements]);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
 		this._register(this._mouseTracker);
 
-		this._container.appendChild(this._containerDomNode);
+		this._container.appendChild(this._hover.containerDomNode);
 
 		this.layout();
 	}
@@ -98,49 +102,49 @@ export class HoverWidget extends BaseHoverWidget {
 	public layout(): void {
 		const anchor = this._target.anchor;
 
-		this._containerDomNode.classList.remove('right-aligned');
-		this._domNode.style.maxHeight = '';
+		this._hover.containerDomNode.classList.remove('right-aligned');
+		this._hover.domNode.style.maxHeight = '';
 		if (anchor.horizontalAnchorSide === HorizontalAnchorSide.Left) {
-			if (anchor.x + this._containerDomNode.clientWidth > document.documentElement.clientWidth) {
+			if (anchor.x + this._hover.containerDomNode.clientWidth > document.documentElement.clientWidth) {
 				// Shift the hover to the left when part of it would get cut off
-				const width = Math.round(this._containerDomNode.clientWidth);
-				this._containerDomNode.style.width = `${width - 1}px`;
-				this._containerDomNode.style.maxWidth = '';
+				const width = Math.round(this._hover.containerDomNode.clientWidth);
+				this._hover.containerDomNode.style.width = `${width - 1}px`;
+				this._hover.containerDomNode.style.maxWidth = '';
 				const left = document.documentElement.clientWidth - width - 1;
-				this._containerDomNode.style.left = `${left}px`;
+				this._hover.containerDomNode.style.left = `${left}px`;
 				// Right align if the right edge is closer to the anchor than the left edge
 				if (left + width / 2 < anchor.x) {
-					this._containerDomNode.classList.add('right-aligned');
+					this._hover.containerDomNode.classList.add('right-aligned');
 				}
 			} else {
-				this._containerDomNode.style.width = '';
-				this._containerDomNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
-				this._containerDomNode.style.left = `${anchor.x}px`;
+				this._hover.containerDomNode.style.width = '';
+				this._hover.containerDomNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
+				this._hover.containerDomNode.style.left = `${anchor.x}px`;
 			}
 		} else {
-			this._containerDomNode.style.right = `${anchor.x}px`;
+			this._hover.containerDomNode.style.right = `${anchor.x}px`;
 		}
 		// Use fallback y value if there is not enough vertical space
 		if (anchor.verticalAnchorSide === VerticalAnchorSide.Bottom) {
-			if (anchor.y + this._containerDomNode.clientHeight > document.documentElement.clientHeight) {
-				this._containerDomNode.style.top = `${anchor.fallbackY}px`;
-				this._domNode.style.maxHeight = `${document.documentElement.clientHeight - anchor.fallbackY}px`;
+			if (anchor.y + this._hover.containerDomNode.clientHeight > document.documentElement.clientHeight) {
+				this._hover.containerDomNode.style.top = `${anchor.fallbackY}px`;
+				this._hover.domNode.style.maxHeight = `${document.documentElement.clientHeight - anchor.fallbackY}px`;
 			} else {
-				this._containerDomNode.style.bottom = `${anchor.y}px`;
-				this._containerDomNode.style.maxHeight = '';
+				this._hover.containerDomNode.style.bottom = `${anchor.y}px`;
+				this._hover.containerDomNode.style.maxHeight = '';
 			}
 		} else {
-			if (anchor.y + this._containerDomNode.clientHeight > document.documentElement.clientHeight) {
-				this._containerDomNode.style.bottom = `${anchor.fallbackY}px`;
+			if (anchor.y + this._hover.containerDomNode.clientHeight > document.documentElement.clientHeight) {
+				this._hover.containerDomNode.style.bottom = `${anchor.fallbackY}px`;
 			} else {
-				this._containerDomNode.style.top = `${anchor.y}px`;
+				this._hover.containerDomNode.style.top = `${anchor.y}px`;
 			}
 		}
-		this._onContentsChange();
+		this._hover.onContentsChange();
 	}
 
 	public focus() {
-		this._containerDomNode.focus();
+		this._hover.containerDomNode.focus();
 	}
 
 	public hide(): void {
@@ -150,7 +154,7 @@ export class HoverWidget extends BaseHoverWidget {
 	public dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
-			this._containerDomNode.parentElement?.removeChild(this.domNode);
+			this._hover.containerDomNode.parentElement?.removeChild(this.domNode);
 			this._messageListeners.dispose();
 			this._target.dispose();
 			super.dispose();

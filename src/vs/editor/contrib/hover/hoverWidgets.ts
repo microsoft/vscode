@@ -11,12 +11,13 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/baseHoverWidget';
+import { renderHoverAction, HoverWidget } from 'vs/base/browser/ui/hover/baseHoverWidget';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export class ContentHoverWidget extends BaseHoverWidget implements IContentWidget {
+export class ContentHoverWidget extends Widget implements IContentWidget {
 
+	protected readonly _hover: HoverWidget;
 	private readonly _id: string;
 	protected _editor: ICodeEditor;
 	private _isVisible: boolean;
@@ -33,7 +34,7 @@ export class ContentHoverWidget extends BaseHoverWidget implements IContentWidge
 
 	protected set isVisible(value: boolean) {
 		this._isVisible = value;
-		dom.toggleClass(this._containerDomNode, 'hidden', !this._isVisible);
+		dom.toggleClass(this._hover.containerDomNode, 'hidden', !this._isVisible);
 	}
 
 	constructor(
@@ -43,12 +44,13 @@ export class ContentHoverWidget extends BaseHoverWidget implements IContentWidge
 	) {
 		super();
 
+		this._hover = this._register(new HoverWidget());
 		this._id = id;
 		this._editor = editor;
 		this._isVisible = false;
 		this._stoleFocus = false;
 
-		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
+		this.onkeydown(this._hover.containerDomNode, (e: IKeyboardEvent) => {
 			if (e.equals(KeyCode.Escape)) {
 				this.hide();
 			}
@@ -74,7 +76,7 @@ export class ContentHoverWidget extends BaseHoverWidget implements IContentWidge
 	}
 
 	public getDomNode(): HTMLElement {
-		return this._containerDomNode;
+		return this._hover.containerDomNode;
 	}
 
 	public showAt(position: Position, range: Range | null, focus: boolean): void {
@@ -89,7 +91,7 @@ export class ContentHoverWidget extends BaseHoverWidget implements IContentWidge
 		this._editor.render();
 		this._stoleFocus = focus;
 		if (focus) {
-			this._containerDomNode.focus();
+			this._hover.containerDomNode.focus();
 		}
 	}
 
@@ -126,17 +128,17 @@ export class ContentHoverWidget extends BaseHoverWidget implements IContentWidge
 	}
 
 	private updateFont(): void {
-		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._domNode.getElementsByClassName('code'));
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.domNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
 	protected updateContents(node: Node): void {
-		this._domNode.textContent = '';
-		this._domNode.appendChild(node);
+		this._hover.domNode.textContent = '';
+		this._hover.domNode.appendChild(node);
 		this.updateFont();
 
 		this._editor.layoutContentWidget(this);
-		this._onContentsChange();
+		this._hover.onContentsChange();
 	}
 
 	protected _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
@@ -149,10 +151,10 @@ export class ContentHoverWidget extends BaseHoverWidget implements IContentWidge
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 
-		this._domNode.style.fontSize = `${fontSize}px`;
-		this._domNode.style.lineHeight = `${lineHeight}px`;
-		this._domNode.style.maxHeight = `${height}px`;
-		this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+		this._hover.domNode.style.fontSize = `${fontSize}px`;
+		this._hover.domNode.style.lineHeight = `${lineHeight}px`;
+		this._hover.domNode.style.maxHeight = `${height}px`;
+		this._hover.domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 }
 

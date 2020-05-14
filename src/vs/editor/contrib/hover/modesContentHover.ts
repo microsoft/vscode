@@ -249,7 +249,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}));
 		this._register(TokenizationRegistry.onDidChange((e) => {
 			if (this.isVisible && this._lastRange && this._messages.length > 0) {
-				this._domNode.textContent = '';
+				this._hover.domNode.textContent = '';
 				this._renderMessages(this._lastRange, this._messages);
 			}
 		}));
@@ -461,7 +461,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							const renderer = markdownDisposeables.add(new MarkdownRenderer(this._editor, this._modeService, this._openerService));
 							markdownDisposeables.add(renderer.onDidRenderCodeBlock(() => {
 								hoverContentsElement.className = 'hover-contents code-hover-contents';
-								this._onContentsChange();
+								this._hover.onContentsChange();
 							}));
 							const renderedContents = markdownDisposeables.add(renderer.render(contents));
 							hoverContentsElement.appendChild(renderedContents.element);

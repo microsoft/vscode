@@ -5,34 +5,33 @@
 
 import 'vs/css!./hover';
 import * as dom from 'vs/base/browser/dom';
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 
 const $ = dom.$;
 
-export abstract class BaseHoverWidget extends Widget {
-	protected readonly _containerDomNode: HTMLElement;
-	protected readonly _domNode: HTMLElement;
+export class HoverWidget extends Disposable {
+
+	public readonly containerDomNode: HTMLElement;
+	public readonly domNode: HTMLElement;
 	private readonly _scrollbar: DomScrollableElement;
 
 	constructor() {
 		super();
 
-		this._containerDomNode = document.createElement('div');
-		this._containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
-		this._containerDomNode.tabIndex = 0;
-		this._containerDomNode.setAttribute('role', 'tooltip');
+		this.containerDomNode = document.createElement('div');
+		this.containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
+		this.containerDomNode.tabIndex = 0;
+		this.containerDomNode.setAttribute('role', 'tooltip');
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-editor-hover-content';
+		this.domNode = document.createElement('div');
+		this.domNode.className = 'monaco-editor-hover-content';
 
-		this._scrollbar = new DomScrollableElement(this._domNode, {});
-		this._register(this._scrollbar);
-		this._containerDomNode.appendChild(this._scrollbar.getDomNode());
+		this._scrollbar = this._register(new DomScrollableElement(this.domNode, {}));
+		this.containerDomNode.appendChild(this._scrollbar.getDomNode());
 	}
 
-	protected _onContentsChange(): void {
+	public onContentsChange(): void {
 		this._scrollbar.scanDomNode();
 	}
 }
