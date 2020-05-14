@@ -20,7 +20,7 @@ export class HoverWidget extends Disposable {
 		super();
 
 		this.containerDomNode = document.createElement('div');
-		this.containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-hover', 'xterm-hover');
+		this.containerDomNode.className = 'monaco-hover';
 		this.containerDomNode.tabIndex = 0;
 		this.containerDomNode.setAttribute('role', 'tooltip');
 

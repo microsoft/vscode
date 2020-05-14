@@ -46,6 +46,7 @@ export class HoverWidget extends Widget {
 		super();
 
 		this._hover = this._register(new BaseHoverWidget());
+		this._hover.containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'xterm-hover');
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
