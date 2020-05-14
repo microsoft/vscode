@@ -199,7 +199,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			hasSessions(providerId: string, scopes: string[]): Thenable<boolean> {
 				return extHostAuthentication.hasSessions(providerId, scopes);
 			},
-			getSession(providerId: string, scopes: string[], options: vscode.authentication.GetSessionOptions): Thenable<vscode.AuthenticationSession | undefined> {
+			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Thenable<vscode.AuthenticationSession | undefined> {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options);
 			},
 			getSessions(providerId: string, scopes: string[]): Thenable<readonly vscode.AuthenticationSession[]> {
