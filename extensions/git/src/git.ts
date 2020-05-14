@@ -1919,7 +1919,7 @@ export class Repository {
 
 	async getBranches(query: BranchQuery): Promise<Ref[]> {
 		const refs = await this.getRefs({ contains: query.contains });
-		return query.remote ? refs : refs.filter(value => !value.remote);
+		return refs.filter(value => (value.type !== RefType.Tag) && (query.remote || !value.remote));
 	}
 
 	// TODO: Support core.commentChar
