@@ -9,11 +9,11 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { BaseHoverWidget } from 'vs/base/browser/ui/hover/baseHoverWidget';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
-export class ContentHoverWidget extends HoverWidget implements IContentWidget {
+export class ContentHoverWidget extends BaseHoverWidget implements IContentWidget {
 
 	private readonly _id: string;
 	protected _editor: ICodeEditor;

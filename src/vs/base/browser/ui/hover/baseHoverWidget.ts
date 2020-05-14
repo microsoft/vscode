@@ -13,7 +13,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
 
-export abstract class HoverWidget extends Widget {
+export abstract class BaseHoverWidget extends Widget {
 	protected readonly _containerDomNode: HTMLElement;
 	protected readonly _domNode: HTMLElement;
 	private readonly _scrollbar: DomScrollableElement;

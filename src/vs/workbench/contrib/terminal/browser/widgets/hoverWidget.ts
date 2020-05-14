@@ -14,7 +14,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { BaseHoverWidget } from 'vs/base/browser/ui/hover/baseHoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 
 const $ = dom.$;
