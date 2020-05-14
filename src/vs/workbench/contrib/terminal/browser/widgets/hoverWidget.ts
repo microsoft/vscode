@@ -15,7 +15,7 @@ import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workb
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/baseHoverWidget';
+import { HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 
 const $ = dom.$;

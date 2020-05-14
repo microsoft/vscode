@@ -11,7 +11,7 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { renderHoverAction, HoverWidget } from 'vs/base/browser/ui/hover/baseHoverWidget';
+import { renderHoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
