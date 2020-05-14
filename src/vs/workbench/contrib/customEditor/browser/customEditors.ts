@@ -231,7 +231,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		const id = generateUuid();
 		const webview = new Lazy(() => {
-			return this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {});
+			return this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
 		});
 		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, {});
 		if (typeof group !== 'undefined') {

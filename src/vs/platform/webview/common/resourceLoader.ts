@@ -8,10 +8,9 @@ import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { getWebviewContentMimeType } from 'vs/workbench/contrib/webview/common/mimeTypes';
 import { isUNC } from 'vs/base/common/extpath';
-
-export const WebviewResourceScheme = 'vscode-resource';
+import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
+import { Schemas } from 'vs/base/common/network';
 
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied }
@@ -77,7 +76,7 @@ export async function loadLocalResource(
 }
 
 function normalizeRequestPath(requestUri: URI) {
-	if (requestUri.scheme !== WebviewResourceScheme) {
+	if (requestUri.scheme !== Schemas.vscodeWebviewResource) {
 		return requestUri;
 	}
 

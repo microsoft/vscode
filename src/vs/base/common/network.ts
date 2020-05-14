@@ -59,6 +59,8 @@ export namespace Schemas {
 	export const vscodeSettings = 'vscode-settings';
 
 	export const webviewPanel = 'webview-panel';
+
+	export const vscodeWebviewResource = 'vscode-webview-resource';
 }
 
 class RemoteAuthoritiesImpl {

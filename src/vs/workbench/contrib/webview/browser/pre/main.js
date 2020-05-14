@@ -364,7 +364,7 @@
 				if (data.endpoint) {
 					try {
 						const endpointUrl = new URL(data.endpoint);
-						csp.setAttribute('content', csp.getAttribute('content').replace(/vscode-resource:(?=(\s|;|$))/g, endpointUrl.origin));
+						csp.setAttribute('content', csp.getAttribute('content').replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin));
 					} catch (e) {
 						console.error('Could not rewrite csp');
 					}
