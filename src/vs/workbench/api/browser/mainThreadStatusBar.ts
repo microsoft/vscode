@@ -9,7 +9,7 @@ import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
-import { AccessibilityInformation } from 'vs/base/common/accessibility';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
@@ -26,7 +26,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: AccessibilityInformation): void {
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
 		// if there are icons in the text use the tooltip for the aria label
 		let ariaLabel: string;
 		if (accessibilityInformation) {

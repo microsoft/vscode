@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { Command } from 'vs/editor/common/modes';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { AccessibilityInformation } from 'vs/base/common/accessibility';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 
 export function toKey(extension: ExtensionIdentifier | string, source: string) {
 	return `${typeof extension === 'string' ? extension : ExtensionIdentifier.toKey(extension)}|${source}`;
@@ -25,7 +25,7 @@ export interface TimelineItem {
 	id?: string;
 	timestamp: number;
 	label: string;
-	accessibilityInformation?: AccessibilityInformation;
+	accessibilityInformation?: IAccessibilityInformation;
 	icon?: URI,
 	iconDark?: URI,
 	themeIcon?: { id: string },
