@@ -332,14 +332,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	async executeNotebook2(viewType: string, uri: URI, kernelId: string, token: CancellationToken): Promise<void> {
 		const kernel = this._notebookKernels.get(kernelId);
 		if (kernel) {
-			kernel.executeNotebook(viewType, uri, undefined, token);
+			await kernel.executeNotebook(viewType, uri, undefined, token);
 		}
 	}
 
 	async executeNotebookCell2(viewType: string, uri: URI, handle: number, kernelId: string, token: CancellationToken): Promise<void> {
 		const kernel = this._notebookKernels.get(kernelId);
 		if (kernel) {
-			kernel.executeNotebook(viewType, uri, handle, token);
+			await kernel.executeNotebook(viewType, uri, handle, token);
 		}
 	}
 
