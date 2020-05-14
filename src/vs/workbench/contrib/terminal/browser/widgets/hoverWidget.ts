@@ -12,8 +12,6 @@ import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLin
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -22,11 +20,8 @@ import { Widget } from 'vs/base/browser/ui/widget';
 const $ = dom.$;
 
 export class HoverWidget extends BaseHoverWidget {
-	private readonly _containerDomNode: HTMLElement;
-	private readonly _domNode: HTMLElement;
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _mouseTracker: CompositeMouseTracker;
-	private readonly _scrollbar: DomScrollableElement;
 
 	private _isDisposed: boolean = false;
 
@@ -47,28 +42,9 @@ export class HoverWidget extends BaseHoverWidget {
 	) {
 		super();
 
-		this._containerDomNode = document.createElement('div');
-		this._containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
-		this._containerDomNode.tabIndex = 0;
-		this._containerDomNode.setAttribute('role', 'tooltip');
-
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-editor-hover-content';
-
-		this._scrollbar = new DomScrollableElement(this._domNode, {});
-		this._register(this._scrollbar);
-		this._containerDomNode.appendChild(this._scrollbar.getDomNode());
-
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
 		this.onmousedown(this._containerDomNode, e => e.stopPropagation());
-
-		// Hide hover on escape
-		this.onkeydown(this._containerDomNode, e => {
-			if (e.equals(KeyCode.Escape)) {
-				this.dispose();
-			}
-		});
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
@@ -152,11 +128,15 @@ export class HoverWidget extends BaseHoverWidget {
 				this._containerDomNode.style.top = `${anchor.y}px`;
 			}
 		}
-		this._scrollbar.scanDomNode();
+		this._onContentsChange();
 	}
 
 	public focus() {
 		this._containerDomNode.focus();
+	}
+
+	public hide(): void {
+		this.dispose();
 	}
 
 	public dispose(): void {

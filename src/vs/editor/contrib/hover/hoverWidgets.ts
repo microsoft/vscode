@@ -4,10 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,12 +18,9 @@ export class ContentHoverWidget extends HoverWidget implements IContentWidget {
 	private readonly _id: string;
 	protected _editor: ICodeEditor;
 	private _isVisible: boolean;
-	private readonly _containerDomNode: HTMLElement;
-	protected readonly _domNode: HTMLElement;
 	protected _showAtPosition: Position | null;
 	protected _showAtRange: Range | null;
 	private _stoleFocus: boolean;
-	private readonly scrollbar: DomScrollableElement;
 
 	// Editor.IContentWidget.allowEditorOverflow
 	public allowEditorOverflow = true;
@@ -51,24 +45,6 @@ export class ContentHoverWidget extends HoverWidget implements IContentWidget {
 		this._editor = editor;
 		this._isVisible = false;
 		this._stoleFocus = false;
-
-		this._containerDomNode = document.createElement('div');
-		this._containerDomNode.className = 'monaco-editor-hover hidden';
-		this._containerDomNode.tabIndex = 0;
-		this._containerDomNode.setAttribute('role', 'tooltip');
-
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-editor-hover-content';
-
-		this.scrollbar = new DomScrollableElement(this._domNode, {});
-		this._register(this.scrollbar);
-		this._containerDomNode.appendChild(this.scrollbar.getDomNode());
-
-		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Escape)) {
-				this.hide();
-			}
-		});
 
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
@@ -152,18 +128,13 @@ export class ContentHoverWidget extends HoverWidget implements IContentWidget {
 		this.updateFont();
 
 		this._editor.layoutContentWidget(this);
-		this.onContentsChange();
+		this._onContentsChange();
 	}
-
 
 	protected _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
 		return super._renderAction(parent, actionOptions, keybindingLabel);
-	}
-
-	protected onContentsChange(): void {
-		this.scrollbar.scanDomNode();
 	}
 
 	private layout(): void {

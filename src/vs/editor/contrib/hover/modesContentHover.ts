@@ -461,7 +461,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							const renderer = markdownDisposeables.add(new MarkdownRenderer(this._editor, this._modeService, this._openerService));
 							markdownDisposeables.add(renderer.onDidRenderCodeBlock(() => {
 								hoverContentsElement.className = 'hover-contents code-hover-contents';
-								this.onContentsChange();
+								this._onContentsChange();
 							}));
 							const renderedContents = markdownDisposeables.add(renderer.render(contents));
 							hoverContentsElement.appendChild(renderedContents.element);
