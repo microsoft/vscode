@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow, dialog, session, Session } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -38,7 +38,7 @@ import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';
 import { getMachineId } from 'vs/base/node/id';
@@ -82,7 +82,7 @@ import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { IFileService } from 'vs/platform/files/common/files';
-import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -847,68 +847,6 @@ export class CodeApplication extends Disposable {
 				url: request.url.replace(/^vscode-remote-resource:/, 'http:'),
 				method: request.method
 			});
-		});
-	}
-}
-
-class WebviewProtocolProvider extends Disposable {
-
-	private readonly webviewMetadata = new Map<string, {
-		readonly extensionLocation: URI | undefined;
-		readonly localResourceRoots: URI[];
-	}>();
-
-	constructor(
-		@IFileService private readonly fileService: IFileService,
-	) {
-		super();
-
-		ipc.on('vscode:registerWebview', (event: IpcMainEvent, id: string, data: any) => {
-			if (!this.webviewMetadata.has(id)) {
-				const ses = session.fromPartition(id);
-				this.register(ses);
-			}
-
-			this.webviewMetadata.set(id, {
-				extensionLocation: data.extensionLocation ? URI.from(data.extensionLocation) : undefined,
-				localResourceRoots: Array.isArray(data.localResourceRoots) ? data.localResourceRoots.map((x: UriComponents) => URI.from(x)) : []
-			});
-
-			event.sender.send(`vscode:didRegisterWebview-${id}`);
-		});
-
-		ipc.on('vscode:unregisterWebview', (_event: IpcMainEvent, id: string) => {
-			this.webviewMetadata.delete(id);
-		});
-	}
-
-	private register(session: Session) {
-		session.protocol.registerBufferProtocol(Schemas.vscodeWebviewResource, async (request, callback: any) => {
-			try {
-				const uri = URI.parse(request.url);
-				const resource = URI.parse(uri.path.replace(/^\/(\w+)/, '$1:'));
-
-				const id = uri.authority;
-				const metadata = this.webviewMetadata.get(id);
-				if (metadata) {
-					const result = await loadLocalResource(resource, this.fileService, metadata.extensionLocation, () => metadata.localResourceRoots);
-					if (result.type === WebviewResourceResponse.Type.Success) {
-						return callback({
-							data: Buffer.from(result.data.buffer),
-							mimeType: result.mimeType
-						});
-					}
-
-					if (result.type === WebviewResourceResponse.Type.AccessDenied) {
-						console.error('Webview: Cannot load resource outside of protocol root');
-						return callback({ error: -10 /* ACCESS_DENIED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
-					}
-				}
-			} catch {
-				// noop
-			}
-
-			return callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
 		});
 	}
 }
