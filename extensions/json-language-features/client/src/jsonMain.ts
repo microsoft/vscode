@@ -213,17 +213,13 @@ export function activate(context: ExtensionContext) {
 				return Promise.reject(new Error(localize('untitled.schema', 'Unable to load {0}', uri.toString())));
 			}
 			if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-				if (schemaDownloadEnabled) {
-					return workspace.openTextDocument(uri).then(doc => {
-						schemaDocuments[uri.toString()] = true;
-						return doc.getText();
-					}, error => {
-						return Promise.reject(error);
-					});
-				} else {
-					return Promise.reject(localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
-				}
-			} else {
+				return workspace.openTextDocument(uri).then(doc => {
+					schemaDocuments[uri.toString()] = true;
+					return doc.getText();
+				}, error => {
+					return Promise.reject(error);
+				});
+			} else if (schemaDownloadEnabled) {
 				if (telemetryReporter && uri.authority === 'schema.management.azure.com') {
 					/* __GDPR__
 						"json.schema" : {
@@ -242,6 +238,8 @@ export function activate(context: ExtensionContext) {
 					}
 					return Promise.reject(new ResponseError(error.status, getErrorStatusDescription(error.status) + '\n' + extraInfo));
 				});
+			} else {
+				return Promise.reject(localize('schemaDownloadDisabled', 'Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
 			}
 		});
 
