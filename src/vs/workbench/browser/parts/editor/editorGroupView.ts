@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorgroupview';
-
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, EditorStickyContext, EditorPinnedContext } from 'vs/workbench/common/editor';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -220,8 +219,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private handleGroupContextKeys(contextKeyService: IContextKeyService): void {
 		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyService);
 		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(contextKeyService);
+		const groupActiveEditorPinnedContext = EditorPinnedContext.bindTo(contextKeyService);
+		const groupActiveEditorStickyContext = EditorStickyContext.bindTo(contextKeyService);
 
-		let activeEditorListener = new MutableDisposable();
+		const activeEditorListener = new MutableDisposable();
 
 		const observeActiveEditor = () => {
 			activeEditorListener.clear();
@@ -237,11 +238,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Update group contexts based on group changes
 		this._register(this.onDidGroupChange(e => {
-
-			// Track the active editor and update context key that reflects
-			// the dirty state of this editor
-			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				observeActiveEditor();
+			switch (e.kind) {
+				case GroupChangeKind.EDITOR_ACTIVE:
+					// Track the active editor and update context key that reflects
+					// the dirty state of this editor
+					observeActiveEditor();
+					break;
+				case GroupChangeKind.EDITOR_PIN:
+					if (e.editor && e.editor === this._group.activeEditor) {
+						groupActiveEditorPinnedContext.set(this._group.isPinned(this._group.activeEditor));
+					}
+					break;
+				case GroupChangeKind.EDITOR_STICKY:
+					if (e.editor && e.editor === this._group.activeEditor) {
+						groupActiveEditorStickyContext.set(this._group.isSticky(this._group.activeEditor));
+					}
+					break;
 			}
 
 			// Group editors count context
@@ -464,6 +476,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Model Events
 		this._register(this._group.onDidChangeEditorPinned(editor => this.onDidChangeEditorPinned(editor)));
+		this._register(this._group.onDidChangeEditorSticky(editor => this.onDidChangeEditorSticky(editor)));
 		this._register(this._group.onDidOpenEditor(editor => this.onDidOpenEditor(editor)));
 		this._register(this._group.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
 		this._register(this._group.onDidDisposeEditor(editor => this.onDidDisposeEditor(editor)));
@@ -478,9 +491,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private onDidChangeEditorPinned(editor: EditorInput): void {
-
-		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
+	}
+
+	private onDidChangeEditorSticky(editor: EditorInput): void {
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_STICKY, editor });
 	}
 
 	private onDidOpenEditor(editor: EditorInput): void {
@@ -596,11 +611,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control Switch between showing tabs <=> not showing tabs
 		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
 
-			// Recreate and layout control
+			// Recreate title control
 			this.createTitleAreaControl();
-			if (this.dimension) {
-				this.layoutTitleAreaControl(this.dimension.width);
-			}
+
+			// Re-layout
+			this.relayout();
 
 			// Ensure to show active editor if any
 			if (this._group.activeEditor) {

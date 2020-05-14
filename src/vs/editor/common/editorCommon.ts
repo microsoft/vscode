@@ -480,7 +480,7 @@ export interface IEditor {
 	 * @param handlerId The id of the handler or the id of a contribution.
 	 * @param payload Extra data to be sent to the handler.
 	 */
-	trigger(source: string, handlerId: string, payload: any): void;
+	trigger(source: string | null | undefined, handlerId: string, payload: any): void;
 
 	/**
 	 * Gets the current model attached to this editor.

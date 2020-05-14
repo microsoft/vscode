@@ -857,33 +857,33 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.viewModel.viewLayout.getCurrentScrollTop();
 	}
 
-	public setScrollLeft(newScrollLeft: number): void {
+	public setScrollLeft(newScrollLeft: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
 		if (!this._modelData) {
 			return;
 		}
 		if (typeof newScrollLeft !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.viewLayout.setScrollPositionNow({
+		this._modelData.viewModel.viewLayout.setScrollPosition({
 			scrollLeft: newScrollLeft
-		});
+		}, scrollType);
 	}
-	public setScrollTop(newScrollTop: number): void {
+	public setScrollTop(newScrollTop: number, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
 		if (!this._modelData) {
 			return;
 		}
 		if (typeof newScrollTop !== 'number') {
 			throw new Error('Invalid arguments');
 		}
-		this._modelData.viewModel.viewLayout.setScrollPositionNow({
+		this._modelData.viewModel.viewLayout.setScrollPosition({
 			scrollTop: newScrollTop
-		});
+		}, scrollType);
 	}
-	public setScrollPosition(position: editorCommon.INewScrollPosition): void {
+	public setScrollPosition(position: editorCommon.INewScrollPosition, scrollType: editorCommon.ScrollType = editorCommon.ScrollType.Immediate): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.viewLayout.setScrollPositionNow(position);
+		this._modelData.viewModel.viewLayout.setScrollPosition(position, scrollType);
 	}
 
 	public saveViewState(): editorCommon.ICodeEditorViewState | null {
@@ -975,7 +975,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._actions[id] || null;
 	}
 
-	public trigger(source: string, handlerId: string, payload: any): void {
+	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
 		payload = payload || {};
 
 		// Special case for typing
@@ -1038,7 +1038,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
-	private _triggerEditorCommand(source: string, handlerId: string, payload: any): boolean {
+	private _triggerEditorCommand(source: string | null | undefined, handlerId: string, payload: any): boolean {
 		const command = EditorExtensionsRegistry.getEditorCommand(handlerId);
 		if (command) {
 			payload = payload || {};
@@ -1071,7 +1071,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
+	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
 		if (!this._modelData) {
 			return false;
 		}
@@ -1093,14 +1093,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public executeCommand(source: string, command: editorCommon.ICommand): void {
+	public executeCommand(source: string | null | undefined, command: editorCommon.ICommand): void {
 		if (!this._modelData) {
 			return;
 		}
 		this._modelData.cursor.trigger(source, editorCommon.Handler.ExecuteCommand, command);
 	}
 
-	public executeCommands(source: string, commands: editorCommon.ICommand[]): void {
+	public executeCommands(source: string | null | undefined, commands: editorCommon.ICommand[]): void {
 		if (!this._modelData) {
 			return;
 		}
@@ -1503,23 +1503,23 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				executeEditorCommand: (editorCommand: CoreEditorCommand, args: any): void => {
 					editorCommand.runCoreEditorCommand(cursor, args);
 				},
-				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
-					this.trigger(source, editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText, mode });
+				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
+					this.trigger('keyboard', editorCommon.Handler.Paste, { text, pasteOnNewLine, multicursorText, mode });
 				},
-				type: (source: string, text: string) => {
-					this.trigger(source, editorCommon.Handler.Type, { text });
+				type: (text: string) => {
+					this.trigger('keyboard', editorCommon.Handler.Type, { text });
 				},
-				replacePreviousChar: (source: string, text: string, replaceCharCnt: number) => {
-					this.trigger(source, editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
+				replacePreviousChar: (text: string, replaceCharCnt: number) => {
+					this.trigger('keyboard', editorCommon.Handler.ReplacePreviousChar, { text, replaceCharCnt });
 				},
-				compositionStart: (source: string) => {
-					this.trigger(source, editorCommon.Handler.CompositionStart, undefined);
+				compositionStart: () => {
+					this.trigger('keyboard', editorCommon.Handler.CompositionStart, undefined);
 				},
-				compositionEnd: (source: string) => {
-					this.trigger(source, editorCommon.Handler.CompositionEnd, undefined);
+				compositionEnd: () => {
+					this.trigger('keyboard', editorCommon.Handler.CompositionEnd, undefined);
 				},
-				cut: (source: string) => {
-					this.trigger(source, editorCommon.Handler.Cut, undefined);
+				cut: () => {
+					this.trigger('keyboard', editorCommon.Handler.Cut, undefined);
 				}
 			};
 		} else {
@@ -1527,7 +1527,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				executeEditorCommand: (editorCommand: CoreEditorCommand, args: any): void => {
 					editorCommand.runCoreEditorCommand(cursor, args);
 				},
-				paste: (source: string, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
+				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
 					this._commandService.executeCommand(editorCommon.Handler.Paste, {
 						text: text,
 						pasteOnNewLine: pasteOnNewLine,
@@ -1535,24 +1535,24 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 						mode
 					});
 				},
-				type: (source: string, text: string) => {
+				type: (text: string) => {
 					this._commandService.executeCommand(editorCommon.Handler.Type, {
 						text: text
 					});
 				},
-				replacePreviousChar: (source: string, text: string, replaceCharCnt: number) => {
+				replacePreviousChar: (text: string, replaceCharCnt: number) => {
 					this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, {
 						text: text,
 						replaceCharCnt: replaceCharCnt
 					});
 				},
-				compositionStart: (source: string) => {
+				compositionStart: () => {
 					this._commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
 				},
-				compositionEnd: (source: string) => {
+				compositionEnd: () => {
 					this._commandService.executeCommand(editorCommon.Handler.CompositionEnd, {});
 				},
-				cut: (source: string) => {
+				cut: () => {
 					this._commandService.executeCommand(editorCommon.Handler.Cut, {});
 				}
 			};

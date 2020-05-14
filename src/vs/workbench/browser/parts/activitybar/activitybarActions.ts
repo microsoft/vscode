@@ -26,8 +26,9 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -288,16 +289,33 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 export class HomeAction extends Action {
 
 	constructor(
-		private readonly command: string,
+		private readonly href: string,
 		name: string,
-		icon: Codicon,
-		@ICommandService private readonly commandService: ICommandService
+		icon: Codicon
 	) {
 		super('workbench.action.home', name, icon.classNames);
 	}
 
-	async run(): Promise<void> {
-		this.commandService.executeCommand(this.command);
+	async run(event: MouseEvent): Promise<void> {
+		let openInNewWindow = false;
+		if (isMacintosh) {
+			openInNewWindow = event.metaKey;
+		} else {
+			openInNewWindow = event.ctrlKey;
+		}
+
+		if (openInNewWindow) {
+			DOM.windowOpenNoOpener(this.href);
+		} else {
+			window.location.href = this.href;
+		}
+	}
+}
+
+export class HomeActionViewItem extends ActionViewItem {
+
+	constructor(action: IAction) {
+		super(undefined, action, { icon: true, label: false, useEventAsContext: true });
 	}
 }
 

@@ -1484,8 +1484,8 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const border = theme.getColor(activeContrastBorder);
 	if (border) {
 		collector.addRule(`
-			.hc-black .monaco-workbench .pane-body.integrated-terminal .xterm.focus::before,
-			.hc-black .monaco-workbench .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
 		);
 	}
 

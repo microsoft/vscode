@@ -13,6 +13,8 @@ import { isObject } from 'vs/base/common/types';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	_serviceBrand: undefined;
+	readonly sendErrorTelemetry = false;
+
 	publicLog(eventName: string, data?: ITelemetryData) {
 		return Promise.resolve(undefined);
 	}

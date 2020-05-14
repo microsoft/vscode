@@ -45,11 +45,11 @@ const intlFileNameCollatorNumericCaseInsensitive: IdleValue<{ collator: Intl.Col
 export function compareFileNames(one: string | null, other: string | null, caseSensitive = false): number {
 	const a = one || '';
 	const b = other || '';
-	const result = intlFileNameCollatorBaseNumeric.getValue().collator.compare(a, b);
+	const result = intlFileNameCollatorBaseNumeric.value.collator.compare(a, b);
 
 	// Using the numeric option in the collator will
 	// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
-	if (intlFileNameCollatorBaseNumeric.getValue().collatorIsNumeric && result === 0 && a !== b) {
+	if (intlFileNameCollatorBaseNumeric.value.collatorIsNumeric && result === 0 && a !== b) {
 		return a < b ? -1 : 1;
 	}
 
@@ -60,6 +60,7 @@ export function compareFileNames(one: string | null, other: string | null, caseS
 export function compareFileNamesDefault(one: string | null, other: string | null): number {
 	return compareNamesThenExtensions(one, other, CaseGrouping.None);
 }
+
 
 /** Compares filenames by name case, then by name, then by extension. Groups uppercase names before lowercase. */
 export function compareFileNamesUpper(one: string | null, other: string | null) {
@@ -110,19 +111,19 @@ export function compareFileExtensions(one: string | null, other: string | null):
 	const [oneName, oneExtension] = extractNameAndExtension(one);
 	const [otherName, otherExtension] = extractNameAndExtension(other);
 
-	let result = intlFileNameCollatorBaseNumeric.getValue().collator.compare(oneExtension, otherExtension);
+	let result = intlFileNameCollatorBaseNumeric.value.collator.compare(oneExtension, otherExtension);
 
 	if (result === 0) {
 		// Using the numeric option in the collator will
 		// make compare(`foo1`, `foo01`) === 0. We must disambiguate.
-		if (intlFileNameCollatorBaseNumeric.getValue().collatorIsNumeric && oneExtension !== otherExtension) {
+		if (intlFileNameCollatorBaseNumeric.value.collatorIsNumeric && oneExtension !== otherExtension) {
 			return oneExtension < otherExtension ? -1 : 1;
 		}
 
 		// Extensions are equal, compare filenames
-		result = intlFileNameCollatorBaseNumeric.getValue().collator.compare(oneName, otherName);
+		result = intlFileNameCollatorBaseNumeric.value.collator.compare(oneName, otherName);
 
-		if (intlFileNameCollatorBaseNumeric.getValue().collatorIsNumeric && result === 0 && oneName !== otherName) {
+		if (intlFileNameCollatorBaseNumeric.value.collatorIsNumeric && result === 0 && oneName !== otherName) {
 			return oneName < otherName ? -1 : 1;
 		}
 	}

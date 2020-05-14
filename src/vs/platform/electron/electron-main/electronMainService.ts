@@ -114,7 +114,10 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	private async doOpenEmptyWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void> {
-		this.windowsMainService.openEmptyWindow(OpenContext.API, options);
+		this.windowsMainService.openEmptyWindow({
+			context: OpenContext.API,
+			contextWindowId: windowId
+		}, options);
 	}
 
 	async toggleFullScreen(windowId: number | undefined): Promise<void> {

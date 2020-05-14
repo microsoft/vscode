@@ -101,7 +101,7 @@
 }
 
 /* Hides active elements in high contrast mode */
-.hc-black .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+.monaco-workbench.hc-black .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 	display: none;
 }
 
@@ -120,8 +120,8 @@
 }
 
 /* Hides outline on HC as focus is handled by border */
-.hc-black .monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
-.hc-black .monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
+.monaco-workbench.hc-black .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
+.monaco-workbench.hc-black .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 	outline: none;
 }
 

@@ -9,7 +9,7 @@ import * as strings from 'vs/base/common/strings';
 import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IConfiguration, IViewState } from 'vs/editor/common/editorCommon';
+import { IConfiguration, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
@@ -24,10 +24,11 @@ import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecora
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
+import { IReducedViewModel } from 'vs/editor/common/controller/cursorCommon';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
-export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
+export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel, IReducedViewModel {
 
 	private readonly editorId: number;
 	private readonly configuration: IConfiguration;
@@ -94,21 +95,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			if (e.scrollTopChanged) {
 				this._tokenizeViewportSoon.schedule();
 			}
-			try {
-				const eventsCollector = this._beginEmit();
-				eventsCollector.emit(new viewEvents.ViewScrollChangedEvent(e));
-			} finally {
-				this._endEmit();
-			}
+			this._emitSingleViewEvent(new viewEvents.ViewScrollChangedEvent(e));
 		}));
 
 		this._register(this.viewLayout.onDidContentSizeChange((e) => {
-			try {
-				const eventsCollector = this._beginEmit();
-				eventsCollector.emit(new viewEvents.ViewContentSizeChangedEvent(e));
-			} finally {
-				this._endEmit();
-			}
+			this._emitSingleViewEvent(new viewEvents.ViewContentSizeChangedEvent(e));
 		}));
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
@@ -117,20 +108,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this._register(this.configuration.onDidChange((e) => {
 			try {
-				const eventsCollector = this._beginEmit();
+				const eventsCollector = this._beginEmitViewEvents();
 				this._onConfigurationChanged(eventsCollector, e);
 			} finally {
-				this._endEmit();
+				this._endEmitViewEvents();
 			}
 		}));
 
 		this._register(MinimapTokensColorTracker.getInstance().onDidChange(() => {
-			try {
-				const eventsCollector = this._beginEmit();
-				eventsCollector.emit(new viewEvents.ViewTokensColorsChangedEvent());
-			} finally {
-				this._endEmit();
-			}
+			this._emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
 		this._updateConfigurationViewLineCountNow();
@@ -204,7 +190,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		if (restorePreviousViewportStart && previousViewportStartModelPosition) {
 			const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(previousViewportStartModelPosition);
 			const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-			this.viewLayout.setScrollPositionNow({ scrollTop: viewPositionTop + this.viewportStartLineDelta });
+			this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this.viewportStartLineDelta }, ScrollType.Immediate);
 		}
 	}
 
@@ -212,7 +198,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this._register(this.model.onDidChangeRawContentFast((e) => {
 			try {
-				const eventsCollector = this._beginEmit();
+				const eventsCollector = this._beginEmitViewEvents();
 
 				let hadOtherModelChange = false;
 				let hadModelLineChangeThatChangedLineMapping = false;
@@ -305,7 +291,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					this.decorations.onLineMappingChanged();
 				}
 			} finally {
-				this._endEmit();
+				this._endEmitViewEvents();
 			}
 
 			// Update the configuration and reset the centered view line
@@ -319,7 +305,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				if (modelRange) {
 					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
 					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-					this.viewLayout.setScrollPositionNow({ scrollTop: viewPositionTop + this.viewportStartLineDelta });
+					this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this.viewportStartLineDelta }, ScrollType.Immediate);
 				}
 			}
 		}));
@@ -335,12 +321,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					toLineNumber: viewEndLineNumber
 				};
 			}
-			try {
-				const eventsCollector = this._beginEmit();
-				eventsCollector.emit(new viewEvents.ViewTokensChangedEvent(viewRanges));
-			} finally {
-				this._endEmit();
-			}
+			this._emitSingleViewEvent(new viewEvents.ViewTokensChangedEvent(viewRanges));
 
 			if (e.tokenizationSupportChanged) {
 				this._tokenizeViewportSoon.schedule();
@@ -348,12 +329,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}));
 
 		this._register(this.model.onDidChangeLanguageConfiguration((e) => {
-			try {
-				const eventsCollector = this._beginEmit();
-				eventsCollector.emit(new viewEvents.ViewLanguageConfigurationEvent());
-			} finally {
-				this._endEmit();
-			}
+			this._emitSingleViewEvent(new viewEvents.ViewLanguageConfigurationEvent());
 		}));
 
 		this._register(this.model.onDidChangeOptions((e) => {
@@ -362,12 +338,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
 				try {
-					const eventsCollector = this._beginEmit();
+					const eventsCollector = this._beginEmitViewEvents();
 					eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
 				} finally {
-					this._endEmit();
+					this._endEmitViewEvents();
 				}
 				this._updateConfigurationViewLineCount.schedule();
 			}
@@ -375,18 +351,13 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this._register(this.model.onDidChangeDecorations((e) => {
 			this.decorations.onModelDecorationsChanged();
-			try {
-				const eventsCollector = this._beginEmit();
-				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(e));
-			} finally {
-				this._endEmit();
-			}
+			this._emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 		}));
 	}
 
 	public setHiddenAreas(ranges: Range[]): void {
 		try {
-			const eventsCollector = this._beginEmit();
+			const eventsCollector = this._beginEmitViewEvents();
 			let lineMappingChanged = this.lines.setHiddenAreas(ranges);
 			if (lineMappingChanged) {
 				eventsCollector.emit(new viewEvents.ViewFlushedEvent());
@@ -397,7 +368,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				this.viewLayout.onHeightMaybeChanged();
 			}
 		} finally {
-			this._endEmit();
+			this._endEmitViewEvents();
 		}
 		this._updateConfigurationViewLineCount.schedule();
 	}

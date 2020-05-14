@@ -6,9 +6,9 @@
 import 'vs/css!./media/activitybarpart';
 import * as nls from 'vs/nls';
 import { ActionsOrientation, ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { GLOBAL_ACTIVITY_ID, IActivity } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID, IActivity, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbench/common/activity';
 import { Part } from 'vs/workbench/browser/part';
-import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
+import { GlobalActivityActionViewItem, ViewContainerActivityAction, PlaceHolderToggleCompositePinnedAction, PlaceHolderViewContainerActivityAction, AccountsActionViewItem, HomeAction, HomeActionViewItem } from 'vs/workbench/browser/parts/activitybar/activitybarActions';
 import { IBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -98,7 +98,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private globalActivityActionBar: ActionBar | undefined;
 	private readonly globalActivity: ICompositeActivity[] = [];
 
-	private readonly cachedViewContainers: ICachedViewContainer[] = [];
+	private accountsActivityAction: ActivityAction | undefined;
+
 	private readonly compositeActions = new Map<string, { activityAction: ViewContainerActivityAction, pinnedAction: ToggleCompositePinnedAction }>();
 	private readonly viewContainerDisposables = new Map<string, IDisposable>();
 
@@ -123,7 +124,6 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEW_CONTAINERS, version: 1 });
 		this.migrateFromOldCachedViewContainersValue();
 
-		this.cachedViewContainers = this.getCachedViewContainers();
 		for (const cachedViewContainer of this.cachedViewContainers) {
 			if (environmentService.configuration.remoteAuthority // In remote window, hide activity bar entries until registered.
 				|| this.shouldBeHidden(cachedViewContainer.id, cachedViewContainer)
@@ -256,6 +256,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			return this.showGlobalActivity(badge, clazz, priority);
 		}
 
+		if (viewContainerOrActionId === ACCOUNTS_ACTIIVTY_ID) {
+			if (this.accountsActivityAction) {
+				this.accountsActivityAction.setBadge(badge, clazz);
+
+				return toDisposable(() => this.accountsActivityAction?.setBadge(undefined));
+			}
+		}
+
 		return Disposable.None;
 	}
 
@@ -354,7 +362,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				console.warn(`Unknown home indicator icon ${homeIndicator.icon}`);
 				codicon = Codicon.code;
 			}
-			this.createHomeBar(homeIndicator.command, homeIndicator.title, codicon);
+			this.createHomeBar(homeIndicator.href, homeIndicator.title, codicon);
 		}
 
 		// Install menubar if compact
@@ -375,7 +383,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		return this.content;
 	}
 
-	private createHomeBar(command: string, title: string, icon: Codicon): void {
+	private createHomeBar(href: string, title: string, icon: Codicon): void {
 		this.homeBarContainer = document.createElement('div');
 		this.homeBarContainer.setAttribute('aria-label', nls.localize('homeIndicator', "Home"));
 		this.homeBarContainer.setAttribute('role', 'toolbar');
@@ -383,14 +391,16 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 		this.homeBar = this._register(new ActionBar(this.homeBarContainer, {
 			orientation: ActionsOrientation.VERTICAL,
-			animated: false
+			animated: false,
+			ariaLabel: nls.localize('home', "Home"),
+			actionViewItemProvider: action => new HomeActionViewItem(action)
 		}));
 
 		const homeBarIconBadge = document.createElement('div');
 		addClass(homeBarIconBadge, 'home-bar-icon-badge');
 		this.homeBarContainer.appendChild(homeBarIconBadge);
 
-		this.homeBar.push(this._register(this.instantiationService.createInstance(HomeAction, command, title, icon)), { icon: true, label: false });
+		this.homeBar.push(this._register(this.instantiationService.createInstance(HomeAction, href, title, icon)));
 
 		const content = assertIsDefined(this.content);
 		content.prepend(this.homeBarContainer);
@@ -452,13 +462,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		});
 
 		if (getUserDataSyncStore(this.productService, this.configurationService)) {
-			const profileAction = new ActivityAction({
+			this.accountsActivityAction = new ActivityAction({
 				id: 'workbench.actions.accounts',
 				name: nls.localize('accounts', "Accounts"),
 				cssClass: Codicon.account.classNames
 			});
 
-			this.globalActivityActionBar.push(profileAction);
+			this.globalActivityActionBar.push(this.accountsActivityAction);
 		}
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
@@ -654,22 +664,19 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		if (e.key === ActivitybarPart.PINNED_VIEW_CONTAINERS && e.scope === StorageScope.GLOBAL
 			&& this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
 			this._pinnedViewContainersValue = undefined;
+			this._cachedViewContainers = undefined;
+
 			const newCompositeItems: ICompositeBarItem[] = [];
 			const compositeItems = this.compositeBar.getCompositeBarItems();
-			const cachedViewContainers = this.getCachedViewContainers();
 
-			for (const cachedViewContainer of cachedViewContainers) {
-				// Add and update existing items
-				const existingItem = compositeItems.filter(({ id }) => id === cachedViewContainer.id)[0];
-				if (existingItem) {
-					newCompositeItems.push({
-						id: existingItem.id,
-						name: existingItem.name,
-						order: existingItem.order,
-						pinned: cachedViewContainer.pinned,
-						visible: existingItem.visible
-					});
-				}
+			for (const cachedViewContainer of this.cachedViewContainers) {
+				newCompositeItems.push({
+					id: cachedViewContainer.id,
+					name: cachedViewContainer.name,
+					order: cachedViewContainer.order,
+					pinned: cachedViewContainer.pinned,
+					visible: !!compositeItems.find(({ id }) => id === cachedViewContainer.id)
+				});
 			}
 
 			for (let index = 0; index < compositeItems.length; index++) {
@@ -713,19 +720,21 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		this.storeCachedViewContainersState(state);
 	}
 
-	private getCachedViewContainers(): ICachedViewContainer[] {
-		const cachedViewContainers: ICachedViewContainer[] = this.getPinnedViewContainers();
-		for (const placeholderViewContainer of this.getPlaceholderViewContainers()) {
-			const cachedViewContainer = cachedViewContainers.filter(cached => cached.id === placeholderViewContainer.id)[0];
-			if (cachedViewContainer) {
-				cachedViewContainer.name = placeholderViewContainer.name;
-				cachedViewContainer.icon = placeholderViewContainer.iconCSS ? placeholderViewContainer.iconCSS :
-					placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
-				cachedViewContainer.views = placeholderViewContainer.views;
+	private _cachedViewContainers: ICachedViewContainer[] | undefined = undefined;
+	private get cachedViewContainers(): ICachedViewContainer[] {
+		if (this._cachedViewContainers === undefined) {
+			this._cachedViewContainers = this.getPinnedViewContainers();
+			for (const placeholderViewContainer of this.getPlaceholderViewContainers()) {
+				const cachedViewContainer = this._cachedViewContainers.filter(cached => cached.id === placeholderViewContainer.id)[0];
+				if (cachedViewContainer) {
+					cachedViewContainer.name = placeholderViewContainer.name;
+					cachedViewContainer.icon = placeholderViewContainer.iconCSS ? placeholderViewContainer.iconCSS :
+						placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
+					cachedViewContainer.views = placeholderViewContainer.views;
+				}
 			}
 		}
-
-		return cachedViewContainers;
+		return this._cachedViewContainers;
 	}
 
 	private storeCachedViewContainersState(cachedViewContainers: ICachedViewContainer[]): void {

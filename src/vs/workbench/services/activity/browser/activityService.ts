@@ -9,7 +9,7 @@ import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIIVTY_ID } from 'vs/workbench/common/activity';
 
 export class ActivityService implements IActivityService {
 
@@ -33,6 +33,10 @@ export class ActivityService implements IActivityService {
 			}
 		}
 		return Disposable.None;
+	}
+
+	showAccountsActivity({ badge, clazz, priority }: IActivity): IDisposable {
+		return this.activityBarService.showActivity(ACCOUNTS_ACTIIVTY_ID, badge, clazz, priority);
 	}
 
 	showGlobalActivity({ badge, clazz, priority }: IActivity): IDisposable {

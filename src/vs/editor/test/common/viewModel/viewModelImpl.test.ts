@@ -63,7 +63,7 @@ suite('ViewModel', () => {
 			let viewLineCount: number[] = [];
 
 			viewLineCount.push(viewModel.getLineCount());
-			viewModel.addEventListener((events) => {
+			viewModel.addViewEventListener((events) => {
 				// Access the view model
 				viewLineCount.push(viewModel.getLineCount());
 			});

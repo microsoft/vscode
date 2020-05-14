@@ -42,6 +42,19 @@ export abstract class CoreEditorCommand extends EditorCommand {
 	public abstract runCoreEditorCommand(cursors: ICursors, args: any): void;
 }
 
+export abstract class CoreEditorCommand2 extends EditorCommand {
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		const cursors = editor._getCursors();
+		if (!cursors) {
+			// the editor has no view => has no cursors
+			return;
+		}
+		this.runCoreEditorCommand(editor, cursors, args || {});
+	}
+
+	public abstract runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void;
+}
+
 export namespace EditorScroll_ {
 
 	const isEditorScrollArgs = function (arg: any): boolean {
@@ -482,14 +495,40 @@ export namespace CoreNavigationCommands {
 			this._runCursorMove(cursors, args.source, parsed);
 		}
 
-		_runCursorMove(cursors: ICursors, source: string, args: CursorMove_.ParsedArguments): void {
+		private _runCursorMove(cursors: ICursors, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
 			cursors.context.model.pushStackElement();
 			cursors.setStates(
 				source,
 				CursorChangeReason.Explicit,
-				CursorMoveCommands.move(cursors.context, cursors.getAll(), args)
+				CursorMoveImpl._move(cursors.context, cursors.getAll(), args)
 			);
 			cursors.reveal(source, true, RevealTarget.Primary, ScrollType.Smooth);
+		}
+
+		private static _move(context: CursorContext, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
+			const inSelectionMode = args.select;
+			const value = args.value;
+
+			switch (args.direction) {
+				case CursorMove_.Direction.Left:
+				case CursorMove_.Direction.Right:
+				case CursorMove_.Direction.Up:
+				case CursorMove_.Direction.Down:
+				case CursorMove_.Direction.WrappedLineStart:
+				case CursorMove_.Direction.WrappedLineFirstNonWhitespaceCharacter:
+				case CursorMove_.Direction.WrappedLineColumnCenter:
+				case CursorMove_.Direction.WrappedLineEnd:
+				case CursorMove_.Direction.WrappedLineLastNonWhitespaceCharacter:
+					return CursorMoveCommands.simpleMove(context, cursors, args.direction, inSelectionMode, value, args.unit);
+
+				case CursorMove_.Direction.ViewPortTop:
+				case CursorMove_.Direction.ViewPortBottom:
+				case CursorMove_.Direction.ViewPortCenter:
+				case CursorMove_.Direction.ViewPortIfOutside:
+					return CursorMoveCommands.viewportMove(context, cursors, args.direction, inSelectionMode, value);
+			}
+
+			return null;
 		}
 	}
 
@@ -501,9 +540,9 @@ export namespace CoreNavigationCommands {
 
 	class CursorMoveBasedCommand extends CoreEditorCommand {
 
-		private readonly _staticArgs: CursorMove_.ParsedArguments;
+		private readonly _staticArgs: CursorMove_.SimpleMoveArguments;
 
-		constructor(opts: ICommandOptions & { args: CursorMove_.ParsedArguments }) {
+		constructor(opts: ICommandOptions & { args: CursorMove_.SimpleMoveArguments }) {
 			super(opts);
 			this._staticArgs = opts.args;
 		}
@@ -519,7 +558,14 @@ export namespace CoreNavigationCommands {
 					value: cursors.context.config.pageSize
 				};
 			}
-			CursorMove._runCursorMove(cursors, dynamicArgs.source, args);
+
+			cursors.context.model.pushStackElement();
+			cursors.setStates(
+				dynamicArgs.source,
+				CursorChangeReason.Explicit,
+				CursorMoveCommands.simpleMove(cursors.context, cursors.getAll(), args.direction, args.select, args.value, args.unit)
+			);
+			cursors.reveal(dynamicArgs.source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 	}
 
@@ -1097,7 +1143,7 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	export class EditorScrollImpl extends CoreEditorCommand {
+	export class EditorScrollImpl extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'editorScroll',
@@ -1106,18 +1152,18 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
 			const parsed = EditorScroll_.parse(args);
 			if (!parsed) {
 				// illegal arguments
 				return;
 			}
-			this._runEditorScroll(cursors, args.source, parsed);
+			this._runEditorScroll(editor, cursors, args.source, parsed);
 		}
 
-		_runEditorScroll(cursors: ICursors, source: string, args: EditorScroll_.ParsedArguments): void {
+		_runEditorScroll(editor: ICodeEditor, cursors: ICursors, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
 
-			const desiredScrollTop = this._computeDesiredScrollTop(cursors.context, args);
+			const desiredScrollTop = this._computeDesiredScrollTop(editor, cursors.context, args);
 
 			if (args.revealCursor) {
 				// must ensure cursor is in new visible range
@@ -1131,14 +1177,15 @@ export namespace CoreNavigationCommands {
 				);
 			}
 
-			cursors.scrollTo(desiredScrollTop);
+			editor.setScrollTop(desiredScrollTop, ScrollType.Smooth);
 		}
 
-		private _computeDesiredScrollTop(context: CursorContext, args: EditorScroll_.ParsedArguments): number {
+		private _computeDesiredScrollTop(editor: ICodeEditor, context: CursorContext, args: EditorScroll_.ParsedArguments): number {
 
 			if (args.unit === EditorScroll_.Unit.Line) {
 				// scrolling by model lines
-				const visibleModelRange = context.getCompletelyVisibleModelRange();
+				const visibleViewRange = context.getCompletelyVisibleViewRange();
+				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
 
 				let desiredTopModelLineNumber: number;
 				if (args.direction === EditorScroll_.Direction.Up) {
@@ -1149,8 +1196,7 @@ export namespace CoreNavigationCommands {
 					desiredTopModelLineNumber = Math.min(context.model.getLineCount(), visibleModelRange.startLineNumber + args.value);
 				}
 
-				const desiredTopViewPosition = context.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
-				return context.getVerticalOffsetForViewLine(desiredTopViewPosition.lineNumber);
+				return editor.getTopForLineNumber(desiredTopModelLineNumber);
 			}
 
 			let noOfLines: number;
@@ -1162,13 +1208,13 @@ export namespace CoreNavigationCommands {
 				noOfLines = args.value;
 			}
 			const deltaLines = (args.direction === EditorScroll_.Direction.Up ? -1 : 1) * noOfLines;
-			return context.getCurrentScrollTop() + deltaLines * context.config.lineHeight;
+			return editor.getScrollTop() + deltaLines * context.config.lineHeight;
 		}
 	}
 
 	export const EditorScroll: EditorScrollImpl = registerEditorCommand(new EditorScrollImpl());
 
-	export const ScrollLineUp: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const ScrollLineUp: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'scrollLineUp',
@@ -1182,8 +1228,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, cursors, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.WrappedLine,
 				value: 1,
@@ -1193,7 +1239,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollPageUp: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const ScrollPageUp: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'scrollPageUp',
@@ -1208,8 +1254,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, cursors, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.Page,
 				value: 1,
@@ -1219,7 +1265,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollLineDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const ScrollLineDown: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'scrollLineDown',
@@ -1233,8 +1279,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, cursors, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.WrappedLine,
 				value: 1,
@@ -1244,7 +1290,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollPageDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
+	export const ScrollPageDown: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'scrollPageDown',
@@ -1259,8 +1305,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, cursors, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.Page,
 				value: 1,

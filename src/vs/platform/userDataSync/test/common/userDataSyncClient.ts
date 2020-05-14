@@ -124,6 +124,10 @@ export class UserDataSyncClient extends Disposable {
 		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
 	}
 
+	manifest(): Promise<IUserDataManifest | null> {
+		return this.instantiationService.get(IUserDataSyncStoreService).manifest();
+	}
+
 }
 
 export class UserDataSyncTestServer implements IRequestService {

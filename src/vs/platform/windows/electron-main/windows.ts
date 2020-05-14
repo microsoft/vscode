@@ -105,7 +105,7 @@ export interface IWindowsMainService {
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
@@ -118,9 +118,12 @@ export interface IWindowsMainService {
 	getWindowCount(): number;
 }
 
-export interface IOpenConfiguration {
+export interface IBaseOpenConfiguration {
 	readonly context: OpenContext;
 	readonly contextWindowId?: number;
+}
+
+export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly cli: ParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IWindowOpenable[];
@@ -136,3 +139,5 @@ export interface IOpenConfiguration {
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
 }
+
+export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
 import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable } from './util';
@@ -12,7 +12,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { GitErrorCodes, APIState as State, RemoteSourceProvider, CredentialsProvider } from './api/git';
+import { APIState as State, RemoteSourceProvider, CredentialsProvider } from './api/git';
 import { Askpass } from './askpass';
 
 const localize = nls.loadMessageBundle();
@@ -73,6 +73,7 @@ export class Model {
 	setState(state: State): void {
 		this._state = state;
 		this._onDidChangeState.fire(state);
+		commands.executeCommand('setContext', 'git.state', state);
 	}
 
 	private remoteProviders = new Set<RemoteSourceProvider>();
@@ -92,6 +93,7 @@ export class Model {
 		const onPossibleGitRepositoryChange = filterEvent(onGitRepositoryChange, uri => !this.getRepository(uri));
 		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
 
+		this.setState('uninitialized');
 		this.doInitialScan().finally(() => this.setState('initialized'));
 	}
 
@@ -115,31 +117,27 @@ export class Model {
 			return;
 		}
 
-		for (const folder of workspace.workspaceFolders || []) {
+		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
+			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const promises = children
+				.filter(child => child !== '.git')
+				.map(child => this.openRepository(path.join(root, child)));
 
-			try {
-				const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const folderConfig = workspace.getConfiguration('git', folder.uri);
+			const paths = folderConfig.get<string[]>('scanRepositories') || [];
 
-				children
-					.filter(child => child !== '.git')
-					.forEach(child => this.openRepository(path.join(root, child)));
-
-				const folderConfig = workspace.getConfiguration('git', folder.uri);
-				const paths = folderConfig.get<string[]>('scanRepositories') || [];
-
-				for (const possibleRepositoryPath of paths) {
-					if (path.isAbsolute(possibleRepositoryPath)) {
-						console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
-						continue;
-					}
-
-					this.openRepository(path.join(root, possibleRepositoryPath));
+			for (const possibleRepositoryPath of paths) {
+				if (path.isAbsolute(possibleRepositoryPath)) {
+					console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
+					continue;
 				}
-			} catch (err) {
-				// noop
+
+				promises.push(this.openRepository(path.join(root, possibleRepositoryPath)));
 			}
-		}
+
+			await Promise.all(promises);
+		}));
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
@@ -253,11 +251,7 @@ export class Model {
 			this.open(repository);
 			await repository.status();
 		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-				return;
-			}
-
-			// console.error('Failed to find repository:', err);
+			// noop
 		}
 	}
 

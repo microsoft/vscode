@@ -146,7 +146,7 @@ export class ExplorerView extends ViewPane {
 	// Refresh is needed on the initial explorer open
 	private shouldRefresh = true;
 	private dragHandler!: DelayedDragHandler;
-	private autoReveal = false;
+	private autoReveal: boolean | 'focusNoScroll' = false;
 	private actions: IAction[] | undefined;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 
@@ -674,11 +674,9 @@ export class ExplorerView extends ViewPane {
 			}
 
 			try {
-				if (reveal) {
-					// Don't scroll to the item if it's already visible
-					if (this.tree.getRelativeTop(item) === null) {
-						this.tree.reveal(item, 0.5);
-					}
+				if (reveal === true && this.tree.getRelativeTop(item) === null) {
+					// Don't scroll to the item if it's already visible, or if set not to.
+					this.tree.reveal(item, 0.5);
 				}
 
 				this.tree.setFocus([item]);

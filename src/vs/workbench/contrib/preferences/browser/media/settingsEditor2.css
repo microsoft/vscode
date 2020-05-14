@@ -35,7 +35,7 @@
 	position: relative;
 }
 
-.vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
+.monaco-workbench.vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
 	border: 1px solid #ddd;
 }
 
@@ -86,11 +86,11 @@
 	opacity: 1;
 }
 
-.vs .settings-editor > .settings-header > .settings-header-controls {
+.monaco-workbench.vs .settings-editor > .settings-header > .settings-header-controls {
 	border-color: #cccccc;
 }
 
-.vs-dark .settings-editor > .settings-header > .settings-header-controls {
+.monaco-workbench.vs-dark .settings-editor > .settings-header > .settings-header-controls {
 	border-color: #3c3c3c;
 }
 
