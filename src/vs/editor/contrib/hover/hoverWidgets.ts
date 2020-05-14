@@ -12,11 +12,9 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-
-const $ = dom.$;
 
 export class ContentHoverWidget extends HoverWidget implements IContentWidget {
 
@@ -48,6 +46,7 @@ export class ContentHoverWidget extends HoverWidget implements IContentWidget {
 		private readonly _keybindingService: IKeybindingService
 	) {
 		super();
+
 		this._id = id;
 		this._editor = editor;
 		this._isVisible = false;
@@ -156,23 +155,11 @@ export class ContentHoverWidget extends HoverWidget implements IContentWidget {
 		this.onContentsChange();
 	}
 
-	protected renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
-		const actionContainer = dom.append(parent, $('div.action-container'));
-		const action = dom.append(actionContainer, $('a.action'));
-		action.setAttribute('href', '#');
-		action.setAttribute('role', 'button');
-		if (actionOptions.iconClass) {
-			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
-		}
-		const label = dom.append(action, $('span'));
+
+	protected _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
-		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(actionContainer);
-		});
+		return super._renderAction(parent, actionOptions, keybindingLabel);
 	}
 
 	protected onContentsChange(): void {

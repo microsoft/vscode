@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -46,6 +46,7 @@ export class HoverWidget extends BaseHoverWidget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
+
 		this._containerDomNode = document.createElement('div');
 		this._containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
 		this._containerDomNode.tabIndex = 0;
@@ -92,7 +93,11 @@ export class HoverWidget extends BaseHoverWidget {
 		if (this._actions && this._actions.length > 0) {
 			const statusBarElement = $('div.hover-row.status-bar');
 			const actionsElement = $('div.actions');
-			this._actions.forEach(action => this._renderAction(actionsElement, action));
+			this._actions.forEach(action => {
+				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
+				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+				this._renderAction(actionsElement, action, keybindingLabel);
+			});
 			statusBarElement.appendChild(actionsElement);
 			this._containerDomNode.appendChild(statusBarElement);
 		}
@@ -104,25 +109,6 @@ export class HoverWidget extends BaseHoverWidget {
 		this._container.appendChild(this._containerDomNode);
 
 		this.layout();
-	}
-
-	private _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
-		const actionContainer = dom.append(parent, $('div.action-container'));
-		const action = dom.append(actionContainer, $('a.action'));
-		action.setAttribute('href', '#');
-		action.setAttribute('role', 'button');
-		if (actionOptions.iconClass) {
-			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
-		}
-		const label = dom.append(action, $('span'));
-		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
-		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(actionContainer);
-		});
 	}
 
 	public layout(): void {

@@ -562,7 +562,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			disposables.add(this.renderAction(actionsElement, {
+			disposables.add(this._renderAction(actionsElement, {
 				label: nls.localize('peek problem', "Peek Problem"),
 				commandId: NextMarkerAction.ID,
 				run: () => {
@@ -600,7 +600,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 
-			disposables.add(this.renderAction(actionsElement, {
+			disposables.add(this._renderAction(actionsElement, {
 				label: nls.localize('quick fixes', "Quick Fix..."),
 				commandId: QuickFixAction.Id,
 				run: (target) => {
