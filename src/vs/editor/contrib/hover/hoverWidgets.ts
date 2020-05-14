@@ -14,10 +14,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 
 const $ = dom.$;
 
-export class ContentHoverWidget extends Widget implements IContentWidget {
+export class ContentHoverWidget extends HoverWidget implements IContentWidget {
 
 	private readonly _id: string;
 	protected _editor: ICodeEditor;

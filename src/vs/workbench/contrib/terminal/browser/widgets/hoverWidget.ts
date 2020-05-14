@@ -6,7 +6,6 @@
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { Widget } from 'vs/base/browser/ui/widget';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -17,10 +16,12 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { Widget } from 'vs/base/browser/ui/widget';
 
 const $ = dom.$;
 
-export class HoverWidget extends Widget {
+export class HoverWidget extends BaseHoverWidget {
 	private readonly _containerDomNode: HTMLElement;
 	private readonly _domNode: HTMLElement;
 	private readonly _messageListeners = new DisposableStore();
