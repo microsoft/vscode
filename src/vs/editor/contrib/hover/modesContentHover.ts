@@ -213,12 +213,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	constructor(
 		editor: ICodeEditor,
 		markerDecorationsService: IMarkerDecorationsService,
+		keybindingService: IKeybindingService,
 		private readonly _themeService: IThemeService,
-		private readonly _keybindingService: IKeybindingService,
 		private readonly _modeService: IModeService,
 		private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
-		super(ModesContentHoverWidget.ID, editor);
+		super(ModesContentHoverWidget.ID, editor, keybindingService);
 
 		this._messages = [];
 		this._lastRange = null;
@@ -630,25 +630,6 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				markerCodeActionTrigger,
 				Progress.None,
 				cancellationToken);
-		});
-	}
-
-	private renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
-		const actionContainer = dom.append(parent, $('div.action-container'));
-		const action = dom.append(actionContainer, $('a.action'));
-		action.setAttribute('href', '#');
-		action.setAttribute('role', 'button');
-		if (actionOptions.iconClass) {
-			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
-		}
-		const label = dom.append(action, $('span'));
-		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
-		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(actionContainer);
 		});
 	}
 

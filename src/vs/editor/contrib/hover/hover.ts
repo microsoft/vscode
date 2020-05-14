@@ -205,7 +205,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _createHoverWidgets() {
-		this._contentWidget.value = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._themeService, this._keybindingService, this._modeService, this._openerService);
+		this._contentWidget.value = new ModesContentHoverWidget(this._editor, this._markerDecorationsService, this._keybindingService, this._themeService, this._modeService, this._openerService);
 		this._glyphWidget.value = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 	}
 

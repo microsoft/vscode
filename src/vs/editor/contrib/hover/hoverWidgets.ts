@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { toggleClass } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -12,6 +12,10 @@ import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPosit
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
+const $ = dom.$;
 
 export class ContentHoverWidget extends Widget implements IContentWidget {
 
@@ -34,10 +38,14 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 
 	protected set isVisible(value: boolean) {
 		this._isVisible = value;
-		toggleClass(this._containerDomNode, 'hidden', !this._isVisible);
+		dom.toggleClass(this._containerDomNode, 'hidden', !this._isVisible);
 	}
 
-	constructor(id: string, editor: ICodeEditor) {
+	constructor(
+		id: string,
+		editor: ICodeEditor,
+		private readonly _keybindingService: IKeybindingService
+	) {
 		super();
 		this._id = id;
 		this._editor = editor;
@@ -147,6 +155,25 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 		this.onContentsChange();
 	}
 
+	protected renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
+		const actionContainer = dom.append(parent, $('div.action-container'));
+		const action = dom.append(actionContainer, $('a.action'));
+		action.setAttribute('href', '#');
+		action.setAttribute('role', 'button');
+		if (actionOptions.iconClass) {
+			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
+		}
+		const label = dom.append(action, $('span'));
+		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
+		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
+			e.stopPropagation();
+			e.preventDefault();
+			actionOptions.run(actionContainer);
+		});
+	}
+
 	protected onContentsChange(): void {
 		this.scrollbar.scanDomNode();
 	}
@@ -198,7 +225,7 @@ export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 
 	protected set isVisible(value: boolean) {
 		this._isVisible = value;
-		toggleClass(this._domNode, 'hidden', !this._isVisible);
+		dom.toggleClass(this._domNode, 'hidden', !this._isVisible);
 	}
 
 	public getId(): string {
