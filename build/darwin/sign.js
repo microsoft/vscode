@@ -48,10 +48,10 @@ async function main() {
     const gpuHelperOpts = Object.assign(Object.assign({}, defaultOpts), { app: path.join(appFrameworkPath, gpuHelperAppName), entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist'), 'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist') });
     const pluginHelperOpts = Object.assign(Object.assign({}, defaultOpts), { app: path.join(appFrameworkPath, pluginHelperAppName), entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist'), 'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist') });
     const rendererHelperOpts = Object.assign(Object.assign({}, defaultOpts), { app: path.join(appFrameworkPath, rendererHelperAppName), entitlements: path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'), 'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist') });
-    await codesign.signAsync(appOpts);
     await codesign.signAsync(gpuHelperOpts);
     await codesign.signAsync(pluginHelperOpts);
     await codesign.signAsync(rendererHelperOpts);
+    await codesign.signAsync(appOpts);
 }
 if (require.main === module) {
     main().catch(err => {

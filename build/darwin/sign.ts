@@ -76,10 +76,10 @@ async function main(): Promise<void> {
 		'entitlements-inherit': path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist'),
 	};
 
-	await codesign.signAsync(appOpts as any);
 	await codesign.signAsync(gpuHelperOpts);
 	await codesign.signAsync(pluginHelperOpts);
 	await codesign.signAsync(rendererHelperOpts);
+	await codesign.signAsync(appOpts as any);
 }
 
 if (require.main === module) {
