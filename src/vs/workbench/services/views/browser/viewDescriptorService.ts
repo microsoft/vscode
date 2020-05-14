@@ -107,8 +107,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 
-		this.cachedViewInfo = this.getCachedViewPositions();
 		this.cachedViewContainerInfo = this.getCachedViewContainerLocations();
+		this.cachedViewInfo = this.getCachedViewPositions();
 
 		// Register all containers that were registered before this ctor
 		this.viewContainers.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
@@ -407,6 +407,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		for (const [viewId, containerInfo] of result.entries()) {
 			if (!containerInfo) {
 				result.delete(viewId);
+				continue;
+			}
+
+			// Verify a view that is in a generated has cached container info
+			const generated = this.isGeneratedContainerId(containerInfo.containerId);
+			const missingCacheData = this.cachedViewContainerInfo.get(containerInfo.containerId) === undefined;
+			if (generated && missingCacheData) {
+				result.delete(viewId);
 			}
 		}
 
@@ -435,7 +443,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				// Verify if we need to create the destination container
 				if (!this.viewContainersRegistry.get(newViewContainerInfo.containerId)) {
 					const location = this.cachedViewContainerInfo.get(newViewContainerInfo.containerId);
-					if (location) {
+					if (location !== undefined) {
 						this.registerGeneratedViewContainer(location, newViewContainerInfo.containerId);
 					}
 				}
