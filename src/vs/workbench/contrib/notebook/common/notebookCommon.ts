@@ -79,6 +79,7 @@ export enum NotebookCellRunState {
 export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
+	breakpointMargin?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
