@@ -198,8 +198,8 @@ function compareAndDisambiguateByLength(collator: Intl.Collator, one: string, ot
 function compareNamesThenExtensions(one: string | null, other: string | null, caseGrouping: CaseGrouping) {
 	const [oneName, oneExtension] = extractNameAndExtension(one, true);
 	const [otherName, otherExtension] = extractNameAndExtension(other, true);
-	const collatorNumeric = intlFileNameCollatorNumeric.getValue().collator;
-	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.getValue().collator;
+	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
+	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.value.collator;
 	let result = 0;
 
 	// Compare names by case if case grouping is selected.
@@ -240,8 +240,8 @@ function compareNamesThenExtensions(one: string | null, other: string | null, ca
 function compareExtensionsThenNames(one: string | null, other: string | null, caseGrouping: CaseGrouping) {
 	const [oneName, oneExtension] = extractNameAndExtension(one, true);
 	const [otherName, otherExtension] = extractNameAndExtension(other, true);
-	const collatorNumeric = intlFileNameCollatorNumeric.getValue().collator;
-	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.getValue().collator;
+	const collatorNumeric = intlFileNameCollatorNumeric.value.collator;
+	const collatorNumericCaseInsensitive = intlFileNameCollatorNumericCaseInsensitive.value.collator;
 	let result;
 
 	// Check for extension differences, ignoring differences in case.
