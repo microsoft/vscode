@@ -156,7 +156,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 				continue;
 			}
 
-			this.addViews(viewContainer, containerData.views);
+			// Filter out views that have already been added to the view container model
+			// This is needed when statically-registered views are moved to
+			// other statically registered containers as they will both try to add on startup
+			const viewsToAdd = containerData.views.filter(view => this.getViewContainerModel(viewContainer).allViewDescriptors.filter(vd => vd.id === view.id).length === 0);
+			this.addViews(viewContainer, viewsToAdd);
 		}
 	}
 
