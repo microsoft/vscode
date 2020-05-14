@@ -159,6 +159,13 @@ export class CellEditorOptions {
 	get value(): IEditorOptions {
 		return this._value;
 	}
+
+	setGlyphMargin(gm: boolean): void {
+		if (gm !== this._value.glyphMargin) {
+			this._value.glyphMargin = gm;
+			this._onDidChange.fire(this.value);
+		}
+	}
 }
 
 abstract class AbstractCellRenderer {
@@ -988,6 +995,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			templateData.timer.show(metadata.lastRunDuration);
 		} else {
 			templateData.timer.clear();
+		}
+
+		if (typeof metadata.breakpointMargin === 'boolean') {
+			this.editorOptions.setGlyphMargin(metadata.breakpointMargin);
 		}
 	}
 
