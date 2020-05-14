@@ -94,7 +94,7 @@ export class CompletionItem {
 			this.isInvalid = this.isInvalid
 				|| Range.spansMultipleLines(completion.range.insert) || Range.spansMultipleLines(completion.range.replace)
 				|| completion.range.insert.startLineNumber !== position.lineNumber || completion.range.replace.startLineNumber !== position.lineNumber
-				|| Range.compareRangesUsingStarts(completion.range.insert, completion.range.replace) !== 0;
+				|| completion.range.insert.startColumn !== completion.range.replace.startColumn;
 		}
 
 		// create the suggestion resolver
