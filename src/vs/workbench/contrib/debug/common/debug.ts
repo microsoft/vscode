@@ -56,6 +56,7 @@ export const CONTEXT_FOCUSED_SESSION_IS_ATTACH = new RawContextKey<boolean>('foc
 export const CONTEXT_STEP_BACK_SUPPORTED = new RawContextKey<boolean>('stepBackSupported', false);
 export const CONTEXT_RESTART_FRAME_SUPPORTED = new RawContextKey<boolean>('restartFrameSupported', false);
 export const CONTEXT_JUMP_TO_CURSOR_SUPPORTED = new RawContextKey<boolean>('jumpToCursorSupported', false);
+export const CONTEXT_STEP_INTO_TARGETS_SUPPORTED = new RawContextKey<boolean>('stepIntoTargetsSupported', false);
 export const CONTEXT_BREAKPOINTS_EXIST = new RawContextKey<boolean>('breakpointsExist', false);
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
@@ -229,7 +230,7 @@ export interface IDebugSession extends ITreeElement {
 
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number): Promise<void>;
-	stepIn(threadId: number): Promise<void>;
+	stepIn(threadId: number, targetId?: number): Promise<void>;
 	stepOut(threadId: number): Promise<void>;
 	stepBack(threadId: number): Promise<void>;
 	continue(threadId: number): Promise<void>;
@@ -237,6 +238,7 @@ export interface IDebugSession extends ITreeElement {
 	pause(threadId: number): Promise<void>;
 	terminateThreads(threadIds: number[]): Promise<void>;
 
+	stepInTargets(frameId: number): Promise<{ id: number, label: string }[]>;
 	completions(frameId: number | undefined, text: string, position: Position, overwriteBefore: number, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse>;
 	setVariable(variablesReference: number | undefined, name: string, value: string): Promise<DebugProtocol.SetVariableResponse>;
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse>;

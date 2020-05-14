@@ -371,7 +371,8 @@ suite('Map', () => {
 		iter.reset(URI.parse('file:///usr/bin/file.txt'));
 
 		assert.equal(iter.value(), 'file');
-		assert.equal(iter.cmp('FILE'), 0);
+		// assert.equal(iter.cmp('FILE'), 0);
+		assert.equal(iter.cmp('file'), 0);
 		assert.equal(iter.hasNext(), true);
 		iter.next();
 
@@ -391,7 +392,8 @@ suite('Map', () => {
 
 		// scheme
 		assert.equal(iter.value(), 'file');
-		assert.equal(iter.cmp('FILE'), 0);
+		// assert.equal(iter.cmp('FILE'), 0);
+		assert.equal(iter.cmp('file'), 0);
 		assert.equal(iter.hasNext(), true);
 		iter.next();
 
