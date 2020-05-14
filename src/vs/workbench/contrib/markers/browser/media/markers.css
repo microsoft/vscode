@@ -20,7 +20,7 @@
 	flex: 1;
 }
 
-.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
+.monaco-workbench.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
 	border: 1px solid transparent;
 }
@@ -101,7 +101,7 @@
 	padding-right: 10px;
 }
 
-.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
+.monaco-workbench.hc-black .markers-panel .markers-panel-container .tree-container .monaco-tl-contents {
 	line-height: 20px;
 }
 

@@ -8,13 +8,15 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IRelativePattern } from 'vs/base/common/glob';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -36,7 +38,7 @@ export class MainThreadNotebookDocument extends Disposable {
 		}));
 		this._register(this._textModel.onDidSelectionChange(e => {
 			const selectionsChange = e ? { selections: e } : null;
-			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange });
+			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: selectionsChange, metadata: null });
 		}));
 	}
 
@@ -57,6 +59,7 @@ export class MainThreadNotebookDocument extends Disposable {
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, MainThreadNotebookController>();
+	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
 	private readonly _proxy: ExtHostNotebookShape;
 
 	constructor(
@@ -131,6 +134,19 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return;
 	}
 
+	async $registerNotebookKernel(extension: NotebookExtensionDescription, id: string, label: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void> {
+		const kernel = new MainThreadNotebookKernel(this._proxy, id, label, selectors, extension.id, URI.revive(extension.location), preloads.map(preload => URI.revive(preload)));
+		this._notebookKernels.set(id, kernel);
+		this._notebookService.registerNotebookKernel(kernel);
+		return;
+	}
+
+	async $unregisterNotebookKernel(id: string): Promise<void> {
+		this._notebookKernels.delete(id);
+		this._notebookService.unregisterNotebookKernel(id);
+		return;
+	}
+
 	async $updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void> {
 		let controller = this._notebookProviders.get(viewType);
 
@@ -168,7 +184,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
 		if (activeEditorPane?.isNotebookEditor) {
-			const notebookEditor = (activeEditorPane as INotebookEditor);
+			const notebookEditor = (activeEditorPane.getControl() as INotebookEditor);
 
 			if (notebookEditor.viewModel?.handle === handle) {
 				notebookEditor.postMessage(value);
@@ -226,7 +242,15 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 		document.textModel.languages = data.languages;
 		document.textModel.metadata = data.metadata;
-		document.textModel.initialize(data!.cells);
+
+		if (data.cells.length) {
+			document.textModel.initialize(data!.cells);
+		} else {
+			const mainCell = document.textModel.createCellTextModel([''], document.textModel.languages.length ? document.textModel.languages[0] : '', CellKind.Code, [], undefined);
+			document.textModel.insertTemplateCell(mainCell);
+		}
+
+		this._proxy.$acceptEditorPropertiesChanged(uri, { selections: null, metadata: document.textModel.metadata });
 
 		return document.textModel;
 	}
@@ -249,7 +273,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	}
 
 	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
-		this._mainThreadNotebook.executeNotebook(viewType, uri, token);
+		return this._mainThreadNotebook.executeNotebook(viewType, uri, token);
 	}
 
 	onDidReceiveMessage(uri: UriComponents, message: any): void {
@@ -263,7 +287,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			addedDocuments: [{
 				viewType: document.viewType,
 				handle: document.handle,
-				uri: document.uri
+				uri: document.uri,
+				metadata: document.textModel.metadata
 			}]
 		});
 	}
@@ -313,5 +338,22 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	async saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean> {
 		return this._proxy.$saveNotebookAs(this._viewType, uri, target, token);
 
+	}
+}
+
+export class MainThreadNotebookKernel implements INotebookKernelInfo {
+	constructor(
+		private readonly _proxy: ExtHostNotebookShape,
+		readonly id: string,
+		readonly label: string,
+		readonly selectors: (string | IRelativePattern)[],
+		readonly extension: ExtensionIdentifier,
+		readonly extensionLocation: URI,
+		readonly preloads: URI[]
+	) {
+	}
+
+	async executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void> {
+		return this._proxy.$executeNotebook2(this.id, viewType, uri, handle, token);
 	}
 }

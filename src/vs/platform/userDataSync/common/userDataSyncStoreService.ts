@@ -15,9 +15,13 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { assign } from 'vs/base/common/objects';
+import { generateUuid } from 'vs/base/common/uuid';
+import { isWeb } from 'vs/base/common/platform';
 
+const USER_SESSION_ID_KEY = 'sync.user-session-id';
+const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -34,16 +38,17 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
 		this.commonHeadersPromise = getServiceMachineId(environmentService, fileService, storageService)
 			.then(uuid => {
 				const headers: IHeaders = {
-					'X-Sync-Client-Id': productService.version,
+					'X-Client-Name': `${productService.applicationName}${isWeb ? '-web' : ''}`,
+					'X-Client-Version': productService.version,
+					'X-Machine-Id': uuid
 				};
-				headers['X-Sync-Machine-Id'] = uuid;
 				return headers;
 			});
 	}
@@ -169,7 +174,25 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown);
 		}
 
-		return asJson(context);
+		const manifest = await asJson<IUserDataManifest>(context);
+		const currentSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
+
+		if (currentSessionId && manifest && currentSessionId !== manifest.session) {
+			// Server session is different from client session so clear cached session.
+			this.clearSession();
+		}
+
+		if (manifest === null && currentSessionId) {
+			// server session is cleared so clear cached session.
+			this.clearSession();
+		}
+
+		if (manifest) {
+			// update session
+			this.storageService.store(USER_SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL);
+		}
+
+		return manifest;
 	}
 
 	async clear(): Promise<void> {
@@ -185,6 +208,14 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		if (!isSuccess(context)) {
 			throw new UserDataSyncStoreError('Server returned ' + context.res.statusCode, UserDataSyncErrorCode.Unknown);
 		}
+
+		// clear cached session.
+		this.clearSession();
+	}
+
+	private clearSession(): void {
+		this.storageService.remove(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
+		this.storageService.remove(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
 	}
 
 	private async request(options: IRequestOptions, source: SyncResource | undefined, token: CancellationToken): Promise<IRequestContext> {
@@ -198,6 +229,9 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			'X-Account-Type': authToken.authenticationProviderId,
 			'authorization': `Bearer ${authToken.token}`,
 		});
+
+		// Add session headers
+		this.addSessionHeaders(options.headers);
 
 		this.logService.trace('Sending request to server', { url: options.url, type: options.type, headers: { ...options.headers, ...{ authorization: undefined } } });
 
@@ -227,6 +261,20 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		}
 
 		return context;
+	}
+
+	private addSessionHeaders(headers: IHeaders): void {
+		let machineSessionId = this.storageService.get(MACHINE_SESSION_ID_KEY, StorageScope.GLOBAL);
+		if (machineSessionId === undefined) {
+			machineSessionId = generateUuid();
+			this.storageService.store(MACHINE_SESSION_ID_KEY, machineSessionId, StorageScope.GLOBAL);
+		}
+		headers['X-Machine-Session-Id'] = machineSessionId;
+
+		const userSessionId = this.storageService.get(USER_SESSION_ID_KEY, StorageScope.GLOBAL);
+		if (userSessionId !== undefined) {
+			headers['X-User-Session-Id'] = userSessionId;
+		}
 	}
 
 }

@@ -11,6 +11,7 @@ import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
 import { Command, CommandManager } from '../utils/commandManager';
+import * as fixNames from '../utils/fixNames';
 import { memoize } from '../utils/memoize';
 import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
@@ -332,18 +333,17 @@ const fixAllErrorCodes = new Map<number, number>([
 	[2345, 2339],
 ]);
 
-
 const preferredFixes = new Map<string, /* priorty */number>([
-	['annotateWithTypeFromJSDoc', 0],
-	['constructorForDerivedNeedSuperCall', 0],
-	['extendsInterfaceBecomesImplements', 0],
-	['fixAwaitInSyncFunction', 0],
-	['fixClassIncorrectlyImplementsInterface', 1],
-	['fixUnreachableCode', 0],
-	['unusedIdentifier', 0],
-	['forgottenThisPropertyAccess', 0],
-	['spelling', 1],
-	['addMissingAwait', 0],
+	[fixNames.annotateWithTypeFromJSDoc, 0],
+	[fixNames.constructorForDerivedNeedSuperCall, 0],
+	[fixNames.extendsInterfaceBecomesImplements, 0],
+	[fixNames.awaitInSyncFunction, 0],
+	[fixNames.classIncorrectlyImplementsInterface, 1],
+	[fixNames.unreachableCode, 0],
+	[fixNames.unusedIdentifier, 0],
+	[fixNames.forgottenThisPropertyAccess, 0],
+	[fixNames.spelling, 1],
+	[fixNames.addMissingAwait, 0],
 ]);
 
 function isPreferredFix(

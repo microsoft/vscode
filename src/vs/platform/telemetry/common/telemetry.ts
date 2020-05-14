@@ -23,6 +23,11 @@ export interface ITelemetryData {
 
 export interface ITelemetryService {
 
+	/**
+	 * Whether error telemetry will get sent. If false, `publicLogError` will no-op.
+	 */
+	readonly sendErrorTelemetry: boolean;
+
 	_serviceBrand: undefined;
 
 	/**

@@ -15,6 +15,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { GlobPattern } from 'vs/workbench/api/common/extHost.protocol';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export enum CellKind {
 	Markdown = 1,
@@ -54,7 +55,8 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	cellEditable: true,
 	cellRunnable: true,
 	hasExecutionOrder: true,
-	displayOrder: NOTEBOOK_DISPLAY_ORDER
+	displayOrder: NOTEBOOK_DISPLAY_ORDER,
+	custom: {}
 };
 
 export interface NotebookDocumentMetadata {
@@ -64,6 +66,7 @@ export interface NotebookDocumentMetadata {
 	cellRunnable: boolean;
 	hasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
+	custom?: { [key: string]: any };
 }
 
 export enum NotebookCellRunState {
@@ -79,6 +82,9 @@ export interface NotebookCellMetadata {
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
+	runStartTime?: number;
+	lastRunDuration?: number;
+	custom?: { [key: string]: any };
 }
 
 export interface INotebookDisplayOrder {
@@ -95,6 +101,16 @@ export interface INotebookRendererInfo {
 	id: ExtensionIdentifier;
 	extensionLocation: URI,
 	preloads: URI[]
+}
+
+export interface INotebookKernelInfo {
+	id: string;
+	label: string,
+	selectors: (string | glob.IRelativePattern)[],
+	extension: ExtensionIdentifier;
+	extensionLocation: URI,
+	preloads: URI[];
+	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
 }
 
 export interface INotebookSelectors {
@@ -309,7 +325,7 @@ export interface NotebookDataDto {
 
 export namespace CellUri {
 
-	export const scheme = 'vscode-notebook';
+	export const scheme = 'vscode-notebook-cell';
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
@@ -332,10 +348,6 @@ export namespace CellUri {
 		} catch {
 			return undefined;
 		}
-	}
-
-	export function equal(a: URI, b: URI): boolean {
-		return a.path === b.path && a.query === b.query && a.scheme === b.scheme;
 	}
 }
 

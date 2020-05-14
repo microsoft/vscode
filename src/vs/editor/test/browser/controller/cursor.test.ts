@@ -12,20 +12,17 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder, IConfiguration } from 'vs/editor/common/editorCommon';
+import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor, TestCodeEditorCreationOptions, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
-import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
 const H = Handler;
 
@@ -131,11 +128,6 @@ function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]):
 	assert.deepEqual(actual, expected);
 }
 
-function createViewModel(configuration: IConfiguration, model: ITextModel): ViewModel {
-	const monospaceLineBreaksComputerFactory = MonospaceLineBreaksComputerFactory.create(configuration.options);
-	return new ViewModel(0, configuration, model, monospaceLineBreaksComputerFactory, monospaceLineBreaksComputerFactory, null!);
-}
-
 suite('Editor Controller - Cursor', () => {
 	const LINE1 = '    \tMy First Line\t ';
 	const LINE2 = '\tMy Second Line';
@@ -143,581 +135,720 @@ suite('Editor Controller - Cursor', () => {
 	const LINE4 = '';
 	const LINE5 = '1';
 
-	let thisModel: TextModel;
-	let thisConfiguration: TestConfiguration;
-	let thisViewModel: ViewModel;
-	let thisCursor: Cursor;
+	const TEXT =
+		LINE1 + '\r\n' +
+		LINE2 + '\n' +
+		LINE3 + '\n' +
+		LINE4 + '\r\n' +
+		LINE5;
 
-	setup(() => {
-		let text =
-			LINE1 + '\r\n' +
-			LINE2 + '\n' +
-			LINE3 + '\n' +
-			LINE4 + '\r\n' +
-			LINE5;
+	// let thisModel: TextModel;
+	// let thisConfiguration: TestConfiguration;
+	// let thisViewModel: ViewModel;
+	// let cursor: Cursor;
 
-		thisModel = createTextModel(text);
-		thisConfiguration = new TestConfiguration({});
-		thisViewModel = createViewModel(thisConfiguration, thisModel);
+	// setup(() => {
+	// 	let text =
+	// 		LINE1 + '\r\n' +
+	// 		LINE2 + '\n' +
+	// 		LINE3 + '\n' +
+	// 		LINE4 + '\r\n' +
+	// 		LINE5;
 
-		thisCursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
-	});
+	// 	thisModel = createTextModel(text);
+	// 	thisConfiguration = new TestConfiguration({});
+	// 	thisViewModel = createViewModel(thisConfiguration, thisModel);
 
-	teardown(() => {
-		thisCursor.dispose();
-		thisViewModel.dispose();
-		thisModel.dispose();
-		thisConfiguration.dispose();
-	});
+	// 	cursor = new Cursor(thisConfiguration, thisModel, thisViewModel);
+	// });
+
+	// teardown(() => {
+	// 	cursor.dispose();
+	// 	thisViewModel.dispose();
+	// 	thisModel.dispose();
+	// 	thisConfiguration.dispose();
+	// });
+
+	function runTest(callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
+		withTestCodeEditor(TEXT, {}, (editor, cursor) => {
+			callback(editor, cursor);
+		});
+	}
 
 	test('cursor initialized', () => {
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	// --------- absolute move
 
 	test('no move', () => {
-		moveTo(thisCursor, 1, 1);
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 1);
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	test('move', () => {
-		moveTo(thisCursor, 1, 2);
-		assertCursor(thisCursor, new Position(1, 2));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 2);
+			assertCursor(cursor, new Position(1, 2));
+		});
 	});
 
 	test('move in selection mode', () => {
-		moveTo(thisCursor, 1, 2, true);
-		assertCursor(thisCursor, new Selection(1, 1, 1, 2));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 2, true);
+			assertCursor(cursor, new Selection(1, 1, 1, 2));
+		});
 	});
 
 	test('move beyond line end', () => {
-		moveTo(thisCursor, 1, 25);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 25);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		});
 	});
 
 	test('move empty line', () => {
-		moveTo(thisCursor, 4, 20);
-		assertCursor(thisCursor, new Position(4, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 4, 20);
+			assertCursor(cursor, new Position(4, 1));
+		});
 	});
 
 	test('move one char line', () => {
-		moveTo(thisCursor, 5, 20);
-		assertCursor(thisCursor, new Position(5, 2));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 5, 20);
+			assertCursor(cursor, new Position(5, 2));
+		});
 	});
 
 	test('selection down', () => {
-		moveTo(thisCursor, 2, 1, true);
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 2, 1, true);
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
+		});
 	});
 
 	test('move and then select', () => {
-		moveTo(thisCursor, 2, 3);
-		assertCursor(thisCursor, new Position(2, 3));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 2, 3);
+			assertCursor(cursor, new Position(2, 3));
 
-		moveTo(thisCursor, 2, 15, true);
-		assertCursor(thisCursor, new Selection(2, 3, 2, 15));
+			moveTo(cursor, 2, 15, true);
+			assertCursor(cursor, new Selection(2, 3, 2, 15));
 
-		moveTo(thisCursor, 1, 2, true);
-		assertCursor(thisCursor, new Selection(2, 3, 1, 2));
+			moveTo(cursor, 1, 2, true);
+			assertCursor(cursor, new Selection(2, 3, 1, 2));
+		});
 	});
 
 	// --------- move left
 
 	test('move left on top left position', () => {
-		moveLeft(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	test('move left', () => {
-		moveTo(thisCursor, 1, 3);
-		assertCursor(thisCursor, new Position(1, 3));
-		moveLeft(thisCursor);
-		assertCursor(thisCursor, new Position(1, 2));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 3);
+			assertCursor(cursor, new Position(1, 3));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(1, 2));
+		});
 	});
 
 	test('move left with surrogate pair', () => {
-		moveTo(thisCursor, 3, 17);
-		assertCursor(thisCursor, new Position(3, 17));
-		moveLeft(thisCursor);
-		assertCursor(thisCursor, new Position(3, 15));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 17);
+			assertCursor(cursor, new Position(3, 17));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(3, 15));
+		});
 	});
 
 	test('move left goes to previous row', () => {
-		moveTo(thisCursor, 2, 1);
-		assertCursor(thisCursor, new Position(2, 1));
-		moveLeft(thisCursor);
-		assertCursor(thisCursor, new Position(1, 21));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 2, 1);
+			assertCursor(cursor, new Position(2, 1));
+			moveLeft(cursor);
+			assertCursor(cursor, new Position(1, 21));
+		});
 	});
 
 	test('move left selection', () => {
-		moveTo(thisCursor, 2, 1);
-		assertCursor(thisCursor, new Position(2, 1));
-		moveLeft(thisCursor, true);
-		assertCursor(thisCursor, new Selection(2, 1, 1, 21));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 2, 1);
+			assertCursor(cursor, new Position(2, 1));
+			moveLeft(cursor, true);
+			assertCursor(cursor, new Selection(2, 1, 1, 21));
+		});
 	});
 
 	// --------- move right
 
 	test('move right on bottom right position', () => {
-		moveTo(thisCursor, 5, 2);
-		assertCursor(thisCursor, new Position(5, 2));
-		moveRight(thisCursor);
-		assertCursor(thisCursor, new Position(5, 2));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 5, 2);
+			assertCursor(cursor, new Position(5, 2));
+			moveRight(cursor);
+			assertCursor(cursor, new Position(5, 2));
+		});
 	});
 
 	test('move right', () => {
-		moveTo(thisCursor, 1, 3);
-		assertCursor(thisCursor, new Position(1, 3));
-		moveRight(thisCursor);
-		assertCursor(thisCursor, new Position(1, 4));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 3);
+			assertCursor(cursor, new Position(1, 3));
+			moveRight(cursor);
+			assertCursor(cursor, new Position(1, 4));
+		});
 	});
 
 	test('move right with surrogate pair', () => {
-		moveTo(thisCursor, 3, 15);
-		assertCursor(thisCursor, new Position(3, 15));
-		moveRight(thisCursor);
-		assertCursor(thisCursor, new Position(3, 17));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 15);
+			assertCursor(cursor, new Position(3, 15));
+			moveRight(cursor);
+			assertCursor(cursor, new Position(3, 17));
+		});
 	});
 
 	test('move right goes to next row', () => {
-		moveTo(thisCursor, 1, 21);
-		assertCursor(thisCursor, new Position(1, 21));
-		moveRight(thisCursor);
-		assertCursor(thisCursor, new Position(2, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 21);
+			assertCursor(cursor, new Position(1, 21));
+			moveRight(cursor);
+			assertCursor(cursor, new Position(2, 1));
+		});
 	});
 
 	test('move right selection', () => {
-		moveTo(thisCursor, 1, 21);
-		assertCursor(thisCursor, new Position(1, 21));
-		moveRight(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 21, 2, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 21);
+			assertCursor(cursor, new Position(1, 21));
+			moveRight(cursor, true);
+			assertCursor(cursor, new Selection(1, 21, 2, 1));
+		});
 	});
 
 	// --------- move down
 
 	test('move down', () => {
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(2, 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(3, 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(4, 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(5, 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(5, 2));
+		runTest((editor, cursor) => {
+			moveDown(cursor);
+			assertCursor(cursor, new Position(2, 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(3, 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(4, 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(5, 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(5, 2));
+		});
 	});
 
 	test('move down with selection', () => {
-		moveDown(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
-		moveDown(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
-		moveDown(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
-		moveDown(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
-		moveDown(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 1, 5, 2));
+		runTest((editor, cursor) => {
+			moveDown(cursor, true);
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
+			moveDown(cursor, true);
+			assertCursor(cursor, new Selection(1, 1, 3, 1));
+			moveDown(cursor, true);
+			assertCursor(cursor, new Selection(1, 1, 4, 1));
+			moveDown(cursor, true);
+			assertCursor(cursor, new Selection(1, 1, 5, 1));
+			moveDown(cursor, true);
+			assertCursor(cursor, new Selection(1, 1, 5, 2));
+		});
 	});
 
 	test('move down with tabs', () => {
-		moveTo(thisCursor, 1, 5);
-		assertCursor(thisCursor, new Position(1, 5));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(2, 2));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(3, 5));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(4, 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(5, 2));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 5);
+			assertCursor(cursor, new Position(1, 5));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(2, 2));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(3, 5));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(4, 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(5, 2));
+		});
 	});
 
 	// --------- move up
 
 	test('move up', () => {
-		moveTo(thisCursor, 3, 5);
-		assertCursor(thisCursor, new Position(3, 5));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 5);
+			assertCursor(cursor, new Position(3, 5));
 
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(2, 2));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(2, 2));
 
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(1, 5));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 5));
+		});
 	});
 
 	test('move up with selection', () => {
-		moveTo(thisCursor, 3, 5);
-		assertCursor(thisCursor, new Position(3, 5));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 5);
+			assertCursor(cursor, new Position(3, 5));
 
-		moveUp(thisCursor, true);
-		assertCursor(thisCursor, new Selection(3, 5, 2, 2));
+			moveUp(cursor, true);
+			assertCursor(cursor, new Selection(3, 5, 2, 2));
 
-		moveUp(thisCursor, true);
-		assertCursor(thisCursor, new Selection(3, 5, 1, 5));
+			moveUp(cursor, true);
+			assertCursor(cursor, new Selection(3, 5, 1, 5));
+		});
 	});
 
 	test('move up and down with tabs', () => {
-		moveTo(thisCursor, 1, 5);
-		assertCursor(thisCursor, new Position(1, 5));
-		moveDown(thisCursor);
-		moveDown(thisCursor);
-		moveDown(thisCursor);
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(5, 2));
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(4, 1));
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(3, 5));
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(2, 2));
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(1, 5));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 5);
+			assertCursor(cursor, new Position(1, 5));
+			moveDown(cursor);
+			moveDown(cursor);
+			moveDown(cursor);
+			moveDown(cursor);
+			assertCursor(cursor, new Position(5, 2));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(4, 1));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(3, 5));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(2, 2));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 5));
+		});
 	});
 
 	test('move up and down with end of lines starting from a long one', () => {
-		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
-		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(2, LINE2.length + 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(3, LINE3.length + 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(4, LINE4.length + 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(5, LINE5.length + 1));
-		moveUp(thisCursor);
-		moveUp(thisCursor);
-		moveUp(thisCursor);
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
+		runTest((editor, cursor) => {
+			moveToEndOfLine(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+			moveToEndOfLine(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(2, LINE2.length + 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(3, LINE3.length + 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(4, LINE4.length + 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(5, LINE5.length + 1));
+			moveUp(cursor);
+			moveUp(cursor);
+			moveUp(cursor);
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		});
 	});
 
 	test('issue #44465: cursor position not correct when move', () => {
-		thisCursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
-		// going once up on the first line remembers the offset visual columns
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(2, 2));
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(1, 5));
+		runTest((editor, cursor) => {
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			// going once up on the first line remembers the offset visual columns
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(2, 2));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 5));
 
-		// going twice up on the first line discards the offset visual columns
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
-		moveUp(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
-		moveDown(thisCursor);
-		assertCursor(thisCursor, new Position(2, 1));
+			// going twice up on the first line discards the offset visual columns
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 1));
+			moveUp(cursor);
+			assertCursor(cursor, new Position(1, 1));
+			moveDown(cursor);
+			assertCursor(cursor, new Position(2, 1));
+		});
 	});
 
 	// --------- move to beginning of line
 
 	test('move to beginning of line', () => {
-		moveToBeginningOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, 6));
-		moveToBeginningOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			moveToBeginningOfLine(cursor);
+			assertCursor(cursor, new Position(1, 6));
+			moveToBeginningOfLine(cursor);
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	test('move to beginning of line from within line', () => {
-		moveTo(thisCursor, 1, 8);
-		moveToBeginningOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, 6));
-		moveToBeginningOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 8);
+			moveToBeginningOfLine(cursor);
+			assertCursor(cursor, new Position(1, 6));
+			moveToBeginningOfLine(cursor);
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	test('move to beginning of line from whitespace at beginning of line', () => {
-		moveTo(thisCursor, 1, 2);
-		moveToBeginningOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, 6));
-		moveToBeginningOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 2);
+			moveToBeginningOfLine(cursor);
+			assertCursor(cursor, new Position(1, 6));
+			moveToBeginningOfLine(cursor);
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	test('move to beginning of line from within line selection', () => {
-		moveTo(thisCursor, 1, 8);
-		moveToBeginningOfLine(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 8, 1, 6));
-		moveToBeginningOfLine(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 8, 1, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 8);
+			moveToBeginningOfLine(cursor, true);
+			assertCursor(cursor, new Selection(1, 8, 1, 6));
+			moveToBeginningOfLine(cursor, true);
+			assertCursor(cursor, new Selection(1, 8, 1, 1));
+		});
 	});
 
 	test('move to beginning of line with selection multiline forward', () => {
-		moveTo(thisCursor, 1, 8);
-		moveTo(thisCursor, 3, 9, true);
-		moveToBeginningOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 8);
+			moveTo(cursor, 3, 9, true);
+			moveToBeginningOfLine(cursor, false);
+			assertCursor(cursor, new Selection(3, 5, 3, 5));
+		});
 	});
 
 	test('move to beginning of line with selection multiline backward', () => {
-		moveTo(thisCursor, 3, 9);
-		moveTo(thisCursor, 1, 8, true);
-		moveToBeginningOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(1, 6, 1, 6));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 9);
+			moveTo(cursor, 1, 8, true);
+			moveToBeginningOfLine(cursor, false);
+			assertCursor(cursor, new Selection(1, 6, 1, 6));
+		});
 	});
 
 	test('move to beginning of line with selection single line forward', () => {
-		moveTo(thisCursor, 3, 2);
-		moveTo(thisCursor, 3, 9, true);
-		moveToBeginningOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 2);
+			moveTo(cursor, 3, 9, true);
+			moveToBeginningOfLine(cursor, false);
+			assertCursor(cursor, new Selection(3, 5, 3, 5));
+		});
 	});
 
 	test('move to beginning of line with selection single line backward', () => {
-		moveTo(thisCursor, 3, 9);
-		moveTo(thisCursor, 3, 2, true);
-		moveToBeginningOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 9);
+			moveTo(cursor, 3, 2, true);
+			moveToBeginningOfLine(cursor, false);
+			assertCursor(cursor, new Selection(3, 5, 3, 5));
+		});
 	});
 
 	test('issue #15401: "End" key is behaving weird when text is selected part 1', () => {
-		moveTo(thisCursor, 1, 8);
-		moveTo(thisCursor, 3, 9, true);
-		moveToBeginningOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 5, 3, 5));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 8);
+			moveTo(cursor, 3, 9, true);
+			moveToBeginningOfLine(cursor, false);
+			assertCursor(cursor, new Selection(3, 5, 3, 5));
+		});
 	});
 
 	test('issue #17011: Shift+home/end now go to the end of the selection start\'s line, not the selection\'s end', () => {
-		moveTo(thisCursor, 1, 8);
-		moveTo(thisCursor, 3, 9, true);
-		moveToBeginningOfLine(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 8, 3, 5));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 8);
+			moveTo(cursor, 3, 9, true);
+			moveToBeginningOfLine(cursor, true);
+			assertCursor(cursor, new Selection(1, 8, 3, 5));
+		});
 	});
 
 	// --------- move to end of line
 
 	test('move to end of line', () => {
-		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
-		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
+		runTest((editor, cursor) => {
+			moveToEndOfLine(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+			moveToEndOfLine(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		});
 	});
 
 	test('move to end of line from within line', () => {
-		moveTo(thisCursor, 1, 6);
-		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
-		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 6);
+			moveToEndOfLine(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+			moveToEndOfLine(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		});
 	});
 
 	test('move to end of line from whitespace at end of line', () => {
-		moveTo(thisCursor, 1, 20);
-		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
-		moveToEndOfLine(thisCursor);
-		assertCursor(thisCursor, new Position(1, LINE1.length + 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 20);
+			moveToEndOfLine(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+			moveToEndOfLine(cursor);
+			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		});
 	});
 
 	test('move to end of line from within line selection', () => {
-		moveTo(thisCursor, 1, 6);
-		moveToEndOfLine(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 6, 1, LINE1.length + 1));
-		moveToEndOfLine(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 6, 1, LINE1.length + 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 6);
+			moveToEndOfLine(cursor, true);
+			assertCursor(cursor, new Selection(1, 6, 1, LINE1.length + 1));
+			moveToEndOfLine(cursor, true);
+			assertCursor(cursor, new Selection(1, 6, 1, LINE1.length + 1));
+		});
 	});
 
 	test('move to end of line with selection multiline forward', () => {
-		moveTo(thisCursor, 1, 1);
-		moveTo(thisCursor, 3, 9, true);
-		moveToEndOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 1);
+			moveTo(cursor, 3, 9, true);
+			moveToEndOfLine(cursor, false);
+			assertCursor(cursor, new Selection(3, 17, 3, 17));
+		});
 	});
 
 	test('move to end of line with selection multiline backward', () => {
-		moveTo(thisCursor, 3, 9);
-		moveTo(thisCursor, 1, 1, true);
-		moveToEndOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(1, 21, 1, 21));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 9);
+			moveTo(cursor, 1, 1, true);
+			moveToEndOfLine(cursor, false);
+			assertCursor(cursor, new Selection(1, 21, 1, 21));
+		});
 	});
 
 	test('move to end of line with selection single line forward', () => {
-		moveTo(thisCursor, 3, 1);
-		moveTo(thisCursor, 3, 9, true);
-		moveToEndOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 1);
+			moveTo(cursor, 3, 9, true);
+			moveToEndOfLine(cursor, false);
+			assertCursor(cursor, new Selection(3, 17, 3, 17));
+		});
 	});
 
 	test('move to end of line with selection single line backward', () => {
-		moveTo(thisCursor, 3, 9);
-		moveTo(thisCursor, 3, 1, true);
-		moveToEndOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 9);
+			moveTo(cursor, 3, 1, true);
+			moveToEndOfLine(cursor, false);
+			assertCursor(cursor, new Selection(3, 17, 3, 17));
+		});
 	});
 
 	test('issue #15401: "End" key is behaving weird when text is selected part 2', () => {
-		moveTo(thisCursor, 1, 1);
-		moveTo(thisCursor, 3, 9, true);
-		moveToEndOfLine(thisCursor, false);
-		assertCursor(thisCursor, new Selection(3, 17, 3, 17));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 1);
+			moveTo(cursor, 3, 9, true);
+			moveToEndOfLine(cursor, false);
+			assertCursor(cursor, new Selection(3, 17, 3, 17));
+		});
 	});
 
 	// --------- move to beginning of buffer
 
 	test('move to beginning of buffer', () => {
-		moveToBeginningOfBuffer(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			moveToBeginningOfBuffer(cursor);
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	test('move to beginning of buffer from within first line', () => {
-		moveTo(thisCursor, 1, 3);
-		moveToBeginningOfBuffer(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 3);
+			moveToBeginningOfBuffer(cursor);
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	test('move to beginning of buffer from within another line', () => {
-		moveTo(thisCursor, 3, 3);
-		moveToBeginningOfBuffer(thisCursor);
-		assertCursor(thisCursor, new Position(1, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 3);
+			moveToBeginningOfBuffer(cursor);
+			assertCursor(cursor, new Position(1, 1));
+		});
 	});
 
 	test('move to beginning of buffer from within first line selection', () => {
-		moveTo(thisCursor, 1, 3);
-		moveToBeginningOfBuffer(thisCursor, true);
-		assertCursor(thisCursor, new Selection(1, 3, 1, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 1, 3);
+			moveToBeginningOfBuffer(cursor, true);
+			assertCursor(cursor, new Selection(1, 3, 1, 1));
+		});
 	});
 
 	test('move to beginning of buffer from within another line selection', () => {
-		moveTo(thisCursor, 3, 3);
-		moveToBeginningOfBuffer(thisCursor, true);
-		assertCursor(thisCursor, new Selection(3, 3, 1, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 3);
+			moveToBeginningOfBuffer(cursor, true);
+			assertCursor(cursor, new Selection(3, 3, 1, 1));
+		});
 	});
 
 	// --------- move to end of buffer
 
 	test('move to end of buffer', () => {
-		moveToEndOfBuffer(thisCursor);
-		assertCursor(thisCursor, new Position(5, LINE5.length + 1));
+		runTest((editor, cursor) => {
+			moveToEndOfBuffer(cursor);
+			assertCursor(cursor, new Position(5, LINE5.length + 1));
+		});
 	});
 
 	test('move to end of buffer from within last line', () => {
-		moveTo(thisCursor, 5, 1);
-		moveToEndOfBuffer(thisCursor);
-		assertCursor(thisCursor, new Position(5, LINE5.length + 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 5, 1);
+			moveToEndOfBuffer(cursor);
+			assertCursor(cursor, new Position(5, LINE5.length + 1));
+		});
 	});
 
 	test('move to end of buffer from within another line', () => {
-		moveTo(thisCursor, 3, 3);
-		moveToEndOfBuffer(thisCursor);
-		assertCursor(thisCursor, new Position(5, LINE5.length + 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 3);
+			moveToEndOfBuffer(cursor);
+			assertCursor(cursor, new Position(5, LINE5.length + 1));
+		});
 	});
 
 	test('move to end of buffer from within last line selection', () => {
-		moveTo(thisCursor, 5, 1);
-		moveToEndOfBuffer(thisCursor, true);
-		assertCursor(thisCursor, new Selection(5, 1, 5, LINE5.length + 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 5, 1);
+			moveToEndOfBuffer(cursor, true);
+			assertCursor(cursor, new Selection(5, 1, 5, LINE5.length + 1));
+		});
 	});
 
 	test('move to end of buffer from within another line selection', () => {
-		moveTo(thisCursor, 3, 3);
-		moveToEndOfBuffer(thisCursor, true);
-		assertCursor(thisCursor, new Selection(3, 3, 5, LINE5.length + 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 3, 3);
+			moveToEndOfBuffer(cursor, true);
+			assertCursor(cursor, new Selection(3, 3, 5, LINE5.length + 1));
+		});
 	});
 
 	// --------- misc
 
 	test('select all', () => {
-		CoreNavigationCommands.SelectAll.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
+		runTest((editor, cursor) => {
+			CoreNavigationCommands.SelectAll.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 5, LINE5.length + 1));
+		});
 	});
 
 	test('expandLineSelection', () => {
-		//              0          1         2
-		//              01234 56789012345678 0
-		// let LINE1 = '    \tMy First Line\t ';
-		moveTo(thisCursor, 1, 1);
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
+		runTest((editor, cursor) => {
+			//              0          1         2
+			//              01234 56789012345678 0
+			// let LINE1 = '    \tMy First Line\t ';
+			moveTo(cursor, 1, 1);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
 
-		moveTo(thisCursor, 1, 2);
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
+			moveTo(cursor, 1, 2);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
 
-		moveTo(thisCursor, 1, 5);
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
+			moveTo(cursor, 1, 5);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
 
-		moveTo(thisCursor, 1, 19);
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
+			moveTo(cursor, 1, 19);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
 
-		moveTo(thisCursor, 1, 20);
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
+			moveTo(cursor, 1, 20);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
 
-		moveTo(thisCursor, 1, 21);
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 3, 1));
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 4, 1));
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 5, 1));
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
-		CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(thisCursor, {});
-		assertCursor(thisCursor, new Selection(1, 1, 5, LINE5.length + 1));
+			moveTo(cursor, 1, 21);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 3, 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 4, 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 5, 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 5, LINE5.length + 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, new Selection(1, 1, 5, LINE5.length + 1));
+		});
 	});
 
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
-		thisCursor.onDidChange((e) => {
-			assert.ok(false, 'was not expecting event');
+		runTest((editor, cursor) => {
+			cursor.onDidChange((e) => {
+				assert.ok(false, 'was not expecting event');
+			});
+			moveTo(cursor, 1, 1);
 		});
-		moveTo(thisCursor, 1, 1);
 	});
 
 	test('move eventing', () => {
-		let events = 0;
-		thisCursor.onDidChange((e: CursorStateChangedEvent) => {
-			events++;
-			assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
+		runTest((editor, cursor) => {
+			let events = 0;
+			cursor.onDidChange((e: CursorStateChangedEvent) => {
+				events++;
+				assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
+			});
+			moveTo(cursor, 1, 2);
+			assert.equal(events, 1, 'receives 1 event');
 		});
-		moveTo(thisCursor, 1, 2);
-		assert.equal(events, 1, 'receives 1 event');
 	});
 
 	test('move in selection mode eventing', () => {
-		let events = 0;
-		thisCursor.onDidChange((e: CursorStateChangedEvent) => {
-			events++;
-			assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
+		runTest((editor, cursor) => {
+			let events = 0;
+			cursor.onDidChange((e: CursorStateChangedEvent) => {
+				events++;
+				assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
+			});
+			moveTo(cursor, 1, 2, true);
+			assert.equal(events, 1, 'receives 1 event');
 		});
-		moveTo(thisCursor, 1, 2, true);
-		assert.equal(events, 1, 'receives 1 event');
 	});
 
 	// --------- state save & restore
 
 	test('saveState & restoreState', () => {
-		moveTo(thisCursor, 2, 1, true);
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
+		runTest((editor, cursor) => {
+			moveTo(cursor, 2, 1, true);
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
 
-		let savedState = JSON.stringify(thisCursor.saveState());
+			let savedState = JSON.stringify(cursor.saveState());
 
-		moveTo(thisCursor, 1, 1, false);
-		assertCursor(thisCursor, new Position(1, 1));
+			moveTo(cursor, 1, 1, false);
+			assertCursor(cursor, new Position(1, 1));
 
-		thisCursor.restoreState(JSON.parse(savedState));
-		assertCursor(thisCursor, new Selection(1, 1, 2, 1));
+			cursor.restoreState(JSON.parse(savedState));
+			assertCursor(cursor, new Selection(1, 1, 2, 1));
+		});
 	});
 
 	// --------- updating cursor
 
 	test('Independent model edit 1', () => {
-		moveTo(thisCursor, 2, 16, true);
+		runTest((editor, cursor) => {
+			moveTo(cursor, 2, 16, true);
 
-		thisModel.applyEdits([EditOperation.delete(new Range(2, 1, 2, 2))]);
-		assertCursor(thisCursor, new Selection(1, 1, 2, 15));
+			cursor.context.model.applyEdits([EditOperation.delete(new Range(2, 1, 2, 2))]);
+			assertCursor(cursor, new Selection(1, 1, 2, 15));
+		});
 	});
 
 	test('column select 1', () => {
@@ -791,7 +922,7 @@ suite('Editor Controller - Cursor', () => {
 	});
 
 	test('issue #4905 - column select is biased to the right', () => {
-		const model = createTextModel([
+		withTestCodeEditor([
 			'var gulp = require("gulp");',
 			'var path = require("path");',
 			'var rimraf = require("rimraf");',
@@ -799,36 +930,28 @@ suite('Editor Controller - Cursor', () => {
 			'var merge = require("merge-stream");',
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
-		].join('\n'));
-		const config = new TestConfiguration({});
-		const viewModel = createViewModel(config, model);
-		const cursor = new Cursor(config, model, viewModel);
+		].join('\n'), {}, (editor, cursor) => {
+			moveTo(cursor, 1, 4, false);
+			assertCursor(cursor, new Position(1, 4));
 
-		moveTo(cursor, 1, 4, false);
-		assertCursor(cursor, new Position(1, 4));
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+				position: new Position(4, 1),
+				viewPosition: new Position(4, 1),
+				mouseColumn: 1,
+				doColumnSelect: true
+			});
 
-		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
-			position: new Position(4, 1),
-			viewPosition: new Position(4, 1),
-			mouseColumn: 1,
-			doColumnSelect: true
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 1),
+				new Selection(2, 4, 2, 1),
+				new Selection(3, 4, 3, 1),
+				new Selection(4, 4, 4, 1),
+			]);
 		});
-
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 1),
-			new Selection(2, 4, 2, 1),
-			new Selection(3, 4, 3, 1),
-			new Selection(4, 4, 4, 1),
-		]);
-
-		cursor.dispose();
-		viewModel.dispose();
-		config.dispose();
-		model.dispose();
 	});
 
 	test('issue #20087: column select with mouse', () => {
-		const model = createTextModel([
+		withTestCodeEditor([
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" Key="SomeKey" value="000"/>',
@@ -839,60 +962,54 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" valuE="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
-		].join('\n'));
-		const config = new TestConfiguration({});
-		const viewModel = createViewModel(config, model);
-		const cursor = new Cursor(config, model, viewModel);
+		].join('\n'), {}, (editor, cursor) => {
 
-		moveTo(cursor, 10, 10, false);
-		assertCursor(cursor, new Position(10, 10));
+			moveTo(cursor, 10, 10, false);
+			assertCursor(cursor, new Position(10, 10));
 
-		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
-			position: new Position(1, 1),
-			viewPosition: new Position(1, 1),
-			mouseColumn: 1,
-			doColumnSelect: true
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+				position: new Position(1, 1),
+				viewPosition: new Position(1, 1),
+				mouseColumn: 1,
+				doColumnSelect: true
+			});
+			assertCursor(cursor, [
+				new Selection(10, 10, 10, 1),
+				new Selection(9, 10, 9, 1),
+				new Selection(8, 10, 8, 1),
+				new Selection(7, 10, 7, 1),
+				new Selection(6, 10, 6, 1),
+				new Selection(5, 10, 5, 1),
+				new Selection(4, 10, 4, 1),
+				new Selection(3, 10, 3, 1),
+				new Selection(2, 10, 2, 1),
+				new Selection(1, 10, 1, 1),
+			]);
+
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+				position: new Position(1, 1),
+				viewPosition: new Position(1, 1),
+				mouseColumn: 1,
+				doColumnSelect: true
+			});
+			assertCursor(cursor, [
+				new Selection(10, 10, 10, 1),
+				new Selection(9, 10, 9, 1),
+				new Selection(8, 10, 8, 1),
+				new Selection(7, 10, 7, 1),
+				new Selection(6, 10, 6, 1),
+				new Selection(5, 10, 5, 1),
+				new Selection(4, 10, 4, 1),
+				new Selection(3, 10, 3, 1),
+				new Selection(2, 10, 2, 1),
+				new Selection(1, 10, 1, 1),
+			]);
+
 		});
-		assertCursor(cursor, [
-			new Selection(10, 10, 10, 1),
-			new Selection(9, 10, 9, 1),
-			new Selection(8, 10, 8, 1),
-			new Selection(7, 10, 7, 1),
-			new Selection(6, 10, 6, 1),
-			new Selection(5, 10, 5, 1),
-			new Selection(4, 10, 4, 1),
-			new Selection(3, 10, 3, 1),
-			new Selection(2, 10, 2, 1),
-			new Selection(1, 10, 1, 1),
-		]);
-
-		CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
-			position: new Position(1, 1),
-			viewPosition: new Position(1, 1),
-			mouseColumn: 1,
-			doColumnSelect: true
-		});
-		assertCursor(cursor, [
-			new Selection(10, 10, 10, 1),
-			new Selection(9, 10, 9, 1),
-			new Selection(8, 10, 8, 1),
-			new Selection(7, 10, 7, 1),
-			new Selection(6, 10, 6, 1),
-			new Selection(5, 10, 5, 1),
-			new Selection(4, 10, 4, 1),
-			new Selection(3, 10, 3, 1),
-			new Selection(2, 10, 2, 1),
-			new Selection(1, 10, 1, 1),
-		]);
-
-		cursor.dispose();
-		viewModel.dispose();
-		config.dispose();
-		model.dispose();
 	});
 
 	test('issue #20087: column select with keyboard', () => {
-		const model = createTextModel([
+		withTestCodeEditor([
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" Key="SomeKey" value="000"/>',
@@ -903,48 +1020,41 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" valuE="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
-		].join('\n'));
-		const config = new TestConfiguration({});
-		const viewModel = createViewModel(config, model);
-		const cursor = new Cursor(config, model, viewModel);
+		].join('\n'), {}, (editor, cursor) => {
 
-		moveTo(cursor, 10, 10, false);
-		assertCursor(cursor, new Position(10, 10));
+			moveTo(cursor, 10, 10, false);
+			assertCursor(cursor, new Position(10, 10));
 
-		CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(10, 10, 10, 9)
-		]);
+			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(10, 10, 10, 9)
+			]);
 
-		CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(10, 10, 10, 8)
-		]);
+			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(10, 10, 10, 8)
+			]);
 
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(10, 10, 10, 9)
-		]);
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(10, 10, 10, 9)
+			]);
 
-		CoreNavigationCommands.CursorColumnSelectUp.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(10, 10, 10, 9),
-			new Selection(9, 10, 9, 9),
-		]);
+			CoreNavigationCommands.CursorColumnSelectUp.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(10, 10, 10, 9),
+				new Selection(9, 10, 9, 9),
+			]);
 
-		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(10, 10, 10, 9)
-		]);
-
-		cursor.dispose();
-		viewModel.dispose();
-		config.dispose();
-		model.dispose();
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(10, 10, 10, 9)
+			]);
+		});
 	});
 
 	test('column select with keyboard', () => {
-		const model = createTextModel([
+		withTestCodeEditor([
 			'var gulp = require("gulp");',
 			'var path = require("path");',
 			'var rimraf = require("rimraf");',
@@ -952,209 +1062,202 @@ suite('Editor Controller - Cursor', () => {
 			'var merge = require("merge-stream");',
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
-		].join('\n'));
-		const config = new TestConfiguration({});
-		const viewModel = createViewModel(config, model);
-		const cursor = new Cursor(config, model, viewModel);
+		].join('\n'), {}, (editor, cursor) => {
 
-		moveTo(cursor, 1, 4, false);
-		assertCursor(cursor, new Position(1, 4));
+			moveTo(cursor, 1, 4, false);
+			assertCursor(cursor, new Position(1, 4));
 
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 5)
-		]);
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 5)
+			]);
 
-		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 5),
-			new Selection(2, 4, 2, 5)
-		]);
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 5),
+				new Selection(2, 4, 2, 5)
+			]);
 
-		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 5),
-			new Selection(2, 4, 2, 5),
-			new Selection(3, 4, 3, 5),
-		]);
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 5),
+				new Selection(2, 4, 2, 5),
+				new Selection(3, 4, 3, 5),
+			]);
 
-		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 5),
-			new Selection(2, 4, 2, 5),
-			new Selection(3, 4, 3, 5),
-			new Selection(4, 4, 4, 5),
-			new Selection(5, 4, 5, 5),
-			new Selection(6, 4, 6, 5),
-			new Selection(7, 4, 7, 5),
-		]);
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 5),
+				new Selection(2, 4, 2, 5),
+				new Selection(3, 4, 3, 5),
+				new Selection(4, 4, 4, 5),
+				new Selection(5, 4, 5, 5),
+				new Selection(6, 4, 6, 5),
+				new Selection(7, 4, 7, 5),
+			]);
 
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 6),
-			new Selection(2, 4, 2, 6),
-			new Selection(3, 4, 3, 6),
-			new Selection(4, 4, 4, 6),
-			new Selection(5, 4, 5, 6),
-			new Selection(6, 4, 6, 6),
-			new Selection(7, 4, 7, 6),
-		]);
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 6),
+				new Selection(2, 4, 2, 6),
+				new Selection(3, 4, 3, 6),
+				new Selection(4, 4, 4, 6),
+				new Selection(5, 4, 5, 6),
+				new Selection(6, 4, 6, 6),
+				new Selection(7, 4, 7, 6),
+			]);
 
-		// 10 times
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 16),
-			new Selection(2, 4, 2, 16),
-			new Selection(3, 4, 3, 16),
-			new Selection(4, 4, 4, 16),
-			new Selection(5, 4, 5, 16),
-			new Selection(6, 4, 6, 16),
-			new Selection(7, 4, 7, 16),
-		]);
+			// 10 times
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 16),
+				new Selection(2, 4, 2, 16),
+				new Selection(3, 4, 3, 16),
+				new Selection(4, 4, 4, 16),
+				new Selection(5, 4, 5, 16),
+				new Selection(6, 4, 6, 16),
+				new Selection(7, 4, 7, 16),
+			]);
 
-		// 10 times
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 26),
-			new Selection(2, 4, 2, 26),
-			new Selection(3, 4, 3, 26),
-			new Selection(4, 4, 4, 26),
-			new Selection(5, 4, 5, 26),
-			new Selection(6, 4, 6, 26),
-			new Selection(7, 4, 7, 26),
-		]);
+			// 10 times
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 26),
+				new Selection(2, 4, 2, 26),
+				new Selection(3, 4, 3, 26),
+				new Selection(4, 4, 4, 26),
+				new Selection(5, 4, 5, 26),
+				new Selection(6, 4, 6, 26),
+				new Selection(7, 4, 7, 26),
+			]);
 
-		// 2 times => reaching the ending of lines 1 and 2
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 28),
-			new Selection(2, 4, 2, 28),
-			new Selection(3, 4, 3, 28),
-			new Selection(4, 4, 4, 28),
-			new Selection(5, 4, 5, 28),
-			new Selection(6, 4, 6, 28),
-			new Selection(7, 4, 7, 28),
-		]);
+			// 2 times => reaching the ending of lines 1 and 2
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 28),
+				new Selection(2, 4, 2, 28),
+				new Selection(3, 4, 3, 28),
+				new Selection(4, 4, 4, 28),
+				new Selection(5, 4, 5, 28),
+				new Selection(6, 4, 6, 28),
+				new Selection(7, 4, 7, 28),
+			]);
 
-		// 4 times => reaching the ending of line 3
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 28),
-			new Selection(2, 4, 2, 28),
-			new Selection(3, 4, 3, 32),
-			new Selection(4, 4, 4, 32),
-			new Selection(5, 4, 5, 32),
-			new Selection(6, 4, 6, 32),
-			new Selection(7, 4, 7, 32),
-		]);
+			// 4 times => reaching the ending of line 3
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 28),
+				new Selection(2, 4, 2, 28),
+				new Selection(3, 4, 3, 32),
+				new Selection(4, 4, 4, 32),
+				new Selection(5, 4, 5, 32),
+				new Selection(6, 4, 6, 32),
+				new Selection(7, 4, 7, 32),
+			]);
 
-		// 2 times => reaching the ending of line 4
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 28),
-			new Selection(2, 4, 2, 28),
-			new Selection(3, 4, 3, 32),
-			new Selection(4, 4, 4, 34),
-			new Selection(5, 4, 5, 34),
-			new Selection(6, 4, 6, 34),
-			new Selection(7, 4, 7, 34),
-		]);
+			// 2 times => reaching the ending of line 4
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 28),
+				new Selection(2, 4, 2, 28),
+				new Selection(3, 4, 3, 32),
+				new Selection(4, 4, 4, 34),
+				new Selection(5, 4, 5, 34),
+				new Selection(6, 4, 6, 34),
+				new Selection(7, 4, 7, 34),
+			]);
 
-		// 1 time => reaching the ending of line 7
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 28),
-			new Selection(2, 4, 2, 28),
-			new Selection(3, 4, 3, 32),
-			new Selection(4, 4, 4, 34),
-			new Selection(5, 4, 5, 35),
-			new Selection(6, 4, 6, 35),
-			new Selection(7, 4, 7, 35),
-		]);
+			// 1 time => reaching the ending of line 7
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 28),
+				new Selection(2, 4, 2, 28),
+				new Selection(3, 4, 3, 32),
+				new Selection(4, 4, 4, 34),
+				new Selection(5, 4, 5, 35),
+				new Selection(6, 4, 6, 35),
+				new Selection(7, 4, 7, 35),
+			]);
 
-		// 3 times => reaching the ending of lines 5 & 6
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 28),
-			new Selection(2, 4, 2, 28),
-			new Selection(3, 4, 3, 32),
-			new Selection(4, 4, 4, 34),
-			new Selection(5, 4, 5, 37),
-			new Selection(6, 4, 6, 37),
-			new Selection(7, 4, 7, 35),
-		]);
+			// 3 times => reaching the ending of lines 5 & 6
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 28),
+				new Selection(2, 4, 2, 28),
+				new Selection(3, 4, 3, 32),
+				new Selection(4, 4, 4, 34),
+				new Selection(5, 4, 5, 37),
+				new Selection(6, 4, 6, 37),
+				new Selection(7, 4, 7, 35),
+			]);
 
-		// cannot go anywhere anymore
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 28),
-			new Selection(2, 4, 2, 28),
-			new Selection(3, 4, 3, 32),
-			new Selection(4, 4, 4, 34),
-			new Selection(5, 4, 5, 37),
-			new Selection(6, 4, 6, 37),
-			new Selection(7, 4, 7, 35),
-		]);
+			// cannot go anywhere anymore
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 28),
+				new Selection(2, 4, 2, 28),
+				new Selection(3, 4, 3, 32),
+				new Selection(4, 4, 4, 34),
+				new Selection(5, 4, 5, 37),
+				new Selection(6, 4, 6, 37),
+				new Selection(7, 4, 7, 35),
+			]);
 
-		// cannot go anywhere anymore even if we insist
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 28),
-			new Selection(2, 4, 2, 28),
-			new Selection(3, 4, 3, 32),
-			new Selection(4, 4, 4, 34),
-			new Selection(5, 4, 5, 37),
-			new Selection(6, 4, 6, 37),
-			new Selection(7, 4, 7, 35),
-		]);
+			// cannot go anywhere anymore even if we insist
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 28),
+				new Selection(2, 4, 2, 28),
+				new Selection(3, 4, 3, 32),
+				new Selection(4, 4, 4, 34),
+				new Selection(5, 4, 5, 37),
+				new Selection(6, 4, 6, 37),
+				new Selection(7, 4, 7, 35),
+			]);
 
-		// can easily go back
-		CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
-		assertCursor(cursor, [
-			new Selection(1, 4, 1, 28),
-			new Selection(2, 4, 2, 28),
-			new Selection(3, 4, 3, 32),
-			new Selection(4, 4, 4, 34),
-			new Selection(5, 4, 5, 36),
-			new Selection(6, 4, 6, 36),
-			new Selection(7, 4, 7, 35),
-		]);
-
-		cursor.dispose();
-		viewModel.dispose();
-		config.dispose();
-		model.dispose();
+			// can easily go back
+			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 28),
+				new Selection(2, 4, 2, 28),
+				new Selection(3, 4, 3, 32),
+				new Selection(4, 4, 4, 34),
+				new Selection(5, 4, 5, 36),
+				new Selection(6, 4, 6, 36),
+				new Selection(7, 4, 7, 35),
+			]);
+		});
 	});
 });
 
@@ -2112,31 +2215,20 @@ suite('Editor Controller - Regression tests', () => {
 	});
 
 	test('issue #41573 - delete across multiple lines does not shrink the selection when word wraps', () => {
-		const model = createTextModel([
+		withTestCodeEditor([
 			'Authorization: \'Bearer pHKRfCTFSnGxs6akKlb9ddIXcca0sIUSZJutPHYqz7vEeHdMTMh0SGN0IGU3a0n59DXjTLRsj5EJ2u33qLNIFi9fk5XF8pK39PndLYUZhPt4QvHGLScgSkK0L4gwzkzMloTQPpKhqiikiIOvyNNSpd2o8j29NnOmdTUOKi9DVt74PD2ohKxyOrWZ6oZprTkb3eKajcpnS0LABKfaw2rmv4\','
-		].join('\n'));
-		const config = new TestConfiguration({
-			wordWrap: 'wordWrapColumn',
-			wordWrapColumn: 100
+		].join('\n'), { wordWrap: 'wordWrapColumn', wordWrapColumn: 100 }, (editor, cursor) => {
+			moveTo(cursor, 1, 43, false);
+			moveTo(cursor, 1, 147, true);
+			assertCursor(cursor, new Selection(1, 43, 1, 147));
+
+			cursor.context.model.applyEdits([{
+				range: new Range(1, 1, 1, 43),
+				text: ''
+			}]);
+
+			assertCursor(cursor, new Selection(1, 1, 1, 105));
 		});
-		const viewModel = createViewModel(config, model);
-		const cursor = new Cursor(config, model, viewModel);
-
-		moveTo(cursor, 1, 43, false);
-		moveTo(cursor, 1, 147, true);
-		assertCursor(cursor, new Selection(1, 43, 1, 147));
-
-		model.applyEdits([{
-			range: new Range(1, 1, 1, 43),
-			text: ''
-		}]);
-
-		assertCursor(cursor, new Selection(1, 1, 1, 105));
-
-		cursor.dispose();
-		viewModel.dispose();
-		config.dispose();
-		model.dispose();
 	});
 
 	test('issue #22717: Moving text cursor cause an incorrect position in Chinese', () => {
@@ -3961,18 +4053,12 @@ interface ICursorOpts {
 }
 
 function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cursor) => void): void {
-	let model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
-	model.forceTokenization(model.getLineCount());
-	let config = new TestConfiguration(opts.editorOpts || {});
-	let viewModel = createViewModel(config, model);
-	let cursor = new Cursor(config, model, viewModel);
-
-	callback(model, cursor);
-
-	cursor.dispose();
-	viewModel.dispose();
-	config.dispose();
-	model.dispose();
+	const model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
+	const editorOptions: TestCodeEditorCreationOptions = opts.editorOpts || {};
+	editorOptions.model = model;
+	withTestCodeEditor(null, editorOptions, (editor, cursor) => {
+		callback(model, cursor);
+	});
 }
 
 class ElectricCharMode extends MockMode {

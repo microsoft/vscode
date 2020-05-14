@@ -45,12 +45,12 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			file = undefined;
 		} else {
 			const document = this.getDocument();
-			if (!document) {
+			if (!document || this.client.apiVersion.lt(API.v390)) {
 				return [];
 			}
 
 			file = await this.toOpenedFiledPath(document);
-			if (!file) {
+			if (!file && this.client.apiVersion.lt(API.v390)) {
 				return [];
 			}
 		}

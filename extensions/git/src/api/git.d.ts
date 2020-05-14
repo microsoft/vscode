@@ -121,6 +121,7 @@ export interface RepositoryUIState {
 export interface LogOptions {
 	/** Max number of log entries to retrieve. If not specified, the default is 32. */
 	readonly maxEntries?: number;
+	readonly path?: string;
 }
 
 export interface CommitOptions {
@@ -129,6 +130,11 @@ export interface CommitOptions {
 	signoff?: boolean;
 	signCommit?: boolean;
 	empty?: boolean;
+}
+
+export interface BranchQuery {
+	readonly remote?: boolean;
+	readonly contains?: string;
 }
 
 export interface Repository {
@@ -170,6 +176,7 @@ export interface Repository {
 	createBranch(name: string, checkout: boolean, ref?: string): Promise<void>;
 	deleteBranch(name: string, force?: boolean): Promise<void>;
 	getBranch(name: string): Promise<Branch>;
+	getBranches(query: BranchQuery): Promise<Ref[]>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
 	getMergeBase(ref1: string, ref2: string): Promise<string>;

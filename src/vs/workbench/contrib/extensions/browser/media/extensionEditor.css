@@ -91,7 +91,7 @@
 	margin-left: 10px;
 }
 
-.vs .extension-editor > .header > .details > .title > .preview {
+.monaco-workbench.vs .extension-editor > .header > .details > .title > .preview {
 	color: white;
 }
 
@@ -408,8 +408,8 @@
 	vertical-align: middle;
 }
 
-.vs-dark .extension-editor > .body > .content table .colorBox,
-.hc-black .extension-editor > .body > .content table .colorBox {
+.monaco-workbench.vs-dark .extension-editor > .body > .content table .colorBox,
+.monaco-workbench.hc-black .extension-editor > .body > .content table .colorBox {
 	border-color: rgb(238, 238, 238);
 }
 

@@ -84,6 +84,7 @@ export interface Webview extends IDisposable {
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
 	readonly onDidUpdateState: Event<string | undefined>;
+	readonly onDidReload: Event<void>;
 	readonly onMessage: Event<any>;
 	readonly onMissingCsp: Event<ExtensionIdentifier>;
 

@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, IFileContent, FileChangesEvent, FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { URI } from 'vs/base/common/uri';
-import { SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreviewResult } from 'vs/platform/userDataSync/common/userDataSync';
+import { SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreviewResult, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
 import { CancelablePromise } from 'vs/base/common/async';
@@ -108,7 +108,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected isEnabled(): boolean { return this.userDataSyncEnablementService.isResourceEnabled(this.resource); }
 
-	async sync(ref?: string): Promise<void> {
+	async sync(manifest: IUserDataManifest | null): Promise<void> {
 		if (!this.isEnabled()) {
 			if (this.status !== SyncStatus.Idle) {
 				await this.stop();
@@ -129,7 +129,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.setStatus(SyncStatus.Syncing);
 
 		const lastSyncUserData = await this.getLastSyncUserData();
-		const remoteUserData = ref && lastSyncUserData && lastSyncUserData.ref === ref ? lastSyncUserData : await this.getRemoteUserData(lastSyncUserData);
+		const remoteUserData = await this.getLatestRemoteUserData(manifest, lastSyncUserData);
 
 		let status: SyncStatus = SyncStatus.Idle;
 		try {
@@ -142,6 +142,51 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} finally {
 			this.setStatus(status);
 		}
+	}
+
+	async replace(uri: URI): Promise<boolean> {
+		const content = await this.resolveContent(uri);
+		if (!content) {
+			return false;
+		}
+
+		const syncData = this.parseSyncData(content);
+		if (!syncData) {
+			return false;
+		}
+
+		await this.stop();
+
+		try {
+			this.logService.trace(`${this.syncResourceLogLabel}: Started resetting ${this.resource.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getLatestRemoteUserData(null, lastSyncUserData);
+			await this.performReplace(syncData, remoteUserData, lastSyncUserData);
+			this.logService.info(`${this.syncResourceLogLabel}: Finished resetting ${this.resource.toLowerCase()}.`);
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+
+		return true;
+	}
+
+	private async getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
+		if (lastSyncUserData) {
+
+			const latestRef = manifest && manifest.latest ? manifest.latest[this.resource] : undefined;
+
+			// Last time synced resource and latest resource on server are same
+			if (lastSyncUserData.ref === latestRef) {
+				return lastSyncUserData;
+			}
+
+			// There is no resource on server and last time it was synced with no resource
+			if (latestRef === undefined && lastSyncUserData.syncData === null) {
+				return lastSyncUserData;
+			}
+		}
+		return this.getRemoteUserData(lastSyncUserData);
 	}
 
 	async getSyncPreview(): Promise<ISyncPreviewResult> {
@@ -225,15 +270,19 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (e) { /* ignore */ }
 	}
 
-	protected async getLastSyncUserData<T extends IRemoteUserData>(): Promise<T | null> {
+	async getLastSyncUserData<T extends IRemoteUserData>(): Promise<T | null> {
 		try {
 			const content = await this.fileService.readFile(this.lastSyncResource);
 			const parsed = JSON.parse(content.value.toString());
-			let syncData: ISyncData = JSON.parse(parsed.content);
+			const userData: IUserData = parsed as IUserData;
+			if (userData.content === null) {
+				return { ref: parsed.ref, syncData: null } as T;
+			}
+			let syncData: ISyncData = JSON.parse(userData.content);
 
 			// Migration from old content to sync data
 			if (!isSyncData(syncData)) {
-				syncData = { version: this.version, content: parsed.content };
+				syncData = { version: this.version, content: userData.content };
 			}
 
 			return { ...parsed, ...{ syncData, content: undefined } };
@@ -247,11 +296,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async updateLastSyncUserData(lastSyncRemoteUserData: IRemoteUserData, additionalProps: IStringDictionary<any> = {}): Promise<void> {
-		const lastSyncUserData: IUserData = { ref: lastSyncRemoteUserData.ref, content: JSON.stringify(lastSyncRemoteUserData.syncData), ...additionalProps };
+		const lastSyncUserData: IUserData = { ref: lastSyncRemoteUserData.ref, content: lastSyncRemoteUserData.syncData ? JSON.stringify(lastSyncRemoteUserData.syncData) : null, ...additionalProps };
 		await this.fileService.writeFile(this.lastSyncResource, VSBuffer.fromString(JSON.stringify(lastSyncUserData)));
 	}
 
-	protected async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData> {
+	async getRemoteUserData(lastSyncData: IRemoteUserData | null): Promise<IRemoteUserData> {
 		const { ref, content } = await this.getUserData(lastSyncData);
 		let syncData: ISyncData | null = null;
 		if (content !== null) {
@@ -301,6 +350,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected abstract readonly version: number;
 	protected abstract performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus>;
+	protected abstract performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void>;
 	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult>;
 }
 

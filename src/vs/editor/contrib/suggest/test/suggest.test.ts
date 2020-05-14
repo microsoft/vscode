@@ -106,4 +106,47 @@ suite('Suggest', function () {
 			assert.ok(items[0].provider === foo);
 		});
 	});
+
+	test('Ctrl+space completions stopped working with the latest Insiders, #97650', async function () {
+
+
+		const foo = new class implements CompletionItemProvider {
+
+			triggerCharacters = [];
+
+			provideCompletionItems() {
+				return {
+					suggestions: [{
+						label: 'one',
+						kind: CompletionItemKind.Class,
+						insertText: 'one',
+						range: {
+							insert: new Range(0, 0, 0, 0),
+							replace: new Range(0, 0, 0, 10)
+						}
+					}, {
+						label: 'two',
+						kind: CompletionItemKind.Class,
+						insertText: 'two',
+						range: {
+							insert: new Range(0, 0, 0, 0),
+							replace: new Range(0, 1, 0, 10)
+						}
+					}]
+				};
+			}
+		};
+
+		const registration = CompletionProviderRegistry.register({ pattern: 'bar/path', scheme: 'foo' }, foo);
+		const items = await provideSuggestionItems(model, new Position(0, 0), new CompletionOptions(undefined, undefined, new Set<CompletionItemProvider>().add(foo)));
+		registration.dispose();
+
+		assert.equal(items.length, 2);
+		const [a, b] = items;
+
+		assert.equal(a.completion.label, 'one');
+		assert.equal(a.isInvalid, false);
+		assert.equal(b.completion.label, 'two');
+		assert.equal(b.isInvalid, true);
+	});
 });

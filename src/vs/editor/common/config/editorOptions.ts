@@ -94,6 +94,11 @@ export interface IEditorOptions {
 	*/
 	renderFinalNewline?: boolean;
 	/**
+	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS), NEXT LINE (NEL).
+	 * Defaults to true.
+	 */
+	removeUnusualLineTerminators?: boolean;
+	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
 	 */
@@ -2872,8 +2877,8 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 				useShadows: true,
 				verticalHasArrows: false,
 				horizontalHasArrows: false,
-				horizontalScrollbarSize: 10,
-				horizontalSliderSize: 10,
+				horizontalScrollbarSize: 12,
+				horizontalSliderSize: 12,
 				verticalScrollbarSize: 14,
 				verticalSliderSize: 14,
 				handleMouseWheel: true,
@@ -3547,6 +3552,7 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
+	removeUnusualLineTerminators,
 	renameOnType,
 	renderControlCharacters,
 	renderIndentGuides,
@@ -3964,6 +3970,10 @@ export const EditorOptions = {
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
+	)),
+	removeUnusualLineTerminators: register(new EditorBooleanOption(
+		EditorOption.removeUnusualLineTerminators, 'removeUnusualLineTerminators', true,
+		{ description: nls.localize('removeUnusualLineTerminators', "Remove unusual line terminators that might cause problems.") }
 	)),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,

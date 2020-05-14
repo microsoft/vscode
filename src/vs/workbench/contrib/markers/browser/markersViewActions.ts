@@ -323,7 +323,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
 			history: this.filterController.filters.filterHistory
 		}));
-		this.filterInputBox.inputElement.setAttribute('aria-labelledby', 'markers-panel-arialabel');
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.filterController.filters.filterText;
 		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));

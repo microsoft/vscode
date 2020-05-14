@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { INotebookEditor, INotebookEditorMouseEvent, ICellRange, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, INotebookEditorMouseEvent, ICellRange, INotebookEditorContribution, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import * as DOM from 'vs/base/browser/dom';
 import { CellFoldingState, FoldingModel } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -141,6 +141,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.LeftArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
@@ -179,6 +180,7 @@ registerAction2(class extends Action2 {
 				primary: KeyCode.RightArrow,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}

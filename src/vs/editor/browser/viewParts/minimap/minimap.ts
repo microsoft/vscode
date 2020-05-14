@@ -1022,9 +1022,9 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public setScrollTop(scrollTop: number): void {
-		this._context.viewLayout.setScrollPositionNow({
+		this._context.viewLayout.setScrollPosition({
 			scrollTop: scrollTop
-		});
+		}, ScrollType.Immediate);
 	}
 
 	//#endregion

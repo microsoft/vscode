@@ -31,6 +31,7 @@ export interface IActionViewItem extends IDisposable {
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
 	isMenu?: boolean;
+	useEventAsContext?: boolean;
 }
 
 export class BaseActionViewItem extends Disposable implements IActionViewItem {
@@ -178,7 +179,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	onClick(event: DOM.EventLike): void {
 		DOM.EventHelper.stop(event, true);
 
-		const context = types.isUndefinedOrNull(this._context) ? undefined : this._context;
+		const context = types.isUndefinedOrNull(this._context) ? this.options?.useEventAsContext ? event : undefined : this._context;
 		this.actionRunner.run(this._action, context);
 	}
 

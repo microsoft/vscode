@@ -740,7 +740,7 @@ export class SettingComplexRenderer extends AbstractSettingRenderer implements I
 	}
 
 	private renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingComplexItemTemplate) {
-		const errMsg = getInvalidTypeError(dataElement.value, dataElement.setting.type);
+		const errMsg = dataElement.isConfigured && getInvalidTypeError(dataElement.value, dataElement.setting.type);
 		if (errMsg) {
 			DOM.addClass(template.containerElement, 'invalid-input');
 			template.validationErrorMessageElement.innerText = errMsg;
@@ -1486,7 +1486,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
-			const invalidTypeError = getInvalidTypeError(element.value, element.setting.type);
+			const invalidTypeError = element.isConfigured && getInvalidTypeError(element.value, element.setting.type);
 			if (invalidTypeError) {
 				return SETTINGS_COMPLEX_TEMPLATE_ID;
 			}

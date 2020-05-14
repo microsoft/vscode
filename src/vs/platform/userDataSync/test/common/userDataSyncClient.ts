@@ -124,6 +124,10 @@ export class UserDataSyncClient extends Disposable {
 		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
 	}
 
+	manifest(): Promise<IUserDataManifest | null> {
+		return this.instantiationService.get(IUserDataSyncStoreService).manifest();
+	}
+
 }
 
 export class UserDataSyncTestServer implements IRequestService {
@@ -137,9 +141,12 @@ export class UserDataSyncTestServer implements IRequestService {
 	private _requests: { url: string, type: string, headers?: IHeaders }[] = [];
 	get requests(): { url: string, type: string, headers?: IHeaders }[] { return this._requests; }
 
+	private _requestsWithAllHeaders: { url: string, type: string, headers?: IHeaders }[] = [];
+	get requestsWithAllHeaders(): { url: string, type: string, headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
+
 	private _responses: { status: number }[] = [];
 	get responses(): { status: number }[] { return this._responses; }
-	reset(): void { this._requests = []; this._responses = []; }
+	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
 
@@ -154,6 +161,7 @@ export class UserDataSyncTestServer implements IRequestService {
 			}
 		}
 		this._requests.push({ url: options.url!, type: options.type!, headers });
+		this._requestsWithAllHeaders.push({ url: options.url!, type: options.type!, headers: options.headers });
 		const requestContext = await this.doRequest(options);
 		this._responses.push({ status: requestContext.res.statusCode! });
 		return requestContext;
@@ -220,7 +228,7 @@ export class UserDataSyncTestServer implements IRequestService {
 		return this.toResponse(204);
 	}
 
-	private async clear(headers?: IHeaders): Promise<IRequestContext> {
+	async clear(headers?: IHeaders): Promise<IRequestContext> {
 		this.data.clear();
 		this.session = null;
 		return this.toResponse(204);

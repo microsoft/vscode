@@ -548,6 +548,7 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
 
 	public isOptedIn = false;
+	public sendErrorTelemetry = false;
 
 	public setEnabled(value: boolean): void {
 	}

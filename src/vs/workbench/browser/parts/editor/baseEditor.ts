@@ -10,7 +10,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { LRUCache } from 'vs/base/common/map';
+import { LRUCache, Touch } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
@@ -256,7 +256,9 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	moveEditorState(source: URI, target: URI): void {
 		const cache = this.doLoad();
 
-		const cacheKeys = cache.keys();
+		// We need a copy of the keys to not iterate over
+		// newly inserted elements.
+		const cacheKeys = [...cache.keys()];
 		for (const cacheKey of cacheKeys) {
 			const resource = URI.parse(cacheKey);
 
@@ -273,7 +275,8 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 				targetResource = joinPath(target, resource.path.substr(index + source.path.length + 1)); // parent folder got moved
 			}
 
-			const value = cache.get(cacheKey);
+			// Don't modify LRU state.
+			const value = cache.get(cacheKey, Touch.None);
 			if (value) {
 				cache.delete(cacheKey);
 				cache.set(targetResource.toString(), value);
@@ -318,18 +321,19 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	private cleanUp(): void {
 		const cache = this.doLoad();
 
-		// Remove groups from states that no longer exist
-		cache.forEach((mapGroupToMemento, resource) => {
+		// Remove groups from states that no longer exist. Since we modify the
+		// cache and its is a LRU cache make a copy to ensure iteration succeeds
+		const entries = [...cache.entries()];
+		for (const [resource, mapGroupToMemento] of entries) {
 			Object.keys(mapGroupToMemento).forEach(group => {
 				const groupId: GroupIdentifier = Number(group);
 				if (!this.editorGroupService.getGroup(groupId)) {
 					delete mapGroupToMemento[groupId];
-
 					if (isEmptyObject(mapGroupToMemento)) {
 						cache.delete(resource);
 					}
 				}
 			});
-		});
+		}
 	}
 }

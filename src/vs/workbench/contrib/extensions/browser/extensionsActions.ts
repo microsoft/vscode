@@ -233,7 +233,7 @@ export class InstallAction extends ExtensionAction {
 
 		const extension = await this.install(this.extension);
 
-		alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+		alert(localize('installExtensionComplete', "Installing extension {0} is completed.", this.extension.displayName));
 
 		if (extension && extension.local) {
 			const runningExtension = await this.getRunningExtension(extension.local);
@@ -1359,7 +1359,7 @@ export class ReloadAction extends ExtensionAction {
 						this.enabled = true;
 						this.label = localize('reloadRequired', "Reload Required");
 						this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
-						alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+						alert(localize('installExtensionCompletedAndReloadRequired', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
 						return;
 					}
 				}

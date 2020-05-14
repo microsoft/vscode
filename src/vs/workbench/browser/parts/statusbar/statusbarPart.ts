@@ -69,6 +69,10 @@ class StatusbarViewModel extends Disposable {
 	get entries(): IStatusbarViewModelEntry[] { return this._entries; }
 
 	private hidden!: Set<string>;
+	get lastFocusedEntry(): IStatusbarViewModelEntry | undefined {
+		return this._lastFocusedEntry && !this.isHidden(this._lastFocusedEntry.id) ? this._lastFocusedEntry : undefined;
+	}
+	private _lastFocusedEntry: IStatusbarViewModelEntry | undefined;
 
 	private readonly _onDidChangeEntryVisibility = this._register(new Emitter<{ id: string, visible: boolean }>());
 	readonly onDidChangeEntryVisibility = this._onDidChangeEntryVisibility.event;
@@ -219,6 +223,7 @@ class StatusbarViewModel extends Disposable {
 		if (focused) {
 			const entry = getVisibleEntry(this._entries.indexOf(focused) + delta);
 			if (entry) {
+				this._lastFocusedEntry = entry;
 				entry.labelContainer.focus();
 				return;
 			}
@@ -226,6 +231,7 @@ class StatusbarViewModel extends Disposable {
 
 		const entry = getVisibleEntry(restartPosition);
 		if (entry) {
+			this._lastFocusedEntry = entry;
 			entry.labelContainer.focus();
 		}
 	}
@@ -493,6 +499,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.viewModel.focusPreviousEntry();
 	}
 
+	focus(preserveEntryFocus = true): void {
+		this.getContainer()?.focus();
+		const lastFocusedEntry = this.viewModel.lastFocusedEntry;
+		if (preserveEntryFocus && lastFocusedEntry) {
+			// Need a timeout, for some reason without it the inner label container will not get focused
+			setTimeout(() => lastFocusedEntry.labelContainer.focus(), 0);
+		}
+	}
+
 	createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
@@ -680,10 +695,6 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return itemContainer;
 	}
 
-	focus(): void {
-		this.getContainer();
-	}
-
 	layout(width: number, height: number): void {
 		super.layout(width, height);
 		super.layoutContents(width, height);
@@ -773,7 +784,7 @@ class StatusbarEntryItem extends Disposable {
 			const command = entry.command;
 			if (command) {
 				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
-				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_UP, e => {
+				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
 						this.executeCommand(command);
@@ -933,5 +944,40 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor: ServicesAccessor) => {
 		const statusBarService = accessor.get(IStatusbarService);
 		statusBarService.focusNextEntry();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.statusBar.focusFirst',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Home,
+	when: CONTEXT_STATUS_BAR_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const statusBarService = accessor.get(IStatusbarService);
+		statusBarService.focus(false);
+		statusBarService.focusNextEntry();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.statusBar.focusLast',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.End,
+	when: CONTEXT_STATUS_BAR_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const statusBarService = accessor.get(IStatusbarService);
+		statusBarService.focus(false);
+		statusBarService.focusPreviousEntry();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.statusBar.clearFocus',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Escape,
+	when: CONTEXT_STATUS_BAR_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const statusBarService = accessor.get(IStatusbarService);
+		statusBarService.focus(false);
 	}
 });

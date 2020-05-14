@@ -1416,6 +1416,7 @@ export interface AuthenticationSession {
 		displayName: string;
 		id: string;
 	}
+	scopes: string[];
 }
 
 /**
