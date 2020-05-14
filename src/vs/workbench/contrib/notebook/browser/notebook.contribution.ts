@@ -271,7 +271,7 @@ class CellContentProvider implements ITextModelContentProvider {
 		@IModeService private readonly _modeService: IModeService,
 		@INotebookService private readonly _notebookService: INotebookService,
 	) {
-		this._registration = textModelService.registerTextModelContentProvider('vscode-notebook', this);
+		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
 	}
 
 	dispose(): void {
