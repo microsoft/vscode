@@ -56,6 +56,7 @@ import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/cal
 import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { AccessibilityInformation } from 'vs/base/common/accessibility';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -545,7 +546,7 @@ export interface MainThreadQuickOpenShape extends IDisposable {
 }
 
 export interface MainThreadStatusBarShape extends IDisposable {
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, alignment: statusbar.StatusbarAlignment, priority: number | undefined): void;
+	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: ICommandDto | undefined, color: string | ThemeColor | undefined, alignment: statusbar.StatusbarAlignment, priority: number | undefined, accessibilityInformation: AccessibilityInformation | undefined): void;
 	$dispose(id: number): void;
 }
 
