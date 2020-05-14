@@ -8,7 +8,6 @@ import * as UUID from 'vs/base/common/uuid';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFindMatch, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
@@ -20,7 +19,6 @@ import { NotebookEventDispatcher, NotebookCellStateChangedEvent } from 'vs/workb
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Markdown = CellKind.Markdown;
-	private _mdRenderer: MarkdownRenderer | null = null;
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
 
@@ -49,7 +47,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly foldingDelegate: EditorFoldingStateDelegate,
 		readonly eventDispatcher: NotebookEventDispatcher,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
+		private readonly _mdRenderer: MarkdownRenderer,
 		@ITextModelService private readonly _modelService: ITextModelService) {
 		super(viewType, model, UUID.generateUuid());
 
@@ -145,9 +143,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	getMarkdownRenderer() {
-		if (!this._mdRenderer) {
-			this._mdRenderer = this._instaService.createInstance(MarkdownRenderer);
-		}
 		return this._mdRenderer;
 	}
 
