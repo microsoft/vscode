@@ -263,16 +263,16 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private hasDocs(signature: modes.SignatureInformation, activeParameter: modes.ParameterInformation | undefined): boolean {
-		if (activeParameter && typeof (activeParameter.documentation) === 'string' && activeParameter.documentation.length > 0) {
+		if (activeParameter && typeof activeParameter.documentation === 'string' && activeParameter.documentation.length > 0) {
 			return true;
 		}
-		if (activeParameter && typeof (activeParameter.documentation) === 'object' && activeParameter.documentation.value.length > 0) {
+		if (activeParameter && typeof activeParameter.documentation === 'object' && activeParameter.documentation.value.length > 0) {
 			return true;
 		}
-		if (typeof (signature.documentation) === 'string' && signature.documentation.length > 0) {
+		if (typeof signature.documentation === 'string' && signature.documentation.length > 0) {
 			return true;
 		}
-		if (typeof (signature.documentation) === 'object' && signature.documentation.value.length > 0) {
+		if (typeof signature.documentation === 'object' && signature.documentation.value.length > 0) {
 			return true;
 		}
 		return false;
