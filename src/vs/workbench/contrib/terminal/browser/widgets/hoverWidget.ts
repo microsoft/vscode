@@ -12,6 +12,7 @@ import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLin
 import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseHoverWidget } from 'vs/base/browser/ui/hover/baseHoverWidget';
@@ -45,6 +46,13 @@ export class HoverWidget extends BaseHoverWidget {
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
 		this.onmousedown(this._containerDomNode, e => e.stopPropagation());
+
+		// Hide hover on escape
+		this.onkeydown(this._containerDomNode, e => {
+			if (e.equals(KeyCode.Escape)) {
+				this.dispose();
+			}
+		});
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');

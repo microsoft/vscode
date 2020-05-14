@@ -8,8 +8,6 @@ import * as dom from 'vs/base/browser/dom';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 const $ = dom.$;
 
@@ -32,12 +30,6 @@ export abstract class BaseHoverWidget extends Widget {
 		this._scrollbar = new DomScrollableElement(this._domNode, {});
 		this._register(this._scrollbar);
 		this._containerDomNode.appendChild(this._scrollbar.getDomNode());
-
-		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
-			if (e.equals(KeyCode.Escape)) {
-				this.hide();
-			}
-		});
 	}
 
 	protected _onContentsChange(): void {
@@ -60,6 +52,4 @@ export abstract class BaseHoverWidget extends Widget {
 			actionOptions.run(actionContainer);
 		});
 	}
-
-	protected abstract hide(): void;
 }

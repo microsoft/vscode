@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { IContentWidget, ICodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -45,6 +47,12 @@ export class ContentHoverWidget extends BaseHoverWidget implements IContentWidge
 		this._editor = editor;
 		this._isVisible = false;
 		this._stoleFocus = false;
+
+		this.onkeydown(this._containerDomNode, (e: IKeyboardEvent) => {
+			if (e.equals(KeyCode.Escape)) {
+				this.hide();
+			}
+		});
 
 		this._register(this._editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.fontInfo)) {
