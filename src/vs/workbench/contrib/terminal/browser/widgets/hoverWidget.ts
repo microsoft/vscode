@@ -76,7 +76,7 @@ export class HoverWidget extends Widget {
 		});
 		contentsElement.appendChild(markdownElement);
 		rowElement.appendChild(contentsElement);
-		this._hover.domNode.appendChild(rowElement);
+		this._hover.contentsDomNode.appendChild(rowElement);
 
 		if (this._actions && this._actions.length > 0) {
 			const statusBarElement = $('div.hover-row.status-bar');
@@ -103,7 +103,7 @@ export class HoverWidget extends Widget {
 		const anchor = this._target.anchor;
 
 		this._hover.containerDomNode.classList.remove('right-aligned');
-		this._hover.domNode.style.maxHeight = '';
+		this._hover.contentsDomNode.style.maxHeight = '';
 		if (anchor.horizontalAnchorSide === HorizontalAnchorSide.Left) {
 			if (anchor.x + this._hover.containerDomNode.clientWidth > document.documentElement.clientWidth) {
 				// Shift the hover to the left when part of it would get cut off
@@ -128,7 +128,7 @@ export class HoverWidget extends Widget {
 		if (anchor.verticalAnchorSide === VerticalAnchorSide.Bottom) {
 			if (anchor.y + this._hover.containerDomNode.clientHeight > document.documentElement.clientHeight) {
 				this._hover.containerDomNode.style.top = `${anchor.fallbackY}px`;
-				this._hover.domNode.style.maxHeight = `${document.documentElement.clientHeight - anchor.fallbackY}px`;
+				this._hover.contentsDomNode.style.maxHeight = `${document.documentElement.clientHeight - anchor.fallbackY}px`;
 			} else {
 				this._hover.containerDomNode.style.bottom = `${anchor.y}px`;
 				this._hover.containerDomNode.style.maxHeight = '';
@@ -140,7 +140,7 @@ export class HoverWidget extends Widget {
 				this._hover.containerDomNode.style.top = `${anchor.y}px`;
 			}
 		}
-		this._hover.onContentsChange();
+		this._hover.onContentsChanged();
 	}
 
 	public focus() {

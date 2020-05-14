@@ -128,17 +128,17 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 	}
 
 	private updateFont(): void {
-		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.domNode.getElementsByClassName('code'));
+		const codeClasses: HTMLElement[] = Array.prototype.slice.call(this._hover.contentsDomNode.getElementsByClassName('code'));
 		codeClasses.forEach(node => this._editor.applyFontInfo(node));
 	}
 
 	protected updateContents(node: Node): void {
-		this._hover.domNode.textContent = '';
-		this._hover.domNode.appendChild(node);
+		this._hover.contentsDomNode.textContent = '';
+		this._hover.contentsDomNode.appendChild(node);
 		this.updateFont();
 
 		this._editor.layoutContentWidget(this);
-		this._hover.onContentsChange();
+		this._hover.onContentsChanged();
 	}
 
 	protected _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
@@ -151,10 +151,10 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 		const height = Math.max(this._editor.getLayoutInfo().height / 4, 250);
 		const { fontSize, lineHeight } = this._editor.getOption(EditorOption.fontInfo);
 
-		this._hover.domNode.style.fontSize = `${fontSize}px`;
-		this._hover.domNode.style.lineHeight = `${lineHeight}px`;
-		this._hover.domNode.style.maxHeight = `${height}px`;
-		this._hover.domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
+		this._hover.contentsDomNode.style.fontSize = `${fontSize}px`;
+		this._hover.contentsDomNode.style.lineHeight = `${lineHeight}px`;
+		this._hover.contentsDomNode.style.maxHeight = `${height}px`;
+		this._hover.contentsDomNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 	}
 }
 

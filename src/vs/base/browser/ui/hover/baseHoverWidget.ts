@@ -13,7 +13,7 @@ const $ = dom.$;
 export class HoverWidget extends Disposable {
 
 	public readonly containerDomNode: HTMLElement;
-	public readonly domNode: HTMLElement;
+	public readonly contentsDomNode: HTMLElement;
 	private readonly _scrollbar: DomScrollableElement;
 
 	constructor() {
@@ -24,14 +24,14 @@ export class HoverWidget extends Disposable {
 		this.containerDomNode.tabIndex = 0;
 		this.containerDomNode.setAttribute('role', 'tooltip');
 
-		this.domNode = document.createElement('div');
-		this.domNode.className = 'monaco-editor-hover-content';
+		this.contentsDomNode = document.createElement('div');
+		this.contentsDomNode.className = 'monaco-editor-hover-content';
 
-		this._scrollbar = this._register(new DomScrollableElement(this.domNode, {}));
+		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {}));
 		this.containerDomNode.appendChild(this._scrollbar.getDomNode());
 	}
 
-	public onContentsChange(): void {
+	public onContentsChanged(): void {
 		this._scrollbar.scanDomNode();
 	}
 }
