@@ -396,6 +396,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent): void {
+		if (!indexes.length) {
+			return;
+		}
+
 		if (this._viewModel) {
 			this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
 		}
