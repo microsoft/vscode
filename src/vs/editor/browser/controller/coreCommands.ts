@@ -26,6 +26,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -45,14 +46,15 @@ export abstract class CoreEditorCommand extends EditorCommand {
 export abstract class CoreEditorCommand2 extends EditorCommand {
 	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
-		if (!cursors) {
+		const viewModel = editor._getViewModel();
+		if (!cursors || !viewModel) {
 			// the editor has no view => has no cursors
 			return;
 		}
-		this.runCoreEditorCommand(editor, cursors, args || {});
+		this.runCoreEditorCommand(editor, viewModel, cursors, args || {});
 	}
 
-	public abstract runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void;
+	public abstract runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void;
 }
 
 export namespace EditorScroll_ {
@@ -355,7 +357,7 @@ export namespace CoreNavigationCommands {
 
 			// validate `args`
 			const validatedPosition = context.model.validatePosition(args.position);
-			const validatedViewPosition = context.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
+			const validatedViewPosition = context.coordinatesConverter.validateViewPosition(new Position(args.viewPosition.lineNumber, args.viewPosition.column), validatedPosition);
 
 			let fromViewLineNumber = args.doColumnSelect ? prevColumnSelectData.fromViewLineNumber : validatedViewPosition.lineNumber;
 			let fromViewVisualColumn = args.doColumnSelect ? prevColumnSelectData.fromViewVisualColumn : args.mouseColumn - 1;
@@ -477,7 +479,7 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	export class CursorMoveImpl extends CoreEditorCommand {
+	export class CursorMoveImpl extends CoreEditorCommand2 {
 		constructor() {
 			super({
 				id: 'cursorMove',
@@ -486,26 +488,26 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			const parsed = CursorMove_.parse(args);
 			if (!parsed) {
 				// illegal arguments
 				return;
 			}
-			this._runCursorMove(cursors, args.source, parsed);
+			this._runCursorMove(editor, viewModel, cursors, args.source, parsed);
 		}
 
-		private _runCursorMove(cursors: ICursors, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
+		private _runCursorMove(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
 			cursors.context.model.pushStackElement();
 			cursors.setStates(
 				source,
 				CursorChangeReason.Explicit,
-				CursorMoveImpl._move(cursors.context, cursors.getAll(), args)
+				CursorMoveImpl._move(editor, viewModel, cursors.context, cursors.getAll(), args)
 			);
 			cursors.reveal(source, true, RevealTarget.Primary, ScrollType.Smooth);
 		}
 
-		private static _move(context: CursorContext, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
+		private static _move(editor: ICodeEditor, viewModel: IViewModel, context: CursorContext, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
 			const inSelectionMode = args.select;
 			const value = args.value;
 
@@ -525,7 +527,7 @@ export namespace CoreNavigationCommands {
 				case CursorMove_.Direction.ViewPortBottom:
 				case CursorMove_.Direction.ViewPortCenter:
 				case CursorMove_.Direction.ViewPortIfOutside:
-					return CursorMoveCommands.viewportMove(context, cursors, args.direction, inSelectionMode, value);
+					return CursorMoveCommands.viewportMove(viewModel, context, cursors, args.direction, inSelectionMode, value);
 			}
 
 			return null;
@@ -1152,22 +1154,22 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			const parsed = EditorScroll_.parse(args);
 			if (!parsed) {
 				// illegal arguments
 				return;
 			}
-			this._runEditorScroll(editor, cursors, args.source, parsed);
+			this._runEditorScroll(editor, viewModel, cursors, args.source, parsed);
 		}
 
-		_runEditorScroll(editor: ICodeEditor, cursors: ICursors, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
+		_runEditorScroll(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, source: string | null | undefined, args: EditorScroll_.ParsedArguments): void {
 
-			const desiredScrollTop = this._computeDesiredScrollTop(editor, cursors.context, args);
+			const desiredScrollTop = this._computeDesiredScrollTop(editor, viewModel, cursors.context, args);
 
 			if (args.revealCursor) {
 				// must ensure cursor is in new visible range
-				const desiredVisibleViewRange = cursors.context.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
+				const desiredVisibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
 				cursors.setStates(
 					source,
 					CursorChangeReason.Explicit,
@@ -1180,12 +1182,12 @@ export namespace CoreNavigationCommands {
 			editor.setScrollTop(desiredScrollTop, ScrollType.Smooth);
 		}
 
-		private _computeDesiredScrollTop(editor: ICodeEditor, context: CursorContext, args: EditorScroll_.ParsedArguments): number {
+		private _computeDesiredScrollTop(editor: ICodeEditor, viewModel: IViewModel, context: CursorContext, args: EditorScroll_.ParsedArguments): number {
 
 			if (args.unit === EditorScroll_.Unit.Line) {
 				// scrolling by model lines
-				const visibleViewRange = context.getCompletelyVisibleViewRange();
-				const visibleModelRange = context.convertViewRangeToModelRange(visibleViewRange);
+				const visibleViewRange = viewModel.getCompletelyVisibleViewRange();
+				const visibleModelRange = context.coordinatesConverter.convertViewRangeToModelRange(visibleViewRange);
 
 				let desiredTopModelLineNumber: number;
 				if (args.direction === EditorScroll_.Direction.Up) {
@@ -1228,8 +1230,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(editor, cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, viewModel, cursors, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.WrappedLine,
 				value: 1,
@@ -1254,8 +1256,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(editor, cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, viewModel, cursors, args.source, {
 				direction: EditorScroll_.Direction.Up,
 				unit: EditorScroll_.Unit.Page,
 				value: 1,
@@ -1279,8 +1281,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(editor, cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, viewModel, cursors, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.WrappedLine,
 				value: 1,
@@ -1305,8 +1307,8 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		runCoreEditorCommand(editor: ICodeEditor, cursors: ICursors, args: any): void {
-			EditorScroll._runEditorScroll(editor, cursors, args.source, {
+		runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
+			EditorScroll._runEditorScroll(editor, viewModel, cursors, args.source, {
 				direction: EditorScroll_.Direction.Down,
 				unit: EditorScroll_.Unit.Page,
 				value: 1,
@@ -1567,7 +1569,7 @@ export namespace CoreNavigationCommands {
 				}
 			}
 
-			const viewRange = cursors.context.convertModelRangeToViewRange(range);
+			const viewRange = cursors.context.coordinatesConverter.convertModelRangeToViewRange(range);
 
 			cursors.revealRange(args.source, false, viewRange, revealAt, ScrollType.Smooth);
 		}

@@ -17,7 +17,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { VerticalRevealType, IViewEventEmitter } from 'vs/editor/common/view/viewEvents';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
 
@@ -351,61 +351,23 @@ export class SingleCursorState {
 	}
 }
 
-export interface IReducedViewModel extends ICursorSimpleModel, IViewEventEmitter {
-	readonly coordinatesConverter: ICoordinatesConverter;
-
-	getCompletelyVisibleViewRange(): Range;
-	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
-
-}
-
 export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: ITextModel;
-	public readonly viewModel: IReducedViewModel;
+	public readonly viewModel: ICursorSimpleModel;
+	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly config: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: ITextModel, viewModel: IReducedViewModel) {
+	constructor(configuration: IConfiguration, model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter) {
 		this.model = model;
 		this.viewModel = viewModel;
+		this.coordinatesConverter = coordinatesConverter;
 		this.config = new CursorConfiguration(
 			this.model.getLanguageIdentifier(),
 			this.model.getOptions(),
 			configuration
 		);
-	}
-
-	public validateViewPosition(viewPosition: Position, modelPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.validateViewPosition(viewPosition, modelPosition);
-	}
-
-	public validateViewRange(viewRange: Range, expectedModelRange: Range): Range {
-		return this.viewModel.coordinatesConverter.validateViewRange(viewRange, expectedModelRange);
-	}
-
-	public convertViewRangeToModelRange(viewRange: Range): Range {
-		return this.viewModel.coordinatesConverter.convertViewRangeToModelRange(viewRange);
-	}
-
-	public convertViewPositionToModelPosition(lineNumber: number, column: number): Position {
-		return this.viewModel.coordinatesConverter.convertViewPositionToModelPosition(new Position(lineNumber, column));
-	}
-
-	public convertModelPositionToViewPosition(modelPosition: Position): Position {
-		return this.viewModel.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
-	}
-
-	public convertModelRangeToViewRange(modelRange: Range): Range {
-		return this.viewModel.coordinatesConverter.convertModelRangeToViewRange(modelRange);
-	}
-
-	public getCompletelyVisibleViewRange(): Range {
-		return this.viewModel.getCompletelyVisibleViewRange();
-	}
-
-	public getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range {
-		return this.viewModel.getCompletelyVisibleViewRangeAtScrollTop(scrollTop);
 	}
 }
 

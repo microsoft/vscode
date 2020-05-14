@@ -51,9 +51,9 @@ export class ToggleColumnSelectionAction extends Action {
 		if (codeEditor.getOption(EditorOption.columnSelection)) {
 			const selection = codeEditor.getSelection();
 			const modelSelectionStart = new Position(selection.selectionStartLineNumber, selection.selectionStartColumn);
-			const viewSelectionStart = cursors.context.convertModelPositionToViewPosition(modelSelectionStart);
+			const viewSelectionStart = cursors.context.coordinatesConverter.convertModelPositionToViewPosition(modelSelectionStart);
 			const modelPosition = new Position(selection.positionLineNumber, selection.positionColumn);
-			const viewPosition = cursors.context.convertModelPositionToViewPosition(modelPosition);
+			const viewPosition = cursors.context.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 
 			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursors, {
 				position: modelSelectionStart,
@@ -69,9 +69,9 @@ export class ToggleColumnSelectionAction extends Action {
 		} else {
 			const columnSelectData = cursors.getColumnSelectData();
 			const fromViewColumn = CursorColumns.columnFromVisibleColumn2(cursors.context.config, cursors.context.viewModel, columnSelectData.fromViewLineNumber, columnSelectData.fromViewVisualColumn);
-			const fromPosition = cursors.context.convertViewPositionToModelPosition(columnSelectData.fromViewLineNumber, fromViewColumn);
+			const fromPosition = cursors.context.coordinatesConverter.convertViewPositionToModelPosition(new Position(columnSelectData.fromViewLineNumber, fromViewColumn));
 			const toViewColumn = CursorColumns.columnFromVisibleColumn2(cursors.context.config, cursors.context.viewModel, columnSelectData.toViewLineNumber, columnSelectData.toViewVisualColumn);
-			const toPosition = cursors.context.convertViewPositionToModelPosition(columnSelectData.toViewLineNumber, toViewColumn);
+			const toPosition = cursors.context.coordinatesConverter.convertViewPositionToModelPosition(new Position(columnSelectData.toViewLineNumber, toViewColumn));
 
 			codeEditor.setSelection(new Selection(fromPosition.lineNumber, fromPosition.column, toPosition.lineNumber, toPosition.column));
 		}

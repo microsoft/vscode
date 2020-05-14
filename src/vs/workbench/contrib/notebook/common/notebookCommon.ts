@@ -325,7 +325,7 @@ export interface NotebookDataDto {
 
 export namespace CellUri {
 
-	export const scheme = 'vscode-notebook';
+	export const scheme = 'vscode-notebook-cell';
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
@@ -348,10 +348,6 @@ export namespace CellUri {
 		} catch {
 			return undefined;
 		}
-	}
-
-	export function equal(a: URI, b: URI): boolean {
-		return a.path === b.path && a.query === b.query && a.scheme === b.scheme;
 	}
 }
 

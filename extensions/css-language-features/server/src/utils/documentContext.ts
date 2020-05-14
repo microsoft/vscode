@@ -19,12 +19,14 @@ function getModuleNameFromPath(path: string) {
 	return path.substring(0, path.indexOf('/'));
 }
 
-function resolvePathToModule(_moduleName: string, _relativeTo: string): string | undefined {
+function resolvePathToModule(_moduleName: string, _relativeToFolder: string, _rootFolder: string | undefined): string | undefined {
 	// resolve the module relative to the document. We can't use `require` here as the code is webpacked.
-	const documentFolder = dirname(URI.parse(_relativeTo).fsPath);
-	const packPath = join(documentFolder, 'node_modules', _moduleName, 'package.json');
+
+	const packPath = join(_relativeToFolder, 'node_modules', _moduleName, 'package.json');
 	if (existsSync(packPath)) {
 		return URI.file(packPath).toString();
+	} else if (_rootFolder && _relativeToFolder.startsWith(_rootFolder) && (_relativeToFolder.length !== _rootFolder.length)) {
+		return resolvePathToModule(_moduleName, dirname(_relativeToFolder), _rootFolder);
 	}
 	return undefined;
 }
@@ -61,7 +63,13 @@ export function getDocumentContext(documentUri: string, workspaceFolders: Worksp
 				ref = ref.substring(1);
 				if (startsWith(base, 'file://')) {
 					const moduleName = getModuleNameFromPath(ref);
-					const modulePath = resolvePathToModule(moduleName, base);
+					const rootFolderUri = getRootFolder();
+					let rootFolder;
+					if (rootFolderUri) {
+						rootFolder = URI.parse(rootFolderUri).fsPath;
+					}
+					const documentFolder = dirname(URI.parse(base).fsPath);
+					const modulePath = resolvePathToModule(moduleName, documentFolder, rootFolder);
 					if (modulePath) {
 						const pathWithinModule = ref.substring(moduleName.length + 1);
 						return url.resolve(modulePath, pathWithinModule);

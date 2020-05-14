@@ -262,7 +262,7 @@ export class ConfigurationManager implements IConfigurationManager {
 			}
 
 			return undefined;
-		}).filter(e => typeof e === 'string') as string[];
+		}).filter(type => typeof type === 'string' && !!this.getDebuggerLabel(type)) as string[];
 
 		return debugDynamicExtensionsTypes.map(type => {
 			return {

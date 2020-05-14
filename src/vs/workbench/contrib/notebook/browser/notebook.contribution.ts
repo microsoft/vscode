@@ -271,7 +271,7 @@ class CellContentProvider implements ITextModelContentProvider {
 		@IModeService private readonly _modeService: IModeService,
 		@INotebookService private readonly _notebookService: INotebookService,
 	) {
-		this._registration = textModelService.registerTextModelContentProvider('vscode-notebook', this);
+		this._registration = textModelService.registerTextModelContentProvider(CellUri.scheme, this);
 	}
 
 	dispose(): void {
@@ -293,7 +293,7 @@ class CellContentProvider implements ITextModelContentProvider {
 			return null;
 		}
 
-		const editorModel = await this._notebookService.modelManager.get(data.notebook);
+		const editorModel = this._notebookService.modelManager.get(data.notebook);
 		if (!editorModel) {
 			return null;
 		}
