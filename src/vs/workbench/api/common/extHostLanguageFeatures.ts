@@ -1360,6 +1360,7 @@ class CallHierarchyAdapter {
 			uri: item.uri,
 			range: typeConvert.Range.from(item.range),
 			selectionRange: typeConvert.Range.from(item.selectionRange),
+			tags: item.tags?.map(typeConvert.SymbolTag.from)
 		};
 		map.set(dto._itemId, item);
 		return dto;

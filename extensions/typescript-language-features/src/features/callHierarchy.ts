@@ -79,7 +79,7 @@ function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.Ca
 	const useFileName = isSourceFileItem(item);
 	const name = useFileName ? path.basename(item.file) : item.name;
 	const detail = useFileName ? vscode.workspace.asRelativePath(path.dirname(item.file)) : '';
-	return new vscode.CallHierarchyItem(
+	const result = new vscode.CallHierarchyItem(
 		typeConverters.SymbolKind.fromProtocolScriptElementKind(item.kind),
 		name,
 		detail,
@@ -87,6 +87,8 @@ function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.Ca
 		typeConverters.Range.fromTextSpan(item.span),
 		typeConverters.Range.fromTextSpan(item.selectionSpan)
 	);
+	result.tags = item.tags as any
+	return result;
 }
 
 function fromProtocolCallHierchyIncomingCall(item: Proto.CallHierarchyIncomingCall): vscode.CallHierarchyIncomingCall {
