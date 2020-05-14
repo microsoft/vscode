@@ -20,11 +20,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
-import { CellLanguageStatusBarItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { ICompositeCodeEditor } from 'vs/editor/common/editorCommon';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -136,7 +137,7 @@ export interface INotebookEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
-export interface INotebookEditor {
+export interface INotebookEditor extends ICompositeCodeEditor {
 
 	/**
 	 * Notebook view model attached to the current editor
@@ -149,6 +150,8 @@ export interface INotebookEditor {
 	 */
 	readonly onDidChangeModel: Event<void>;
 	isNotebookEditor: boolean;
+	activeKernel: INotebookKernelInfo | undefined;
+	readonly onDidChangeKernel: Event<void>;
 
 	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
@@ -354,6 +357,8 @@ export interface INotebookEditor {
 }
 
 export interface INotebookCellList {
+	elementAt(position: number): ICellViewModel;
+	elementHeight(element: ICellViewModel): number;
 	onWillScroll: Event<ScrollEvent>;
 	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
 	onDidChangeContentHeight: Event<number>;
@@ -431,6 +436,7 @@ export interface CodeCellRenderTemplate extends BaseCellRenderTemplate {
 	outputContainer: HTMLElement;
 	editor: ICodeEditor;
 	progressBar: ProgressBar;
+	timer: TimerRenderer;
 }
 
 export interface IOutputTransformContribution {

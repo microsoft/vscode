@@ -325,13 +325,14 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 			throw new Error(`Provider for ${viewType} already registered`);
 		}
 
-		this._customEditorService.registerCustomEditorCapabilities(viewType, {
-			supportsMultipleEditorsPerDocument
-		});
-
 		const extension = reviveWebviewExtension(extensionData);
 
 		const disposables = new DisposableStore();
+
+		disposables.add(this._customEditorService.registerCustomEditorCapabilities(viewType, {
+			supportsMultipleEditorsPerDocument
+		}));
+
 		disposables.add(this._webviewWorkbenchService.registerResolver({
 			canResolve: (webviewInput) => {
 				return webviewInput instanceof CustomEditorInput && webviewInput.viewType === viewType;

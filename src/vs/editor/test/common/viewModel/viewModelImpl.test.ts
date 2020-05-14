@@ -63,14 +63,14 @@ suite('ViewModel', () => {
 			let viewLineCount: number[] = [];
 
 			viewLineCount.push(viewModel.getLineCount());
-			viewModel.addEventListener((events) => {
+			viewModel.addViewEventListener((events) => {
 				// Access the view model
 				viewLineCount.push(viewModel.getLineCount());
 			});
 			model.undo();
 			viewLineCount.push(viewModel.getLineCount());
 
-			assert.deepEqual(viewLineCount, [4, 1, 1, 1]);
+			assert.deepEqual(viewLineCount, [4, 1, 1, 1, 1]);
 		});
 	});
 

@@ -18,6 +18,7 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './utils/commandManager';
 import { Disposable } from './utils/dispose';
+import * as errorCodes from './utils/errorCodes';
 import { DiagnosticLanguage, LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { PluginManager } from './utils/plugins';
@@ -27,13 +28,13 @@ import VersionStatus from './utils/versionStatus';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
-	6133, 	// variable is declared but never used
-	6138, 	// property is declared but its value is never read
-	6192, 	// All imports are unused
-	7027,	// unreachable code detected
-	7028,	// unused label
-	7029,	// fall through case in switch
-	7030	// not all code paths return a value
+	errorCodes.variableDeclaredButNeverUsed,
+	errorCodes.propertyDeclaretedButNeverUsed,
+	errorCodes.allImportsAreUnused,
+	errorCodes.unreachableCode,
+	errorCodes.unusedLabel,
+	errorCodes.fallThroughCaseInSwitch,
+	errorCodes.notAllCodePathsReturnAValue,
 ];
 
 export default class TypeScriptServiceClientHost extends Disposable {
@@ -97,23 +98,31 @@ export default class TypeScriptServiceClientHost extends Disposable {
 		this.client.onReady(() => {
 			const languages = new Set<string>();
 			for (const plugin of pluginManager.plugins) {
-				for (const language of plugin.languages) {
-					languages.add(language);
+				if (plugin.configNamespace && plugin.languages.length) {
+					this.registerExtensionLanguageProvider({
+						id: plugin.configNamespace,
+						modeIds: Array.from(plugin.languages),
+						diagnosticSource: 'ts-plugin',
+						diagnosticLanguage: DiagnosticLanguage.TypeScript,
+						diagnosticOwner: 'typescript',
+						isExternal: true
+					}, onCompletionAccepted);
+				} else {
+					for (const language of plugin.languages) {
+						languages.add(language);
+					}
 				}
 			}
+
 			if (languages.size) {
-				const description: LanguageDescription = {
+				this.registerExtensionLanguageProvider({
 					id: 'typescript-plugins',
 					modeIds: Array.from(languages.values()),
 					diagnosticSource: 'ts-plugin',
 					diagnosticLanguage: DiagnosticLanguage.TypeScript,
 					diagnosticOwner: 'typescript',
 					isExternal: true
-				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
-				this.languages.push(manager);
-				this._register(manager);
-				this.languagePerId.set(description.id, manager);
+				}, onCompletionAccepted);
 			}
 		});
 
@@ -123,6 +132,13 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
+	}
+
+	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {
+		const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, onCompletionAccepted);
+		this.languages.push(manager);
+		this._register(manager);
+		this.languagePerId.set(description.id, manager);
 	}
 
 	private getAllModeIds(descriptions: LanguageDescription[], pluginManager: PluginManager) {

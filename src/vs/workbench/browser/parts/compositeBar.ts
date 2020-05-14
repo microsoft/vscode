@@ -226,8 +226,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Register a drop target on the whole bar to prevent forbidden feedback
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(parent, {
 			onDragOver: (e: IDraggedCompositeData) => {
-				// don't add feedback if this is over the composite bar actions
-				if (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv)) {
+				// don't add feedback if this is over the composite bar actions or there are no actions
+				if (!(this.compositeSwitcherBar?.length()) || (e.eventData.target && isAncestor(e.eventData.target as HTMLElement, actionBarDiv))) {
 					toggleClass(parent, 'dragged-over', false);
 					return;
 				}
@@ -245,7 +245,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			},
 			onDrop: (e: IDraggedCompositeData) => {
 				const pinnedItems = this.getPinnedComposites();
-				this.options.dndHandler.drop(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData, { horizontallyBefore: false, verticallyBefore: false });
+				if (pinnedItems.length) {
+					this.options.dndHandler.drop(e.dragAndDropData, pinnedItems[pinnedItems.length - 1].id, e.eventData, { horizontallyBefore: false, verticallyBefore: false });
+				}
 				toggleClass(parent, 'dragged-over', false);
 			}
 		}));

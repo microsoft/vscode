@@ -29,9 +29,3 @@ exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-archive"
 exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup "VSCodeSetup-$Arch-$Version.exe" $SystemExe }
 exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup "VSCodeUserSetup-$Arch-$Version.exe" $UserExe }
 exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform" archive "vscode-server-win32-$Arch.zip" $ServerZip }
-
-# Skip hockey app because build failure.
-# https://github.com/microsoft/vscode/issues/90491
-# publish hockeyapp symbols
-# $hockeyAppId = if ("$Arch" -eq "ia32") { "$env:VSCODE_HOCKEYAPP_ID_WIN32" } else { "$env:VSCODE_HOCKEYAPP_ID_WIN64" }
-# exec { node build/azure-pipelines/common/symbols.js "$env:VSCODE_MIXIN_PASSWORD" "$env:VSCODE_HOCKEYAPP_TOKEN" "$Arch" $hockeyAppId }

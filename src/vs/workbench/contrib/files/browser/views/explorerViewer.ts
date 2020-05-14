@@ -616,7 +616,7 @@ export class FilesFilter implements ITreeFilter<ExplorerItem, FuzzyScore> {
 	}
 }
 
-// // Explorer Sorter
+// Explorer Sorter
 export class FileSorter implements ITreeSorter<ExplorerItem> {
 
 	constructor(
@@ -624,7 +624,7 @@ export class FileSorter implements ITreeSorter<ExplorerItem> {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) { }
 
-	public compare(statA: ExplorerItem, statB: ExplorerItem): number {
+	compare(statA: ExplorerItem, statB: ExplorerItem): number {
 		// Do not sort roots
 		if (statA.isRoot) {
 			if (statB.isRoot) {
@@ -712,6 +712,27 @@ const getFileOverwriteConfirm = (name: string) => {
 	};
 };
 
+interface IWebkitDataTransfer {
+	items: IWebkitDataTransferItem[];
+}
+
+interface IWebkitDataTransferItem {
+	webkitGetAsEntry(): IWebkitDataTransferItemEntry;
+}
+
+interface IWebkitDataTransferItemEntry {
+	name: string;
+	isFile: boolean;
+	isDirectory: boolean;
+
+	file(resolve: (file: File) => void, reject: () => void): void;
+	createReader(): IWebkitDataTransferItemEntryReader;
+}
+
+interface IWebkitDataTransferItemEntryReader {
+	readEntries(resolve: (file: IWebkitDataTransferItemEntry[]) => void, reject: () => void): void
+}
+
 export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private static readonly CONFIRM_DND_SETTING_KEY = 'explorer.confirmDragAndDrop';
 
@@ -756,7 +777,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const iconLabelName = getIconLabelNameFromHTMLElement(originalEvent.target);
 
 				if (iconLabelName && iconLabelName.index < iconLabelName.count - 1) {
-					const result = this._onDragOver(data, compressedTarget, targetIndex, originalEvent);
+					const result = this.handleDragOver(data, compressedTarget, targetIndex, originalEvent);
 
 					if (result) {
 						if (iconLabelName.element !== this.compressedDragOverElement) {
@@ -780,10 +801,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		this.compressedDropTargetDisposable.dispose();
-		return this._onDragOver(data, target, targetIndex, originalEvent);
+		return this.handleDragOver(data, target, targetIndex, originalEvent);
 	}
 
-	private _onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	private handleDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		const isCopy = originalEvent && ((originalEvent.ctrlKey && !isMacintosh) || (originalEvent.altKey && isMacintosh));
 		const fromDesktop = data instanceof DesktopDragAndDropData;
 		const effect = (fromDesktop || isCopy) ? ListDragOverEffect.Copy : ListDragOverEffect.Move;
@@ -939,32 +960,84 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async handleWebExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		data.files.forEach(file => {
+		const items = (originalEvent.dataTransfer as unknown as IWebkitDataTransfer).items;
+
+		// Somehow the items thing is being modified at random, maybe as a security
+		// measure since this is a DND operation. As such, we copy the items into
+		// an array we own as early as possible before using it.
+		const entries: IWebkitDataTransferItemEntry[] = [];
+		for (const item of items) {
+			entries.push(item.webkitGetAsEntry());
+		}
+
+		const results: { isFile: boolean, resource: URI }[] = [];
+		for (let entry of entries) {
+			const result = await this.doUploadWebFileEntry(entry, target.resource, target);
+
+			if (result) {
+				results.push(result);
+			}
+		}
+
+		// Open uploaded file in editor only if we upload just one
+		if (results.length === 1 && results[0].isFile) {
+			await this.editorService.openEditor({ resource: results[0].resource, options: { pinned: true } });
+		}
+	}
+
+	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined): Promise<{ isFile: boolean, resource: URI } | undefined> {
+		if (!entry.isFile && !entry.isDirectory) {
+			return undefined;
+		}
+
+		const resource = joinPath(parentResource, entry.name);
+
+		// Confirm overwrite as needed
+		if (target && target.getChild(entry.name)) {
+			const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(resource.path));
+			if (!confirmed) {
+				return undefined;
+			}
+		}
+
+		// Handle file upload
+		if (entry.isFile) {
+			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
 			const reader = new FileReader();
 			reader.readAsArrayBuffer(file);
 			reader.onload = async (event) => {
 				const name = file.name;
 				if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
-					if (target.getChild(name)) {
-						const { confirmed } = await this.dialogService.confirm(getFileOverwriteConfirm(name));
-						if (!confirmed) {
-							return;
-						}
-					}
-
-					const resource = joinPath(target.resource, name);
 					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
-					if (data.files.length === 1) {
-						await this.editorService.openEditor({ resource, options: { pinned: true } });
-					}
 				}
 			};
-		});
+
+			return { isFile: true, resource };
+		}
+
+		// Handle folder upload
+		else {
+			await this.fileService.createFolder(resource);
+
+			// Recursive upload files in this directory
+			const folderTarget = target && target.getChild(entry.name) || undefined;
+			const dirReader = entry.createReader();
+			const childEntries = await new Promise<IWebkitDataTransferItemEntry[]>((resolve, reject) => {
+				dirReader.readEntries(resolve, reject);
+			});
+
+			for (let childEntry of childEntries) {
+				await this.doUploadWebFileEntry(childEntry, resource, folderTarget);
+			}
+
+			return { isFile: false, resource };
+		}
 	}
 
 	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {
-		const droppedResources = extractResources(originalEvent, true);
+
 		// Check for dropped external files to be folders
+		const droppedResources = extractResources(originalEvent, true);
 		const result = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
 
 		// Pass focus to window
@@ -973,7 +1046,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Handle folders by adding to workspace if we are in workspace context
 		const folders = result.filter(r => r.success && r.stat && r.stat.isDirectory).map(result => ({ uri: result.stat!.resource }));
 		if (folders.length > 0) {
-
 			const buttons = [
 				folders.length > 1 ? localize('copyFolders', "&&Copy Folders") : localize('copyFolder', "&&Copy Folder"),
 				localize('cancel', "Cancel")

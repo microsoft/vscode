@@ -17,7 +17,7 @@ import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/com
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { isEqual as areResourcesEquals, getComparisonKey, hasToIgnoreCase } from 'vs/base/common/resources';
+import { isEqual as areResourcesEquals, getComparisonKey } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 
@@ -486,7 +486,7 @@ export class BackupMainService implements IBackupMainService {
 			// for backward compatibility, use the fspath as key
 			key = platform.isLinux ? folderUri.fsPath : folderUri.fsPath.toLowerCase();
 		} else {
-			key = hasToIgnoreCase(folderUri) ? folderUri.toString().toLowerCase() : folderUri.toString();
+			key = folderUri.toString().toLowerCase();
 		}
 
 		return crypto.createHash('md5').update(key).digest('hex');

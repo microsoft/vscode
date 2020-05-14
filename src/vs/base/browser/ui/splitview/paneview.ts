@@ -106,7 +106,7 @@ export abstract class Pane extends Disposable implements IView {
 	get minimumSize(): number {
 		const headerSize = this.headerSize;
 		const expanded = !this.headerVisible || this.isExpanded();
-		const minimumBodySize = expanded ? this.minimumBodySize : this._orientation === Orientation.HORIZONTAL ? 50 : 0;
+		const minimumBodySize = expanded ? this.minimumBodySize : 0;
 
 		return headerSize + minimumBodySize;
 	}
@@ -114,7 +114,7 @@ export abstract class Pane extends Disposable implements IView {
 	get maximumSize(): number {
 		const headerSize = this.headerSize;
 		const expanded = !this.headerVisible || this.isExpanded();
-		const maximumBodySize = expanded ? this.maximumBodySize : this._orientation === Orientation.HORIZONTAL ? 50 : 0;
+		const maximumBodySize = expanded ? this.maximumBodySize : 0;
 
 		return headerSize + maximumBodySize;
 	}
@@ -139,6 +139,10 @@ export abstract class Pane extends Disposable implements IView {
 	setExpanded(expanded: boolean): boolean {
 		if (this._expanded === !!expanded) {
 			return false;
+		}
+
+		if (this.element) {
+			toggleClass(this.element, 'expanded', expanded);
 		}
 
 		this._expanded = !!expanded;
@@ -185,12 +189,21 @@ export abstract class Pane extends Disposable implements IView {
 
 		this._orientation = orientation;
 
+		if (this.element) {
+			toggleClass(this.element, 'horizontal', this.orientation === Orientation.HORIZONTAL);
+			toggleClass(this.element, 'vertical', this.orientation === Orientation.VERTICAL);
+		}
+
 		if (this.header) {
 			this.updateHeader();
 		}
 	}
 
 	render(): void {
+		toggleClass(this.element, 'expanded', this.isExpanded());
+		toggleClass(this.element, 'horizontal', this.orientation === Orientation.HORIZONTAL);
+		toggleClass(this.element, 'vertical', this.orientation === Orientation.VERTICAL);
+
 		this.header = $('.pane-header');
 		append(this.element, this.header);
 		this.header.setAttribute('tabindex', '0');
@@ -262,7 +275,6 @@ export abstract class Pane extends Disposable implements IView {
 	protected updateHeader(): void {
 		const expanded = !this.headerVisible || this.isExpanded();
 
-		this.header.style.height = `${this.headerSize}px`;
 		this.header.style.lineHeight = `${this.headerSize}px`;
 		toggleClass(this.header, 'hidden', !this.headerVisible);
 		toggleClass(this.header, 'expanded', expanded);

@@ -5,14 +5,12 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IPanel } from 'vs/workbench/common/panel';
-import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
+import { CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IConstructorSignature0, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { assertIsDefined } from 'vs/base/common/types';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 
-export abstract class Panel extends Composite implements IPanel { }
-
-export abstract class PaneCompositePanel extends PaneComposite implements IPanel { }
+export abstract class Panel extends PaneComposite implements IPanel { }
 
 /**
  * A panel descriptor is a leightweight descriptor of a panel in the workbench.

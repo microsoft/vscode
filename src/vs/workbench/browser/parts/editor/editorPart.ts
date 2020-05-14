@@ -25,7 +25,7 @@ import { EditorDropTarget, EditorDropTargetDelegate } from 'vs/workbench/browser
 import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { Parts, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -839,11 +839,61 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			}
 		}));
 
+		let panelOpenerTimeout: any;
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(overlay, {
 			onDragOver: e => {
 				EventHelper.stop(e.eventData, true);
 				if (e.eventData.dataTransfer) {
 					e.eventData.dataTransfer.dropEffect = 'none';
+				}
+
+				if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
+					const boundingRect = overlay.getBoundingClientRect();
+
+					let openPanel = false;
+					const proximity = 100;
+					switch (this.layoutService.getPanelPosition()) {
+						case Position.BOTTOM:
+							if (e.eventData.clientY > boundingRect.bottom - proximity) {
+								openPanel = true;
+							}
+							break;
+						case Position.LEFT:
+							if (e.eventData.clientX < boundingRect.left + proximity) {
+								openPanel = true;
+							}
+							break;
+						case Position.RIGHT:
+							if (e.eventData.clientX > boundingRect.right - proximity) {
+								openPanel = true;
+							}
+							break;
+					}
+
+					if (!panelOpenerTimeout && openPanel) {
+						panelOpenerTimeout = setTimeout(() => this.layoutService.setPanelHidden(false), 200);
+					} else if (panelOpenerTimeout && !openPanel) {
+						clearTimeout(panelOpenerTimeout);
+						panelOpenerTimeout = undefined;
+					}
+				}
+			},
+			onDragLeave: () => {
+				if (panelOpenerTimeout) {
+					clearTimeout(panelOpenerTimeout);
+					panelOpenerTimeout = undefined;
+				}
+			},
+			onDragEnd: () => {
+				if (panelOpenerTimeout) {
+					clearTimeout(panelOpenerTimeout);
+					panelOpenerTimeout = undefined;
+				}
+			},
+			onDrop: () => {
+				if (panelOpenerTimeout) {
+					clearTimeout(panelOpenerTimeout);
+					panelOpenerTimeout = undefined;
 				}
 			}
 		}));
