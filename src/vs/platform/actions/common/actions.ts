@@ -478,6 +478,7 @@ export function registerAction2(ctor: { new(): Action2 }): IDisposable {
 	}
 	if (f1) {
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command, when: command.precondition }));
+		disposables.add(MenuRegistry.addCommand(command));
 	}
 
 	// keybinding
