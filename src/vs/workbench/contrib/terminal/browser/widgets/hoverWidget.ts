@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
-import { Widget } from 'vs/base/browser/ui/widget';
 import { Event, Emitter } from 'vs/base/common/event';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLinkForeground, editorHoverForeground, editorHoverStatusBarBackground, textCodeBlockBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -14,23 +13,23 @@ import * as dom from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IHoverTarget, HorizontalAnchorSide, VerticalAnchorSide } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { Widget } from 'vs/base/browser/ui/widget';
 
 const $ = dom.$;
 
 export class HoverWidget extends Widget {
-	private readonly _containerDomNode: HTMLElement;
-	private readonly _domNode: HTMLElement;
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _mouseTracker: CompositeMouseTracker;
-	private readonly _scrollbar: DomScrollableElement;
+
+	private readonly _hover: BaseHoverWidget;
 
 	private _isDisposed: boolean = false;
 
 	get isDisposed(): boolean { return this._isDisposed; }
-	get domNode(): HTMLElement { return this._containerDomNode; }
+	get domNode(): HTMLElement { return this._hover.containerDomNode; }
 
 	private readonly _onDispose = new Emitter<void>();
 	get onDispose(): Event<void> { return this._onDispose.event; }
@@ -45,24 +44,16 @@ export class HoverWidget extends Widget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
-		this._containerDomNode = document.createElement('div');
-		this._containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
-		this._containerDomNode.tabIndex = 0;
-		this._containerDomNode.setAttribute('role', 'tooltip');
 
-		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-editor-hover-content';
-
-		this._scrollbar = new DomScrollableElement(this._domNode, {});
-		this._register(this._scrollbar);
-		this._containerDomNode.appendChild(this._scrollbar.getDomNode());
+		this._hover = this._register(new BaseHoverWidget());
+		this._hover.containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'xterm-hover');
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
-		this.onmousedown(this._containerDomNode, e => e.stopPropagation());
+		this.onmousedown(this._hover.containerDomNode, e => e.stopPropagation());
 
 		// Hide hover on escape
-		this.onkeydown(this._containerDomNode, e => {
+		this.onkeydown(this._hover.containerDomNode, e => {
 			if (e.equals(KeyCode.Escape)) {
 				this.dispose();
 			}
@@ -86,96 +77,85 @@ export class HoverWidget extends Widget {
 		});
 		contentsElement.appendChild(markdownElement);
 		rowElement.appendChild(contentsElement);
-		this._domNode.appendChild(rowElement);
+		this._hover.contentsDomNode.appendChild(rowElement);
 
 		if (this._actions && this._actions.length > 0) {
 			const statusBarElement = $('div.hover-row.status-bar');
 			const actionsElement = $('div.actions');
-			this._actions.forEach(action => this._renderAction(actionsElement, action));
+			this._actions.forEach(action => {
+				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
+				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+				renderHoverAction(actionsElement, action, keybindingLabel);
+			});
 			statusBarElement.appendChild(actionsElement);
-			this._containerDomNode.appendChild(statusBarElement);
+			this._hover.containerDomNode.appendChild(statusBarElement);
 		}
 
-		this._mouseTracker = new CompositeMouseTracker([this._containerDomNode, ..._target.targetElements]);
+		this._mouseTracker = new CompositeMouseTracker([this._hover.containerDomNode, ..._target.targetElements]);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
 		this._register(this._mouseTracker);
 
-		this._container.appendChild(this._containerDomNode);
+		this._container.appendChild(this._hover.containerDomNode);
 
 		this.layout();
-	}
-
-	private _renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
-		const actionContainer = dom.append(parent, $('div.action-container'));
-		const action = dom.append(actionContainer, $('a.action'));
-		action.setAttribute('href', '#');
-		action.setAttribute('role', 'button');
-		if (actionOptions.iconClass) {
-			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
-		}
-		const label = dom.append(action, $('span'));
-		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-		label.textContent = keybindingLabel ? `${actionOptions.label} (${keybindingLabel})` : actionOptions.label;
-		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(actionContainer);
-		});
 	}
 
 	public layout(): void {
 		const anchor = this._target.anchor;
 
-		this._containerDomNode.classList.remove('right-aligned');
-		this._domNode.style.maxHeight = '';
+		this._hover.containerDomNode.classList.remove('right-aligned');
+		this._hover.contentsDomNode.style.maxHeight = '';
 		if (anchor.horizontalAnchorSide === HorizontalAnchorSide.Left) {
-			if (anchor.x + this._containerDomNode.clientWidth > document.documentElement.clientWidth) {
+			if (anchor.x + this._hover.containerDomNode.clientWidth > document.documentElement.clientWidth) {
 				// Shift the hover to the left when part of it would get cut off
-				const width = Math.round(this._containerDomNode.clientWidth);
-				this._containerDomNode.style.width = `${width - 1}px`;
-				this._containerDomNode.style.maxWidth = '';
+				const width = Math.round(this._hover.containerDomNode.clientWidth);
+				this._hover.containerDomNode.style.width = `${width - 1}px`;
+				this._hover.containerDomNode.style.maxWidth = '';
 				const left = document.documentElement.clientWidth - width - 1;
-				this._containerDomNode.style.left = `${left}px`;
+				this._hover.containerDomNode.style.left = `${left}px`;
 				// Right align if the right edge is closer to the anchor than the left edge
 				if (left + width / 2 < anchor.x) {
-					this._containerDomNode.classList.add('right-aligned');
+					this._hover.containerDomNode.classList.add('right-aligned');
 				}
 			} else {
-				this._containerDomNode.style.width = '';
-				this._containerDomNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
-				this._containerDomNode.style.left = `${anchor.x}px`;
+				this._hover.containerDomNode.style.width = '';
+				this._hover.containerDomNode.style.maxWidth = `${document.documentElement.clientWidth - anchor.x - 1}px`;
+				this._hover.containerDomNode.style.left = `${anchor.x}px`;
 			}
 		} else {
-			this._containerDomNode.style.right = `${anchor.x}px`;
+			this._hover.containerDomNode.style.right = `${anchor.x}px`;
 		}
 		// Use fallback y value if there is not enough vertical space
 		if (anchor.verticalAnchorSide === VerticalAnchorSide.Bottom) {
-			if (anchor.y + this._containerDomNode.clientHeight > document.documentElement.clientHeight) {
-				this._containerDomNode.style.top = `${anchor.fallbackY}px`;
-				this._domNode.style.maxHeight = `${document.documentElement.clientHeight - anchor.fallbackY}px`;
+			if (anchor.y + this._hover.containerDomNode.clientHeight > document.documentElement.clientHeight) {
+				this._hover.containerDomNode.style.top = `${anchor.fallbackY}px`;
+				this._hover.contentsDomNode.style.maxHeight = `${document.documentElement.clientHeight - anchor.fallbackY}px`;
 			} else {
-				this._containerDomNode.style.bottom = `${anchor.y}px`;
-				this._containerDomNode.style.maxHeight = '';
+				this._hover.containerDomNode.style.bottom = `${anchor.y}px`;
+				this._hover.containerDomNode.style.maxHeight = '';
 			}
 		} else {
-			if (anchor.y + this._containerDomNode.clientHeight > document.documentElement.clientHeight) {
-				this._containerDomNode.style.bottom = `${anchor.fallbackY}px`;
+			if (anchor.y + this._hover.containerDomNode.clientHeight > document.documentElement.clientHeight) {
+				this._hover.containerDomNode.style.bottom = `${anchor.fallbackY}px`;
 			} else {
-				this._containerDomNode.style.top = `${anchor.y}px`;
+				this._hover.containerDomNode.style.top = `${anchor.y}px`;
 			}
 		}
-		this._scrollbar.scanDomNode();
+		this._hover.onContentsChanged();
 	}
 
 	public focus() {
-		this._containerDomNode.focus();
+		this._hover.containerDomNode.focus();
+	}
+
+	public hide(): void {
+		this.dispose();
 	}
 
 	public dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
-			this._containerDomNode.parentElement?.removeChild(this.domNode);
+			this._hover.containerDomNode.parentElement?.removeChild(this.domNode);
 			this._messageListeners.dispose();
 			this._target.dispose();
 			super.dispose();
@@ -238,29 +218,29 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const hoverBackground = theme.getColor(editorHoverBackground);
 	if (hoverBackground) {
-		collector.addRule(`.integrated-terminal .monaco-editor-hover { background-color: ${hoverBackground}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover { background-color: ${hoverBackground}; }`);
 	}
 	const hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
-		collector.addRule(`.integrated-terminal .monaco-editor-hover { border: 1px solid ${hoverBorder}; }`);
-		collector.addRule(`.integrated-terminal .monaco-editor-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
-		collector.addRule(`.integrated-terminal .monaco-editor-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
-		collector.addRule(`.integrated-terminal .monaco-editor-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover { border: 1px solid ${hoverBorder}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover .hover-row:not(:first-child):not(:empty) { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover hr { border-top: 1px solid ${hoverBorder.transparent(0.5)}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
-		collector.addRule(`.integrated-terminal .monaco-editor-hover a { color: ${link}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover a { color: ${link}; }`);
 	}
 	const hoverForeground = theme.getColor(editorHoverForeground);
 	if (hoverForeground) {
-		collector.addRule(`.integrated-terminal .monaco-editor-hover { color: ${hoverForeground}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover { color: ${hoverForeground}; }`);
 	}
 	const actionsBackground = theme.getColor(editorHoverStatusBarBackground);
 	if (actionsBackground) {
-		collector.addRule(`.integrated-terminal .monaco-editor-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover .hover-row .actions { background-color: ${actionsBackground}; }`);
 	}
 	const codeBackground = theme.getColor(textCodeBlockBackground);
 	if (codeBackground) {
-		collector.addRule(`.integrated-terminal .monaco-editor-hover code { background-color: ${codeBackground}; }`);
+		collector.addRule(`.integrated-terminal .monaco-hover code { background-color: ${codeBackground}; }`);
 	}
 });
