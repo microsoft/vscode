@@ -279,7 +279,7 @@ export class ConfigurationManager implements IConfigurationManager {
 								config,
 								buttons: [{
 									iconClass: 'codicon-gear',
-									tooltip: nls.localize('configureLaunchConfig', "Configure Debug Configuration in launch.json")
+									tooltip: nls.localize('editLaunchConfig', "Edit Debug Configuration in launch.json")
 								}],
 								launch
 							}))));
