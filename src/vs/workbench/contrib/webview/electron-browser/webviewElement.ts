@@ -339,7 +339,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		element.focus = () => {
 			this.doFocus();
 		};
-		element.setAttribute('partition', this.id);
 		element.setAttribute('webpreferences', 'contextIsolation=yes');
 		element.className = `webview ${options.customClasses || ''}`;
 
