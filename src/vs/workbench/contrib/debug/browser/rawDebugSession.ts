@@ -349,6 +349,13 @@ export class RawDebugSession implements IDisposable {
 		return Promise.reject(new Error('restartFrame not supported'));
 	}
 
+	stepInTargets(args: DebugProtocol.StepInTargetsArguments): Promise<DebugProtocol.StepInTargetsResponse> {
+		if (this.capabilities.supportsStepInTargetsRequest) {
+			return this.send('stepInTargets', args);
+		}
+		return Promise.reject(new Error('stepInTargets not supported'));
+	}
+
 	completions(args: DebugProtocol.CompletionsArguments, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
 		if (this.capabilities.supportsCompletionsRequest) {
 			return this.send<DebugProtocol.CompletionsResponse>('completions', args, token);
