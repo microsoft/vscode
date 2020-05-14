@@ -45,14 +45,13 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	constructor(
 		readonly viewType: string,
-		readonly notebookHandle: number,
 		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly foldingDelegate: EditorFoldingStateDelegate,
 		readonly eventDispatcher: NotebookEventDispatcher,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ITextModelService private readonly _modelService: ITextModelService) {
-		super(viewType, notebookHandle, model, UUID.generateUuid());
+		super(viewType, model, UUID.generateUuid());
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,

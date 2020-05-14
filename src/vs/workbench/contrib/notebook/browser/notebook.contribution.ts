@@ -293,7 +293,7 @@ class CellContentProvider implements ITextModelContentProvider {
 			return null;
 		}
 
-		const editorModel = await this._notebookService.modelManager.get(data.notebook);
+		const editorModel = this._notebookService.modelManager.get(data.notebook);
 		if (!editorModel) {
 			return null;
 		}
