@@ -664,6 +664,6 @@ function hoverContentsEquals(first: HoverPart[], second: HoverPart[]): boolean {
 registerThemingParticipant((theme, collector) => {
 	const linkFg = theme.getColor(textLinkForeground);
 	if (linkFg) {
-		collector.addRule(`.monaco-editor-hover .hover-contents a.code-link span:hover { color: ${linkFg}; }`);
+		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${linkFg}; }`);
 	}
 });

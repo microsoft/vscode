@@ -173,7 +173,7 @@ export class GlyphHoverWidget extends Widget implements IOverlayWidget {
 		this._isVisible = false;
 
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'monaco-editor-hover hidden';
+		this._domNode.className = 'monaco-hover hidden';
 		this._domNode.setAttribute('aria-hidden', 'true');
 		this._domNode.setAttribute('role', 'tooltip');
 

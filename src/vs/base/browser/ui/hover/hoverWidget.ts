@@ -20,12 +20,12 @@ export class HoverWidget extends Disposable {
 		super();
 
 		this.containerDomNode = document.createElement('div');
-		this.containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-editor-hover', 'xterm-hover');
+		this.containerDomNode.classList.add('terminal-hover-widget', 'fadeIn', 'monaco-hover', 'xterm-hover');
 		this.containerDomNode.tabIndex = 0;
 		this.containerDomNode.setAttribute('role', 'tooltip');
 
 		this.contentsDomNode = document.createElement('div');
-		this.contentsDomNode.className = 'monaco-editor-hover-content';
+		this.contentsDomNode.className = 'monaco-hover-content';
 
 		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {}));
 		this.containerDomNode.appendChild(this._scrollbar.getDomNode());
