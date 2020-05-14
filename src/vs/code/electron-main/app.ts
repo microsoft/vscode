@@ -97,7 +97,7 @@ export class CodeApplication extends Disposable {
 		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateService private readonly stateService: IStateService
 	) {
 		super();
 
