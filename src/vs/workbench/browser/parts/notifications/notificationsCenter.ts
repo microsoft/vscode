@@ -94,8 +94,10 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		// Show all notifications that are present now
 		notificationsList.updateNotificationsList(0, 0, this.model.notifications);
 
-		// Focus first
-		notificationsList.focusFirst();
+		// Focus on first notification if it exists, otherwise focus on notification widget
+		if (!notificationsList.focusFirst()) {
+			this.notificationsCenterContainer?.focus();
+		}
 
 		// Theming
 		this.updateStyles();
@@ -127,6 +129,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		// Container
 		this.notificationsCenterContainer = document.createElement('div');
 		addClass(this.notificationsCenterContainer, 'notifications-center');
+		this.notificationsCenterContainer.tabIndex = -1;
 
 		// Header
 		this.notificationsCenterHeader = document.createElement('div');

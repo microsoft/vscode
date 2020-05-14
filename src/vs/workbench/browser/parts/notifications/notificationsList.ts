@@ -231,13 +231,14 @@ export class NotificationsList extends Themable {
 		this.viewModel = [];
 	}
 
-	focusFirst(): void {
-		if (!this.isVisible || !this.list) {
-			return; // hidden
+	focusFirst(): boolean {
+		if (!this.isVisible || !this.list || this.list.length === 0) {
+			return false; // hidden or empty
 		}
 
 		this.list.focusFirst();
 		this.list.domFocus();
+		return true;
 	}
 
 	hasFocus(): boolean {
