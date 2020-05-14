@@ -688,14 +688,13 @@ export const EditorType = {
  * Built-in commands.
  * @internal
  */
-export const Handler = {
-	ExecuteCommand: 'executeCommand',
-	ExecuteCommands: 'executeCommands',
-
-	Type: 'type',
-	ReplacePreviousChar: 'replacePreviousChar',
-	CompositionStart: 'compositionStart',
-	CompositionEnd: 'compositionEnd',
-	Paste: 'paste',
-	Cut: 'cut',
-};
+export const enum Handler {
+	ExecuteCommand = 'executeCommand',
+	ExecuteCommands = 'executeCommands',
+	Type = 'type',
+	ReplacePreviousChar = 'replacePreviousChar',
+	CompositionStart = 'compositionStart',
+	CompositionEnd = 'compositionEnd',
+	Paste = 'paste',
+	Cut = 'cut',
+}

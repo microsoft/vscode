@@ -663,15 +663,13 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
-		const H = editorCommon.Handler;
-
-		if (handlerId === H.CompositionStart) {
+		if (handlerId === editorCommon.Handler.CompositionStart) {
 			this._isDoingComposition = true;
 			this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
 			return;
 		}
 
-		if (handlerId === H.CompositionEnd) {
+		if (handlerId === editorCommon.Handler.CompositionEnd) {
 			this._isDoingComposition = false;
 		}
 
@@ -694,32 +692,32 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		try {
 			switch (handlerId) {
-				case H.Type:
+				case editorCommon.Handler.Type:
 					this._type(source, <string>payload.text);
 					break;
 
-				case H.ReplacePreviousChar:
+				case editorCommon.Handler.ReplacePreviousChar:
 					this._replacePreviousChar(<string>payload.text, <number>payload.replaceCharCnt);
 					break;
 
-				case H.Paste:
+				case editorCommon.Handler.Paste:
 					cursorChangeReason = CursorChangeReason.Paste;
 					this._paste(<string>payload.text, <boolean>payload.pasteOnNewLine, <string[]>payload.multicursorText || []);
 					break;
 
-				case H.Cut:
+				case editorCommon.Handler.Cut:
 					this._cut();
 					break;
 
-				case H.ExecuteCommand:
+				case editorCommon.Handler.ExecuteCommand:
 					this._externalExecuteCommand(<editorCommon.ICommand>payload);
 					break;
 
-				case H.ExecuteCommands:
+				case editorCommon.Handler.ExecuteCommands:
 					this._externalExecuteCommands(<editorCommon.ICommand[]>payload);
 					break;
 
-				case H.CompositionEnd:
+				case editorCommon.Handler.CompositionEnd:
 					this._interpretCompositionEnd(source);
 					break;
 			}

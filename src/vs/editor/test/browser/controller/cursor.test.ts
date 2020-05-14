@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { Handler, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { Handler as H, ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -23,8 +23,6 @@ import { withTestCodeEditor, TestCodeEditorCreationOptions, TestCodeEditor } fro
 import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-
-const H = Handler;
 
 // --------- utils
 
@@ -2686,7 +2684,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 			}
 
-			cursor.trigger('autoFormat', Handler.ExecuteCommand, new TestCommand());
+			cursor.trigger('autoFormat', H.ExecuteCommand, new TestCommand());
 			assert.equal(model.getLineContent(1), 'function foo(params: string) {');
 			assert.equal(model.getLineContent(2), '    ');
 			assert.equal(model.getLineContent(3), '}');
