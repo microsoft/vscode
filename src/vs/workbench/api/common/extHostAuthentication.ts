@@ -43,7 +43,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return !!(await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes).length;
 	}
 
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.authentication.GetSessionOptions): Promise<vscode.AuthenticationSession | undefined> {
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined> {
 		const provider = this._authenticationProviders.get(providerId);
 		if (!provider) {
 			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
