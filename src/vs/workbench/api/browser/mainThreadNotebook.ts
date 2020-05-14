@@ -134,8 +134,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return;
 	}
 
-	async $registerNotebookKernel(extension: NotebookExtensionDescription, id: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void> {
-		const kernel = new MainThreadNotebookKernel(this._proxy, id, selectors, extension.id, URI.revive(extension.location), preloads.map(preload => URI.revive(preload)));
+	async $registerNotebookKernel(extension: NotebookExtensionDescription, id: string, label: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void> {
+		const kernel = new MainThreadNotebookKernel(this._proxy, id, label, selectors, extension.id, URI.revive(extension.location), preloads.map(preload => URI.revive(preload)));
 		this._notebookKernels.set(id, kernel);
 		this._notebookService.registerNotebookKernel(kernel);
 		return;
@@ -345,6 +345,7 @@ export class MainThreadNotebookKernel implements INotebookKernelInfo {
 	constructor(
 		private readonly _proxy: ExtHostNotebookShape,
 		readonly id: string,
+		readonly label: string,
 		readonly selectors: (string | IRelativePattern)[],
 		readonly extension: ExtensionIdentifier,
 		readonly extensionLocation: URI,

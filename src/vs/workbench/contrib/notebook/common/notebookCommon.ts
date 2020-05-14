@@ -105,6 +105,7 @@ export interface INotebookRendererInfo {
 
 export interface INotebookKernelInfo {
 	id: string;
+	label: string,
 	selectors: (string | glob.IRelativePattern)[],
 	extension: ExtensionIdentifier;
 	extensionLocation: URI,

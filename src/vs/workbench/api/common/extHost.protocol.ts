@@ -693,7 +693,7 @@ export interface MainThreadNotebookShape extends IDisposable {
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
-	$registerNotebookKernel(extension: NotebookExtensionDescription, id: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void>;
+	$registerNotebookKernel(extension: NotebookExtensionDescription, id: string, label: string, selectors: (string | IRelativePattern)[], preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookKernel(id: string): Promise<void>;
 	$tryApplyEdits(viewType: string, resource: UriComponents, modelVersionId: number, edits: ICellEditOperation[], renderers: number[]): Promise<boolean>;
 	$updateNotebookLanguages(viewType: string, resource: UriComponents, languages: string[]): Promise<void>;

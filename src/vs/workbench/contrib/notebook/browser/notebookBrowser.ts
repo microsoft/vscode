@@ -23,7 +23,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor } from 'vs/editor/common/editorCommon';
 
@@ -150,6 +150,8 @@ export interface INotebookEditor extends ICompositeCodeEditor {
 	 */
 	readonly onDidChangeModel: Event<void>;
 	isNotebookEditor: boolean;
+	activeKernel: INotebookKernelInfo | undefined;
+	readonly onDidChangeKernel: Event<void>;
 
 	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;

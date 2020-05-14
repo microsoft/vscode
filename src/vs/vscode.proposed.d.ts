@@ -1795,6 +1795,7 @@ declare module 'vscode' {
 	}
 
 	export interface NotebookKernel {
+		label: string;
 		preloads?: Uri[];
 		executeCell(document: NotebookDocument, cell: NotebookCell, token: CancellationToken): Promise<void>;
 		executeAllCells(document: NotebookDocument, token: CancellationToken): Promise<void>;

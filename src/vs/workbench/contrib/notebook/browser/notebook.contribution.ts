@@ -45,6 +45,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
 import 'vs/workbench/contrib/notebook/browser/contrib/toc/tocProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
+import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 
 // Output renderers registration
 

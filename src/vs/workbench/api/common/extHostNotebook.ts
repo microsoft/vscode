@@ -731,7 +731,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._notebookKernels.set(id, { kernel, extension });
 		const transformedSelectors = selectors.map(selector => typeConverters.GlobPattern.from(selector));
 
-		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation }, id, transformedSelectors, kernel.preloads || []);
+		this._proxy.$registerNotebookKernel({ id: extension.identifier, location: extension.extensionLocation }, id, kernel.label, transformedSelectors, kernel.preloads || []);
 		return new VSCodeDisposable(() => {
 			this._notebookKernels.delete(id);
 			this._proxy.$unregisterNotebookKernel(id);
