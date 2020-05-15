@@ -161,7 +161,7 @@ export class TreeView extends Disposable implements ITreeView {
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
 	constructor(
-		protected readonly id: string,
+		readonly id: string,
 		private _title: string,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
