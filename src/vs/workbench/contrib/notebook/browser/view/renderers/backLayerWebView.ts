@@ -19,7 +19,8 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
@@ -144,7 +145,8 @@ export class BackLayerWebView extends Disposable {
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.element = document.createElement('div');
@@ -155,7 +157,7 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.margin = `0px 0 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px`;
 
 		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
-		const loader = URI.file(pathsPath).with({ scheme: WebviewResourceScheme });
+		const loader = asWebviewUri(this.workbenchEnvironmentService, this.id, URI.file(pathsPath));
 
 		let coreDependencies = '';
 		let resolveFunc: () => void;
@@ -560,13 +562,14 @@ ${loaderJs}
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), rootPath];
+
 		const webview = webviewService.createWebviewElement(this.id, {
 			enableFindWidget: false,
 		}, {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache
-		});
+		}, undefined);
 		webview.html = content;
 		return webview;
 	}
@@ -742,7 +745,7 @@ ${loaderJs}
 					if (this.environmentService.isExtensionDevelopment && (preloadResource.scheme === 'http' || preloadResource.scheme === 'https')) {
 						return preloadResource;
 					}
-					return preloadResource.with({ scheme: WebviewResourceScheme });
+					return asWebviewUri(this.workbenchEnvironmentService, this.id, preloadResource);
 				});
 				extensionLocations.push(rendererInfo.extensionLocation);
 				preloadResources.forEach(e => {

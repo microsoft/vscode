@@ -81,6 +81,8 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
+import { IFileService } from 'vs/platform/files/common/files';
+import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -89,6 +91,7 @@ export class CodeApplication extends Disposable {
 	constructor(
 		private readonly mainIpcServer: Server,
 		private readonly userEnv: IProcessEnvironment,
+		@IFileService fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -99,6 +102,8 @@ export class CodeApplication extends Disposable {
 		super();
 
 		this.registerListeners();
+
+		this._register(new WebviewProtocolProvider(fileService));
 	}
 
 	private registerListeners(): void {

@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag } from 'electron';
+import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag, ipcRenderer } from 'electron';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as modes from 'vs/editor/common/modes';
@@ -21,9 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
-import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
-import { registerFileProtocol } from 'vs/workbench/contrib/webview/electron-browser/webviewProtocols';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
 
@@ -116,32 +115,29 @@ class WebviewSession extends Disposable {
 
 class WebviewProtocolProvider extends Disposable {
 
-	private _resolve!: () => void;
-	private _reject!: () => void;
-
 	public readonly ready: Promise<void>;
 
 	constructor(
-		handle: WebviewTagHandle,
-		getExtensionLocation: () => URI | undefined,
+		private readonly id: string,
+		extension: WebviewExtensionDescription | undefined,
 		getLocalResourceRoots: () => ReadonlyArray<URI>,
-		fileService: IFileService,
 	) {
 		super();
 
-		this.ready = new Promise((resolve, reject) => {
-			this._resolve = resolve;
-			this._reject = reject;
+		ipcRenderer.send('vscode:registerWebview', id, {
+			extensionLocation: extension?.location.toJSON(),
+			localResourceRoots: getLocalResourceRoots().map(x => x.toJSON()),
 		});
 
-		this._register(handle.onFirstLoad(contents => {
-			try {
-				registerFileProtocol(contents, WebviewResourceScheme, fileService, getExtensionLocation(), getLocalResourceRoots);
-				this._resolve();
-			} catch {
-				this._reject();
-			}
-		}));
+		this.ready = new Promise((resolve) => {
+			ipcRenderer.once(`vscode:didRegisterWebview-${id}`, () => resolve());
+		});
+	}
+
+	dispose() {
+		super.dispose();
+
+		ipcRenderer.send('vscode:unregisterWebview', this.id);
 	}
 }
 
@@ -236,7 +232,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
 
-	public extension: WebviewExtensionDescription | undefined;
+	public readonly extension: WebviewExtensionDescription | undefined;
 	private readonly _protocolProvider: WebviewProtocolProvider;
 
 	private readonly _domReady: Promise<void>;
@@ -247,6 +243,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 		private readonly _webviewThemeDataProvider: WebviewThemeDataProvider,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService,
@@ -256,15 +253,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(id, options, contentOptions, _webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, _webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
 
 		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
 		const session = this._register(new WebviewSession(webviewAndContents));
 
-		this._protocolProvider = new WebviewProtocolProvider(webviewAndContents,
-			() => this.extension?.location,
-			() => (this.content.options.localResourceRoots || []),
-			fileService);
+		this._protocolProvider = new WebviewProtocolProvider(id, extension, () => (this.content.options.localResourceRoots || []));
 		this._register(this._protocolProvider);
 
 		this._register(new WebviewPortMappingProvider(
@@ -345,7 +339,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		element.focus = () => {
 			this.doFocus();
 		};
-		element.setAttribute('partition', `webview${Date.now()}`);
 		element.setAttribute('webpreferences', 'contextIsolation=yes');
 		element.className = `webview ${options.customClasses || ''}`;
 
@@ -361,6 +354,21 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	protected readonly extraContentOptions = {};
+
+	public set html(value: string) {
+		super.html = this.preprocessHtml(value);
+	}
+
+	private preprocessHtml(value: string): string {
+		return value
+			.replace(/(["'])vscode-resource:(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
+				if (scheme) {
+					return `${startQuote}${Schemas.vscodeWebviewResource}:${this.id}//${scheme}${path}${endQuote}`;
+				}
+				return `${startQuote}${Schemas.vscodeWebviewResource}:${this.id}//file${path}${endQuote}`;
+			});
+	}
+
 
 	public mountTo(parent: HTMLElement) {
 		if (!this.element) {

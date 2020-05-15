@@ -97,9 +97,8 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			const webview = webviewService.createWebviewOverlay(data.id, {
 				enableFindWidget: data.options.enableFindWidget,
 				retainContextWhenHidden: data.options.retainContextWhenHidden
-			}, data.options);
+			}, data.options, data.extension);
 			webview.state = data.state;
-			webview.extension = data.extension;
 			return webview;
 		});
 	}
