@@ -92,6 +92,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	protected readonly _contributions: { [key: string]: INotebookEditorContribution; };
 	private scrollBeyondLastLine: boolean;
 	private readonly memento: Memento;
+	private _attachedEditorCount: number;
+	private readonly _onDidChangeAttached: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeAttached: Event<void> = this._onDidChangeAttached.event;
 
 
 	constructor(
@@ -105,6 +108,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super();
 		this.memento = new Memento(NotebookEditorWidget.ID, storageService);
 
+		this._attachedEditorCount = 0;
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
 		this._contributions = {};
 		this.scrollBeyondLastLine = this.configurationService.getValue<boolean>('editor.scrollBeyondLastLine');
@@ -117,6 +121,24 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 		});
+	}
+
+	public onBeforeAttached(): void {
+		this._attachedEditorCount++;
+		if (this._attachedEditorCount === 1) {
+			this._onDidChangeAttached.fire(undefined);
+		}
+	}
+
+	public onBeforeDetached(): void {
+		this._attachedEditorCount--;
+		if (this._attachedEditorCount === 0) {
+			this._onDidChangeAttached.fire(undefined);
+		}
+	}
+
+	public isAttachedToEditor(): boolean {
+		return this._attachedEditorCount > 0;
 	}
 
 	private readonly _onDidChangeModel = new Emitter<void>();

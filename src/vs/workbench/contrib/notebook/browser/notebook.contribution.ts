@@ -190,6 +190,14 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				// between multiple editors / groups.
 				const copiedInput = this.instantiationService.createInstance(NotebookEditorInput, originalInput.resource, originalInput.name, originalInput.viewType);
 				copiedInput.updateGroup(group.id);
+
+				// transfer ownership of editor widget
+				// const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
+				// if (widgetRef) {
+				// 	NotebookRegistry.releaseNotebookEditorWidget(originalInput);
+				// 	NotebookRegistry.claimNotebookEditorWidget(copiedInput, widgetRef);
+				// }
+
 				return {
 					override: this.editorService.openEditor(copiedInput, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group)
 				};

@@ -18,6 +18,7 @@ import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/noteb
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 
 const NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'NotebookEditorViewState';
 
@@ -25,8 +26,9 @@ export class NotebookEditor extends BaseEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private editorMemento: IEditorMemento<INotebookEditorViewState>;
 	private readonly groupListener = this._register(new MutableDisposable());
-	private _widget: NotebookEditorWidget;
+	private _widget?: NotebookEditorWidget;
 	private _rootElement!: HTMLElement;
+	private dimension: DOM.Dimension | null = null;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -36,7 +38,7 @@ export class NotebookEditor extends BaseEditor {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService) {
 		super(NotebookEditor.ID, telemetryService, themeService, storageService);
 
-		this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
+		// this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
 		this.editorMemento = this.getEditorMemento<INotebookEditorViewState>(editorGroupService, NOTEBOOK_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
@@ -45,12 +47,14 @@ export class NotebookEditor extends BaseEditor {
 
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
-		this._widget.viewModel = newModel;
-		this._onDidChangeModel.fire();
+		if (this._widget) {
+			this._widget.viewModel = newModel;
+			this._onDidChangeModel.fire();
+		}
 	}
 
 	get viewModel() {
-		return this._widget.viewModel;
+		return this._widget?.viewModel;
 	}
 
 	get minimumWidth(): number { return 375; }
@@ -71,9 +75,9 @@ export class NotebookEditor extends BaseEditor {
 	protected createEditor(parent: HTMLElement): void {
 		this._rootElement = DOM.append(parent, DOM.$('.notebook-editor'));
 
-		this._widget.createEditor();
-		this._register(this.onDidFocus(() => this._widget.updateEditorFocus()));
-		this._register(this.onDidBlur(() => this._widget.updateEditorFocus()));
+		// this._widget.createEditor();
+		this._register(this.onDidFocus(() => this._widget?.updateEditorFocus()));
+		this._register(this.onDidBlur(() => this._widget?.updateEditorFocus()));
 	}
 
 	getDomNode() {
@@ -89,7 +93,7 @@ export class NotebookEditor extends BaseEditor {
 			this.saveEditorViewState(this.input);
 		}
 
-		this._widget.onWillHide();
+		this._widget?.onWillHide();
 		super.onHide();
 	}
 
@@ -111,28 +115,62 @@ export class NotebookEditor extends BaseEditor {
 
 	focus() {
 		super.focus();
-		this._widget.focus();
+		this._widget?.focus();
 	}
 
 	async setInput(input: NotebookEditorInput, options: EditorOptions | undefined, token: CancellationToken): Promise<void> {
 		if (this.input instanceof NotebookEditorInput) {
-			this.saveEditorViewState(this.input);
+			if (!this.input.isDisposed()) {
+				// set a new input, let's hide previous input
+				this.saveEditorViewState(this.input as NotebookEditorInput);
+				this._widget?.onWillHide();
+				this._widget?.onBeforeDetached();
+			}
 		}
 
 		await super.setInput(input, options, token);
-		const model = await input.resolve();
 
+		// input attached
+		Event.once(input.onDispose)(() => {
+			// make sure the editor widget is removed from the view
+			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
+			// this.saveEditorViewState(this.input as NotebookEditorInput);
+			existingEditorWidgetForInput?.getDomNode().remove();
+			existingEditorWidgetForInput?.dispose();
+			NotebookRegistry.releaseNotebookEditorWidget(this.input as NotebookEditorInput);
+		});
+
+
+		const model = await input.resolve();
 		const viewState = this.loadTextEditorViewState(input);
+		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input);
+		if (existingEditorWidgetForInput) {
+			this._widget?.onWillHide();
+			this._widget?.onBeforeDetached();
+			this._widget = existingEditorWidgetForInput;
+		} else {
+			this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
+			this._widget.createEditor();
+			NotebookRegistry.claimNotebookEditorWidget(input, this._widget);
+		}
+
+		if (this.dimension) {
+			this._widget.layout(this.dimension, this._rootElement);
+		}
+
+		this._widget.onBeforeAttached();
 		this._widget.setModel(model.notebook, viewState, options);
 	}
 
 	clearInput(): void {
-		// de-ref widget
+		this._widget?.onWillHide();
+		this._widget?.onBeforeDetached();
+		this._widget = undefined;
 		super.clearInput();
 	}
 
 	private saveEditorViewState(input: NotebookEditorInput): void {
-		if (this.group) {
+		if (this.group && this._widget) {
 			const state = this._widget.getEditorViewState();
 			this.editorMemento.saveEditorState(this.group, input.resource, state);
 		}
@@ -149,8 +187,23 @@ export class NotebookEditor extends BaseEditor {
 	layout(dimension: DOM.Dimension): void {
 		DOM.toggleClass(this._rootElement, 'mid-width', dimension.width < 1000 && dimension.width >= 600);
 		DOM.toggleClass(this._rootElement, 'narrow-width', dimension.width < 600);
+		this.dimension = dimension;
 
-		this._widget.layout(dimension, this._rootElement);
+		if (this._input === undefined || this._widget === undefined) {
+			return;
+		}
+
+		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString()) {
+			// input and widget mismatch
+			// this happens when
+			// 1. open document A, pin the document
+			// 2. open document B
+			// 3. close document B
+			// 4. a layout is triggered
+			return;
+		}
+
+		this._widget?.layout(this.dimension, this._rootElement);
 	}
 
 	protected saveState(): void {
@@ -168,7 +221,6 @@ export class NotebookEditor extends BaseEditor {
 	//#endregion
 
 	dispose() {
-		this._widget.dispose();
 		super.dispose();
 	}
 

@@ -41,7 +41,6 @@ export class NotebookProviderInfoStore {
 
 	add(info: NotebookProviderInfo): void {
 		if (this.contributedEditors.has(info.id)) {
-			console.log(`Custom editor with id '${info.id}' already registered`);
 			return;
 		}
 		this.contributedEditors.set(info.id, info);
@@ -69,7 +68,6 @@ export class NotebookOutputRendererInfoStore {
 
 	add(info: NotebookOutputRendererInfo): void {
 		if (this.contributedRenderers.has(info.id)) {
-			console.log(`Custom notebook output renderer with id '${info.id}' already registered`);
 			return;
 		}
 		this.contributedRenderers.set(info.id, info);
