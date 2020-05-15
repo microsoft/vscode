@@ -32,7 +32,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
+import { IAuthenticationTokenService, IUserDataSyncAuthToken } from 'vs/platform/authentication/common/authentication';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
@@ -55,8 +55,7 @@ export class UserDataSyncClient extends Disposable {
 			settingsResource: joinPath(userDataDirectory, 'settings.json'),
 			keybindingsResource: joinPath(userDataDirectory, 'keybindings.json'),
 			snippetsHome: joinPath(userDataDirectory, 'snippets'),
-			argvResource: joinPath(userDataDirectory, 'argv.json'),
-			args: {}
+			argvResource: joinPath(userDataDirectory, 'argv.json')
 		});
 
 		const logService = new NullLogService();
@@ -66,7 +65,7 @@ export class UserDataSyncClient extends Disposable {
 			_serviceBrand: undefined, ...product, ...{
 				'configurationSync.store': {
 					url: this.testServer.url,
-					authenticationProviderId: 'test'
+					authenticationProviders: { 'test': { scopes: [] } }
 				}
 			}
 		});
@@ -83,8 +82,8 @@ export class UserDataSyncClient extends Disposable {
 
 		this.instantiationService.stub(IRequestService, this.testServer);
 		this.instantiationService.stub(IAuthenticationTokenService, <Partial<IAuthenticationTokenService>>{
-			onDidChangeToken: new Emitter<string | undefined>().event,
-			async getToken() { return 'token'; }
+			onDidChangeToken: new Emitter<IUserDataSyncAuthToken | undefined>().event,
+			async getToken() { return { authenticationProviderId: 'id', token: 'token' }; }
 		});
 
 		this.instantiationService.stub(IUserDataSyncLogService, logService);
@@ -125,6 +124,10 @@ export class UserDataSyncClient extends Disposable {
 		return this.instantiationService.get(IUserDataSyncStoreService).read(resource, null);
 	}
 
+	manifest(): Promise<IUserDataManifest | null> {
+		return this.instantiationService.get(IUserDataSyncStoreService).manifest();
+	}
+
 }
 
 export class UserDataSyncTestServer implements IRequestService {
@@ -138,9 +141,12 @@ export class UserDataSyncTestServer implements IRequestService {
 	private _requests: { url: string, type: string, headers?: IHeaders }[] = [];
 	get requests(): { url: string, type: string, headers?: IHeaders }[] { return this._requests; }
 
+	private _requestsWithAllHeaders: { url: string, type: string, headers?: IHeaders }[] = [];
+	get requestsWithAllHeaders(): { url: string, type: string, headers?: IHeaders }[] { return this._requestsWithAllHeaders; }
+
 	private _responses: { status: number }[] = [];
 	get responses(): { status: number }[] { return this._responses; }
-	reset(): void { this._requests = []; this._responses = []; }
+	reset(): void { this._requests = []; this._responses = []; this._requestsWithAllHeaders = []; }
 
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
 
@@ -155,6 +161,7 @@ export class UserDataSyncTestServer implements IRequestService {
 			}
 		}
 		this._requests.push({ url: options.url!, type: options.type!, headers });
+		this._requestsWithAllHeaders.push({ url: options.url!, type: options.type!, headers: options.headers });
 		const requestContext = await this.doRequest(options);
 		this._responses.push({ status: requestContext.res.statusCode! });
 		return requestContext;
@@ -221,7 +228,7 @@ export class UserDataSyncTestServer implements IRequestService {
 		return this.toResponse(204);
 	}
 
-	private async clear(headers?: IHeaders): Promise<IRequestContext> {
+	async clear(headers?: IHeaders): Promise<IRequestContext> {
 		this.data.clear();
 		this.session = null;
 		return this.toResponse(204);

@@ -43,7 +43,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Schemas } from 'vs/base/common/network';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IRemotePathService } from 'vs/workbench/services/path/common/remotePathService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { env as processEnv, cwd as processCwd } from 'vs/base/common/process';
 import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 
@@ -200,7 +200,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private outputChannelId: string,
 		private fileService: IFileService,
 		private terminalInstanceService: ITerminalInstanceService,
-		private remotePathService: IRemotePathService,
+		private pathService: IPathService,
 		private viewDescriptorService: IViewDescriptorService,
 		taskSystemInfoResolver: TaskSystemInfoResolver,
 	) {
@@ -229,6 +229,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	public run(task: Task, resolver: ITaskResolver, trigger: string = Triggers.command): ITaskExecuteResult {
+		task = task.clone(); // A small amount of task state is stored in the task (instance) and tasks passed in to run may have that set already.
 		const recentTaskKey = task.getRecentlyUsedKey() ?? '';
 		let validInstance = task.runOptions && task.runOptions.instanceLimit && this.instances[recentTaskKey] && this.instances[recentTaskKey].instances < task.runOptions.instanceLimit;
 		let instance = this.instances[recentTaskKey] ? this.instances[recentTaskKey].instances : 0;
@@ -299,7 +300,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		const isTerminalInPanel: boolean = this.viewDescriptorService.getViewLocation(TERMINAL_VIEW_ID) === ViewContainerLocation.Panel;
+		const isTerminalInPanel: boolean = this.viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID) === ViewContainerLocation.Panel;
 		if (isTerminalInPanel && this.isTaskVisible(task)) {
 			if (this.previousPanelId) {
 				if (this.previousTerminalInstance) {
@@ -960,7 +961,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				windowsShellArgs = true;
 				let basename = path.basename(shellLaunchConfig.executable!).toLowerCase();
 				// If we don't have a cwd, then the terminal uses the home dir.
-				const userHome = await this.remotePathService.userHome;
+				const userHome = await this.pathService.userHome;
 				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
 					return undefined;
 				}

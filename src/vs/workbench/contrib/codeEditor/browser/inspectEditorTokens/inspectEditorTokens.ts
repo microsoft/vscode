@@ -17,7 +17,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId, ColorId } from 'vs/editor/common/modes';
+import { FontStyle, LanguageIdentifier, StandardTokenType, TokenMetadata, DocumentSemanticTokensProviderRegistry, SemanticTokensLegend, SemanticTokens, LanguageId, ColorId, DocumentRangeSemanticTokensProviderRegistry } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -27,7 +27,7 @@ import { ITextMateService, IGrammar, IToken, StackElement } from 'vs/workbench/s
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
-import { TokenStylingRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface IEditorSemanticHighlightingOptions {
@@ -240,7 +240,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	private _beginCompute(position: Position): void {
 		const grammar = this._textMateService.createGrammar(this._model.getLanguageIdentifier().language);
-		const semanticTokens = this._computeSemanticTokens();
+		const semanticTokens = this._computeSemanticTokens(position);
 
 		dom.clearNode(this._domNode);
 		this._domNode.appendChild(document.createTextNode(nls.localize('inspectTMScopesWidget.loading', "Loading...")));
@@ -251,6 +251,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			}
 			let text = this._compute(grammar, semanticTokens, position);
 			this._domNode.innerHTML = text;
+			this._domNode.style.maxWidth = `${Math.max(this._editor.getLayoutInfo().width * 0.66, 500)}px`;
 			this._editor.layoutContentWidget(this);
 		}, (err) => {
 			this._notificationService.warn(err);
@@ -307,7 +308,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const properties: (keyof TokenStyleData)[] = ['foreground', 'bold', 'italic', 'underline'];
 				const propertiesByDefValue: { [rule: string]: string[] } = {};
 				const allDefValues = []; // remember the order
-				// first collect to detect when the same rule is used fro multiple properties
+				// first collect to detect when the same rule is used for multiple properties
 				for (let property of properties) {
 					if (semanticTokenInfo.metadata[property] !== undefined) {
 						const definition = semanticTokenInfo.definitions[property];
@@ -476,7 +477,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		return token && token.data;
 	}
 
-	private async _computeSemanticTokens(): Promise<SemanticTokensResult | null> {
+	private async _computeSemanticTokens(position: Position): Promise<SemanticTokensResult | null> {
 		if (!this._isSemanticColoringEnabled()) {
 			return null;
 		}
@@ -485,6 +486,16 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		if (tokenProviders.length) {
 			const provider = tokenProviders[0];
 			const tokens = await Promise.resolve(provider.provideDocumentSemanticTokens(this._model, null, this._currentRequestCancellationTokenSource.token));
+			if (this.isSemanticTokens(tokens)) {
+				return { tokens, legend: provider.getLegend() };
+			}
+		}
+		const rangeTokenProviders = DocumentRangeSemanticTokensProviderRegistry.ordered(this._model);
+		if (rangeTokenProviders.length) {
+			const provider = rangeTokenProviders[0];
+			const lineNumber = position.lineNumber;
+			const range = new Range(lineNumber, 1, lineNumber, this._model.getLineMaxColumn(lineNumber));
+			const tokens = await Promise.resolve(provider.provideDocumentRangeSemanticTokens(this._model, range, this._currentRequestCancellationTokenSource.token));
 			if (this.isSemanticTokens(tokens)) {
 				return { tokens, legend: provider.getLegend() };
 			}
@@ -503,8 +514,18 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			const line = lastLine + lineDelta; // 0-based
 			const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta; // 0-based
 			if (posLine === line && character <= posCharacter && posCharacter < character + len) {
-				const type = semanticTokens.legend.tokenTypes[typeIdx];
-				const modifiers = semanticTokens.legend.tokenModifiers.filter((_, k) => modSet & 1 << k);
+				const type = semanticTokens.legend.tokenTypes[typeIdx] || 'not in legend (ignored)';
+				const modifiers = [];
+				let modifierSet = modSet;
+				for (let modifierIndex = 0; modifierSet > 0 && modifierIndex < semanticTokens.legend.tokenModifiers.length; modifierIndex++) {
+					if (modifierSet & 1) {
+						modifiers.push(semanticTokens.legend.tokenModifiers[modifierIndex]);
+					}
+					modifierSet = modifierSet >> 1;
+				}
+				if (modifierSet > 0) {
+					modifiers.push('not in legend (ignored)');
+				}
 				const range = new Range(line + 1, character + 1, line + 1, character + 1 + len);
 				const definitions = {};
 				const colorMap = this._themeService.getColorTheme().tokenColorMap;
@@ -542,10 +563,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			theme.resolveScopes(definition, scopesDefinition);
 			const matchingRule = scopesDefinition[property];
 			if (matchingRule && scopesDefinition.scope) {
-				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${matchingRule.scope}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
+				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope.join(', ') : String(matchingRule.scope);
+				return `${escape(scopesDefinition.scope.join(' '))}<br><code class="tiw-theme-selector">${strScopes}\n${JSON.stringify(matchingRule.settings, null, '\t')}</code>`;
 			}
 			return '';
-		} else if (TokenStylingRule.is(definition)) {
+		} else if (SemanticTokenRule.is(definition)) {
 			const scope = theme.getTokenStylingRuleScope(definition);
 			if (scope === 'setting') {
 				return `User settings: ${definition.selector.id} - ${this._renderStyleProperty(definition.style, property)}`;

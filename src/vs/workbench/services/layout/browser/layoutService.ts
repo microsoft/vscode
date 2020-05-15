@@ -94,6 +94,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	hasFocus(part: Parts): boolean;
 
 	/**
+	 * Focuses the part. If the part is not visible this is a noop.
+	 */
+	focusPart(part: Parts): void;
+
+	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
 	getContainer(part: Parts): HTMLElement | undefined;
@@ -219,4 +224,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the next visible view part in a given direction
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
+
+	/**
+	 * True if a default layout with default editors was applied at startup
+	 */
+	readonly openedDefaultEditors: boolean;
 }

@@ -10,6 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -26,8 +27,16 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
 
+export interface IOpenEditorOverrideEntry {
+	id: string;
+	label: string;
+	active: boolean;
+	detail?: string;
+}
+
 export interface IOpenEditorOverrideHandler {
-	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined;
+	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id?: string): IOpenEditorOverride | undefined;
+	getEditorOverrides?(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
 }
 
 export interface IOpenEditorOverride {
@@ -53,11 +62,28 @@ export interface IBaseSaveRevertAllEditorOptions {
 	 * Whether to include untitled editors as well.
 	 */
 	readonly includeUntitled?: boolean;
+
+	/**
+	 * Whether to exclude sticky editors.
+	 */
+	readonly excludeSticky?: boolean;
 }
 
 export interface ISaveAllEditorsOptions extends ISaveEditorsOptions, IBaseSaveRevertAllEditorOptions { }
 
 export interface IRevertAllEditorsOptions extends IRevertOptions, IBaseSaveRevertAllEditorOptions { }
+
+export interface ICustomEditorInfo {
+
+	readonly id: string;
+	readonly displayName: string;
+	readonly providerDisplayName: string;
+}
+
+export interface ICustomEditorViewTypesHandler {
+	readonly onDidChangeViewTypes: Event<void>;
+	getViewTypes(): ICustomEditorInfo[];
+}
 
 export interface IEditorService {
 
@@ -145,7 +171,8 @@ export interface IEditorService {
 	 *
 	 * @param order the order of the editors to use
 	 */
-	getEditors(order: EditorsOrder): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder.MOST_RECENTLY_ACTIVE): ReadonlyArray<IEditorIdentifier>;
+	getEditors(order: EditorsOrder.SEQUENTIAL, options?: { excludeSticky?: boolean }): ReadonlyArray<IEditorIdentifier>;
 
 	/**
 	 * Open an editor in an editor group.
@@ -202,11 +229,18 @@ export interface IEditorService {
 	isOpen(editor: IEditorInput): boolean;
 
 	/**
+	 * Get all available editor overrides for the editor input.
+	 */
+	getEditorOverrides(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): [IOpenEditorOverrideHandler, IOpenEditorOverrideEntry][];
+
+	/**
 	 * Allows to override the opening of editors by installing a handler that will
 	 * be called each time an editor is about to open allowing to override the
 	 * operation to open a different editor.
 	 */
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
+
+	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
 	 * Invoke a function in the context of the services of the active editor.
@@ -234,11 +268,15 @@ export interface IEditorService {
 
 	/**
 	 * Reverts the provided list of editors.
+	 *
+	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<void>;
+	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
 
 	/**
 	 * Reverts all editors.
+	 *
+	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
-	revertAll(options?: IRevertAllEditorsOptions): Promise<void>;
+	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
 }

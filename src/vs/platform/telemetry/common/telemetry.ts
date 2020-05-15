@@ -23,6 +23,11 @@ export interface ITelemetryData {
 
 export interface ITelemetryService {
 
+	/**
+	 * Whether error telemetry will get sent. If false, `publicLogError` will no-op.
+	 */
+	readonly sendErrorTelemetry: boolean;
+
 	_serviceBrand: undefined;
 
 	/**
@@ -32,6 +37,10 @@ export interface ITelemetryService {
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): Promise<void>;
 
 	publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>, anonymizeFilePaths?: boolean): Promise<void>;
+
+	publicLogError(errorEventName: string, data?: ITelemetryData): Promise<void>;
+
+	publicLogError2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data?: StrictPropertyCheck<T, E>): Promise<void>;
 
 	setEnabled(value: boolean): void;
 

@@ -15,7 +15,7 @@ import { assign, groupBy, IDisposable, toDisposable, dispose, mkdirp, readBytes,
 import { CancellationToken, Progress, Uri } from 'vscode';
 import { URI } from 'vscode-uri';
 import { detectEncoding } from './encoding';
-import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions } from './api/git';
+import { Ref, RefType, Branch, Remote, GitErrorCodes, LogOptions, Change, Status, CommitOptions, BranchQuery } from './api/git';
 import * as byline from 'byline';
 import { StringDecoder } from 'string_decoder';
 
@@ -306,7 +306,7 @@ export interface IGitOptions {
 function getGitErrorCode(stderr: string): string | undefined {
 	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
 		return GitErrorCodes.RepositoryIsLocked;
-	} else if (/Authentication failed/.test(stderr)) {
+	} else if (/Authentication failed/i.test(stderr)) {
 		return GitErrorCodes.AuthenticationFailed;
 	} else if (/Not a git repository/i.test(stderr)) {
 		return GitErrorCodes.NotAGitRepository;
@@ -443,7 +443,10 @@ export class Git {
 						);
 						if (networkPath !== undefined) {
 							return path.normalize(
-								repoUri.fsPath.replace(networkPath, `${letter.toLowerCase()}:`),
+								repoUri.fsPath.replace(
+									networkPath,
+									`${letter.toLowerCase()}:${networkPath.endsWith('\\') ? '\\' : ''}`
+								),
 							);
 						}
 					} catch { }
@@ -537,7 +540,8 @@ export class Git {
 		options.env = assign({}, process.env, this.env, options.env || {}, {
 			VSCODE_GIT_COMMAND: args[0],
 			LC_ALL: 'en_US.UTF-8',
-			LANG: 'en_US.UTF-8'
+			LANG: 'en_US.UTF-8',
+			GIT_PAGER: 'cat'
 		});
 
 		if (options.cwd) {
@@ -844,6 +848,9 @@ export class Repository {
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const maxEntries = options?.maxEntries ?? 32;
 		const args = ['log', `-n${maxEntries}`, `--format=${COMMIT_FORMAT}`, '-z', '--'];
+		if (options?.path) {
+			args.push(options.path);
+		}
 
 		const result = await this.run(args);
 		if (result.exitCode) {
@@ -1329,6 +1336,10 @@ export class Repository {
 		}
 	}
 
+	async rebaseAbort(): Promise<void> {
+		await this.run(['rebase', '--abort']);
+	}
+
 	async rebaseContinue(): Promise<void> {
 		const args = ['rebase', '--continue'];
 
@@ -1494,7 +1505,12 @@ export class Repository {
 	}
 
 	async removeRemote(name: string): Promise<void> {
-		const args = ['remote', 'rm', name];
+		const args = ['remote', 'remove', name];
+		await this.run(args);
+	}
+
+	async renameRemote(name: string, newName: string): Promise<void> {
+		const args = ['remote', 'rename', name, newName];
 		await this.run(args);
 	}
 
@@ -1776,11 +1792,15 @@ export class Repository {
 			.map(([ref]) => ({ name: ref, type: RefType.Head } as Branch));
 	}
 
-	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate' }): Promise<Ref[]> {
+	async getRefs(opts?: { sort?: 'alphabetically' | 'committerdate', contains?: string }): Promise<Ref[]> {
 		const args = ['for-each-ref', '--format', '%(refname) %(objectname)'];
 
 		if (opts && opts.sort && opts.sort !== 'alphabetically') {
 			args.push('--sort', `-${opts.sort}`);
+		}
+
+		if (opts?.contains) {
+			args.push('--contains', opts.contains);
 		}
 
 		const result = await this.run(args);
@@ -1898,6 +1918,11 @@ export class Repository {
 		} catch (err) {
 			return { name, type: RefType.Head, commit };
 		}
+	}
+
+	async getBranches(query: BranchQuery): Promise<Ref[]> {
+		const refs = await this.getRefs({ contains: query.contains });
+		return refs.filter(value => (value.type !== RefType.Tag) && (query.remote || !value.remote));
 	}
 
 	// TODO: Support core.commentChar

@@ -218,15 +218,19 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	private pickResource(options: IOpenDialogOptions): Promise<URI | undefined> {
-		const simpleFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
+		const simpleFileDialog = this.createSimpleFileDialog();
 
 		return simpleFileDialog.showOpenDialog(options);
 	}
 
 	private saveRemoteResource(options: ISaveDialogOptions): Promise<URI | undefined> {
-		const remoteFileDialog = this.instantiationService.createInstance(SimpleFileDialog);
+		const remoteFileDialog = this.createSimpleFileDialog();
 
 		return remoteFileDialog.showSaveDialog(options);
+	}
+
+	protected createSimpleFileDialog(): SimpleFileDialog {
+		return this.instantiationService.createInstance(SimpleFileDialog);
 	}
 
 	protected getSchemeFilterForWindow(): string {
@@ -275,21 +279,25 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 			return filter;
 		}));
 
-		// Filters are a bit weird on Windows, based on having a match or not:
-		// Match: we put the matching filter first so that it shows up selected and the all files last
-		// No match: we put the all files filter first
-		const allFilesFilter = { name: nls.localize('allFiles', "All Files"), extensions: ['*'] };
-		if (matchingFilter) {
-			filters.unshift(matchingFilter);
-			filters.unshift(allFilesFilter);
-		} else {
-			filters.unshift(allFilesFilter);
+		// We have no matching filter, e.g. because the language
+		// is unknown. We still add the extension to the list of
+		// filters though so that it can be picked
+		// (https://github.com/microsoft/vscode/issues/96283)
+		if (!matchingFilter && ext) {
+			matchingFilter = { name: trim(ext, '.').toUpperCase(), extensions: [trim(ext, '.')] };
 		}
 
-		// Allow to save file without extension
-		filters.push({ name: nls.localize('noExt', "No Extension"), extensions: [''] });
-
-		options.filters = filters;
+		// Order of filters is
+		// - File Extension Match
+		// - All Files
+		// - All Languages
+		// - No Extension
+		options.filters = coalesce([
+			matchingFilter,
+			{ name: nls.localize('allFiles', "All Files"), extensions: ['*'] },
+			...filters,
+			{ name: nls.localize('noExt', "No Extension"), extensions: [''] }
+		]);
 
 		return options;
 	}

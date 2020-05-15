@@ -11,12 +11,13 @@ import { writeFileSync, writeFile, readFile, readdir, exists, rimraf, rename, Ri
 import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFilesConfiguration, HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
-import { isEqual as areResourcesEquals, getComparisonKey, hasToIgnoreCase } from 'vs/base/common/resources';
+import { isEqual as areResourcesEquals, getComparisonKey } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
 import { Schemas } from 'vs/base/common/network';
 
@@ -32,7 +33,7 @@ export class BackupMainService implements IBackupMainService {
 	private emptyWindows: IEmptyWindowBackupInfo[] = [];
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
@@ -485,7 +486,7 @@ export class BackupMainService implements IBackupMainService {
 			// for backward compatibility, use the fspath as key
 			key = platform.isLinux ? folderUri.fsPath : folderUri.fsPath.toLowerCase();
 		} else {
-			key = hasToIgnoreCase(folderUri) ? folderUri.toString().toLowerCase() : folderUri.toString();
+			key = folderUri.toString().toLowerCase();
 		}
 
 		return crypto.createHash('md5').update(key).digest('hex');

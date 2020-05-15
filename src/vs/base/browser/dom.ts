@@ -80,11 +80,17 @@ const _classList: IDomClassList = new class implements IDomClassList {
 	}
 };
 
+/** @deprecated ES6 - use classList*/
 export const hasClass: (node: HTMLElement | SVGElement, className: string) => boolean = _classList.hasClass.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const addClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.addClass.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const addClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.addClasses.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const removeClass: (node: HTMLElement | SVGElement, className: string) => void = _classList.removeClass.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const removeClasses: (node: HTMLElement | SVGElement, ...classNames: string[]) => void = _classList.removeClasses.bind(_classList);
+/** @deprecated ES6 - use classList*/
 export const toggleClass: (node: HTMLElement | SVGElement, className: string, shouldHaveIt?: boolean) => void = _classList.toggleClass.bind(_classList);
 
 class DomListener implements IDisposable {
@@ -822,6 +828,7 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
+	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',

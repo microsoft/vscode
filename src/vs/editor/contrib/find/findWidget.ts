@@ -14,7 +14,7 @@ import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
-import { IHorizontalSashLayoutProvider, ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { IVerticalSashLayoutProvider, ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
@@ -36,6 +36,18 @@ import { ContextScopedFindInput, ContextScopedReplaceInput } from 'vs/platform/b
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
+
+const findSelectionIcon = registerIcon('find-selection', Codicon.selection);
+const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight);
+const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown);
+
+export const findCloseIcon = registerIcon('find-close', Codicon.close);
+export const findReplaceIcon = registerIcon('find-replace', Codicon.replace);
+export const findReplaceAllIcon = registerIcon('find-replace-all', Codicon.replaceAll);
+export const findPreviousMatchIcon = registerIcon('find-previous-match', Codicon.arrowUp);
+export const findNextMatchIcon = registerIcon('find-next-match', Codicon.arrowDown);
 
 export interface IFindController {
 	replace(): void;
@@ -101,7 +113,7 @@ function stopPropagationForMultiLineDownwards(event: IKeyboardEvent, value: stri
 	}
 }
 
-export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSashLayoutProvider {
+export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashLayoutProvider {
 	private static readonly ID = 'editor.contrib.findWidget';
 	private readonly _codeEditor: ICodeEditor;
 	private readonly _state: FindReplaceState;
@@ -152,6 +164,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		themeService: IThemeService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
+		storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -163,6 +176,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._storageService = storageService;
 		this._notificationService = notificationService;
 
+		storageKeysSyncRegistryService.registerStorageKey({ key: ctrlEnterReplaceAllWarningPromptedKey, version: 1 });
 		this._ctrlEnterReplaceAllWarningPrompted = !!storageService.getBoolean(ctrlEnterReplaceAllWarningPromptedKey, StorageScope.GLOBAL);
 
 		this._isVisible = false;
@@ -360,6 +374,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		if (e.updateHistory) {
 			this._delayedUpdateHistory();
 		}
+		if (e.loop) {
+			this._updateButtons();
+		}
 	}
 
 	private _delayedUpdateHistory() {
@@ -405,7 +422,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		this._matchesCount.appendChild(document.createTextNode(label));
 
-		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString), true);
+		alertFn(this._getAriaLabel(label, this._state.currentMatch, this._state.searchString));
 		MAX_MATCHES_COUNT_WIDTH = Math.max(MAX_MATCHES_COUNT_WIDTH, this._matchesCount.clientWidth);
 	}
 
@@ -455,14 +472,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		let findInputIsNonEmpty = (this._state.searchString.length > 0);
 		let matchesCount = this._state.matchesCount ? true : false;
-		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
-		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount);
+		this._prevBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateBack());
+		this._nextBtn.setEnabled(this._isVisible && findInputIsNonEmpty && matchesCount && this._state.canNavigateForward());
 		this._replaceBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 		this._replaceAllBtn.setEnabled(this._isVisible && this._isReplaceVisible && findInputIsNonEmpty);
 
 		dom.toggleClass(this._domNode, 'replaceToggled', this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-right', !this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-down', this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
 		let canReplace = !this._codeEditor.getOption(EditorOption.readOnly);
@@ -686,7 +701,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 
 		const editorWidth = layoutInfo.width;
-		const minimapWidth = layoutInfo.minimapWidth;
+		const minimapWidth = layoutInfo.minimap.minimapWidth;
 		let collapsedFindWidget = false;
 		let reducedFindWidget = false;
 		let narrowFindWidget = false;
@@ -888,16 +903,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	}
 
 	// ----- sash
-	public getHorizontalSashTop(_sash: Sash): number {
+	public getVerticalSashLeft(_sash: Sash): number {
 		return 0;
 	}
-	public getHorizontalSashLeft?(_sash: Sash): number {
-		return 0;
-	}
-	public getHorizontalSashWidth?(_sash: Sash): number {
-		return 500;
-	}
-
 	// ----- initialization
 
 	private _keybindingLabelFor(actionId: string): string {
@@ -984,7 +992,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Previous button
 		this._prevBtn = this._register(new SimpleButton({
 			label: NLS_PREVIOUS_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.PreviousMatchFindAction),
-			className: 'codicon codicon-arrow-up',
+			className: findPreviousMatchIcon.classNames,
 			onTrigger: () => {
 				this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction).run().then(undefined, onUnexpectedError);
 			}
@@ -993,7 +1001,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Next button
 		this._nextBtn = this._register(new SimpleButton({
 			label: NLS_NEXT_MATCH_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.NextMatchFindAction),
-			className: 'codicon codicon-arrow-down',
+			className: findNextMatchIcon.classNames,
 			onTrigger: () => {
 				this._codeEditor.getAction(FIND_IDS.NextMatchFindAction).run().then(undefined, onUnexpectedError);
 			}
@@ -1011,7 +1019,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 		// Toggle selection button
 		this._toggleSelectionFind = this._register(new Checkbox({
-			actionClassName: 'codicon codicon-selection',
+			icon: findSelectionIcon,
 			title: NLS_TOGGLE_SELECTION_FIND_TITLE + this._keybindingLabelFor(FIND_IDS.ToggleSearchScopeCommand),
 			isChecked: false
 		}));
@@ -1037,7 +1045,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Close button
 		this._closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.CloseFindWidgetCommand),
-			className: 'codicon codicon-close',
+			className: findCloseIcon.classNames,
 			onTrigger: () => {
 				this._state.change({ isRevealed: false, searchScope: null }, false);
 			},
@@ -1100,7 +1108,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Replace one button
 		this._replaceBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceOneAction),
-			className: 'codicon codicon-replace',
+			className: findReplaceIcon.classNames,
 			onTrigger: () => {
 				this._controller.replace();
 			},
@@ -1115,7 +1123,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
 			label: NLS_REPLACE_ALL_BTN_LABEL + this._keybindingLabelFor(FIND_IDS.ReplaceAllAction),
-			className: 'codicon codicon-replace-all',
+			className: findReplaceAllIcon.classNames,
 			onTrigger: () => {
 				this._controller.replaceAll();
 			}
@@ -1145,8 +1153,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				this._showViewZone();
 			}
 		}));
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-down', this._isReplaceVisible);
-		this._toggleReplaceBtn.toggleClass('codicon-chevron-right', !this._isReplaceVisible);
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
 		// Widget
@@ -1160,7 +1166,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._domNode.appendChild(findPart);
 		this._domNode.appendChild(replacePart);
 
-		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL });
+		this._resizeSash = new Sash(this._domNode, this, { orientation: Orientation.VERTICAL, size: 2 });
 		this._resized = false;
 		let originalWidth = FIND_WIDGET_INITIAL_WIDTH;
 
@@ -1205,7 +1211,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 				// 1. never resized before, double click should maximizes it
 				// 2. users resized it already but its width is the same as default
 				const layoutInfo = this._codeEditor.getLayoutInfo();
-				width = layoutInfo.width - 28 - layoutInfo.minimapWidth - 15;
+				width = layoutInfo.width - 28 - layoutInfo.minimap.minimapWidth - 15;
 				this._resized = true;
 			} else {
 				/**
@@ -1289,10 +1295,13 @@ export class SimpleButton extends Widget {
 
 	public setExpanded(expanded: boolean): void {
 		this._domNode.setAttribute('aria-expanded', String(!!expanded));
-	}
-
-	public toggleClass(className: string, shouldHaveIt: boolean): void {
-		dom.toggleClass(this._domNode, className, shouldHaveIt);
+		if (expanded) {
+			dom.removeClasses(this._domNode, findCollapsedIcon.classNames);
+			dom.addClasses(this._domNode, findExpandedIcon.classNames);
+		} else {
+			dom.removeClasses(this._domNode, findExpandedIcon.classNames);
+			dom.addClasses(this._domNode, findCollapsedIcon.classNames);
+		}
 	}
 }
 
@@ -1349,11 +1358,11 @@ registerThemingParticipant((theme, collector) => {
 
 	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder);
 	if (resizeBorderBackground) {
-		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${resizeBorderBackground}; width: 3px !important; margin-left: -4px;}`);
+		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${resizeBorderBackground}; }`);
 	} else {
 		const border = theme.getColor(editorWidgetBorder);
 		if (border) {
-			collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; width: 3px !important; margin-left: -4px;}`);
+			collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${border}; }`);
 		}
 	}
 

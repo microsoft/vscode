@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename } from 'vs/base/common/resources';
+import { basename, compare } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -14,14 +14,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Hasher } from 'vs/base/common/hash';
 import { withUndefinedAsNull } from 'vs/base/common/types';
 
-function compareUris(a: URI, b: URI) {
-	const astr = a.toString();
-	const bstr = b.toString();
-	return astr === bstr ? 0 : (astr < bstr ? -1 : 1);
-}
 
 export function compareMarkersByUri(a: IMarker, b: IMarker) {
-	return compareUris(a.resource, b.resource);
+	return compare(a.resource, b.resource, false, false);
 }
 
 function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {

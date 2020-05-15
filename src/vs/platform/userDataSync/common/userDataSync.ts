@@ -20,23 +20,11 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IProductService } from 'vs/platform/product/common/productService';
+import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
 import { distinct } from 'vs/base/common/arrays';
+import { isArray, isString, isObject } from 'vs/base/common/types';
 
 export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
-
-export interface ISyncConfiguration {
-	sync: {
-		enable: boolean,
-		enableSettings: boolean,
-		enableKeybindings: boolean,
-		enableUIState: boolean,
-		enableExtensions: boolean,
-		keybindingsPerPlatform: boolean,
-		ignoredExtensions: string[],
-		ignoredSettings: string[]
-	}
-}
 
 export function getDisallowedIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -119,17 +107,33 @@ export interface IUserData {
 	content: string | null;
 }
 
+export type IAuthenticationProvider = { id: string, scopes: string[] };
+
 export interface IUserDataSyncStore {
 	url: URI;
-	authenticationProviderId: string;
+	authenticationProviders: IAuthenticationProvider[];
+}
+
+export function isAuthenticationProvider(thing: any): thing is IAuthenticationProvider {
+	return thing
+		&& isObject(thing)
+		&& isString(thing.id)
+		&& isArray(thing.scopes);
 }
 
 export function getUserDataSyncStore(productService: IProductService, configurationService: IConfigurationService): IUserDataSyncStore | undefined {
-	const value = configurationService.getValue<{ url: string, authenticationProviderId: string }>(CONFIGURATION_SYNC_STORE_KEY) || productService[CONFIGURATION_SYNC_STORE_KEY];
-	if (value && value.url && value.authenticationProviderId) {
+	const value = configurationService.getValue<ConfigurationSyncStore>(CONFIGURATION_SYNC_STORE_KEY) || productService[CONFIGURATION_SYNC_STORE_KEY];
+	if (value
+		&& isString(value.url)
+		&& isObject(value.authenticationProviders)
+		&& Object.keys(value.authenticationProviders).every(authenticationProviderId => isArray(value.authenticationProviders[authenticationProviderId].scopes))
+	) {
 		return {
 			url: joinPath(URI.parse(value.url), 'v1'),
-			authenticationProviderId: value.authenticationProviderId
+			authenticationProviders: Object.keys(value.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
+				result.push({ id, scopes: value.authenticationProviders[id].scopes });
+				return result;
+			}, [])
 		};
 	}
 	return undefined;
@@ -270,7 +274,8 @@ export interface IUserDataSynchroniser {
 
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	sync(ref?: string): Promise<void>;
+	sync(manifest: IUserDataManifest | null): Promise<void>;
+	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
 	getSyncPreview(): Promise<ISyncPreviewResult>
@@ -299,6 +304,7 @@ export interface IUserDataSyncEnablementService {
 
 	isEnabled(): boolean;
 	setEnablement(enabled: boolean): void;
+	canToggleEnablement(): boolean;
 
 	isResourceEnabled(resource: SyncResource): boolean;
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
@@ -325,6 +331,7 @@ export interface IUserDataSyncService {
 	pull(): Promise<void>;
 	sync(): Promise<void>;
 	stop(): Promise<void>;
+	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 
@@ -364,9 +371,6 @@ export interface IConflictSetting {
 //#endregion
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
-export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
-export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
-
 export const PREVIEW_DIR_NAME = 'preview';
 export function getSyncResourceFromLocalPreview(localPreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {
 	if (localPreview.scheme === USER_DATA_SYNC_SCHEME) {
@@ -375,3 +379,34 @@ export function getSyncResourceFromLocalPreview(localPreview: URI, environmentSe
 	localPreview = localPreview.with({ scheme: environmentService.userDataSyncHome.scheme });
 	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
 }
+
+export function getSyncAreaLabel(source: SyncResource): string {
+	switch (source) {
+		case SyncResource.Settings: return localize('settings', "Settings");
+		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
+		case SyncResource.Snippets: return localize('snippets', "User Snippets");
+		case SyncResource.Extensions: return localize('extensions', "Extensions");
+		case SyncResource.GlobalState: return localize('ui state label', "UI State");
+	}
+}
+
+export const enum AccountStatus {
+	Uninitialized = 'uninitialized',
+	Unavailable = 'unavailable',
+	Available = 'available',
+}
+
+// Contexts
+export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
+export const CONTEXT_ENABLE_VIEWS = new RawContextKey<boolean>(`showUserDataSyncViews`, false);
+export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
+
+// Commands
+export const TURN_ON_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOn';
+export const TURN_OFF_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOff';
+export const TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOffEveryWhere';
+export const ENABLE_SYNC_VIEWS_COMMAND_ID = 'workbench.userDataSync.actions.enableViews';
+export const MANAGE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.manage';
+export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
+export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';

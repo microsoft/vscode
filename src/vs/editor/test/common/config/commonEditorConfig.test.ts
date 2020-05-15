@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { IEnvConfiguration } from 'vs/editor/common/config/commonEditorConfig';
-import { IEditorHoverOptions, EditorOption, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { IEditorHoverOptions, EditorOption, ConfigurationChangedEvent, IQuickSuggestionsOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { TestConfiguration } from 'vs/editor/test/common/mocks/testConfiguration';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
@@ -200,5 +200,15 @@ suite('Common Editor Config', () => {
 		config.updateOptions({ glyphMargin: true });
 		config.updateOptions({ roundedSelection: false });
 		assert.equal(event, null);
+	});
+
+	test('issue #94931: Unable to open source file', () => {
+		const config = new TestConfiguration({ quickSuggestions: null! });
+		const actual = <Readonly<Required<IQuickSuggestionsOptions>>>config.options.get(EditorOption.quickSuggestions);
+		assert.deepEqual(actual, {
+			other: true,
+			comments: false,
+			strings: false
+		});
 	});
 });

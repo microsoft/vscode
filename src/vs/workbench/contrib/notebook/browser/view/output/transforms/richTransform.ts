@@ -26,7 +26,7 @@ class RichRenderer implements IOutputTransformContribution {
 		@IModelService private readonly modelService: IModelService,
 		@IModeService private readonly modeService: IModeService
 	) {
-		this._mdRenderer = instantiationService.createInstance(MarkdownRenderer);
+		this._mdRenderer = instantiationService.createInstance(MarkdownRenderer, undefined);
 		this._richMimeTypeRenderers.set('application/json', this.renderJSON.bind(this));
 		this._richMimeTypeRenderers.set('application/javascript', this.renderJavaScript.bind(this));
 		this._richMimeTypeRenderers.set('text/html', this.renderHTML.bind(this));

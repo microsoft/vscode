@@ -3,7 +3,7 @@
 	"tasks": [
 		{
 			"type": "npm",
-			"script": "watch",
+			"script": "watchd",
 			"label": "Build VS Code",
 			"group": {
 				"kind": "build",
@@ -30,6 +30,16 @@
 					"endsPattern": "Finished compilation"
 				}
 			}
+		},
+		{
+			"type": "npm",
+			"script": "kill-watchd",
+			"label": "Kill Build VS Code",
+			"group": "build",
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": "$tsc"
 		},
 		{
 			"label": "Run tests",

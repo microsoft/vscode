@@ -224,9 +224,9 @@ export class ViewRevealRangeRequestEvent {
 	/**
 	 * Source of the call that caused the event.
 	 */
-	readonly source: string;
+	readonly source: string | null | undefined;
 
-	constructor(source: string, range: Range | null, selections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
+	constructor(source: string | null | undefined, range: Range | null, selections: Selection[] | null, verticalType: VerticalRevealType, revealHorizontal: boolean, scrollType: ScrollType) {
 		this.source = source;
 		this.range = range;
 		this.selections = selections;
@@ -330,7 +330,11 @@ export interface IViewEventListener {
 	(events: ViewEvent[]): void;
 }
 
-export class ViewEventEmitter extends Disposable {
+export interface IViewEventEmitter {
+	addViewEventListener(listener: IViewEventListener): IDisposable;
+}
+
+export class ViewEventEmitter extends Disposable implements IViewEventEmitter {
 	private _listeners: IViewEventListener[];
 	private _collector: ViewEventsCollector | null;
 	private _collectorCnt: number;
@@ -347,7 +351,7 @@ export class ViewEventEmitter extends Disposable {
 		super.dispose();
 	}
 
-	protected _beginEmit(): ViewEventsCollector {
+	protected _beginEmitViewEvents(): ViewEventsCollector {
 		this._collectorCnt++;
 		if (this._collectorCnt === 1) {
 			this._collector = new ViewEventsCollector();
@@ -355,7 +359,7 @@ export class ViewEventEmitter extends Disposable {
 		return this._collector!;
 	}
 
-	protected _endEmit(): void {
+	protected _endEmitViewEvents(): void {
 		this._collectorCnt--;
 		if (this._collectorCnt === 0) {
 			const events = this._collector!.finalize();
@@ -366,6 +370,15 @@ export class ViewEventEmitter extends Disposable {
 		}
 	}
 
+	protected _emitSingleViewEvent(event: ViewEvent): void {
+		try {
+			const eventsCollector = this._beginEmitViewEvents();
+			eventsCollector.emit(event);
+		} finally {
+			this._endEmitViewEvents();
+		}
+	}
+
 	private _emit(events: ViewEvent[]): void {
 		const listeners = this._listeners.slice(0);
 		for (let i = 0, len = listeners.length; i < len; i++) {
@@ -373,7 +386,7 @@ export class ViewEventEmitter extends Disposable {
 		}
 	}
 
-	public addEventListener(listener: (events: ViewEvent[]) => void): IDisposable {
+	public addViewEventListener(listener: IViewEventListener): IDisposable {
 		this._listeners.push(listener);
 		return toDisposable(() => {
 			let listeners = this._listeners;

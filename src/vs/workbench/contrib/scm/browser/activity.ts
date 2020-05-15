@@ -155,11 +155,14 @@ export class SCMStatusController implements IWorkbenchContribution {
 			: repository.provider.label;
 
 		const disposables = new DisposableStore();
-		for (const c of commands) {
+		for (const command of commands) {
+			const tooltip = `${label} - ${command.tooltip}`;
+
 			disposables.add(this.statusbarService.addEntry({
-				text: c.title,
-				tooltip: `${label} - ${c.tooltip}`,
-				command: c
+				text: command.title,
+				ariaLabel: command.tooltip || label,
+				tooltip,
+				command: command.id ? command : undefined
 			}, 'status.scm', localize('status.scm', "Source Control"), MainThreadStatusBarAlignment.LEFT, 10000));
 		}
 
@@ -181,7 +184,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 
 		if (count > 0) {
 			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable.value = this.activityService.showActivity(VIEWLET_ID, badge, 'scm-viewlet-label');
+			this.badgeDisposable.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge, clazz: 'scm-viewlet-label' });
 		} else {
 			this.badgeDisposable.clear();
 		}

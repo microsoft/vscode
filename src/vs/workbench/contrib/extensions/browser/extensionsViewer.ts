@@ -27,6 +27,7 @@ import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/comm
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 export class ExtensionsGridView extends Disposable {
 
@@ -267,7 +268,15 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				indent: 40,
 				identityProvider,
 				multipleSelectionSupport: false,
-				overrideStyles
+				overrideStyles,
+				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
+					getAriaLabel(extensionData: IExtensionData): string {
+						return localize('extension-arialabel', "{0}. Press enter for extension details.", extensionData.extension.displayName);
+					},
+					getWidgetAriaLabel(): string {
+						return localize('extensions', "Extensions");
+					}
+				}
 			},
 			contextKeyService, listService, themeService, configurationService, keybindingService, accessibilityService
 		);

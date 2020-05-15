@@ -10,12 +10,12 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
-import { StartAction, ConfigureAction } from 'vs/workbench/contrib/debug/browser/debugActions';
+import { StartAction, ConfigureAction, SelectAndStartAction } from 'vs/workbench/contrib/debug/browser/debugActions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IViewDescriptorService, IViewsRegistry, Extensions } from 'vs/workbench/common/views';
+import { IViewDescriptorService, IViewsRegistry, Extensions, ViewContentPriority } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
@@ -24,6 +24,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -73,7 +74,20 @@ export class WelcomeView extends ViewPane {
 			}
 			this.debuggerInterestedContext.set(false);
 		};
-		this._register(editorService.onDidActiveEditorChange(setContextKey));
+
+		const disposables = new DisposableStore();
+		this._register(disposables);
+
+		this._register(editorService.onDidActiveEditorChange(() => {
+			disposables.clear();
+
+			const editorControl = this.editorService.activeTextEditorControl;
+			if (isCodeEditor(editorControl)) {
+				disposables.add(editorControl.onDidChangeModelLanguage(setContextKey));
+			}
+
+			setContextKey();
+		}));
 		this._register(this.debugService.getConfigurationManager().onDidRegisterDebugger(setContextKey));
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
@@ -103,6 +117,12 @@ viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
 	content: localize({ key: 'runAndDebugAction', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
 		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, StartAction.ID),
 	preconditions: [CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR]
+});
+
+viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
+	content: localize({ key: 'detectThenRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+		"[Show](command:{0}) all automatic debug configurations.", SelectAndStartAction.ID),
+	priority: ViewContentPriority.Lowest
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {

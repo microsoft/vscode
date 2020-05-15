@@ -77,6 +77,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('stop');
 	}
 
+	replace(uri: URI): Promise<void> {
+		return this.channel.call('replace', [uri]);
+	}
+
 	reset(): Promise<void> {
 		return this.channel.call('reset');
 	}

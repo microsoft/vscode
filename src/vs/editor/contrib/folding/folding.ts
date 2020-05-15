@@ -15,7 +15,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction, registerInstantiatedEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { FoldingModel, setCollapseStateAtLevel, CollapseMemento, setCollapseStateLevelsDown, setCollapseStateLevelsUp, setCollapseStateForMatchingLines, setCollapseStateForType, toggleCollapseState, setCollapseStateUp } from 'vs/editor/contrib/folding/foldingModel';
-import { FoldingDecorationProvider } from './foldingDecorations';
+import { FoldingDecorationProvider, foldingCollapsedIcon, foldingExpandedIcon } from './foldingDecorations';
 import { FoldingRegions, FoldingRegion } from './foldingRanges';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -33,7 +33,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, editorSelectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorSelectionBackground, transparent, iconForeground } from 'vs/platform/theme/common/colorRegistry';
 
 const CONTEXT_FOLDING_ENABLED = new RawContextKey<boolean>('foldingEnabled', false);
 
@@ -898,10 +898,21 @@ for (let i = 1; i <= 7; i++) {
 }
 
 export const foldBackgroundBackground = registerColor('editor.foldBackground', { light: transparent(editorSelectionBackground, 0.3), dark: transparent(editorSelectionBackground, 0.3), hc: null }, nls.localize('foldBackgroundBackground', "Background color behind folded ranges. The color must not be opaque so as not to hide underlying decorations."), true);
+export const editorFoldForeground = registerColor('editorGutter.foldingControlForeground', { dark: iconForeground, light: iconForeground, hc: iconForeground }, nls.localize('editorGutter.foldingControlForeground', 'Color of the folding control in the editor gutter.'));
 
 registerThemingParticipant((theme, collector) => {
 	const foldBackground = theme.getColor(foldBackgroundBackground);
 	if (foldBackground) {
 		collector.addRule(`.monaco-editor .folded-background { background-color: ${foldBackground}; }`);
+	}
+
+	const editorFoldColor = theme.getColor(editorFoldForeground);
+	if (editorFoldColor) {
+		collector.addRule(`
+		.monaco-editor .cldr${foldingExpandedIcon.cssSelector},
+		.monaco-editor .cldr${foldingCollapsedIcon.cssSelector} {
+			color: ${editorFoldColor} !important;
+		}
+		`);
 	}
 });

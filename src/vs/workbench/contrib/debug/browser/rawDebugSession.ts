@@ -349,6 +349,13 @@ export class RawDebugSession implements IDisposable {
 		return Promise.reject(new Error('restartFrame not supported'));
 	}
 
+	stepInTargets(args: DebugProtocol.StepInTargetsArguments): Promise<DebugProtocol.StepInTargetsResponse> {
+		if (this.capabilities.supportsStepInTargetsRequest) {
+			return this.send('stepInTargets', args);
+		}
+		return Promise.reject(new Error('stepInTargets not supported'));
+	}
+
 	completions(args: DebugProtocol.CompletionsArguments, token: CancellationToken): Promise<DebugProtocol.CompletionsResponse> {
 		if (this.capabilities.supportsCompletionsRequest) {
 			return this.send<DebugProtocol.CompletionsResponse>('completions', args, token);
@@ -700,13 +707,13 @@ export class RawDebugSession implements IDisposable {
 				"error" : { "classification": "CallstackOrException", "purpose": "FeatureInsight" }
 			}
 		*/
-		this.telemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
+		this.telemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
 		if (this.customTelemetryService) {
 			/* __GDPR__TODO__
 				The message is sent in the name of the adapter but the adapter doesn't know about it.
 				However, since adapters are an open-ended set, we can not declared the events statically either.
 			*/
-			this.customTelemetryService.publicLog('debugProtocolErrorResponse', { error: telemetryMessage });
+			this.customTelemetryService.publicLogError('debugProtocolErrorResponse', { error: telemetryMessage });
 		}
 	}
 

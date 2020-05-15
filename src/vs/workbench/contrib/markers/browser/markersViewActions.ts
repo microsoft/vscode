@@ -26,6 +26,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdown';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IViewsService } from 'vs/workbench/common/views';
+import { Codicon } from 'vs/base/common/codicons';
 
 export class ShowProblemsPanelAction extends Action {
 
@@ -322,7 +323,6 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
 			history: this.filterController.filters.filterHistory
 		}));
-		this.filterInputBox.inputElement.setAttribute('aria-labelledby', 'markers-panel-arialabel');
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.filterController.filters.filterText;
 		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange(this.filterInputBox!))));
@@ -334,6 +334,10 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.KEY_DOWN, (e: any) => this.onInputKeyDown(e, this.filterInputBox!)));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_DOWN, this.handleKeyboardEvent));
 		this._register(DOM.addStandardDisposableListener(container, DOM.EventType.KEY_UP, this.handleKeyboardEvent));
+		this._register(DOM.addStandardDisposableListener(this.filterInputBox.inputElement, DOM.EventType.CLICK, (e) => {
+			e.stopPropagation();
+			e.preventDefault();
+		}));
 
 		const focusTracker = this._register(DOM.trackFocus(this.filterInputBox.inputElement));
 		this._register(focusTracker.onDidFocus(() => this.focusContextKey.set(true)));
@@ -443,7 +447,7 @@ export class MarkersFilterActionViewItem extends BaseActionViewItem {
 export class QuickFixAction extends Action {
 
 	public static readonly ID: string = 'workbench.actions.problems.quickfix';
-	private static readonly CLASS: string = 'markers-panel-action-quickfix codicon-lightbulb';
+	private static readonly CLASS: string = 'markers-panel-action-quickfix ' + Codicon.lightBulb.classNames;
 	private static readonly AUTO_FIX_CLASS: string = QuickFixAction.CLASS + ' autofixable';
 
 	private readonly _onShowQuickFixes = this._register(new Emitter<void>());

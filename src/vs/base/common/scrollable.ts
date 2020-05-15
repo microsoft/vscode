@@ -102,14 +102,14 @@ export class ScrollState implements IScrollDimensions, IScrollPosition {
 		);
 	}
 
-	public withScrollDimensions(update: INewScrollDimensions): ScrollState {
+	public withScrollDimensions(update: INewScrollDimensions, useRawScrollPositions: boolean): ScrollState {
 		return new ScrollState(
 			(typeof update.width !== 'undefined' ? update.width : this.width),
 			(typeof update.scrollWidth !== 'undefined' ? update.scrollWidth : this.scrollWidth),
-			this.rawScrollLeft,
+			useRawScrollPositions ? this.rawScrollLeft : this.scrollLeft,
 			(typeof update.height !== 'undefined' ? update.height : this.height),
 			(typeof update.scrollHeight !== 'undefined' ? update.scrollHeight : this.scrollHeight),
-			this.rawScrollTop
+			useRawScrollPositions ? this.rawScrollTop : this.scrollTop
 		);
 	}
 
@@ -224,8 +224,8 @@ export class Scrollable extends Disposable {
 		return this._state;
 	}
 
-	public setScrollDimensions(dimensions: INewScrollDimensions): void {
-		const newState = this._state.withScrollDimensions(dimensions);
+	public setScrollDimensions(dimensions: INewScrollDimensions, useRawScrollPositions: boolean): void {
+		const newState = this._state.withScrollDimensions(dimensions, useRawScrollPositions);
 		this._setState(newState);
 
 		// Validate outstanding animated scroll position target

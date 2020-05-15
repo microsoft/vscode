@@ -343,6 +343,36 @@ suite('Filters', () => {
 		);
 	});
 
+	test('Freeze when fjfj -> jfjf, https://github.com/microsoft/vscode/issues/91807', function () {
+		assertMatches(
+			'jfjfj',
+			'fjfjfjfjfjfjfjfjfjfjfj',
+			undefined, fuzzyScore
+		);
+		assertMatches(
+			'jfjfjfjfjfjfjfjfjfj',
+			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
+			undefined, fuzzyScore
+		);
+		assertMatches(
+			'jfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfj',
+			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
+			undefined, fuzzyScore
+		);
+		assertMatches(
+			'jfjfjfjfjfjfjfjfjfj',
+			'fJfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
+			'f^J^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^jfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj', // strong match
+			fuzzyScore
+		);
+		assertMatches(
+			'jfjfjfjfjfjfjfjfjfj',
+			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
+			'f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^jfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj', // any match
+			fuzzyScore, { firstMatchCanBeWeak: true }
+		);
+	});
+
 	test('fuzzyScore, issue #26423', function () {
 
 		assertMatches('baba', 'abababab', undefined, fuzzyScore);

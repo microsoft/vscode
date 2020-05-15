@@ -27,6 +27,7 @@ import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/lis
 import { List, IListOptions, IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Color } from 'vs/base/common/color';
+import { registerIcon, Codicon } from 'vs/base/common/codicons';
 
 export interface IQuickInputOptions {
 	idPrefix: string;
@@ -67,8 +68,11 @@ const $ = dom.$;
 
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
+
+const backButtonIcon = registerIcon('quick-input-back', Codicon.arrowLeft);
+
 const backButton = {
-	iconClass: 'codicon-arrow-left',
+	iconClass: backButtonIcon.classNames,
 	tooltip: localize('quickInput.back', "Back"),
 	handle: -1 // TODO
 };
@@ -270,8 +274,10 @@ class QuickInput extends Disposable implements IQuickInput {
 			return;
 		}
 		const title = this.getTitle();
-		if (this.ui.title.textContent !== title) {
+		if (title && this.ui.title.textContent !== title) {
 			this.ui.title.textContent = title;
+		} else if (!title && this.ui.title.innerHTML !== '&nbsp;') {
+			this.ui.title.innerHTML = '&nbsp;';
 		}
 		const description = this.getDescription();
 		if (this.ui.description.textContent !== description) {
@@ -662,14 +668,14 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					this.ui.list.clearFocus();
 				}
 			}));
-			this.visibleDisposables.add(this.ui.inputBox.onKeyDown(event => {
+			this.visibleDisposables.add((this._hideInput ? this.ui.list : this.ui.inputBox).onKeyDown((event: KeyboardEvent | StandardKeyboardEvent) => {
 				switch (event.keyCode) {
 					case KeyCode.DownArrow:
 						this.ui.list.focus(QuickInputListFocus.Next);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.UpArrow:
 						if (this.ui.list.getFocusedElements().length) {
@@ -680,21 +686,21 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.PageDown:
 						this.ui.list.focus(QuickInputListFocus.NextPage);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.PageUp:
 						this.ui.list.focus(QuickInputListFocus.PreviousPage);
 						if (this.canSelectMany) {
 							this.ui.list.domFocus();
 						}
-						event.preventDefault();
+						dom.EventHelper.stop(event, true);
 						break;
 					case KeyCode.RightArrow:
 						if (!this._canAcceptInBackground) {
@@ -711,6 +717,18 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 							this.onDidAcceptEmitter.fire({ inBackground: true });
 						}
 
+						break;
+					case KeyCode.Home:
+						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+							this.ui.list.focus(QuickInputListFocus.First);
+							dom.EventHelper.stop(event, true);
+						}
+						break;
+					case KeyCode.End:
+						if (event.ctrlKey && !event.shiftKey && !event.altKey && !event.metaKey) {
+							this.ui.list.focus(QuickInputListFocus.Last);
+							dom.EventHelper.stop(event, true);
+						}
 						break;
 				}
 			}));
@@ -825,10 +843,19 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (!this.visible) {
 			return;
 		}
-		const hideInput = !!this._hideInput && this._items.length > 0; // do not allow to hide input without items
+		let hideInput = false;
+		let inputShownJustForScreenReader = false;
+		if (!!this._hideInput && this._items.length > 0) {
+			if (this.ui.isScreenReaderOptimized()) {
+				// Always show input if screen reader attached https://github.com/microsoft/vscode/issues/94360
+				inputShownJustForScreenReader = true;
+			} else {
+				hideInput = true;
+			}
+		}
 		dom.toggleClass(this.ui.container, 'hidden-input', hideInput);
 		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step,
+			title: !!this.title || !!this.step || !!this.buttons.length,
 			description: !!this.description,
 			checkAll: this.canSelectMany,
 			inputBox: !hideInput,
@@ -852,7 +879,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
-		if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
+		if (inputShownJustForScreenReader) {
+			this.ui.inputBox.ariaLabel = '';
+		} else if (this.ui.inputBox.ariaLabel !== this.ariaLabel) {
 			this.ui.inputBox.ariaLabel = this.ariaLabel;
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
@@ -1021,7 +1050,12 @@ class InputBox extends QuickInput implements IInputBox {
 		if (!this.visible) {
 			return;
 		}
-		this.ui.setVisibilities({ title: !!this.title || !!this.step, description: !!this.description || !!this.step, inputBox: true, message: true });
+		const visibilities: Visibilities = {
+			title: !!this.title || !!this.step || !!this.buttons.length,
+			description: !!this.description || !!this.step,
+			inputBox: true, message: true
+		};
+		this.ui.setVisibilities(visibilities);
 		super.update();
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
@@ -1066,11 +1100,13 @@ export class QuickInputController extends Disposable {
 	private parentElement: HTMLElement;
 	private styles: IQuickInputStyles;
 
-	private onShowEmitter = new Emitter<void>();
+	private onShowEmitter = this._register(new Emitter<void>());
 	readonly onShow = this.onShowEmitter.event;
 
-	private onHideEmitter = new Emitter<void>();
+	private onHideEmitter = this._register(new Emitter<void>());
 	readonly onHide = this.onHideEmitter.event;
+
+	private previousFocusElement?: HTMLElement;
 
 	constructor(private options: IQuickInputOptions) {
 		super();
@@ -1188,7 +1224,11 @@ export class QuickInputController extends Disposable {
 
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
+		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, e => {
+			this.previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
+		}, true));
 		this._register(focusTracker.onDidBlur(() => {
+			this.previousFocusElement = undefined;
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
 				this.hide(true);
 			}
@@ -1270,9 +1310,10 @@ export class QuickInputController extends Disposable {
 		return this.ui;
 	}
 
-	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<O extends { canPickMany: true } ? T[] : T> {
-		return new Promise<O extends { canPickMany: true } ? T[] : T>((doResolve, reject) => {
-			let resolve = (result: any) => {
+	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
+		type R = (O extends { canPickMany: true } ? T[] : T) | undefined;
+		return new Promise<R>((doResolve, reject) => {
+			let resolve = (result: R) => {
 				resolve = doResolve;
 				if (options.onKeyMods) {
 					options.onKeyMods(input.keyMods);
@@ -1289,12 +1330,12 @@ export class QuickInputController extends Disposable {
 				input,
 				input.onDidAccept(() => {
 					if (input.canSelectMany) {
-						resolve(<any>input.selectedItems.slice());
+						resolve(<R>input.selectedItems.slice());
 						input.hide();
 					} else {
 						const result = input.activeItems[0];
 						if (result) {
-							resolve(<any>result);
+							resolve(<R>result);
 							input.hide();
 						}
 					}
@@ -1309,7 +1350,7 @@ export class QuickInputController extends Disposable {
 					if (!input.canSelectMany) {
 						const result = items[0];
 						if (result) {
-							resolve(<any>result);
+							resolve(<R>result);
 							input.hide();
 						}
 					}
@@ -1371,7 +1412,7 @@ export class QuickInputController extends Disposable {
 		});
 	}
 
-	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string> {
+	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): Promise<string | undefined> {
 		return new Promise<string>((resolve, reject) => {
 			if (token.isCancellationRequested) {
 				resolve(undefined);
@@ -1538,7 +1579,12 @@ export class QuickInputController extends Disposable {
 			this.onHideEmitter.fire();
 			this.getUI().container.style.display = 'none';
 			if (!focusLost) {
-				this.options.returnFocus();
+				if (this.previousFocusElement && this.previousFocusElement.offsetParent) {
+					this.previousFocusElement.focus();
+					this.previousFocusElement = undefined;
+				} else {
+					this.options.returnFocus();
+				}
 			}
 			controller.didHide();
 		}

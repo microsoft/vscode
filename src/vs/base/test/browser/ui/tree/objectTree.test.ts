@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ObjectTree, CompressibleObjectTree, ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { Iterator } from 'vs/base/common/iterator';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 
 suite('ObjectTree', function () {
@@ -46,17 +45,17 @@ suite('ObjectTree', function () {
 		});
 
 		test('should be able to navigate', () => {
-			tree.setChildren(null, Iterator.fromArray([
+			tree.setChildren(null, [
 				{
-					element: 0, children: Iterator.fromArray([
+					element: 0, children: [
 						{ element: 10 },
 						{ element: 11 },
 						{ element: 12 },
-					])
+					]
 				},
 				{ element: 1 },
 				{ element: 2 }
-			]));
+			]);
 
 			const navigator = tree.navigate();
 
@@ -87,17 +86,17 @@ suite('ObjectTree', function () {
 		});
 
 		test('should skip collapsed nodes', () => {
-			tree.setChildren(null, Iterator.fromArray([
+			tree.setChildren(null, [
 				{
-					element: 0, collapsed: true, children: Iterator.fromArray([
+					element: 0, collapsed: true, children: [
 						{ element: 10 },
 						{ element: 11 },
 						{ element: 12 },
-					])
+					]
 				},
 				{ element: 1 },
 				{ element: 2 }
-			]));
+			]);
 
 			const navigator = tree.navigate();
 
@@ -118,17 +117,17 @@ suite('ObjectTree', function () {
 		test('should skip filtered elements', () => {
 			filter = el => el % 2 === 0;
 
-			tree.setChildren(null, Iterator.fromArray([
+			tree.setChildren(null, [
 				{
-					element: 0, children: Iterator.fromArray([
+					element: 0, children: [
 						{ element: 10 },
 						{ element: 11 },
 						{ element: 12 },
-					])
+					]
 				},
 				{ element: 1 },
 				{ element: 2 }
-			]));
+			]);
 
 			const navigator = tree.navigate();
 
@@ -150,17 +149,17 @@ suite('ObjectTree', function () {
 		});
 
 		test('should be able to start from node', () => {
-			tree.setChildren(null, Iterator.fromArray([
+			tree.setChildren(null, [
 				{
-					element: 0, children: Iterator.fromArray([
+					element: 0, children: [
 						{ element: 10 },
 						{ element: 11 },
 						{ element: 12 },
-					])
+					]
 				},
 				{ element: 1 },
 				{ element: 2 }
-			]));
+			]);
 
 			const navigator = tree.navigate(1);
 
@@ -291,50 +290,50 @@ suite('CompressibleObjectTree', function () {
 		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
-		tree.setChildren(null, Iterator.fromArray([
+		tree.setChildren(null, [
 			{
-				element: 1, children: Iterator.fromArray([{
-					element: 11, children: Iterator.fromArray([{
-						element: 111, children: Iterator.fromArray([
+				element: 1, children: [{
+					element: 11, children: [{
+						element: 111, children: [
 							{ element: 1111 },
 							{ element: 1112 },
 							{ element: 1113 },
-						])
-					}])
-				}])
+						]
+					}]
+				}]
 			}
-		]));
+		]);
 
 		let rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11/111', '1111', '1112', '1113']);
 
-		tree.setChildren(11, Iterator.fromArray([
+		tree.setChildren(11, [
 			{ element: 111 },
 			{ element: 112 },
 			{ element: 113 },
-		]));
+		]);
 
 		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11', '111', '112', '113']);
 
-		tree.setChildren(113, Iterator.fromArray([
+		tree.setChildren(113, [
 			{ element: 1131 }
-		]));
+		]);
 
 		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11', '111', '112', '113/1131']);
 
-		tree.setChildren(1131, Iterator.fromArray([
+		tree.setChildren(1131, [
 			{ element: 1132 }
-		]));
+		]);
 
 		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11', '111', '112', '113/1131/1132']);
 
-		tree.setChildren(1131, Iterator.fromArray([
+		tree.setChildren(1131, [
 			{ element: 1132 },
 			{ element: 1133 },
-		]));
+		]);
 
 		rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11', '111', '112', '113/1131', '1132', '1133']);
@@ -348,19 +347,19 @@ suite('CompressibleObjectTree', function () {
 		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
 		tree.layout(200);
 
-		tree.setChildren(null, Iterator.fromArray([
+		tree.setChildren(null, [
 			{
-				element: 1, children: Iterator.fromArray([{
-					element: 11, children: Iterator.fromArray([{
-						element: 111, children: Iterator.fromArray([
+				element: 1, children: [{
+					element: 11, children: [{
+						element: 111, children: [
 							{ element: 1111 },
 							{ element: 1112 },
 							{ element: 1113 },
-						])
-					}])
-				}])
+						]
+					}]
+				}]
 			}
-		]));
+		]);
 
 		let rows = toArray(container.querySelectorAll('.monaco-tl-contents')).map(row => row.textContent);
 		assert.deepEqual(rows, ['1/11/111', '1111', '1112', '1113']);

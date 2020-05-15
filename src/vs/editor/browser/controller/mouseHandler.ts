@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { StandardWheelEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { TimeoutTimer } from 'vs/base/common/async';
@@ -119,7 +118,7 @@ export class MouseHandler extends ViewEventHandler {
 				e.stopPropagation();
 			}
 		};
-		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, browser.isEdge ? 'mousewheel' : 'wheel', onMouseWheel, { capture: true, passive: false }));
+		this._register(dom.addDisposableListener(this.viewHelper.viewDomNode, dom.EventType.MOUSE_WHEEL, onMouseWheel, { capture: true, passive: false }));
 
 		this._context.addEventHandler(this);
 	}

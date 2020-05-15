@@ -45,7 +45,7 @@ import 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import 'vs/workbench/browser/parts/panel/panelPart';
 import 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import 'vs/workbench/browser/parts/statusbar/statusbarPart';
-import 'vs/workbench/browser/parts/views/views';
+import 'vs/workbench/browser/parts/views/viewsService';
 
 //#endregion
 
@@ -76,7 +76,6 @@ import 'vs/workbench/services/extensionManagement/common/extensionEnablementServ
 import 'vs/workbench/services/notification/common/notificationService';
 import 'vs/workbench/services/extensions/common/staticExtensions';
 import 'vs/workbench/services/userDataSync/common/userDataSyncUtil';
-import 'vs/workbench/services/path/common/remotePathService';
 import 'vs/workbench/services/remote/common/remoteExplorerService';
 import 'vs/workbench/services/workingCopy/common/workingCopyService';
 import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
@@ -167,6 +166,9 @@ import 'vs/workbench/contrib/search/browser/searchView';
 // Search Editor
 import 'vs/workbench/contrib/searchEditor/browser/searchEditor.contribution';
 
+// Sash
+import 'vs/workbench/contrib/sash/browser/sash.contribution';
+
 // SCM
 import 'vs/workbench/contrib/scm/browser/scm.contribution';
 import 'vs/workbench/contrib/scm/browser/scmViewlet';
@@ -186,11 +188,11 @@ import 'vs/workbench/contrib/markers/browser/markers.contribution';
 import 'vs/workbench/contrib/comments/browser/comments.contribution';
 
 // URL Support
-import 'vs/workbench/contrib/url/common/url.contribution';
+import 'vs/workbench/contrib/url/browser/url.contribution';
 
 // Webview
 import 'vs/workbench/contrib/webview/browser/webview.contribution';
-import 'vs/workbench/contrib/customEditor/browser/webviewEditor.contribution';
+import 'vs/workbench/contrib/customEditor/browser/customEditor.contribution';
 
 // Extensions Management
 import 'vs/workbench/contrib/extensions/browser/extensions.contribution';

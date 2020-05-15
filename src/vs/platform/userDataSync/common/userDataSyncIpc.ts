@@ -11,10 +11,11 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class UserDataSyncChannel implements IServerChannel {
 
-	constructor(private readonly service: IUserDataSyncService) { }
+	constructor(private readonly service: IUserDataSyncService, private readonly logService: ILogService) { }
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
@@ -27,12 +28,23 @@ export class UserDataSyncChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	async call(context: any, command: string, args?: any): Promise<any> {
+		try {
+			const result = await this._call(context, command, args);
+			return result;
+		} catch (e) {
+			this.logService.error(e);
+			throw e;
+		}
+	}
+
+	private _call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
 			case 'pull': return this.service.pull();
 			case 'sync': return this.service.sync();
 			case 'stop': this.service.stop(); return Promise.resolve();
+			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();

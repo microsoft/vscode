@@ -184,6 +184,11 @@ export const tocData: ITOCEntry = {
 					id: 'features/timeline',
 					label: localize('timeline', "Timeline"),
 					settings: ['timeline.*']
+				},
+				{
+					id: 'features/notebook',
+					label: localize('notebook', 'Notebook'),
+					settings: ['notebook.*']
 				}
 			]
 		},

@@ -29,6 +29,11 @@ export interface IStatusbarEntry {
 	readonly text: string;
 
 	/**
+	 * Text to be read out by the screen reader.
+	 */
+	readonly ariaLabel: string;
+
+	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
 	readonly tooltip?: string;
@@ -84,6 +89,21 @@ export interface IStatusbarService {
 	 * Allows to update an entry's visibility with the provided ID.
 	 */
 	updateEntryVisibility(id: string, visible: boolean): void;
+
+	/**
+	 * Focused the status bar. If one of the status bar entries was focused, focuses it directly.
+	 */
+	focus(preserveEntryFocus?: boolean): void;
+
+	/**
+	 * Focuses the next status bar entry. If none focused, focuses the first.
+	 */
+	focusNextEntry(): void;
+
+	/**
+	 * Focuses the previous status bar entry. If none focused, focuses the last.
+	 */
+	focusPreviousEntry(): void;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

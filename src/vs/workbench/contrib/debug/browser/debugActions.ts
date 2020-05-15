@@ -81,8 +81,8 @@ export class ConfigureAction extends AbstractDebugAction {
 		this.class = configurationManager.selectedConfiguration.name ? 'debug-action codicon codicon-gear' : 'debug-action codicon codicon-gear notification';
 	}
 
-	async run(event?: any): Promise<any> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+	async run(): Promise<any> {
+		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.contextService.getWorkspace().folders.length === 0) {
 			this.notificationService.info(nls.localize('noFolderDebugConfig', "Please first open a folder in order to do advanced debug configuration."));
 			return;
 		}
@@ -92,12 +92,12 @@ export class ConfigureAction extends AbstractDebugAction {
 		if (configurationManager.selectedConfiguration.name) {
 			launch = configurationManager.selectedConfiguration.launch;
 		} else {
-			const launches = configurationManager.getLaunches().filter(l => !!l.workspace);
+			const launches = configurationManager.getLaunches().filter(l => !l.hidden);
 			if (launches.length === 1) {
 				launch = launches[0];
 			} else {
 				const picks = launches.map(l => ({ label: l.name, launch: l }));
-				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, { activeItem: picks[0], placeHolder: nls.localize('selectWorkspaceFolder', "Select a workspace folder to create a launch.json file in") });
+				const picked = await this.quickInputService.pick<{ label: string, launch: ILaunch }>(picks, { activeItem: picks[0], placeHolder: nls.localize('selectWorkspaceFolder', "Select a workspace folder to create a launch.json file in or add it to the workspace config file") });
 				if (picked) {
 					launch = picked.launch;
 				}
@@ -105,8 +105,7 @@ export class ConfigureAction extends AbstractDebugAction {
 		}
 
 		if (launch) {
-			const sideBySide = !!(event && (event.ctrlKey || event.metaKey));
-			return launch.openConfigFile(sideBySide, false);
+			return launch.openConfigFile(false);
 		}
 	}
 }
@@ -128,9 +127,9 @@ export class StartAction extends AbstractDebugAction {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateEnablement()));
 	}
 
-	run(): Promise<boolean> {
-		const { launch, name } = this.debugService.getConfigurationManager().selectedConfiguration;
-		return this.debugService.startDebugging(launch, name, { noDebug: this.isNoDebug() });
+	async run(): Promise<boolean> {
+		let { launch, name, config } = this.debugService.getConfigurationManager().selectedConfiguration;
+		return this.debugService.startDebugging(launch, config || name, { noDebug: this.isNoDebug() });
 	}
 
 	protected isNoDebug(): boolean {

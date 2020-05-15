@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
-import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
-import { ParsedArgs } from 'vs/platform/environment/common/environment';
+import { IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { INativeWindowConfiguration, OpenContext } from 'vs/platform/windows/node/window';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
@@ -105,7 +105,7 @@ export interface IWindowsMainService {
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;
 
 	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openEmptyWindow(context: OpenContext, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
@@ -118,9 +118,12 @@ export interface IWindowsMainService {
 	getWindowCount(): number;
 }
 
-export interface IOpenConfiguration {
+export interface IBaseOpenConfiguration {
 	readonly context: OpenContext;
 	readonly contextWindowId?: number;
+}
+
+export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly cli: ParsedArgs;
 	readonly userEnv?: IProcessEnvironment;
 	readonly urisToOpen?: IWindowOpenable[];
@@ -136,3 +139,5 @@ export interface IOpenConfiguration {
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
 }
+
+export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }

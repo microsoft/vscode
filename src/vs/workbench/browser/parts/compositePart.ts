@@ -60,11 +60,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected toolBar: ToolBar | undefined;
 	protected titleLabelElement: HTMLElement | undefined;
 
-	private mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
-	private mapActionsBindingToComposite = new Map<string, () => void>();
+	private readonly mapCompositeToCompositeContainer = new Map<string, HTMLElement>();
+	private readonly mapActionsBindingToComposite = new Map<string, () => void>();
 	private activeComposite: Composite | undefined;
 	private lastActiveCompositeId: string;
-	private instantiatedCompositeItems: Map<string, CompositeItem>;
+	private readonly instantiatedCompositeItems = new Map<string, CompositeItem>();
 	private titleLabel: ICompositeTitleLabel | undefined;
 	private progressBar: ProgressBar | undefined;
 	private contentAreaSize: Dimension | undefined;
@@ -72,26 +72,25 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private currentCompositeOpenToken: string | undefined;
 
 	constructor(
-		private notificationService: INotificationService,
-		protected storageService: IStorageService,
-		private telemetryService: ITelemetryService,
-		protected contextMenuService: IContextMenuService,
-		protected layoutService: IWorkbenchLayoutService,
-		protected keybindingService: IKeybindingService,
-		protected instantiationService: IInstantiationService,
+		private readonly notificationService: INotificationService,
+		protected readonly storageService: IStorageService,
+		private readonly telemetryService: ITelemetryService,
+		protected readonly contextMenuService: IContextMenuService,
+		protected readonly layoutService: IWorkbenchLayoutService,
+		protected readonly keybindingService: IKeybindingService,
+		protected readonly instantiationService: IInstantiationService,
 		themeService: IThemeService,
 		protected readonly registry: CompositeRegistry<T>,
-		private activeCompositeSettingsKey: string,
-		private defaultCompositeId: string,
-		private nameForTelemetry: string,
-		private compositeCSSClass: string,
-		private titleForegroundColor: string | undefined,
+		private readonly activeCompositeSettingsKey: string,
+		private readonly defaultCompositeId: string,
+		private readonly nameForTelemetry: string,
+		private readonly compositeCSSClass: string,
+		private readonly titleForegroundColor: string | undefined,
 		id: string,
 		options: IPartOptions
 	) {
 		super(id, options, themeService, storageService, layoutService);
 
-		this.instantiatedCompositeItems = new Map<string, CompositeItem>();
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 	}
 
@@ -317,11 +316,11 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		toolBar.setAriaLabel(nls.localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
 
-	private collectCompositeActions(composite: Composite): () => void {
+	private collectCompositeActions(composite?: Composite): () => void {
 
 		// From Composite
-		const primaryActions: IAction[] = composite.getActions().slice(0);
-		const secondaryActions: IAction[] = composite.getSecondaryActions().slice(0);
+		const primaryActions: IAction[] = composite?.getActions().slice(0) || [];
+		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
 
 		// From Part
 		primaryActions.push(...this.getActions());
@@ -369,7 +368,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		// Empty Actions
 		if (this.toolBar) {
-			this.toolBar.setActions([])();
+			this.collectCompositeActions()();
 		}
 		this.onDidCompositeClose.fire(composite);
 
@@ -395,6 +394,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment()
 		}));
+
+		this.collectCompositeActions()();
 
 		return titleArea;
 	}

@@ -26,6 +26,7 @@ export class WebviewEditor extends BaseEditor {
 
 	private _element?: HTMLElement;
 	private _dimension?: DOM.Dimension;
+	private _visible = false;
 
 	private readonly _webviewVisibleDisposables = this._register(new DisposableStore());
 	private readonly _onFocusWindowHandler = this._register(new MutableDisposable());
@@ -65,7 +66,7 @@ export class WebviewEditor extends BaseEditor {
 
 	public layout(dimension: DOM.Dimension): void {
 		this._dimension = dimension;
-		if (this.webview) {
+		if (this.webview && this._visible) {
 			this.synchronizeWebviewContainerDimensions(this.webview, dimension);
 		}
 	}
@@ -84,13 +85,13 @@ export class WebviewEditor extends BaseEditor {
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		this._visible = visible;
 		if (this.input instanceof WebviewInput && this.webview) {
 			if (visible) {
-				this.webview.claim(this);
+				this.claimWebview(this.input);
 			} else {
 				this.webview.release(this);
 			}
-			this.claimWebview(this.input);
 		}
 		super.setEditorVisible(visible, group);
 	}

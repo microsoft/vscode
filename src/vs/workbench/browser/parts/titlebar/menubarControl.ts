@@ -29,7 +29,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { MenuBar, IMenuBarOptions } from 'vs/base/browser/ui/menu/menubar';
 import { SubmenuAction, Direction } from 'vs/base/browser/ui/menu/menu';
 import { attachMenuStyler } from 'vs/platform/theme/common/styler';
-import { assign } from 'vs/base/common/objects';
 import { mnemonicMenuLabel, unmnemonicLabel } from 'vs/base/common/labels';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -231,7 +230,7 @@ export abstract class MenubarControl extends Disposable {
 			});
 		});
 
-		return assign(ret, { uri: uri });
+		return Object.assign(ret, { uri });
 	}
 
 	private notifyUserOfCustomMenubarAccessibility(): void {

@@ -5,24 +5,21 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import * as UUID from 'vs/base/common/uuid';
+import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICellViewModel, CellFindMatch, MarkdownCellLayoutInfo, MarkdownCellLayoutChangeEvent, CellEditState, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BOTTOM_CELL_TOOLBAR_HEIGHT, CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
+import { CellEditState, CellFindMatch, ICellViewModel, MarkdownCellLayoutChangeEvent, MarkdownCellLayoutInfo, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
-import { CellKind, ICell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CELL_MARGIN, CELL_RUN_GUTTER, BOTTOM_CELL_TOOLBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEventDispatcher, NotebookCellStateChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	cellKind: CellKind.Markdown = CellKind.Markdown;
-	private _mdRenderer: MarkdownRenderer | null = null;
 	private _html: HTMLElement | null = null;
-	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
-
 	private _layoutInfo: MarkdownCellLayoutInfo;
 
 	get layoutInfo() {
@@ -30,47 +27,71 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	set totalHeight(newHeight: number) {
-		this.layoutChange({ totalHeight: newHeight });
+		if (newHeight !== this.layoutInfo.totalHeight) {
+			this.layoutChange({ totalHeight: newHeight });
+		}
 	}
 
 	get totalHeight() {
 		throw new Error('MarkdownCellViewModel.totalHeight is write only');
 	}
 
+	private _editorHeight = 0;
+	set editorHeight(newHeight: number) {
+		this._editorHeight = newHeight;
+		this.layoutChange({ editorHeight: true });
+	}
+
+	get editorHeight() {
+		throw new Error('MarkdownCellViewModel.editorHeight is write only');
+	}
+
 	protected readonly _onDidChangeLayout = new Emitter<MarkdownCellLayoutChangeEvent>();
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
+	get foldingState() {
+		return this.foldingDelegate.getFoldingState(this.foldingDelegate.getCellIndex(this));
+	}
+
 	constructor(
 		readonly viewType: string,
-		readonly notebookHandle: number,
-		readonly cell: ICell,
-		readonly eventDispatcher: NotebookEventDispatcher,
+		readonly model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
+		readonly foldingDelegate: EditorFoldingStateDelegate,
+		readonly eventDispatcher: NotebookEventDispatcher,
+		private readonly _mdRenderer: MarkdownRenderer,
 		@ITextModelService private readonly _modelService: ITextModelService) {
-		super(viewType, notebookHandle, cell, UUID.generateUuid());
+		super(viewType, model, UUID.generateUuid());
 
 		this._layoutInfo = {
+			editorHeight: 0,
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
-			editorWidth: initialNotebookLayoutInfo?.width || 0,
+			editorWidth: initialNotebookLayoutInfo?.width ? this.computeEditorWidth(initialNotebookLayoutInfo.width) : 0,
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
 			totalHeight: 0
 		};
 
-		this._register(eventDispatcher.onDidChangeLayout((e) => {
-			if (e.source.width || e.source.fontInfo) {
-				this.layoutChange({ outerWidth: e.value.width, font: e.value.fontInfo });
-			}
+		this._register(this.onDidChangeState(e => {
+			eventDispatcher.emit([new NotebookCellStateChangedEvent(e, this)]);
 		}));
+	}
+
+	triggerfoldingStateChange() {
+		this._onDidChangeState.fire({ foldingStateChanged: true });
+	}
+
+	private computeEditorWidth(outerWidth: number) {
+		return outerWidth - (CELL_MARGIN * 2) - CELL_RUN_GUTTER;
 	}
 
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
-		const editorWidth = state.outerWidth !== undefined ? state.outerWidth - CELL_MARGIN * 2 - CELL_RUN_GUTTER : 0;
+		const editorWidth = state.outerWidth !== undefined ? this.computeEditorWidth(state.outerWidth) : this._layoutInfo.editorWidth;
 
 		this._layoutInfo = {
-			fontInfo: state.font || null,
+			fontInfo: state.font || this._layoutInfo.fontInfo,
 			editorWidth,
+			editorHeight: this._editorHeight,
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
 			totalHeight: state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight
 		};
@@ -85,7 +106,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				fontInfo: this._layoutInfo.fontInfo,
 				editorWidth: this._layoutInfo.editorWidth,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
-				totalHeight: totalHeight
+				totalHeight: totalHeight,
+				editorHeight: this._editorHeight
 			};
 		}
 	}
@@ -102,16 +124,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		}
 	}
 
-	setText(strs: string[]) {
-		this.cell.source = strs;
+	clearHTML() {
 		this._html = null;
-	}
-
-	save() {
-		if (this._textModel && !this._textModel.isDisposed() && this.editState === CellEditState.Editing) {
-			let cnt = this._textModel.getLineCount();
-			this.cell.source = this._textModel.getLinesContent().map((str, index) => str + (index !== cnt - 1 ? '\n' : ''));
-		}
 	}
 
 	getHTML(): HTMLElement | null {
@@ -128,14 +142,12 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 
 	async resolveTextModel(): Promise<model.ITextModel> {
 		if (!this._textModel) {
-			const ref = await this._modelService.createModelReference(this.cell.uri);
+			const ref = await this._modelService.createModelReference(this.model.uri);
 			this._textModel = ref.object.textEditorModel;
-			this._buffer = this._textModel.getTextBuffer();
 			this._register(ref);
 			this._register(this._textModel.onDidChangeContent(() => {
-				this.cell.contentChange();
 				this._html = null;
-				this._onDidChangeContent.fire();
+				this._onDidChangeState.fire({ contentChanged: true });
 			}));
 		}
 		return this._textModel;
@@ -146,9 +158,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	getMarkdownRenderer() {
-		if (!this._mdRenderer) {
-			this._mdRenderer = this._instaService.createInstance(MarkdownRenderer);
-		}
 		return this._mdRenderer;
 	}
 
