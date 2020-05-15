@@ -34,6 +34,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			return result;
 		} catch (e) {
 			this.logService.error(e);
+			throw e;
 		}
 	}
 
