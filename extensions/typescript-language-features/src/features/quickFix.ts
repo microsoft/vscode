@@ -132,6 +132,7 @@ class VsCodeCodeAction extends vscode.CodeAction {
 		public readonly tsAction: Proto.CodeFixAction,
 		title: string,
 		kind: vscode.CodeActionKind,
+		public readonly isFixAll: boolean,
 	) {
 		super(title, kind);
 	}
@@ -232,9 +233,8 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		}
 
 		const allActions = Array.from(results.values);
-		const allTsActions = allActions.map(x => x.tsAction);
 		for (const action of allActions) {
-			action.isPreferred = isPreferredFix(action.tsAction, allTsActions);
+			action.isPreferred = isPreferredFix(action, allActions);
 		}
 		return allActions;
 	}
@@ -277,7 +277,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction
 	): VsCodeCodeAction {
-		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix);
+		const codeAction = new VsCodeCodeAction(tsAction, tsAction.description, vscode.CodeActionKind.QuickFix, false);
 		codeAction.edit = getEditForCodeAction(this.client, tsAction);
 		codeAction.diagnostics = [diagnostic];
 		codeAction.command = {
@@ -313,7 +313,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		const action = new VsCodeCodeAction(
 			tsAction,
 			tsAction.fixAllDescription || localize('fixAllInFileLabel', '{0} (Fix all in file)', tsAction.description),
-			vscode.CodeActionKind.QuickFix);
+			vscode.CodeActionKind.QuickFix, true);
 		action.diagnostics = [diagnostic];
 		action.command = {
 			command: ApplyFixAllCodeAction.ID,
@@ -347,18 +347,23 @@ const preferredFixes = new Map<string, /* priorty */number>([
 ]);
 
 function isPreferredFix(
-	tsAction: Proto.CodeFixAction,
-	allActions: readonly Proto.CodeFixAction[]
+	action: VsCodeCodeAction,
+	allActions: readonly VsCodeCodeAction[]
 ): boolean {
-	const priority = preferredFixes.get(tsAction.fixName);
+	if (action.isFixAll) {
+		return false;
+	}
+
+	const priority = preferredFixes.get(action.tsAction.fixName);
 	if (typeof priority === 'undefined') {
 		return false;
 	}
+
 	return allActions.every(otherAction => {
-		if (otherAction === tsAction) {
+		if (otherAction.tsAction === action.tsAction) {
 			return true;
 		}
-		const otherPriority = preferredFixes.get(otherAction.fixName);
+		const otherPriority = preferredFixes.get(otherAction.tsAction.fixName);
 		if (typeof otherPriority === 'undefined') {
 			return true;
 		}
