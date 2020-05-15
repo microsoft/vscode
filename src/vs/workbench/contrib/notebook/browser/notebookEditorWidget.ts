@@ -236,9 +236,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.addClass(this.body, 'cell-list-container');
 
 		const dndController = this._register(new CellDragAndDropController(this, this.body));
-		const renders = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors, dndController),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this, dndController, this.renderedEditors),
+		const getScopedContextKeyService = (container?: HTMLElement) => this.list!.contextKeyService.createScoped(container);
+		const renderers = [
+			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors, dndController, getScopedContextKeyService),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this, dndController, this.renderedEditors, getScopedContextKeyService),
 		];
 
 		this.list = this.instantiationService.createInstance(
@@ -246,7 +247,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			'NotebookCellList',
 			this.body,
 			this.instantiationService.createInstance(NotebookCellListDelegate),
-			renders,
+			renderers,
 			this.contextKeyService,
 			{
 				setRowLineHeight: false,
@@ -290,7 +291,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// create Webview
 
 		this._register(this.list);
-		this._register(combinedDisposable(...renders));
+		this._register(combinedDisposable(...renderers));
 
 		// transparent cover
 		this.webviewTransparentCover = DOM.append(this.list.rowsContainer, $('.webview-cover'));
