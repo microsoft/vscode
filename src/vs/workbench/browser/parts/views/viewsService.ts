@@ -202,6 +202,15 @@ export class ViewsService extends Disposable implements IViewsService {
 				}
 				run(accessor: ServicesAccessor): void {
 					const viewDescriptorService = accessor.get(IViewDescriptorService);
+					const defaultContainer = viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!;
+					const containerModel = viewDescriptorService.getViewContainerModel(defaultContainer)!;
+
+					// The default container is hidden so we should try to reset its location first
+					if (defaultContainer.hideIfEmpty && containerModel.visibleViewDescriptors.length === 0) {
+						const defaultLocation = viewDescriptorService.getDefaultViewContainerLocation(defaultContainer)!;
+						viewDescriptorService.moveViewContainerToLocation(defaultContainer, defaultLocation);
+					}
+
 					viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!);
 					accessor.get(IViewsService).openView(viewDescriptor.id, true);
 				}
