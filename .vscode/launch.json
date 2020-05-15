@@ -20,10 +20,7 @@
 			"port": 5870,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"hidden": true
-			}
+			]
 		},
 		{
 			"type": "pwa-chrome",
