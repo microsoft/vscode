@@ -3,23 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { isUNC } from 'vs/base/common/extpath';
+import { Schemas } from 'vs/base/common/network';
 import { sep } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { REMOTE_HOST_SCHEME } from 'vs/platform/remote/common/remoteHosts';
-import { isUNC } from 'vs/base/common/extpath';
 import { getWebviewContentMimeType } from 'vs/platform/webview/common/mimeTypes';
-import { Schemas } from 'vs/base/common/network';
 
 export namespace WebviewResourceResponse {
 	export enum Type { Success, Failed, AccessDenied }
 
-	export class Success {
+	export class StreamSuccess {
 		readonly type = Type.Success;
 
 		constructor(
-			public readonly data: VSBuffer,
+			public readonly stream: VSBufferReadableStream,
+			public readonly mimeType: string
+		) { }
+	}
+
+	export class BufferSuccess {
+		readonly type = Type.Success;
+
+		constructor(
+			public readonly buffer: VSBuffer,
 			public readonly mimeType: string
 		) { }
 	}
@@ -27,21 +36,8 @@ export namespace WebviewResourceResponse {
 	export const Failed = { type: Type.Failed } as const;
 	export const AccessDenied = { type: Type.AccessDenied } as const;
 
-	export type Response = Success | typeof Failed | typeof AccessDenied;
-
-}
-async function resolveContent(
-	fileService: IFileService,
-	resource: URI,
-	mime: string
-): Promise<WebviewResourceResponse.Response> {
-	try {
-		const contents = await fileService.readFile(resource);
-		return new WebviewResourceResponse.Success(contents.value, mime);
-	} catch (err) {
-		console.log(err);
-		return WebviewResourceResponse.Failed;
-	}
+	export type BufferResponse = BufferSuccess | typeof Failed | typeof AccessDenied;
+	export type StreamResponse = StreamSuccess | typeof Failed | typeof AccessDenied;
 }
 
 export async function loadLocalResource(
@@ -49,7 +45,46 @@ export async function loadLocalResource(
 	fileService: IFileService,
 	extensionLocation: URI | undefined,
 	roots: ReadonlyArray<URI>
-): Promise<WebviewResourceResponse.Response> {
+): Promise<WebviewResourceResponse.BufferResponse> {
+	const resourceToLoad = getResourceToLoad(requestUri, extensionLocation, roots);
+	if (!resourceToLoad) {
+		return WebviewResourceResponse.AccessDenied;
+	}
+
+	try {
+		const data = await fileService.readFile(resourceToLoad);
+		return new WebviewResourceResponse.BufferSuccess(data.value, getWebviewContentMimeType(resourceToLoad));
+	} catch (err) {
+		console.log(err);
+		return WebviewResourceResponse.Failed;
+	}
+}
+
+export async function loadLocalResourceStream(
+	requestUri: URI,
+	fileService: IFileService,
+	extensionLocation: URI | undefined,
+	roots: ReadonlyArray<URI>
+): Promise<WebviewResourceResponse.StreamResponse> {
+	const resourceToLoad = getResourceToLoad(requestUri, extensionLocation, roots);
+	if (!resourceToLoad) {
+		return WebviewResourceResponse.AccessDenied;
+	}
+
+	try {
+		const contents = await fileService.readFileStream(resourceToLoad);
+		return new WebviewResourceResponse.StreamSuccess(contents.value, getWebviewContentMimeType(requestUri));
+	} catch (err) {
+		console.log(err);
+		return WebviewResourceResponse.Failed;
+	}
+}
+
+function getResourceToLoad(
+	requestUri: URI,
+	extensionLocation: URI | undefined,
+	roots: ReadonlyArray<URI>
+): URI | undefined {
 	const normalizedPath = normalizeRequestPath(requestUri);
 
 	for (const root of roots) {
@@ -58,7 +93,7 @@ export async function loadLocalResource(
 		}
 
 		if (extensionLocation && extensionLocation.scheme === REMOTE_HOST_SCHEME) {
-			const redirectedUri = URI.from({
+			return URI.from({
 				scheme: REMOTE_HOST_SCHEME,
 				authority: extensionLocation.authority,
 				path: '/vscode-resource',
@@ -66,13 +101,12 @@ export async function loadLocalResource(
 					requestResourcePath: normalizedPath.path
 				})
 			});
-			return resolveContent(fileService, redirectedUri, getWebviewContentMimeType(requestUri));
 		} else {
-			return resolveContent(fileService, normalizedPath, getWebviewContentMimeType(normalizedPath));
+			return normalizedPath;
 		}
 	}
 
-	return WebviewResourceResponse.AccessDenied;
+	return undefined;
 }
 
 function normalizeRequestPath(requestUri: URI) {

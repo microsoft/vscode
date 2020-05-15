@@ -129,14 +129,14 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
 			const result = await loadLocalResource(uri, this.fileService, this.extension ? this.extension.location : undefined,
-				() => (this.content.options.localResourceRoots || []));
+				this.content.options.localResourceRoots || []);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {
 				return this._send('did-load-resource', {
 					status: 200,
 					path: requestPath,
 					mime: result.mimeType,
-					data: result.data.buffer
+					data: result.buffer.buffer,
 				});
 			}
 		} catch  {

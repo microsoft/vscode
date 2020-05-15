@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, IpcMainEvent, MimeTypedBuffer, protocol } from 'electron';
+import { ipcMain as ipc, IpcMainEvent, protocol } from 'electron';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { streamToNodeReadable } from 'vs/base/node/stream';
 import { IFileService } from 'vs/platform/files/common/files';
-import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { loadLocalResourceStream, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
 
 export interface RegisterWebviewMetadata {
 	readonly extensionLocation: URI | undefined;
 	readonly localResourceRoots: readonly URI[];
 }
-
-type ErrorCallback = (response: MimeTypedBuffer | { error: number }) => void;
 
 
 export class WebviewProtocolProvider extends Disposable {
@@ -54,31 +53,34 @@ export class WebviewProtocolProvider extends Disposable {
 			this.webviewMetadata.delete(id);
 		});
 
-		protocol.registerBufferProtocol(Schemas.vscodeWebviewResource, async (request, callback): Promise<void> => {
+		protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, async (request, callback): Promise<void> => {
 			try {
 				const uri = URI.parse(request.url);
 
 				const id = uri.authority;
 				const metadata = this.webviewMetadata.get(id);
 				if (metadata) {
-					const result = await loadLocalResource(uri, this.fileService, metadata.extensionLocation, metadata.localResourceRoots);
+					const result = await loadLocalResourceStream(uri, this.fileService, metadata.extensionLocation, metadata.localResourceRoots);
 					if (result.type === WebviewResourceResponse.Type.Success) {
 						return callback({
-							data: Buffer.from(result.data.buffer),
-							mimeType: result.mimeType
+							statusCode: 200,
+							data: streamToNodeReadable(result.stream),
+							headers: {
+								'content-type': result.mimeType
+							}
 						});
 					}
 
 					if (result.type === WebviewResourceResponse.Type.AccessDenied) {
 						console.error('Webview: Cannot load resource outside of protocol root');
-						return (callback as ErrorCallback)({ error: -10 /* ACCESS_DENIED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+						return callback({ data: null, statusCode: 401 });
 					}
 				}
 			} catch {
 				// noop
 			}
 
-			return (callback as ErrorCallback)({ error: -2 });
+			return callback({ data: null, statusCode: 404 });
 		});
 
 		this._register(toDisposable(() => protocol.unregisterProtocol(Schemas.vscodeWebviewResource)));
