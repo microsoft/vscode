@@ -20,6 +20,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 
 export class StatefullMarkdownCell extends Disposable {
 
@@ -187,6 +188,12 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		}));
 
+		this._register(getResizesObserver(this.markdownContainer, undefined, () => {
+			if (viewCell.editState === CellEditState.Preview) {
+				this.viewCell.totalHeight = templateData.container.clientHeight;
+			}
+		})).startObserving();
+
 		const updateForFocusMode = () => {
 			if (viewCell.focusMode === CellFocusMode.Editor) {
 				this.editor?.focus();
@@ -220,13 +227,11 @@ export class StatefullMarkdownCell extends Disposable {
 		}));
 
 		this._register(viewCell.onDidChangeLayout((e) => {
-			if (e.outerWidth === undefined) {
-				return;
-			}
-
 			const layoutInfo = this.editor?.getLayoutInfo();
-			if (layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
+			if (e.outerWidth && layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
 				this.onCellWidthChange();
+			} else if (e.totalHeight) {
+				this.relayoutCell();
 			}
 		}));
 
@@ -248,6 +253,10 @@ export class StatefullMarkdownCell extends Disposable {
 		);
 
 		this.viewCell.editorHeight = realContentHeight;
+		this.relayoutCell();
+	}
+
+	private relayoutCell(): void {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
@@ -302,7 +311,7 @@ export class StatefullMarkdownCell extends Disposable {
 					}
 				);
 				const clientHeight = this.markdownContainer.clientHeight;
-				this.viewCell.totalHeight = e.contentHeight + 32 + clientHeight;
+				this.viewCell.totalHeight = e.contentHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
 				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			}
 		}));

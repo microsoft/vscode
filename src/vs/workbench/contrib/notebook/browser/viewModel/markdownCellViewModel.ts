@@ -27,7 +27,9 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	set totalHeight(newHeight: number) {
-		this.layoutChange({ totalHeight: newHeight });
+		if (newHeight !== this.layoutInfo.totalHeight) {
+			this.layoutChange({ totalHeight: newHeight });
+		}
 	}
 
 	get totalHeight() {
