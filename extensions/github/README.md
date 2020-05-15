@@ -4,4 +4,4 @@
 
 ## Features
 
-This extension provides support for authenticating to GitHub.
+This extension provides GitHub features.
