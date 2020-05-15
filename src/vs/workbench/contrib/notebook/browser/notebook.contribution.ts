@@ -185,7 +185,9 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			if ((originalInput.group === group.id || originalInput.group === undefined) && (originalInput.viewType === id || typeof id !== 'string')) {
 				// No need to do anything
 				originalInput.updateGroup(group.id);
-				return undefined;
+				return {
+					override: this.editorService.openEditor(originalInput, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group)
+				};
 			} else {
 				// Create a copy of the input.
 				// Unlike normal editor inputs, we do not want to share custom editor inputs
@@ -224,6 +226,13 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			if (userAssociatedEditors.length && !notebookEditor.length) {
 				// user pick a non-notebook editor for this resource
 				return undefined;
+			}
+		} else {
+			const existingEditors = group.editors.filter(editor => editor.resource && isEqual(editor.resource, resource) && (editor instanceof NotebookEditorInput) && editor.viewType === id);
+
+			if (existingEditors.length) {
+				// switch to this cell
+				return { override: this.editorService.openEditor(existingEditors[0], new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
 			}
 		}
 
@@ -267,7 +276,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		input.updateGroup(group.id);
 		this._resourceMapping.set(resource, input);
 
-		return { override: this.editorService.openEditor(input, options, group) };
+		return { override: this.editorService.openEditor(input, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: !options?.pinned }), group) };
 	}
 }
 
