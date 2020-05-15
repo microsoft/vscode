@@ -10,7 +10,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Command, EditorCommand, ICommandOptions, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
-import { CursorContext, CursorState, EditOperationType, IColumnSelectData, ICursors, PartialCursorState, RevealTarget } from 'vs/editor/common/controller/cursorCommon';
+import { CursorContext, CursorState, EditOperationType, IColumnSelectData, ICursors, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { CursorMove as CursorMove_, CursorMoveCommands } from 'vs/editor/common/controller/cursorMoveCommands';
@@ -31,19 +31,6 @@ import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
 export abstract class CoreEditorCommand extends EditorCommand {
-	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
-		const cursors = editor._getCursors();
-		if (!cursors) {
-			// the editor has no view => has no cursors
-			return;
-		}
-		this.runCoreEditorCommand(cursors, args || {});
-	}
-
-	public abstract runCoreEditorCommand(cursors: ICursors, args: any): void;
-}
-
-export abstract class CoreEditorCommand2 extends EditorCommand {
 	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
 		const viewModel = editor._getViewModel();
@@ -301,16 +288,16 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				[
 					CursorMoveCommands.moveTo(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 	}
 
@@ -327,10 +314,10 @@ export namespace CoreNavigationCommands {
 	}));
 
 	abstract class ColumnSelectCommand extends CoreEditorCommand {
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
 			const result = this._getColumnSelectResult(cursors.context, cursors.getPrimaryCursor(), cursors.getColumnSelectData(), args);
-			cursors.setStates(args.source, CursorChangeReason.Explicit, result.viewStates.map((viewState) => CursorState.fromViewState(viewState)));
+			viewModel.setCursorStates(args.source, CursorChangeReason.Explicit, result.viewStates.map((viewState) => CursorState.fromViewState(viewState)));
 			cursors.setColumnSelectData({
 				isReal: true,
 				fromViewLineNumber: result.fromLineNumber,
@@ -338,7 +325,11 @@ export namespace CoreNavigationCommands {
 				toViewLineNumber: result.toLineNumber,
 				toViewVisualColumn: result.toVisualColumn
 			});
-			cursors.reveal(args.source, true, (result.reversed ? RevealTarget.TopMost : RevealTarget.BottomMost), ScrollType.Smooth);
+			if (result.reversed) {
+				viewModel.revealTopMostCursor(args.source);
+			} else {
+				viewModel.revealBottomMostCursor(args.source);
+			}
 		}
 
 		protected abstract _getColumnSelectResult(context: CursorContext, primary: CursorState, prevColumnSelectData: IColumnSelectData, args: any): IColumnSelectResult;
@@ -479,7 +470,7 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	export class CursorMoveImpl extends CoreEditorCommand2 {
+	export class CursorMoveImpl extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'cursorMove',
@@ -499,12 +490,12 @@ export namespace CoreNavigationCommands {
 
 		private _runCursorMove(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, source: string | null | undefined, args: CursorMove_.ParsedArguments): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				source,
 				CursorChangeReason.Explicit,
 				CursorMoveImpl._move(editor, viewModel, cursors.context, cursors.getAll(), args)
 			);
-			cursors.reveal(source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(source, true);
 		}
 
 		private static _move(editor: ICodeEditor, viewModel: IViewModel, context: CursorContext, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
@@ -549,7 +540,7 @@ export namespace CoreNavigationCommands {
 			this._staticArgs = opts.args;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, dynamicArgs: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, dynamicArgs: any): void {
 			let args = this._staticArgs;
 			if (this._staticArgs.value === Constants.PAGE_SIZE_MARKER) {
 				// -1 is a marker for page size
@@ -562,12 +553,12 @@ export namespace CoreNavigationCommands {
 			}
 
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				dynamicArgs.source,
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.simpleMove(cursors.context, cursors.getAll(), args.direction, args.select, args.value, args.unit)
 			);
-			cursors.reveal(dynamicArgs.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(dynamicArgs.source, true);
 		}
 	}
 
@@ -781,7 +772,7 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			const context = cursors.context;
 
 			let newState: PartialCursorState;
@@ -813,7 +804,7 @@ export namespace CoreNavigationCommands {
 					states.splice(i, 1);
 
 					cursors.context.model.pushStackElement();
-					cursors.setStates(
+					viewModel.setCursorStates(
 						args.source,
 						CursorChangeReason.Explicit,
 						states
@@ -826,7 +817,7 @@ export namespace CoreNavigationCommands {
 			states.push(newState);
 
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				states
@@ -842,7 +833,7 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			const context = cursors.context;
 
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
@@ -852,7 +843,7 @@ export namespace CoreNavigationCommands {
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.moveTo(context, states[lastAddedCursorIndex], true, args.position, args.viewPosition);
 
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				newStates
@@ -869,14 +860,14 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 	}
 
@@ -913,14 +904,14 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				this._exec(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
@@ -967,14 +958,14 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfLine(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 	}
 
@@ -1011,14 +1002,14 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				this._exec(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 
 		private _exec(context: CursorContext, cursors: CursorState[]): PartialCursorState[] {
@@ -1066,14 +1057,14 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 	}
 
@@ -1110,14 +1101,14 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfBuffer(cursors.context, cursors.getAll(), this._inSelectionMode)
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 	}
 
@@ -1145,7 +1136,7 @@ export namespace CoreNavigationCommands {
 		}
 	}));
 
-	export class EditorScrollImpl extends CoreEditorCommand2 {
+	export class EditorScrollImpl extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'editorScroll',
@@ -1170,7 +1161,7 @@ export namespace CoreNavigationCommands {
 			if (args.revealCursor) {
 				// must ensure cursor is in new visible range
 				const desiredVisibleViewRange = viewModel.getCompletelyVisibleViewRangeAtScrollTop(desiredScrollTop);
-				cursors.setStates(
+				viewModel.setCursorStates(
 					source,
 					CursorChangeReason.Explicit,
 					[
@@ -1216,7 +1207,7 @@ export namespace CoreNavigationCommands {
 
 	export const EditorScroll: EditorScrollImpl = registerEditorCommand(new EditorScrollImpl());
 
-	export const ScrollLineUp: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
+	export const ScrollLineUp: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'scrollLineUp',
@@ -1241,7 +1232,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollPageUp: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
+	export const ScrollPageUp: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'scrollPageUp',
@@ -1267,7 +1258,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollLineDown: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
+	export const ScrollLineDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'scrollLineDown',
@@ -1292,7 +1283,7 @@ export namespace CoreNavigationCommands {
 		}
 	});
 
-	export const ScrollPageDown: CoreEditorCommand2 = registerEditorCommand(new class extends CoreEditorCommand2 {
+	export const ScrollPageDown: CoreEditorCommand = registerEditorCommand(new class extends CoreEditorCommand {
 		constructor() {
 			super({
 				id: 'scrollPageDown',
@@ -1327,16 +1318,16 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				[
 					CursorMoveCommands.word(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position)
 				]
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 	}
 
@@ -1360,7 +1351,7 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			const context = cursors.context;
 
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
@@ -1371,7 +1362,7 @@ export namespace CoreNavigationCommands {
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.word(context, lastAddedState, lastAddedState.modelState.hasSelection(), args.position);
 
 			context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				newStates
@@ -1387,16 +1378,16 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				[
 					CursorMoveCommands.line(cursors.context, cursors.getPrimaryCursor(), this._inSelectionMode, args.position, args.viewPosition)
 				]
 			);
-			cursors.reveal(args.source, false, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, false);
 		}
 	}
 
@@ -1420,7 +1411,7 @@ export namespace CoreNavigationCommands {
 			this._inSelectionMode = opts.inSelectionMode;
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			const lastAddedCursorIndex = cursors.getLastAddedCursorIndex();
 
 			const states = cursors.getAll();
@@ -1428,7 +1419,7 @@ export namespace CoreNavigationCommands {
 			newStates[lastAddedCursorIndex] = CursorMoveCommands.line(cursors.context, states[lastAddedCursorIndex], this._inSelectionMode, args.position, args.viewPosition);
 
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				newStates
@@ -1461,14 +1452,14 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.expandLineSelection(cursors.context, cursors.getAll())
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 
 	});
@@ -1487,16 +1478,16 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				[
 					CursorMoveCommands.cancelSelection(cursors.context, cursors.getPrimaryCursor())
 				]
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 	});
 
@@ -1514,16 +1505,16 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				[
 					cursors.getPrimaryCursor()
 				]
 			);
-			cursors.reveal(args.source, true, RevealTarget.Primary, ScrollType.Smooth);
+			viewModel.revealPrimary(args.source, true);
 		}
 	});
 
@@ -1536,7 +1527,7 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			const revealLineArg = <RevealLine_.RawArguments>args;
 			let lineNumber = (revealLineArg.lineNumber || 0) + 1;
 			if (lineNumber < 1) {
@@ -1571,7 +1562,7 @@ export namespace CoreNavigationCommands {
 
 			const viewRange = cursors.context.coordinatesConverter.convertModelRangeToViewRange(range);
 
-			cursors.revealRange(args.source, false, viewRange, revealAt, ScrollType.Smooth);
+			viewModel.revealRange(args.source, false, viewRange, revealAt, ScrollType.Smooth);
 		}
 	});
 
@@ -1583,9 +1574,9 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				[
@@ -1603,9 +1594,9 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
-		public runCoreEditorCommand(cursors: ICursors, args: any): void {
+		public runCoreEditorCommand(editor: ICodeEditor, viewModel: IViewModel, cursors: ICursors, args: any): void {
 			cursors.context.model.pushStackElement();
-			cursors.setStates(
+			viewModel.setCursorStates(
 				args.source,
 				CursorChangeReason.Explicit,
 				[

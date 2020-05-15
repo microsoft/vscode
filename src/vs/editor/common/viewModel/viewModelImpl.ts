@@ -26,7 +26,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { ICursors, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -93,16 +94,6 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.coordinatesConverter = this.lines.createCoordinatesConverter();
 
 		this.cursor = this._register(new Cursor(this.configuration, model, this, this.coordinatesConverter));
-		this._register(this.cursor.addViewEventListener((events) => {
-			try {
-				const eventsCollector = this._beginEmitViewEvents();
-				for (const event of events) {
-					eventsCollector.emit(event);
-				}
-			} finally {
-				this._endEmitViewEvents();
-			}
-		}));
 
 		this.viewLayout = this._register(new ViewLayout(this.configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 
@@ -183,7 +174,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
-			this.cursor.onLineMappingChanged();
+			this.cursor.onLineMappingChanged(eventsCollector);
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
 
@@ -307,7 +298,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
-					this.cursor.onLineMappingChanged();
+					this.cursor.onLineMappingChanged(eventsCollector);
 					this.decorations.onLineMappingChanged();
 				}
 			} finally {
@@ -329,7 +320,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				}
 			}
 
-			this.cursor.onModelContentChanged(e);
+			try {
+				const eventsCollector = this._beginEmitViewEvents();
+				this.cursor.onModelContentChanged(eventsCollector, e);
+			} finally {
+				this._endEmitViewEvents();
+			}
 		}));
 
 		this._register(this.model.onDidChangeTokens((e) => {
@@ -362,14 +358,14 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this._register(this.model.onDidChangeOptions((e) => {
 			// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
 			if (this.lines.setTabSize(this.model.getOptions().tabSize)) {
-				this.cursor.onLineMappingChanged();
-				this.decorations.onLineMappingChanged();
-				this.viewLayout.onFlushed(this.getLineCount());
 				try {
 					const eventsCollector = this._beginEmitViewEvents();
 					eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+					this.cursor.onLineMappingChanged(eventsCollector);
+					this.decorations.onLineMappingChanged();
+					this.viewLayout.onFlushed(this.getLineCount());
 				} finally {
 					this._endEmitViewEvents();
 				}
@@ -393,7 +389,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 				eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
-				this.cursor.onLineMappingChanged();
+				this.cursor.onLineMappingChanged(eventsCollector);
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
 				this.viewLayout.onHeightMaybeChanged();
@@ -845,42 +841,70 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.cursor.getPrimaryCursor().modelState.position;
 	}
 	public setSelections(source: string | null | undefined, selections: readonly ISelection[]): void {
-		this.cursor.setSelections(source, selections);
+		this._withViewEventsCollector(eventsCollector => this.cursor.setSelections(eventsCollector, source, selections));
+	}
+	public setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void {
+		this._withViewEventsCollector(eventsCollector => this.cursor.setStates(eventsCollector, source, reason, states));
 	}
 	public saveCursorState(): ICursorState[] {
 		return this.cursor.saveState();
 	}
 	public restoreCursorState(states: ICursorState[]): void {
-		this.cursor.restoreState(states);
+		this._withViewEventsCollector(eventsCollector => this.cursor.restoreState(eventsCollector, states));
 	}
 
 	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
-		this.cursor.executeEdits(source, edits, cursorStateComputer);
+		this._withViewEventsCollector(eventsCollector => this.cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer));
 	}
 	public startComposition(): void {
-		this.cursor.startComposition();
+		this._withViewEventsCollector(eventsCollector => this.cursor.startComposition(eventsCollector));
 	}
 	public endComposition(source?: string | null | undefined): void {
-		this.cursor.endComposition(source);
+		this._withViewEventsCollector(eventsCollector => this.cursor.endComposition(eventsCollector, source));
 	}
 	public type(text: string, source?: string | null | undefined): void {
-		this.cursor.type(text, source);
+		this._withViewEventsCollector(eventsCollector => this.cursor.type(eventsCollector, text, source));
 	}
 	public replacePreviousChar(text: string, replaceCharCnt: number, source?: string | null | undefined): void {
-		this.cursor.replacePreviousChar(text, replaceCharCnt, source);
+		this._withViewEventsCollector(eventsCollector => this.cursor.replacePreviousChar(eventsCollector, text, replaceCharCnt, source));
 	}
 	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
-		this.cursor.paste(text, pasteOnNewLine, multicursorText, source);
+		this._withViewEventsCollector(eventsCollector => this.cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));
 	}
 	public cut(source?: string | null | undefined): void {
-		this.cursor.cut(source);
+		this._withViewEventsCollector(eventsCollector => this.cursor.cut(eventsCollector, source));
 	}
 	public executeCommand(command: ICommand, source?: string | null | undefined): void {
-		this.cursor.executeCommand(command, source);
+		this._withViewEventsCollector(eventsCollector => this.cursor.executeCommand(eventsCollector, command, source));
 	}
 	public executeCommands(commands: ICommand[], source?: string | null | undefined): void {
-		this.cursor.executeCommands(commands, source);
+		this._withViewEventsCollector(eventsCollector => this.cursor.executeCommands(eventsCollector, commands, source));
+	}
+	public revealPrimary(source: string | null | undefined, revealHorizontal: boolean): void {
+		this._withViewEventsCollector(eventsCollector => this.cursor.revealPrimary(eventsCollector, source, revealHorizontal, ScrollType.Smooth));
+	}
+	public revealTopMostCursor(source: string | null | undefined): void {
+		const viewPosition = this.cursor.getTopMostViewPosition();
+		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
+	}
+	public revealBottomMostCursor(source: string | null | undefined): void {
+		const viewPosition = this.cursor.getBottomMostViewPosition();
+		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
+	}
+	public revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: ScrollType): void {
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, verticalType, revealHorizontal, scrollType)));
 	}
 
 	//#endregion
+
+	private _withViewEventsCollector(callback: (eventsCollector: viewEvents.ViewEventsCollector) => void): void {
+		try {
+			const eventsCollector = this._beginEmitViewEvents();
+			callback(eventsCollector);
+		} finally {
+			this._endEmitViewEvents();
+		}
+	}
 }

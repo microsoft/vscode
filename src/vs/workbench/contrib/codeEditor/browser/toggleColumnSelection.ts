@@ -47,6 +47,7 @@ export class ToggleColumnSelectionAction extends Action {
 		if (!codeEditor || codeEditor !== this._getCodeEditor() || oldValue === newValue || !codeEditor.hasModel()) {
 			return;
 		}
+		const viewModel = codeEditor._getViewModel();
 		const cursors = codeEditor._getCursors();
 		if (codeEditor.getOption(EditorOption.columnSelection)) {
 			const selection = codeEditor.getSelection();
@@ -55,12 +56,12 @@ export class ToggleColumnSelectionAction extends Action {
 			const modelPosition = new Position(selection.positionLineNumber, selection.positionColumn);
 			const viewPosition = cursors.context.coordinatesConverter.convertModelPositionToViewPosition(modelPosition);
 
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursors, {
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(codeEditor, viewModel, cursors, {
 				position: modelSelectionStart,
 				viewPosition: viewSelectionStart
 			});
 			const visibleColumn = CursorColumns.visibleColumnFromColumn2(cursors.context.config, cursors.context.viewModel, viewPosition);
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursors, {
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(codeEditor, viewModel, cursors, {
 				position: modelPosition,
 				viewPosition: viewPosition,
 				doColumnSelect: true,

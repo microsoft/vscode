@@ -10,11 +10,12 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { IViewEventEmitter } from 'vs/editor/common/view/viewEvents';
+import { IViewEventEmitter, VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { ICursorSimpleModel, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -137,6 +138,16 @@ export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 	getEOL(): string;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null;
+
+	//#region cursor
+
+	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
+	revealPrimary(source: string | null | undefined, revealHorizontal: boolean): void;
+	revealTopMostCursor(source: string | null | undefined): void;
+	revealBottomMostCursor(source: string | null | undefined): void;
+	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
+
+	//#endregion
 }
 
 export class MinimapLinesRenderingData {

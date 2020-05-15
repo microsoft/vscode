@@ -7,17 +7,15 @@ import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
 
@@ -54,10 +52,6 @@ export interface ICursors {
 
 	getColumnSelectData(): IColumnSelectData;
 	setColumnSelectData(columnSelectData: IColumnSelectData): void;
-
-	setStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
-	reveal(source: string | null | undefined, horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
-	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
 
 	getPrevEditOperationType(): EditOperationType;
 	setPrevEditOperationType(type: EditOperationType): void;
