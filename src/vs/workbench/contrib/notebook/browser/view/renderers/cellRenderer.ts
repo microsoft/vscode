@@ -320,11 +320,15 @@ abstract class AbstractCellRenderer {
 		}));
 	}
 
-	protected commonRenderElement(element: ICellViewModel, index: number, templateData: BaseCellRenderTemplate): void {
+	protected commonRenderTemplate(templateData: BaseCellRenderTemplate): void {
 		templateData.disposables.add(DOM.addDisposableListener(templateData.container, DOM.EventType.FOCUS, () => {
-			this.notebookEditor.selectElement(element);
+			if (templateData.currentRenderedCell) {
+				this.notebookEditor.selectElement(templateData.currentRenderedCell);
+			}
 		}, true));
+	}
 
+	protected commonRenderElement(element: ICellViewModel, index: number, templateData: BaseCellRenderTemplate): void {
 		if (element.dragging) {
 			templateData.container.classList.add(DRAGGING_CLASS);
 		} else {
@@ -393,6 +397,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 			toJSON: () => { return {}; }
 		};
 		this.dndController.registerDragHandle(templateData, () => this.getDragImage(templateData));
+		this.commonRenderTemplate(templateData);
 		return templateData;
 	}
 
@@ -955,6 +960,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				this.notebookEditor.focusNotebookCell(templateData.currentRenderedCell, 'output');
 			}
 		}));
+
+		this.commonRenderTemplate(templateData);
 
 		return templateData;
 	}
