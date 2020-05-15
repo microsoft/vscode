@@ -1231,7 +1231,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this._contributions[contributionId].dispose();
 		}
 
+		this.localStore.clear();
+		this.list?.clear();
+		this.webview?.dispose();
+
 		this.overlayContainer.remove();
+		this.viewModel?.dispose();
 
 		// this._layoutService.container.removeChild(this.overlayContainer);
 
