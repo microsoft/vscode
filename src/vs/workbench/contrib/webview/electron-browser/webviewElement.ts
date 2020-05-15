@@ -25,6 +25,7 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
+import { equals } from 'vs/base/common/arrays';
 
 
 class WebviewTagHandle extends Disposable {
@@ -115,23 +116,45 @@ class WebviewSession extends Disposable {
 
 class WebviewProtocolProvider extends Disposable {
 
-	public readonly ready: Promise<void>;
+	private _ready?: Promise<void>;
+
+	private _localResourceRoots: ReadonlyArray<URI>;
 
 	constructor(
 		private readonly id: string,
-		extension: WebviewExtensionDescription | undefined,
-		getLocalResourceRoots: () => ReadonlyArray<URI>,
+		private readonly extension: WebviewExtensionDescription | undefined,
+		initialLocalResourceRoots: ReadonlyArray<URI>,
 	) {
 		super();
 
-		ipcRenderer.send('vscode:registerWebview', id, {
-			extensionLocation: extension?.location.toJSON(),
-			localResourceRoots: getLocalResourceRoots().map(x => x.toJSON()),
+		this._localResourceRoots = initialLocalResourceRoots;
+
+		ipcRenderer.send('vscode:registerWebview', this.id, {
+			extensionLocation: this.extension?.location.toJSON(),
+			localResourceRoots: initialLocalResourceRoots.map(x => x.toJSON()),
 		});
 
-		this.ready = new Promise((resolve) => {
-			ipcRenderer.once(`vscode:didRegisterWebview-${id}`, () => resolve());
+		this._ready = new Promise((resolve) => {
+			ipcRenderer.once(`vscode:didRegisterWebview-${this.id}`, () => resolve());
 		});
+	}
+
+	public update(localResourceRoots: ReadonlyArray<URI>) {
+		if (equals(this._localResourceRoots, localResourceRoots, (a, b) => a.toString() === b.toString())) {
+			return;
+		}
+
+		this._localResourceRoots = localResourceRoots;
+
+		ipcRenderer.send('vscode:updateWebviewLocalResourceRoots', this.id, localResourceRoots.map(x => x.toJSON()));
+
+		this._ready = new Promise((resolve) => {
+			ipcRenderer.once(`vscode:didUpdateWebviewLocalResourceRoots-${this.id}`, () => resolve());
+		});
+	}
+
+	async synchronize(): Promise<void> {
+		return this._ready;
 	}
 
 	dispose() {
@@ -258,8 +281,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
 		const session = this._register(new WebviewSession(webviewAndContents));
 
-		this._protocolProvider = new WebviewProtocolProvider(id, extension, () => (this.content.options.localResourceRoots || []));
-		this._register(this._protocolProvider);
+		this._protocolProvider = this._register(new WebviewProtocolProvider(id, extension, this.content.options.localResourceRoots || []));
 
 		this._register(new WebviewPortMappingProvider(
 			session,
@@ -353,6 +375,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		return element;
 	}
 
+	public set contentOptions(options: WebviewContentOptions) {
+		this._protocolProvider.update(options.localResourceRoots || []);
+		super.contentOptions = options;
+	}
+
 	protected readonly extraContentOptions = {};
 
 	public set html(value: string) {
@@ -383,7 +410,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	protected async postMessage(channel: string, data?: any): Promise<void> {
 		await Promise.all([
-			this._protocolProvider.ready,
+			this._protocolProvider.synchronize(),
 			this._domReady,
 		]);
 		this.element?.send(channel, data);

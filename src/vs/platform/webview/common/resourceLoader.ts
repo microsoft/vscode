@@ -48,11 +48,11 @@ export async function loadLocalResource(
 	requestUri: URI,
 	fileService: IFileService,
 	extensionLocation: URI | undefined,
-	getRoots: () => ReadonlyArray<URI>
+	roots: ReadonlyArray<URI>
 ): Promise<WebviewResourceResponse.Response> {
 	const normalizedPath = normalizeRequestPath(requestUri);
 
-	for (const root of getRoots()) {
+	for (const root of roots) {
 		if (!containsResource(root, normalizedPath)) {
 			continue;
 		}
@@ -80,17 +80,12 @@ function normalizeRequestPath(requestUri: URI) {
 		return requestUri;
 	}
 
-	// Modern vscode-resources uris put the scheme of the requested resource as the authority
-	if (requestUri.authority) {
-		return URI.parse(`${requestUri.authority}:${encodeURIComponent(requestUri.path).replace(/%2F/g, '/')}`).with({
-			query: requestUri.query,
-			fragment: requestUri.fragment
-		});
-	}
-
-	// Old style vscode-resource uris lose the scheme of the resource which means they are unable to
-	// load a mix of local and remote content properly.
-	return requestUri.with({ scheme: 'file' });
+	// The `vscode-webview-resource` schemes encodes both the scheme and uri:
+	const resourceUri = URI.parse(requestUri.path.replace(/\/+(\w+)\/\//, '$1://'));
+	return resourceUri.with({
+		query: requestUri.query,
+		fragment: requestUri.fragment
+	});
 }
 
 function containsResource(root: URI, resource: URI): boolean {

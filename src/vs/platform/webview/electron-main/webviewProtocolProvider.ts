@@ -39,20 +39,29 @@ export class WebviewProtocolProvider extends Disposable {
 			event.sender.send(`vscode:didRegisterWebview-${id}`);
 		});
 
+		ipc.on('vscode:updateWebviewLocalResourceRoots', (event: IpcMainEvent, id: string, localResourceRoots: readonly URI[]) => {
+			const entry = this.webviewMetadata.get(id);
+			if (entry) {
+				this.webviewMetadata.set(id, {
+					extensionLocation: entry.extensionLocation,
+					localResourceRoots: localResourceRoots.map((x: UriComponents) => URI.from(x)),
+				});
+			}
+			event.sender.send(`vscode:didUpdateWebviewLocalResourceRoots-${id}`);
+		});
+
 		ipc.on('vscode:unregisterWebview', (_event: IpcMainEvent, id: string) => {
 			this.webviewMetadata.delete(id);
 		});
 
-
 		protocol.registerBufferProtocol(Schemas.vscodeWebviewResource, async (request, callback): Promise<void> => {
 			try {
 				const uri = URI.parse(request.url);
-				const resource = URI.parse(uri.path.replace(/^\/(\w+)/, '$1:'));
 
 				const id = uri.authority;
 				const metadata = this.webviewMetadata.get(id);
 				if (metadata) {
-					const result = await loadLocalResource(resource, this.fileService, metadata.extensionLocation, () => metadata.localResourceRoots);
+					const result = await loadLocalResource(uri, this.fileService, metadata.extensionLocation, metadata.localResourceRoots);
 					if (result.type === WebviewResourceResponse.Type.Success) {
 						return callback({
 							data: Buffer.from(result.data.buffer),
