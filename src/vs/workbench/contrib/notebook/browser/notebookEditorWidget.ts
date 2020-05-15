@@ -92,6 +92,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	protected readonly _contributions: { [key: string]: INotebookEditorContribution; };
 	private scrollBeyondLastLine: boolean;
 	private readonly memento: Memento;
+	private _isDisposed: boolean = false;
 
 
 	constructor(
@@ -747,6 +748,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		let r: () => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			relayout(cell, height);
 			r();
 		});
@@ -1226,6 +1231,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#endregion
 
 	dispose() {
+		this._isDisposed = true;
 		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			const contributionId = keys[i];
