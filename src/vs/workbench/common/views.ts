@@ -22,6 +22,7 @@ import { SetMap } from 'vs/base/common/collections';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import Severity from 'vs/base/common/severity';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -634,6 +635,8 @@ export interface ITreeItem {
 	command?: Command;
 
 	children?: ITreeItem[];
+
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
 export interface ITreeViewDataProvider {

@@ -425,7 +425,14 @@ export class TreeView extends Disposable implements ITreeView {
 			identityProvider: new TreeViewIdentityProvider(),
 			accessibilityProvider: {
 				getAriaLabel(element: ITreeItem): string {
+					if (element.accessibilityInformation) {
+						return element.accessibilityInformation.label;
+					}
+
 					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+				},
+				getRole(element: ITreeItem): string | undefined {
+					return element.accessibilityInformation?.role;
 				},
 				getWidgetAriaLabel(): string {
 					return widgetAriaLabel;
