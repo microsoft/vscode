@@ -80,7 +80,7 @@ export class GitHubServer {
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
-		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github/did-authenticate`));
 		let uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code`);
 		if (scopes === 'vso') {
 			const clientDetails = ClientRegistrar.getGitHubAppDetails();
@@ -213,7 +213,7 @@ export class GitHubServer {
 
 	public async validateToken(token: string): Promise<void> {
 		return new Promise(async (resolve, reject) => {
-			const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+			const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github/did-authenticate`));
 			const clientDetails = ClientRegistrar.getClientDetails(callbackUri);
 			const detailsString = `${clientDetails.id}:${clientDetails.secret}`;
 
@@ -257,7 +257,7 @@ export class GitHubServer {
 
 	public async revokeToken(token: string): Promise<void> {
 		return new Promise(async (resolve, reject) => {
-			const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
+			const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github/did-authenticate`));
 			const clientDetails = ClientRegistrar.getClientDetails(callbackUri);
 			const detailsString = `${clientDetails.id}:${clientDetails.secret}`;
 

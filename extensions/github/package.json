@@ -1,5 +1,5 @@
 {
-  "name": "github-authentication",
+  "name": "github",
   "displayName": "%displayName%",
   "description": "%description%",
   "publisher": "vscode",
@@ -34,8 +34,8 @@
   "main": "./out/extension.js",
   "scripts": {
     "vscode:prepublish": "npm run compile",
-    "compile": "gulp compile-extension:github-authentication",
-    "watch": "gulp watch-extension:github-authentication"
+    "compile": "gulp compile-extension:github",
+    "watch": "gulp watch-extension:github"
   },
   "dependencies": {
     "uuid": "^3.3.3",

@@ -34,7 +34,7 @@
     "update-distro": "node build/npm/update-distro.js",
     "web": "node scripts/code-web.js",
     "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions",
-    "generate-github-config": "node extensions/github-authentication/build/generateconfig.js"
+    "generate-github-config": "node extensions/github/build/generateconfig.js"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",

@@ -30,7 +30,7 @@ export class Registrar {
 
 	constructor() {
 		try {
-			const fileContents = fs.readFileSync(path.join(env.appRoot, 'extensions/github-authentication/src/common/config.json')).toString();
+			const fileContents = fs.readFileSync(path.join(env.appRoot, 'extensions/github/src/common/config.json')).toString();
 			this._config = JSON.parse(fileContents);
 		} catch (e) {
 			this._config = {
