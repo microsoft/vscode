@@ -437,6 +437,6 @@ suite('webview resource uri', () => {
 		await waitFor(500);
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
 		const uri = vscode.notebook.activeNotebookEditor!.asWebviewUri(vscode.Uri.parse('./hello.png'));
-		assert.equal(uri.scheme, 'vscode-resource');
+		assert.equal(uri.scheme, 'vscode-webview-resource');
 	});
 });
