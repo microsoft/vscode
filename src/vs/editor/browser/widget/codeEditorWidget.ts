@@ -1482,15 +1482,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
 		listenersToRemove.push(model.onWillDispose(() => this.setModel(null)));
 
-		listenersToRemove.push(viewModel.cursor.onDidReachMaxCursorCount(() => {
-			this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
-		}));
-
 		listenersToRemove.push(viewModel.cursor.onDidAttemptReadOnlyEdit(() => {
 			this._onDidAttemptReadOnlyEdit.fire(undefined);
 		}));
 
 		listenersToRemove.push(viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
+			if (e.reachedMaxCursorCount) {
+				this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
+			}
+
 			const positions: Position[] = [];
 			for (let i = 0, len = e.selections.length; i < len; i++) {
 				positions[i] = e.selections[i].getPosition();

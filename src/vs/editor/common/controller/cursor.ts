@@ -48,14 +48,19 @@ export class CursorStateChangedEvent {
 	 * Reason.
 	 */
 	readonly reason: CursorChangeReason;
+	/**
+	 * The number of cursors was limited because it has reached the maximum cursor count.
+	 */
+	readonly reachedMaxCursorCount: boolean;
 
-	constructor(selections: Selection[], modelVersionId: number, oldSelections: Selection[] | null, oldModelVersionId: number, source: string, reason: CursorChangeReason) {
+	constructor(selections: Selection[], modelVersionId: number, oldSelections: Selection[] | null, oldModelVersionId: number, source: string, reason: CursorChangeReason, reachedMaxCursorCount: boolean) {
 		this.selections = selections;
 		this.modelVersionId = modelVersionId;
 		this.oldSelections = oldSelections;
 		this.oldModelVersionId = oldModelVersionId;
 		this.source = source;
 		this.reason = reason;
+		this.reachedMaxCursorCount = reachedMaxCursorCount;
 	}
 }
 
@@ -160,9 +165,6 @@ class AutoClosedAction {
 export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	public static readonly MAX_CURSOR_COUNT = 10000;
-
-	private readonly _onDidReachMaxCursorCount: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidReachMaxCursorCount: Event<void> = this._onDidReachMaxCursorCount.event;
 
 	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
@@ -282,9 +284,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public setStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): boolean {
+		let reachedMaxCursorCount = false;
 		if (states !== null && states.length > Cursor.MAX_CURSOR_COUNT) {
 			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
-			this._onDidReachMaxCursorCount.fire(undefined);
+			reachedMaxCursorCount = true;
 		}
 
 		const oldState = new CursorModelState(this._model, this);
@@ -295,7 +298,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		this._validateAutoClosedActions();
 
-		return this._emitStateChangedIfNecessary(source, reason, oldState);
+		return this._emitStateChangedIfNecessary(source, reason, oldState, reachedMaxCursorCount);
 	}
 
 	public setColumnSelectData(columnSelectData: IColumnSelectData): void {
@@ -390,7 +393,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this._cursors.dispose();
 			this._cursors = new CursorCollection(this.context);
 			this._validateAutoClosedActions();
-			this._emitStateChangedIfNecessary('model', CursorChangeReason.ContentFlush, null);
+			this._emitStateChangedIfNecessary('model', CursorChangeReason.ContentFlush, null, false);
 		} else {
 			if (this._hasFocus && e.resultingSelection && e.resultingSelection.length > 0) {
 				const cursorState = CursorState.fromModelSelections(e.resultingSelection);
@@ -524,7 +527,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	// -----------------------------------------------------------------------------------------------------------
 	// ----- emitting events
 
-	private _emitStateChangedIfNecessary(source: string | null | undefined, reason: CursorChangeReason, oldState: CursorModelState | null): boolean {
+	private _emitStateChangedIfNecessary(source: string | null | undefined, reason: CursorChangeReason, oldState: CursorModelState | null, reachedMaxCursorCount: boolean): boolean {
 		const newState = new CursorModelState(this._model, this);
 		if (newState.equals(oldState)) {
 			return false;
@@ -543,7 +546,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		) {
 			const oldSelections = oldState ? oldState.cursorState.map(s => s.modelState.selection) : null;
 			const oldModelVersionId = oldState ? oldState.modelVersionId : 0;
-			this._onDidChange.fire(new CursorStateChangedEvent(selections, newState.modelVersionId, oldSelections, oldModelVersionId, source || 'keyboard', reason));
+			this._onDidChange.fire(new CursorStateChangedEvent(selections, newState.modelVersionId, oldSelections, oldModelVersionId, source || 'keyboard', reason, reachedMaxCursorCount));
 		}
 
 		return true;
@@ -683,7 +686,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._isHandling = false;
 		this._cursors.startTrackingSelections();
 		this._validateAutoClosedActions();
-		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
+		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState, false)) {
 			this._revealRange(source, RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
 		}
 	}
