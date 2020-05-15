@@ -10,7 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/notebook';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -732,6 +732,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
 	public readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
 
+	private pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
+
 	//#endregion
 
 	//#region Cell operations
@@ -746,15 +748,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.list?.updateElementHeight2(cell, height);
 		};
 
+		if (this.pendingLayouts.has(cell)) {
+			this.pendingLayouts.get(cell)!.dispose();
+		}
+
 		let r: () => void;
-		DOM.scheduleAtNextAnimationFrame(() => {
+		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
 			if (this._isDisposed) {
 				return;
 			}
 
+			this.pendingLayouts.delete(cell);
+
 			relayout(cell, height);
 			r();
 		});
+
+		this.pendingLayouts.set(cell, toDisposable(() => {
+			layoutDisposable.dispose();
+			r();
+		}));
 
 		return new Promise(resolve => { r = resolve; });
 	}
