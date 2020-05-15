@@ -304,9 +304,17 @@ export const getOrMakeSearchEditorInput = (
 	const storageService = accessor.get(IStorageService);
 	const configurationService = accessor.get(IConfigurationService);
 
-	const reuseOldSettings = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor?.reusePriorSearchConfiguration;
+	const searchEditorSettings = configurationService.getValue<ISearchConfigurationProperties>('search').searchEditor;
+
+	const reuseOldSettings = searchEditorSettings?.reusePriorSearchConfiguration;
+	const defaultShowContextValue = searchEditorSettings?.defaultShowContextValue;
+
 	const priorConfig: SearchConfiguration = reuseOldSettings ? new Memento(SearchEditorInput.ID, storageService).getMemento(StorageScope.WORKSPACE).searchConfig : {};
-	const defaultConfig = defaultSearchConfig();
+	let defaultConfig = defaultSearchConfig();
+	if (defaultShowContextValue !== null) {
+		defaultConfig.contextLines = defaultShowContextValue;
+	}
+
 	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };
 
 	const modelUri = existingData.modelUri ?? URI.from({ scheme: SearchEditorScheme, fragment: `${Math.random()}` });
