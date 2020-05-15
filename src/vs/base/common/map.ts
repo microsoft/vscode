@@ -486,7 +486,6 @@ export class ResourceMap<T> implements Map<URI, T> {
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
 	protected readonly map: Map<string, T>;
-	protected readonly ignoreCase?: boolean = false; // in the future this should be an uri-comparator
 
 	constructor(other?: ResourceMap<T>) {
 		this.map = other ? new Map(other.map) : new Map();
@@ -549,20 +548,7 @@ export class ResourceMap<T> implements Map<URI, T> {
 	}
 
 	private toKey(resource: URI): string {
-		let key = resource.toString();
-		if (this.ignoreCase) {
-			key = key.toLowerCase();
-		}
-
-		return key;
-	}
-
-	clone(): ResourceMap<T> {
-		const resourceMap = new ResourceMap<T>();
-
-		this.map.forEach((value, key) => resourceMap.map.set(key, value));
-
-		return resourceMap;
+		return resource.toString();
 	}
 }
 
