@@ -136,9 +136,11 @@ export class BackLayerWebView extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
 	private _initalized: Promise<void>;
+	private _disposed = false;
 
 	constructor(
 		public notebookEditor: INotebookEditor,
+		public id: string,
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
@@ -473,7 +475,7 @@ ${loaderJs}
 		return { cell: this.insetMapping.get(output)!.cell, output };
 	}
 
-	initialize(content: string) {
+	async initialize(content: string) {
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
 
@@ -558,7 +560,7 @@ ${loaderJs}
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), rootPath];
-		const webview = webviewService.createWebviewElement('' + UUID.generateUuid(), {
+		const webview = webviewService.createWebviewElement(this.id, {
 			enableFindWidget: false,
 		}, {
 			allowMultipleAPIAcquire: true,
@@ -570,6 +572,10 @@ ${loaderJs}
 	}
 
 	shouldUpdateInset(cell: CodeCellViewModel, output: IOutput, cellTop: number) {
+		if (this._disposed) {
+			return;
+		}
+
 		let outputCache = this.insetMapping.get(output)!;
 		let outputIndex = cell.outputs.indexOf(output);
 		let outputOffset = cellTop + cell.getOutputOffset(outputIndex);
@@ -586,6 +592,10 @@ ${loaderJs}
 	}
 
 	updateViewScrollTop(top: number, items: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[]) {
+		if (this._disposed) {
+			return;
+		}
+
 		let widgets: IContentWidgetTopRequest[] = items.map(item => {
 			let outputCache = this.insetMapping.get(item.output)!;
 			let id = outputCache.outputId;
@@ -613,6 +623,10 @@ ${loaderJs}
 	}
 
 	createInset(cell: CodeCellViewModel, output: IOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<number>) {
+		if (this._disposed) {
+			return;
+		}
+
 		this.updateRendererPreloads(preloads);
 		let initialTop = cellTop + offset;
 
@@ -648,6 +662,10 @@ ${loaderJs}
 	}
 
 	removeInset(output: IOutput) {
+		if (this._disposed) {
+			return;
+		}
+
 		let outputCache = this.insetMapping.get(output);
 		if (!outputCache) {
 			return;
@@ -664,6 +682,10 @@ ${loaderJs}
 	}
 
 	hideInset(output: IOutput) {
+		if (this._disposed) {
+			return;
+		}
+
 		let outputCache = this.insetMapping.get(output);
 		if (!outputCache) {
 			return;
@@ -679,6 +701,10 @@ ${loaderJs}
 	}
 
 	clearInsets() {
+		if (this._disposed) {
+			return;
+		}
+
 		this.webview.sendMessage({
 			type: 'clear'
 		});
@@ -688,6 +714,10 @@ ${loaderJs}
 	}
 
 	focusOutput(cellId: string) {
+		if (this._disposed) {
+			return;
+		}
+
 		this.webview.focus();
 		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
 			this.webview.sendMessage({
@@ -698,6 +728,10 @@ ${loaderJs}
 	}
 
 	updateRendererPreloads(preloads: ReadonlySet<number>) {
+		if (this._disposed) {
+			return;
+		}
+
 		let resources: string[] = [];
 		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
@@ -740,5 +774,10 @@ ${loaderJs}
 
 	clearPreloadsCache() {
 		this.preloadsCache.clear();
+	}
+
+	dispose() {
+		this._disposed = true;
+		super.dispose();
 	}
 }

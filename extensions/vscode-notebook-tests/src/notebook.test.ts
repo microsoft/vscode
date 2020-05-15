@@ -345,3 +345,15 @@ suite('regression', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
 	});
 });
+
+suite('webview resource uri', () => {
+	test('asWebviewUri', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		const uri = vscode.notebook.activeNotebookEditor!.asWebviewUri(vscode.Uri.parse('./hello.png'));
+		assert.equal(uri.scheme, 'vscode-resource');
+	});
+});

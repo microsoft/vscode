@@ -178,6 +178,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
 		this._notebookProviders.set(viewType, { extensionData, controller });
+		this.notebookProviderInfoStore.get(viewType)!.hasKernelSupport = controller.hasKernelSupport;
 		this._onDidChangeViewTypes.fire();
 	}
 
@@ -312,20 +313,20 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return modelData.model;
 	}
 
-	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
+	async executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
 		let provider = this._notebookProviders.get(viewType);
 
 		if (provider) {
-			return provider.controller.executeNotebook(viewType, uri, token);
+			return provider.controller.executeNotebook(viewType, uri, useAttachedKernel, token);
 		}
 
 		return;
 	}
 
-	async executeNotebookCell(viewType: string, uri: URI, handle: number, token: CancellationToken): Promise<void> {
+	async executeNotebookCell(viewType: string, uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
 		const provider = this._notebookProviders.get(viewType);
 		if (provider) {
-			await provider.controller.executeNotebookCell(uri, handle, token);
+			await provider.controller.executeNotebookCell(uri, handle, useAttachedKernel, token);
 		}
 	}
 

@@ -1732,6 +1732,11 @@ declare module 'vscode' {
 		 */
 		postMessage(message: any): Thenable<boolean>;
 
+		/**
+		 * Convert a uri for the local file system to one that can be used inside outputs webview.
+		 */
+		asWebviewUri(localResource: Uri): Uri;
+
 		edit(callback: (editBuilder: NotebookEditorCellEdit) => void): Thenable<boolean>;
 	}
 
@@ -1793,6 +1798,8 @@ declare module 'vscode' {
 
 		// revert?(document: NotebookDocument, cancellation: CancellationToken): Thenable<void>;
 		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
+
+		kernel?: NotebookKernel;
 
 		/**
 		 * Responsible for filling in outputs for the cell

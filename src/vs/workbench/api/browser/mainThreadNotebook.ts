@@ -17,6 +17,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class MainThreadNotebookDocument extends Disposable {
 	private _textModel: NotebookTextModel;
@@ -29,10 +30,11 @@ export class MainThreadNotebookDocument extends Disposable {
 		private readonly _proxy: ExtHostNotebookShape,
 		public handle: number,
 		public viewType: string,
-		public uri: URI
+		public uri: URI,
+		public webviewId: string,
 	) {
 		super();
-		this._textModel = new NotebookTextModel(handle, viewType, uri);
+		this._textModel = new NotebookTextModel(handle, viewType, uri, webviewId);
 		this._register(this._textModel.onDidModelChange(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
 		}));
@@ -121,8 +123,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._notebookService.unregisterNotebookRenderer(handle);
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string): Promise<void> {
-		let controller = new MainThreadNotebookController(this._proxy, this, viewType);
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, hasKernelSupport: boolean): Promise<void> {
+		let controller = new MainThreadNotebookController(this._proxy, this, viewType, hasKernelSupport);
 		this._notebookProviders.set(viewType, controller);
 		this._notebookService.registerNotebookController(viewType, extension, controller);
 		return;
@@ -176,8 +178,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		controller?.spliceNotebookCellOutputs(resource, cellHandle, splices, renderers);
 	}
 
-	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
-		return this._proxy.$executeNotebook(viewType, uri, undefined, token);
+	async executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
+		return this._proxy.$executeNotebook(viewType, uri, undefined, useAttachedKernel, token);
 	}
 
 	async $postMessage(handle: number, value: any): Promise<boolean> {
@@ -203,7 +205,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	constructor(
 		private readonly _proxy: ExtHostNotebookShape,
 		private _mainThreadNotebook: MainThreadNotebooks,
-		private _viewType: string
+		private _viewType: string,
+		readonly hasKernelSupport: boolean
 	) {
 	}
 
@@ -227,7 +230,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			return mainthreadNotebook.textModel;
 		}
 
-		let document = new MainThreadNotebookDocument(this._proxy, MainThreadNotebookController.documentHandle++, viewType, uri);
+		let document = new MainThreadNotebookDocument(this._proxy, MainThreadNotebookController.documentHandle++, viewType, uri, generateUuid());
 		await this.createNotebookDocument(document);
 
 		if (forBackup) {
@@ -272,8 +275,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		mainthreadNotebook?.textModel.$spliceNotebookCellOutputs(cellHandle, splices);
 	}
 
-	async executeNotebook(viewType: string, uri: URI, token: CancellationToken): Promise<void> {
-		return this._mainThreadNotebook.executeNotebook(viewType, uri, token);
+	async executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
+		return this._mainThreadNotebook.executeNotebook(viewType, uri, useAttachedKernel, token);
 	}
 
 	onDidReceiveMessage(uri: UriComponents, message: any): void {
@@ -287,6 +290,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			addedDocuments: [{
 				viewType: document.viewType,
 				handle: document.handle,
+				webviewId: document.webviewId,
 				uri: document.uri,
 				metadata: document.textModel.metadata
 			}]
@@ -327,8 +331,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		document?.textModel.updateRenderers(renderers);
 	}
 
-	async executeNotebookCell(uri: URI, handle: number, token: CancellationToken): Promise<void> {
-		return this._proxy.$executeNotebook(this._viewType, uri, handle, token);
+	async executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
+		return this._proxy.$executeNotebook(this._viewType, uri, handle, useAttachedKernel, token);
 	}
 
 	async save(uri: URI, token: CancellationToken): Promise<boolean> {
