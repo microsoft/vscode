@@ -34,7 +34,6 @@ class TestTerminalLinkManager extends TerminalLinkManager {
 
 class TestXterm {
 	public loadAddon() { }
-	public registerLinkMatcher() { }
 }
 
 class MockTerminalInstanceService implements ITerminalInstanceService {
