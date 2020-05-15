@@ -94,7 +94,9 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 				return undefined;
 			}
 
-			const input = NotebookEditorInput.getOrCreate(instantiationService, resource, name, viewType);
+			// if we have two editors open with the same resource (in different editor groups), we should then create two different
+			// editor inputs, instead of `getOrCreate`.
+			const input = NotebookEditorInput.create(instantiationService, resource, name, viewType);
 			if (typeof data.group === 'number') {
 				input.updateGroup(data.group);
 			}
@@ -245,7 +247,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				const name = basename(data.notebook);
 				let input = this._resourceMapping.get(data.notebook);
 				if (!input || input.isDisposed()) {
-					input = NotebookEditorInput.getOrCreate(this.instantiationService, data.notebook, name, info.id);
+					input = NotebookEditorInput.create(this.instantiationService, data.notebook, name, info.id);
 					this._resourceMapping.set(data.notebook, input);
 				}
 
@@ -261,7 +263,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.getOrCreate(this.instantiationService, resource, originalInput.getName(), info.id);
+		const input = NotebookEditorInput.create(this.instantiationService, resource, originalInput.getName(), info.id);
 		input.updateGroup(group.id);
 		this._resourceMapping.set(resource, input);
 
