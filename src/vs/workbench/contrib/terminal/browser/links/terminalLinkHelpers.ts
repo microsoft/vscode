@@ -98,7 +98,7 @@ export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd:
 	for (let i = lineStart; i <= lineEnd; i++) {
 		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
 		// retain buffer data outside of the terminal width as reflow is disabled.
-		line += buffer.getLine(i)?.translateToString(true, 0, cols);
+		line += buffer.getLine(i)!.translateToString(true, 0, cols);
 	}
 	return line;
 }
