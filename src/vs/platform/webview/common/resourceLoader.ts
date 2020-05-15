@@ -114,8 +114,11 @@ function normalizeRequestPath(requestUri: URI) {
 		return requestUri;
 	}
 
-	// The `vscode-webview-resource` schemes encodes both the scheme and uri:
-	const resourceUri = URI.parse(requestUri.path.replace(/\/+(\w+)\/\//, '$1://'));
+	// The `vscode-webview-resource` scheme has the following format:
+	//
+	// vscode-webview-resource://id/scheme//authority?/path
+	//
+	const resourceUri = URI.parse(requestUri.path.replace(/^\/(\w+)\/{1,2}/, '$1://'));
 	return resourceUri.with({
 		query: requestUri.query,
 		fragment: requestUri.fragment
