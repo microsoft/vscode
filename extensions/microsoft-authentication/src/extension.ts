@@ -26,10 +26,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		login: async (scopes: string[]) => {
 			try {
 				telemetryReporter.sendTelemetryEvent('login');
-				await loginService.login(scopes.sort().join(' '));
-				const session = loginService.sessions[loginService.sessions.length - 1];
+				const session = await loginService.login(scopes.sort().join(' '));
 				onDidChangeSessions.fire({ added: [session.id], removed: [], changed: [] });
-				return loginService.sessions[0]!;
+				return session;
 			} catch (e) {
 				telemetryReporter.sendTelemetryEvent('loginFailed');
 				throw e;
