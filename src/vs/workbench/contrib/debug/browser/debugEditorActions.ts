@@ -81,12 +81,12 @@ class ConditionalBreakpointAction extends EditorAction {
 	}
 }
 
-export const TOGGLE_LOG_POINT_ID = 'editor.debug.action.toggleLogPoint';
+export const ADD_LOG_POINT_ID = 'editor.debug.action.addLogPoint';
 class LogPointAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: TOGGLE_LOG_POINT_ID,
+			id: ADD_LOG_POINT_ID,
 			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
 			alias: 'Debug: Add Logpoint...',
 			precondition: undefined
