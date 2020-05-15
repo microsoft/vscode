@@ -124,7 +124,6 @@ export class NotebookEditor extends BaseEditor {
 				// set a new input, let's hide previous input
 				this.saveEditorViewState(this.input as NotebookEditorInput);
 				this._widget?.onWillHide();
-				this._widget?.onBeforeDetached();
 			}
 		}
 
@@ -134,7 +133,6 @@ export class NotebookEditor extends BaseEditor {
 		Event.once(input.onDispose)(() => {
 			// make sure the editor widget is removed from the view
 			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
-			// this.saveEditorViewState(this.input as NotebookEditorInput);
 			existingEditorWidgetForInput?.getDomNode().remove();
 			existingEditorWidgetForInput?.dispose();
 			NotebookRegistry.releaseNotebookEditorWidget(this.input as NotebookEditorInput);
@@ -145,10 +143,15 @@ export class NotebookEditor extends BaseEditor {
 		const viewState = this.loadTextEditorViewState(input);
 		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input);
 		if (existingEditorWidgetForInput) {
+			// hide current widget
 			this._widget?.onWillHide();
-			this._widget?.onBeforeDetached();
+			// previous widget is then detached
+			// set the new one
 			this._widget = existingEditorWidgetForInput;
 		} else {
+			// hide current widget
+			this._widget?.onWillHide();
+			// create a new widget
 			this._widget = this.instantiationService.createInstance(NotebookEditorWidget);
 			this._widget.createEditor();
 			NotebookRegistry.claimNotebookEditorWidget(input, this._widget);
@@ -158,13 +161,11 @@ export class NotebookEditor extends BaseEditor {
 			this._widget.layout(this.dimension, this._rootElement);
 		}
 
-		this._widget.onBeforeAttached();
 		this._widget.setModel(model.notebook, viewState, options);
 	}
 
 	clearInput(): void {
 		this._widget?.onWillHide();
-		this._widget?.onBeforeDetached();
 		this._widget = undefined;
 		super.clearInput();
 	}
