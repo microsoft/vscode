@@ -22,7 +22,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, asDomUri } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, asDomUri, addClass } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -675,6 +675,11 @@ export class CompositeDragAndDropObserver extends Disposable {
 		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
 			const { id, type } = draggedItemProvider();
 			this.writeDragData(id, type);
+
+			if (e.dataTransfer) {
+				e.dataTransfer.setDragImage(element, 0, 0);
+			}
+
 			this._onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
 		}));
 		disposableStore.add(new DragAndDropObserver(element, {
