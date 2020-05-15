@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ViewContainerLocation, IViewDescriptorService, ViewContainer, IViewsRegistry, IViewContainersRegistry, IViewDescriptor, Extensions as ViewExtensions } from 'vs/workbench/common/views';
-import { IContextKey, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, RawContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, IWorkspaceStorageChangeEvent } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -18,6 +18,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ViewContainerModel } from 'vs/workbench/services/views/common/viewContainerModel';
+import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
+import { localize } from 'vs/nls';
 
 interface ICachedViewContainerInfo {
 	containerId: string;
@@ -44,6 +46,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private readonly activeViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly movableViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly defaultViewLocationContextKeys: Map<string, IContextKey<boolean>>;
+	private readonly defaultViewContainerLocationContextKeys: Map<string, IContextKey<boolean>>;
 
 	private readonly viewsRegistry: IViewsRegistry;
 	private readonly viewContainersRegistry: IViewContainersRegistry;
@@ -103,6 +106,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.defaultViewLocationContextKeys = new Map<string, IContextKey<boolean>>();
+		this.defaultViewContainerLocationContextKeys = new Map<string, IContextKey<boolean>>();
 
 		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		this.viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -296,6 +300,9 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const to = location;
 		if (from !== to) {
 			this.cachedViewContainerInfo.set(viewContainer.id, to);
+
+			const defaultLocation = this.isGeneratedContainerId(viewContainer.id) ? true : this.getViewContainerLocation(viewContainer) === this.getDefaultViewContainerLocation(viewContainer);
+			this.getOrCreateDefaultViewContainerLocationContextKey(viewContainer).set(defaultLocation);
 
 			this._onDidChangeContainerLocation.fire({ viewContainer, from, to });
 
@@ -590,6 +597,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
+		const defaultLocation = this.isGeneratedContainerId(viewContainer.id) ? true : this.getViewContainerLocation(viewContainer) === this.getDefaultViewContainerLocation(viewContainer);
+		this.getOrCreateDefaultViewContainerLocationContextKey(viewContainer).set(defaultLocation);
 		this.getOrRegisterViewContainerModel(viewContainer);
 	}
 
@@ -602,6 +611,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			this.onDidChangeActiveViews({ added: viewContainerModel.activeViewDescriptors, removed: [] });
 			viewContainerModel.onDidChangeActiveViewDescriptors(changed => this.onDidChangeActiveViews(changed), this, disposables);
+
+			disposables.add(this.registerResetViewContainerAction(viewContainer));
 
 			this.viewContainerModels.set(viewContainer, { viewContainerModel: viewContainerModel, disposable: disposables });
 
@@ -630,6 +641,33 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	private onDidChangeActiveViews({ added, removed }: { added: ReadonlyArray<IViewDescriptor>, removed: ReadonlyArray<IViewDescriptor>; }): void {
 		added.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(true));
 		removed.forEach(viewDescriptor => this.getOrCreateActiveViewContextKey(viewDescriptor).set(false));
+	}
+
+	private registerResetViewContainerAction(viewContainer: ViewContainer): IDisposable {
+		const that = this;
+		return registerAction2(class ResetViewLocationAction extends Action2 {
+			constructor() {
+				super({
+					id: `${viewContainer.id}.resetViewContainerLocation`,
+					title: {
+						original: 'Reset Location',
+						value: localize('resetViewLocation', "Reset Location")
+					},
+					menu: [{
+						id: MenuId.ViewContainerTitleContext,
+						when: ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals('container', viewContainer.id),
+								ContextKeyExpr.equals(`${viewContainer.id}.defaultViewContainerLocation`, false)
+							)
+						)
+					}],
+				});
+			}
+			run(): void {
+				that.moveViewContainerToLocation(viewContainer, that.getDefaultViewContainerLocation(viewContainer));
+			}
+		});
 	}
 
 	private addViews(container: ViewContainer, views: IViewDescriptor[]): void {
@@ -676,6 +714,16 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		if (!contextKey) {
 			contextKey = new RawContextKey(defaultViewLocationContextKeyId, false).bindTo(this.contextKeyService);
 			this.defaultViewLocationContextKeys.set(defaultViewLocationContextKeyId, contextKey);
+		}
+		return contextKey;
+	}
+
+	private getOrCreateDefaultViewContainerLocationContextKey(viewContainer: ViewContainer): IContextKey<boolean> {
+		const defaultViewContainerLocationContextKeyId = `${viewContainer.id}.defaultViewContainerLocation`;
+		let contextKey = this.defaultViewContainerLocationContextKeys.get(defaultViewContainerLocationContextKeyId);
+		if (!contextKey) {
+			contextKey = new RawContextKey(defaultViewContainerLocationContextKeyId, false).bindTo(this.contextKeyService);
+			this.defaultViewContainerLocationContextKeys.set(defaultViewContainerLocationContextKeyId, contextKey);
 		}
 		return contextKey;
 	}

@@ -186,8 +186,8 @@ export class ViewsService extends Disposable implements IViewsService {
 					super({
 						id: `${viewDescriptor.id}.resetViewLocation`,
 						title: {
-							original: 'Reset View Location',
-							value: localize('resetViewLocation', "Reset View Location")
+							original: 'Reset Location',
+							value: localize('resetViewLocation', "Reset Location")
 						},
 						menu: [{
 							id: MenuId.ViewTitleContext,
