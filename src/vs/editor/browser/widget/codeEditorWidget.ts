@@ -1595,9 +1595,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		const onDidChangeTextFocus = (textFocus: boolean) => {
-			if (this._modelData) {
-				this._modelData.viewModel.cursor.setHasFocus(textFocus);
-			}
 			this._editorTextFocus.setValue(textFocus);
 		};
 

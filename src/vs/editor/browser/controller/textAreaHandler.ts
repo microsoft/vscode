@@ -307,10 +307,12 @@ export class TextAreaHandler extends ViewPart {
 		}));
 
 		this._register(this._textAreaInput.onFocus(() => {
+			this._context.model.setHasFocus(true);
 			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(true));
 		}));
 
 		this._register(this._textAreaInput.onBlur(() => {
+			this._context.model.setHasFocus(false);
 			this._context.privateViewEventBus.emit(new viewEvents.ViewFocusChangedEvent(false));
 		}));
 	}

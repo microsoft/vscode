@@ -160,6 +160,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	public setHasFocus(hasFocus: boolean): void {
 		this.hasFocus = hasFocus;
+		this.cursor.setHasFocus(hasFocus);
 	}
 
 	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: ConfigurationChangedEvent): void {
