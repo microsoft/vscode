@@ -10,8 +10,8 @@ import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterVa
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IConfiguration, IViewState, ScrollType, ICursorState } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -852,6 +852,34 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 	public restoreCursorState(states: ICursorState[]): void {
 		this.cursor.restoreState(states);
+	}
+
+	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
+		this.cursor.executeEdits(source, edits, cursorStateComputer);
+	}
+	public startComposition(): void {
+		this.cursor.startComposition();
+	}
+	public endComposition(source?: string | null | undefined): void {
+		this.cursor.endComposition(source);
+	}
+	public type(text: string, source?: string | null | undefined): void {
+		this.cursor.type(text, source);
+	}
+	public replacePreviousChar(text: string, replaceCharCnt: number, source?: string | null | undefined): void {
+		this.cursor.replacePreviousChar(text, replaceCharCnt, source);
+	}
+	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
+		this.cursor.paste(text, pasteOnNewLine, multicursorText, source);
+	}
+	public cut(source?: string | null | undefined): void {
+		this.cursor.cut(source);
+	}
+	public executeCommand(command: ICommand, source?: string | null | undefined): void {
+		this.cursor.executeCommand(command, source);
+	}
+	public executeCommands(commands: ICommand[], source?: string | null | undefined): void {
+		this.cursor.executeCommands(commands, source);
 	}
 
 	//#endregion

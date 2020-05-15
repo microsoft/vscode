@@ -1022,7 +1022,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.cursor.startComposition();
+		this._modelData.viewModel.startComposition();
 		this._onDidCompositionStart.fire();
 	}
 
@@ -1030,7 +1030,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.cursor.endComposition(source);
+		this._modelData.viewModel.endComposition(source);
 		this._onDidCompositionEnd.fire();
 	}
 
@@ -1041,7 +1041,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (source === 'keyboard') {
 			this._onWillType.fire(text);
 		}
-		this._modelData.viewModel.cursor.type(text, source);
+		this._modelData.viewModel.type(text, source);
 		if (source === 'keyboard') {
 			this._onDidType.fire(text);
 		}
@@ -1051,7 +1051,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.cursor.replacePreviousChar(text, replaceCharCnt, source);
+		this._modelData.viewModel.replacePreviousChar(text, replaceCharCnt, source);
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
@@ -1059,7 +1059,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 		const startPosition = this._modelData.viewModel.getSelection().getStartPosition();
-		this._modelData.viewModel.cursor.paste(text, pasteOnNewLine, multicursorText, source);
+		this._modelData.viewModel.paste(text, pasteOnNewLine, multicursorText, source);
 		const endPosition = this._modelData.viewModel.getSelection().getStartPosition();
 		if (source === 'keyboard') {
 			this._onDidPaste.fire({
@@ -1073,7 +1073,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.cursor.cut(source);
+		this._modelData.viewModel.cut(source);
 	}
 
 	private _triggerEditorCommand(source: string | null | undefined, handlerId: string, payload: any): boolean {
@@ -1134,7 +1134,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			cursorStateComputer = endCursorState;
 		}
 
-		this._modelData.viewModel.cursor.executeEdits(source, edits, cursorStateComputer);
+		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
 		return true;
 	}
 
@@ -1142,14 +1142,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.cursor.executeCommand(command, source);
+		this._modelData.viewModel.executeCommand(command, source);
 	}
 
 	public executeCommands(source: string | null | undefined, commands: editorCommon.ICommand[]): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.cursor.executeCommands(commands, source);
+		this._modelData.viewModel.executeCommands(commands, source);
 	}
 
 	public changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any {
