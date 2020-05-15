@@ -15,6 +15,8 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/bro
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
 
@@ -45,10 +47,13 @@ type ConfigureTrustedDomainsChoiceClassification = {
 export async function configureOpenerTrustedDomainsHandler(
 	trustedDomains: string[],
 	domainToConfigure: string,
+	resource: URI,
 	quickInputService: IQuickInputService,
 	storageService: IStorageService,
 	editorService: IEditorService,
-	telemetryService: ITelemetryService
+	telemetryService: ITelemetryService,
+	notificationService: INotificationService,
+	clipboardService: IClipboardService,
 ) {
 	const parsedDomainToConfigure = URI.parse(domainToConfigure);
 	const toplevelDomainSegements = parsedDomainToConfigure.authority.split('.');
@@ -92,10 +97,12 @@ export async function configureOpenerTrustedDomainsHandler(
 
 		switch (pickedResult.id) {
 			case 'manage':
-				editorService.openEditor({
+				await editorService.openEditor({
 					resource: TRUSTED_DOMAINS_URI,
 					mode: 'jsonc'
 				});
+				notificationService.prompt(Severity.Info, localize('configuringURL', "Configuring trust for: {0}", resource.toString()),
+					[{ label: 'Copy', run: () => clipboardService.writeText(resource.toString()) }]);
 				return trustedDomains;
 			case 'trustDomain':
 			case 'trustSubdomain':
@@ -112,7 +119,7 @@ export async function configureOpenerTrustedDomainsHandler(
 						StorageScope.GLOBAL
 					);
 
-					return [...trustedDomains, pickedResult.id];
+					return [...trustedDomains, itemToTrust];
 				}
 		}
 	}
