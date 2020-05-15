@@ -310,7 +310,7 @@
 			"name": "TypeScript Extension Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/typescript-language-features/test-fixtures",
+				"${workspaceFolder}/extensions/typescript-language-features/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/typescript-language-features",
 				"--extensionTestsPath=${workspaceFolder}/extensions/typescript-language-features/out/test"
 			],

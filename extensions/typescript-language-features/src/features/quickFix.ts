@@ -333,17 +333,18 @@ const fixAllErrorCodes = new Map<number, number>([
 	[2345, 2339],
 ]);
 
-const preferredFixes = new Map<string, /* priorty */number>([
-	[fixNames.annotateWithTypeFromJSDoc, 0],
-	[fixNames.constructorForDerivedNeedSuperCall, 0],
-	[fixNames.extendsInterfaceBecomesImplements, 0],
-	[fixNames.awaitInSyncFunction, 0],
-	[fixNames.classIncorrectlyImplementsInterface, 1],
-	[fixNames.unreachableCode, 0],
-	[fixNames.unusedIdentifier, 0],
-	[fixNames.forgottenThisPropertyAccess, 0],
-	[fixNames.spelling, 1],
-	[fixNames.addMissingAwait, 0],
+const preferredFixes = new Map<string, { readonly value: number, readonly thereCanOnlyBeOne?: boolean }>([
+	[fixNames.annotateWithTypeFromJSDoc, { value: 1 }],
+	[fixNames.constructorForDerivedNeedSuperCall, { value: 1 }],
+	[fixNames.extendsInterfaceBecomesImplements, { value: 1 }],
+	[fixNames.awaitInSyncFunction, { value: 1 }],
+	[fixNames.classIncorrectlyImplementsInterface, { value: 1 }],
+	[fixNames.unreachableCode, { value: 1 }],
+	[fixNames.unusedIdentifier, { value: 1 }],
+	[fixNames.forgottenThisPropertyAccess, { value: 1 }],
+	[fixNames.spelling, { value: 2 }],
+	[fixNames.addMissingAwait, { value: 1 }],
+	[fixNames.fixImport, { value: 0, thereCanOnlyBeOne: true }],
 ]);
 
 function isPreferredFix(
@@ -354,20 +355,30 @@ function isPreferredFix(
 		return false;
 	}
 
-	const priority = preferredFixes.get(action.tsAction.fixName);
-	if (typeof priority === 'undefined') {
+	const fixPriority = preferredFixes.get(action.tsAction.fixName);
+	if (!fixPriority) {
 		return false;
 	}
 
 	return allActions.every(otherAction => {
-		if (otherAction.tsAction === action.tsAction) {
+		if (otherAction === action) {
 			return true;
 		}
-		const otherPriority = preferredFixes.get(otherAction.tsAction.fixName);
-		if (typeof otherPriority === 'undefined') {
+
+		if (otherAction.isFixAll) {
 			return true;
 		}
-		return priority >= otherPriority;
+
+		const otherFixPriority = preferredFixes.get(otherAction.tsAction.fixName);
+		if (!otherFixPriority || otherFixPriority.value < fixPriority.value) {
+			return true;
+		}
+
+		if (fixPriority.thereCanOnlyBeOne && action.tsAction.fixName === otherAction.tsAction.fixName) {
+			return false;
+		}
+
+		return true;
 	});
 }
 
