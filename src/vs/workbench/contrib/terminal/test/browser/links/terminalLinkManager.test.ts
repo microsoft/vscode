@@ -9,7 +9,6 @@ import { TerminalLinkManager, LineColumnInfo, XtermLinkMatcherHandler } from 'vs
 import * as strings from 'vs/base/common/strings';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Event } from 'vs/base/common/event';
-import { ITerminalConfigHelper } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TestPathService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
@@ -76,12 +75,6 @@ interface LinkFormatInfo {
 	column?: string;
 }
 
-const testConfigHelper: ITerminalConfigHelper = <any>{
-	config: {
-		enableFileLinks: true
-	}
-};
-
 suite('Workbench - TerminalLinkHandler', () => {
 	let instantiationService: TestInstantiationService;
 
@@ -98,7 +91,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const terminalLinkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm(), {
 				os: OperatingSystem.Windows,
 				userHome: ''
-			} as any, testConfigHelper);
+			} as any);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -175,7 +168,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const terminalLinkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm(), {
 				os: OperatingSystem.Linux,
 				userHome: ''
-			} as any, testConfigHelper);
+			} as any);
 			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
 				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
 				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
@@ -243,7 +236,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
 				os: OperatingSystem.Windows,
 				userHome: 'C:\\Users\\Me'
-			} as any, testConfigHelper);
+			} as any);
 			linkHandler.processCwd = 'C:\\base';
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base\\src\\file1');
@@ -257,7 +250,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
 				os: OperatingSystem.Windows,
 				userHome: 'C:\\Users\\M e'
-			} as any, testConfigHelper);
+			} as any);
 			linkHandler.processCwd = 'C:\\base dir';
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), 'C:\\base dir\\src\\file1');
@@ -271,7 +264,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
 				os: OperatingSystem.Linux,
 				userHome: '/home/me'
-			} as any, testConfigHelper);
+			} as any);
 			linkHandler.processCwd = '/base';
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), '/base/src/file1');
@@ -284,7 +277,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
 				os: OperatingSystem.Linux,
 				userHome: '/home/me'
-			} as any, testConfigHelper);
+			} as any);
 
 			assert.equal(linkHandler.preprocessPath('./src/file1'), null);
 			assert.equal(linkHandler.preprocessPath('src/file2'), null);
@@ -300,7 +293,7 @@ suite('Workbench - TerminalLinkHandler', () => {
 			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
 				os: OperatingSystem.Linux,
 				userHome: ''
-			} as any, testConfigHelper);
+			} as any);
 			linkHandler.onBeforeHandleLink(e => {
 				if (e.link === 'https://www.microsoft.com') {
 					intercepted = true;
