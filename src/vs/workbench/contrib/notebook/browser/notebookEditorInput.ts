@@ -14,23 +14,8 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 let NOTEBOOK_EDITOR_INPUT_HANDLE = 0;
 export class NotebookEditorInput extends EditorInput {
-
-	private static readonly _instances = new Map<string, NotebookEditorInput>();
-
-	static getOrCreate(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined) {
-		const key = resource.toString() + viewType;
-		let input = NotebookEditorInput._instances.get(key);
-		if (!input) {
-			input = instantiationService.createInstance(class extends NotebookEditorInput {
-				dispose() {
-					NotebookEditorInput._instances.delete(key);
-					super.dispose();
-				}
-			}, resource, name, viewType);
-
-			NotebookEditorInput._instances.set(key, input);
-		}
-		return input;
+	static create(instantiationService: IInstantiationService, resource: URI, name: string, viewType: string | undefined) {
+		return instantiationService.createInstance(NotebookEditorInput, resource, name, viewType);
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
@@ -132,7 +117,7 @@ export class NotebookEditorInput extends EditorInput {
 	}
 
 	_move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
-		const editorInput = NotebookEditorInput.getOrCreate(this.instantiationService, newResource, basename(newResource), this.viewType);
+		const editorInput = NotebookEditorInput.create(this.instantiationService, newResource, basename(newResource), this.viewType);
 		return { editor: editorInput };
 	}
 

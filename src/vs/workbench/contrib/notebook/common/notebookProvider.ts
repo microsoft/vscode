@@ -18,6 +18,7 @@ export class NotebookProviderInfo {
 	readonly displayName: string;
 	readonly selector: readonly NotebookSelector[];
 	readonly providerDisplayName: string;
+	hasKernelSupport: boolean = false;
 
 	constructor(descriptor: {
 		readonly id: string;

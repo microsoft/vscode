@@ -193,15 +193,11 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		const accountUsages = readAccountUsages(this.storageService, this.id, session.account.displayName);
 		const sessionsForAccount = this._accounts.get(session.account.displayName);
 
-		// Skip dialog if nothing is using the account
-		if (!accountUsages.length) {
-			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
-			return;
-		}
-
 		const result = await dialogService.confirm({
 			title: nls.localize('signOutConfirm', "Sign out of {0}", session.account.displayName),
-			message: nls.localize('signOutMessage', "The account {0} is has been used by: \n\n{1}\n\n Sign out of these features?", session.account.displayName, accountUsages.map(usage => usage.extensionName).join('\n'))
+			message: accountUsages.length
+				? nls.localize('signOutMessage', "The account {0} has been used by: \n\n{1}\n\n Sign out of these features?", session.account.displayName, accountUsages.map(usage => usage.extensionName).join('\n'))
+				: ''
 		});
 
 		if (result.confirmed) {

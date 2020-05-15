@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -32,7 +32,7 @@ suite('SuggestController', function () {
 	const disposables = new DisposableStore();
 
 	let controller: SuggestController;
-	let editor: TestCodeEditor;
+	let editor: ITestCodeEditor;
 	let model: TextModel;
 
 	setup(function () {

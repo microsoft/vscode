@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Event, Emitter } from 'vs/base/common/event';
-import { getUserDataSyncStore, IUserDataSyncEnablementService, IAuthenticationProvider, isAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { getUserDataSyncStore, IUserDataSyncEnablementService, IAuthenticationProvider, isAuthenticationProvider, AccountStatus } from 'vs/platform/userDataSync/common/userDataSync';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { values } from 'vs/base/common/map';
@@ -39,12 +39,6 @@ export class UserDataSyncAccount {
 	get accountName(): string { return this.session.account.displayName; }
 	get accountId(): string { return this.session.account.id; }
 	getToken(): Thenable<string> { return this.session.getAccessToken(); }
-}
-
-export const enum AccountStatus {
-	Uninitialized = 'uninitialized',
-	Unavailable = 'unavailable',
-	Available = 'available',
 }
 
 export class UserDataSyncAccounts extends Disposable {

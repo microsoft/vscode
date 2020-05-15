@@ -12,16 +12,16 @@ import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 function testCommand(lines: string[], selections: Selection[], edits: IIdentifiedSingleEditOperation[], expectedLines: string[], expectedSelections: Selection[]): void {
-	withTestCodeEditor(lines, {}, (editor, cursor) => {
+	withTestCodeEditor(lines, {}, (editor, viewModel) => {
 		const model = editor.getModel()!;
 
-		cursor.setSelections('tests', selections);
+		viewModel.setSelections('tests', selections);
 
 		model.applyEdits(edits);
 
 		assert.deepEqual(model.getLinesContent(), expectedLines);
 
-		let actualSelections = cursor.getSelections();
+		let actualSelections = viewModel.getSelections();
 		assert.deepEqual(actualSelections.map(s => s.toString()), expectedSelections.map(s => s.toString()));
 
 	});
@@ -194,14 +194,14 @@ suite('SideEditing', () => {
 	];
 
 	function _runTest(selection: Selection, editRange: Range, editText: string, editForceMoveMarkers: boolean, expected: Selection, msg: string): void {
-		withTestCodeEditor(LINES.join('\n'), {}, (editor, cursor) => {
-			cursor.setSelections('tests', [selection]);
-			cursor.context.model.applyEdits([{
+		withTestCodeEditor(LINES.join('\n'), {}, (editor, viewModel) => {
+			viewModel.setSelections('tests', [selection]);
+			editor.getModel().applyEdits([{
 				range: editRange,
 				text: editText,
 				forceMoveMarkers: editForceMoveMarkers
 			}]);
-			const actual = cursor.getSelection();
+			const actual = viewModel.getSelection();
 			assert.deepEqual(actual.toString(), expected.toString(), msg);
 		});
 	}
