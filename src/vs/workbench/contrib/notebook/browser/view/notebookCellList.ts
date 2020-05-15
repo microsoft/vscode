@@ -67,15 +67,17 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this._previousFocusedElements = e.elements;
 
 			// if focus is in the list, but is not inside the focused element, then reset focus
-			if (DOM.isAncestor(document.activeElement, this.rowsContainer)) {
-				const focusedElement = this.getFocusedElements()[0];
-				if (focusedElement) {
-					const focusedDomElement = this.domElementOfElement(focusedElement);
-					if (focusedDomElement && !DOM.isAncestor(document.activeElement, focusedDomElement)) {
-						focusedDomElement.focus();
+			setTimeout(() => {
+				if (DOM.isAncestor(document.activeElement, this.rowsContainer)) {
+					const focusedElement = this.getFocusedElements()[0];
+					if (focusedElement) {
+						const focusedDomElement = this.domElementOfElement(focusedElement);
+						if (focusedDomElement && !DOM.isAncestor(document.activeElement, focusedDomElement)) {
+							focusedDomElement.focus();
+						}
 					}
 				}
-			}
+			}, 0);
 		}));
 
 		const notebookEditorCursorAtBoundaryContext = NOTEBOOK_EDITOR_CURSOR_BOUNDARY.bindTo(contextKeyService);
@@ -132,8 +134,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	}
 
-	elementAt(position: number): ICellViewModel {
-		return this.element(this.view.indexAt(position));
+	elementAt(position: number): ICellViewModel | undefined {
+		const idx = this.view.indexAt(position);
+		if (idx >= 0) {
+			return this.element(idx);
+		}
+
+		return undefined;
 	}
 
 	elementHeight(element: ICellViewModel): number {

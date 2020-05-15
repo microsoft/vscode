@@ -537,11 +537,15 @@ export class CellDragAndDropController extends Disposable {
 		this._register(domEvent(document.body, DOM.EventType.DRAG_END, true)(this.onGlobalDragEnd.bind(this)));
 
 		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void) => {
-			this._register(
-				Event.map(
-					domEvent(notebookEditor.getDomNode(), eventType),
-					this.toCellDragEvent.bind(this))
-					(handler));
+			this._register(DOM.addDisposableListener(
+				notebookEditor.getDomNode(),
+				eventType,
+				e => {
+					const cellDragEvent = this.toCellDragEvent(e);
+					if (cellDragEvent) {
+						handler(cellDragEvent);
+					}
+				}));
 		};
 
 		addCellDragListener(DOM.EventType.DRAG_OVER, event => {
@@ -576,10 +580,14 @@ export class CellDragAndDropController extends Disposable {
 		this.listInsertionIndicator.style.opacity = visible ? '1' : '0';
 	}
 
-	private toCellDragEvent(event: DragEvent): CellDragEvent {
+	private toCellDragEvent(event: DragEvent): CellDragEvent | undefined {
 		const targetTop = this.notebookEditor.getDomNode().getBoundingClientRect().top;
 		const dragOffset = this.list.scrollTop + event.clientY - targetTop;
 		const draggedOverCell = this.list.elementAt(dragOffset);
+		if (!draggedOverCell) {
+			return undefined;
+		}
+
 		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 
