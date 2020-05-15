@@ -7140,6 +7140,8 @@ declare module 'vscode' {
 		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 * @return Disposable which unregisters this command on disposal.
+		 * *Note:* The `registerTextEditorCommand` should run synchronously...
+		 *
 		 */
 		export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit, ...args: any[]) => void, thisArg?: any): Disposable;
 
