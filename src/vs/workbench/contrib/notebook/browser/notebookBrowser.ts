@@ -85,6 +85,7 @@ export interface CodeCellLayoutChangeEvent {
 export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: BareFontInfo | null;
 	readonly editorWidth: number;
+	readonly editorHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
 }
@@ -93,6 +94,7 @@ export interface MarkdownCellLayoutChangeEvent {
 	font?: BareFontInfo;
 	outerWidth?: number;
 	totalHeight?: number;
+	editorHeight?: boolean;
 }
 
 export interface ICellViewModel {
