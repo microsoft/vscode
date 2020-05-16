@@ -12,13 +12,15 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	_serviceBrand: undefined;
 
 	private contextView: ContextView;
+	private container: HTMLElement;
 
 	constructor(
 		@ILayoutService readonly layoutService: ILayoutService
 	) {
 		super();
 
-		this.contextView = this._register(new ContextView(layoutService.container));
+		this.container = layoutService.container;
+		this.contextView = this._register(new ContextView(this.container));
 		this.layout();
 
 		this._register(layoutService.onLayout(() => this.layout()));
@@ -30,7 +32,20 @@ export class ContextViewService extends Disposable implements IContextViewServic
 		this.contextView.setContainer(container);
 	}
 
-	showContextView(delegate: IContextViewDelegate): void {
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement): void {
+
+		if (container) {
+			if (container !== this.container) {
+				this.container = container;
+				this.setContainer(container);
+			}
+		} else {
+			if (this.container !== this.layoutService.container) {
+				this.container = this.layoutService.container;
+				this.setContainer(this.container);
+			}
+		}
+
 		this.contextView.show(delegate);
 	}
 
