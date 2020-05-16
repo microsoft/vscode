@@ -193,15 +193,11 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		const accountUsages = readAccountUsages(this.storageService, this.id, session.account.displayName);
 		const sessionsForAccount = this._accounts.get(session.account.displayName);
 
-		// Skip dialog if nothing is using the account
-		if (!accountUsages.length) {
-			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
-			return;
-		}
-
 		const result = await dialogService.confirm({
 			title: nls.localize('signOutConfirm', "Sign out of {0}", session.account.displayName),
-			message: nls.localize('signOutMessage', "The account {0} is has been used by: \n\n{1}\n\n Sign out of these features?", session.account.displayName, accountUsages.map(usage => usage.extensionName).join('\n'))
+			message: accountUsages.length
+				? nls.localize('signOutMessage', "The account {0} has been used by: \n\n{1}\n\n Sign out of these features?", session.account.displayName, accountUsages.map(usage => usage.extensionName).join('\n'))
+				: ''
 		});
 
 		if (result.confirmed) {
@@ -210,17 +206,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	async getSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		return (await this._proxy.$getSessions(this.id)).map(session => {
-			return {
-				id: session.id,
-				account: session.account,
-				scopes: session.scopes,
-				getAccessToken: () => {
-					addAccountUsage(this.storageService, this.id, session.account.displayName, 'preferencessync', nls.localize('sync', "Preferences Sync"));
-					return this._proxy.$getSessionAccessToken(this.id, session.id);
-				}
-			};
-		});
+		return this._proxy.$getSessions(this.id);
 	}
 
 	async updateSessionItems(event: modes.AuthenticationSessionsChangeEvent): Promise<void> {
@@ -251,14 +237,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	login(scopes: string[]): Promise<modes.AuthenticationSession> {
-		return this._proxy.$login(this.id, scopes).then(session => {
-			return {
-				id: session.id,
-				account: session.account,
-				scopes: session.scopes,
-				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
-			};
-		});
+		return this._proxy.$login(this.id, scopes);
 	}
 
 	async logout(sessionId: string): Promise<void> {

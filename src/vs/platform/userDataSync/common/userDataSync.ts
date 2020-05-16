@@ -371,9 +371,6 @@ export interface IConflictSetting {
 //#endregion
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
-export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
-export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
-
 export const PREVIEW_DIR_NAME = 'preview';
 export function getSyncResourceFromLocalPreview(localPreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {
 	if (localPreview.scheme === USER_DATA_SYNC_SCHEME) {
@@ -393,8 +390,23 @@ export function getSyncAreaLabel(source: SyncResource): string {
 	}
 }
 
+export const enum AccountStatus {
+	Uninitialized = 'uninitialized',
+	Unavailable = 'unavailable',
+	Available = 'available',
+}
+
+// Contexts
+export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
+export const CONTEXT_ENABLE_VIEWS = new RawContextKey<boolean>(`showUserDataSyncViews`, false);
+export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
+
 // Commands
 export const TURN_ON_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOn';
 export const TURN_OFF_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOff';
-export const MANAGE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
+export const TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOffEveryWhere';
+export const ENABLE_SYNC_VIEWS_COMMAND_ID = 'workbench.userDataSync.actions.enableViews';
+export const MANAGE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.manage';
+export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
 export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';

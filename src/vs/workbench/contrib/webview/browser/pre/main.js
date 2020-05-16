@@ -11,7 +11,8 @@
  *   focusIframeOnCreate?: boolean,
  *   ready?: Promise<void>,
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
- *   fakeLoad: boolean
+ *   fakeLoad: boolean,
+ *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
  * }} WebviewHost
  */
 
@@ -360,14 +361,10 @@
 			if (!csp) {
 				host.postMessage('no-csp-found');
 			} else {
-				// Rewrite vscode-resource in csp
-				if (data.endpoint) {
-					try {
-						const endpointUrl = new URL(data.endpoint);
-						csp.setAttribute('content', csp.getAttribute('content').replace(/vscode-resource:(?=(\s|;|$))/g, endpointUrl.origin));
-					} catch (e) {
-						console.error('Could not rewrite csp');
-					}
+				try {
+					csp.setAttribute('content', host.rewriteCSP(csp.getAttribute('content'), data.endpoint));
+				} catch (e) {
+					console.error('Could not rewrite csp');
 				}
 			}
 

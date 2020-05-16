@@ -307,14 +307,12 @@ export class WebviewEditorService implements IWebviewWorkbenchService {
 	private createWebviewElement(
 		id: string,
 		extension: WebviewExtensionDescription | undefined,
-		options: WebviewInputOptions
+		options: WebviewInputOptions,
 	) {
-		const webview = this._webviewService.createWebviewOverlay(id, {
+		return this._webviewService.createWebviewOverlay(id, {
 			enableFindWidget: options.enableFindWidget,
 			retainContextWhenHidden: options.retainContextWhenHidden
-		}, options);
-		webview.extension = extension;
-		return webview;
+		}, options, extension);
 	}
 }
 

@@ -6,7 +6,7 @@
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
 import { URI, uriToFsPath } from 'vs/base/common/uri';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
+import { equalsIgnoreCase, compare as strCompare, compareIgnoreCase } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
@@ -58,6 +58,28 @@ export function isEqual(first: URI | undefined, second: URI | undefined, caseIns
 	}
 	const p1 = first.path, p2 = second.path;
 	return (p1 === p2 || caseInsensitivePath && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
+}
+
+export function compare(uri1: URI, uri2: URI, caseInsensitivePath: boolean = _hasToIgnoreCase(uri1), ignoreFragment: boolean = false): number {
+	// scheme
+	let ret = strCompare(uri1.scheme, uri2.scheme);
+	if (ret === 0) {
+		// authority
+		ret = compareIgnoreCase(uri1.authority, uri2.authority);
+		if (ret === 0) {
+			// path
+			ret = caseInsensitivePath ? compareIgnoreCase(uri1.path, uri2.path) : strCompare(uri1.path, uri2.path);
+			// query
+			if (ret === 0) {
+				ret = strCompare(uri1.query, uri2.query);
+				// fragment
+				if (ret === 0 && !ignoreFragment) {
+					ret = strCompare(uri1.fragment, uri2.fragment);
+				}
+			}
+		}
+	}
+	return ret;
 }
 
 /**
