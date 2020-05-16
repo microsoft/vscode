@@ -40,4 +40,4 @@ jobs:
         uses: ./actions/classifier/apply/apply-labels
         with:
           config-path: classifier
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}} azure-pipelines.yml
