@@ -61,18 +61,16 @@ export class InsertCursorAbove extends EditorAction {
 
 		const useLogicalLine = (args && args.logicalLine === true);
 		const viewModel = editor._getViewModel();
-		const cursors = editor._getCursors();
-		const context = cursors.context;
 
-		if (context.config.readOnly) {
+		if (viewModel.cursorConfig.readOnly) {
 			return;
 		}
 
-		context.model.pushStackElement();
+		viewModel.pushStackElement();
 		viewModel.setCursorStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorUp(context, cursors.getAll(), useLogicalLine)
+			CursorMoveCommands.addCursorUp(viewModel, viewModel.getCursorStates(), useLogicalLine)
 		);
 		viewModel.revealTopMostCursor(args.source);
 	}
@@ -111,18 +109,16 @@ export class InsertCursorBelow extends EditorAction {
 
 		const useLogicalLine = (args && args.logicalLine === true);
 		const viewModel = editor._getViewModel();
-		const cursors = editor._getCursors();
-		const context = cursors.context;
 
-		if (context.config.readOnly) {
+		if (viewModel.cursorConfig.readOnly) {
 			return;
 		}
 
-		context.model.pushStackElement();
+		viewModel.pushStackElement();
 		viewModel.setCursorStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorDown(context, cursors.getAll(), useLogicalLine)
+			CursorMoveCommands.addCursorDown(viewModel, viewModel.getCursorStates(), useLogicalLine)
 		);
 		viewModel.revealBottomMostCursor(args.source);
 	}

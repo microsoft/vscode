@@ -44,19 +44,6 @@ export const enum EditOperationType {
 	DeletingRight = 3
 }
 
-export interface ICursors {
-	readonly context: CursorContext;
-	getPrimaryCursor(): CursorState;
-	getLastAddedCursorIndex(): number;
-	getAll(): CursorState[];
-
-	getColumnSelectData(): IColumnSelectData;
-	setColumnSelectData(columnSelectData: IColumnSelectData): void;
-
-	getPrevEditOperationType(): EditOperationType;
-	setPrevEditOperationType(type: EditOperationType): void;
-}
-
 export interface CharacterMap {
 	[char: string]: string;
 }
@@ -349,19 +336,13 @@ export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: ITextModel;
-	public readonly viewModel: ICursorSimpleModel;
 	public readonly coordinatesConverter: ICoordinatesConverter;
-	public readonly config: CursorConfiguration;
+	public readonly cursorConfig: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter) {
+	constructor(model: ITextModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		this.model = model;
-		this.viewModel = viewModel;
 		this.coordinatesConverter = coordinatesConverter;
-		this.config = new CursorConfiguration(
-			this.model.getLanguageIdentifier(),
-			this.model.getOptions(),
-			configuration
-		);
+		this.cursorConfig = cursorConfig;
 	}
 }
 

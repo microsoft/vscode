@@ -24,7 +24,7 @@ import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, IEditorConstructionOptions, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
-import { CursorColumns, ICursors } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -1090,13 +1090,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return false;
 	}
 
-	public _getCursors(): ICursors | null {
-		if (!this._modelData) {
-			return null;
-		}
-		return this._modelData.viewModel.getCursors();
-	}
-
 	public _getViewModel(): IViewModel | null {
 		if (!this._modelData) {
 			return null;
@@ -1544,7 +1537,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (this.isSimpleWidget) {
 			commandDelegate = {
 				executeEditorCommand: (editorCommand: CoreEditorCommand, args: any): void => {
-					editorCommand.runCoreEditorCommand(this, viewModel, viewModel.getCursors(), args);
+					editorCommand.runCoreEditorCommand(viewModel, args);
 				},
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
 					this._paste('keyboard', text, pasteOnNewLine, multicursorText, mode);
@@ -1568,7 +1561,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		} else {
 			commandDelegate = {
 				executeEditorCommand: (editorCommand: CoreEditorCommand, args: any): void => {
-					editorCommand.runCoreEditorCommand(this, viewModel, viewModel.getCursors(), args);
+					editorCommand.runCoreEditorCommand(viewModel, args);
 				},
 				paste: (text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null) => {
 					const payload: editorCommon.PastePayload = { text, pasteOnNewLine, multicursorText, mode };

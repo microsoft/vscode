@@ -226,7 +226,7 @@ export class CursorCollection {
 			const currentSelection = current.selection;
 			const nextSelection = next.selection;
 
-			if (!this.context.config.multiCursorMergeOverlapping) {
+			if (!this.context.cursorConfig.multiCursorMergeOverlapping) {
 				continue;
 			}
 

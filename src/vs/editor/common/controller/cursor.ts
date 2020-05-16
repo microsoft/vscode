@@ -7,7 +7,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
-import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, ICursors, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
+import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/controller/cursorTypeOperations';
@@ -16,10 +16,9 @@ import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, ICursorStateComputer, IIdentifiedSingleEditOperation, IValidEditOperation } from 'vs/editor/common/model';
-import { RawContentChangedType, ModelRawContentChangedEvent, IModelLanguageChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { RawContentChangedType, ModelRawContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { ViewEventsCollector, VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequestEvent } from 'vs/editor/common/view/viewEvents';
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
-import { EditorOption, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 
 export class CursorStateChangedEvent {
@@ -74,7 +73,7 @@ export class CursorModelState {
 
 	constructor(model: ITextModel, cursor: Cursor) {
 		this.modelVersionId = model.getVersionId();
-		this.cursorState = cursor.getAll();
+		this.cursorState = cursor.getCursorStates();
 	}
 
 	public equals(other: CursorModelState | null): boolean {
@@ -162,7 +161,7 @@ class AutoClosedAction {
 	}
 }
 
-export class Cursor extends Disposable implements ICursors {
+export class Cursor extends Disposable {
 
 	public static readonly MAX_CURSOR_COUNT = 10000;
 
@@ -172,7 +171,6 @@ export class Cursor extends Disposable implements ICursors {
 	private readonly _onDidChange: Emitter<CursorStateChangedEvent> = this._register(new Emitter<CursorStateChangedEvent>());
 	public readonly onDidChange: Event<CursorStateChangedEvent> = this._onDidChange.event;
 
-	private readonly _configuration: editorCommon.IConfiguration;
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
 	private readonly _viewModel: ICursorSimpleModel;
@@ -188,14 +186,13 @@ export class Cursor extends Disposable implements ICursors {
 	private _autoClosedActions: AutoClosedAction[];
 	private _prevEditOperationType: EditOperationType;
 
-	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter) {
+	constructor(model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		super();
-		this._configuration = configuration;
 		this._model = model;
 		this._knownModelVersionId = this._model.getVersionId();
 		this._viewModel = viewModel;
 		this._coordinatesConverter = coordinatesConverter;
-		this.context = new CursorContext(this._configuration, this._model, this._viewModel, this._coordinatesConverter);
+		this.context = new CursorContext(this._model, this._coordinatesConverter, cursorConfig);
 		this._cursors = new CursorCollection(this.context);
 
 		this._hasFocus = false;
@@ -213,8 +210,8 @@ export class Cursor extends Disposable implements ICursors {
 		super.dispose();
 	}
 
-	private _updateCursorContext(): void {
-		this.context = new CursorContext(this._configuration, this._model, this._viewModel, this._coordinatesConverter);
+	public updateConfiguration(cursorConfig: CursorConfiguration): void {
+		this.context = new CursorContext(this._model, this._coordinatesConverter, cursorConfig);
 		this._cursors.updateContext(this.context);
 	}
 
@@ -230,25 +227,7 @@ export class Cursor extends Disposable implements ICursors {
 			return;
 		}
 		// Ensure valid state
-		this.setStates(eventsCollector, 'viewModel', CursorChangeReason.NotSet, this.getAll());
-	}
-
-	public onDidChangeModelLanguage(e: IModelLanguageChangedEvent): void {
-		this._updateCursorContext();
-	}
-
-	public onDidChangeModelLanguageConfiguration(): void {
-		this._updateCursorContext();
-	}
-
-	public onDidChangeModelOptions(): void {
-		this._updateCursorContext();
-	}
-
-	public onDidChangeConfiguration(e: ConfigurationChangedEvent): void {
-		if (CursorConfiguration.shouldRecreate(e)) {
-			this._updateCursorContext();
-		}
+		this.setStates(eventsCollector, 'viewModel', CursorChangeReason.NotSet, this.getCursorStates());
 	}
 
 	public setHasFocus(hasFocus: boolean): void {
@@ -271,7 +250,7 @@ export class Cursor extends Disposable implements ICursors {
 
 	// ------ some getters/setters
 
-	public getPrimaryCursor(): CursorState {
+	public getPrimaryCursorState(): CursorState {
 		return this._cursors.getPrimaryCursor();
 	}
 
@@ -279,7 +258,7 @@ export class Cursor extends Disposable implements ICursors {
 		return this._cursors.getLastAddedCursorIndex();
 	}
 
-	public getAll(): CursorState[] {
+	public getCursorStates(): CursorState[] {
 		return this._cursors.getAll();
 	}
 
@@ -301,7 +280,7 @@ export class Cursor extends Disposable implements ICursors {
 		return this._emitStateChangedIfNecessary(eventsCollector, source, reason, oldState, reachedMaxCursorCount);
 	}
 
-	public setColumnSelectData(columnSelectData: IColumnSelectData): void {
+	public setCursorColumnSelectData(columnSelectData: IColumnSelectData): void {
 		this._columnSelectData = columnSelectData;
 	}
 
@@ -438,7 +417,7 @@ export class Cursor extends Disposable implements ICursors {
 		return this._cursors.getBottomMostViewPosition();
 	}
 
-	public getColumnSelectData(): IColumnSelectData {
+	public getCursorColumnSelectData(): IColumnSelectData {
 		if (this._columnSelectData) {
 			return this._columnSelectData;
 		}
@@ -448,9 +427,9 @@ export class Cursor extends Disposable implements ICursors {
 		return {
 			isReal: false,
 			fromViewLineNumber: viewSelectionStart.lineNumber,
-			fromViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, viewSelectionStart),
+			fromViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.cursorConfig, this._viewModel, viewSelectionStart),
 			toViewLineNumber: viewPosition.lineNumber,
-			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.config, this.context.viewModel, viewPosition),
+			toViewVisualColumn: CursorColumns.visibleColumnFromColumn2(this.context.cursorConfig, this._viewModel, viewPosition),
 		};
 	}
 
@@ -600,7 +579,7 @@ export class Cursor extends Disposable implements ICursors {
 			}
 			const closeChar = m[1];
 
-			const autoClosingPairsCandidates = this.context.config.autoClosingPairsClose2.get(closeChar);
+			const autoClosingPairsCandidates = this.context.cursorConfig.autoClosingPairsClose2.get(closeChar);
 			if (!autoClosingPairsCandidates || autoClosingPairsCandidates.length !== 1) {
 				return null;
 			}
@@ -661,7 +640,7 @@ export class Cursor extends Disposable implements ICursors {
 	}
 
 	private _executeEdit(callback: () => void, eventsCollector: ViewEventsCollector, source: string | null | undefined, cursorChangeReason: CursorChangeReason = CursorChangeReason.NotSet): void {
-		if (this._configuration.options.get(EditorOption.readOnly)) {
+		if (this.context.cursorConfig.readOnly) {
 			// we cannot edit when read only...
 			this._onDidAttemptReadOnlyEdit.fire(undefined);
 			return;
@@ -697,7 +676,7 @@ export class Cursor extends Disposable implements ICursors {
 			if (!this._isDoingComposition && source === 'keyboard') {
 				// composition finishes, let's check if we need to auto complete if necessary.
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
+				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
 				this._selectionsWhenCompositionStarted = null;
 			}
 		}, eventsCollector, source);
@@ -716,32 +695,32 @@ export class Cursor extends Disposable implements ICursors {
 
 					// Here we must interpret each typed character individually
 					const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
-					this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), autoClosedCharacters, chr));
+					this._executeEditOperation(TypeOperations.typeWithInterceptors(this._isDoingComposition, this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), autoClosedCharacters, chr));
 
 					offset += charLength;
 				}
 
 			} else {
-				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text));
+				this._executeEditOperation(TypeOperations.typeWithoutInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text));
 			}
 		}, eventsCollector, source);
 	}
 
 	public replacePreviousChar(eventsCollector: ViewEventsCollector, text: string, replaceCharCnt: number, source?: string | null | undefined): void {
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.replacePreviousChar(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections(), text, replaceCharCnt));
+			this._executeEditOperation(TypeOperations.replacePreviousChar(this._prevEditOperationType, this.context.cursorConfig, this._model, this.getSelections(), text, replaceCharCnt));
 		}, eventsCollector, source);
 	}
 
 	public paste(eventsCollector: ViewEventsCollector, text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
 		this._executeEdit(() => {
-			this._executeEditOperation(TypeOperations.paste(this.context.config, this.context.model, this.getSelections(), text, pasteOnNewLine, multicursorText || []));
+			this._executeEditOperation(TypeOperations.paste(this.context.cursorConfig, this._model, this.getSelections(), text, pasteOnNewLine, multicursorText || []));
 		}, eventsCollector, source, CursorChangeReason.Paste);
 	}
 
 	public cut(eventsCollector: ViewEventsCollector, source?: string | null | undefined): void {
 		this._executeEdit(() => {
-			this._executeEditOperation(DeleteOperations.cut(this.context.config, this.context.model, this.getSelections()));
+			this._executeEditOperation(DeleteOperations.cut(this.context.cursorConfig, this._model, this.getSelections()));
 		}, eventsCollector, source);
 	}
 
