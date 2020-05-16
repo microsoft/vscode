@@ -10,7 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/notebook';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -92,6 +92,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	protected readonly _contributions: { [key: string]: INotebookEditorContribution; };
 	private scrollBeyondLastLine: boolean;
 	private readonly memento: Memento;
+	private _isDisposed: boolean = false;
 
 
 	constructor(
@@ -236,9 +237,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.addClass(this.body, 'cell-list-container');
 
 		const dndController = this._register(new CellDragAndDropController(this, this.body));
-		const renders = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors, dndController),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this.contextKeyService, this, dndController, this.renderedEditors),
+		const getScopedContextKeyService = (container?: HTMLElement) => this.list!.contextKeyService.createScoped(container);
+		const renderers = [
+			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors, dndController, getScopedContextKeyService),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this, dndController, this.renderedEditors, getScopedContextKeyService),
 		];
 
 		this.list = this.instantiationService.createInstance(
@@ -246,7 +248,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			'NotebookCellList',
 			this.body,
 			this.instantiationService.createInstance(NotebookCellListDelegate),
-			renders,
+			renderers,
 			this.contextKeyService,
 			{
 				setRowLineHeight: false,
@@ -290,7 +292,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// create Webview
 
 		this._register(this.list);
-		this._register(combinedDisposable(...renders));
+		this._register(combinedDisposable(...renderers));
 
 		// transparent cover
 		this.webviewTransparentCover = DOM.append(this.list.rowsContainer, $('.webview-cover'));
@@ -730,6 +732,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
 	public readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
 
+	private pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
+
 	//#endregion
 
 	//#region Cell operations
@@ -744,11 +748,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.list?.updateElementHeight2(cell, height);
 		};
 
+		if (this.pendingLayouts.has(cell)) {
+			this.pendingLayouts.get(cell)!.dispose();
+		}
+
 		let r: () => void;
-		DOM.scheduleAtNextAnimationFrame(() => {
+		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
+			if (this._isDisposed) {
+				return;
+			}
+
+			this.pendingLayouts.delete(cell);
+
 			relayout(cell, height);
 			r();
 		});
+
+		this.pendingLayouts.set(cell, toDisposable(() => {
+			layoutDisposable.dispose();
+			r();
+		}));
 
 		return new Promise(resolve => { r = resolve; });
 	}
@@ -1225,6 +1244,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#endregion
 
 	dispose() {
+		this._isDisposed = true;
 		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			const contributionId = keys[i];

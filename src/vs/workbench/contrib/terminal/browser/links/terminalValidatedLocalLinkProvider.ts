@@ -77,7 +77,7 @@ export class TerminalValidatedLocalLinkProvider extends TerminalBaseLinkProvider
 			endLine++;
 		}
 
-		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine);
+		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
 
 		// clone regex to do a global search on text
 		const rex = new RegExp(this._localLinkRegex, 'g');

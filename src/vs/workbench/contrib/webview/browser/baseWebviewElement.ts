@@ -59,13 +59,13 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	protected content: WebviewContent;
 
-	public extension: WebviewExtensionDescription | undefined;
 
 	constructor(
 		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
 		protected readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		public readonly extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environementService: IEnvironmentService,
@@ -79,7 +79,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			state: undefined
 		};
 
-		this._element = this.createElement(options);
+		this._element = this.createElement(options, contentOptions);
 
 		this._ready = new Promise(resolve => {
 			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
@@ -187,7 +187,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	protected abstract readonly extraContentOptions: { readonly [key: string]: string };
 
-	protected abstract createElement(options: WebviewOptions): T;
+	protected abstract createElement(options: WebviewOptions, contentOptions: WebviewContentOptions): T;
 
 	protected abstract on<T = unknown>(channel: string, handler: (data: T) => void): IDisposable;
 

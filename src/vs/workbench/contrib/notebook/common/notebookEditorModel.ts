@@ -51,6 +51,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 	get name() {
 		return this._name;
 	}
+
+	private _workingCopyResource: URI;
+
 	constructor(
 		public readonly resource: URI,
 		public readonly viewType: string,
@@ -61,9 +64,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		super();
 
 		const input = this;
-		const workingCopyUri = resource.with({ scheme: 'vscode-notebook' });
+		this._workingCopyResource = resource.with({ scheme: 'vscode-notebook' });
 		const workingCopyAdapter = new class implements IWorkingCopy {
-			readonly resource = workingCopyUri;
+			readonly resource = input._workingCopyResource;
 			get name() { return input.name; }
 			readonly capabilities = input.capabilities;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
@@ -103,7 +106,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return this;
 		}
 
-		const backup = await this.backupFileService.resolve(this.resource);
+		const backup = await this.backupFileService.resolve(this._workingCopyResource);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
@@ -134,7 +137,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			this._onDidChangeContent.fire();
 		}));
 
-		await this.backupFileService.discardBackup(this.resource);
+		await this.backupFileService.discardBackup(this._workingCopyResource);
 		this.setDirty(true);
 
 		return this;

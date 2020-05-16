@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
+import { CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,90 +19,91 @@ import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry 
 import { IndentAction, IndentationRule } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
-import { withTestCodeEditor, TestCodeEditorCreationOptions, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { withTestCodeEditor, TestCodeEditorCreationOptions, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 
 // --------- utils
 
-function moveTo(cursor: Cursor, lineNumber: number, column: number, inSelectionMode: boolean = false) {
+function moveTo(viewModel: ViewModel, lineNumber: number, column: number, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(viewModel.getCursors(), {
 			position: new Position(lineNumber, column)
 		});
 	} else {
-		CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, {
+		CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), {
 			position: new Position(lineNumber, column)
 		});
 	}
 }
 
-function moveLeft(cursor: Cursor, inSelectionMode: boolean = false) {
+function moveLeft(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorLeftSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorLeftSelect.runCoreEditorCommand(viewModel.getCursors(), {});
 	} else {
-		CoreNavigationCommands.CursorLeft.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorLeft.runCoreEditorCommand(viewModel.getCursors(), {});
 	}
 }
 
-function moveRight(cursor: Cursor, inSelectionMode: boolean = false) {
+function moveRight(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorRightSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorRightSelect.runCoreEditorCommand(viewModel.getCursors(), {});
 	} else {
-		CoreNavigationCommands.CursorRight.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorRight.runCoreEditorCommand(viewModel.getCursors(), {});
 	}
 }
 
-function moveDown(cursor: Cursor, inSelectionMode: boolean = false) {
+function moveDown(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorDownSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorDownSelect.runCoreEditorCommand(viewModel.getCursors(), {});
 	} else {
-		CoreNavigationCommands.CursorDown.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorDown.runCoreEditorCommand(viewModel.getCursors(), {});
 	}
 }
 
-function moveUp(cursor: Cursor, inSelectionMode: boolean = false) {
+function moveUp(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorUpSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorUpSelect.runCoreEditorCommand(viewModel.getCursors(), {});
 	} else {
-		CoreNavigationCommands.CursorUp.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorUp.runCoreEditorCommand(viewModel.getCursors(), {});
 	}
 }
 
-function moveToBeginningOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
+function moveToBeginningOfLine(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorHomeSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorHomeSelect.runCoreEditorCommand(viewModel.getCursors(), {});
 	} else {
-		CoreNavigationCommands.CursorHome.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorHome.runCoreEditorCommand(viewModel.getCursors(), {});
 	}
 }
 
-function moveToEndOfLine(cursor: Cursor, inSelectionMode: boolean = false) {
+function moveToEndOfLine(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorEndSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorEndSelect.runCoreEditorCommand(viewModel.getCursors(), {});
 	} else {
-		CoreNavigationCommands.CursorEnd.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorEnd.runCoreEditorCommand(viewModel.getCursors(), {});
 	}
 }
 
-function moveToBeginningOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
+function moveToBeginningOfBuffer(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorTopSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorTopSelect.runCoreEditorCommand(viewModel.getCursors(), {});
 	} else {
-		CoreNavigationCommands.CursorTop.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorTop.runCoreEditorCommand(viewModel.getCursors(), {});
 	}
 }
 
-function moveToEndOfBuffer(cursor: Cursor, inSelectionMode: boolean = false) {
+function moveToEndOfBuffer(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorBottomSelect.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorBottomSelect.runCoreEditorCommand(viewModel.getCursors(), {});
 	} else {
-		CoreNavigationCommands.CursorBottom.runCoreEditorCommand(cursor, {});
+		CoreNavigationCommands.CursorBottom.runCoreEditorCommand(viewModel.getCursors(), {});
 	}
 }
 
-function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]): void {
+function assertCursor(viewModel: ViewModel, what: Position | Selection | Selection[]): void {
 	let selections: Selection[];
 	if (what instanceof Position) {
 		selections = [new Selection(what.lineNumber, what.column, what.lineNumber, what.column)];
@@ -111,7 +112,7 @@ function assertCursor(cursor: Cursor, what: Position | Selection | Selection[]):
 	} else {
 		selections = what;
 	}
-	let actual = cursor.getSelections().map(s => s.toString());
+	let actual = viewModel.getSelections().map(s => s.toString());
 	let expected = selections.map(s => s.toString());
 
 	assert.deepEqual(actual, expected);
@@ -158,656 +159,656 @@ suite('Editor Controller - Cursor', () => {
 	// 	thisConfiguration.dispose();
 	// });
 
-	function runTest(callback: (editor: TestCodeEditor, cursor: Cursor) => void): void {
-		withTestCodeEditor(TEXT, {}, (editor, cursor) => {
-			callback(editor, cursor);
+	function runTest(callback: (editor: ITestCodeEditor, viewModel: ViewModel) => void): void {
+		withTestCodeEditor(TEXT, {}, (editor, viewModel) => {
+			callback(editor, viewModel);
 		});
 	}
 
 	test('cursor initialized', () => {
-		runTest((editor, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	// --------- absolute move
 
 	test('no move', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 1);
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 1);
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	test('move', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 2);
-			assertCursor(cursor, new Position(1, 2));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 2);
+			assertCursor(viewModel, new Position(1, 2));
 		});
 	});
 
 	test('move in selection mode', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 2, true);
-			assertCursor(cursor, new Selection(1, 1, 1, 2));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 2, true);
+			assertCursor(viewModel, new Selection(1, 1, 1, 2));
 		});
 	});
 
 	test('move beyond line end', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 25);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 25);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
 		});
 	});
 
 	test('move empty line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 4, 20);
-			assertCursor(cursor, new Position(4, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 4, 20);
+			assertCursor(viewModel, new Position(4, 1));
 		});
 	});
 
 	test('move one char line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 5, 20);
-			assertCursor(cursor, new Position(5, 2));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 5, 20);
+			assertCursor(viewModel, new Position(5, 2));
 		});
 	});
 
 	test('selection down', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 2, 1, true);
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 2, 1, true);
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 		});
 	});
 
 	test('move and then select', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 2, 3);
-			assertCursor(cursor, new Position(2, 3));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 2, 3);
+			assertCursor(viewModel, new Position(2, 3));
 
-			moveTo(cursor, 2, 15, true);
-			assertCursor(cursor, new Selection(2, 3, 2, 15));
+			moveTo(viewModel, 2, 15, true);
+			assertCursor(viewModel, new Selection(2, 3, 2, 15));
 
-			moveTo(cursor, 1, 2, true);
-			assertCursor(cursor, new Selection(2, 3, 1, 2));
+			moveTo(viewModel, 1, 2, true);
+			assertCursor(viewModel, new Selection(2, 3, 1, 2));
 		});
 	});
 
 	// --------- move left
 
 	test('move left on top left position', () => {
-		runTest((editor, cursor) => {
-			moveLeft(cursor);
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	test('move left', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 3);
-			assertCursor(cursor, new Position(1, 3));
-			moveLeft(cursor);
-			assertCursor(cursor, new Position(1, 2));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 3);
+			assertCursor(viewModel, new Position(1, 3));
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Position(1, 2));
 		});
 	});
 
 	test('move left with surrogate pair', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 17);
-			assertCursor(cursor, new Position(3, 17));
-			moveLeft(cursor);
-			assertCursor(cursor, new Position(3, 15));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 17);
+			assertCursor(viewModel, new Position(3, 17));
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Position(3, 15));
 		});
 	});
 
 	test('move left goes to previous row', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 2, 1);
-			assertCursor(cursor, new Position(2, 1));
-			moveLeft(cursor);
-			assertCursor(cursor, new Position(1, 21));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 2, 1);
+			assertCursor(viewModel, new Position(2, 1));
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Position(1, 21));
 		});
 	});
 
 	test('move left selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 2, 1);
-			assertCursor(cursor, new Position(2, 1));
-			moveLeft(cursor, true);
-			assertCursor(cursor, new Selection(2, 1, 1, 21));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 2, 1);
+			assertCursor(viewModel, new Position(2, 1));
+			moveLeft(viewModel, true);
+			assertCursor(viewModel, new Selection(2, 1, 1, 21));
 		});
 	});
 
 	// --------- move right
 
 	test('move right on bottom right position', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 5, 2);
-			assertCursor(cursor, new Position(5, 2));
-			moveRight(cursor);
-			assertCursor(cursor, new Position(5, 2));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 5, 2);
+			assertCursor(viewModel, new Position(5, 2));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Position(5, 2));
 		});
 	});
 
 	test('move right', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 3);
-			assertCursor(cursor, new Position(1, 3));
-			moveRight(cursor);
-			assertCursor(cursor, new Position(1, 4));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 3);
+			assertCursor(viewModel, new Position(1, 3));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Position(1, 4));
 		});
 	});
 
 	test('move right with surrogate pair', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 15);
-			assertCursor(cursor, new Position(3, 15));
-			moveRight(cursor);
-			assertCursor(cursor, new Position(3, 17));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 15);
+			assertCursor(viewModel, new Position(3, 15));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Position(3, 17));
 		});
 	});
 
 	test('move right goes to next row', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 21);
-			assertCursor(cursor, new Position(1, 21));
-			moveRight(cursor);
-			assertCursor(cursor, new Position(2, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 21);
+			assertCursor(viewModel, new Position(1, 21));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Position(2, 1));
 		});
 	});
 
 	test('move right selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 21);
-			assertCursor(cursor, new Position(1, 21));
-			moveRight(cursor, true);
-			assertCursor(cursor, new Selection(1, 21, 2, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 21);
+			assertCursor(viewModel, new Position(1, 21));
+			moveRight(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 21, 2, 1));
 		});
 	});
 
 	// --------- move down
 
 	test('move down', () => {
-		runTest((editor, cursor) => {
-			moveDown(cursor);
-			assertCursor(cursor, new Position(2, 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(3, 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(4, 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(5, 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(5, 2));
+		runTest((editor, viewModel) => {
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(2, 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(3, 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(4, 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(5, 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(5, 2));
 		});
 	});
 
 	test('move down with selection', () => {
-		runTest((editor, cursor) => {
-			moveDown(cursor, true);
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
-			moveDown(cursor, true);
-			assertCursor(cursor, new Selection(1, 1, 3, 1));
-			moveDown(cursor, true);
-			assertCursor(cursor, new Selection(1, 1, 4, 1));
-			moveDown(cursor, true);
-			assertCursor(cursor, new Selection(1, 1, 5, 1));
-			moveDown(cursor, true);
-			assertCursor(cursor, new Selection(1, 1, 5, 2));
+		runTest((editor, viewModel) => {
+			moveDown(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+			moveDown(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 1, 3, 1));
+			moveDown(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 1, 4, 1));
+			moveDown(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 1, 5, 1));
+			moveDown(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 1, 5, 2));
 		});
 	});
 
 	test('move down with tabs', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 5);
-			assertCursor(cursor, new Position(1, 5));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(2, 2));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(3, 5));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(4, 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(5, 2));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 5);
+			assertCursor(viewModel, new Position(1, 5));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(2, 2));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(3, 5));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(4, 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(5, 2));
 		});
 	});
 
 	// --------- move up
 
 	test('move up', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 5);
-			assertCursor(cursor, new Position(3, 5));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 5);
+			assertCursor(viewModel, new Position(3, 5));
 
-			moveUp(cursor);
-			assertCursor(cursor, new Position(2, 2));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(2, 2));
 
-			moveUp(cursor);
-			assertCursor(cursor, new Position(1, 5));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(1, 5));
 		});
 	});
 
 	test('move up with selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 5);
-			assertCursor(cursor, new Position(3, 5));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 5);
+			assertCursor(viewModel, new Position(3, 5));
 
-			moveUp(cursor, true);
-			assertCursor(cursor, new Selection(3, 5, 2, 2));
+			moveUp(viewModel, true);
+			assertCursor(viewModel, new Selection(3, 5, 2, 2));
 
-			moveUp(cursor, true);
-			assertCursor(cursor, new Selection(3, 5, 1, 5));
+			moveUp(viewModel, true);
+			assertCursor(viewModel, new Selection(3, 5, 1, 5));
 		});
 	});
 
 	test('move up and down with tabs', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 5);
-			assertCursor(cursor, new Position(1, 5));
-			moveDown(cursor);
-			moveDown(cursor);
-			moveDown(cursor);
-			moveDown(cursor);
-			assertCursor(cursor, new Position(5, 2));
-			moveUp(cursor);
-			assertCursor(cursor, new Position(4, 1));
-			moveUp(cursor);
-			assertCursor(cursor, new Position(3, 5));
-			moveUp(cursor);
-			assertCursor(cursor, new Position(2, 2));
-			moveUp(cursor);
-			assertCursor(cursor, new Position(1, 5));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 5);
+			assertCursor(viewModel, new Position(1, 5));
+			moveDown(viewModel);
+			moveDown(viewModel);
+			moveDown(viewModel);
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(5, 2));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(4, 1));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(3, 5));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(2, 2));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(1, 5));
 		});
 	});
 
 	test('move up and down with end of lines starting from a long one', () => {
-		runTest((editor, cursor) => {
-			moveToEndOfLine(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(2, LINE2.length + 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(3, LINE3.length + 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(4, LINE4.length + 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(5, LINE5.length + 1));
-			moveUp(cursor);
-			moveUp(cursor);
-			moveUp(cursor);
-			moveUp(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		runTest((editor, viewModel) => {
+			moveToEndOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+			moveToEndOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(2, LINE2.length + 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(3, LINE3.length + 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(4, LINE4.length + 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(5, LINE5.length + 1));
+			moveUp(viewModel);
+			moveUp(viewModel);
+			moveUp(viewModel);
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
 		});
 	});
 
 	test('issue #44465: cursor position not correct when move', () => {
-		runTest((editor, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+		runTest((editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
 			// going once up on the first line remembers the offset visual columns
-			moveUp(cursor);
-			assertCursor(cursor, new Position(1, 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(2, 2));
-			moveUp(cursor);
-			assertCursor(cursor, new Position(1, 5));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(2, 2));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(1, 5));
 
 			// going twice up on the first line discards the offset visual columns
-			moveUp(cursor);
-			assertCursor(cursor, new Position(1, 1));
-			moveUp(cursor);
-			assertCursor(cursor, new Position(1, 1));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(2, 1));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(2, 1));
 		});
 	});
 
 	// --------- move to beginning of line
 
 	test('move to beginning of line', () => {
-		runTest((editor, cursor) => {
-			moveToBeginningOfLine(cursor);
-			assertCursor(cursor, new Position(1, 6));
-			moveToBeginningOfLine(cursor);
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			moveToBeginningOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, 6));
+			moveToBeginningOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	test('move to beginning of line from within line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 8);
-			moveToBeginningOfLine(cursor);
-			assertCursor(cursor, new Position(1, 6));
-			moveToBeginningOfLine(cursor);
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 8);
+			moveToBeginningOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, 6));
+			moveToBeginningOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	test('move to beginning of line from whitespace at beginning of line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 2);
-			moveToBeginningOfLine(cursor);
-			assertCursor(cursor, new Position(1, 6));
-			moveToBeginningOfLine(cursor);
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 2);
+			moveToBeginningOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, 6));
+			moveToBeginningOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	test('move to beginning of line from within line selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 8);
-			moveToBeginningOfLine(cursor, true);
-			assertCursor(cursor, new Selection(1, 8, 1, 6));
-			moveToBeginningOfLine(cursor, true);
-			assertCursor(cursor, new Selection(1, 8, 1, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 8);
+			moveToBeginningOfLine(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 8, 1, 6));
+			moveToBeginningOfLine(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 8, 1, 1));
 		});
 	});
 
 	test('move to beginning of line with selection multiline forward', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 8);
-			moveTo(cursor, 3, 9, true);
-			moveToBeginningOfLine(cursor, false);
-			assertCursor(cursor, new Selection(3, 5, 3, 5));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 8);
+			moveTo(viewModel, 3, 9, true);
+			moveToBeginningOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(3, 5, 3, 5));
 		});
 	});
 
 	test('move to beginning of line with selection multiline backward', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 9);
-			moveTo(cursor, 1, 8, true);
-			moveToBeginningOfLine(cursor, false);
-			assertCursor(cursor, new Selection(1, 6, 1, 6));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 9);
+			moveTo(viewModel, 1, 8, true);
+			moveToBeginningOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(1, 6, 1, 6));
 		});
 	});
 
 	test('move to beginning of line with selection single line forward', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 2);
-			moveTo(cursor, 3, 9, true);
-			moveToBeginningOfLine(cursor, false);
-			assertCursor(cursor, new Selection(3, 5, 3, 5));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 2);
+			moveTo(viewModel, 3, 9, true);
+			moveToBeginningOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(3, 5, 3, 5));
 		});
 	});
 
 	test('move to beginning of line with selection single line backward', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 9);
-			moveTo(cursor, 3, 2, true);
-			moveToBeginningOfLine(cursor, false);
-			assertCursor(cursor, new Selection(3, 5, 3, 5));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 9);
+			moveTo(viewModel, 3, 2, true);
+			moveToBeginningOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(3, 5, 3, 5));
 		});
 	});
 
 	test('issue #15401: "End" key is behaving weird when text is selected part 1', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 8);
-			moveTo(cursor, 3, 9, true);
-			moveToBeginningOfLine(cursor, false);
-			assertCursor(cursor, new Selection(3, 5, 3, 5));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 8);
+			moveTo(viewModel, 3, 9, true);
+			moveToBeginningOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(3, 5, 3, 5));
 		});
 	});
 
 	test('issue #17011: Shift+home/end now go to the end of the selection start\'s line, not the selection\'s end', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 8);
-			moveTo(cursor, 3, 9, true);
-			moveToBeginningOfLine(cursor, true);
-			assertCursor(cursor, new Selection(1, 8, 3, 5));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 8);
+			moveTo(viewModel, 3, 9, true);
+			moveToBeginningOfLine(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 8, 3, 5));
 		});
 	});
 
 	// --------- move to end of line
 
 	test('move to end of line', () => {
-		runTest((editor, cursor) => {
-			moveToEndOfLine(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		runTest((editor, viewModel) => {
+			moveToEndOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+			moveToEndOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
 		});
 	});
 
 	test('move to end of line from within line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 6);
-			moveToEndOfLine(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 6);
+			moveToEndOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+			moveToEndOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
 		});
 	});
 
 	test('move to end of line from whitespace at end of line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 20);
-			moveToEndOfLine(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
-			moveToEndOfLine(cursor);
-			assertCursor(cursor, new Position(1, LINE1.length + 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 20);
+			moveToEndOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
+			moveToEndOfLine(viewModel);
+			assertCursor(viewModel, new Position(1, LINE1.length + 1));
 		});
 	});
 
 	test('move to end of line from within line selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 6);
-			moveToEndOfLine(cursor, true);
-			assertCursor(cursor, new Selection(1, 6, 1, LINE1.length + 1));
-			moveToEndOfLine(cursor, true);
-			assertCursor(cursor, new Selection(1, 6, 1, LINE1.length + 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 6);
+			moveToEndOfLine(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 6, 1, LINE1.length + 1));
+			moveToEndOfLine(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 6, 1, LINE1.length + 1));
 		});
 	});
 
 	test('move to end of line with selection multiline forward', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 1);
-			moveTo(cursor, 3, 9, true);
-			moveToEndOfLine(cursor, false);
-			assertCursor(cursor, new Selection(3, 17, 3, 17));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 1);
+			moveTo(viewModel, 3, 9, true);
+			moveToEndOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(3, 17, 3, 17));
 		});
 	});
 
 	test('move to end of line with selection multiline backward', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 9);
-			moveTo(cursor, 1, 1, true);
-			moveToEndOfLine(cursor, false);
-			assertCursor(cursor, new Selection(1, 21, 1, 21));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 9);
+			moveTo(viewModel, 1, 1, true);
+			moveToEndOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(1, 21, 1, 21));
 		});
 	});
 
 	test('move to end of line with selection single line forward', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 1);
-			moveTo(cursor, 3, 9, true);
-			moveToEndOfLine(cursor, false);
-			assertCursor(cursor, new Selection(3, 17, 3, 17));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 1);
+			moveTo(viewModel, 3, 9, true);
+			moveToEndOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(3, 17, 3, 17));
 		});
 	});
 
 	test('move to end of line with selection single line backward', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 9);
-			moveTo(cursor, 3, 1, true);
-			moveToEndOfLine(cursor, false);
-			assertCursor(cursor, new Selection(3, 17, 3, 17));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 9);
+			moveTo(viewModel, 3, 1, true);
+			moveToEndOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(3, 17, 3, 17));
 		});
 	});
 
 	test('issue #15401: "End" key is behaving weird when text is selected part 2', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 1);
-			moveTo(cursor, 3, 9, true);
-			moveToEndOfLine(cursor, false);
-			assertCursor(cursor, new Selection(3, 17, 3, 17));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 1);
+			moveTo(viewModel, 3, 9, true);
+			moveToEndOfLine(viewModel, false);
+			assertCursor(viewModel, new Selection(3, 17, 3, 17));
 		});
 	});
 
 	// --------- move to beginning of buffer
 
 	test('move to beginning of buffer', () => {
-		runTest((editor, cursor) => {
-			moveToBeginningOfBuffer(cursor);
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			moveToBeginningOfBuffer(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	test('move to beginning of buffer from within first line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 3);
-			moveToBeginningOfBuffer(cursor);
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 3);
+			moveToBeginningOfBuffer(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	test('move to beginning of buffer from within another line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 3);
-			moveToBeginningOfBuffer(cursor);
-			assertCursor(cursor, new Position(1, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 3);
+			moveToBeginningOfBuffer(viewModel);
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
 	test('move to beginning of buffer from within first line selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 1, 3);
-			moveToBeginningOfBuffer(cursor, true);
-			assertCursor(cursor, new Selection(1, 3, 1, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 1, 3);
+			moveToBeginningOfBuffer(viewModel, true);
+			assertCursor(viewModel, new Selection(1, 3, 1, 1));
 		});
 	});
 
 	test('move to beginning of buffer from within another line selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 3);
-			moveToBeginningOfBuffer(cursor, true);
-			assertCursor(cursor, new Selection(3, 3, 1, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 3);
+			moveToBeginningOfBuffer(viewModel, true);
+			assertCursor(viewModel, new Selection(3, 3, 1, 1));
 		});
 	});
 
 	// --------- move to end of buffer
 
 	test('move to end of buffer', () => {
-		runTest((editor, cursor) => {
-			moveToEndOfBuffer(cursor);
-			assertCursor(cursor, new Position(5, LINE5.length + 1));
+		runTest((editor, viewModel) => {
+			moveToEndOfBuffer(viewModel);
+			assertCursor(viewModel, new Position(5, LINE5.length + 1));
 		});
 	});
 
 	test('move to end of buffer from within last line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 5, 1);
-			moveToEndOfBuffer(cursor);
-			assertCursor(cursor, new Position(5, LINE5.length + 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 5, 1);
+			moveToEndOfBuffer(viewModel);
+			assertCursor(viewModel, new Position(5, LINE5.length + 1));
 		});
 	});
 
 	test('move to end of buffer from within another line', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 3);
-			moveToEndOfBuffer(cursor);
-			assertCursor(cursor, new Position(5, LINE5.length + 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 3);
+			moveToEndOfBuffer(viewModel);
+			assertCursor(viewModel, new Position(5, LINE5.length + 1));
 		});
 	});
 
 	test('move to end of buffer from within last line selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 5, 1);
-			moveToEndOfBuffer(cursor, true);
-			assertCursor(cursor, new Selection(5, 1, 5, LINE5.length + 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 5, 1);
+			moveToEndOfBuffer(viewModel, true);
+			assertCursor(viewModel, new Selection(5, 1, 5, LINE5.length + 1));
 		});
 	});
 
 	test('move to end of buffer from within another line selection', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 3, 3);
-			moveToEndOfBuffer(cursor, true);
-			assertCursor(cursor, new Selection(3, 3, 5, LINE5.length + 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 3, 3);
+			moveToEndOfBuffer(viewModel, true);
+			assertCursor(viewModel, new Selection(3, 3, 5, LINE5.length + 1));
 		});
 	});
 
 	// --------- misc
 
 	test('select all', () => {
-		runTest((editor, cursor) => {
-			CoreNavigationCommands.SelectAll.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 5, LINE5.length + 1));
+		runTest((editor, viewModel) => {
+			CoreNavigationCommands.SelectAll.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 5, LINE5.length + 1));
 		});
 	});
 
 	test('expandLineSelection', () => {
-		runTest((editor, cursor) => {
+		runTest((editor, viewModel) => {
 			//              0          1         2
 			//              01234 56789012345678 0
 			// let LINE1 = '    \tMy First Line\t ';
-			moveTo(cursor, 1, 1);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
+			moveTo(viewModel, 1, 1);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 
-			moveTo(cursor, 1, 2);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
+			moveTo(viewModel, 1, 2);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 
-			moveTo(cursor, 1, 5);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
+			moveTo(viewModel, 1, 5);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 
-			moveTo(cursor, 1, 19);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
+			moveTo(viewModel, 1, 19);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 
-			moveTo(cursor, 1, 20);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
+			moveTo(viewModel, 1, 20);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 
-			moveTo(cursor, 1, 21);
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 3, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 4, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 5, 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 5, LINE5.length + 1));
-			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, new Selection(1, 1, 5, LINE5.length + 1));
+			moveTo(viewModel, 1, 21);
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 3, 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 4, 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 5, 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 5, LINE5.length + 1));
+			CoreNavigationCommands.ExpandLineSelection.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, new Selection(1, 1, 5, LINE5.length + 1));
 		});
 	});
 
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
-		runTest((editor, cursor) => {
-			cursor.onDidChange((e) => {
+		runTest((editor, viewModel) => {
+			viewModel.cursor.onDidChange((e) => {
 				assert.ok(false, 'was not expecting event');
 			});
-			moveTo(cursor, 1, 1);
+			moveTo(viewModel, 1, 1);
 		});
 	});
 
 	test('move eventing', () => {
-		runTest((editor, cursor) => {
+		runTest((editor, viewModel) => {
 			let events = 0;
-			cursor.onDidChange((e: CursorStateChangedEvent) => {
+			viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
 				events++;
 				assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
 			});
-			moveTo(cursor, 1, 2);
+			moveTo(viewModel, 1, 2);
 			assert.equal(events, 1, 'receives 1 event');
 		});
 	});
 
 	test('move in selection mode eventing', () => {
-		runTest((editor, cursor) => {
+		runTest((editor, viewModel) => {
 			let events = 0;
-			cursor.onDidChange((e: CursorStateChangedEvent) => {
+			viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
 				events++;
 				assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
 			});
-			moveTo(cursor, 1, 2, true);
+			moveTo(viewModel, 1, 2, true);
 			assert.equal(events, 1, 'receives 1 event');
 		});
 	});
@@ -815,28 +816,28 @@ suite('Editor Controller - Cursor', () => {
 	// --------- state save & restore
 
 	test('saveState & restoreState', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 2, 1, true);
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 2, 1, true);
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 
-			let savedState = JSON.stringify(cursor.saveState());
+			let savedState = JSON.stringify(viewModel.saveCursorState());
 
-			moveTo(cursor, 1, 1, false);
-			assertCursor(cursor, new Position(1, 1));
+			moveTo(viewModel, 1, 1, false);
+			assertCursor(viewModel, new Position(1, 1));
 
-			cursor.restoreState(JSON.parse(savedState));
-			assertCursor(cursor, new Selection(1, 1, 2, 1));
+			viewModel.restoreCursorState(JSON.parse(savedState));
+			assertCursor(viewModel, new Selection(1, 1, 2, 1));
 		});
 	});
 
 	// --------- updating cursor
 
 	test('Independent model edit 1', () => {
-		runTest((editor, cursor) => {
-			moveTo(cursor, 2, 16, true);
+		runTest((editor, viewModel) => {
+			moveTo(viewModel, 2, 16, true);
 
-			cursor.context.model.applyEdits([EditOperation.delete(new Range(2, 1, 2, 2))]);
-			assertCursor(cursor, new Selection(1, 1, 2, 15));
+			editor.getModel().applyEdits([EditOperation.delete(new Range(2, 1, 2, 2))]);
+			assertCursor(viewModel, new Selection(1, 1, 2, 15));
 		});
 	});
 
@@ -847,12 +848,12 @@ suite('Editor Controller - Cursor', () => {
 			'\t\t\treturn false;',
 			'\t\t}',
 			'\t}'
-		], {}, (editor, cursor) => {
+		], {}, (editor, viewModel) => {
 
-			moveTo(cursor, 1, 7, false);
-			assertCursor(cursor, new Position(1, 7));
+			moveTo(viewModel, 1, 7, false);
+			assertCursor(viewModel, new Position(1, 7));
 
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel.getCursors(), {
 				position: new Position(4, 4),
 				viewPosition: new Position(4, 4),
 				mouseColumn: 15,
@@ -866,7 +867,7 @@ suite('Editor Controller - Cursor', () => {
 				new Selection(4, 4, 4, 4),
 			];
 
-			assertCursor(cursor, expectedSelections);
+			assertCursor(viewModel, expectedSelections);
 
 		});
 	});
@@ -877,35 +878,35 @@ suite('Editor Controller - Cursor', () => {
 			'ãããããã',
 			'辻󠄀辻󠄀辻󠄀',
 			'பு',
-		], {}, (editor, cursor) => {
+		], {}, (editor, viewModel) => {
 
-			cursor.setSelections('test', [new Selection(2, 1, 2, 1)]);
-			moveRight(cursor);
-			assertCursor(cursor, new Position(2, 3));
-			moveLeft(cursor);
-			assertCursor(cursor, new Position(2, 1));
+			viewModel.setSelections('test', [new Selection(2, 1, 2, 1)]);
+			moveRight(viewModel);
+			assertCursor(viewModel, new Position(2, 3));
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Position(2, 1));
 
-			cursor.setSelections('test', [new Selection(3, 1, 3, 1)]);
-			moveRight(cursor);
-			assertCursor(cursor, new Position(3, 4));
-			moveLeft(cursor);
-			assertCursor(cursor, new Position(3, 1));
+			viewModel.setSelections('test', [new Selection(3, 1, 3, 1)]);
+			moveRight(viewModel);
+			assertCursor(viewModel, new Position(3, 4));
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Position(3, 1));
 
-			cursor.setSelections('test', [new Selection(4, 1, 4, 1)]);
-			moveRight(cursor);
-			assertCursor(cursor, new Position(4, 3));
-			moveLeft(cursor);
-			assertCursor(cursor, new Position(4, 1));
+			viewModel.setSelections('test', [new Selection(4, 1, 4, 1)]);
+			moveRight(viewModel);
+			assertCursor(viewModel, new Position(4, 3));
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Position(4, 1));
 
-			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			moveDown(cursor);
-			assertCursor(cursor, new Position(2, 5));
-			moveDown(cursor);
-			assertCursor(cursor, new Position(3, 4));
-			moveUp(cursor);
-			assertCursor(cursor, new Position(2, 5));
-			moveUp(cursor);
-			assertCursor(cursor, new Position(1, 3));
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(2, 5));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Position(3, 4));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(2, 5));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Position(1, 3));
 
 		});
 	});
@@ -919,18 +920,18 @@ suite('Editor Controller - Cursor', () => {
 			'var merge = require("merge-stream");',
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
-		].join('\n'), {}, (editor, cursor) => {
-			moveTo(cursor, 1, 4, false);
-			assertCursor(cursor, new Position(1, 4));
+		].join('\n'), {}, (editor, viewModel) => {
+			moveTo(viewModel, 1, 4, false);
+			assertCursor(viewModel, new Position(1, 4));
 
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel.getCursors(), {
 				position: new Position(4, 1),
 				viewPosition: new Position(4, 1),
 				mouseColumn: 1,
 				doColumnSelect: true
 			});
 
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 1),
 				new Selection(2, 4, 2, 1),
 				new Selection(3, 4, 3, 1),
@@ -951,18 +952,18 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" valuE="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
-		].join('\n'), {}, (editor, cursor) => {
+		].join('\n'), {}, (editor, viewModel) => {
 
-			moveTo(cursor, 10, 10, false);
-			assertCursor(cursor, new Position(10, 10));
+			moveTo(viewModel, 10, 10, false);
+			assertCursor(viewModel, new Position(10, 10));
 
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel.getCursors(), {
 				position: new Position(1, 1),
 				viewPosition: new Position(1, 1),
 				mouseColumn: 1,
 				doColumnSelect: true
 			});
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(10, 10, 10, 1),
 				new Selection(9, 10, 9, 1),
 				new Selection(8, 10, 8, 1),
@@ -975,13 +976,13 @@ suite('Editor Controller - Cursor', () => {
 				new Selection(1, 10, 1, 1),
 			]);
 
-			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(cursor, {
+			CoreNavigationCommands.ColumnSelect.runCoreEditorCommand(viewModel.getCursors(), {
 				position: new Position(1, 1),
 				viewPosition: new Position(1, 1),
 				mouseColumn: 1,
 				doColumnSelect: true
 			});
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(10, 10, 10, 1),
 				new Selection(9, 10, 9, 1),
 				new Selection(8, 10, 8, 1),
@@ -1009,34 +1010,34 @@ suite('Editor Controller - Cursor', () => {
 			'<property id="SomeThing" key="SomeKey" valuE="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="000"/>',
 			'<property id="SomeThing" key="SomeKey" value="00X"/>',
-		].join('\n'), {}, (editor, cursor) => {
+		].join('\n'), {}, (editor, viewModel) => {
 
-			moveTo(cursor, 10, 10, false);
-			assertCursor(cursor, new Position(10, 10));
+			moveTo(viewModel, 10, 10, false);
+			assertCursor(viewModel, new Position(10, 10));
 
-			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(10, 10, 10, 9)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(10, 10, 10, 8)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(10, 10, 10, 9)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectUp.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectUp.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(10, 10, 10, 9),
 				new Selection(9, 10, 9, 9),
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(10, 10, 10, 9)
 			]);
 		});
@@ -1051,34 +1052,34 @@ suite('Editor Controller - Cursor', () => {
 			'var merge = require("merge-stream");',
 			'var concat = require("gulp-concat");',
 			'var newer = require("gulp-newer");',
-		].join('\n'), {}, (editor, cursor) => {
+		].join('\n'), {}, (editor, viewModel) => {
 
-			moveTo(cursor, 1, 4, false);
-			assertCursor(cursor, new Position(1, 4));
+			moveTo(viewModel, 1, 4, false);
+			assertCursor(viewModel, new Position(1, 4));
 
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 5)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 5),
 				new Selection(2, 4, 2, 5)
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 5),
 				new Selection(2, 4, 2, 5),
 				new Selection(3, 4, 3, 5),
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectDown.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 5),
 				new Selection(2, 4, 2, 5),
 				new Selection(3, 4, 3, 5),
@@ -1088,8 +1089,8 @@ suite('Editor Controller - Cursor', () => {
 				new Selection(7, 4, 7, 5),
 			]);
 
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 6),
 				new Selection(2, 4, 2, 6),
 				new Selection(3, 4, 3, 6),
@@ -1100,17 +1101,17 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// 10 times
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 16),
 				new Selection(2, 4, 2, 16),
 				new Selection(3, 4, 3, 16),
@@ -1121,17 +1122,17 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// 10 times
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 26),
 				new Selection(2, 4, 2, 26),
 				new Selection(3, 4, 3, 26),
@@ -1142,9 +1143,9 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// 2 times => reaching the ending of lines 1 and 2
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 28),
 				new Selection(2, 4, 2, 28),
 				new Selection(3, 4, 3, 28),
@@ -1155,11 +1156,11 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// 4 times => reaching the ending of line 3
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 28),
 				new Selection(2, 4, 2, 28),
 				new Selection(3, 4, 3, 32),
@@ -1170,9 +1171,9 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// 2 times => reaching the ending of line 4
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 28),
 				new Selection(2, 4, 2, 28),
 				new Selection(3, 4, 3, 32),
@@ -1183,8 +1184,8 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// 1 time => reaching the ending of line 7
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 28),
 				new Selection(2, 4, 2, 28),
 				new Selection(3, 4, 3, 32),
@@ -1195,10 +1196,10 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// 3 times => reaching the ending of lines 5 & 6
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 28),
 				new Selection(2, 4, 2, 28),
 				new Selection(3, 4, 3, 32),
@@ -1209,8 +1210,8 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// cannot go anywhere anymore
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 28),
 				new Selection(2, 4, 2, 28),
 				new Selection(3, 4, 3, 32),
@@ -1221,11 +1222,11 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// cannot go anywhere anymore even if we insist
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			CoreNavigationCommands.CursorColumnSelectRight.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 28),
 				new Selection(2, 4, 2, 28),
 				new Selection(3, 4, 3, 32),
@@ -1236,8 +1237,8 @@ suite('Editor Controller - Cursor', () => {
 			]);
 
 			// can easily go back
-			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(cursor, {});
-			assertCursor(cursor, [
+			CoreNavigationCommands.CursorColumnSelectLeft.runCoreEditorCommand(viewModel.getCursors(), {});
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 28),
 				new Selection(2, 4, 2, 28),
 				new Selection(3, 4, 3, 32),
@@ -1301,12 +1302,12 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 1, 1, 13)]);
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 13)]);
 
 			// Check that indenting maintains the selection start at column 1
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
-			assert.deepEqual(cursor.getSelection(), new Selection(1, 1, 1, 14));
+			assert.deepEqual(viewModel.getSelection(), new Selection(1, 1, 1, 14));
 		});
 
 		model.dispose();
@@ -1323,20 +1324,20 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.type('\n', 'keyboard');
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t', 'assert2');
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\t', 'assert3');
 
-			cursor.type('x');
+			viewModel.type('x');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert4');
 
-			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(viewModel.getCursors(), {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t\n\tx', 'assert5');
 
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -1377,10 +1378,10 @@ suite('Editor Controller - Regression tests', () => {
 		withTestCodeEditor([
 			'Hello',
 			'world'
-		], {}, (editor, cursor) => {
+		], {}, (editor, viewModel) => {
 			const model = editor.getModel()!;
 
-			assertCursor(cursor, new Position(1, 1));
+			assertCursor(viewModel, new Position(1, 1));
 			model.setEOL(EndOfLineSequence.LF);
 			assert.equal(model.getValue(), 'Hello\nworld');
 
@@ -1406,10 +1407,10 @@ suite('Editor Controller - Regression tests', () => {
 		const mode = new MyMode();
 		const model = createTextModel('\'👁\'', undefined, languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 1, 1, 2));
 
-			cursor.type('%', 'keyboard');
+			viewModel.type('%', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '%\'%👁\'', 'assert1');
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
@@ -1423,56 +1424,56 @@ suite('Editor Controller - Regression tests', () => {
 	test('issue #46208: Allow empty selections in the undo/redo stack', () => {
 		let model = createTextModel('');
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.type('Hello', 'keyboard');
-			cursor.type(' ', 'keyboard');
-			cursor.type('world', 'keyboard');
-			cursor.type(' ', 'keyboard');
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.type('Hello', 'keyboard');
+			viewModel.type(' ', 'keyboard');
+			viewModel.type('world', 'keyboard');
+			viewModel.type(' ', 'keyboard');
 			assert.equal(model.getLineContent(1), 'Hello world ');
-			assertCursor(cursor, new Position(1, 13));
+			assertCursor(viewModel, new Position(1, 13));
 
-			moveLeft(cursor);
-			moveRight(cursor);
+			moveLeft(viewModel);
+			moveRight(viewModel);
 
 			model.pushEditOperations([], [EditOperation.replaceMove(new Range(1, 12, 1, 13), '')], () => []);
 			assert.equal(model.getLineContent(1), 'Hello world');
-			assertCursor(cursor, new Position(1, 12));
+			assertCursor(viewModel, new Position(1, 12));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world ');
-			assertCursor(cursor, new Selection(1, 12, 1, 13));
+			assertCursor(viewModel, new Selection(1, 12, 1, 13));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
-			assertCursor(cursor, new Position(1, 12));
+			assertCursor(viewModel, new Position(1, 12));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello');
-			assertCursor(cursor, new Position(1, 6));
+			assertCursor(viewModel, new Position(1, 6));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '');
-			assertCursor(cursor, new Position(1, 1));
+			assertCursor(viewModel, new Position(1, 1));
 
 			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello');
-			assertCursor(cursor, new Position(1, 6));
+			assertCursor(viewModel, new Position(1, 6));
 
 			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
-			assertCursor(cursor, new Position(1, 12));
+			assertCursor(viewModel, new Position(1, 12));
 
 			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world ');
-			assertCursor(cursor, new Position(1, 13));
+			assertCursor(viewModel, new Position(1, 13));
 
 			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
-			assertCursor(cursor, new Position(1, 12));
+			assertCursor(viewModel, new Position(1, 12));
 
 			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'Hello world');
-			assertCursor(cursor, new Position(1, 12));
+			assertCursor(viewModel, new Position(1, 12));
 		});
 
 		model.dispose();
@@ -1488,13 +1489,13 @@ suite('Editor Controller - Regression tests', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 1, 6, false);
-			assertCursor(cursor, new Selection(1, 6, 1, 6));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 1, 6, false);
+			assertCursor(viewModel, new Selection(1, 6, 1, 6));
 
 			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    function baz() {');
-			assertCursor(cursor, new Selection(1, 5, 1, 5));
+			assertCursor(viewModel, new Selection(1, 5, 1, 5));
 		});
 
 		model.dispose();
@@ -1508,13 +1509,13 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 1, 7, false);
-			assertCursor(cursor, new Selection(1, 7, 1, 7));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 1, 7, false);
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
 
 			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    ');
-			assertCursor(cursor, new Selection(1, 5, 1, 5));
+			assertCursor(viewModel, new Selection(1, 5, 1, 5));
 		});
 
 		model.dispose();
@@ -1530,13 +1531,13 @@ suite('Editor Controller - Regression tests', () => {
 		withTestCodeEditor(null, {
 			model: model,
 			useTabStops: false
-		}, (editor, cursor) => {
-			moveTo(cursor, 1, 9, false);
-			assertCursor(cursor, new Selection(1, 9, 1, 9));
+		}, (editor, viewModel) => {
+			moveTo(viewModel, 1, 9, false);
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 
 			CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    ');
-			assertCursor(cursor, new Selection(1, 5, 1, 5));
+			assertCursor(viewModel, new Selection(1, 5, 1, 5));
 		});
 
 		model.dispose();
@@ -1558,13 +1559,13 @@ suite('Editor Controller - Regression tests', () => {
 			},
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 7, 1, false);
-			assertCursor(cursor, new Selection(7, 1, 7, 1));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 7, 1, false);
+			assertCursor(viewModel, new Selection(7, 1, 7, 1));
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(7), '\t');
-			assertCursor(cursor, new Selection(7, 2, 7, 2));
+			assertCursor(viewModel, new Selection(7, 2, 7, 2));
 		});
 
 		model.dispose();
@@ -1576,13 +1577,13 @@ suite('Editor Controller - Regression tests', () => {
 		withTestCodeEditor([
 			'asdasd',
 			'qwerty'
-		], {}, (editor, cursor) => {
+		], {}, (editor, viewModel) => {
 			const model = editor.getModel()!;
 
-			moveTo(cursor, 2, 1, false);
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
+			moveTo(viewModel, 2, 1, false);
+			assertCursor(viewModel, new Selection(2, 1, 2, 1));
 
-			cursor.cut('keyboard');
+			viewModel.cut('keyboard');
 			assert.equal(model.getLineCount(), 1);
 			assert.equal(model.getLineContent(1), 'asdasd');
 
@@ -1592,17 +1593,17 @@ suite('Editor Controller - Regression tests', () => {
 		withTestCodeEditor([
 			'asdasd',
 			''
-		], {}, (editor, cursor) => {
+		], {}, (editor, viewModel) => {
 			const model = editor.getModel()!;
 
-			moveTo(cursor, 2, 1, false);
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
+			moveTo(viewModel, 2, 1, false);
+			assertCursor(viewModel, new Selection(2, 1, 2, 1));
 
-			cursor.cut('keyboard');
+			viewModel.cut('keyboard');
 			assert.equal(model.getLineCount(), 1);
 			assert.equal(model.getLineContent(1), 'asdasd');
 
-			cursor.cut('keyboard');
+			viewModel.cut('keyboard');
 			assert.equal(model.getLineCount(), 1);
 			assert.equal(model.getLineContent(1), '');
 		});
@@ -1615,16 +1616,16 @@ suite('Editor Controller - Regression tests', () => {
 				'hello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 3, false);
-			moveTo(cursor, 1, 5, true);
-			assertCursor(cursor, new Selection(1, 3, 1, 5));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 3, false);
+			moveTo(viewModel, 1, 5, true);
+			assertCursor(viewModel, new Selection(1, 3, 1, 5));
 
-			cursor.type('(', 'keyboard');
-			assertCursor(cursor, new Selection(1, 4, 1, 6));
+			viewModel.type('(', 'keyboard');
+			assertCursor(viewModel, new Selection(1, 4, 1, 6));
 
-			cursor.type('(', 'keyboard');
-			assertCursor(cursor, new Selection(1, 5, 1, 7));
+			viewModel.type('(', 'keyboard');
+			assertCursor(viewModel, new Selection(1, 5, 1, 7));
 		});
 		mode.dispose();
 	});
@@ -1639,13 +1640,13 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 3, 2, false);
-			moveTo(cursor, 1, 14, true);
-			assertCursor(cursor, new Selection(3, 2, 1, 14));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 3, 2, false);
+			moveTo(viewModel, 1, 14, true);
+			assertCursor(viewModel, new Selection(3, 2, 1, 14));
 
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
-			assertCursor(cursor, new Selection(1, 14, 1, 14));
+			assertCursor(viewModel, new Selection(1, 14, 1, 14));
 			assert.equal(model.getLineCount(), 1);
 			assert.equal(model.getLineContent(1), 'function baz(;');
 		});
@@ -1660,11 +1661,11 @@ suite('Editor Controller - Regression tests', () => {
 				'line1',
 				'line2'
 			],
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 1, false);
-			moveTo(cursor, 2, 6, true);
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 1, false);
+			moveTo(viewModel, 2, 6, true);
 
-			cursor.paste('line1\n', true);
+			viewModel.paste('line1\n', true);
 
 			assert.equal(model.getLineContent(1), 'line1');
 			assert.equal(model.getLineContent(2), 'line1');
@@ -1679,10 +1680,10 @@ suite('Editor Controller - Regression tests', () => {
 				'line sel 2',
 				'line3'
 			],
-		}, (model, cursor) => {
-			cursor.setSelections('test', [new Selection(2, 6, 2, 9)]);
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(2, 6, 2, 9)]);
 
-			cursor.paste('line1\n', true);
+			viewModel.paste('line1\n', true);
 
 			assert.equal(model.getLineContent(1), 'line1');
 			assert.equal(model.getLineContent(2), 'line line1');
@@ -1698,10 +1699,10 @@ suite('Editor Controller - Regression tests', () => {
 				'line2',
 				'line3'
 			],
-		}, (model, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1)]);
 
-			cursor.paste(
+			viewModel.paste(
 				'a\nb\nc\nd',
 				false,
 				[
@@ -1728,15 +1729,15 @@ suite('Editor Controller - Regression tests', () => {
 				'test',
 				'test'
 			],
-		}, (model, cursor) => {
-			cursor.setSelections('test', [
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [
 				new Selection(1, 1, 1, 5),
 				new Selection(2, 1, 2, 5),
 				new Selection(3, 1, 3, 5),
 				new Selection(4, 1, 4, 5),
 			]);
 
-			cursor.paste(
+			viewModel.paste(
 				'aaa\nbbb\nccc\n',
 				false,
 				null
@@ -1771,15 +1772,15 @@ suite('Editor Controller - Regression tests', () => {
 				'test',
 				'test'
 			],
-		}, (model, cursor) => {
-			cursor.setSelections('test', [
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [
 				new Selection(1, 1, 1, 5),
 				new Selection(2, 1, 2, 5),
 				new Selection(3, 1, 3, 5),
 				new Selection(4, 1, 4, 5),
 			]);
 
-			cursor.paste(
+			viewModel.paste(
 				'aaa\r\nbbb\r\nccc\r\nddd\r\n',
 				false,
 				null
@@ -1801,10 +1802,10 @@ suite('Editor Controller - Regression tests', () => {
 				'line2',
 				'line3'
 			],
-		}, (model, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
 
-			cursor.paste(
+			viewModel.paste(
 				'a\nb\nc',
 				false,
 				null
@@ -1825,10 +1826,10 @@ suite('Editor Controller - Regression tests', () => {
 				'line2',
 				'line3'
 			],
-		}, (model, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1), new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
 
-			cursor.paste(
+			viewModel.paste(
 				'a\nb\nc\n',
 				false,
 				null
@@ -1851,15 +1852,15 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 1, 1, false);
-			moveTo(cursor, 3, 4, true);
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 1, 1, false);
+			moveTo(viewModel, 3, 4, true);
 
 			let isFirst = true;
 			model.onDidChangeContent(() => {
 				if (isFirst) {
 					isFirst = false;
-					cursor.type('\t', 'keyboard');
+					viewModel.type('\t', 'keyboard');
 				}
 			});
 
@@ -1901,10 +1902,10 @@ suite('Editor Controller - Regression tests', () => {
 				'just some text',
 			],
 			languageIdentifier: null
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 1, false);
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 1, false);
 
-			cursor.type('😍', 'keyboard');
+			viewModel.type('😍', 'keyboard');
 
 			assert.equal(model.getValue(), [
 				'some lines',
@@ -1925,8 +1926,8 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 3, 2, false);
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 3, 2, false);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(3), '\t    \tx: 3');
 		});
@@ -1945,9 +1946,9 @@ suite('Editor Controller - Regression tests', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 1, 15, false);
-			moveTo(cursor, 1, 22, true);
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 1, 15, false);
+			moveTo(viewModel, 1, 22, true);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'var foo = 123;\t// this is a comment');
 		});
@@ -1961,8 +1962,8 @@ suite('Editor Controller - Regression tests', () => {
 			text: [
 				'   /* Just some   more   text a+= 3 +5-3 + 7 */  '
 			],
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 1, false);
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 1, false);
 
 			function assertWordRight(col: number, expectedCol: number) {
 				let args = {
@@ -1972,13 +1973,13 @@ suite('Editor Controller - Regression tests', () => {
 					}
 				};
 				if (col === 1) {
-					CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, args);
+					CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel.getCursors(), args);
 				} else {
-					CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(cursor, args);
+					CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(viewModel.getCursors(), args);
 				}
 
-				assert.equal(cursor.getSelection().startColumn, 1, 'TEST FOR ' + col);
-				assert.equal(cursor.getSelection().endColumn, expectedCol, 'TEST FOR ' + col);
+				assert.equal(viewModel.getSelection().startColumn, 1, 'TEST FOR ' + col);
+				assert.equal(viewModel.getSelection().endColumn, expectedCol, 'TEST FOR ' + col);
 			}
 
 			assertWordRight(1, '   '.length + 1);
@@ -2041,12 +2042,12 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, { position: new Position(1, 8) });
-			assert.deepEqual(cursor.getSelection(), new Selection(1, 6, 1, 10));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(1, 8) });
+			assert.deepEqual(viewModel.getSelection(), new Selection(1, 6, 1, 10));
 
-			CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(cursor, { position: new Position(1, 8) });
-			assert.deepEqual(cursor.getSelection(), new Selection(1, 6, 1, 10));
+			CoreNavigationCommands.WordSelectDrag.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(1, 8) });
+			assert.deepEqual(viewModel.getSelection(), new Selection(1, 6, 1, 10));
 		});
 
 		model.dispose();
@@ -2059,38 +2060,38 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, { position: new Position(1, 5) });
-			assert.deepEqual(cursor.getSelection(), new Selection(1, 5, 1, 8));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(1, 5) });
+			assert.deepEqual(viewModel.getSelection(), new Selection(1, 5, 1, 8));
 		});
 
 		model.dispose();
 	});
 
 	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
-		withTestCodeEditor([], {}, (editor, cursor) => {
+		withTestCodeEditor([], {}, (editor, viewModel) => {
 			const model = editor.getModel()!;
-			assertCursor(cursor, new Position(1, 1));
+			assertCursor(viewModel, new Position(1, 1));
 
 			// Typing sennsei in Japanese - Hiragana
-			cursor.type('ｓ', 'keyboard');
-			cursor.replacePreviousChar('せ', 1);
-			cursor.replacePreviousChar('せｎ', 1);
-			cursor.replacePreviousChar('せん', 2);
-			cursor.replacePreviousChar('せんｓ', 2);
-			cursor.replacePreviousChar('せんせ', 3);
-			cursor.replacePreviousChar('せんせ', 3);
-			cursor.replacePreviousChar('せんせい', 3);
-			cursor.replacePreviousChar('せんせい', 4);
-			cursor.replacePreviousChar('せんせい', 4);
-			cursor.replacePreviousChar('せんせい', 4);
+			viewModel.type('ｓ', 'keyboard');
+			viewModel.replacePreviousChar('せ', 1);
+			viewModel.replacePreviousChar('せｎ', 1);
+			viewModel.replacePreviousChar('せん', 2);
+			viewModel.replacePreviousChar('せんｓ', 2);
+			viewModel.replacePreviousChar('せんせ', 3);
+			viewModel.replacePreviousChar('せんせ', 3);
+			viewModel.replacePreviousChar('せんせい', 3);
+			viewModel.replacePreviousChar('せんせい', 4);
+			viewModel.replacePreviousChar('せんせい', 4);
+			viewModel.replacePreviousChar('せんせい', 4);
 
 			assert.equal(model.getLineContent(1), 'せんせい');
-			assertCursor(cursor, new Position(1, 5));
+			assertCursor(viewModel, new Position(1, 5));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '');
-			assertCursor(cursor, new Position(1, 1));
+			assertCursor(viewModel, new Position(1, 1));
 		});
 	});
 
@@ -2104,23 +2105,23 @@ suite('Editor Controller - Regression tests', () => {
 		}
 		usingCursor({
 			text: text
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			let selections: Selection[] = [];
 			for (let i = 0; i < LINE_CNT; i++) {
 				selections[i] = new Selection(i + 1, 1, i + 1, 1);
 			}
-			cursor.setSelections('test', selections);
+			viewModel.setSelections('test', selections);
 
-			cursor.type('n', 'keyboard');
-			cursor.type('n', 'keyboard');
+			viewModel.type('n', 'keyboard');
+			viewModel.type('n', 'keyboard');
 
 			for (let i = 0; i < LINE_CNT; i++) {
 				assert.equal(model.getLineContent(i + 1), 'nnasd', 'line #' + (i + 1));
 			}
 
-			assert.equal(cursor.getSelections().length, LINE_CNT);
-			assert.equal(cursor.getSelections()[LINE_CNT - 1].startLineNumber, LINE_CNT);
+			assert.equal(viewModel.getSelections().length, LINE_CNT);
+			assert.equal(viewModel.getSelections()[LINE_CNT - 1].startLineNumber, LINE_CNT);
 		});
 	});
 
@@ -2130,13 +2131,13 @@ suite('Editor Controller - Regression tests', () => {
 				'first line',
 				'second line'
 			]
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 			model.setEOL(EndOfLineSequence.CRLF);
 
-			cursor.setSelections('test', [new Selection(2, 2, 2, 2)]);
+			viewModel.setSelections('test', [new Selection(2, 2, 2, 2)]);
 			model.setEOL(EndOfLineSequence.LF);
 
-			assertCursor(cursor, new Selection(2, 2, 2, 2));
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 		});
 	});
 
@@ -2146,17 +2147,17 @@ suite('Editor Controller - Regression tests', () => {
 				'first line',
 				'second line'
 			]
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 			model.setEOL(EndOfLineSequence.CRLF);
 
-			cursor.setSelections('test', [new Selection(2, 2, 2, 2)]);
+			viewModel.setSelections('test', [new Selection(2, 2, 2, 2)]);
 			model.setValue([
 				'different first line',
 				'different second line',
 				'new third line'
 			].join('\n'));
 
-			assertCursor(cursor, new Selection(1, 1, 1, 1));
+			assertCursor(viewModel, new Selection(1, 1, 1, 1));
 		});
 	});
 
@@ -2169,54 +2170,54 @@ suite('Editor Controller - Regression tests', () => {
 				'consectetur ',
 				'adipiscing elit',
 			].join('')
-		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 16 }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 7, 1, 7)]);
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 16 }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 7, 1, 7)]);
 
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(1, 9, 1, 9));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(1, 9, 1, 9));
 
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(1, 10, 1, 10));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(1, 10, 1, 10));
 
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(1, 11, 1, 11));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(1, 11, 1, 11));
 
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(1, 12, 1, 12));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(1, 13, 1, 13));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(1, 13, 1, 13));
 
 			// moving to view line 2
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(1, 14, 1, 14));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(1, 14, 1, 14));
 
-			moveLeft(cursor);
-			assertCursor(cursor, new Selection(1, 13, 1, 13));
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Selection(1, 13, 1, 13));
 
 			// moving back to view line 1
-			moveLeft(cursor);
-			assertCursor(cursor, new Selection(1, 12, 1, 12));
+			moveLeft(viewModel);
+			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 		});
 	});
 
 	test('issue #41573 - delete across multiple lines does not shrink the selection when word wraps', () => {
 		withTestCodeEditor([
 			'Authorization: \'Bearer pHKRfCTFSnGxs6akKlb9ddIXcca0sIUSZJutPHYqz7vEeHdMTMh0SGN0IGU3a0n59DXjTLRsj5EJ2u33qLNIFi9fk5XF8pK39PndLYUZhPt4QvHGLScgSkK0L4gwzkzMloTQPpKhqiikiIOvyNNSpd2o8j29NnOmdTUOKi9DVt74PD2ohKxyOrWZ6oZprTkb3eKajcpnS0LABKfaw2rmv4\','
-		].join('\n'), { wordWrap: 'wordWrapColumn', wordWrapColumn: 100 }, (editor, cursor) => {
-			moveTo(cursor, 1, 43, false);
-			moveTo(cursor, 1, 147, true);
-			assertCursor(cursor, new Selection(1, 43, 1, 147));
+		].join('\n'), { wordWrap: 'wordWrapColumn', wordWrapColumn: 100 }, (editor, viewModel) => {
+			moveTo(viewModel, 1, 43, false);
+			moveTo(viewModel, 1, 147, true);
+			assertCursor(viewModel, new Selection(1, 43, 1, 147));
 
-			cursor.context.model.applyEdits([{
+			editor.getModel().applyEdits([{
 				range: new Range(1, 1, 1, 43),
 				text: ''
 			}]);
 
-			assertCursor(cursor, new Selection(1, 1, 1, 105));
+			assertCursor(viewModel, new Selection(1, 1, 1, 105));
 		});
 	});
 
@@ -2227,20 +2228,20 @@ suite('Editor Controller - Regression tests', () => {
 				'一二三四五六七八九十',
 				'12345678901234567890',
 			].join('\n')
-		], {}, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+		], {}, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
 
-			moveDown(cursor);
-			assertCursor(cursor, new Selection(2, 9, 2, 9));
+			moveDown(viewModel);
+			assertCursor(viewModel, new Selection(2, 9, 2, 9));
 
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(2, 10, 2, 10));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(2, 10, 2, 10));
 
-			moveRight(cursor);
-			assertCursor(cursor, new Selection(2, 11, 2, 11));
+			moveRight(viewModel);
+			assertCursor(viewModel, new Selection(2, 11, 2, 11));
 
-			moveUp(cursor);
-			assertCursor(cursor, new Selection(1, 6, 1, 6));
+			moveUp(viewModel);
+			assertCursor(viewModel, new Selection(1, 6, 1, 6));
 		});
 	});
 
@@ -2251,7 +2252,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { readOnly: true, model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { readOnly: true, model: model }, (editor, viewModel) => {
 			model.pushEditOperations([new Selection(1, 1, 1, 1)], [{
 				range: new Range(1, 1, 1, 1),
 				text: 'Hello world!'
@@ -2302,7 +2303,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { multiCursorMergeOverlapping: false, model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { multiCursorMergeOverlapping: false, model: model }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 12, 1, 12),
 				new Selection(1, 16, 1, 16),
@@ -2312,14 +2313,14 @@ suite('Editor Controller - Regression tests', () => {
 
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(1, 11, 1, 11),
 				new Selection(1, 14, 1, 14),
 				new Selection(2, 11, 2, 11),
 				new Selection(2, 11, 2, 11),
 			]);
 
-			cursor.type('\'', 'keyboard');
+			viewModel.type('\'', 'keyboard');
 
 			assert.equal(model.getLineContent(1), 'const a = \'foo\';');
 			assert.equal(model.getLineContent(2), 'const b = \'\'');
@@ -2335,7 +2336,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 4, 1, 4)
 			]);
@@ -2345,17 +2346,17 @@ suite('Editor Controller - Regression tests', () => {
 				text: '*',
 				forceMoveMarkers: true
 			}]);
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(1, 5, 1, 5),
 			]);
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(1, 4, 1, 4),
 			]);
 
 			CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(1, 5, 1, 5),
 			]);
 		});
@@ -2370,7 +2371,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 1, 1, 1)
 			]);
@@ -2379,12 +2380,12 @@ suite('Editor Controller - Regression tests', () => {
 				range: new Range(1, 1, 1, 3),
 				text: ''
 			}]);
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(1, 1, 1, 1),
 			]);
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(1, 1, 1, 1),
 			]);
 
@@ -2392,7 +2393,7 @@ suite('Editor Controller - Regression tests', () => {
 				range: new Range(1, 1, 1, 2),
 				text: ''
 			}]);
-			assertCursor(cursor, [
+			assertCursor(viewModel, [
 				new Selection(1, 1, 1, 1),
 			]);
 		});
@@ -2408,17 +2409,17 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(2, 1, 2, 1)
 			]);
-			cursor.paste('something\n', true);
+			viewModel.paste('something\n', true);
 			assert.equal(model.getValue(), [
 				'abc123',
 				'something',
 				''
 			].join('\n'));
-			assertCursor(cursor, new Position(3, 1));
+			assertCursor(viewModel, new Position(3, 1));
 		});
 
 		model.dispose();
@@ -2431,7 +2432,7 @@ suite('Editor Controller - Regression tests', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 7, 1, 7)
 			]);
@@ -2470,9 +2471,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'1'
 			]
-		}, (model, cursor) => {
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(1, 21), source: 'keyboard' });
-			cursor.type('\n', 'keyboard');
+		}, (model, viewModel) => {
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(1, 21), source: 'keyboard' });
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    \tMy First Line\t ');
 			assert.equal(model.getLineContent(2), '        ');
 		});
@@ -2493,58 +2494,58 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			// Tab on column 1
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 1) });
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(2, 1) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '             My Second Line123');
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 2
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 2) });
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(2, 2) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'M            y Second Line123');
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 3
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 3) });
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(2, 3) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My            Second Line123');
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 4
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 4) });
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(2, 4) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My           Second Line123');
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 5) });
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(2, 5) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 5
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 5) });
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(2, 5) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My S         econd Line123');
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 13
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 13) });
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(2, 13) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Li ne123');
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 
 			// Tab on column 14
 			assert.equal(model.getLineContent(2), 'My Second Line123');
-			CoreNavigationCommands.MoveTo.runCoreEditorCommand(cursor, { position: new Position(2, 14) });
+			CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), { position: new Position(2, 14) });
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'My Second Lin             e123');
 		});
@@ -2559,11 +2560,11 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 7, false);
-			assertCursor(cursor, new Selection(1, 7, 1, 7));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 7, false);
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.CRLF), '\thello\r\n        ');
 		});
 		mode.dispose();
@@ -2576,11 +2577,11 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 7, false);
-			assertCursor(cursor, new Selection(1, 7, 1, 7));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 7, false);
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.CRLF), '\thello\r\n    ');
 		});
 		mode.dispose();
@@ -2593,11 +2594,11 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'\thell()'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 7, false);
-			assertCursor(cursor, new Selection(1, 7, 1, 7));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 7, false);
+			assertCursor(viewModel, new Selection(1, 7, 1, 7));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.CRLF), '\thell(\r\n        \r\n    )');
 		});
 		mode.dispose();
@@ -2611,16 +2612,16 @@ suite('Editor Controller - Cursor Configuration', () => {
 			modelOpts: {
 				trimAutoWhitespace: false
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			// Move cursor to the end, verify that we do not trim whitespaces if line has values
-			moveTo(cursor, 1, model.getLineContent(1).length + 1);
-			cursor.type('\n', 'keyboard');
+			moveTo(viewModel, 1, model.getLineContent(1).length + 1);
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    some  line abc  ');
 			assert.equal(model.getLineContent(2), '    ');
 
 			// Try to enter again, we should trimmed previous line
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    some  line abc  ');
 			assert.equal(model.getLineContent(2), '    ');
 			assert.equal(model.getLineContent(3), '    ');
@@ -2632,13 +2633,13 @@ suite('Editor Controller - Cursor Configuration', () => {
 			text: [
 				'    '
 			]
-		}, (model, cursor) => {
-			moveTo(cursor, 1, model.getLineContent(1).length + 1);
-			cursor.type('\n', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, model.getLineContent(1).length + 1);
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    ');
 			assert.equal(model.getLineContent(2), '    ');
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    ');
 			assert.equal(model.getLineContent(2), '');
 			assert.equal(model.getLineContent(3), '    ');
@@ -2652,10 +2653,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'function foo (params: string) {}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			moveTo(cursor, 1, 32);
-			cursor.type('\n', 'keyboard');
+			moveTo(viewModel, 1, 32);
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), 'function foo (params: string) {');
 			assert.equal(model.getLineContent(2), '    ');
 			assert.equal(model.getLineContent(3), '}');
@@ -2666,7 +2667,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 				public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 					builder.addEditOperation(new Range(1, 13, 1, 14), '');
-					this._selectionId = builder.trackSelection(cursor.getSelection());
+					this._selectionId = builder.trackSelection(viewModel.getSelection());
 				}
 
 				public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
@@ -2675,7 +2676,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 
 			}
 
-			cursor.executeCommand(new TestCommand(), 'autoFormat');
+			viewModel.executeCommand(new TestCommand(), 'autoFormat');
 			assert.equal(model.getLineContent(1), 'function foo(params: string) {');
 			assert.equal(model.getLineContent(2), '    ');
 			assert.equal(model.getLineContent(3), '}');
@@ -2694,9 +2695,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 
-			moveTo(cursor, 3, 1);
+			moveTo(viewModel, 3, 1);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    if (a) {');
 			assert.equal(model.getLineContent(2), '        ');
@@ -2704,7 +2705,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(4), '');
 			assert.equal(model.getLineContent(5), '    }');
 
-			moveTo(cursor, 4, 1);
+			moveTo(viewModel, 4, 1);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    if (a) {');
 			assert.equal(model.getLineContent(2), '        ');
@@ -2712,8 +2713,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(4), '    ');
 			assert.equal(model.getLineContent(5), '    }');
 
-			moveTo(cursor, 5, model.getLineMaxColumn(5));
-			cursor.type('something', 'keyboard');
+			moveTo(viewModel, 5, model.getLineMaxColumn(5));
+			viewModel.type('something', 'keyboard');
 			assert.equal(model.getLineContent(1), '    if (a) {');
 			assert.equal(model.getLineContent(2), '        ');
 			assert.equal(model.getLineContent(3), '');
@@ -2731,16 +2732,16 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 
 			// Move cursor to the end, verify that we do not trim whitespaces if line has values
-			moveTo(cursor, 1, model.getLineContent(1).length + 1);
-			cursor.type('\n', 'keyboard');
+			moveTo(viewModel, 1, model.getLineContent(1).length + 1);
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    some  line abc  ');
 			assert.equal(model.getLineContent(2), '    ');
 
 			// Try to enter again, we should trimmed previous line
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    some  line abc  ');
 			assert.equal(model.getLineContent(2), '');
 			assert.equal(model.getLineContent(3), '    ');
@@ -2752,15 +2753,15 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(3), '        ');
 
 			// Enter and verify that trimmed again
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    some  line abc  ');
 			assert.equal(model.getLineContent(2), '');
 			assert.equal(model.getLineContent(3), '');
 			assert.equal(model.getLineContent(4), '        ');
 
 			// Trimmed if we will keep only text
-			moveTo(cursor, 1, 5);
-			cursor.type('\n', 'keyboard');
+			moveTo(viewModel, 1, 5);
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    ');
 			assert.equal(model.getLineContent(2), '    some  line abc  ');
 			assert.equal(model.getLineContent(3), '');
@@ -2768,9 +2769,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(5), '');
 
 			// Trimmed if we will keep only text by selection
-			moveTo(cursor, 2, 5);
-			moveTo(cursor, 3, 1, true);
-			cursor.type('\n', 'keyboard');
+			moveTo(viewModel, 2, 5);
+			moveTo(viewModel, 3, 1, true);
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(1), '    ');
 			assert.equal(model.getLineContent(2), '    ');
 			assert.equal(model.getLineContent(3), '    ');
@@ -2791,10 +2792,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 
-			moveTo(cursor, 3, model.getLineMaxColumn(3));
-			cursor.type('\n', 'keyboard');
+			moveTo(viewModel, 3, model.getLineMaxColumn(3));
+			viewModel.type('\n', 'keyboard');
 
 			assert.equal(model.getValue(), [
 				'    function f() {',
@@ -2803,9 +2804,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'        ',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(4, model.getLineMaxColumn(4)));
+			assertCursor(viewModel, new Position(4, model.getLineMaxColumn(4)));
 
-			cursor.paste('        // I\'m gonna copy this line\n', true);
+			viewModel.paste('        // I\'m gonna copy this line\n', true);
 			assert.equal(model.getValue(), [
 				'    function f() {',
 				'        // I\'m gonna copy this line',
@@ -2814,7 +2815,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(5, 1));
+			assertCursor(viewModel, new Position(5, 1));
 		});
 
 		model.dispose();
@@ -2831,10 +2832,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 
 			editor.setSelections([new Selection(4, 10, 4, 10)]);
-			cursor.paste('        // I\'m gonna copy this line\n', true);
+			viewModel.paste('        // I\'m gonna copy this line\n', true);
 
 			assert.equal(model.getValue(), [
 				'    function f() {',
@@ -2844,7 +2845,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 				'        return 3;',
 				'    }',
 			].join('\n'));
-			assertCursor(cursor, new Position(5, 10));
+			assertCursor(viewModel, new Position(5, 10));
 		});
 
 		model.dispose();
@@ -2859,9 +2860,9 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, useTabStops: false }, (editor, viewModel) => {
 			// DeleteLeft removes just one whitespace
-			moveTo(cursor, 2, 9);
+			moveTo(viewModel, 2, 9);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '       a    ');
 		});
@@ -2878,14 +2879,14 @@ suite('Editor Controller - Cursor Configuration', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model, useTabStops: true }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model, useTabStops: true }, (editor, viewModel) => {
 			// DeleteLeft does not remove tab size, because some text exists before
-			moveTo(cursor, 2, model.getLineContent(2).length + 1);
+			moveTo(viewModel, 2, model.getLineContent(2).length + 1);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '        a   ');
 
 			// DeleteLeft removes tab size = 4
-			moveTo(cursor, 2, 9);
+			moveTo(viewModel, 2, 9);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '    a   ');
 
@@ -2898,12 +2899,12 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(2), '        a   ');
 
 			// Nothing is broken when cursor is in (1,1)
-			moveTo(cursor, 1, 1);
+			moveTo(viewModel, 1, 1);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), ' \t \t     x');
 
 			// DeleteLeft stops at tab stops even in mixed whitespace case
-			moveTo(cursor, 1, 10);
+			moveTo(viewModel, 1, 10);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), ' \t \t    x');
 
@@ -2917,7 +2918,7 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(1), 'x');
 
 			// DeleteLeft on last line
-			moveTo(cursor, 3, model.getLineContent(3).length + 1);
+			moveTo(viewModel, 3, model.getLineContent(3).length + 1);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(3), '');
 
@@ -2926,8 +2927,8 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'x\n        a   ');
 
 			// In case of selection DeleteLeft only deletes selected text
-			moveTo(cursor, 2, 3);
-			moveTo(cursor, 2, 4, true);
+			moveTo(viewModel, 2, 3);
+			moveTo(viewModel, 2, 4, true);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '       a   ');
 		});
@@ -2945,23 +2946,23 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.type('\n', 'keyboard');
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n', 'assert1');
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\t', 'assert2');
 
-			cursor.type('y', 'keyboard');
+			viewModel.type('y', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty', 'assert2');
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\t', 'assert3');
 
-			cursor.type('x');
+			viewModel.type('x');
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert4');
 
-			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(cursor, {});
+			CoreNavigationCommands.CursorLeft.runCoreEditorCommand(viewModel.getCursors(), {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\n\ty\n\tx', 'assert5');
 
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -3011,10 +3012,10 @@ suite('Editor Controller - Cursor Configuration', () => {
 			}
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			const beforeVersion = model.getVersionId();
 			const beforeAltVersion = model.getAlternativeVersionId();
-			cursor.type('Hello', 'keyboard');
+			viewModel.type('Hello', 'keyboard');
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			const afterVersion = model.getVersionId();
 			const afterAltVersion = model.getAlternativeVersionId();
@@ -3046,19 +3047,19 @@ suite('Editor Controller - Indentation Rules', () => {
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
 			editorOpts: { autoIndent: 'full' }
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 12, false);
-			assertCursor(cursor, new Selection(1, 12, 1, 12));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 12, false);
+			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			model.forceTokenization(model.getLineCount());
-			assertCursor(cursor, new Selection(2, 2, 2, 2));
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
-			moveTo(cursor, 3, 13, false);
-			assertCursor(cursor, new Selection(3, 13, 3, 13));
+			moveTo(viewModel, 3, 13, false);
+			assertCursor(viewModel, new Selection(3, 13, 3, 13));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 		});
 	});
 
@@ -3070,12 +3071,12 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: { autoIndent: 'full' }
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 2, false);
-			assertCursor(cursor, new Selection(2, 2, 2, 2));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 2, false);
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
-			cursor.type('}', 'keyboard');
-			assertCursor(cursor, new Selection(2, 2, 2, 2));
+			viewModel.type('}', 'keyboard');
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 			assert.equal(model.getLineContent(2), '}', '001');
 		});
 	});
@@ -3089,12 +3090,12 @@ suite('Editor Controller - Indentation Rules', () => {
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
 			editorOpts: { autoIndent: 'full' }
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 15, false);
-			assertCursor(cursor, new Selection(2, 15, 2, 15));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 15, false);
+			assertCursor(viewModel, new Selection(2, 15, 2, 15));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(3, 2, 3, 2));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(3, 2, 3, 2));
 		});
 	});
 
@@ -3109,19 +3110,19 @@ suite('Editor Controller - Indentation Rules', () => {
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
 			editorOpts: { autoIndent: 'full' }
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 14, false);
-			assertCursor(cursor, new Selection(2, 14, 2, 14));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 14, false);
+			assertCursor(viewModel, new Selection(2, 14, 2, 14));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			model.forceTokenization(model.getLineCount());
-			assertCursor(cursor, new Selection(3, 1, 3, 1));
+			assertCursor(viewModel, new Selection(3, 1, 3, 1));
 
-			moveTo(cursor, 5, 16, false);
-			assertCursor(cursor, new Selection(5, 16, 5, 16));
+			moveTo(viewModel, 5, 16, false);
+			assertCursor(viewModel, new Selection(5, 16, 5, 16));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(6, 2, 6, 2));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(6, 2, 6, 2));
 		});
 	});
 
@@ -3137,17 +3138,17 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
-			moveTo(cursor, 2, 11, false);
-			assertCursor(cursor, new Selection(2, 11, 2, 11));
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
+			moveTo(viewModel, 2, 11, false);
+			assertCursor(viewModel, new Selection(2, 11, 2, 11));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			model.forceTokenization(model.getLineCount());
-			assertCursor(cursor, new Selection(3, 3, 3, 3));
+			assertCursor(viewModel, new Selection(3, 3, 3, 3));
 
-			cursor.type('console.log();', 'keyboard');
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 1, 4, 1));
+			viewModel.type('console.log();', 'keyboard');
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 1, 4, 1));
 		});
 
 		model.dispose();
@@ -3163,12 +3164,12 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: { autoIndent: 'full' }
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 13, false);
-			assertCursor(cursor, new Selection(3, 13, 3, 13));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 13, false);
+			assertCursor(viewModel, new Selection(3, 13, 3, 13));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 1, 4, 1));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 1, 4, 1));
 			assert.equal(model.getLineContent(3), 'return true;', '001');
 		});
 	});
@@ -3183,13 +3184,13 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 4, 3, false);
-			moveTo(cursor, 4, 4, true);
-			assertCursor(cursor, new Selection(4, 3, 4, 4));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 4, 3, false);
+			moveTo(viewModel, 4, 4, true);
+			assertCursor(viewModel, new Selection(4, 3, 4, 4));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(5, 1, 5, 1));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(5, 1, 5, 1));
 			assert.equal(model.getLineContent(4), '\t}', '001');
 		});
 	});
@@ -3202,16 +3203,16 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 12, false);
-			moveTo(cursor, 2, 13, true);
-			assertCursor(cursor, new Selection(2, 12, 2, 13));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 12, false);
+			moveTo(viewModel, 2, 13, true);
+			assertCursor(viewModel, new Selection(2, 12, 2, 13));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(3, 3, 3, 3));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(3, 3, 3, 3));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 		});
 	});
 
@@ -3222,20 +3223,20 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\tif (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 12, false);
-			assertCursor(cursor, new Selection(1, 12, 1, 12));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 12, false);
+			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(2, 5, 2, 5));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(2, 5, 2, 5));
 
 			model.forceTokenization(model.getLineCount());
 
-			moveTo(cursor, 3, 13, false);
-			assertCursor(cursor, new Selection(3, 13, 3, 13));
+			moveTo(viewModel, 3, 13, false);
+			assertCursor(viewModel, new Selection(3, 13, 3, 13));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 9, 4, 9));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 9, 4, 9));
 		});
 	});
 
@@ -3246,20 +3247,20 @@ suite('Editor Controller - Indentation Rules', () => {
 				'    if (true) {'
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 12, false);
-			assertCursor(cursor, new Selection(1, 12, 1, 12));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 12, false);
+			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			model.forceTokenization(model.getLineCount());
-			assertCursor(cursor, new Selection(2, 5, 2, 5));
+			assertCursor(viewModel, new Selection(2, 5, 2, 5));
 
-			moveTo(cursor, 3, 16, false);
-			assertCursor(cursor, new Selection(3, 16, 3, 16));
+			moveTo(viewModel, 3, 16, false);
+			assertCursor(viewModel, new Selection(3, 16, 3, 16));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(3), '    if (true) {');
-			assertCursor(cursor, new Selection(4, 9, 4, 9));
+			assertCursor(viewModel, new Selection(4, 9, 4, 9));
 		});
 	});
 
@@ -3271,20 +3272,20 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 12, false);
-			assertCursor(cursor, new Selection(1, 12, 1, 12));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 12, false);
+			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			model.forceTokenization(model.getLineCount());
-			assertCursor(cursor, new Selection(2, 2, 2, 2));
+			assertCursor(viewModel, new Selection(2, 2, 2, 2));
 
-			moveTo(cursor, 3, 16, false);
-			assertCursor(cursor, new Selection(3, 16, 3, 16));
+			moveTo(viewModel, 3, 16, false);
+			assertCursor(viewModel, new Selection(3, 16, 3, 16));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(3), '    if (true) {');
-			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 		});
 	});
 
@@ -3301,13 +3302,13 @@ suite('Editor Controller - Indentation Rules', () => {
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false },
 			editorOpts: { autoIndent: 'full' }
-		}, (model, cursor) => {
-			moveTo(cursor, 5, 4, false);
-			assertCursor(cursor, new Selection(5, 4, 5, 4));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 5, 4, false);
+			assertCursor(viewModel, new Selection(5, 4, 5, 4));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(5), '\t\t}');
-			assertCursor(cursor, new Selection(6, 3, 6, 3));
+			assertCursor(viewModel, new Selection(6, 3, 6, 3));
 		});
 	});
 
@@ -3321,12 +3322,12 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 9, false);
-			assertCursor(cursor, new Selection(3, 9, 3, 9));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 9, false);
+			assertCursor(viewModel, new Selection(3, 9, 3, 9));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 			assert.equal(model.getLineContent(4), '\t\t true;', '001');
 		});
 	});
@@ -3341,12 +3342,12 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 3, false);
-			assertCursor(cursor, new Selection(3, 3, 3, 3));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 3, false);
+			assertCursor(viewModel, new Selection(3, 3, 3, 3));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 			assert.equal(model.getLineContent(4), '\t\treturn true;', '001');
 		});
 	});
@@ -3360,12 +3361,12 @@ suite('Editor Controller - Indentation Rules', () => {
 				'  }a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 11, false);
-			assertCursor(cursor, new Selection(3, 11, 3, 11));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 11, false);
+			assertCursor(viewModel, new Selection(3, 11, 3, 11));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 5, 4, 5));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 5, 4, 5));
 			assert.equal(model.getLineContent(4), '     true;', '001');
 		});
 	});
@@ -3380,19 +3381,19 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 2, false);
-			assertCursor(cursor, new Selection(3, 2, 3, 2));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 2, false);
+			assertCursor(viewModel, new Selection(3, 2, 3, 2));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 2, 4, 2));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 2, 4, 2));
 			assert.equal(model.getLineContent(4), '\t\treturn true;', '001');
 
-			moveTo(cursor, 4, 1, false);
-			assertCursor(cursor, new Selection(4, 1, 4, 1));
+			moveTo(viewModel, 4, 1, false);
+			assertCursor(viewModel, new Selection(4, 1, 4, 1));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(5, 1, 5, 1));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(5, 1, 5, 1));
 			assert.equal(model.getLineContent(5), '\t\treturn true;', '002');
 		});
 	});
@@ -3407,19 +3408,19 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 4, false);
-			assertCursor(cursor, new Selection(3, 4, 3, 4));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 4, false);
+			assertCursor(viewModel, new Selection(3, 4, 3, 4));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 			assert.equal(model.getLineContent(4), '\t\t\treturn true;', '001');
 
-			moveTo(cursor, 4, 1, false);
-			assertCursor(cursor, new Selection(4, 1, 4, 1));
+			moveTo(viewModel, 4, 1, false);
+			assertCursor(viewModel, new Selection(4, 1, 4, 1));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(5, 1, 5, 1));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(5, 1, 5, 1));
 			assert.equal(model.getLineContent(5), '\t\t\treturn true;', '002');
 		});
 	});
@@ -3433,17 +3434,17 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}a}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 2, false);
-			assertCursor(cursor, new Selection(3, 2, 3, 2));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 2, false);
+			assertCursor(viewModel, new Selection(3, 2, 3, 2));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 2, 4, 2));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 2, 4, 2));
 			assert.equal(model.getLineContent(4), '    return true;', '001');
 
-			moveTo(cursor, 4, 3, false);
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(5, 3, 5, 3));
+			moveTo(viewModel, 4, 3, false);
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(5, 3, 5, 3));
 			assert.equal(model.getLineContent(5), '    return true;', '002');
 		});
 	});
@@ -3466,17 +3467,17 @@ suite('Editor Controller - Indentation Rules', () => {
 				tabSize: 2,
 				indentSize: 2
 			}
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 3, false);
-			assertCursor(cursor, new Selection(3, 3, 3, 3));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 3, false);
+			assertCursor(viewModel, new Selection(3, 3, 3, 3));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 4, 4, 4));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 4, 4, 4));
 			assert.equal(model.getLineContent(4), '    return true;', '001');
 
-			moveTo(cursor, 9, 4, false);
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(10, 5, 10, 5));
+			moveTo(viewModel, 9, 4, false);
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(10, 5, 10, 5));
 			assert.equal(model.getLineContent(10), '    return true;', '001');
 		});
 	});
@@ -3492,13 +3493,13 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			modelOpts: { tabSize: 2 }
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 5, false);
-			moveTo(cursor, 4, 3, true);
-			assertCursor(cursor, new Selection(3, 5, 4, 3));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 5, false);
+			moveTo(viewModel, 4, 3, true);
+			assertCursor(viewModel, new Selection(3, 5, 4, 3));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 3, 4, 3));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 			assert.equal(model.getLineContent(4), '    return true;', '001');
 		});
 	});
@@ -3515,14 +3516,14 @@ suite('Editor Controller - Indentation Rules', () => {
 				insertSpaces: false,
 			},
 			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 8, false);
-			moveTo(cursor, 2, 12, true);
-			assertCursor(cursor, new Selection(3, 8, 2, 12));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 8, false);
+			moveTo(viewModel, 2, 12, true);
+			assertCursor(viewModel, new Selection(3, 8, 2, 12));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(3), '\treturn x;');
-			assertCursor(cursor, new Position(3, 2));
+			assertCursor(viewModel, new Position(3, 2));
 		});
 	});
 
@@ -3538,14 +3539,14 @@ suite('Editor Controller - Indentation Rules', () => {
 				insertSpaces: false,
 			},
 			languageIdentifier: mode.getLanguageIdentifier(),
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 12, false);
-			moveTo(cursor, 3, 8, true);
-			assertCursor(cursor, new Selection(2, 12, 3, 8));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 12, false);
+			moveTo(viewModel, 3, 8, true);
+			assertCursor(viewModel, new Selection(2, 12, 3, 8));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(3), '\treturn x;');
-			assertCursor(cursor, new Position(3, 2));
+			assertCursor(viewModel, new Position(3, 2));
 		});
 	});
 
@@ -3560,13 +3561,13 @@ suite('Editor Controller - Indentation Rules', () => {
 				'?>'
 			],
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 5, 3, false);
-			assertCursor(cursor, new Selection(5, 3, 5, 3));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 5, 3, false);
+			assertCursor(viewModel, new Selection(5, 3, 5, 3));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getLineContent(6), '\t');
-			assertCursor(cursor, new Selection(6, 2, 6, 2));
+			assertCursor(viewModel, new Selection(6, 2, 6, 2));
 			assert.equal(model.getLineContent(5), '\t}');
 		});
 	});
@@ -3579,12 +3580,12 @@ suite('Editor Controller - Indentation Rules', () => {
 				'	'
 			],
 			modelOpts: { insertSpaces: false }
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 2, false);
-			assertCursor(cursor, new Selection(3, 2, 3, 2));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 2, false);
+			assertCursor(viewModel, new Selection(3, 2, 3, 2));
 
-			cursor.type('\n', 'keyboard');
-			assertCursor(cursor, new Selection(4, 2, 4, 2));
+			viewModel.type('\n', 'keyboard');
+			assertCursor(viewModel, new Selection(4, 2, 4, 2));
 			assert.equal(model.getLineContent(4), '\t');
 		});
 	});
@@ -3605,9 +3606,9 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 4, 1, false);
-			assertCursor(cursor, new Selection(4, 1, 4, 1));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 4, 1, false);
+			assertCursor(viewModel, new Selection(4, 1, 4, 1));
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t');
@@ -3633,9 +3634,9 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 4, 2, false);
-			assertCursor(cursor, new Selection(4, 2, 4, 2));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 4, 2, false);
+			assertCursor(viewModel, new Selection(4, 2, 4, 2));
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t\t');
@@ -3661,9 +3662,9 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 4, 1, false);
-			assertCursor(cursor, new Selection(4, 1, 4, 1));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 4, 1, false);
+			assertCursor(viewModel, new Selection(4, 1, 4, 1));
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t\t');
@@ -3688,9 +3689,9 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 4, 3, false);
-			assertCursor(cursor, new Selection(4, 3, 4, 3));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 4, 3, false);
+			assertCursor(viewModel, new Selection(4, 3, 4, 3));
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t\t\t');
@@ -3715,9 +3716,9 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			moveTo(cursor, 4, 4, false);
-			assertCursor(cursor, new Selection(4, 4, 4, 4));
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			moveTo(viewModel, 4, 4, false);
+			assertCursor(viewModel, new Selection(4, 4, 4, 4));
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(4), '\t\t\t\t\t');
@@ -3740,9 +3741,9 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 
-			moveTo(cursor, 3, 1);
+			moveTo(viewModel, 3, 1);
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), '    if (a) {');
 			assert.equal(model.getLineContent(2), '        ');
@@ -3770,11 +3771,11 @@ suite('Editor Controller - Indentation Rules', () => {
 			rubyMode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
-			moveTo(cursor, 4, 7, false);
-			assertCursor(cursor, new Selection(4, 7, 4, 7));
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
+			moveTo(viewModel, 4, 7, false);
+			assertCursor(viewModel, new Selection(4, 7, 4, 7));
 
-			cursor.type('d', 'keyboard');
+			viewModel.type('d', 'keyboard');
 			assert.equal(model.getLineContent(4), '  end');
 		});
 
@@ -3792,12 +3793,12 @@ suite('Editor Controller - Indentation Rules', () => {
 				'\t}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 5, 3, false);
-			assertCursor(cursor, new Selection(5, 3, 5, 3));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 5, 3, false);
+			assertCursor(viewModel, new Selection(5, 3, 5, 3));
 
-			cursor.type('e', 'keyboard');
-			assertCursor(cursor, new Selection(5, 4, 5, 4));
+			viewModel.type('e', 'keyboard');
+			assertCursor(viewModel, new Selection(5, 4, 5, 4));
 			assert.equal(model.getLineContent(5), '\t}e', 'This line should not decrease indent');
 		});
 	});
@@ -3813,12 +3814,12 @@ suite('Editor Controller - Indentation Rules', () => {
 				'}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 3, false);
-			assertCursor(cursor, new Selection(2, 3, 2, 3));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 3, false);
+			assertCursor(viewModel, new Selection(2, 3, 2, 3));
 
-			cursor.type(' ', 'keyboard');
-			assertCursor(cursor, new Selection(2, 4, 2, 4));
+			viewModel.type(' ', 'keyboard');
+			assertCursor(viewModel, new Selection(2, 4, 2, 4));
 			assert.equal(model.getLineContent(2), '\t  ) {', 'This line should not decrease indent');
 		});
 	});
@@ -3832,12 +3833,12 @@ suite('Editor Controller - Indentation Rules', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: { autoIndent: 'full' }
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 3, false);
-			assertCursor(cursor, new Selection(3, 3, 3, 3));
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 3, false);
+			assertCursor(viewModel, new Selection(3, 3, 3, 3));
 
-			cursor.type('}', 'keyboard');
-			assertCursor(cursor, new Selection(3, 2, 3, 2));
+			viewModel.type('}', 'keyboard');
+			assertCursor(viewModel, new Selection(3, 2, 3, 2));
 			assert.equal(model.getLineContent(3), '}');
 		});
 	});
@@ -3880,11 +3881,11 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
-			moveTo(cursor, 7, 6, false);
-			assertCursor(cursor, new Selection(7, 6, 7, 6));
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
+			moveTo(viewModel, 7, 6, false);
+			assertCursor(viewModel, new Selection(7, 6, 7, 6));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.equal(model.getValue(),
 				[
 					'class ItemCtrl {',
@@ -3898,7 +3899,7 @@ suite('Editor Controller - Indentation Rules', () => {
 					'}',
 				].join('\n')
 			);
-			assertCursor(cursor, new Selection(8, 5, 8, 5));
+			assertCursor(viewModel, new Selection(8, 5, 8, 5));
 		});
 
 		model.dispose();
@@ -3944,9 +3945,9 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, cursor) => {
-			moveTo(cursor, 8, 1, false);
-			assertCursor(cursor, new Selection(8, 1, 8, 1));
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
+			moveTo(viewModel, 8, 1, false);
+			assertCursor(viewModel, new Selection(8, 1, 8, 1));
 
 			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(),
@@ -3962,7 +3963,7 @@ suite('Editor Controller - Indentation Rules', () => {
 					')',
 				].join('\n')
 			);
-			assert.deepEqual(cursor.getSelection(), new Selection(8, 3, 8, 3));
+			assert.deepEqual(viewModel.getSelection(), new Selection(8, 3, 8, 3));
 		});
 
 		model.dispose();
@@ -4007,30 +4008,30 @@ suite('Editor Controller - Indentation Rules', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, cursor) => {
-			moveTo(cursor, 3, 19, false);
-			assertCursor(cursor, new Selection(3, 19, 3, 19));
+		withTestCodeEditor(null, { model: model, autoIndent: 'full' }, (editor, viewModel) => {
+			moveTo(viewModel, 3, 19, false);
+			assertCursor(viewModel, new Selection(3, 19, 3, 19));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.deepEqual(model.getLineContent(4), '    ');
 
-			moveTo(cursor, 5, 18, false);
-			assertCursor(cursor, new Selection(5, 18, 5, 18));
+			moveTo(viewModel, 5, 18, false);
+			assertCursor(viewModel, new Selection(5, 18, 5, 18));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.deepEqual(model.getLineContent(6), '    ');
 
-			moveTo(cursor, 7, 15, false);
-			assertCursor(cursor, new Selection(7, 15, 7, 15));
+			moveTo(viewModel, 7, 15, false);
+			assertCursor(viewModel, new Selection(7, 15, 7, 15));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.deepEqual(model.getLineContent(8), '      ');
 			assert.deepEqual(model.getLineContent(9), '    ]');
 
-			moveTo(cursor, 10, 18, false);
-			assertCursor(cursor, new Selection(10, 18, 10, 18));
+			moveTo(viewModel, 10, 18, false);
+			assertCursor(viewModel, new Selection(10, 18, 10, 18));
 
-			cursor.type('\n', 'keyboard');
+			viewModel.type('\n', 'keyboard');
 			assert.deepEqual(model.getLineContent(11), '    ]');
 		});
 
@@ -4046,12 +4047,12 @@ interface ICursorOpts {
 	editorOpts?: IEditorOptions;
 }
 
-function usingCursor(opts: ICursorOpts, callback: (model: TextModel, cursor: Cursor) => void): void {
+function usingCursor(opts: ICursorOpts, callback: (model: TextModel, viewModel: ViewModel) => void): void {
 	const model = createTextModel(opts.text.join('\n'), opts.modelOpts, opts.languageIdentifier);
 	const editorOptions: TestCodeEditorCreationOptions = opts.editorOpts || {};
 	editorOptions.model = model;
-	withTestCodeEditor(null, editorOptions, (editor, cursor) => {
-		callback(model, cursor);
+	withTestCodeEditor(null, editorOptions, (editor, viewModel) => {
+		callback(model, viewModel);
 	});
 }
 
@@ -4083,9 +4084,9 @@ suite('ElectricCharacter', () => {
 				''
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 1);
-			cursor.type('*', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 1);
+			viewModel.type('*', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '*');
 		});
 		mode.dispose();
@@ -4099,9 +4100,9 @@ suite('ElectricCharacter', () => {
 				''
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 1);
-			cursor.type('}', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 1);
+			viewModel.type('}', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '  }');
 		});
 		mode.dispose();
@@ -4115,9 +4116,9 @@ suite('ElectricCharacter', () => {
 				'    '
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 5);
-			cursor.type('}', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 5);
+			viewModel.type('}', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '  }');
 		});
 		mode.dispose();
@@ -4133,9 +4134,9 @@ suite('ElectricCharacter', () => {
 				'    '
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 4, 1);
-			cursor.type('}', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 4, 1);
+			viewModel.type('}', 'keyboard');
 			assert.deepEqual(model.getLineContent(4), '  }    ');
 		});
 		mode.dispose();
@@ -4151,9 +4152,9 @@ suite('ElectricCharacter', () => {
 				'  }  '
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 4, 6);
-			cursor.type('}', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 4, 6);
+			viewModel.type('}', 'keyboard');
 			assert.deepEqual(model.getLineContent(4), '  }  }');
 		});
 		mode.dispose();
@@ -4167,9 +4168,9 @@ suite('ElectricCharacter', () => {
 				'// hello'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 1);
-			cursor.type('}', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 1);
+			viewModel.type('}', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '  }// hello');
 		});
 		mode.dispose();
@@ -4183,9 +4184,9 @@ suite('ElectricCharacter', () => {
 				'  '
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 3);
-			cursor.type('}', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 3);
+			viewModel.type('}', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '  }');
 		});
 		mode.dispose();
@@ -4199,9 +4200,9 @@ suite('ElectricCharacter', () => {
 				'a'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 2);
-			cursor.type('}', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 2);
+			viewModel.type('}', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), 'a}');
 		});
 		mode.dispose();
@@ -4216,9 +4217,9 @@ suite('ElectricCharacter', () => {
 				'})'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 13);
-			cursor.type('*', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 13);
+			viewModel.type('*', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '  ( 1 + 2 ) *');
 		});
 		mode.dispose();
@@ -4231,13 +4232,13 @@ suite('ElectricCharacter', () => {
 				'(div',
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 1, 5);
+		}, (model, viewModel) => {
+			moveTo(viewModel, 1, 5);
 			let changeText: string | null = null;
 			model.onDidChangeContent(e => {
 				changeText = e.changes[0].text;
 			});
-			cursor.type(')', 'keyboard');
+			viewModel.type(')', 'keyboard');
 			assert.deepEqual(model.getLineContent(1), '(div)');
 			assert.deepEqual(changeText, ')');
 		});
@@ -4253,9 +4254,9 @@ suite('ElectricCharacter', () => {
 				'\t3'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 3, 3);
-			cursor.type(')', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 3, 3);
+			viewModel.type(')', 'keyboard');
 			assert.deepEqual(model.getLineContent(3), '\t3)');
 		});
 		mode.dispose();
@@ -4269,9 +4270,9 @@ suite('ElectricCharacter', () => {
 				'/*'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 3);
-			cursor.type('*', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 3);
+			viewModel.type('*', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '/** */');
 		});
 		mode.dispose();
@@ -4285,9 +4286,9 @@ suite('ElectricCharacter', () => {
 				'  /*'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 5);
-			cursor.type('*', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 5);
+			viewModel.type('*', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '  /** */');
 		});
 		mode.dispose();
@@ -4301,10 +4302,10 @@ suite('ElectricCharacter', () => {
 				'word'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			moveTo(cursor, 2, 5);
-			moveTo(cursor, 2, 1, true);
-			cursor.type('}', 'keyboard');
+		}, (model, viewModel) => {
+			moveTo(viewModel, 2, 5);
+			moveTo(viewModel, 2, 1, true);
+			viewModel.type('}', 'keyboard');
 			assert.deepEqual(model.getLineContent(2), '}');
 		});
 		mode.dispose();
@@ -4376,11 +4377,11 @@ suite('autoClosingPairs', () => {
 		return result;
 	}
 
-	function assertType(model: TextModel, cursor: Cursor, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
+	function assertType(model: TextModel, viewModel: ViewModel, lineNumber: number, column: number, chr: string, expectedInsert: string, message: string): void {
 		let lineContent = model.getLineContent(lineNumber);
 		let expected = lineContent.substr(0, column - 1) + expectedInsert + lineContent.substr(column - 1);
-		moveTo(cursor, lineNumber, column);
-		cursor.type(chr, 'keyboard');
+		moveTo(viewModel, lineNumber, column);
+		viewModel.type(chr, 'keyboard');
 		assert.deepEqual(model.getLineContent(lineNumber), expected, message);
 		model.undo();
 	}
@@ -4399,7 +4400,7 @@ suite('autoClosingPairs', () => {
 				'var h = { a: \'value\' };',
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			let autoClosePositions = [
 				'var| a| |=| [|]|;|',
@@ -4418,9 +4419,9 @@ suite('autoClosingPairs', () => {
 				for (let column = 1; column < autoCloseColumns.length; column++) {
 					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
-						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
 					}
 				}
 			}
@@ -4445,7 +4446,7 @@ suite('autoClosingPairs', () => {
 			editorOpts: {
 				autoClosingBrackets: 'beforeWhitespace'
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			let autoClosePositions = [
 				'var| a| =| [|];|',
@@ -4464,9 +4465,9 @@ suite('autoClosingPairs', () => {
 				for (let column = 1; column < autoCloseColumns.length; column++) {
 					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
-						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
 					}
 				}
 			}
@@ -4485,7 +4486,7 @@ suite('autoClosingPairs', () => {
 				autoClosingBrackets: 'beforeWhitespace',
 				autoClosingQuotes: 'never'
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			let autoClosePositions = [
 				'var| a| =| [|];|',
@@ -4497,11 +4498,11 @@ suite('autoClosingPairs', () => {
 				for (let column = 1; column < autoCloseColumns.length; column++) {
 					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
-						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
 					}
-					assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+					assertType(model, viewModel, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
 				}
 			}
 		});
@@ -4515,7 +4516,7 @@ suite('autoClosingPairs', () => {
 				autoClosingBrackets: 'never',
 				autoClosingQuotes: 'beforeWhitespace'
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			let autoClosePositions = [
 				'var b =| [|];|',
@@ -4527,11 +4528,11 @@ suite('autoClosingPairs', () => {
 				for (let column = 1; column < autoCloseColumns.length; column++) {
 					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
-						assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
 					}
-					assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					assertType(model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
 				}
 			}
 		});
@@ -4556,7 +4557,7 @@ suite('autoClosingPairs', () => {
 			editorOpts: {
 				autoClosingBrackets: 'languageDefined'
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			let autoClosePositions = [
 				'v|ar |a = [|];|',
@@ -4575,9 +4576,9 @@ suite('autoClosingPairs', () => {
 				for (let column = 1; column < autoCloseColumns.length; column++) {
 					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
-						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
 					}
 				}
 			}
@@ -4603,7 +4604,7 @@ suite('autoClosingPairs', () => {
 				autoClosingBrackets: 'never',
 				autoClosingQuotes: 'never'
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			let autoClosePositions = [
 				'var a = [];',
@@ -4622,11 +4623,11 @@ suite('autoClosingPairs', () => {
 				for (let column = 1; column < autoCloseColumns.length; column++) {
 					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
-						assertType(model, cursor, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
 					} else {
-						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
-						assertType(model, cursor, lineNumber, column, '"', '"', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '"', '"', `does not auto close @ (${lineNumber}, ${column})`);
 					}
 				}
 			}
@@ -4641,20 +4642,20 @@ suite('autoClosingPairs', () => {
 				'var a = asd'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			cursor.setSelections('test', [
+			viewModel.setSelections('test', [
 				new Selection(1, 1, 1, 4),
 				new Selection(1, 9, 1, 12),
 			]);
 
 			// type a `
-			cursor.type('`', 'keyboard');
+			viewModel.type('`', 'keyboard');
 
 			assert.equal(model.getValue(), '`var` a = `asd`');
 
 			// type a (
-			cursor.type('(', 'keyboard');
+			viewModel.type('(', 'keyboard');
 
 			assert.equal(model.getValue(), '`(var)` a = `(asd)`');
 		});
@@ -4667,14 +4668,14 @@ suite('autoClosingPairs', () => {
 			editorOpts: {
 				autoSurround: 'never'
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			cursor.setSelections('test', [
+			viewModel.setSelections('test', [
 				new Selection(1, 1, 1, 4),
 			]);
 
 			// type a `
-			cursor.type('`', 'keyboard');
+			viewModel.type('`', 'keyboard');
 
 			assert.equal(model.getValue(), '` a = asd');
 		});
@@ -4687,18 +4688,18 @@ suite('autoClosingPairs', () => {
 			editorOpts: {
 				autoSurround: 'quotes'
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			cursor.setSelections('test', [
+			viewModel.setSelections('test', [
 				new Selection(1, 1, 1, 4),
 			]);
 
 			// type a `
-			cursor.type('`', 'keyboard');
+			viewModel.type('`', 'keyboard');
 			assert.equal(model.getValue(), '`var` a = asd');
 
 			// type a (
-			cursor.type('(', 'keyboard');
+			viewModel.type('(', 'keyboard');
 			assert.equal(model.getValue(), '`(` a = asd');
 		});
 
@@ -4710,18 +4711,18 @@ suite('autoClosingPairs', () => {
 			editorOpts: {
 				autoSurround: 'brackets'
 			}
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			cursor.setSelections('test', [
+			viewModel.setSelections('test', [
 				new Selection(1, 1, 1, 4),
 			]);
 
 			// type a (
-			cursor.type('(', 'keyboard');
+			viewModel.type('(', 'keyboard');
 			assert.equal(model.getValue(), '(var) a = asd');
 
 			// type a `
-			cursor.type('`', 'keyboard');
+			viewModel.type('`', 'keyboard');
 			assert.equal(model.getValue(), '(`) a = asd');
 		});
 		mode.dispose();
@@ -4741,7 +4742,7 @@ suite('autoClosingPairs', () => {
 				'var h = { a: \'value\' };',
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			let autoClosePositions = [
 				'var a |=| [|]|;|',
@@ -4760,11 +4761,11 @@ suite('autoClosingPairs', () => {
 				for (let column = 1; column < autoCloseColumns.length; column++) {
 					model.forceTokenization(lineNumber);
 					if (autoCloseColumns[column] === ColumnType.Special1) {
-						assertType(model, cursor, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '\'', '\'\'', `auto closes @ (${lineNumber}, ${column})`);
 					} else if (autoCloseColumns[column] === ColumnType.Special2) {
-						assertType(model, cursor, lineNumber, column, '\'', '', `over types @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '\'', '', `over types @ (${lineNumber}, ${column})`);
 					} else {
-						assertType(model, cursor, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, viewModel, lineNumber, column, '\'', '\'', `does not auto close @ (${lineNumber}, ${column})`);
 					}
 				}
 			}
@@ -4779,16 +4780,16 @@ suite('autoClosingPairs', () => {
 				'',
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
 			model.setValue('begi');
-			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			cursor.type('n', 'keyboard');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type('n', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'beginend');
 
 			model.setValue('/*');
-			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			cursor.type('*', 'keyboard');
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('*', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '/** */');
 		});
 		mode.dispose();
@@ -4824,17 +4825,17 @@ suite('autoClosingPairs', () => {
 				'Big LAMB'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 			model.forceTokenization(model.getLineCount());
-			assertType(model, cursor, 1, 4, '"', '"', `does not double quote when ending with open`);
+			assertType(model, viewModel, 1, 4, '"', '"', `does not double quote when ending with open`);
 			model.forceTokenization(model.getLineCount());
-			assertType(model, cursor, 2, 4, '"', '"', `does not double quote when ending with open`);
+			assertType(model, viewModel, 2, 4, '"', '"', `does not double quote when ending with open`);
 			model.forceTokenization(model.getLineCount());
-			assertType(model, cursor, 3, 4, '"', '"', `does not double quote when ending with open`);
+			assertType(model, viewModel, 3, 4, '"', '"', `does not double quote when ending with open`);
 			model.forceTokenization(model.getLineCount());
-			assertType(model, cursor, 4, 2, '"', '"', `does not double quote when ending with open`);
+			assertType(model, viewModel, 4, 2, '"', '"', `does not double quote when ending with open`);
 			model.forceTokenization(model.getLineCount());
-			assertType(model, cursor, 4, 3, '"', '"', `does not double quote when ending with open`);
+			assertType(model, viewModel, 4, 3, '"', '"', `does not double quote when ending with open`);
 		});
 		mode.dispose();
 	});
@@ -4846,8 +4847,8 @@ suite('autoClosingPairs', () => {
 				'var arr = ["b", "c"];'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertType(model, cursor, 1, 12, '"', '""', `does not over type and will auto close`);
+		}, (model, viewModel) => {
+			assertType(model, viewModel, 1, 12, '"', '""', `does not over type and will auto close`);
 		});
 		mode.dispose();
 	});
@@ -4859,60 +4860,60 @@ suite('autoClosingPairs', () => {
 				'',
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			function typeCharacters(cursor: Cursor, chars: string): void {
+			function typeCharacters(viewModel: ViewModel, chars: string): void {
 				for (let i = 0, len = chars.length; i < len; i++) {
-					cursor.type(chars[i], 'keyboard');
+					viewModel.type(chars[i], 'keyboard');
 				}
 			}
 
 			// First gif
 			model.forceTokenization(model.getLineCount());
-			typeCharacters(cursor, 'teste1 = teste\' ok');
+			typeCharacters(viewModel, 'teste1 = teste\' ok');
 			assert.equal(model.getLineContent(1), 'teste1 = teste\' ok');
 
-			cursor.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
-			typeCharacters(cursor, '\n');
+			viewModel.setSelections('test', [new Selection(1, 1000, 1, 1000)]);
+			typeCharacters(viewModel, '\n');
 			model.forceTokenization(model.getLineCount());
-			typeCharacters(cursor, 'teste2 = teste \'ok');
+			typeCharacters(viewModel, 'teste2 = teste \'ok');
 			assert.equal(model.getLineContent(2), 'teste2 = teste \'ok\'');
 
-			cursor.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
-			typeCharacters(cursor, '\n');
+			viewModel.setSelections('test', [new Selection(2, 1000, 2, 1000)]);
+			typeCharacters(viewModel, '\n');
 			model.forceTokenization(model.getLineCount());
-			typeCharacters(cursor, 'teste3 = teste" ok');
+			typeCharacters(viewModel, 'teste3 = teste" ok');
 			assert.equal(model.getLineContent(3), 'teste3 = teste" ok');
 
-			cursor.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
-			typeCharacters(cursor, '\n');
+			viewModel.setSelections('test', [new Selection(3, 1000, 3, 1000)]);
+			typeCharacters(viewModel, '\n');
 			model.forceTokenization(model.getLineCount());
-			typeCharacters(cursor, 'teste4 = teste "ok');
+			typeCharacters(viewModel, 'teste4 = teste "ok');
 			assert.equal(model.getLineContent(4), 'teste4 = teste "ok"');
 
 			// Second gif
-			cursor.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
-			typeCharacters(cursor, '\n');
+			viewModel.setSelections('test', [new Selection(4, 1000, 4, 1000)]);
+			typeCharacters(viewModel, '\n');
 			model.forceTokenization(model.getLineCount());
-			typeCharacters(cursor, 'teste \'');
+			typeCharacters(viewModel, 'teste \'');
 			assert.equal(model.getLineContent(5), 'teste \'\'');
 
-			cursor.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
-			typeCharacters(cursor, '\n');
+			viewModel.setSelections('test', [new Selection(5, 1000, 5, 1000)]);
+			typeCharacters(viewModel, '\n');
 			model.forceTokenization(model.getLineCount());
-			typeCharacters(cursor, 'teste "');
+			typeCharacters(viewModel, 'teste "');
 			assert.equal(model.getLineContent(6), 'teste ""');
 
-			cursor.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
-			typeCharacters(cursor, '\n');
+			viewModel.setSelections('test', [new Selection(6, 1000, 6, 1000)]);
+			typeCharacters(viewModel, '\n');
 			model.forceTokenization(model.getLineCount());
-			typeCharacters(cursor, 'teste\'');
+			typeCharacters(viewModel, 'teste\'');
 			assert.equal(model.getLineContent(7), 'teste\'');
 
-			cursor.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
-			typeCharacters(cursor, '\n');
+			viewModel.setSelections('test', [new Selection(7, 1000, 7, 1000)]);
+			typeCharacters(viewModel, '\n');
 			model.forceTokenization(model.getLineCount());
-			typeCharacters(cursor, 'teste"');
+			typeCharacters(viewModel, 'teste"');
 			assert.equal(model.getLineContent(8), 'teste"');
 		});
 		mode.dispose();
@@ -4926,22 +4927,22 @@ suite('autoClosingPairs', () => {
 				'y=();'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		}, (model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 
-			cursor.type('x=(', 'keyboard');
+			viewModel.type('x=(', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=()');
 
-			cursor.type('asd', 'keyboard');
+			viewModel.type('asd', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
 
 			// overtype!
-			cursor.type(')', 'keyboard');
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=(asd)');
 
 			// do not overtype!
-			cursor.setSelections('test', [new Selection(2, 4, 2, 4)]);
-			cursor.type(')', 'keyboard');
+			viewModel.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(2), 'y=());');
 
 		});
@@ -4956,14 +4957,14 @@ suite('autoClosingPairs', () => {
 				'y=();'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		}, (model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 
-			cursor.type('x=(', 'keyboard');
+			viewModel.type('x=(', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=()');
 
-			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			cursor.type(')', 'keyboard');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=())');
 		});
 		mode.dispose();
@@ -4977,17 +4978,17 @@ suite('autoClosingPairs', () => {
 				'y=();'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		}, (model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 
-			cursor.type('x=(', 'keyboard');
+			viewModel.type('x=(', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=()');
 
-			cursor.type(')', 'keyboard');
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=()');
 
-			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
-			cursor.type(')', 'keyboard');
+			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=())');
 		});
 		mode.dispose();
@@ -5001,19 +5002,19 @@ suite('autoClosingPairs', () => {
 				'y=();'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		}, (model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 
-			cursor.type('x=(', 'keyboard');
+			viewModel.type('x=(', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=()');
 
-			cursor.type('(', 'keyboard');
+			viewModel.type('(', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=(())');
 
-			cursor.type(')', 'keyboard');
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=(())');
 
-			cursor.type(')', 'keyboard');
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=(())');
 		});
 		mode.dispose();
@@ -5026,22 +5027,22 @@ suite('autoClosingPairs', () => {
 				'std::cout << \'"\' << entryMap'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 29, 1, 29)]);
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 29, 1, 29)]);
 
-			cursor.type('[', 'keyboard');
+			viewModel.type('[', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[]');
 
-			cursor.type('"', 'keyboard');
+			viewModel.type('"', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap[""]');
 
-			cursor.type('a', 'keyboard');
+			viewModel.type('a', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
 
-			cursor.type('"', 'keyboard');
+			viewModel.type('"', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
 
-			cursor.type(']', 'keyboard');
+			viewModel.type(']', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'std::cout << \'"\' << entryMap["a"]');
 		});
 		mode.dispose();
@@ -5086,8 +5087,8 @@ suite('autoClosingPairs', () => {
 				'foo\'hello\''
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertType(model, cursor, 1, 4, '(', '(', `does not auto close @ (1, 4)`);
+		}, (model, viewModel) => {
+			assertType(model, viewModel, 1, 4, '(', '(', `does not auto close @ (1, 4)`);
 		});
 		mode.dispose();
 	});
@@ -5099,16 +5100,16 @@ suite('autoClosingPairs', () => {
 				'<div id'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 8, 1, 8)]);
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 8, 1, 8)]);
 
-			cursor.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)]);
+			viewModel.executeEdits('snippet', [{ range: new Range(1, 6, 1, 8), text: 'id=""' }], () => [new Selection(1, 10, 1, 10)]);
 			assert.strictEqual(model.getLineContent(1), '<div id=""');
 
-			cursor.type('a', 'keyboard');
+			viewModel.type('a', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '<div id="a"');
 
-			cursor.type('"', 'keyboard');
+			viewModel.type('"', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '<div id="a"');
 		});
 		mode.dispose();
@@ -5125,21 +5126,21 @@ suite('autoClosingPairs', () => {
 			editorOpts: {
 				autoClosingOvertype: 'always'
 			}
-		}, (model, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		}, (model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 
-			cursor.type('x=(', 'keyboard');
+			viewModel.type('x=(', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=()');
 
-			cursor.type(')', 'keyboard');
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=()');
 
-			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
-			cursor.type(')', 'keyboard');
+			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), 'x=()');
 
-			cursor.setSelections('test', [new Selection(2, 4, 2, 4)]);
-			cursor.type(')', 'keyboard');
+			viewModel.setSelections('test', [new Selection(2, 4, 2, 4)]);
+			viewModel.type(')', 'keyboard');
 			assert.strictEqual(model.getLineContent(2), 'y=();');
 		});
 		mode.dispose();
@@ -5151,14 +5152,14 @@ suite('autoClosingPairs', () => {
 			text: [
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		}, (model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 
 			// Typing ` + e on the mac US intl kb layout
-			cursor.startComposition();
-			cursor.type('`', 'keyboard');
-			cursor.replacePreviousChar('è', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.startComposition();
+			viewModel.type('`', 'keyboard');
+			viewModel.replacePreviousChar('è', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 
 			assert.equal(model.getValue(), 'è');
 		});
@@ -5172,15 +5173,15 @@ suite('autoClosingPairs', () => {
 				'test'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 1, 1, 5)]);
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 5)]);
 
 			// Typing ` + e on the mac US intl kb layout
-			cursor.startComposition();
-			cursor.type('\'', 'keyboard');
-			cursor.replacePreviousChar('\'', 1, 'keyboard');
-			cursor.replacePreviousChar('\'', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.startComposition();
+			viewModel.type('\'', 'keyboard');
+			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 
 			assert.equal(model.getValue(), '\'test\'');
 		});
@@ -5194,20 +5195,20 @@ suite('autoClosingPairs', () => {
 				'console.log();'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			cursor.setSelections('test', [new Selection(1, 13, 1, 13)]);
+			viewModel.setSelections('test', [new Selection(1, 13, 1, 13)]);
 
-			cursor.type('\'', 'keyboard');
+			viewModel.type('\'', 'keyboard');
 			assert.equal(model.getValue(), 'console.log(\'\');');
 
-			cursor.type('it', 'keyboard');
+			viewModel.type('it', 'keyboard');
 			assert.equal(model.getValue(), 'console.log(\'it\');');
 
-			cursor.type('\\', 'keyboard');
+			viewModel.type('\\', 'keyboard');
 			assert.equal(model.getValue(), 'console.log(\'it\\\');');
 
-			cursor.type('\'', 'keyboard');
+			viewModel.type('\'', 'keyboard');
 			assert.equal(model.getValue(), 'console.log(\'it\\\'\'\');');
 		});
 		mode.dispose();
@@ -5220,23 +5221,23 @@ suite('autoClosingPairs', () => {
 				''
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			cursor.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
 
-			cursor.type('\\', 'keyboard');
+			viewModel.type('\\', 'keyboard');
 			assert.equal(model.getValue(), '\\');
 
-			cursor.type('(', 'keyboard');
+			viewModel.type('(', 'keyboard');
 			assert.equal(model.getValue(), '\\()');
 
-			cursor.type('abc', 'keyboard');
+			viewModel.type('abc', 'keyboard');
 			assert.equal(model.getValue(), '\\(abc)');
 
-			cursor.type('\\', 'keyboard');
+			viewModel.type('\\', 'keyboard');
 			assert.equal(model.getValue(), '\\(abc\\)');
 
-			cursor.type(')', 'keyboard');
+			viewModel.type(')', 'keyboard');
 			assert.equal(model.getValue(), '\\(abc\\)');
 		});
 		mode.dispose();
@@ -5250,20 +5251,20 @@ suite('autoClosingPairs', () => {
 				'world'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		}, (model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 
 			// Typing ` and pressing shift+down on the mac US intl kb layout
 			// Here we're just replaying what the cursor gets
-			cursor.startComposition();
-			cursor.type('`', 'keyboard');
-			moveDown(cursor, true);
-			cursor.replacePreviousChar('`', 1, 'keyboard');
-			cursor.replacePreviousChar('`', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.startComposition();
+			viewModel.type('`', 'keyboard');
+			moveDown(viewModel, true);
+			viewModel.replacePreviousChar('`', 1, 'keyboard');
+			viewModel.replacePreviousChar('`', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 
 			assert.equal(model.getValue(), '`hello\nworld');
-			assertCursor(cursor, new Selection(1, 2, 2, 2));
+			assertCursor(viewModel, new Selection(1, 2, 2, 2));
 		});
 		mode.dispose();
 	});
@@ -5275,60 +5276,60 @@ suite('autoClosingPairs', () => {
 				''
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			assertCursor(cursor, new Position(1, 1));
+		}, (model, viewModel) => {
+			assertCursor(viewModel, new Position(1, 1));
 
 			// on the mac US intl kb layout
 
 			// Typing ' + space
-			cursor.startComposition();
-			cursor.type('\'', 'keyboard');
-			cursor.replacePreviousChar('\'', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.startComposition();
+			viewModel.type('\'', 'keyboard');
+			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 			assert.equal(model.getValue(), '\'\'');
 
 			// Typing one more ' + space
-			cursor.startComposition();
-			cursor.type('\'', 'keyboard');
-			cursor.replacePreviousChar('\'', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.startComposition();
+			viewModel.type('\'', 'keyboard');
+			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 			assert.equal(model.getValue(), '\'\'');
 
 			// Typing ' as a closing tag
 			model.setValue('\'abc');
-			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
-			cursor.startComposition();
-			cursor.type('\'', 'keyboard');
-			cursor.replacePreviousChar('\'', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			viewModel.startComposition();
+			viewModel.type('\'', 'keyboard');
+			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 
 			assert.equal(model.getValue(), '\'abc\'');
 
 			// quotes before the newly added character are all paired.
 			model.setValue('\'abc\'def ');
-			cursor.setSelections('test', [new Selection(1, 10, 1, 10)]);
-			cursor.startComposition();
-			cursor.type('\'', 'keyboard');
-			cursor.replacePreviousChar('\'', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.setSelections('test', [new Selection(1, 10, 1, 10)]);
+			viewModel.startComposition();
+			viewModel.type('\'', 'keyboard');
+			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 
 			assert.equal(model.getValue(), '\'abc\'def \'\'');
 
 			// No auto closing if there is non-whitespace character after the cursor
 			model.setValue('abc');
-			cursor.setSelections('test', [new Selection(1, 1, 1, 1)]);
-			cursor.startComposition();
-			cursor.type('\'', 'keyboard');
-			cursor.replacePreviousChar('\'', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			viewModel.startComposition();
+			viewModel.type('\'', 'keyboard');
+			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 
 			// No auto closing if it's after a word.
 			model.setValue('abc');
-			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
-			cursor.startComposition();
-			cursor.type('\'', 'keyboard');
-			cursor.replacePreviousChar('\'', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			viewModel.startComposition();
+			viewModel.type('\'', 'keyboard');
+			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 
 			assert.equal(model.getValue(), 'abc\'');
 		});
@@ -5342,14 +5343,14 @@ suite('autoClosingPairs', () => {
 				'{}'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
+		}, (model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 2, 1, 2)]);
 
 			// Typing a + backspace
-			cursor.startComposition();
-			cursor.type('a', 'keyboard');
-			cursor.replacePreviousChar('', 1, 'keyboard');
-			cursor.endComposition('keyboard');
+			viewModel.startComposition();
+			viewModel.type('a', 'keyboard');
+			viewModel.replacePreviousChar('', 1, 'keyboard');
+			viewModel.endComposition('keyboard');
 			assert.equal(model.getValue(), '{}');
 		});
 		mode.dispose();
@@ -5362,15 +5363,15 @@ suite('autoClosingPairs', () => {
 				'var a = asd'
 			],
 			languageIdentifier: mode.getLanguageIdentifier()
-		}, (model, cursor) => {
+		}, (model, viewModel) => {
 
-			cursor.setSelections('test', [
+			viewModel.setSelections('test', [
 				new Selection(1, 9, 1, 9),
 				new Selection(1, 12, 1, 12),
 			]);
 
 			// type a `
-			cursor.type('`', 'keyboard');
+			viewModel.type('`', 'keyboard');
 
 			assert.equal(model.getValue(), 'var a = `asd`');
 		});
@@ -5394,19 +5395,19 @@ suite('autoClosingPairs', () => {
 		const mode = new MyMode();
 		const model = createTextModel('var x = \'hi\';', undefined, languageId);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			editor.setSelections([
 				new Selection(1, 9, 1, 10),
 				new Selection(1, 12, 1, 13)
 			]);
-			cursor.type('"', 'keyboard');
+			viewModel.type('"', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'var x = "hi";', 'assert1');
 
 			editor.setSelections([
 				new Selection(1, 9, 1, 10),
 				new Selection(1, 12, 1, 13)
 			]);
-			cursor.type('\'', 'keyboard');
+			viewModel.type('\'', 'keyboard');
 			assert.equal(model.getValue(EndOfLinePreference.LF), 'var x = \'hi\';', 'assert2');
 		});
 
@@ -5424,8 +5425,8 @@ suite('autoClosingPairs', () => {
 			mode.getLanguageIdentifier()
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [
 				new Selection(1, 4, 1, 4),
 				new Selection(1, 10, 1, 10),
 			]);
@@ -5453,16 +5454,16 @@ suite('autoClosingPairs', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
 			CoreNavigationCommands.WordSelect.runEditorCommand(null, editor, {
 				position: new Position(3, 7)
 			});
-			assertCursor(cursor, new Selection(3, 7, 3, 7));
+			assertCursor(viewModel, new Selection(3, 7, 3, 7));
 
 			CoreNavigationCommands.WordSelectDrag.runEditorCommand(null, editor, {
 				position: new Position(4, 7)
 			});
-			assertCursor(cursor, new Selection(3, 7, 4, 7));
+			assertCursor(viewModel, new Selection(3, 7, 4, 7));
 		});
 	});
 });
@@ -5477,24 +5478,24 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			cursor.type('first', 'keyboard');
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('first', 'keyboard');
 			assert.equal(model.getLineContent(1), 'A first line');
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A fir line');
-			assertCursor(cursor, new Selection(1, 6, 1, 6));
+			assertCursor(viewModel, new Selection(1, 6, 1, 6));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A first line');
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A  line');
-			assertCursor(cursor, new Selection(1, 3, 1, 3));
+			assertCursor(viewModel, new Selection(1, 3, 1, 3));
 		});
 	});
 
@@ -5506,24 +5507,24 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			cursor.type('first', 'keyboard');
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('first', 'keyboard');
 			assert.equal(model.getLineContent(1), 'A first line');
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A firstine');
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A first line');
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A  line');
-			assertCursor(cursor, new Selection(1, 3, 1, 3));
+			assertCursor(viewModel, new Selection(1, 3, 1, 3));
 		});
 	});
 
@@ -5535,8 +5536,8 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(2, 8, 2, 8)]);
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(2, 8, 2, 8)]);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -5545,19 +5546,19 @@ suite('Undo stops', () => {
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), ' line');
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
+			assertCursor(viewModel, new Selection(2, 1, 2, 1));
 
-			cursor.type('Second', 'keyboard');
+			viewModel.type('Second', 'keyboard');
 			assert.equal(model.getLineContent(2), 'Second line');
-			assertCursor(cursor, new Selection(2, 7, 2, 7));
+			assertCursor(viewModel, new Selection(2, 7, 2, 7));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), ' line');
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
+			assertCursor(viewModel, new Selection(2, 1, 2, 1));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another line');
-			assertCursor(cursor, new Selection(2, 8, 2, 8));
+			assertCursor(viewModel, new Selection(2, 8, 2, 8));
 		});
 	});
 
@@ -5569,8 +5570,8 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(2, 8, 2, 8)]);
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(2, 8, 2, 8)]);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -5579,7 +5580,7 @@ suite('Undo stops', () => {
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), ' line');
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
+			assertCursor(viewModel, new Selection(2, 1, 2, 1));
 
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
@@ -5587,15 +5588,15 @@ suite('Undo stops', () => {
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), '');
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
+			assertCursor(viewModel, new Selection(2, 1, 2, 1));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), ' line');
-			assertCursor(cursor, new Selection(2, 1, 2, 1));
+			assertCursor(viewModel, new Selection(2, 1, 2, 1));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another line');
-			assertCursor(cursor, new Selection(2, 8, 2, 8));
+			assertCursor(viewModel, new Selection(2, 8, 2, 8));
 		});
 	});
 
@@ -5607,26 +5608,26 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(2, 9, 2, 9)]);
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(2, 9, 2, 9)]);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another ');
-			assertCursor(cursor, new Selection(2, 9, 2, 9));
+			assertCursor(viewModel, new Selection(2, 9, 2, 9));
 
-			cursor.type('text', 'keyboard');
+			viewModel.type('text', 'keyboard');
 			assert.equal(model.getLineContent(2), 'Another text');
-			assertCursor(cursor, new Selection(2, 13, 2, 13));
+			assertCursor(viewModel, new Selection(2, 13, 2, 13));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another ');
-			assertCursor(cursor, new Selection(2, 9, 2, 9));
+			assertCursor(viewModel, new Selection(2, 9, 2, 9));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another line');
-			assertCursor(cursor, new Selection(2, 9, 2, 9));
+			assertCursor(viewModel, new Selection(2, 9, 2, 9));
 		});
 	});
 
@@ -5638,14 +5639,14 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(2, 9, 2, 9)]);
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(2, 9, 2, 9)]);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteRight.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another ');
-			assertCursor(cursor, new Selection(2, 9, 2, 9));
+			assertCursor(viewModel, new Selection(2, 9, 2, 9));
 
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
@@ -5654,15 +5655,15 @@ suite('Undo stops', () => {
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'An');
-			assertCursor(cursor, new Selection(2, 3, 2, 3));
+			assertCursor(viewModel, new Selection(2, 3, 2, 3));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another ');
-			assertCursor(cursor, new Selection(2, 9, 2, 9));
+			assertCursor(viewModel, new Selection(2, 9, 2, 9));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(2), 'Another line');
-			assertCursor(cursor, new Selection(2, 9, 2, 9));
+			assertCursor(viewModel, new Selection(2, 9, 2, 9));
 		});
 	});
 
@@ -5674,23 +5675,23 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			cursor.type('first and interesting', 'keyboard');
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('first and interesting', 'keyboard');
 			assert.equal(model.getLineContent(1), 'A first and interesting line');
-			assertCursor(cursor, new Selection(1, 24, 1, 24));
+			assertCursor(viewModel, new Selection(1, 24, 1, 24));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A first and line');
-			assertCursor(cursor, new Selection(1, 12, 1, 12));
+			assertCursor(viewModel, new Selection(1, 12, 1, 12));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A first line');
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getLineContent(1), 'A  line');
-			assertCursor(cursor, new Selection(1, 3, 1, 3));
+			assertCursor(viewModel, new Selection(1, 3, 1, 3));
 		});
 	});
 
@@ -5702,19 +5703,19 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [new Selection(1, 3, 1, 3)]);
-			cursor.type('first', 'keyboard');
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('first', 'keyboard');
 			assert.equal(model.getValue(), 'A first line\nAnother line');
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
 			model.pushEOL(EndOfLineSequence.CRLF);
 			assert.equal(model.getValue(), 'A first line\r\nAnother line');
-			assertCursor(cursor, new Selection(1, 8, 1, 8));
+			assertCursor(viewModel, new Selection(1, 8, 1, 8));
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
 			assert.equal(model.getValue(), 'A  line\nAnother line');
-			assertCursor(cursor, new Selection(1, 3, 1, 3));
+			assertCursor(viewModel, new Selection(1, 3, 1, 3));
 		});
 	});
 
@@ -5726,12 +5727,12 @@ suite('Undo stops', () => {
 			].join('\n')
 		);
 
-		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
-			cursor.setSelections('test', [
+		withTestCodeEditor(null, { model: model }, (editor, viewModel) => {
+			viewModel.setSelections('test', [
 				new Selection(2, 7, 2, 12),
 				new Selection(1, 7, 1, 12),
 			]);
-			cursor.type('no', 'keyboard');
+			viewModel.type('no', 'keyboard');
 			assert.equal(model.getValue(), 'hello no\nhello no');
 
 			CoreEditingCommands.Undo.runEditorCommand(null, editor, null);

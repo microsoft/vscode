@@ -206,17 +206,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	async getSessions(): Promise<ReadonlyArray<modes.AuthenticationSession>> {
-		return (await this._proxy.$getSessions(this.id)).map(session => {
-			return {
-				id: session.id,
-				account: session.account,
-				scopes: session.scopes,
-				getAccessToken: () => {
-					addAccountUsage(this.storageService, this.id, session.account.displayName, 'preferencessync', nls.localize('sync', "Preferences Sync"));
-					return this._proxy.$getSessionAccessToken(this.id, session.id);
-				}
-			};
-		});
+		return this._proxy.$getSessions(this.id);
 	}
 
 	async updateSessionItems(event: modes.AuthenticationSessionsChangeEvent): Promise<void> {
@@ -247,14 +237,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 	}
 
 	login(scopes: string[]): Promise<modes.AuthenticationSession> {
-		return this._proxy.$login(this.id, scopes).then(session => {
-			return {
-				id: session.id,
-				account: session.account,
-				scopes: session.scopes,
-				getAccessToken: () => this._proxy.$getSessionAccessToken(this.id, session.id)
-			};
-		});
+		return this._proxy.$login(this.id, scopes);
 	}
 
 	async logout(sessionId: string): Promise<void> {

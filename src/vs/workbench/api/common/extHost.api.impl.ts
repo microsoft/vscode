@@ -199,7 +199,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			hasSessions(providerId: string, scopes: string[]): Thenable<boolean> {
 				return extHostAuthentication.hasSessions(providerId, scopes);
 			},
-			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Thenable<vscode.AuthenticationSession | undefined> {
+			getSession(providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Thenable<vscode.AuthenticationSession2 | undefined> {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options);
 			},
 			getSessions(providerId: string, scopes: string[]): Thenable<readonly vscode.AuthenticationSession[]> {
@@ -531,12 +531,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				let id: string;
 				let name: string;
 				let alignment: number | undefined;
+				let accessibilityInformation: vscode.AccessibilityInformation | undefined = undefined;
 
 				if (alignmentOrOptions && typeof alignmentOrOptions !== 'number') {
 					id = alignmentOrOptions.id;
 					name = alignmentOrOptions.name;
 					alignment = alignmentOrOptions.alignment;
 					priority = alignmentOrOptions.priority;
+					accessibilityInformation = alignmentOrOptions.accessibilityInformation;
 				} else {
 					id = extension.identifier.value;
 					name = nls.localize('extensionLabel', "{0} (Extension)", extension.displayName || extension.name);
@@ -544,7 +546,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					priority = priority;
 				}
 
-				return extHostStatusBar.createStatusBarEntry(id, name, alignment, priority);
+				return extHostStatusBar.createStatusBarEntry(id, name, alignment, priority, accessibilityInformation);
 			},
 			setStatusBarMessage(text: string, timeoutOrThenable?: number | Thenable<any>): vscode.Disposable {
 				return extHostStatusBar.setStatusBarMessage(text, timeoutOrThenable);
@@ -1074,7 +1076,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TimelineItem: extHostTypes.TimelineItem,
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
-			NotebookCellRunState: extHostTypes.NotebookCellRunState
+			NotebookCellRunState: extHostTypes.NotebookCellRunState,
+			AuthenticationSession2: extHostTypes.AuthenticationSession
 		};
 	};
 }

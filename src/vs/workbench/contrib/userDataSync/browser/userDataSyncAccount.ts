@@ -38,7 +38,7 @@ export class UserDataSyncAccount {
 	get sessionId(): string { return this.session.id; }
 	get accountName(): string { return this.session.account.displayName; }
 	get accountId(): string { return this.session.account.id; }
-	getToken(): Thenable<string> { return this.session.getAccessToken(); }
+	get token(): string { return this.session.accessToken; }
 }
 
 export class UserDataSyncAccounts extends Disposable {
@@ -159,7 +159,7 @@ export class UserDataSyncAccounts extends Disposable {
 		if (current) {
 			try {
 				this.logService.trace('Preferences Sync: Updating the token for the account', current.accountName);
-				const token = await current.getToken();
+				const token = current.token;
 				this.logService.trace('Preferences Sync: Token updated for the account', current.accountName);
 				value = { token, authenticationProviderId: current.authenticationProviderId };
 			} catch (e) {

@@ -34,7 +34,7 @@ function isOldSessionData(x: any): x is OldSessionData {
 }
 
 export class GitHubAuthenticationProvider {
-	private _sessions: vscode.AuthenticationSession[] = [];
+	private _sessions: vscode.AuthenticationSession2[] = [];
 	private _githubServer = new GitHubServer();
 
 	public async initialize(): Promise<void> {
@@ -51,7 +51,7 @@ export class GitHubAuthenticationProvider {
 
 	private pollForChange() {
 		setTimeout(async () => {
-			let storedSessions: vscode.AuthenticationSession[];
+			let storedSessions: vscode.AuthenticationSession2[];
 			try {
 				storedSessions = await this.readSessions();
 			} catch (e) {
@@ -94,12 +94,12 @@ export class GitHubAuthenticationProvider {
 		}, 1000 * 30);
 	}
 
-	private async readSessions(): Promise<vscode.AuthenticationSession[]> {
+	private async readSessions(): Promise<vscode.AuthenticationSession2[]> {
 		const storedSessions = await keychain.getToken();
 		if (storedSessions) {
 			try {
 				const sessionData: (SessionData | OldSessionData)[] = JSON.parse(storedSessions);
-				const sessionPromises = sessionData.map(async (session: SessionData | OldSessionData): Promise<vscode.AuthenticationSession> => {
+				const sessionPromises = sessionData.map(async (session: SessionData | OldSessionData): Promise<vscode.AuthenticationSession2> => {
 					const needsUserInfo = isOldSessionData(session) || !session.account;
 					let userInfo: { id: string, accountName: string };
 					if (needsUserInfo) {
@@ -117,7 +117,7 @@ export class GitHubAuthenticationProvider {
 								: session.account?.id ?? userInfo!.id
 						},
 						scopes: session.scopes,
-						getAccessToken: () => Promise.resolve(session.accessToken)
+						accessToken: session.accessToken
 					};
 				});
 
@@ -136,24 +136,14 @@ export class GitHubAuthenticationProvider {
 	}
 
 	private async storeSessions(): Promise<void> {
-		const sessionData: SessionData[] = await Promise.all(this._sessions.map(async session => {
-			const resolvedAccessToken = await session.getAccessToken();
-			return {
-				id: session.id,
-				account: session.account,
-				scopes: session.scopes,
-				accessToken: resolvedAccessToken
-			};
-		}));
-
-		await keychain.setToken(JSON.stringify(sessionData));
+		await keychain.setToken(JSON.stringify(this._sessions));
 	}
 
-	get sessions(): vscode.AuthenticationSession[] {
+	get sessions(): vscode.AuthenticationSession2[] {
 		return this._sessions;
 	}
 
-	public async login(scopes: string): Promise<vscode.AuthenticationSession> {
+	public async login(scopes: string): Promise<vscode.AuthenticationSession2> {
 		const token = scopes === 'vso' ? await this.loginAndInstallApp(scopes) : await this._githubServer.login(scopes);
 		const session = await this.tokenToSession(token, scopes.split(' '));
 		await this.setToken(session);
@@ -174,19 +164,12 @@ export class GitHubAuthenticationProvider {
 		this._githubServer.manuallyProvideToken();
 	}
 
-	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession> {
+	private async tokenToSession(token: string, scopes: string[]): Promise<vscode.AuthenticationSession2> {
 		const userInfo = await this._githubServer.getUserInfo(token);
-		return {
-			id: uuid(),
-			getAccessToken: () => Promise.resolve(token),
-			account: {
-				displayName: userInfo.accountName,
-				id: userInfo.id
-			},
-			scopes: scopes
-		};
+		return new vscode.AuthenticationSession2(uuid(), token, { displayName: userInfo.accountName, id: userInfo.id }, scopes);
 	}
-	private async setToken(session: vscode.AuthenticationSession): Promise<void> {
+
+	private async setToken(session: vscode.AuthenticationSession2): Promise<void> {
 		const sessionIndex = this._sessions.findIndex(s => s.id === session.id);
 		if (sessionIndex > -1) {
 			this._sessions.splice(sessionIndex, 1, session);

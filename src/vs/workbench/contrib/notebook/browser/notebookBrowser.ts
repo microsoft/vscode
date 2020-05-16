@@ -18,7 +18,7 @@ import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, IReadonlyTextBuffer, ITextModel } from 'vs/editor/common/model';
-import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -85,6 +85,7 @@ export interface CodeCellLayoutChangeEvent {
 export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: BareFontInfo | null;
 	readonly editorWidth: number;
+	readonly editorHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
 }
@@ -93,6 +94,7 @@ export interface MarkdownCellLayoutChangeEvent {
 	font?: BareFontInfo;
 	outerWidth?: number;
 	totalHeight?: number;
+	editorHeight?: boolean;
 }
 
 export interface ICellViewModel {
@@ -361,7 +363,8 @@ export interface INotebookEditor extends ICompositeCodeEditor {
 }
 
 export interface INotebookCellList {
-	elementAt(position: number): ICellViewModel;
+	readonly contextKeyService: IContextKeyService;
+	elementAt(position: number): ICellViewModel | undefined;
 	elementHeight(element: ICellViewModel): number;
 	onWillScroll: Event<ScrollEvent>;
 	onDidChangeFocus: Event<IListEvent<ICellViewModel>>;
@@ -411,6 +414,7 @@ export interface INotebookCellList {
 }
 
 export interface BaseCellRenderTemplate {
+	contextKeyService: IContextKeyService;
 	container: HTMLElement;
 	cellContainer: HTMLElement;
 	toolbar: ToolBar;

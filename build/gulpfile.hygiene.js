@@ -59,6 +59,7 @@ const indentationFilter = [
 	// except specific folders
 	'!test/automation/out/**',
 	'!test/smoke/out/**',
+	'!extensions/typescript-language-features/test-workspace/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!build/monaco/**',

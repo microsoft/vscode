@@ -83,7 +83,7 @@ suite('FindController', () => {
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			if (!platform.isMacintosh) {
 				assert.ok(true);
@@ -107,7 +107,7 @@ suite('FindController', () => {
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = 'ABC';
 
 			if (!platform.isMacintosh) {
@@ -134,7 +134,7 @@ suite('FindController', () => {
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			if (!platform.isMacintosh) {
 				assert.ok(true);
@@ -158,7 +158,7 @@ suite('FindController', () => {
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
@@ -213,7 +213,7 @@ suite('FindController', () => {
 	test('issue #3090: F3 does not loop with two matches on a single line', () => {
 		withTestCodeEditor([
 			'import nls = require(\'vs/nls\');'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			let nextMatchFindAction = new NextMatchFindAction();
@@ -238,7 +238,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3  * 5)',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			let startFindAction = new StartFindAction();
@@ -262,7 +262,7 @@ suite('FindController', () => {
 	test('issue #41027: Don\'t replace find input value on replace action if find input is active', () => {
 		withTestCodeEditor([
 			'test',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			let testRegexString = 'tes.';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			let nextMatchFindAction = new NextMatchFindAction();
@@ -293,7 +293,7 @@ suite('FindController', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			findController.start({
@@ -322,7 +322,7 @@ suite('FindController', () => {
 	test('issue #18111: Regex replace with single space replaces with no space', () => {
 		withTestCodeEditor([
 			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 
@@ -349,7 +349,7 @@ suite('FindController', () => {
 			'',
 			'line2',
 			'line3'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 
@@ -376,7 +376,7 @@ suite('FindController', () => {
 			'([funny]',
 			'',
 			'([funny]'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			let nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
@@ -403,7 +403,7 @@ suite('FindController', () => {
 			'([funny]',
 			'',
 			'([funny]'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			clipboardState = '';
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
 			let startFindAction = new StartFindAction();
@@ -453,7 +453,7 @@ suite('FindController query options persistence', () => {
 			'ABC',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			queryState = { 'editor.isRegex': false, 'editor.matchCase': true, 'editor.wholeWord': false };
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
@@ -480,7 +480,7 @@ suite('FindController query options persistence', () => {
 			'AB',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
@@ -505,7 +505,7 @@ suite('FindController query options persistence', () => {
 			'AB',
 			'XYZ',
 			'ABC'
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection }, (editor) => {
 			queryState = { 'editor.isRegex': false, 'editor.matchCase': false, 'editor.wholeWord': true };
 			// The cursor is at the very top, of the file, at the first ABC
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
@@ -521,7 +521,7 @@ suite('FindController query options persistence', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 1, 2, 1));
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
@@ -545,7 +545,7 @@ suite('FindController query options persistence', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 2, 1, 2));
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
@@ -569,7 +569,7 @@ suite('FindController query options persistence', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'always', globalFindClipboard: false } }, (editor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 2, 1, 3));
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
@@ -594,7 +594,7 @@ suite('FindController query options persistence', () => {
 			'var x = (3 * 5)',
 			'var y = (3 * 5)',
 			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'multiline', globalFindClipboard: false } }, (editor, cursor) => {
+		], { serviceCollection: serviceCollection, find: { autoFindInSelection: 'multiline', globalFindClipboard: false } }, (editor) => {
 			// clipboardState = '';
 			editor.setSelection(new Range(1, 6, 2, 1));
 			let findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);

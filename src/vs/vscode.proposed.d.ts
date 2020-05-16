@@ -28,6 +28,41 @@ declare module 'vscode' {
 		scopes: string[];
 	}
 
+	export class AuthenticationSession2 {
+		/**
+		 * The identifier of the authentication session.
+		 */
+		readonly id: string;
+
+		/**
+		 * The access token.
+		 */
+		readonly accessToken: string;
+
+		/**
+		 * The account associated with the session.
+		 */
+		readonly account: {
+			/**
+			 * The human-readable name of the account.
+			 */
+			readonly displayName: string;
+
+			/**
+			 * The unique identifier of the account.
+			 */
+			readonly id: string;
+		};
+
+		/**
+		 * The permissions granted by the session's access token. Available scopes
+		 * are defined by the authentication provider.
+		 */
+		readonly scopes: string[];
+
+		constructor(id: string, accessToken: string, account: { displayName: string, id: string }, scopes: string[]);
+	}
+
 	/**
 	 * An [event](#Event) which fires when an [AuthenticationProvider](#AuthenticationProvider) is added or removed.
 	 */
@@ -112,12 +147,12 @@ declare module 'vscode' {
 		/**
 		 * Returns an array of current sessions.
 		 */
-		getSessions(): Thenable<ReadonlyArray<AuthenticationSession>>;
+		getSessions(): Thenable<ReadonlyArray<AuthenticationSession2>>;
 
 		/**
 		 * Prompts a user to login.
 		 */
-		login(scopes: string[]): Thenable<AuthenticationSession>;
+		login(scopes: string[]): Thenable<AuthenticationSession2>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -170,7 +205,7 @@ declare module 'vscode' {
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions and
 		 * `createIfNone` was not specified.
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions): Thenable<AuthenticationSession2 | undefined>;
 
 		/**
 		 * @deprecated
@@ -1040,6 +1075,11 @@ declare module 'vscode' {
 		label?: string | TreeItemLabel | /* for compilation */ any;
 
 		/**
+		 * Accessibility information used when screen reader interacts with this tree item.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
 		 * @param label Label describing this item
 		 * @param collapsibleState [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item. Default is [TreeItemCollapsibleState.None](#TreeItemCollapsibleState.None)
 		 */
@@ -1099,6 +1139,11 @@ declare module 'vscode' {
 			 * status bar item.
 			 */
 			name: string;
+
+			/**
+			 * Accessibility information used when screen reader interacts with this status bar item.
+			 */
+			accessibilityInformation?: AccessibilityInformation;
 
 			/**
 			 * The alignment of the status bar item.
@@ -1987,6 +2032,11 @@ declare module 'vscode' {
 		contextValue?: string;
 
 		/**
+		 * Accessibility information used when screen reader interacts with this timeline item.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
 		 * @param label A human-readable string describing the timeline item
 		 * @param timestamp A timestamp (in milliseconds since 1 January 1970 00:00:00) for when the timeline item occurred
 		 */
@@ -2133,4 +2183,24 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Accessibility information: https://github.com/microsoft/vscode/issues/95360
+
+	/**
+	 * Accessibility information which controls screen reader behavior.
+	 */
+	export interface AccessibilityInformation {
+		label: string;
+		role?: string;
+	}
+
+	export interface StatusBarItem {
+		/**
+		 * Accessibility information used when screen reader interacts with this StatusBar item
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+	}
+
+	//#endregion
+
 }

@@ -27,11 +27,23 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	set totalHeight(newHeight: number) {
-		this.layoutChange({ totalHeight: newHeight });
+		if (newHeight !== this.layoutInfo.totalHeight) {
+			this.layoutChange({ totalHeight: newHeight });
+		}
 	}
 
 	get totalHeight() {
 		throw new Error('MarkdownCellViewModel.totalHeight is write only');
+	}
+
+	private _editorHeight = 0;
+	set editorHeight(newHeight: number) {
+		this._editorHeight = newHeight;
+		this.layoutChange({ editorHeight: true });
+	}
+
+	get editorHeight() {
+		throw new Error('MarkdownCellViewModel.editorHeight is write only');
 	}
 
 	protected readonly _onDidChangeLayout = new Emitter<MarkdownCellLayoutChangeEvent>();
@@ -52,6 +64,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		super(viewType, model, UUID.generateUuid());
 
 		this._layoutInfo = {
+			editorHeight: 0,
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorWidth: initialNotebookLayoutInfo?.width ? this.computeEditorWidth(initialNotebookLayoutInfo.width) : 0,
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
@@ -78,6 +91,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._layoutInfo = {
 			fontInfo: state.font || this._layoutInfo.fontInfo,
 			editorWidth,
+			editorHeight: this._editorHeight,
 			bottomToolbarOffset: BOTTOM_CELL_TOOLBAR_HEIGHT,
 			totalHeight: state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight
 		};
@@ -92,7 +106,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				fontInfo: this._layoutInfo.fontInfo,
 				editorWidth: this._layoutInfo.editorWidth,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
-				totalHeight: totalHeight
+				totalHeight: totalHeight,
+				editorHeight: this._editorHeight
 			};
 		}
 	}
