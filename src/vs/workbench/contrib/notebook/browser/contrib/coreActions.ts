@@ -65,6 +65,7 @@ const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
 const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 const CHANGE_CELL_LANGUAGE = 'notebook.cell.changeLanguage';
+const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
 const FOCUS_IN_OUTPUT_COMMAND_ID = 'notebook.cell.focusInOutput';
 const FOCUS_OUT_OUTPUT_COMMAND_ID = 'notebook.cell.focusOutOutput';
@@ -74,14 +75,49 @@ export const NOTEBOOK_ACTIONS_CATEGORY = localize('notebookActions.category', "N
 const EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
 
 const enum CellToolbarOrder {
-	MoveCellUp,
-	MoveCellDown,
 	EditCell,
 	SplitCell,
 	SaveCell,
 	ClearCellOutput,
-	InsertCell,
 	DeleteCell
+}
+
+abstract class NotebookAction extends Action2 {
+	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+		if (!isCellActionContext(context)) {
+			context = getActiveCellContext(accessor);
+			if (!context) {
+				return;
+			}
+		}
+
+		this.runWithContext(accessor, context);
+	}
+
+	abstract async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
+}
+
+function isCellActionContext(context: any): context is INotebookCellActionContext {
+	return context && !!context.cell && !!context.notebookEditor;
+}
+
+function getActiveCellContext(accessor: ServicesAccessor): INotebookCellActionContext | undefined {
+	const editorService = accessor.get(IEditorService);
+
+	const editor = getActiveNotebookEditor(editorService);
+	if (!editor) {
+		return;
+	}
+
+	const activeCell = editor.getActiveCell();
+	if (!activeCell) {
+		return;
+	}
+
+	return {
+		cell: activeCell,
+		notebookEditor: editor
+	};
 }
 
 registerAction2(class extends Action2 {
@@ -497,29 +533,6 @@ export interface INotebookCellActionContext {
 	cell: ICellViewModel;
 	notebookEditor: INotebookEditor;
 	ui?: boolean;
-}
-
-function isCellActionContext(context: any): context is INotebookCellActionContext {
-	return context && !!context.cell && !!context.notebookEditor;
-}
-
-function getActiveCellContext(accessor: ServicesAccessor): INotebookCellActionContext | undefined {
-	const editorService = accessor.get(IEditorService);
-
-	const editor = getActiveNotebookEditor(editorService);
-	if (!editor) {
-		return;
-	}
-
-	const activeCell = editor.getActiveCell();
-	if (!activeCell) {
-		return;
-	}
-
-	return {
-		cell: activeCell,
-		notebookEditor: editor
-	};
 }
 
 abstract class InsertCellCommand extends Action2 {
@@ -1619,3 +1632,26 @@ registerAction2(class extends Action2 {
 	}
 });
 
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super({
+			id: CENTER_ACTIVE_CELL,
+			title: localize('notebookActions.centerActiveCell', "Center Active Cell"),
+			keybinding: {
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED),
+				primary: KeyMod.CtrlCmd | KeyCode.KEY_L,
+				mac: {
+					primary: KeyMod.WinCtrl | KeyCode.KEY_L,
+				},
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			precondition: NOTEBOOK_EDITOR_FOCUSED,
+			f1: true
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		return context.notebookEditor.revealInCenter(context.cell);
+	}
+});
