@@ -38,7 +38,7 @@ export interface IDelegate {
 }
 
 export interface IContextViewProvider {
-	showContextView(delegate: IDelegate, container?: HTMLElement): void;
+	showContextView(delegate: IDelegate): void;
 	hideContextView(): void;
 	layout(): void;
 }
@@ -255,8 +255,9 @@ export class ContextView extends Disposable {
 		DOM.addClass(this.view, anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 		DOM.addClass(this.view, anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 
-		this.view.style.top = `${top}px`;
-		this.view.style.left = `${left}px`;
+		const containerPosition = DOM.getDomNodePagePosition(this.container!);
+		this.view.style.top = `${top - containerPosition.top}px`;
+		this.view.style.left = `${left - containerPosition.left}px`;
 		this.view.style.width = 'initial';
 	}
 
