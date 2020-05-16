@@ -52,7 +52,7 @@ export class BaseDropdown extends ActionRunner {
 		}
 
 		for (const event of [EventType.CLICK, EventType.MOUSE_DOWN, GestureEventType.Tap]) {
-			this._register(addDisposableListener(this._label, event, e => EventHelper.stop(e, true))); // prevent default click behaviour to trigger
+			this._register(addDisposableListener(this.element, event, e => EventHelper.stop(e, true))); // prevent default click behaviour to trigger
 		}
 
 		for (const event of [EventType.MOUSE_DOWN, GestureEventType.Tap]) {

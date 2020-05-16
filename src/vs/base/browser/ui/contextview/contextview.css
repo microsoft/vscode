@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 .context-view {
+	all: initial;
+	font-family: inherit;
+	font-size: 13px;
 	position: fixed;
 	z-index: 2500;
 }
