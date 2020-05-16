@@ -567,7 +567,11 @@ export class CellDragAndDropController extends Disposable {
 	setList(value: INotebookCellList) {
 		this.list = value;
 
-		this.list.onWillScroll(() => {
+		this.list.onWillScroll(e => {
+			if (!e.scrollTopChanged) {
+				return;
+			}
+
 			this.setInsertIndicatorVisibility(false);
 			this.isScrolling = true;
 			this.scrollingDelayer.trigger(() => {
