@@ -1427,7 +1427,8 @@ export class CommandCenter {
 					value,
 					placeHolder,
 					prompt: localize('provide commit message', "Please provide a commit message"),
-					ignoreFocusOut: true
+					ignoreFocusOut: true,
+					multiline: true
 				});
 			}
 
