@@ -103,6 +103,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
+	private _timeoutDimension: dom.Dimension | undefined;
+
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
 	public get cols(): number {
@@ -829,7 +831,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
 				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
 				// supported.
-				setTimeout(() => this.layout(new dom.Dimension(width, height)), 0);
+				this._timeoutDimension = new dom.Dimension(width, height);
+				setTimeout(() => this.layout(this._timeoutDimension!), 0);
 			}
 		}
 	}
@@ -1276,6 +1279,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!terminalWidth) {
 			return;
 		}
+
+		this._timeoutDimension = new dom.Dimension(dimension.width, dimension.height);
 
 		if (this._xterm && this._xterm.element) {
 			this._xterm.element.style.width = terminalWidth + 'px';
