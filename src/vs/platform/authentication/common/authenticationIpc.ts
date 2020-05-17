@@ -22,7 +22,6 @@ export class AuthenticationTokenServiceChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'setToken': return this.service.setToken(args);
-			case 'getToken': return this.service.getToken();
 		}
 		throw new Error('Invalid call');
 	}

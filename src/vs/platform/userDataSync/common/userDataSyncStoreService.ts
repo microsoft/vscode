@@ -219,7 +219,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	private async request(options: IRequestOptions, source: SyncResource | undefined, token: CancellationToken): Promise<IRequestContext> {
-		const authToken = await this.authTokenService.getToken();
+		const authToken = this.authTokenService.token;
 		if (!authToken) {
 			throw new UserDataSyncStoreError('No Auth Token Available', UserDataSyncErrorCode.Unauthorized, source);
 		}
