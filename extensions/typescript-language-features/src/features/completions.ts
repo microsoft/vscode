@@ -19,6 +19,7 @@ import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import TypingsStatus from '../utils/typingsStatus';
 import FileConfigurationManager from './fileConfigurationManager';
+import { parseKindModifier } from '../utils/modifiers';
 
 const localize = nls.loadMessageBundle();
 
@@ -64,7 +65,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 			this.sortText = tsEntry.sortText;
 		}
 
-		this.tags = tsEntry.tags as any;
 		this.preselect = tsEntry.isRecommended;
 		this.position = position;
 		this.useCodeSnippet = completionContext.useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
@@ -91,8 +91,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 
 		if (tsEntry.kindModifiers) {
-			const kindModifiers = tsEntry.kindModifiers.split(/,|\s+/g);
-			if (kindModifiers.includes(PConst.KindModifiers.optional)) {
+			const kindModifiers = parseKindModifier(tsEntry.kindModifiers);
+			if (kindModifiers.has(PConst.KindModifiers.optional)) {
 				if (!this.insertText) {
 					this.insertText = this.label;
 				}
@@ -102,14 +102,17 @@ class MyCompletionItem extends vscode.CompletionItem {
 				}
 				this.label += '?';
 			}
+			if (kindModifiers.has(PConst.KindModifiers.depreacted)) {
+				this.tags = [vscode.CompletionItemTag.Deprecated];
+			}
 
-			if (kindModifiers.includes(PConst.KindModifiers.color)) {
+			if (kindModifiers.has(PConst.KindModifiers.color)) {
 				this.kind = vscode.CompletionItemKind.Color;
 			}
 
 			if (tsEntry.kind === PConst.Kind.script) {
 				for (const extModifier of PConst.KindModifiers.fileExtensionKindModifiers) {
-					if (kindModifiers.includes(extModifier)) {
+					if (kindModifiers.has(extModifier)) {
 						if (tsEntry.name.toLowerCase().endsWith(extModifier)) {
 							this.detail = tsEntry.name;
 						} else {

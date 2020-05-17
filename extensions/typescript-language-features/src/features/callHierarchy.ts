@@ -11,6 +11,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import type * as Proto from '../protocol';
 import * as path from 'path';
 import * as PConst from '../protocol.const';
+import { parseKindModifier } from '../utils/modifiers';
 
 class TypeScriptCallHierarchySupport implements vscode.CallHierarchyProvider {
 	public static readonly minVersion = API.v380;
@@ -87,7 +88,9 @@ function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.Ca
 		typeConverters.Range.fromTextSpan(item.span),
 		typeConverters.Range.fromTextSpan(item.selectionSpan)
 	);
-	result.tags = item.tags as any
+
+	const kindModifiers = item.kindModifiers ? parseKindModifier(item.kindModifiers) : undefined;
+	result.tags = kindModifiers?.has(PConst.KindModifiers.depreacted) ? [vscode.SymbolTag.Deprecated] : undefined;
 	return result;
 }
 

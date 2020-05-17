@@ -11,6 +11,7 @@ import API from '../utils/api';
 import * as fileSchemes from '../utils/fileSchemes';
 import { doesResourceLookLikeAJavaScriptFile, doesResourceLookLikeATypeScriptFile } from '../utils/languageDescription';
 import * as typeConverters from '../utils/typeConverters';
+import { parseKindModifier } from '../utils/modifiers';
 
 function getSymbolKind(item: Proto.NavtoItem): vscode.SymbolKind {
 	switch (item.kind) {
@@ -98,19 +99,11 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			getSymbolKind(item),
 			item.containerName || '',
 			typeConverters.Location.fromTextSpan(this.client.toResource(item.file), item));
-		info.tags = TypeScriptWorkspaceSymbolProvider.getSymbolTags(item);
+		const kindModifiers = item.kindModifiers ? parseKindModifier(item.kindModifiers) : undefined;
+		if (kindModifiers?.has(PConst.KindModifiers.depreacted)) {
+			info.tags = [vscode.SymbolTag.Deprecated];
+		}
 		return info;
-	}
-
-	private static getSymbolTags (item: Proto.NavtoItem): vscode.SymbolTag[] | undefined {
-		return item.tags?.map(tag => {
-			switch (tag) {
-				case Proto.SymbolTag.Deprecated:
-					return vscode.SymbolTag.Deprecated;
-				default:
-					throw new Error('Unknown');
-			}
-		});
 	}
 
 	private static getLabel(item: Proto.NavtoItem) {
