@@ -120,7 +120,7 @@ function getActiveCellContext(accessor: ServicesAccessor): INotebookCellActionCo
 	};
 }
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_COMMAND_ID,
@@ -140,19 +140,12 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		return runCell(context);
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: CANCEL_CELL_COMMAND_ID,
@@ -164,14 +157,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		return context.notebookEditor.cancelNotebookCellExecution(context.cell);
 	}
 });
@@ -213,7 +199,7 @@ export class CancelCellAction extends MenuItemAction {
 }
 
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
@@ -229,7 +215,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const activeCell = await runActiveCell(accessor);
 		if (!activeCell) {
@@ -259,7 +245,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_INSERT_BELOW,
@@ -275,7 +261,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const activeCell = await runActiveCell(accessor);
 		if (!activeCell) {
@@ -294,7 +280,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
@@ -305,7 +291,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const editor = getActiveNotebookEditor(editorService);
 		if (!editor) {
@@ -316,7 +302,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: CANCEL_NOTEBOOK_COMMAND_ID,
@@ -327,7 +313,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const editor = getActiveNotebookEditor(editorService);
 		if (!editor) {
@@ -338,7 +324,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: QUIT_EDIT_CELL_COMMAND_ID,
@@ -353,7 +339,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor): Promise<void> {
 		let editorService = accessor.get(IEditorService);
 		let editor = getActiveNotebookEditor(editorService);
 
@@ -409,7 +395,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_RUNNABLE)
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: CHANGE_CELL_TO_CODE_COMMAND_ID,
@@ -425,12 +411,12 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor): Promise<void> {
 		return changeActiveCellToKind(CellKind.Code, accessor);
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: CHANGE_CELL_TO_MARKDOWN_COMMAND_ID,
@@ -446,7 +432,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		return changeActiveCellToKind(CellKind.Markdown, accessor);
 	}
 });
@@ -535,7 +521,7 @@ export interface INotebookCellActionContext {
 	ui?: boolean;
 }
 
-abstract class InsertCellCommand extends Action2 {
+abstract class InsertCellCommand extends NotebookAction {
 	constructor(
 		desc: Readonly<IAction2Options>,
 		private kind: CellKind,
@@ -544,14 +530,7 @@ abstract class InsertCellCommand extends Action2 {
 		super(desc);
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, context.ui);
 		if (newCell) {
 			context.notebookEditor.focusNotebookCell(newCell, 'editor');
@@ -664,7 +643,7 @@ registerAction2(class extends InsertCellCommand {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -687,19 +666,12 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
-		return context.notebookEditor.editNotebookCell(context.cell);
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		context.notebookEditor.editNotebookCell(context.cell);
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -717,19 +689,12 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return context.notebookEditor.saveNotebookCell(context.cell);
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -755,14 +720,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const index = context.notebookEditor.viewModel!.getCellIndex(context.cell);
 		const result = await context.notebookEditor.deleteNotebookCell(context.cell);
 
@@ -802,7 +760,7 @@ async function copyCell(context: INotebookCellActionContext, direction: 'up' | '
 	}
 }
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -820,19 +778,12 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return moveCell(context, 'up');
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -850,19 +801,12 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return moveCell(context, 'down');
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -879,14 +823,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		clipboardService.writeText(context.cell.getText());
@@ -894,7 +831,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -911,14 +848,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const clipboardService = accessor.get<IClipboardService>(IClipboardService);
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		clipboardService.writeText(context.cell.getText());
@@ -933,7 +863,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -950,14 +880,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const pasteCells = notebookService.getToCopy() || [];
 
@@ -975,7 +898,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 });
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -992,14 +915,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		const notebookService = accessor.get<INotebookService>(INotebookService);
 		const pasteCells = notebookService.getToCopy() || [];
 
@@ -1018,7 +934,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -1035,19 +951,12 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return copyCell(context, 'up');
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -1064,19 +973,12 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return copyCell(context, 'down');
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_CURSOR_DOWN,
@@ -1090,14 +992,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
@@ -1116,7 +1011,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_CURSOR_UP,
@@ -1130,14 +1025,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 
@@ -1161,7 +1049,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: FOCUS_IN_OUTPUT_COMMAND_ID,
@@ -1178,21 +1066,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 		editor.focusNotebookCell(activeCell, 'output');
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: FOCUS_OUT_OUTPUT_COMMAND_ID,
@@ -1209,14 +1090,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		const activeCell = context.cell;
 		editor.focusNotebookCell(activeCell, 'editor');
@@ -1224,7 +1098,7 @@ registerAction2(class extends Action2 {
 });
 
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_UNDO,
@@ -1238,7 +1112,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getActiveNotebookEditor(editorService);
@@ -1256,7 +1130,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_REDO,
@@ -1270,7 +1144,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 
 		const editor = getActiveNotebookEditor(editorService);
@@ -1288,7 +1162,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_FOCUS_TOP,
@@ -1305,14 +1179,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		if (!editor.viewModel || !editor.viewModel.length) {
 			return;
@@ -1323,7 +1190,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: NOTEBOOK_FOCUS_BOTTOM,
@@ -1340,14 +1207,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		if (!editor.viewModel || !editor.viewModel.length) {
 			return;
@@ -1358,7 +1218,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
@@ -1375,14 +1235,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		if (!editor.viewModel || !editor.viewModel.length) {
 			return;
@@ -1397,7 +1250,7 @@ interface ILanguagePickInput extends IQuickPickItem {
 	description: string;
 }
 
-export class ChangeCellLanguageAction extends Action2 {
+export class ChangeCellLanguageAction extends NotebookAction {
 	constructor() {
 		super({
 			id: CHANGE_CELL_LANGUAGE,
@@ -1408,14 +1261,7 @@ export class ChangeCellLanguageAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		this.showLanguagePicker(accessor, context);
 	}
 
@@ -1502,7 +1348,7 @@ export class ChangeCellLanguageAction extends Action2 {
 }
 registerAction2(ChangeCellLanguageAction);
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
@@ -1520,14 +1366,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
 		if (!editor.viewModel || !editor.viewModel.length) {
 			return;
@@ -1546,7 +1385,7 @@ async function splitCell(context: INotebookCellActionContext): Promise<void> {
 	}
 }
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -1564,14 +1403,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return splitCell(context);
 	}
 });
@@ -1584,7 +1416,7 @@ async function joinCells(context: INotebookCellActionContext, direction: 'above'
 	}
 }
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -1596,19 +1428,12 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return joinCells(context, 'above');
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
@@ -1620,14 +1445,7 @@ registerAction2(class extends Action2 {
 			});
 	}
 
-	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext) {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
-			if (!context) {
-				return;
-			}
-		}
-
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
 		return joinCells(context, 'below');
 	}
 });
