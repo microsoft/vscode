@@ -84,8 +84,8 @@ const enum CellToolbarOrder {
 
 abstract class NotebookAction extends Action2 {
 	async run(accessor: ServicesAccessor, context?: INotebookCellActionContext): Promise<void> {
-		if (!isCellActionContext(context)) {
-			context = getActiveCellContext(accessor);
+		if (!this.isCellActionContext(context)) {
+			context = this.getActiveCellContext(accessor);
 			if (!context) {
 				return;
 			}
@@ -95,29 +95,29 @@ abstract class NotebookAction extends Action2 {
 	}
 
 	abstract async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
-}
 
-function isCellActionContext(context: any): context is INotebookCellActionContext {
-	return context && !!context.cell && !!context.notebookEditor;
-}
-
-function getActiveCellContext(accessor: ServicesAccessor): INotebookCellActionContext | undefined {
-	const editorService = accessor.get(IEditorService);
-
-	const editor = getActiveNotebookEditor(editorService);
-	if (!editor) {
-		return;
+	private isCellActionContext(context: any): context is INotebookCellActionContext {
+		return context && !!context.cell && !!context.notebookEditor;
 	}
 
-	const activeCell = editor.getActiveCell();
-	if (!activeCell) {
-		return;
-	}
+	private getActiveCellContext(accessor: ServicesAccessor): INotebookCellActionContext | undefined {
+		const editorService = accessor.get(IEditorService);
 
-	return {
-		cell: activeCell,
-		notebookEditor: editor
-	};
+		const editor = getActiveNotebookEditor(editorService);
+		if (!editor) {
+			return;
+		}
+
+		const activeCell = editor.getActiveCell();
+		if (!activeCell) {
+			return;
+		}
+
+		return {
+			cell: activeCell,
+			notebookEditor: editor
+		};
+	}
 }
 
 registerAction2(class extends NotebookAction {
@@ -215,31 +215,22 @@ registerAction2(class extends NotebookAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeCell = await runActiveCell(accessor);
-		if (!activeCell) {
-			return;
-		}
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		await runCell(context);
 
-		const editor = getActiveNotebookEditor(editorService);
-		if (!editor) {
-			return;
-		}
-
-		const idx = editor.viewModel?.getCellIndex(activeCell);
+		const idx = context.notebookEditor.viewModel?.getCellIndex(context.cell);
 		if (typeof idx !== 'number') {
 			return;
 		}
 
 		// Try to select below, fall back on inserting
-		const nextCell = editor.viewModel?.viewCells[idx + 1];
+		const nextCell = context.notebookEditor.viewModel?.viewCells[idx + 1];
 		if (nextCell) {
-			editor.focusNotebookCell(nextCell, activeCell.editState === CellEditState.Editing ? 'editor' : 'container');
+			context.notebookEditor.focusNotebookCell(nextCell, context.cell.editState === CellEditState.Editing ? 'editor' : 'container');
 		} else {
-			const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+			const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
 			if (newCell) {
-				editor.focusNotebookCell(newCell, 'editor');
+				context.notebookEditor.focusNotebookCell(newCell, 'editor');
 			}
 		}
 	}
@@ -261,21 +252,11 @@ registerAction2(class extends NotebookAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeCell = await runActiveCell(accessor);
-		if (!activeCell) {
-			return;
-		}
-
-		const editor = getActiveNotebookEditor(editorService);
-		if (!editor) {
-			return;
-		}
-
-		const newCell = editor.insertNotebookCell(activeCell, CellKind.Code, 'below');
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		await runCell(context);
+		const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
 		if (newCell) {
-			editor.focusNotebookCell(newCell, 'editor');
+			context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 });
@@ -291,14 +272,8 @@ registerAction2(class extends NotebookAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getActiveNotebookEditor(editorService);
-		if (!editor) {
-			return;
-		}
-
-		return editor.executeNotebook();
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		return context.notebookEditor.executeNotebook();
 	}
 });
 
@@ -313,14 +288,8 @@ registerAction2(class extends NotebookAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editor = getActiveNotebookEditor(editorService);
-		if (!editor) {
-			return;
-		}
-
-		return editor.cancelNotebookExecution();
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		return context.notebookEditor.cancelNotebookExecution();
 	}
 });
 
@@ -339,22 +308,12 @@ registerAction2(class extends NotebookAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor): Promise<void> {
-		let editorService = accessor.get(IEditorService);
-		let editor = getActiveNotebookEditor(editorService);
-
-		if (!editor) {
-			return;
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		if (context.cell.cellKind === CellKind.Markdown) {
+			context.cell.editState = CellEditState.Preview;
 		}
 
-		let activeCell = editor.getActiveCell();
-		if (activeCell) {
-			if (activeCell.cellKind === CellKind.Markdown) {
-				activeCell.editState = CellEditState.Preview;
-			}
-
-			editor.focusNotebookCell(activeCell, 'container');
-		}
+		context.notebookEditor.focusNotebookCell(context.cell, 'container');
 	}
 });
 
@@ -411,8 +370,8 @@ registerAction2(class extends NotebookAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor): Promise<void> {
-		return changeActiveCellToKind(CellKind.Code, accessor);
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		await changeCellToKind(CellKind.Code, context);
 	}
 });
 
@@ -433,7 +392,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		return changeActiveCellToKind(CellKind.Markdown, accessor);
+		await changeCellToKind(CellKind.Markdown, context);
 	}
 });
 
@@ -443,43 +402,12 @@ export function getActiveNotebookEditor(editorService: IEditorService): INoteboo
 	return activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
 }
 
-async function runActiveCell(accessor: ServicesAccessor): Promise<ICellViewModel | undefined> {
-	const editorService = accessor.get(IEditorService);
-	const editor = getActiveNotebookEditor(editorService);
-	if (!editor) {
-		return;
-	}
-
-	const activeCell = editor.getActiveCell();
-	if (!activeCell) {
-		return;
-	}
-
-	editor.executeNotebookCell(activeCell);
-	return activeCell;
-}
-
 async function runCell(context: INotebookCellActionContext): Promise<void> {
 	if (context.cell.runState === CellRunState.Running) {
 		return;
 	}
 
 	return context.notebookEditor.executeNotebookCell(context.cell);
-}
-
-async function changeActiveCellToKind(kind: CellKind, accessor: ServicesAccessor): Promise<void> {
-	const editorService = accessor.get(IEditorService);
-	const editor = getActiveNotebookEditor(editorService);
-	if (!editor) {
-		return;
-	}
-
-	const activeCell = editor.getActiveCell();
-	if (!activeCell) {
-		return;
-	}
-
-	changeCellToKind(kind, { cell: activeCell, notebookEditor: editor });
 }
 
 export async function changeCellToKind(kind: CellKind, context: INotebookCellActionContext, language?: string): Promise<ICellViewModel | null> {
@@ -1112,15 +1040,8 @@ registerAction2(class extends NotebookAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-
-		const editor = getActiveNotebookEditor(editorService);
-		if (!editor) {
-			return;
-		}
-
-		const viewModel = editor.viewModel;
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		const viewModel = context.notebookEditor.viewModel;
 
 		if (!viewModel) {
 			return;
@@ -1144,21 +1065,8 @@ registerAction2(class extends NotebookAction {
 		});
 	}
 
-	async runWithContext(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-
-		const editor = getActiveNotebookEditor(editorService);
-		if (!editor) {
-			return;
-		}
-
-		const viewModel = editor.viewModel;
-
-		if (!viewModel) {
-			return;
-		}
-
-		viewModel.redo();
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		context.notebookEditor.viewModel?.redo();
 	}
 });
 
