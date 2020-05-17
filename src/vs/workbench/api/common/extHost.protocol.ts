@@ -504,6 +504,7 @@ export interface IInputBoxOptions {
 	placeHolder?: string;
 	password?: boolean;
 	ignoreFocusOut?: boolean;
+	multiline?: boolean;
 }
 
 export interface MainThreadQuickOpenShape extends IDisposable {

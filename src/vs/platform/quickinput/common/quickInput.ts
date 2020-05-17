@@ -119,6 +119,8 @@ export interface IInputOptions {
 	 */
 	password?: boolean;
 
+	multiline?: boolean;
+
 	ignoreFocusLost?: boolean;
 
 	/**
@@ -220,6 +222,8 @@ export interface IInputBox extends IQuickInput {
 	placeholder: string | undefined;
 
 	password: boolean;
+
+	readonly multiline: boolean;
 
 	readonly onDidChangeValue: Event<string>;
 

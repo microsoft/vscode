@@ -355,6 +355,14 @@ suite('window namespace tests', () => {
 		]);
 	});
 
+	test('showInputBox multiline - default value on Enter', function () {
+		const p = window.showInputBox({ value: 'foo\nbar', multiline: true });
+		return Promise.all<any>([
+			p.then(value => assert.equal(value, 'foo\nbar')),
+			commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem'),
+		]);
+	});
+
 	test('showInputBox - `undefined` on Esc', function () {
 		const p = window.showInputBox();
 		return Promise.all<any>([

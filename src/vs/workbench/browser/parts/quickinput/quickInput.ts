@@ -68,6 +68,7 @@ interface QuickInputUI {
 	checkAll: HTMLInputElement;
 	filterContainer: HTMLElement;
 	inputBox: QuickInputBox;
+	multiline: boolean;
 	visibleCountContainer: HTMLElement;
 	visibleCount: CountBadge;
 	countContainer: HTMLElement;
@@ -191,6 +192,10 @@ class QuickInput extends Disposable implements IQuickInput {
 	set ignoreFocusOut(ignoreFocusOut: boolean) {
 		this._ignoreFocusOut = ignoreFocusOut;
 		this.update();
+	}
+
+	get multiline() {
+		return this.ui.multiline;
 	}
 
 	get buttons() {
@@ -782,6 +787,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 class InputBox extends QuickInput implements IInputBox {
 
 	private static readonly noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
+	private static readonly noPromptMultilineMessage = localize('inputModeMultilineEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel and 'Shift+Enter' to insert a newline");
 
 	private _value = '';
 	private _valueSelection: Readonly<[number, number]> | undefined;
@@ -833,9 +839,10 @@ class InputBox extends QuickInput implements IInputBox {
 
 	set prompt(prompt: string | undefined) {
 		this._prompt = prompt;
+		let noPromptMessage = this.multiline ? InputBox.noPromptMultilineMessage : InputBox.noPromptMessage;
 		this.noValidationMessage = prompt
-			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", prompt)
-			: InputBox.noPromptMessage;
+			? localize('inputModeEntryDescription', "{0} {1}", prompt, noPromptMessage)
+			: noPromptMessage;
 		this.update();
 	}
 
@@ -906,7 +913,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
 	private idPrefix = 'quickInput_'; // Constant since there is still only one.
-	private ui: QuickInputUI | undefined;
+	private _ui: QuickInputUI | undefined;
+	private _uiMultiline: QuickInputUI | undefined;
+	private multiline: boolean = false;
 	private dimension?: dom.Dimension;
 	private comboboxAccessibility = false;
 	private enabled = true;
@@ -1017,6 +1026,22 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}));
 	}
 
+	get ui() {
+		if (this.multiline) {
+			return this._uiMultiline;
+		} else {
+			return this._ui;
+		}
+	}
+
+	set ui(val) {
+		if (this.multiline) {
+			this._uiMultiline = val;
+		} else {
+			this._ui = val;
+		}
+	}
+
 	private getUI() {
 		if (this.ui) {
 			return this.ui;
@@ -1054,7 +1079,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const extraContainer = dom.append(headerContainer, $('.quick-input-and-message'));
 		const filterContainer = dom.append(extraContainer, $('.quick-input-filter'));
 
-		const inputBox = this._register(new QuickInputBox(filterContainer));
+		const inputBox = this._register(new QuickInputBox(filterContainer, { flexibleHeight: this.multiline }));
 		inputBox.setAttribute('aria-describedby', `${this.idPrefix}message`);
 
 		const visibleCountContainer = dom.append(filterContainer, $('.quick-input-visible-count'));
@@ -1124,10 +1149,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
 		}));
+		let multiline = this.multiline; // dereference it because we're going to use it in the event listener
 		this._register(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Enter:
+					if (multiline && event.shiftKey) {
+						return;
+					}
 					dom.EventHelper.stop(e, true);
 					this.onDidAcceptEmitter.fire();
 					break;
@@ -1170,6 +1199,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			checkAll,
 			filterContainer,
 			inputBox,
+			multiline: this.multiline,
 			visibleCountContainer,
 			visibleCount,
 			countContainer,
@@ -1302,6 +1332,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				resolve(undefined);
 				return;
 			}
+			this.multiline = !!options.multiline;
 			const input = this.createInputBox();
 			const validateInput = options.validateInput || (() => <Promise<undefined>>Promise.resolve(undefined));
 			const onDidValueChange = Event.debounce(input.onDidChangeValue, (last, cur) => cur, 100);
@@ -1350,6 +1381,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			input.password = !!options.password;
 			input.ignoreFocusOut = !!options.ignoreFocusLost;
 			input.show();
+			this.multiline = false;
 		});
 	}
 

@@ -1797,6 +1797,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to show a password prompt that will not show the typed value.
+		 * Note: has no effect when multiline is set to true
 		 */
 		password?: boolean;
 
@@ -1804,6 +1805,12 @@ declare module 'vscode' {
 		 * Set to `true` to keep the input box open when focus moves to another part of the editor or to another window.
 		 */
 		ignoreFocusOut?: boolean;
+
+		/**
+		 * Set to `true` to show a multiline prompt that inserts a new line when user presses 'Shift + Enter'
+		 * instead of submitting
+		 */
+		multiline?: boolean;
 
 		/**
 		 * An optional function that will be called to validate input and to give a hint

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/quickInput';
 import * as dom from 'vs/base/browser/dom';
-import { InputBox, IRange, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { InputBox, IRange, MessageType, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { inputBackground, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorForeground, inputValidationErrorBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
@@ -21,11 +21,12 @@ export class QuickInputBox extends Disposable {
 	private inputBox: InputBox;
 
 	constructor(
-		private parent: HTMLElement
+		private parent: HTMLElement,
+		options?: IInputOptions
 	) {
 		super();
 		this.container = dom.append(this.parent, $('.quick-input-box'));
-		this.inputBox = this._register(new InputBox(this.container, undefined));
+		this.inputBox = this._register(new InputBox(this.container, undefined, options));
 	}
 
 	onKeyDown = (handler: (event: StandardKeyboardEvent) => void): IDisposable => {
@@ -73,6 +74,9 @@ export class QuickInputBox extends Disposable {
 	}
 
 	set password(password: boolean) {
+		if (this.inputBox.inputElement instanceof HTMLTextAreaElement) {
+			return;
+		}
 		this.inputBox.inputElement.type = password ? 'password' : 'text';
 	}
 

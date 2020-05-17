@@ -94,6 +94,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			inputOptions.prompt = options.prompt;
 			inputOptions.value = options.value;
 			inputOptions.ignoreFocusLost = options.ignoreFocusOut;
+			inputOptions.multiline = options.multiline;
 		}
 
 		if (validateInput) {
