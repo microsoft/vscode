@@ -134,7 +134,7 @@ registerAction2(class extends NotebookAction {
 				},
 				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: { id: 'codicon/play' },
 			f1: true
 		});
@@ -210,7 +210,7 @@ registerAction2(class extends NotebookAction {
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
@@ -247,7 +247,7 @@ registerAction2(class extends NotebookAction {
 				primary: KeyMod.Alt | KeyCode.Enter,
 				weight: EDITOR_WIDGET_ACTION_WEIGHT
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
@@ -304,7 +304,7 @@ registerAction2(class extends NotebookAction {
 				primary: KeyCode.Escape,
 				weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 		});
 	}
 
@@ -365,7 +365,7 @@ registerAction2(class extends NotebookAction {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR),
 			f1: true
 		});
 	}
@@ -386,7 +386,7 @@ registerAction2(class extends NotebookAction {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
@@ -478,7 +478,7 @@ registerAction2(class extends InsertCellCommand {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true
 			},
 			CellKind.Code,
@@ -516,7 +516,7 @@ registerAction2(class extends InsertCellCommand {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
 				},
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 			},
 			CellKind.Code,
@@ -531,7 +531,7 @@ registerAction2(class extends InsertCellCommand {
 				id: INSERT_MARKDOWN_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.insertMarkdownCellAbove', "Insert Markdown Cell Above"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true
 			},
 			CellKind.Markdown,
@@ -563,7 +563,7 @@ registerAction2(class extends InsertCellCommand {
 				id: INSERT_MARKDOWN_CELL_BELOW_COMMAND_ID,
 				title: localize('notebookActions.insertMarkdownCellBelow', "Insert Markdown Cell Below"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true
 			},
 			CellKind.Markdown,
@@ -643,7 +643,7 @@ registerAction2(class extends NotebookAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				icon: { id: 'codicon/trash' },
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true
 			});
 	}
@@ -696,7 +696,7 @@ registerAction2(class extends NotebookAction {
 				title: localize('notebookActions.moveCellUp', "Move Cell Up"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-up' },
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.UpArrow,
@@ -719,7 +719,7 @@ registerAction2(class extends NotebookAction {
 				title: localize('notebookActions.moveCellDown', "Move Cell Down"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				icon: { id: 'codicon/arrow-down' },
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 				keybinding: {
 					primary: KeyMod.Alt | KeyCode.DownArrow,
@@ -741,7 +741,7 @@ registerAction2(class extends NotebookAction {
 				id: COPY_CELL_COMMAND_ID,
 				title: localize('notebookActions.copy', "Copy Cell"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 				keybinding: {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -766,7 +766,7 @@ registerAction2(class extends NotebookAction {
 				id: CUT_CELL_COMMAND_ID,
 				title: localize('notebookActions.cut', "Cut Cell"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 				keybinding: {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -798,7 +798,7 @@ registerAction2(class extends NotebookAction {
 				id: PASTE_CELL_ABOVE_COMMAND_ID,
 				title: localize('notebookActions.pasteAbove', "Paste Cell Above"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 				keybinding: {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -833,7 +833,7 @@ registerAction2(class extends NotebookAction {
 				id: PASTE_CELL_COMMAND_ID,
 				title: localize('notebookActions.paste', "Paste Cell"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 				keybinding: {
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
@@ -869,7 +869,7 @@ registerAction2(class extends NotebookAction {
 				id: COPY_CELL_UP_COMMAND_ID,
 				title: localize('notebookActions.copyCellUp', "Copy Cell Up"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 				keybinding: {
 					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.UpArrow,
@@ -891,7 +891,7 @@ registerAction2(class extends NotebookAction {
 				id: COPY_CELL_DOWN_COMMAND_ID,
 				title: localize('notebookActions.copyCellDown', "Copy Cell Down"),
 				category: NOTEBOOK_ACTIONS_CATEGORY,
-				precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 				f1: true,
 				keybinding: {
 					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.DownArrow,
@@ -984,12 +984,12 @@ registerAction2(class extends NotebookAction {
 			title: localize('focusOutput', 'Focus In Active Cell Output'),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED),
+				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.DownArrow, },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
@@ -1008,12 +1008,12 @@ registerAction2(class extends NotebookAction {
 			title: localize('focusOutputOut', 'Focus Out Active Cell Output'),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED),
+				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
 				mac: { primary: KeyMod.WinCtrl | KeyCode.UpArrow, },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
@@ -1082,7 +1082,7 @@ registerAction2(class extends NotebookAction {
 				mac: { primary: KeyMod.CtrlCmd | KeyCode.UpArrow },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_FOCUSED),
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
@@ -1364,7 +1364,7 @@ registerAction2(class extends NotebookAction {
 			id: CENTER_ACTIVE_CELL,
 			title: localize('notebookActions.centerActiveCell', "Center Active Cell"),
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED),
+				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.CtrlCmd | KeyCode.KEY_L,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyCode.KEY_L,
@@ -1372,7 +1372,7 @@ registerAction2(class extends NotebookAction {
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			category: NOTEBOOK_ACTIONS_CATEGORY,
-			precondition: NOTEBOOK_EDITOR_FOCUSED,
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			f1: true
 		});
 	}
