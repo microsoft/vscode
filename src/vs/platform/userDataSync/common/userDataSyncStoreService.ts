@@ -49,6 +49,9 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 					'X-Client-Version': productService.version,
 					'X-Machine-Id': uuid
 				};
+				if (productService.commit) {
+					headers['X-Client-Commit'] = productService.commit;
+				}
 				return headers;
 			});
 	}
