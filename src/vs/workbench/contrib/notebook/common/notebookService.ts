@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -31,7 +31,9 @@ export interface INotebookService {
 	_serviceBrand: undefined;
 	modelManager: INotebookEditorModelManager;
 	canResolve(viewType: string): Promise<boolean>;
-	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }>;
+	onDidChangeActiveEditor: Event<string>;
+	onNotebookEditorAdd: Event<IEditor>;
+	onNotebookEditorRemove: Event<IEditor>;
 	onDidChangeKernels: Event<void>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
@@ -51,10 +53,17 @@ export interface INotebookService {
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
-	updateActiveNotebookDocument(viewType: string, resource: URI): void;
+	updateActiveNotebookEditor(editor: IEditor): void;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	onDidReceiveMessage(viewType: string, uri: URI, message: any): void;
 	setToCopy(items: NotebookCellTextModel[]): void;
 	getToCopy(): NotebookCellTextModel[] | undefined;
+
+	// editor events
+	addNotebookEditor(editor: IEditor): void;
+	removeNotebookEditor(editor: IEditor): void;
+	listNotebookEditors(): readonly IEditor[];
+	listNotebookDocuments(): readonly NotebookTextModel[];
+
 }

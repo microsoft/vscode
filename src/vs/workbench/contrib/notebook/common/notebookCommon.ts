@@ -507,3 +507,14 @@ export interface INotebookTextModelBackup {
 	languages: string[];
 	cells: ICellDto2[]
 }
+
+export interface IEditor extends editorCommon.ICompositeCodeEditor {
+	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
+	readonly onDidFocusEditorWidget: Event<void>;
+	isNotebookEditor: boolean;
+	uri?: URI;
+	textModel?: NotebookTextModel;
+	getId(): string;
+	hasFocus(): boolean;
+	hasModel(): boolean;
+}

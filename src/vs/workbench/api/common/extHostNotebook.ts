@@ -219,6 +219,8 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		return this._versionId;
 	}
 
+	webviewId: string = '';
+
 	constructor(
 		private readonly _proxy: MainThreadNotebookShape,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors,
@@ -499,7 +501,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		public uri: URI,
 		private _proxy: MainThreadNotebookShape,
 		private _onDidReceiveMessage: Emitter<any>,
-		private _webviewId: string,
+		public _webviewId: string,
 		private _webviewInitData: WebviewInitData,
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
@@ -627,8 +629,6 @@ export interface ExtHostNotebookOutputRenderingHandler {
 }
 
 export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostNotebookOutputRenderingHandler {
-	private static _handlePool: number = 0;
-
 	private readonly _proxy: MainThreadNotebookShape;
 	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernels = new Map<string, { readonly kernel: vscode.NotebookKernel, readonly extension: IExtensionDescription; }>();
@@ -662,6 +662,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	onDidOpenNotebookDocument: Event<vscode.NotebookDocument> = this._onDidOpenNotebookDocument.event;
 	private _onDidCloseNotebookDocument = new Emitter<vscode.NotebookDocument>();
 	onDidCloseNotebookDocument: Event<vscode.NotebookDocument> = this._onDidCloseNotebookDocument.event;
+	visibleNotebookEditors: ExtHostNotebookEditor[] = [];
+	private _onDidChangeVisibleNotebookEditors = new Emitter<vscode.NotebookEditor[]>();
+	onDidChangeVisibleNotebookEditors = this._onDidChangeVisibleNotebookEditors.event;
 
 	constructor(mainContext: IMainContext, commands: ExtHostCommands, private _documentsAndEditors: ExtHostDocumentsAndEditors, private readonly _webviewInitData: WebviewInitData) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebook);
@@ -934,8 +937,21 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		this._outputDisplayOrder = displayOrder;
 	}
 
+	// TODO: remove document - editor one on one mapping
+	private _getEditorFromURI(uriComponents: UriComponents) {
+		const uriStr = URI.revive(uriComponents).toString();
+		let editor: { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any>; } | undefined;
+		this._editors.forEach(e => {
+			if (e.editor.uri.toString() === uriStr) {
+				editor = e;
+			}
+		});
+
+		return editor;
+	}
+
 	$onDidReceiveMessage(uri: UriComponents, message: any): void {
-		let editor = this._editors.get(URI.revive(uri).toString());
+		let editor = this._getEditorFromURI(uri);
 
 		if (editor) {
 			editor.onDidReceiveMessage.fire(message);
@@ -943,7 +959,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void {
-		let editor = this._editors.get(URI.revive(uriComponents).toString());
+		let editor = this._getEditorFromURI(uriComponents);
 
 		if (editor) {
 			editor.editor.document.accpetModelChanged(event);
@@ -956,7 +972,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void {
-		let editor = this._editors.get(URI.revive(uriComponents).toString());
+		let editor = this._getEditorFromURI(uriComponents);
 
 		if (!editor) {
 			return;
@@ -1029,34 +1045,79 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						]
 					});
 
+					document.webviewId = modelData.webviewId;
 					this._documents.set(revivedUriStr, document);
 				}
 
-				const onDidReceiveMessage = new Emitter<any>();
 				const document = this._documents.get(revivedUriStr)!;
-
-				let editor = new ExtHostNotebookEditor(
-					viewType,
-					`${ExtHostNotebookController._handlePool++}`,
-					revivedUri,
-					this._proxy,
-					onDidReceiveMessage,
-					modelData.webviewId,
-					this._webviewInitData,
-					document,
-					this._documentsAndEditors
-				);
-
 				this._onDidOpenNotebookDocument.fire(document);
-
-				// TODO, does it already exist?
-				this._editors.set(revivedUriStr, { editor, onDidReceiveMessage });
 			});
 		}
 
-		if (delta.newActiveEditor) {
-			this._activeNotebookDocument = this._documents.get(URI.revive(delta.newActiveEditor).toString());
-			this._activeNotebookEditor = this._editors.get(URI.revive(delta.newActiveEditor).toString())?.editor;
+		let editorChanged = false;
+
+		if (delta.addedEditors) {
+			delta.addedEditors.forEach(editorModelData => {
+				const revivedUri = URI.revive(editorModelData.documentUri);
+				const document = this._documents.get(revivedUri.toString());
+
+				if (document) {
+					const onDidReceiveMessage = new Emitter<any>();
+
+					let editor = new ExtHostNotebookEditor(
+						document.viewType,
+						editorModelData.id,
+						revivedUri,
+						this._proxy,
+						onDidReceiveMessage,
+						document.webviewId,
+						this._webviewInitData,
+						document,
+						this._documentsAndEditors
+					);
+
+					const cells = editor.document.cells;
+
+					if (editorModelData.selections.length) {
+						const firstCell = editorModelData.selections[0];
+						editor.selection = cells.find(cell => cell.handle === firstCell);
+					} else {
+						editor.selection = undefined;
+					}
+
+					editorChanged = true;
+
+					this._editors.set(editorModelData.id, { editor, onDidReceiveMessage });
+				}
+			});
+		}
+
+		if (delta.removedEditors) {
+			delta.removedEditors.forEach(editorid => {
+				const editor = this._editors.get(editorid);
+
+				if (editor) {
+					editorChanged = true;
+					this._editors.delete(editorid);
+
+					// TODO, dispose the editor
+				}
+			});
+		}
+
+		if (editorChanged) {
+			this.visibleNotebookEditors = [...this._editors.values()].map(e => e.editor);
+			this._onDidChangeVisibleNotebookEditors.fire(this.visibleNotebookEditors);
+		}
+
+		if (delta.newActiveEditor !== undefined) {
+			if (delta.newActiveEditor) {
+				this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
+				this._activeNotebookDocument = this._documents.get(this._activeNotebookEditor!.uri.toString());
+			} else {
+				this._activeNotebookEditor = undefined;
+				this._activeNotebookDocument = undefined;
+			}
 		}
 	}
 }

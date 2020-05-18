@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext } from '../common/extHost.protocol';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IExtHostContext, ExtHostNotebookShape, ExtHostContext, INotebookDocumentsAndEditorsDelta } from '../common/extHost.protocol';
+import { Disposable, IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -58,11 +58,77 @@ export class MainThreadNotebookDocument extends Disposable {
 	}
 }
 
+class DocumentAndEditorState {
+	static ofMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: V[], added: V[] } {
+		const removed: V[] = [];
+		const added: V[] = [];
+		before.forEach((value, index) => {
+			if (!after.has(index)) {
+				removed.push(value);
+			}
+		});
+		after.forEach((value, index) => {
+			if (!before.has(index)) {
+				added.push(value);
+			}
+		});
+		return { removed, added };
+	}
+
+	static compute(before: DocumentAndEditorState | undefined, after: DocumentAndEditorState): INotebookDocumentsAndEditorsDelta {
+		if (!before) {
+			const apiEditors = [];
+			for (let id in after.textEditors) {
+				const editor = after.textEditors.get(id)!;
+				apiEditors.push({ id, documentUri: editor.uri!, selections: editor!.textModel!.selections });
+			}
+
+			return {
+				addedDocuments: [],
+				addedEditors: apiEditors
+			};
+		}
+		// const documentDelta = delta.ofSets(before.documents, after.documents);
+		const editorDelta = DocumentAndEditorState.ofMaps(before.textEditors, after.textEditors);
+		const addedAPIEditors = editorDelta.added.map(add => ({
+			id: add.getId(),
+			documentUri: add.uri!,
+			selections: add.textModel!.selections
+		}));
+
+		const removedAPIEditors = editorDelta.removed.map(removed => removed.getId());
+
+		// const oldActiveEditor = before.activeEditor !== after.activeEditor ? before.activeEditor : undefined;
+		const newActiveEditor = before.activeEditor !== after.activeEditor ? after.activeEditor : undefined;
+
+		// return new DocumentAndEditorStateDelta(
+		// 	documentDelta.removed, documentDelta.added,
+		// 	editorDelta.removed, editorDelta.added,
+		// 	oldActiveEditor, newActiveEditor
+		// );
+		return {
+			addedEditors: addedAPIEditors,
+			removedEditors: removedAPIEditors,
+			newActiveEditor: newActiveEditor
+		};
+	}
+
+	constructor(
+		readonly documents: Set<URI>,
+		readonly textEditors: Map<string, IEditor>,
+		readonly activeEditor: string | null | undefined,
+	) {
+		//
+	}
+}
+
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks extends Disposable implements MainThreadNotebookShape {
 	private readonly _notebookProviders = new Map<string, MainThreadNotebookController>();
 	private readonly _notebookKernels = new Map<string, MainThreadNotebookKernel>();
 	private readonly _proxy: ExtHostNotebookShape;
+	private _toDisposeOnEditorRemove = new Map<string, IDisposable>();
+	private _currentState?: DocumentAndEditorState;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -90,8 +156,16 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	registerListeners() {
 		this._register(this._notebookService.onDidChangeActiveEditor(e => {
 			this._proxy.$acceptDocumentAndEditorsDelta({
-				newActiveEditor: e.uri
+				newActiveEditor: e
 			});
+		}));
+
+		this._register(this._notebookService.onNotebookEditorAdd(editor => {
+			this._addNotebookEditor(editor);
+		}));
+
+		this._register(this._notebookService.onNotebookEditorRemove(editor => {
+			this._removeNotebookEditor(editor);
 		}));
 
 		const updateOrder = () => {
@@ -113,6 +187,57 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			updateOrder();
 		}));
+	}
+
+	private _addNotebookEditor(e: IEditor) {
+		this._toDisposeOnEditorRemove.set(e.getId(), combinedDisposable(
+			e.onDidChangeModel(() => this._updateState()),
+			e.onDidFocusEditorWidget(() => this._updateState(e)),
+		));
+
+		this._updateState();
+	}
+
+	private _removeNotebookEditor(e: IEditor) {
+		const sub = this._toDisposeOnEditorRemove.get(e.getId());
+		if (sub) {
+			this._toDisposeOnEditorRemove.delete(e.getId());
+			sub.dispose();
+			this._updateState();
+		}
+	}
+
+	private async _updateState(focusedNotebookEditor?: IEditor) {
+		const documents = new Set<URI>();
+		this._notebookService.listNotebookDocuments().forEach(document => {
+			documents.add(document.uri);
+		});
+
+		const editors = new Map<string, IEditor>();
+		let activeEditor: string | null = null;
+
+		for (const editor of this._notebookService.listNotebookEditors()) {
+			if (editor.hasModel()) {
+				editors.set(editor.getId(), editor);
+				if (editor.hasFocus()) {
+					activeEditor = editor.getId();
+				}
+			}
+		}
+
+		// editors always have view model attached, which means there is already a document in exthost.
+		const newState = new DocumentAndEditorState(documents, editors, activeEditor);
+		const delta = DocumentAndEditorState.compute(this._currentState, newState);
+		// const isEmptyChange = (!delta.addedDocuments || delta.addedDocuments.length === 0)
+		// 	&& (!delta.removedDocuments || delta.removedDocuments.length === 0)
+		// 	&& (!delta.addedEditors || delta.addedEditors.length === 0)
+		// 	&& (!delta.removedEditors || delta.removedEditors.length === 0)
+		// 	&& (delta.newActiveEditor === undefined)
+
+		// if (!isEmptyChange) {
+		this._currentState = newState;
+		await this._proxy.$acceptDocumentAndEditorsDelta(delta);
+		// }
 	}
 
 	async $registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void> {

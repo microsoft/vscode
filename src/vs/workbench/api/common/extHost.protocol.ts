@@ -1553,12 +1553,18 @@ export interface INotebookModelAddedData {
 	metadata?: NotebookDocumentMetadata;
 }
 
+export interface INotebookEditorAddData {
+	id: string;
+	documentUri: UriComponents;
+	selections: number[];
+}
+
 export interface INotebookDocumentsAndEditorsDelta {
 	removedDocuments?: UriComponents[];
 	addedDocuments?: INotebookModelAddedData[];
-	// removedEditors?: string[];
-	// addedEditors?: ITextEditorAddData[];
-	newActiveEditor?: UriComponents | null;
+	removedEditors?: string[];
+	addedEditors?: INotebookEditorAddData[];
+	newActiveEditor?: string | null;
 }
 
 export interface ExtHostNotebookShape {

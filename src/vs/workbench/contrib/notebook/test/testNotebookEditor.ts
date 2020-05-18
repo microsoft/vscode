@@ -45,6 +45,19 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+
+	hasModel(): boolean {
+		return true;
+	}
+
+	onDidFocusEditorWidget: Event<void> = new Emitter<void>().event;
+	hasFocus(): boolean {
+		return true;
+	}
+	getId(): string {
+		return 'notebook.testEditor';
+	}
+
 	activeKernel: INotebookKernelInfo | undefined;
 	onDidChangeKernel: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
@@ -53,8 +66,8 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	private _onDidChangeModel = new Emitter<void>();
-	onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+	private _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
+	onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	getContribution<T extends INotebookEditorContribution>(id: string): T {
 		throw new Error('Method not implemented.');
 	}

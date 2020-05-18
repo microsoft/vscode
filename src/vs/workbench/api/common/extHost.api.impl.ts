@@ -918,6 +918,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidCloseNotebookDocument;
 			},
+			get visibleNotebookEditors() {
+				return extHostNotebook.visibleNotebookEditors;
+			},
+			get onDidChangeVisibleNotebookEditors() {
+				return extHostNotebook.onDidChangeVisibleNotebookEditors;
+			},
 			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider) => {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider);

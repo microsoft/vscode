@@ -63,9 +63,16 @@ suite('NotebookConcatDocument', function () {
 					outputs: [],
 				}],
 				versionId: 0
-			}]
+			}],
+			addedEditors: [
+				{
+					documentUri: notebookUri,
+					id: '_notebook_editor_0',
+					selections: [0]
+				}
+			]
 		});
-		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: notebookUri });
+		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
 
 		notebook = extHostNotebooks.activeNotebookDocument!;
 

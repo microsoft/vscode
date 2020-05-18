@@ -23,6 +23,7 @@ import { NotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/resources';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -101,8 +102,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	notebookProviderInfoStore: NotebookProviderInfoStore = new NotebookProviderInfoStore();
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
 	private readonly _models: { [modelId: string]: ModelData; };
-	private _onDidChangeActiveEditor = new Emitter<{ viewType: string, uri: URI }>();
-	onDidChangeActiveEditor: Event<{ viewType: string, uri: URI }> = this._onDidChangeActiveEditor.event;
+	private _onDidChangeActiveEditor = new Emitter<string>();
+	onDidChangeActiveEditor: Event<string> = this._onDidChangeActiveEditor.event;
+	private readonly _onNotebookEditorAdd: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
+	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
+	private readonly _onNotebookEditorRemove: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
+	public readonly onNotebookEditorRemove: Event<INotebookEditor> = this._onNotebookEditorRemove.event;
+	private readonly _notebookEditors: { [editorId: string]: INotebookEditor; };
 
 	private readonly _onDidChangeViewTypes = new Emitter<void>();
 	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
@@ -121,6 +127,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		super();
 
 		this._models = {};
+		this._notebookEditors = Object.create(null);
 		this.modelManager = this.instantiationService.createInstance(NotebookEditorModelManager);
 
 		notebookProviderExtensionPoint.setHandler((extensions) => {
@@ -352,6 +359,25 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return ret;
 	}
 
+	removeNotebookEditor(editor: INotebookEditor) {
+		if (delete this._notebookEditors[editor.getId()]) {
+			this._onNotebookEditorRemove.fire(editor);
+		}
+	}
+
+	addNotebookEditor(editor: INotebookEditor) {
+		this._notebookEditors[editor.getId()] = editor;
+		this._onNotebookEditorAdd.fire(editor);
+	}
+
+	listNotebookEditors(): INotebookEditor[] {
+		return Object.keys(this._notebookEditors).map(id => this._notebookEditors[id]);
+	}
+
+	listNotebookDocuments(): NotebookTextModel[] {
+		return Object.keys(this._models).map(id => this._models[id].model);
+	}
+
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
 		let provider = this._notebookProviders.get(viewType);
 
@@ -360,8 +386,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 	}
 
-	updateActiveNotebookDocument(viewType: string, resource: URI): void {
-		this._onDidChangeActiveEditor.fire({ viewType, uri: resource });
+	updateActiveNotebookEditor(editor: INotebookEditor) {
+		this._onDidChangeActiveEditor.fire(editor.getId());
 	}
 
 	setToCopy(items: NotebookCellTextModel[]) {
