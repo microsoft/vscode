@@ -189,12 +189,14 @@ export enum UserDataSyncErrorCode {
 	Forbidden = 'Forbidden',
 	ConnectionRefused = 'ConnectionRefused',
 	RemotePreconditionFailed = 'RemotePreconditionFailed',
+	TooManyRequests = 'RemoteTooManyRequests',
 	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
 
 	// Local Errors
+	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
