@@ -996,7 +996,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			run(): Promise<any> {
+			run(accessor: ServicesAccessor): Promise<any> {
+				accessor.get(ITelemetryService).publicLog2(`sync/actions/${syncNowCommand.id}`);
 				return that.userDataSyncService.sync();
 			}
 		}));

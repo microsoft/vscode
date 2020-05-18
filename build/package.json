@@ -33,6 +33,7 @@
     "@typescript-eslint/parser": "^2.12.0",
     "applicationinsights": "1.0.8",
     "azure-storage": "^2.1.0",
+    "electron-osx-sign": "^0.4.16",
     "github-releases": "^0.4.1",
     "gulp-bom": "^1.0.0",
     "gulp-sourcemaps": "^1.11.0",

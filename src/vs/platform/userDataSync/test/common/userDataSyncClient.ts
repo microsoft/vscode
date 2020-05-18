@@ -83,7 +83,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IRequestService, this.testServer);
 		this.instantiationService.stub(IAuthenticationTokenService, <Partial<IAuthenticationTokenService>>{
 			onDidChangeToken: new Emitter<IUserDataSyncAuthToken | undefined>().event,
-			async getToken() { return { authenticationProviderId: 'id', token: 'token' }; }
+			token: { authenticationProviderId: 'id', token: 'token' }
 		});
 
 		this.instantiationService.stub(IUserDataSyncLogService, logService);

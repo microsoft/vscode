@@ -49,6 +49,9 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 					'X-Client-Version': productService.version,
 					'X-Machine-Id': uuid
 				};
+				if (productService.commit) {
+					headers['X-Client-Commit'] = productService.commit;
+				}
 				return headers;
 			});
 	}
@@ -219,7 +222,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	private async request(options: IRequestOptions, source: SyncResource | undefined, token: CancellationToken): Promise<IRequestContext> {
-		const authToken = await this.authTokenService.getToken();
+		const authToken = this.authTokenService.token;
 		if (!authToken) {
 			throw new UserDataSyncStoreError('No Auth Token Available', UserDataSyncErrorCode.Unauthorized, source);
 		}

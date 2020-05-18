@@ -66,7 +66,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				Event.filter(this.storageService.onDidChangeStorage, e => storageKeysSyncRegistryService.storageKeys.some(({ key }) => e.key === key)),
 				/* Storage key registered */
 				this.storageKeysSyncRegistryService.onDidChangeStorageKeys
-			)((() => this._onDidChangeLocal.fire()))
+			)((() => this.triggerLocalChange()))
 		);
 	}
 
