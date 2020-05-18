@@ -52,6 +52,7 @@
 
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::after,
+.monaco-workbench .activitybar > .content.dragged-over-front > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
 .monaco-workbench .activitybar > .content.dragged-over > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
