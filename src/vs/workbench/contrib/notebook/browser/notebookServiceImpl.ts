@@ -133,6 +133,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 						displayName: notebookContribution.displayName,
 						selector: notebookContribution.selector || [],
 						providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
+						providerExtensionLocation: extension.description.extensionLocation
 					}));
 				}
 			}
@@ -176,7 +177,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController) {
 		this._notebookProviders.set(viewType, { extensionData, controller });
-		this.notebookProviderInfoStore.get(viewType)!.hasKernelSupport = controller.hasKernelSupport;
+		this.notebookProviderInfoStore.get(viewType)!.kernel = controller.kernel;
 		this._onDidChangeViewTypes.fire();
 	}
 

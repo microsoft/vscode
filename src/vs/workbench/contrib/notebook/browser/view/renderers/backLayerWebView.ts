@@ -132,8 +132,10 @@ export class BackLayerWebView extends Disposable {
 	hiddenInsetMapping: Set<IOutput> = new Set();
 	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
+	kernelPreloadsCache: Map<string, boolean> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
+	kernelRootsCache: URI[] = [];
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
 	private _initalized: Promise<void>;
@@ -730,6 +732,30 @@ ${loaderJs}
 		}, 50);
 	}
 
+	updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
+		if (this._disposed) {
+			return;
+		}
+
+		let resources: string[] = [];
+		preloads = preloads.map(preload => {
+			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
+				return preload;
+			}
+			return asWebviewUri(this.workbenchEnvironmentService, this.id, preload);
+		});
+
+		preloads.forEach(e => {
+			if (!this.kernelPreloadsCache.has(e.toString())) {
+				resources.push(e.toString());
+				this.kernelPreloadsCache.set(e.toString(), true);
+			}
+		});
+
+		this.kernelRootsCache = [...extensionLocations, ...this.kernelRootsCache];
+		this._updatePreloads(resources);
+	}
+
 	updateRendererPreloads(preloads: ReadonlySet<number>) {
 		if (this._disposed) {
 			return;
@@ -758,7 +784,11 @@ ${loaderJs}
 		});
 
 		this.rendererRootsCache = extensionLocations;
-		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache];
+		this._updatePreloads(resources);
+	}
+
+	private _updatePreloads(resources: string[]) {
+		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
 
 		this.webview.contentOptions = {
 			allowMultipleAPIAcquire: true,
