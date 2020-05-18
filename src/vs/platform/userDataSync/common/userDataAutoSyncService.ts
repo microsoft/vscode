@@ -128,7 +128,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		If sync is not triggered by sync resource (triggered by other sources like window focus etc.,)
 		then limit sync to once per minute
 		*/
-		const isNotTriggeredBySyncResource = ALL_SYNC_RESOURCES.every(syncResource => !sources.includes(syncResource));
+		const isNotTriggeredBySyncResource = ALL_SYNC_RESOURCES.every(syncResource => sources.indexOf(syncResource) === -1);
 		if (isNotTriggeredBySyncResource && this.lastSyncTriggerTime
 			&& Math.round((new Date().getTime() - this.lastSyncTriggerTime) / 1000) < 60) {
 			this.logService.debug('Auto Sync Skipped: Limited to once per minute.');
