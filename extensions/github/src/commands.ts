@@ -11,7 +11,7 @@ function sanitizeRepositoryName(value: string): string {
 	return value.trim().replace(/[^a-z0-9_.]/ig, '-');
 }
 
-export function registerGlobalCommands(context: vscode.ExtensionContext, gitAPI: GitAPI) {
+export function registerCommands(gitAPI: GitAPI): vscode.Disposable[] {
 	async function publish(): Promise<void> {
 		if (!vscode.workspace.workspaceFolders?.length) {
 			return;
@@ -19,15 +19,18 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, gitAPI:
 
 		const folder = vscode.workspace.workspaceFolders[0]; // TODO
 
-		const octokit = await getOctokit();
-		const user = await octokit.users.getAuthenticated({});
-		const owner = user.data.login;
-
 		const quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh' }>();
 		quickpick.ignoreFocusOut = true;
 
 		quickpick.placeholder = 'Repository Name';
+		quickpick.value = folder.name;
 		quickpick.show();
+		quickpick.busy = true;
+
+		const octokit = await getOctokit();
+		const user = await octokit.users.getAuthenticated({});
+		const owner = user.data.login;
+		quickpick.busy = false;
 
 		let repo: string | undefined;
 
@@ -41,7 +44,6 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, gitAPI:
 			}
 		};
 
-		quickpick.value = folder.name;
 		onDidChangeValue();
 
 		while (true) {
@@ -108,13 +110,17 @@ export function registerGlobalCommands(context: vscode.ExtensionContext, gitAPI:
 		}
 	}
 
-	context.subscriptions.push(vscode.commands.registerCommand('github.publish', async () => {
+	const disposables = [];
+
+	disposables.push(vscode.commands.registerCommand('github.publish', async () => {
 		try {
 			publish();
 		} catch (err) {
 			vscode.window.showErrorMessage(err.message);
 		}
 	}));
+
+	return disposables;
 }
 
 function getPick<T extends vscode.QuickPickItem>(quickpick: vscode.QuickPick<T>): Promise<T | undefined> {
