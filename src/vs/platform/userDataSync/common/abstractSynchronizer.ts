@@ -82,10 +82,13 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async triggerLocalChange(): Promise<void> {
-		this.localChangeTriggerScheduler.schedule();
+		if (this.isEnabled()) {
+			this.localChangeTriggerScheduler.schedule();
+		}
 	}
 
 	protected async doTriggerLocalChange(): Promise<void> {
+		this.logService.trace(`${this.syncResourceLogLabel}: Checking for local changes...`);
 		const lastSyncUserData = await this.getLastSyncUserData();
 		const hasRemoteChanged = lastSyncUserData ? (await this.generatePreview(lastSyncUserData, lastSyncUserData)).hasRemoteChanged : true;
 		if (hasRemoteChanged) {
