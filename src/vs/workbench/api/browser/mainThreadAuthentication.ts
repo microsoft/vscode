@@ -43,6 +43,11 @@ function readAccountUsages(storageService: IStorageService, providerId: string, 
 	return usages;
 }
 
+function removeAccountUsage(storageService: IStorageService, providerId: string, accountName: string): void {
+	const accountKey = `${providerId}-${accountName}-usages`;
+	storageService.remove(accountKey, StorageScope.GLOBAL);
+}
+
 function addAccountUsage(storageService: IStorageService, providerId: string, accountName: string, extensionId: string, extensionName: string) {
 	const accountKey = `${providerId}-${accountName}-usages`;
 	const usages = readAccountUsages(storageService, providerId, accountName);
@@ -196,12 +201,13 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		const result = await dialogService.confirm({
 			title: nls.localize('signOutConfirm', "Sign out of {0}", session.account.displayName),
 			message: accountUsages.length
-				? nls.localize('signOutMessage', "The account {0} has been used by: \n\n{1}\n\n Sign out of these features?", session.account.displayName, accountUsages.map(usage => usage.extensionName).join('\n'))
-				: ''
+				? nls.localize('signOutMessagve', "The account {0} has been used by: \n\n{1}\n\n Sign out of these features?", session.account.displayName, accountUsages.map(usage => usage.extensionName).join('\n'))
+				: nls.localize('signOutMessageSimple', "Sign out of {0}?", session.account.displayName)
 		});
 
 		if (result.confirmed) {
 			sessionsForAccount?.forEach(sessionId => this.logout(sessionId));
+			removeAccountUsage(this.storageService, this.id, session.account.displayName);
 		}
 	}
 
