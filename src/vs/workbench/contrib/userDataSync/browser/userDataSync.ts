@@ -294,6 +294,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 				return;
+			case UserDataSyncErrorCode.TooManyRequests:
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('too many requests', "Turned off syncing because of making too many requests to server"),
+					actions: {
+						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
+					}
+				});
+				return;
 			case UserDataSyncErrorCode.TooLarge:
 				if (error.resource === SyncResource.Keybindings || error.resource === SyncResource.Settings) {
 					this.disableSync(error.resource);

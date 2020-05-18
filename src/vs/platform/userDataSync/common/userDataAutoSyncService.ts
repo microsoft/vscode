@@ -88,6 +88,12 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 						return this.sync(loop, auto);
 					}
 				}
+				if (error.code === UserDataSyncErrorCode.TooManyRequests) {
+					this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
+					this.userDataSyncEnablementService.setEnablement(false);
+					this._onError.fire(error);
+					return;
+				}
 				this.logService.error(error);
 				this.successiveFailures++;
 				this._onError.fire(error);

@@ -274,6 +274,10 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too large payload (413).`, UserDataSyncErrorCode.TooLarge, source);
 		}
 
+		if (context.res.statusCode === 429) {
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too many requests (429).`, UserDataSyncErrorCode.TooManyRequests, source);
+		}
+
 		return context;
 	}
 
