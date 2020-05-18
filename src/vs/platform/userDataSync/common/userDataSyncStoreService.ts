@@ -297,7 +297,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 }
 
-class RequestsSession {
+export class RequestsSession {
 
 	private count: number = 0;
 	private startTime: Date | undefined = undefined;
