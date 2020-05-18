@@ -84,7 +84,7 @@ suite('UserDataAutoSyncService', () => {
 		assert.deepEqual(target.requests, [{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }]);
 	});
 
-	test('test auto sync with non sync resource change triggers sync for every trigger', async () => {
+	test('test auto sync with non sync resource change does not trigger continuous syncs', async () => {
 		// Setup the client
 		const target = new UserDataSyncTestServer();
 		const client = disposableStore.add(new UserDataSyncClient(target));
@@ -102,11 +102,8 @@ suite('UserDataAutoSyncService', () => {
 			await testObject.triggerAutoSync(['windowFocus']);
 		}
 
-		assert.deepEqual(target.requests, [
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }
-		]);
+		// Make sure only one request is made
+		assert.deepEqual(target.requests, [{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }]);
 	});
 
 
