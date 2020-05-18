@@ -380,12 +380,18 @@
 	bottom: 36px;
 	visibility: hidden;
 	cursor: pointer;
+	opacity: 0.6;
 }
 
 .notebookOverlay .monaco-list .monaco-list-row:hover .notebook-cell-focus-indicator,
 .notebookOverlay .monaco-list .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator,
 .notebookOverlay .monaco-list .monaco-list-row.focused .notebook-cell-focus-indicator {
 	visibility: visible;
+}
+
+.notebookOverlay .monaco-list:focus .monaco-list-row .notebook-cell-focus-indicator,
+.notebookOverlay .monaco-list:focus-within .monaco-list-row .notebook-cell-focus-indicator {
+	opacity: 1;
 }
 
 .notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before {

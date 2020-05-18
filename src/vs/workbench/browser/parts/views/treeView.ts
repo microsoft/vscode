@@ -68,6 +68,9 @@ export class TreeViewPane extends ViewPane {
 		this._register(toDisposable(() => this.treeView.setVisibility(false)));
 		this._register(this.onDidChangeBodyVisibility(() => this.updateTreeVisibility()));
 		this._register(this.treeView.onDidChangeWelcomeState(() => this._onDidChangeViewWelcomeState.fire()));
+		if (options.title !== this.treeView.title) {
+			this.updateTitle(this.treeView.title);
+		}
 		this.updateTreeVisibility();
 	}
 
@@ -161,7 +164,7 @@ export class TreeView extends Disposable implements ITreeView {
 	private readonly _onDidCompleteRefresh: Emitter<void> = this._register(new Emitter<void>());
 
 	constructor(
-		protected readonly id: string,
+		readonly id: string,
 		private _title: string,
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -425,7 +428,14 @@ export class TreeView extends Disposable implements ITreeView {
 			identityProvider: new TreeViewIdentityProvider(),
 			accessibilityProvider: {
 				getAriaLabel(element: ITreeItem): string {
+					if (element.accessibilityInformation) {
+						return element.accessibilityInformation.label;
+					}
+
 					return element.tooltip ? element.tooltip : element.label ? element.label.label : '';
+				},
+				getRole(element: ITreeItem): string | undefined {
+					return element.accessibilityInformation?.role;
 				},
 				getWidgetAriaLabel(): string {
 					return widgetAriaLabel;

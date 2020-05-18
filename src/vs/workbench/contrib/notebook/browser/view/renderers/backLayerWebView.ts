@@ -19,7 +19,8 @@ import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewResourceScheme } from 'vs/workbench/contrib/webview/common/resourceLoader';
+import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
@@ -131,18 +132,23 @@ export class BackLayerWebView extends Disposable {
 	hiddenInsetMapping: Set<IOutput> = new Set();
 	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
+	kernelPreloadsCache: Map<string, boolean> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
+	kernelRootsCache: URI[] = [];
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
 	private _initalized: Promise<void>;
+	private _disposed = false;
 
 	constructor(
 		public notebookEditor: INotebookEditor,
+		public id: string,
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this.element = document.createElement('div');
@@ -153,7 +159,7 @@ export class BackLayerWebView extends Disposable {
 		this.element.style.margin = `0px 0 0px ${CELL_MARGIN + CELL_RUN_GUTTER}px`;
 
 		const pathsPath = getPathFromAmdModule(require, 'vs/loader.js');
-		const loader = URI.file(pathsPath).with({ scheme: WebviewResourceScheme });
+		const loader = asWebviewUri(this.workbenchEnvironmentService, this.id, URI.file(pathsPath));
 
 		let coreDependencies = '';
 		let resolveFunc: () => void;
@@ -473,7 +479,7 @@ ${loaderJs}
 		return { cell: this.insetMapping.get(output)!.cell, output };
 	}
 
-	initialize(content: string) {
+	async initialize(content: string) {
 		this.webview = this._createInset(this.webviewService, content);
 		this.webview.mountTo(this.element);
 
@@ -558,18 +564,23 @@ ${loaderJs}
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
 		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), rootPath];
-		const webview = webviewService.createWebviewElement('' + UUID.generateUuid(), {
+
+		const webview = webviewService.createWebviewElement(this.id, {
 			enableFindWidget: false,
 		}, {
 			allowMultipleAPIAcquire: true,
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache
-		});
+		}, undefined);
 		webview.html = content;
 		return webview;
 	}
 
 	shouldUpdateInset(cell: CodeCellViewModel, output: IOutput, cellTop: number) {
+		if (this._disposed) {
+			return;
+		}
+
 		let outputCache = this.insetMapping.get(output)!;
 		let outputIndex = cell.outputs.indexOf(output);
 		let outputOffset = cellTop + cell.getOutputOffset(outputIndex);
@@ -586,6 +597,10 @@ ${loaderJs}
 	}
 
 	updateViewScrollTop(top: number, items: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[]) {
+		if (this._disposed) {
+			return;
+		}
+
 		let widgets: IContentWidgetTopRequest[] = items.map(item => {
 			let outputCache = this.insetMapping.get(item.output)!;
 			let id = outputCache.outputId;
@@ -613,6 +628,10 @@ ${loaderJs}
 	}
 
 	createInset(cell: CodeCellViewModel, output: IOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<number>) {
+		if (this._disposed) {
+			return;
+		}
+
 		this.updateRendererPreloads(preloads);
 		let initialTop = cellTop + offset;
 
@@ -648,6 +667,10 @@ ${loaderJs}
 	}
 
 	removeInset(output: IOutput) {
+		if (this._disposed) {
+			return;
+		}
+
 		let outputCache = this.insetMapping.get(output);
 		if (!outputCache) {
 			return;
@@ -664,6 +687,10 @@ ${loaderJs}
 	}
 
 	hideInset(output: IOutput) {
+		if (this._disposed) {
+			return;
+		}
+
 		let outputCache = this.insetMapping.get(output);
 		if (!outputCache) {
 			return;
@@ -679,6 +706,10 @@ ${loaderJs}
 	}
 
 	clearInsets() {
+		if (this._disposed) {
+			return;
+		}
+
 		this.webview.sendMessage({
 			type: 'clear'
 		});
@@ -688,6 +719,10 @@ ${loaderJs}
 	}
 
 	focusOutput(cellId: string) {
+		if (this._disposed) {
+			return;
+		}
+
 		this.webview.focus();
 		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
 			this.webview.sendMessage({
@@ -697,7 +732,35 @@ ${loaderJs}
 		}, 50);
 	}
 
+	updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
+		if (this._disposed) {
+			return;
+		}
+
+		let resources: string[] = [];
+		preloads = preloads.map(preload => {
+			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
+				return preload;
+			}
+			return asWebviewUri(this.workbenchEnvironmentService, this.id, preload);
+		});
+
+		preloads.forEach(e => {
+			if (!this.kernelPreloadsCache.has(e.toString())) {
+				resources.push(e.toString());
+				this.kernelPreloadsCache.set(e.toString(), true);
+			}
+		});
+
+		this.kernelRootsCache = [...extensionLocations, ...this.kernelRootsCache];
+		this._updatePreloads(resources);
+	}
+
 	updateRendererPreloads(preloads: ReadonlySet<number>) {
+		if (this._disposed) {
+			return;
+		}
+
 		let resources: string[] = [];
 		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
@@ -708,7 +771,7 @@ ${loaderJs}
 					if (this.environmentService.isExtensionDevelopment && (preloadResource.scheme === 'http' || preloadResource.scheme === 'https')) {
 						return preloadResource;
 					}
-					return preloadResource.with({ scheme: WebviewResourceScheme });
+					return asWebviewUri(this.workbenchEnvironmentService, this.id, preloadResource);
 				});
 				extensionLocations.push(rendererInfo.extensionLocation);
 				preloadResources.forEach(e => {
@@ -721,7 +784,11 @@ ${loaderJs}
 		});
 
 		this.rendererRootsCache = extensionLocations;
-		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache];
+		this._updatePreloads(resources);
+	}
+
+	private _updatePreloads(resources: string[]) {
+		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
 
 		this.webview.contentOptions = {
 			allowMultipleAPIAcquire: true,
@@ -740,5 +807,10 @@ ${loaderJs}
 
 	clearPreloadsCache() {
 		this.preloadsCache.clear();
+	}
+
+	dispose() {
+		this._disposed = true;
+		super.dispose();
 	}
 }

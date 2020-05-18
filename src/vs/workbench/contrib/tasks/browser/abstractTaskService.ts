@@ -2365,10 +2365,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (identifier !== undefined) {
 			this.getGroupedTasks().then(async (grouped) => {
 				let resolver = this.createResolver(grouped);
-				let folders: (IWorkspaceFolder | string)[] = this.contextService.getWorkspace().folders;
-				folders = folders.concat([USER_TASKS_GROUP_KEY]);
-				for (let folder of folders) {
-					let task = await resolver.resolve(typeof folder === 'string' ? folder : folder.uri, identifier);
+				let folderURIs: (URI | string)[] = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+					folderURIs.push(this.contextService.getWorkspace().configuration!);
+				}
+				folderURIs.push(USER_TASKS_GROUP_KEY);
+				for (let uri of folderURIs) {
+					let task = await resolver.resolve(uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here

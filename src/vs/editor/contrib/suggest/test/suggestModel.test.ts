@@ -21,7 +21,7 @@ import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
-import { TestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { ITestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
@@ -43,7 +43,7 @@ export function mock<T>(): Ctor<T> {
 }
 
 
-function createMockEditor(model: TextModel): TestCodeEditor {
+function createMockEditor(model: TextModel): ITestCodeEditor {
 	let editor = createTestCodeEditor({
 		model: model,
 		serviceCollection: new ServiceCollection(
@@ -192,7 +192,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 		disposables.push(model);
 	});
 
-	function withOracle(callback: (model: SuggestModel, editor: TestCodeEditor) => any): Promise<any> {
+	function withOracle(callback: (model: SuggestModel, editor: ITestCodeEditor) => any): Promise<any> {
 
 		return new Promise((resolve, reject) => {
 			const editor = createMockEditor(model);

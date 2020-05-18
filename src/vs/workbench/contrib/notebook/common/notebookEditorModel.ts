@@ -52,6 +52,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		return this._name;
 	}
 
+	private _workingCopyResource: URI;
+
 	constructor(
 		public readonly resource: URI,
 		public readonly viewType: string,
@@ -60,7 +62,22 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		@IBackupFileService private readonly backupFileService: IBackupFileService
 	) {
 		super();
-		this._register(this.workingCopyService.registerWorkingCopy(this));
+
+		const input = this;
+		this._workingCopyResource = resource.with({ scheme: 'vscode-notebook' });
+		const workingCopyAdapter = new class implements IWorkingCopy {
+			readonly resource = input._workingCopyResource;
+			get name() { return input.name; }
+			readonly capabilities = input.capabilities;
+			readonly onDidChangeDirty = input.onDidChangeDirty;
+			readonly onDidChangeContent = input.onDidChangeContent;
+			isDirty(): boolean { return input.isDirty(); }
+			backup(): Promise<IWorkingCopyBackup> { return input.backup(); }
+			save(): Promise<boolean> { return input.save(); }
+			revert(options?: IRevertOptions): Promise<void> { return input.revert(options); }
+		};
+
+		this._register(this.workingCopyService.registerWorkingCopy(workingCopyAdapter));
 	}
 
 	capabilities = 0;
@@ -89,7 +106,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			return this;
 		}
 
-		const backup = await this.backupFileService.resolve(this.resource);
+		const backup = await this.backupFileService.resolve(this._workingCopyResource);
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading
@@ -120,7 +137,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			this._onDidChangeContent.fire();
 		}));
 
-		await this.backupFileService.discardBackup(this.resource);
+		await this.backupFileService.discardBackup(this._workingCopyResource);
 		this.setDirty(true);
 
 		return this;

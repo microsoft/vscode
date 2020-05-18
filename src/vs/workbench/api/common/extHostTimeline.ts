@@ -152,7 +152,8 @@ export class ExtHostTimeline implements IExtHostTimeline {
 					command: item.command ? commandConverter.toInternal(item.command, disposables) : undefined,
 					icon: icon,
 					iconDark: iconDark,
-					themeIcon: themeIcon
+					themeIcon: themeIcon,
+					accessibilityInformation: item.accessibilityInformation
 				};
 			};
 		};
@@ -188,4 +189,3 @@ export class ExtHostTimeline implements IExtHostTimeline {
 function getUriKey(uri: URI | undefined): string | undefined {
 	return uri?.toString();
 }
-

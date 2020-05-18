@@ -3,56 +3,84 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IViewsRegistry, Extensions, ITreeViewDescriptor, ITreeViewDataProvider, ITreeItem, TreeItemCollapsibleState, IViewsService, TreeViewItemHandleArg, ViewContainer, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, IUserDataSyncEnablementService, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ACCOUNT_STATE } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { FolderThemeIcon } from 'vs/platform/theme/common/themeService';
+import { FolderThemeIcon, IThemeService } from 'vs/platform/theme/common/themeService';
 import { fromNow } from 'vs/base/common/date';
 import { pad } from 'vs/base/common/strings';
-import { CONTEXT_ACCOUNT_STATE, CONTEXT_ENABLE_VIEWS, VIEW_CONTAINER_ID } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
-import { AccountStatus } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncAccount';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Codicon } from 'vs/base/common/codicons';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IAction, Action } from 'vs/base/common/actions';
 
-export class UserDataSyncDataViewsContribution extends Disposable implements IWorkbenchContribution {
-
-	private readonly viewsEnablementContext: IContextKey<boolean>;
+export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
 	constructor(
+		containerId: string,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService,
+		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+	) {
+		super(containerId, { mergeViewWithContainerWhenSingleView: false }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService);
+	}
+
+	getActions(): IAction[] {
+		return [
+			new Action(SHOW_SYNC_LOG_COMMAND_ID, localize('showLog', "Show Log"), Codicon.output.classNames, true, async () => this.commandService.executeCommand(SHOW_SYNC_LOG_COMMAND_ID)),
+			new Action(CONFIGURE_SYNC_COMMAND_ID, localize('configure', "Configure..."), Codicon.settingsGear.classNames, true, async () => this.commandService.executeCommand(CONFIGURE_SYNC_COMMAND_ID)),
+		];
+	}
+
+}
+
+export class UserDataSyncDataViews extends Disposable {
+
+	constructor(
+		container: ViewContainer,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.viewsEnablementContext = CONTEXT_ENABLE_VIEWS.bindTo(contextKeyService);
-		const viewContainer = viewDescriptorService.getViewContainerById(VIEW_CONTAINER_ID);
-		if (viewContainer) {
-			this.registerViews(viewContainer);
-		} else {
-			this._register(Event.once(Event.filter(viewDescriptorService.onDidChangeViewContainers, () => !!viewDescriptorService.getViewContainerById(VIEW_CONTAINER_ID)))(() =>
-				this.registerViews(viewDescriptorService.getViewContainerById(VIEW_CONTAINER_ID)!)
-			));
-		}
+		this.registerViews(container);
 	}
 
 	private registerViews(container: ViewContainer): void {
-		this.registerView(container, true, true);
+		const remoteView = this.registerView(container, true, true);
+		this.registerRemoteViewActions(remoteView);
+
 		this.registerView(container, false, false);
 	}
 
-	private registerView(container: ViewContainer, remote: boolean, showByDefault: boolean): void {
-		const that = this;
+	private registerView(container: ViewContainer, remote: boolean, showByDefault: boolean): TreeView {
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}DataView`;
 		const showByDefaultContext = new RawContextKey<boolean>(id, showByDefault);
 		const viewEnablementContext = showByDefaultContext.bindTo(this.contextKeyService);
@@ -63,9 +91,10 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
-				treeView.dataProvider = new UserDataSyncHistoryViewDataProvider(remote, this.userDataSyncService);
+				treeView.dataProvider = new UserDataSyncHistoryViewDataProvider(remote, this.userDataSyncService, this.userDataSyncEnablementService);
 			}
 		});
+		this._register(Event.any(this.userDataSyncEnablementService.onDidChangeResourceEnablement, this.userDataSyncEnablementService.onDidChangeEnablement)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id,
@@ -84,7 +113,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 				super({
 					id: `workbench.actions.showSync${remote ? 'Remote' : 'Local'}DataView`,
 					title: remote ?
-						{ value: localize('workbench.action.showSyncRemoteBackup', "Show Remote Data"), original: `Show Remote Data` }
+						{ value: localize('workbench.action.showSyncRemoteBackup', "Show Synced Data"), original: `Show Synced Data` }
 						: { value: localize('workbench.action.showSyncLocalBackup', "Show Local Backup"), original: `Show Local Backup` },
 					category: { value: localize('sync preferences', "Preferences Sync"), original: `Preferences Sync` },
 					menu: {
@@ -96,9 +125,12 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const viewDescriptorService = accessor.get(IViewDescriptorService);
 				const viewsService = accessor.get(IViewsService);
-				const viewContainer = viewDescriptorService.getViewContainerByViewId(id);
-				that.viewsEnablementContext.set(true);
+				const commandService = accessor.get(ICommandService);
+
+				await commandService.executeCommand(ENABLE_SYNC_VIEWS_COMMAND_ID);
 				viewEnablementContext.set(true);
+
+				const viewContainer = viewDescriptorService.getViewContainerByViewId(id);
 				if (viewContainer) {
 					const model = viewDescriptorService.getViewContainerModel(viewContainer);
 					if (model.activeViewDescriptors.some(viewDescriptor => viewDescriptor.id === id)) {
@@ -116,6 +148,7 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		});
 
 		this.registerActions(id);
+		return treeView;
 	}
 
 	private registerActions(viewId: string) {
@@ -191,6 +224,38 @@ export class UserDataSyncDataViewsContribution extends Disposable implements IWo
 		});
 	}
 
+	private registerRemoteViewActions(view: TreeView) {
+		this.registerResetAction(view);
+	}
+
+	private registerResetAction(view: TreeView) {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.actions.syncData.reset`,
+					title: localize('workbench.actions.syncData.reset', "Reset Synced Data"),
+					menu: {
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', view.id)),
+					},
+				});
+			}
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const commandService = accessor.get(ICommandService);
+				const dialogService = accessor.get(IDialogService);
+				const result = await dialogService.confirm({
+					message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
+					title: localize('reset title', "Reset Synced Data"),
+					type: 'info',
+					primaryButton: localize('reset button', "Reset"),
+				});
+				if (result.confirmed) {
+					await commandService.executeCommand(TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID);
+					await view.refresh();
+				}
+			}
+		});
+	}
 }
 
 interface SyncResourceTreeItem extends ITreeItem {
@@ -200,7 +265,11 @@ interface SyncResourceTreeItem extends ITreeItem {
 
 class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 
-	constructor(private readonly remote: boolean, private userDataSyncService: IUserDataSyncService) { }
+	constructor(
+		private readonly remote: boolean,
+		private readonly userDataSyncService: IUserDataSyncService,
+		private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+	) { }
 
 	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
 		if (!element) {
@@ -208,7 +277,9 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 				handle: resourceKey,
 				collapsibleState: TreeItemCollapsibleState.Collapsed,
 				label: { label: getSyncAreaLabel(resourceKey) },
+				description: !this.userDataSyncEnablementService.isEnabled() || this.userDataSyncEnablementService.isResourceEnabled(resourceKey) ? undefined : localize('not syncing', "Not syncing"),
 				themeIcon: FolderThemeIcon,
+				contextValue: resourceKey
 			}));
 		}
 		const syncResource = ALL_SYNC_RESOURCES.filter(key => key === element.handle)[0] as SyncResource;
@@ -251,4 +322,3 @@ function label(date: Date): string {
 		':' + pad(date.getMinutes(), 2) +
 		':' + pad(date.getSeconds(), 2);
 }
-

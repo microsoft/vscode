@@ -43,7 +43,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return !!(await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes).length;
 	}
 
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined> {
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession2 | undefined> {
 		const provider = this._authenticationProviders.get(providerId);
 		if (!provider) {
 			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
@@ -113,7 +113,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 							throw new Error('User did not consent to token access.');
 						}
 
-						return session.getAccessToken();
+						return session.accessToken;
 					}
 				};
 			});
@@ -149,7 +149,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 					throw new Error('User did not consent to token access.');
 				}
 
-				return session.getAccessToken();
+				return session.accessToken;
 			}
 		};
 	}
@@ -219,7 +219,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			const sessions = await authProvider.getSessions();
 			const session = sessions.find(session => session.id === sessionId);
 			if (session) {
-				return session.getAccessToken();
+				return session.accessToken;
 			}
 
 			throw new Error(`Unable to find session with id: ${sessionId}`);

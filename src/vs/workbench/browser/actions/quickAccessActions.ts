@@ -151,7 +151,7 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-CommandsRegistry.registerCommand('workbench.action.quickOpenPreviousEditor', async function (accessor: ServicesAccessor, prefix: string | null = null) {
+CommandsRegistry.registerCommand('workbench.action.quickOpenPreviousEditor', async accessor => {
 	const quickInputService = accessor.get(IQuickInputService);
 
 	quickInputService.quickAccess.show('', { itemActivation: ItemActivation.SECOND });

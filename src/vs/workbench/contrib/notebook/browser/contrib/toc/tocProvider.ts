@@ -29,13 +29,13 @@ TableOfContentsProviderRegistry.register(NotebookEditor.ID, new class implements
 						icon: cell.cellKind === CellKind.Markdown ? Codicon.markdown : Codicon.code,
 						label: matches[j].replace(/^[ \t]*(\#+)/, ''),
 						pick() {
-							notebookWidget.revealInCenterIfOutsideViewport(cell);
-							notebookWidget.selectElement(cell);
-							notebookWidget.focusNotebookCell(cell, cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
+							notebookWidget?.revealInCenterIfOutsideViewport(cell);
+							notebookWidget?.selectElement(cell);
+							notebookWidget?.focusNotebookCell(cell, cell.cellKind === CellKind.Markdown ? 'container' : 'editor');
 						},
 						preview() {
-							notebookWidget.revealInCenterIfOutsideViewport(cell);
-							notebookWidget.selectElement(cell);
+							notebookWidget?.revealInCenterIfOutsideViewport(cell);
+							notebookWidget?.selectElement(cell);
 						}
 					});
 				}

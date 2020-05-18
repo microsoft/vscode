@@ -28,7 +28,6 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	private _html: string = '';
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
-	private _extension: WebviewExtensionDescription | undefined;
 
 	private _contentOptions: WebviewContentOptions;
 	private _options: WebviewOptions;
@@ -42,6 +41,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 		private readonly id: string,
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
+		public readonly extension: WebviewExtensionDescription | undefined,
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
@@ -109,11 +109,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 	private show() {
 		if (!this._webview.value) {
-			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions);
+			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;
 			webview.state = this._state;
 			webview.html = this._html;
-			webview.extension = this._extension;
 			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
@@ -173,12 +172,6 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	public set contentOptions(value: WebviewContentOptions) {
 		this._contentOptions = value;
 		this.withWebview(webview => webview.contentOptions = value);
-	}
-
-	public get extension() { return this._extension; }
-	public set extension(value) {
-		this._extension = value;
-		this.withWebview(webview => webview.extension = value);
 	}
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());

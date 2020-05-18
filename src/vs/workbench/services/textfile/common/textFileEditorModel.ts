@@ -19,7 +19,6 @@ import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { IWorkingCopyService, IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -680,7 +679,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// - the model is not in orphan mode (because in that case we know the file does not exist on disk)
 			// - the model version did not change due to save participants running
 			if (options.force && !this.dirty && !this.inOrphanMode && options.reason === SaveReason.EXPLICIT && versionId === this.versionId) {
-				return this.doTouch(this.versionId, options.reason);
+				return this.doTouch(this.versionId, options);
 			}
 
 			// update versionId with its new value (if pre-save changes happened)
@@ -755,11 +754,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this._onDidSaveError.fire();
 	}
 
-	private doTouch(this: TextFileEditorModel & IResolvedTextFileEditorModel, versionId: number, reason: SaveReason): Promise<void> {
+	private doTouch(this: TextFileEditorModel & IResolvedTextFileEditorModel, versionId: number, options: ITextFileSaveOptions): Promise<void> {
 		const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
 
 		return this.saveSequentializer.setPending(versionId, (async () => {
 			try {
+
+				// Write contents to touch: we used to simply update the mtime of the file
+				// but this lead to weird results, either for external watchers or even for
+				// us where we thought the file has changed on disk. As such, we let the OS
+				// handle the increment of mtime and not deal with it ourselves.
 				const stat = await this.textFileService.write(lastResolvedFileStat.resource, this.createSnapshot(), {
 					mtime: lastResolvedFileStat.mtime,
 					encoding: this.getEncoding(),
@@ -770,9 +774,17 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 				this.updateLastResolvedFileStat(stat);
 
 				// Emit File Saved Event
-				this._onDidSave.fire(reason);
+				this._onDidSave.fire(options.reason ?? SaveReason.EXPLICIT);
 			} catch (error) {
-				onUnexpectedError(error); // just log any error but do not notify the user since the file was not dirty
+
+				// In any case of an error, we mark the model as dirty to prevent data loss
+				// It could be possible that the touch corrupted the file on disk (e.g. when
+				// an error happened after truncating the file) and as such we want to preserve
+				// the model contents to prevent data loss
+				this.setDirty(true);
+
+				// Notify user to handle this save error
+				this.handleSaveError(error, versionId, options);
 			}
 		})());
 	}

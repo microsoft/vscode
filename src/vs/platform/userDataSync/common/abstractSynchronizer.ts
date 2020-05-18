@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreviewResult, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
-import { CancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ParseError, parse } from 'vs/base/common/json';
@@ -57,7 +57,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 	private _onDidChangeConflicts: Emitter<Conflict[]> = this._register(new Emitter<Conflict[]>());
 	readonly onDidChangeConflicts: Event<Conflict[]> = this._onDidChangeConflicts.event;
 
-	protected readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
+	private readonly localChangeTriggerScheduler = new RunOnceScheduler(() => this.doTriggerLocalChange(), 50);
+	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
 	protected readonly lastSyncResource: URI;
@@ -78,6 +79,18 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.syncResourceLogLabel = uppercaseFirstLetter(this.resource);
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, resource);
 		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${this.resource}.json`);
+	}
+
+	protected async triggerLocalChange(): Promise<void> {
+		this.localChangeTriggerScheduler.schedule();
+	}
+
+	protected async doTriggerLocalChange(): Promise<void> {
+		const lastSyncUserData = await this.getLastSyncUserData();
+		const hasRemoteChanged = lastSyncUserData ? (await this.generatePreview(lastSyncUserData, lastSyncUserData)).hasRemoteChanged : true;
+		if (hasRemoteChanged) {
+			this._onDidChangeLocal.fire();
+		}
 	}
 
 	protected setStatus(status: SyncStatus): void {
@@ -453,7 +466,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
 		// Otherwise fire change event
 		else {
-			this._onDidChangeLocal.fire();
+			this.triggerLocalChange();
 		}
 
 	}

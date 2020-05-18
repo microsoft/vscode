@@ -70,7 +70,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		}
 		// Otherwise fire change event
 		else {
-			this._onDidChangeLocal.fire();
+			this.triggerLocalChange();
 		}
 	}
 
