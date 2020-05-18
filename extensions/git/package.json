@@ -1678,10 +1678,7 @@
           "description": "%config.terminalAuthentication%"
         },
         "git.githubAuthentication": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%config.githubAuthentication%"
+          "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
         }
       }
     },
