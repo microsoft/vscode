@@ -502,3 +502,8 @@ export interface INotebookEditorModel extends IEditorModel {
 	save(): Promise<boolean>;
 }
 
+export interface INotebookTextModelBackup {
+	metadata: NotebookDocumentMetadata;
+	languages: string[];
+	cells: ICellDto2[]
+}

@@ -11,7 +11,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from '
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo, NotebookDocumentMetadata, CellEditType, ICellDto2, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
@@ -264,7 +264,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return undefined;
 		}
 
-		const notebookModel = await provider.controller.createNotebook(viewType, uri, true, false);
+		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -276,18 +276,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			(model) => this._onWillDispose(model),
 		);
 		this._models[modelId] = modelData;
-
-		notebookModel.metadata = metadata;
-		notebookModel.languages = languages;
-
-		notebookModel.applyEdit(notebookModel.versionId, [
-			{
-				editType: CellEditType.Insert,
-				index: 0,
-				cells: cells
-			}
-		]);
-
 		return modelData.model;
 	}
 
@@ -299,7 +287,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		let notebookModel: NotebookTextModel | undefined;
 
-		notebookModel = await provider.controller.createNotebook(viewType, uri, false, forceReload);
+		notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload);
 
 		// new notebook model created
 		const modelId = MODEL_ID(uri);
