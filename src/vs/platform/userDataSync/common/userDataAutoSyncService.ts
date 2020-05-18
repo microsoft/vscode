@@ -14,6 +14,7 @@ type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
+export const RESOURCE_ENABLEMENT_SOURCE = 'resourceEnablement';
 
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
 
@@ -40,7 +41,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this._register(Event.any<any>(authTokenService.onDidChangeToken)(() => this.updateEnablement(true, true)));
 		this._register(Event.any<any>(userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true, true)));
 		this._register(this.userDataSyncEnablementService.onDidChangeEnablement(() => this.updateEnablement(true, false)));
-		this._register(this.userDataSyncEnablementService.onDidChangeResourceEnablement(() => this.triggerAutoSync(['resourceEnablement'])));
+		this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerAutoSync([RESOURCE_ENABLEMENT_SOURCE])));
 	}
 
 	// For tests purpose only
@@ -131,11 +132,11 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		}
 
 		/*
-		If sync is not triggered by sync resource (triggered by other sources like window focus etc.,)
+		If sync is not triggered by sync resource (triggered by other sources like window focus etc.,) or by resource enablement
 		then limit sync to once per 10s
 		*/
-		const isNotTriggeredBySyncResource = ALL_SYNC_RESOURCES.every(syncResource => sources.indexOf(syncResource) === -1);
-		if (isNotTriggeredBySyncResource && this.lastSyncTriggerTime
+		const hasToLimitSync = sources.indexOf(RESOURCE_ENABLEMENT_SOURCE) === -1 && ALL_SYNC_RESOURCES.every(syncResource => sources.indexOf(syncResource) === -1);
+		if (hasToLimitSync && this.lastSyncTriggerTime
 			&& Math.round((new Date().getTime() - this.lastSyncTriggerTime) / 1000) < 10) {
 			this.logService.debug('Auto Sync Skipped: Limited to once per 10 seconds.');
 			return;
