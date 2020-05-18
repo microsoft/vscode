@@ -16,6 +16,7 @@ import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 export const SelectionAnchorSet = new RawContextKey('selectionAnchorSet', false);
 
@@ -53,6 +54,7 @@ class SelectionAnchorController implements IEditorContribution {
 			}]);
 			this.decorationId = newDecorationId[0];
 			this.selectionAnchorSetContextKey.set(!!this.decorationId);
+			alert(localize('anchorSet', "Anchor set"));
 		}
 	}
 
