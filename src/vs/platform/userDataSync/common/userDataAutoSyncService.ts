@@ -143,7 +143,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this.logService.info('Auto Sync: Triggered.');
 			return this.sync(false, true);
 		}, this.successiveFailures
-			? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of failures times number of seconds max till 1 minute */
+			? 1000 * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
 			: 0); /* Do not delay if there are no failures */
 
 	}
