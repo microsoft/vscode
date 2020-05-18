@@ -114,10 +114,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async sync(): Promise<void> {
 		await this.checkEnablement();
-		if (this.status === SyncStatus.Syncing) {
-			this.logService.info(`Skipped synchronizing as sync is in progress.`);
-			return;
-		}
 		await this.syncThrottler.queue(() => this.doSync());
 	}
 
