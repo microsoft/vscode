@@ -184,7 +184,7 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _renderOne(ctx: RenderingContext): string {
 		const className = 'current-line current-line-margin' + (this._shouldRenderOther() ? ' current-line-margin-both' : '');
-		return `<div class="${className}" style="width:${this._contentLeft}px; height:${this._lineHeight}px;"></div>`;
+		return `<div class="${className}" style="height:${this._lineHeight}px;"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
 		return (
