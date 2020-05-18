@@ -18,6 +18,21 @@
     "vscode.git"
   ],
   "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "github.publish",
+        "title": "Publish to GitHub"
+      }
+    ]
+  },
+  "viewsWelcome": [
+    {
+      "view": "scm",
+      "contents": "%welcome.publishFolder%",
+      "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+    }
+  ],
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "gulp compile-extension:github",

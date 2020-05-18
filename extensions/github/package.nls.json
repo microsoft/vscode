@@ -1,4 +1,5 @@
 {
 	"displayName": "GitHub",
-	"description": "GitHub"
+	"description": "GitHub",
+	"welcome.publishFolder": "You can also directly publish this folder to a GitHub repository.\n[$(github) Publish to GitHub](command:github.publish)"
 }
