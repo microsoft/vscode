@@ -7131,6 +7131,15 @@ declare module 'vscode' {
 		 * Registers a text editor command that can be invoked via a keyboard shortcut,
 		 * a menu item, an action, or directly.
 		 *
+		 * * *Note:* Avoid using API calls that don't run synchronously, these should be executed before calling the
+		 * text editor
+		 *
+		 * Example:
+		 * vscode.commands.registerTextEditorCommand('extension.command', () => {
+		 * 		vscode.window.showInputBox(); // showInputBox is used here as an example of an asynchronous command,
+		 * 									  // other asynchronous commands should be avoided as well
+		 * })
+		 *
 		 * Text editor commands are different from ordinary [commands](#commands.registerCommand) as
 		 * they only execute when there is an active editor when the command is called. Also, the
 		 * command handler of an editor command has access to the active editor and to an
@@ -7140,7 +7149,6 @@ declare module 'vscode' {
 		 * @param callback A command handler function with access to an [editor](#TextEditor) and an [edit](#TextEditorEdit).
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 * @return Disposable which unregisters this command on disposal.
-		 * *Note:* The `registerTextEditorCommand` should run synchronously...
 		 *
 		 */
 		export function registerTextEditorCommand(command: string, callback: (textEditor: TextEditor, edit: TextEditorEdit, ...args: any[]) => void, thisArg?: any): Disposable;
