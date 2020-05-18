@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { GithubRemoteSourceProvider } from './remoteSourceProvider';
+import { GitExtension } from './typings/git';
 
 export async function activate(context: vscode.ExtensionContext) {
-	console.log('github is active!');
+	const gitExtension = vscode.extensions.getExtension<GitExtension>('vscode.git')!.exports;
+	const gitAPI = gitExtension.getAPI(1);
+
+	context.subscriptions.push(gitAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider()));
 }
