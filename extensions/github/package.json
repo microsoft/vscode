@@ -1,0 +1,29 @@
+{
+  "name": "github",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "publisher": "vscode",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.41.0"
+  },
+  "enableProposedApi": true,
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "gulp compile-extension:github",
+    "watch": "gulp watch-extension:github"
+  },
+  "dependencies": {
+    "vscode-nls": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^10.12.21"
+  }
+}
