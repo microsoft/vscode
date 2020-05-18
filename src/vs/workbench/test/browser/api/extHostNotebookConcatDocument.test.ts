@@ -53,7 +53,6 @@ suite('NotebookConcatDocument', function () {
 				handle: 0,
 				uri: notebookUri,
 				viewType: 'test',
-				webviewId: 'testid',
 				cells: [{
 					handle: 0,
 					uri: CellUri.generate(notebookUri, 0),

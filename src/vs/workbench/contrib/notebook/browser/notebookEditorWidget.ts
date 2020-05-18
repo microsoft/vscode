@@ -471,7 +471,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
-		this.createWebview(textModel.webviewId);
+		this.createWebview(this.getId());
 		await this.webview!.waitForInitialization();
 
 		this.eventDispatcher = new NotebookEventDispatcher();

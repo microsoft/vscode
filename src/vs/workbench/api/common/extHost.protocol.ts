@@ -1546,11 +1546,11 @@ export interface INotebookEditorPropertiesChangeData {
 export interface INotebookModelAddedData {
 	uri: UriComponents;
 	handle: number;
-	webviewId: string;
 	versionId: number;
 	cells: IMainCellDto[],
 	viewType: string;
 	metadata?: NotebookDocumentMetadata;
+	attachedEditor?: { id: string; selections: number[]; }
 }
 
 export interface INotebookEditorAddData {

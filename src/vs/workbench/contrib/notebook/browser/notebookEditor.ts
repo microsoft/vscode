@@ -139,8 +139,6 @@ export class NotebookEditor extends BaseEditor {
 		});
 
 
-		const model = await input.resolve();
-		const viewState = this.loadTextEditorViewState(input);
 		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input);
 		if (existingEditorWidgetForInput) {
 			// hide current widget
@@ -160,6 +158,9 @@ export class NotebookEditor extends BaseEditor {
 		if (this.dimension) {
 			this._widget.layout(this.dimension, this._rootElement);
 		}
+
+		const model = await input.resolve(this._widget!.getId());
+		const viewState = this.loadTextEditorViewState(input);
 
 		this._widget.setModel(model.notebook, viewState, options);
 	}

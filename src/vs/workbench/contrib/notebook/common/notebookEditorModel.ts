@@ -21,16 +21,18 @@ import { DefaultEndOfLine, ITextBuffer, EndOfLinePreference } from 'vs/editor/co
 export interface INotebookEditorModelManager {
 	models: NotebookEditorModel[];
 
-	resolve(resource: URI, viewType: string): Promise<NotebookEditorModel>;
+	resolve(resource: URI, viewType: string, editorId?: string): Promise<NotebookEditorModel>;
 
 	get(resource: URI): NotebookEditorModel | undefined;
 }
 
-export interface INotebookRevertOptions {
+export interface INotebookLoadOptions {
 	/**
 	 * Go to disk bypassing any cache of the model if any.
 	 */
 	forceReadFromDisk?: boolean;
+
+	editorId?: string;
 }
 
 
@@ -98,7 +100,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		return;
 	}
 
-	async load(options?: INotebookRevertOptions): Promise<NotebookEditorModel> {
+	async load(options?: INotebookLoadOptions): Promise<NotebookEditorModel> {
 		if (options?.forceReadFromDisk) {
 			return this.loadFromProvider(true);
 		}
@@ -114,20 +116,20 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 		if (backup) {
 			try {
-				return await this.loadFromBackup(backup.value.create(DefaultEndOfLine.LF));
+				return await this.loadFromBackup(backup.value.create(DefaultEndOfLine.LF), options?.editorId);
 			} catch (error) {
 				// this.logService.error('[text file model] load() from backup', error); // ignore error and continue to load as file below
 			}
 		}
 
-		return this.loadFromProvider(false);
+		return this.loadFromProvider(false, options?.editorId);
 	}
 
-	private async loadFromBackup(content: ITextBuffer): Promise<NotebookEditorModel> {
+	private async loadFromBackup(content: ITextBuffer, editorId?: string): Promise<NotebookEditorModel> {
 		const fullRange = content.getRangeAt(0, content.getLength());
 		const data = JSON.parse(content.getValueInRange(fullRange, EndOfLinePreference.LF));
 
-		const notebook = await this.notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells);
+		const notebook = await this.notebookService.createNotebookFromBackup(this.viewType!, this.resource, data.metadata, data.languages, data.cells, editorId);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
@@ -143,8 +145,8 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		return this;
 	}
 
-	private async loadFromProvider(forceReloadFromDisk: boolean) {
-		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk);
+	private async loadFromProvider(forceReloadFromDisk: boolean, editorId?: string) {
+		const notebook = await this.notebookService.resolveNotebook(this.viewType!, this.resource, forceReloadFromDisk, editorId);
 		this._notebook = notebook!;
 
 		this._name = basename(this._notebook!.uri);
@@ -207,7 +209,7 @@ export class NotebookEditorModelManager extends Disposable implements INotebookE
 		super();
 	}
 
-	async resolve(resource: URI, viewType: string): Promise<NotebookEditorModel> {
+	async resolve(resource: URI, viewType: string, editorId?: string): Promise<NotebookEditorModel> {
 		// Return early if model is currently being loaded
 		const pendingLoad = this.mapResourceToPendingModelLoaders.get(resource);
 		if (pendingLoad) {

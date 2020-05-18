@@ -219,8 +219,6 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		return this._versionId;
 	}
 
-	webviewId: string = '';
-
 	constructor(
 		private readonly _proxy: MainThreadNotebookShape,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors,
@@ -501,7 +499,6 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		public uri: URI,
 		private _proxy: MainThreadNotebookShape,
 		private _onDidReceiveMessage: Emitter<any>,
-		public _webviewId: string,
 		private _webviewInitData: WebviewInitData,
 		public document: ExtHostNotebookDocument,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors
@@ -591,7 +588,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	}
 
 	asWebviewUri(localResource: vscode.Uri): vscode.Uri {
-		return asWebviewUri(this._webviewInitData, this._webviewId, localResource);
+		return asWebviewUri(this._webviewInitData, this.id, localResource);
 	}
 }
 
@@ -997,7 +994,38 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 	}
 
+	private _createExtHostEditor(document: ExtHostNotebookDocument, editorId: string, selections: number[]) {
+		const onDidReceiveMessage = new Emitter<any>();
+		const revivedUri = document.uri;
+
+		let editor = new ExtHostNotebookEditor(
+			document.viewType,
+			editorId,
+			revivedUri,
+			this._proxy,
+			onDidReceiveMessage,
+			this._webviewInitData,
+			document,
+			this._documentsAndEditors
+		);
+
+		const cells = editor.document.cells;
+
+		if (selections.length) {
+			const firstCell = selections[0];
+			editor.selection = cells.find(cell => cell.handle === firstCell);
+		} else {
+			editor.selection = undefined;
+		}
+
+		this._editors.get(editorId)?.editor.dispose();
+
+		this._editors.set(editorId, { editor, onDidReceiveMessage });
+	}
+
 	async $acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta) {
+		let editorChanged = false;
+
 		if (delta.removedDocuments) {
 			delta.removedDocuments.forEach((uri) => {
 				let document = this._documents.get(URI.revive(uri).toString());
@@ -1045,8 +1073,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						]
 					});
 
-					document.webviewId = modelData.webviewId;
 					this._documents.set(revivedUriStr, document);
+
+					// create editor if populated
+					if (modelData.attachedEditor) {
+						this._createExtHostEditor(document, modelData.attachedEditor.id, modelData.attachedEditor.selections);
+						editorChanged = true;
+					}
 				}
 
 				const document = this._documents.get(revivedUriStr)!;
@@ -1054,40 +1087,18 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			});
 		}
 
-		let editorChanged = false;
-
 		if (delta.addedEditors) {
 			delta.addedEditors.forEach(editorModelData => {
+				if (this._editors.has(editorModelData.id)) {
+					return;
+				}
+
 				const revivedUri = URI.revive(editorModelData.documentUri);
 				const document = this._documents.get(revivedUri.toString());
 
 				if (document) {
-					const onDidReceiveMessage = new Emitter<any>();
-
-					let editor = new ExtHostNotebookEditor(
-						document.viewType,
-						editorModelData.id,
-						revivedUri,
-						this._proxy,
-						onDidReceiveMessage,
-						document.webviewId,
-						this._webviewInitData,
-						document,
-						this._documentsAndEditors
-					);
-
-					const cells = editor.document.cells;
-
-					if (editorModelData.selections.length) {
-						const firstCell = editorModelData.selections[0];
-						editor.selection = cells.find(cell => cell.handle === firstCell);
-					} else {
-						editor.selection = undefined;
-					}
-
+					this._createExtHostEditor(document, editorModelData.id, editorModelData.selections);
 					editorChanged = true;
-
-					this._editors.set(editorModelData.id, { editor, onDidReceiveMessage });
 				}
 			});
 		}

@@ -265,13 +265,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return;
 	}
 
-	async createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[]): Promise<NotebookTextModel | undefined> {
+	async createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[], editorId?: string): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
 		}
 
-		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false);
+		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false, editorId);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -286,7 +286,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return modelData.model;
 	}
 
-	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean): Promise<NotebookTextModel | undefined> {
+	async resolveNotebook(viewType: string, uri: URI, forceReload: boolean, editorId?: string): Promise<NotebookTextModel | undefined> {
 		const provider = this._notebookProviders.get(viewType);
 		if (!provider) {
 			return undefined;
@@ -294,7 +294,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		let notebookModel: NotebookTextModel | undefined;
 
-		notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload);
+		notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId);
 
 		// new notebook model created
 		const modelId = MODEL_ID(uri);
