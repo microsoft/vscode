@@ -15,6 +15,7 @@ import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/cont
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const SelectionAnchorSet = new RawContextKey('selectionAnchorSet', false);
 
@@ -28,12 +29,14 @@ class SelectionAnchorController implements IEditorContribution {
 
 	private decorationId: string | undefined;
 	private selectionAnchorSetContextKey: IContextKey<boolean>;
+	private modelChangeListener: IDisposable;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this.selectionAnchorSetContextKey = SelectionAnchorSet.bindTo(contextKeyService);
+		this.modelChangeListener = editor.onDidChangeModel(() => this.selectionAnchorSetContextKey.reset());
 	}
 
 	setSelectionAnchor(): void {
@@ -48,7 +51,7 @@ class SelectionAnchorController implements IEditorContribution {
 					className: 'selection-anchor'
 				}
 			}]);
-			this.decorationId = newDecorationId.length === 1 ? newDecorationId[0] : undefined;
+			this.decorationId = newDecorationId[0];
 			this.selectionAnchorSetContextKey.set(!!this.decorationId);
 		}
 	}
@@ -83,6 +86,7 @@ class SelectionAnchorController implements IEditorContribution {
 
 	dispose(): void {
 		this.cancelSelectionAnchor();
+		this.modelChangeListener.dispose();
 	}
 }
 
@@ -95,7 +99,7 @@ class SetSelectionAnchor extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_B),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_B),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -132,7 +136,7 @@ class SelectFromAnchorToCursor extends EditorAction {
 			precondition: SelectionAnchorSet,
 			kbOpts: {
 				kbExpr: EditorContextKeys.editorTextFocus,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_K),
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
