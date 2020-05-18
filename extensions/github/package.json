@@ -25,6 +25,19 @@
         "title": "Publish to GitHub"
       }
     ],
+    "configuration": [
+      {
+        "title": "GitHub",
+        "properties": {
+          "github.gitAuthentication": {
+            "type": "boolean",
+            "scope": "resource",
+            "default": true,
+            "description": "%config.gitAuthentication%"
+          }
+        }
+      }
+    ],
     "viewsWelcome": [
       {
         "view": "scm",

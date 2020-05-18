@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { API as GitAPI } from './typings/git';
-import { getOctokit } from './octokit';
+import { getOctokit } from './auth';
 
 function sanitizeRepositoryName(value: string): string {
 	return value.trim().replace(/[^a-z0-9_.]/ig, '-');

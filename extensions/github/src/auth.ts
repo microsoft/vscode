@@ -26,7 +26,7 @@ function getAgent(url: string | undefined = process.env.HTTPS_PROXY): Agent {
 
 const scopes = ['repo'];
 
-async function getSession(): Promise<AuthenticationSession> {
+export async function getSession(): Promise<AuthenticationSession> {
 	const authenticationSessions = await authentication.getSessions('github', scopes);
 
 	if (authenticationSessions.length) {

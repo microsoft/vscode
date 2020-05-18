@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RemoteSourceProvider, RemoteSource } from './typings/git';
-import { getOctokit } from './octokit';
+import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
 
 function asRemoteSource(raw: any): RemoteSource {
