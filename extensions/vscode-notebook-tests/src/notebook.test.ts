@@ -398,6 +398,22 @@ suite('metadata', () => {
 	});
 
 	// TODO copy cell should not copy metadata
+
+	test('custom metadata should be supported', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.metadata.custom!['testMetadata'] as boolean, false);
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.metadata.custom!['testCellMetadata'] as number, 123);
+		assert.equal(vscode.notebook.activeNotebookEditor!.selection?.language, 'typescript');
+
+		await vscode.commands.executeCommand('notebook.cell.copyDown');
+		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 1);
+		assert.equal(activeCell?.metadata.custom, undefined);
+	});
 });
 
 suite('regression', () => {
