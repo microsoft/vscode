@@ -9,6 +9,8 @@
 	left: 0;
 	top: 0;
 	box-sizing: border-box;
+	/* repair show thumbnail && thumbnail opacity  generated  current-line overflow */
+	width: calc( 100% - 14px ) !important;
 }
 
 .monaco-editor .margin-view-overlays .current-line {
