@@ -157,6 +157,21 @@ suite('API tests', () => {
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
+
+	test('notebook editor active/visible', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const firstEditor = vscode.notebook.activeNotebookEditor;
+		assert.equal(firstEditor?.active, true);
+
+		await vscode.commands.executeCommand('workbench.action.splitEditor');
+		const secondEditor = vscode.notebook.activeNotebookEditor;
+		assert.equal(secondEditor?.active, true);
+		assert.equal(firstEditor?.active, false);
+
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
 });
 
 suite('notebook workflow', () => {

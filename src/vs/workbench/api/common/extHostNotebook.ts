@@ -538,6 +538,33 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 	private _viewColumn: vscode.ViewColumn | undefined;
 
 	selection?: ExtHostCell = undefined;
+
+	private _active: boolean = false;
+	get active(): boolean {
+		return this._active;
+	}
+
+	set active(_state: boolean) {
+		throw readonly('active');
+	}
+
+	private _visible: boolean = false;
+	get visible(): boolean {
+		return this._visible;
+	}
+
+	set visible(_state: boolean) {
+		throw readonly('visible');
+	}
+
+	_acceptVisibility(value: boolean) {
+		this._visible = value;
+	}
+
+	_acceptActivity(value: boolean) {
+		this._active = value;
+	}
+
 	onDidReceiveMessage: vscode.Event<any> = this._onDidReceiveMessage.event;
 
 	constructor(
@@ -1216,11 +1243,18 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (delta.newActiveEditor !== undefined) {
 			if (delta.newActiveEditor) {
 				this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
+				this._activeNotebookEditor?._acceptActivity(true);
 				this._activeNotebookDocument = this._activeNotebookEditor ? this._documents.get(this._activeNotebookEditor!.uri.toString()) : undefined;
 			} else {
 				this._activeNotebookEditor = undefined;
 				this._activeNotebookDocument = undefined;
 			}
 		}
+
+		this.visibleNotebookEditors.forEach((editor) => {
+			if (editor !== this.activeNotebookEditor) {
+				editor._acceptActivity(false);
+			}
+		});
 	}
 }

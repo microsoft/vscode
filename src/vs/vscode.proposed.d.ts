@@ -1773,7 +1773,20 @@ declare module 'vscode' {
 		 */
 		readonly selection?: NotebookCell;
 
+		/**
+		 * The column in which this editor shows.
+		 */
 		viewColumn?: ViewColumn;
+
+		/**
+		 * Whether the panel is active (focused by the user).
+		 */
+		readonly active: boolean;
+
+		/**
+		 * Whether the panel is visible.
+		 */
+		readonly visible: boolean;
 
 		/**
 		 * Fired when the output hosting webview posts a message.
