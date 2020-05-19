@@ -348,14 +348,14 @@ suite('UserDataSyncRequestsSession', () => {
 	test('requests are handled after session is expired', async () => {
 		const testObject = new RequestsSession(1, 100, requestService, NullTelemetryService);
 		await testObject.request({}, CancellationToken.None);
-		await timeout(100);
+		await timeout(150);
 		await testObject.request({}, CancellationToken.None);
 	});
 
 	test('too many requests are thrown after session is expired', async () => {
 		const testObject = new RequestsSession(1, 100, requestService, NullTelemetryService);
 		await testObject.request({}, CancellationToken.None);
-		await timeout(100);
+		await timeout(150);
 		await testObject.request({}, CancellationToken.None);
 
 		try {
