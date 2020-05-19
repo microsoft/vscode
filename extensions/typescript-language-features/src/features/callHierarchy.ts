@@ -90,7 +90,9 @@ function fromProtocolCallHierarchyItem(item: Proto.CallHierarchyItem): vscode.Ca
 	);
 
 	const kindModifiers = item.kindModifiers ? parseKindModifier(item.kindModifiers) : undefined;
-	result.tags = kindModifiers?.has(PConst.KindModifiers.depreacted) ? [vscode.SymbolTag.Deprecated] : undefined;
+	if (kindModifiers?.has(PConst.KindModifiers.depreacted)) {
+		result.tags = [vscode.SymbolTag.Deprecated];
+	}
 	return result;
 }
 
