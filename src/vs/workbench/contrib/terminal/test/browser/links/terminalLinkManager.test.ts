@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { OperatingSystem } from 'vs/base/common/platform';
-import { TerminalLinkManager, LineColumnInfo, XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
-import * as strings from 'vs/base/common/strings';
+import { TerminalLinkManager, XtermLinkMatcherHandler } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { Terminal as XtermTerminal } from 'xterm';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Event } from 'vs/base/common/event';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -32,10 +32,6 @@ class TestTerminalLinkManager extends TerminalLinkManager {
 	}
 }
 
-class TestXterm {
-	public loadAddon() { }
-}
-
 class MockTerminalInstanceService implements ITerminalInstanceService {
 	onRequestDefaultShellAndArgs?: Event<any> | undefined;
 	getDefaultShellAndArgs(): Promise<{ shell: string; args: string | string[] | undefined; }> {
@@ -51,8 +47,9 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 	getXtermUnicode11Constructor(): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
+	// TODO: Remove this from the interface
 	async getXtermWebLinksConstructor(): Promise<any> {
-		return (await import('xterm-addon-web-links')).WebLinksAddon;
+		// return (await import('xterm-addon-web-links')).WebLinksAddon;
 	}
 	getXtermWebglConstructor(): Promise<any> {
 		throw new Error('Method not implemented.');
@@ -68,171 +65,23 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 	}
 }
 
-interface LinkFormatInfo {
-	urlFormat: string;
-	line?: string;
-	column?: string;
-}
-
 suite('Workbench - TerminalLinkManager', () => {
 	let instantiationService: TestInstantiationService;
 
-	setup(() => {
+	setup(async () => {
+		const configurationService = new TestConfigurationService();
+		await configurationService.setUserConfiguration('terminal', { integrated: { enableFileLinks: true } });
+
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 		instantiationService.stub(IPathService, new TestPathService());
 		instantiationService.stub(ITerminalInstanceService, new MockTerminalInstanceService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-	});
-
-	suite('localLinkRegex', () => {
-		test('Windows', () => {
-			const terminalLinkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm(), {
-				os: OperatingSystem.Windows,
-				userHome: ''
-			} as any);
-			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
-				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
-				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
-				assert.equal(terminalLinkHandler.extractLinkUrl(`;${link};`), linkUrl);
-				assert.equal(terminalLinkHandler.extractLinkUrl(`(${link})`), linkUrl);
-
-				if (lineNo) {
-					const lineColumnInfo: LineColumnInfo = terminalLinkHandler.extractLineColumnInfo(link);
-					assert.equal(lineColumnInfo.lineNumber, lineNo, `For link ${link}, expected line number ${lineNo}, actual ${lineColumnInfo.lineNumber}`);
-
-					if (columnNo) {
-						assert.equal(lineColumnInfo.columnNumber, columnNo, `For link ${link}, expected column number ${columnNo}, actual ${lineColumnInfo.columnNumber}`);
-					}
-				}
-			}
-
-			function generateAndTestLinks() {
-				const linkUrls = [
-					'c:\\foo',
-					'\\\\?\\c:\\foo',
-					'c:/foo',
-					'.\\foo',
-					'./foo',
-					'..\\foo',
-					'~\\foo',
-					'~/foo',
-					'c:/a/long/path',
-					'c:\\a\\long\\path',
-					'c:\\mixed/slash\\path',
-					'a/relative/path',
-					'plain/path',
-					'plain\\path'
-				];
-
-				const supportedLinkFormats: LinkFormatInfo[] = [
-					{ urlFormat: '{0}' },
-					{ urlFormat: '{0} on line {1}', line: '5' },
-					{ urlFormat: '{0} on line {1}, column {2}', line: '5', column: '3' },
-					{ urlFormat: '{0}:line {1}', line: '5' },
-					{ urlFormat: '{0}:line {1}, column {2}', line: '5', column: '3' },
-					{ urlFormat: '{0}({1})', line: '5' },
-					{ urlFormat: '{0} ({1})', line: '5' },
-					{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
-					{ urlFormat: '{0} ({1},{2})', line: '5', column: '3' },
-					{ urlFormat: '{0}({1}, {2})', line: '5', column: '3' },
-					{ urlFormat: '{0} ({1}, {2})', line: '5', column: '3' },
-					{ urlFormat: '{0}:{1}', line: '5' },
-					{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' },
-					{ urlFormat: '{0}[{1}]', line: '5' },
-					{ urlFormat: '{0} [{1}]', line: '5' },
-					{ urlFormat: '{0}[{1},{2}]', line: '5', column: '3' },
-					{ urlFormat: '{0} [{1},{2}]', line: '5', column: '3' },
-					{ urlFormat: '{0}[{1}, {2}]', line: '5', column: '3' },
-					{ urlFormat: '{0} [{1}, {2}]', line: '5', column: '3' },
-					{ urlFormat: '"{0}",{1}', line: '5' }
-				];
-
-				linkUrls.forEach(linkUrl => {
-					supportedLinkFormats.forEach(linkFormatInfo => {
-						testLink(
-							strings.format(linkFormatInfo.urlFormat, linkUrl, linkFormatInfo.line, linkFormatInfo.column),
-							linkUrl,
-							linkFormatInfo.line,
-							linkFormatInfo.column
-						);
-					});
-				});
-			}
-
-			generateAndTestLinks();
-		});
-
-		test('Linux', () => {
-			const terminalLinkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm(), {
-				os: OperatingSystem.Linux,
-				userHome: ''
-			} as any);
-			function testLink(link: string, linkUrl: string, lineNo?: string, columnNo?: string) {
-				assert.equal(terminalLinkHandler.extractLinkUrl(link), linkUrl);
-				assert.equal(terminalLinkHandler.extractLinkUrl(`:${link}:`), linkUrl);
-				assert.equal(terminalLinkHandler.extractLinkUrl(`;${link};`), linkUrl);
-				assert.equal(terminalLinkHandler.extractLinkUrl(`(${link})`), linkUrl);
-
-				if (lineNo) {
-					const lineColumnInfo: LineColumnInfo = terminalLinkHandler.extractLineColumnInfo(link);
-					assert.equal(lineColumnInfo.lineNumber, lineNo, `For link ${link}, expected line number ${lineNo}, actual ${lineColumnInfo.lineNumber}`);
-
-					if (columnNo) {
-						assert.equal(lineColumnInfo.columnNumber, columnNo, `For link ${link}, expected column number ${columnNo}, actual ${lineColumnInfo.columnNumber}`);
-					}
-				}
-			}
-
-			function generateAndTestLinks() {
-				const linkUrls = [
-					'/foo',
-					'~/foo',
-					'./foo',
-					'../foo',
-					'/a/long/path',
-					'a/relative/path'
-				];
-
-				const supportedLinkFormats: LinkFormatInfo[] = [
-					{ urlFormat: '{0}' },
-					{ urlFormat: '{0} on line {1}', line: '5' },
-					{ urlFormat: '{0} on line {1}, column {2}', line: '5', column: '3' },
-					{ urlFormat: '{0}:line {1}', line: '5' },
-					{ urlFormat: '{0}:line {1}, column {2}', line: '5', column: '3' },
-					{ urlFormat: '{0}({1})', line: '5' },
-					{ urlFormat: '{0} ({1})', line: '5' },
-					{ urlFormat: '{0}({1},{2})', line: '5', column: '3' },
-					{ urlFormat: '{0} ({1},{2})', line: '5', column: '3' },
-					{ urlFormat: '{0}:{1}', line: '5' },
-					{ urlFormat: '{0}:{1}:{2}', line: '5', column: '3' },
-					{ urlFormat: '{0}[{1}]', line: '5' },
-					{ urlFormat: '{0} [{1}]', line: '5' },
-					{ urlFormat: '{0}[{1},{2}]', line: '5', column: '3' },
-					{ urlFormat: '{0} [{1},{2}]', line: '5', column: '3' },
-					{ urlFormat: '"{0}",{1}', line: '5' }
-				];
-
-				linkUrls.forEach(linkUrl => {
-					supportedLinkFormats.forEach(linkFormatInfo => {
-						// console.log('linkFormatInfo: ', linkFormatInfo);
-						testLink(
-							strings.format(linkFormatInfo.urlFormat, linkUrl, linkFormatInfo.line, linkFormatInfo.column),
-							linkUrl,
-							linkFormatInfo.line,
-							linkFormatInfo.column
-						);
-					});
-				});
-			}
-
-			generateAndTestLinks();
-		});
+		instantiationService.stub(IConfigurationService, configurationService);
 	});
 
 	suite('preprocessPath', () => {
 		test('Windows', () => {
-			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
+			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new XtermTerminal() as any, {
 				os: OperatingSystem.Windows,
 				userHome: 'C:\\Users\\Me'
 			} as any);
@@ -246,7 +95,7 @@ suite('Workbench - TerminalLinkManager', () => {
 			assert.equal(linkHandler.preprocessPath('\\\\?\\C:\\absolute\\path\\extended\\file6'), 'C:\\absolute\\path\\extended\\file6');
 		});
 		test('Windows - spaces', () => {
-			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
+			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new XtermTerminal() as any, {
 				os: OperatingSystem.Windows,
 				userHome: 'C:\\Users\\M e'
 			} as any);
@@ -260,7 +109,7 @@ suite('Workbench - TerminalLinkManager', () => {
 		});
 
 		test('Linux', () => {
-			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
+			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new XtermTerminal() as any, {
 				os: OperatingSystem.Linux,
 				userHome: '/home/me'
 			} as any);
@@ -273,7 +122,7 @@ suite('Workbench - TerminalLinkManager', () => {
 		});
 
 		test('No Workspace', () => {
-			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
+			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new XtermTerminal() as any, {
 				os: OperatingSystem.Linux,
 				userHome: '/home/me'
 			} as any);
@@ -289,7 +138,7 @@ suite('Workbench - TerminalLinkManager', () => {
 		const nullMouseEvent: any = Object.freeze({ preventDefault: () => { } });
 
 		test('should allow intercepting of links with onBeforeHandleLink', async () => {
-			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new TestXterm() as any, {
+			const linkHandler: TestTerminalLinkManager = instantiationService.createInstance(TestTerminalLinkManager, new XtermTerminal() as any, {
 				os: OperatingSystem.Linux,
 				userHome: ''
 			} as any);
