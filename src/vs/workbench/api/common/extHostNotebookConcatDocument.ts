@@ -54,8 +54,7 @@ export class ExtHostNotebookConcatDocument implements vscode.NotebookConcatTextD
 
 		this._disposables.add(extHostNotebooks.onDidMoveNotebookCell(e => documentChange(e.document)));
 		this._disposables.add(extHostNotebooks.onDidChangeCellLanguage(e => documentChange(e.document)));
-		this._disposables.add(extHostNotebooks.onDidClearAllCellsOutputs(e => documentChange(e.document)));
-		this._disposables.add(extHostNotebooks.onDidClearCellOutputs(e => documentChange(e.document)));
+		this._disposables.add(extHostNotebooks.onDidChangeCellOutputs(e => documentChange(e.document)));
 		this._disposables.add(extHostNotebooks.onDidChangeNotebookCells(e => documentChange(e.document)));
 	}
 

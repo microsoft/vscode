@@ -811,8 +811,7 @@
                             "trigger",
                             "unregister",
                             "write",
-                            "move",
-                            "clear"
+                            "move"
                         ]
                     }
                 ]

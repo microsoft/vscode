@@ -1801,7 +1801,7 @@ declare module 'vscode' {
 	}
 
 
-	export interface NotebookCellsChange {
+	export interface NotebookCellsChangeData {
 		readonly start: number;
 		readonly deletedCount: number;
 		readonly items: NotebookCell[];
@@ -1813,7 +1813,7 @@ declare module 'vscode' {
 		 * The affected document.
 		 */
 		readonly document: NotebookDocument;
-		readonly changes: ReadonlyArray<NotebookCellsChange>;
+		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
 
 	export interface NotebookCellMoveEvent {
@@ -1826,21 +1826,13 @@ declare module 'vscode' {
 		readonly newIndex: number;
 	}
 
-	export interface NotebookCellOutputsClearEvent {
+	export interface NotebookCellOutputsChangeEvent {
 
 		/**
 		 * The affected document.
 		 */
 		readonly document: NotebookDocument;
-		readonly cell: NotebookCell;
-	}
-
-	export interface NotebookAllCellsOutputsClearEvent {
-
-		/**
-		 * The affected document.
-		 */
-		readonly document: NotebookDocument;
+		readonly cells: NotebookCell[];
 	}
 
 	export interface NotebookCellLanguageChangeEvent {
@@ -1929,8 +1921,7 @@ declare module 'vscode' {
 
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
 		export const onDidMoveNotebookCell: Event<NotebookCellMoveEvent>;
-		export const onDidClearCellOutputs: Event<NotebookCellOutputsClearEvent>;
-		export const onDidClearAllCellsOutputs: Event<NotebookAllCellsOutputsClearEvent>;
+		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included

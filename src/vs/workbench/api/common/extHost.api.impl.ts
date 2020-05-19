@@ -952,13 +952,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidMoveNotebookCell(listener, thisArgs, disposables);
 			},
-			onDidClearCellOutputs(listener, thisArgs?, disposables?) {
+			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidClearCellOutputs(listener, thisArgs, disposables);
-			},
-			onDidClearAllCellsOutputs(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidClearAllCellsOutputs(listener, thisArgs, disposables);
+				return extHostNotebook.onDidChangeCellOutputs(listener, thisArgs, disposables);
 			},
 			onDidChangeCellLanguage(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
