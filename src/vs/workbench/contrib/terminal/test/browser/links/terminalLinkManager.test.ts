@@ -74,7 +74,7 @@ interface LinkFormatInfo {
 	column?: string;
 }
 
-suite('Workbench - TerminalLinkHandler', () => {
+suite('Workbench - TerminalLinkManager', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
