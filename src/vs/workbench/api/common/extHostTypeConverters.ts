@@ -10,7 +10,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/common/shared/editor';
 import { IDecorationOptions, IThemeDecorationRenderOptions, IDecorationRenderOptions, IContentDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence, TrackedRangeStickiness } from 'vs/editor/common/model';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
