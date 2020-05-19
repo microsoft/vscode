@@ -104,8 +104,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	constructor(
 		public handle: number,
 		public viewType: string,
-		public uri: URI,
-		public webviewId: string
+		public uri: URI
 	) {
 		super();
 		this.cells = [];

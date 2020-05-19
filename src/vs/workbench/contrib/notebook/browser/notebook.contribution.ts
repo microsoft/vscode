@@ -144,9 +144,10 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		}));
 
 		this._register(this.editorService.onDidActiveEditorChange(() => {
-			if (this.editorService.activeEditor && this.editorService.activeEditor! instanceof NotebookEditorInput) {
-				let editorInput = this.editorService.activeEditor! as NotebookEditorInput;
-				this.notebookService.updateActiveNotebookDocument(editorInput.viewType!, editorInput.resource!);
+			const activeEditorPane = editorService.activeEditorPane as any | undefined;
+			const notebookEditor = activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
+			if (notebookEditor) {
+				this.notebookService.updateActiveNotebookEditor(notebookEditor);
 			}
 		}));
 

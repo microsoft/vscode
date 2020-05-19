@@ -357,7 +357,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		});
 
-		if (!selectionsLeft.length && this._viewModel!.viewCells) {
+		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
 			// after splice, the selected cells are deleted
 			this._viewModel!.selectionHandles = [this._viewModel!.viewCells[0].handle];
 		}

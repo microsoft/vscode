@@ -324,7 +324,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		}
 	}
 
-	public onMaxLineWidthChanged(maxLineWidth: number): void {
+	public setMaxLineWidth(maxLineWidth: number): void {
 		const scrollDimensions = this._scrollable.getScrollDimensions();
 		// const newScrollWidth = ;
 		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
@@ -353,8 +353,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	// ---- IVerticalLayoutProvider
-	public changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T {
-		return this._linesLayout.changeWhitespace(callback);
+	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
+		const hadAChange = this._linesLayout.changeWhitespace(callback);
+		if (hadAChange) {
+			this.onHeightMaybeChanged();
+		}
 	}
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
 		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber);

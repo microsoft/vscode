@@ -18,8 +18,6 @@ import * as VinylFile from 'vinyl';
 import { ThroughStream } from 'through';
 import * as sm from 'source-map';
 
-const root = path.dirname(path.dirname(__dirname));
-
 export interface ICancellationToken {
 	isCancellationRequested(): boolean;
 }
@@ -319,10 +317,4 @@ export function streamToPromise(stream: NodeJS.ReadWriteStream): Promise<void> {
 		stream.on('error', err => e(err));
 		stream.on('end', () => c());
 	});
-}
-
-export function getElectronVersion(): string {
-	const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
-	const target = /^target "(.*)"$/m.exec(yarnrc)![1];
-	return target;
 }

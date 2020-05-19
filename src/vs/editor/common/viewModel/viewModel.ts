@@ -44,8 +44,6 @@ export interface IViewLayout {
 
 	getScrollable(): Scrollable;
 
-	onMaxLineWidthChanged(width: number): void;
-
 	getScrollWidth(): number;
 	getScrollHeight(): number;
 
@@ -56,8 +54,6 @@ export interface IViewLayout {
 	getFutureViewport(): Viewport;
 
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
-	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
-	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
@@ -68,18 +64,10 @@ export interface IViewLayout {
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
-	// --------------- Begin vertical whitespace management
-	changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T;
-
 	/**
 	 * Get the layout information for whitespaces currently in the viewport
 	 */
 	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
-
-	// TODO@Alex whitespace management should work via a change accessor sort of thing
-	onHeightMaybeChanged(): void;
-
-	// --------------- End vertical whitespace management
 }
 
 export interface ICoordinatesConverter {
@@ -169,6 +157,10 @@ export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 	getVerticalOffsetForLineNumber(viewLineNumber: number): number;
 	getScrollTop(): number;
 	setScrollTop(newScrollTop: number, scrollType: ScrollType): void;
+	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
+	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
+	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
+	setMaxLineWidth(maxLineWidth: number): void;
 	//#endregion
 }
 

@@ -115,8 +115,11 @@ export class StartupProfiler implements IWorkbenchContribution {
 		}
 
 		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
-		await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
-		ref.dispose();
+		try {
+			await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
+		} finally {
+			ref.dispose();
+		}
 
 		const body = `
 1. :warning: We have copied additional data to your clipboard. Make sure to **paste** here. :warning:

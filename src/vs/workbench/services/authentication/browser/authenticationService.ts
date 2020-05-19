@@ -55,14 +55,19 @@ export function readAllowedExtensions(storageService: IStorageService, providerI
 }
 
 export interface SessionRequest {
-	[scopes: string]: IDisposable[];
+	disposables: IDisposable[];
+	requestingExtensionIds: string[];
+}
+
+export interface SessionRequestInfo {
+	[scopes: string]: SessionRequest;
 }
 
 export class AuthenticationService extends Disposable implements IAuthenticationService {
 	_serviceBrand: undefined;
 	private _placeholderMenuItem: IDisposable | undefined;
 	private _noAccountsMenuItem: IDisposable | undefined;
-	private _signInRequestItems = new Map<string, SessionRequest>();
+	private _signInRequestItems = new Map<string, SessionRequestInfo>();
 	private _badgeDisposable: IDisposable | undefined;
 
 	private _authenticationProviders: Map<string, MainThreadAuthenticationProvider> = new Map<string, MainThreadAuthenticationProvider>();
@@ -172,8 +177,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			if (sessions.some(session => session.scopes.sort().join('') === requestedScopes)) {
 				// Request has been completed
 				changed = true;
-				const disposables = existingRequestsForProvider[requestedScopes];
-				disposables?.forEach(item => item.dispose());
+				const sessionRequest = existingRequestsForProvider[requestedScopes];
+				sessionRequest?.disposables.forEach(item => item.dispose());
 
 				delete existingRequestsForProvider[requestedScopes];
 				if (Object.keys(existingRequestsForProvider).length === 0) {
@@ -189,7 +194,14 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				this._badgeDisposable?.dispose();
 				this._badgeDisposable = undefined;
 			} else {
-				const badge = new NumberBadge(this._signInRequestItems.size, () => nls.localize('sign in', "Sign in requested"));
+				let numberOfRequests = 0;
+				this._signInRequestItems.forEach(providerRequests => {
+					Object.keys(providerRequests).forEach(request => {
+						numberOfRequests += providerRequests[request].requestingExtensionIds.length;
+					});
+				});
+
+				const badge = new NumberBadge(numberOfRequests, () => nls.localize('sign in', "Sign in requested"));
 				this._badgeDisposable = this.activityService.showAccountsActivity({ badge });
 			}
 		}
@@ -198,7 +210,16 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): void {
 		const provider = this._authenticationProviders.get(providerId);
 		if (provider) {
-			// TODO handle extension requesting same scopes multiple times
+			const providerRequests = this._signInRequestItems.get(providerId);
+			const scopesList = scopes.sort().join('');
+			const extensionHasExistingRequest = providerRequests
+				&& providerRequests[scopesList]
+				&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);
+
+			if (extensionHasExistingRequest) {
+				return;
+			}
+
 			const menuItem = MenuRegistry.appendMenuItem(MenuId.AccountsContext, {
 				group: '2_signInRequests',
 				command: {
@@ -226,19 +247,32 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				}
 			});
 
-			const existingRequestsForProvider = this._signInRequestItems.get(providerId);
-			const scopesList = scopes.sort().join('');
-			if (existingRequestsForProvider) {
-				const existingDisposables = existingRequestsForProvider[scopesList] || [];
 
-				existingRequestsForProvider[scopesList] = [...existingDisposables, menuItem, signInCommand];
-				this._signInRequestItems.set(providerId, existingRequestsForProvider);
+			if (providerRequests) {
+				const existingRequest = providerRequests[scopesList] || { disposables: [], requestingExtensionIds: [] };
+
+				providerRequests[scopesList] = {
+					disposables: [...existingRequest.disposables, menuItem, signInCommand],
+					requestingExtensionIds: [...existingRequest.requestingExtensionIds, extensionId]
+				};
+				this._signInRequestItems.set(providerId, providerRequests);
 			} else {
-				this._signInRequestItems.set(providerId, { [scopesList]: [menuItem, signInCommand] });
+				this._signInRequestItems.set(providerId, {
+					[scopesList]: {
+						disposables: [menuItem, signInCommand],
+						requestingExtensionIds: [extensionId]
+					}
+				});
 			}
 
+			let numberOfRequests = 0;
+			this._signInRequestItems.forEach(providerRequests => {
+				Object.keys(providerRequests).forEach(request => {
+					numberOfRequests += providerRequests[request].requestingExtensionIds.length;
+				});
+			});
 
-			const badge = new NumberBadge(this._signInRequestItems.size, () => nls.localize('sign in', "Sign in requested"));
+			const badge = new NumberBadge(numberOfRequests, () => nls.localize('sign in', "Sign in requested"));
 			this._badgeDisposable = this.activityService.showAccountsActivity({ badge });
 		}
 	}

@@ -66,7 +66,8 @@ export class WebviewProtocolProvider extends Disposable {
 							statusCode: 200,
 							data: streamToNodeReadable(result.stream),
 							headers: {
-								'content-type': result.mimeType
+								'Content-Type': result.mimeType,
+								'Access-Control-Allow-Origin': '*',
 							}
 						});
 					}

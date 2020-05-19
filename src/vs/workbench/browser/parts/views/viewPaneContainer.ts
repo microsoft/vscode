@@ -28,12 +28,12 @@ import { Extensions as ViewContainerExtensions, IView, FocusedViewContext, IView
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { assertIsDefined, isString } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Component } from 'vs/workbench/common/component';
-import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuItemAction, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { parseLinkedText } from 'vs/base/common/linkedText';
@@ -49,6 +49,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export interface IPaneColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -1540,3 +1542,96 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		}
 	}
 }
+
+class MoveViewPosition extends Action2 {
+	constructor(desc: Readonly<IAction2Options>, private readonly offset: number) {
+		super(desc);
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewDescriptorService = accessor.get(IViewDescriptorService);
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		const viewId = FocusedViewContext.getValue(contextKeyService);
+		if (viewId === undefined) {
+			return;
+		}
+
+		const viewContainer = viewDescriptorService.getViewContainerByViewId(viewId)!;
+		const model = viewDescriptorService.getViewContainerModel(viewContainer);
+
+		const viewDescriptor = model.visibleViewDescriptors.find(vd => vd.id === viewId)!;
+		const currentIndex = model.visibleViewDescriptors.indexOf(viewDescriptor);
+		if (currentIndex + this.offset < 0 || currentIndex + this.offset >= model.visibleViewDescriptors.length) {
+			return;
+		}
+
+		const newPosition = model.visibleViewDescriptors[currentIndex + this.offset];
+
+		model.move(viewDescriptor.id, newPosition.id);
+	}
+}
+
+registerAction2(
+	class MoveViewUp extends MoveViewPosition {
+		constructor() {
+			super({
+				id: 'views.moveViewUp',
+				title: nls.localize('viewMoveUp', "Move View Up"),
+				keybinding: {
+					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.UpArrow,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: FocusedViewContext.notEqualsTo('')
+				}
+			}, -1);
+		}
+	}
+);
+
+registerAction2(
+	class MoveViewLeft extends MoveViewPosition {
+		constructor() {
+			super({
+				id: 'views.moveViewLeft',
+				title: nls.localize('viewMoveLeft', "Move View Left"),
+				keybinding: {
+					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.LeftArrow,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: FocusedViewContext.notEqualsTo('')
+				}
+			}, -1);
+		}
+	}
+);
+
+registerAction2(
+	class MoveViewDown extends MoveViewPosition {
+		constructor() {
+			super({
+				id: 'views.moveViewDown',
+				title: nls.localize('viewMoveDown', "Move View Down"),
+				keybinding: {
+					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.DownArrow,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: FocusedViewContext.notEqualsTo('')
+				}
+			}, 1);
+		}
+	}
+);
+
+registerAction2(
+	class MoveViewRight extends MoveViewPosition {
+		constructor() {
+			super({
+				id: 'views.moveViewRight',
+				title: nls.localize('viewMoveRight', "Move View Right"),
+				keybinding: {
+					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.RightArrow,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: FocusedViewContext.notEqualsTo('')
+				}
+			}, 1);
+		}
+	}
+);

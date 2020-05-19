@@ -189,12 +189,14 @@ export enum UserDataSyncErrorCode {
 	Forbidden = 'Forbidden',
 	ConnectionRefused = 'ConnectionRefused',
 	RemotePreconditionFailed = 'RemotePreconditionFailed',
+	TooManyRequests = 'RemoteTooManyRequests',
 	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
 
 	// Local Errors
+	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
@@ -403,10 +405,6 @@ export const CONTEXT_ENABLE_VIEWS = new RawContextKey<boolean>(`showUserDataSync
 export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
 
 // Commands
-export const TURN_ON_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOn';
-export const TURN_OFF_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOff';
-export const TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.turnOffEveryWhere';
 export const ENABLE_SYNC_VIEWS_COMMAND_ID = 'workbench.userDataSync.actions.enableViews';
-export const MANAGE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.manage';
 export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
 export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';

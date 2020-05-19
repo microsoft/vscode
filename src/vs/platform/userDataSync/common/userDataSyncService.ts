@@ -114,10 +114,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async sync(): Promise<void> {
 		await this.checkEnablement();
-		if (this.status === SyncStatus.Syncing) {
-			this.logService.info(`Skipped synchronizing as sync is in progress.`);
-			return;
-		}
 		await this.syncThrottler.queue(() => this.doSync());
 	}
 
@@ -346,7 +342,11 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (e instanceof UserDataSyncStoreError) {
 			switch (e.code) {
 				case UserDataSyncErrorCode.TooLarge:
-					this.telemetryService.publicLog2<{ source: string }, SyncClassification>('sync/errorTooLarge', { source });
+					this.telemetryService.publicLog2<{ source: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { source });
+					break;
+				case UserDataSyncErrorCode.TooManyRequests:
+					this.telemetryService.publicLog2(`sync/error/${UserDataSyncErrorCode.TooManyRequests}`);
+					break;
 			}
 			throw e;
 		}

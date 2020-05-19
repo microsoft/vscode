@@ -793,14 +793,14 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const description = isString(node.description) ? node.description : resource && node.description === true ? this.labelService.getUriLabel(dirname(resource), { relative: true }) : undefined;
 		const label = treeItemLabel ? treeItemLabel.label : undefined;
 		const matches = (treeItemLabel && treeItemLabel.highlights && label) ? treeItemLabel.highlights.map(([start, end]) => {
-			if ((Math.abs(start) > label.length) || (Math.abs(end) >= label.length)) {
-				return ({ start: 0, end: 0 });
-			}
 			if (start < 0) {
 				start = label.length + start;
 			}
 			if (end < 0) {
 				end = label.length + end;
+			}
+			if ((start >= label.length) || (end > label.length)) {
+				return ({ start: 0, end: 0 });
 			}
 			if (start > end) {
 				const swap = start;
