@@ -232,7 +232,7 @@ export class NotebookEditorModelManager extends Disposable implements INotebookE
 		else {
 			// didCreateModel = true;
 			const newModel = model = this.instantiationService.createInstance(NotebookEditorModel, resource, viewType);
-			modelPromise = model.load();
+			modelPromise = model.load({ editorId });
 
 			this.registerModel(newModel);
 		}

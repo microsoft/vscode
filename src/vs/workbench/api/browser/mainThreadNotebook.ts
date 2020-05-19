@@ -152,6 +152,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	registerListeners() {
+		this._notebookService.listNotebookEditors().forEach((e) => {
+			this._addNotebookEditor(e);
+		});
+
 		this._register(this._notebookService.onDidChangeActiveEditor(e => {
 			this._proxy.$acceptDocumentAndEditorsDelta({
 				newActiveEditor: e
@@ -185,6 +189,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
 			updateOrder();
 		}));
+
+		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
+		const notebookEditor = activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
+		this._updateState(notebookEditor);
 	}
 
 	async addNotebookDocument(data: INotebookModelAddedData) {
@@ -196,10 +204,14 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	private _addNotebookEditor(e: IEditor) {
 		this._toDisposeOnEditorRemove.set(e.getId(), combinedDisposable(
 			e.onDidChangeModel(() => this._updateState()),
-			e.onDidFocusEditorWidget(() => this._updateState(e)),
+			e.onDidFocusEditorWidget(() => {
+				this._updateState(e);
+			}),
 		));
 
-		this._updateState();
+		const activeEditorPane = this.editorService.activeEditorPane as any | undefined;
+		const notebookEditor = activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
+		this._updateState(notebookEditor);
 	}
 
 	private _removeNotebookEditor(e: IEditor) {
@@ -227,6 +239,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 					activeEditor = editor.getId();
 				}
 			}
+		}
+
+		if (!activeEditor && focusedNotebookEditor) {
+			activeEditor = focusedNotebookEditor.getId();
 		}
 
 		// editors always have view model attached, which means there is already a document in exthost.
