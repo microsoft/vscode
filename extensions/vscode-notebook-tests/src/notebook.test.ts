@@ -116,6 +116,25 @@ suite('notebook workflow', () => {
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
+	test('move cells will not recreate cells in ExtHost', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
+		await vscode.commands.executeCommand('notebook.focusTop');
+
+		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
+		await vscode.commands.executeCommand('notebook.cell.moveDown');
+		await vscode.commands.executeCommand('notebook.cell.moveDown');
+
+		const newActiveCell = vscode.notebook.activeNotebookEditor!.selection;
+		assert.deepEqual(activeCell, newActiveCell);
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(newActiveCell!), 2);
+	});
+
 	// test.only('document metadata is respected', async function () {
 	// 	const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
