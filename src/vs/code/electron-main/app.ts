@@ -81,6 +81,8 @@ import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { WebviewChannel } from 'vs/platform/webview/electron-main/webviewIpcs';
+import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
+import { IWebviewMainService } from 'vs/platform/webview/common/webviewMainService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -472,6 +474,7 @@ export class CodeApplication extends Disposable {
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
+		services.set(IWebviewMainService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
@@ -579,7 +582,8 @@ export class CodeApplication extends Disposable {
 		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
 
-		const webviewChannel = new WebviewChannel();
+		const webviewMainService = accessor.get(IWebviewMainService);
+		const webviewChannel = new WebviewChannel(webviewMainService);
 		electronIpcServer.registerChannel('webview', webviewChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);

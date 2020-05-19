@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+
+export const IWebviewMainService = createDecorator<IWebviewMainService>('webviewMainService');
+
 export interface IWebviewMainService {
-	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<boolean>;
+	_serviceBrand: unknown;
+
+	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): void;
 }

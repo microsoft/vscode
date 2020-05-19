@@ -27,10 +27,9 @@ import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webvie
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
-import { IWebviewMainService } from 'vs/workbench/contrib/webview/electron-browser/webviewMainService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-
+import { IWebviewMainService } from 'vs/platform/webview/common/webviewMainService';
 
 class WebviewTagHandle extends Disposable {
 
