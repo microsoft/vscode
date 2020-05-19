@@ -6,20 +6,23 @@
 import { timeout, Delayer } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, ALL_SYNC_RESOURCES } from 'vs/platform/userDataSync/common/userDataSync';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
-type AutoSyncTriggerClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type AutoSyncClassification = {
+	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
+
+export const RESOURCE_ENABLEMENT_SOURCE = 'resourceEnablement';
 
 export class UserDataAutoSyncService extends Disposable implements IUserDataAutoSyncService {
 
 	_serviceBrand: any;
 
-	private enabled: boolean = false;
+	private enabled: boolean = this.getDefaultEnablementValue();
 	private successiveFailures: number = 0;
+	private lastSyncTriggerTime: number | undefined = undefined;
 	private readonly syncDelayer: Delayer<void>;
 
 	private readonly _onError: Emitter<UserDataSyncError> = this._register(new Emitter<UserDataSyncError>());
@@ -38,11 +41,14 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this._register(Event.any<any>(authTokenService.onDidChangeToken)(() => this.updateEnablement(true, true)));
 		this._register(Event.any<any>(userDataSyncService.onDidChangeStatus)(() => this.updateEnablement(true, true)));
 		this._register(this.userDataSyncEnablementService.onDidChangeEnablement(() => this.updateEnablement(true, false)));
-		this._register(this.userDataSyncEnablementService.onDidChangeResourceEnablement(() => this.triggerAutoSync(['resourceEnablement'])));
+		this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerAutoSync([RESOURCE_ENABLEMENT_SOURCE])));
 	}
 
-	private async updateEnablement(stopIfDisabled: boolean, auto: boolean): Promise<void> {
-		const { enabled, reason } = await this.isAutoSyncEnabled();
+	// For tests purpose only
+	protected getDefaultEnablementValue(): boolean { return false; }
+
+	private updateEnablement(stopIfDisabled: boolean, auto: boolean): void {
+		const { enabled, reason } = this.isAutoSyncEnabled();
 		if (this.enabled === enabled) {
 			return;
 		}
@@ -65,6 +71,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private async sync(loop: boolean, auto: boolean): Promise<void> {
 		if (this.enabled) {
 			try {
+				this.lastSyncTriggerTime = new Date().getTime();
 				await this.userDataSyncService.sync();
 				this.resetFailures();
 			} catch (e) {
@@ -82,6 +89,12 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 						return this.sync(loop, auto);
 					}
 				}
+				if (error.code === UserDataSyncErrorCode.TooManyRequests) {
+					this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
+					this.userDataSyncEnablementService.setEnablement(false);
+					this._onError.fire(error);
+					return;
+				}
 				this.logService.error(error);
 				this.successiveFailures++;
 				this._onError.fire(error);
@@ -95,15 +108,14 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		}
 	}
 
-	private async isAutoSyncEnabled(): Promise<{ enabled: boolean, reason?: string }> {
+	private isAutoSyncEnabled(): { enabled: boolean, reason?: string } {
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return { enabled: false, reason: 'sync is disabled' };
 		}
 		if (this.userDataSyncService.status === SyncStatus.Uninitialized) {
 			return { enabled: false, reason: 'sync is not initialized' };
 		}
-		const token = await this.authTokenService.getToken();
-		if (!token) {
+		if (!this.authTokenService.token) {
 			return { enabled: false, reason: 'token is not avaialable' };
 		}
 		return { enabled: true };
@@ -113,18 +125,34 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		this.successiveFailures = 0;
 	}
 
+	private sources: string[] = [];
 	async triggerAutoSync(sources: string[]): Promise<void> {
-		sources.forEach(source => this.telemetryService.publicLog2<{ source: string }, AutoSyncTriggerClassification>('sync/triggerAutoSync', { source }));
-		if (this.enabled) {
-			return this.syncDelayer.trigger(() => {
-				this.logService.info('Auto Sync: Triggered.');
-				return this.sync(false, true);
-			}, this.successiveFailures
-				? 1000 * 1 * Math.min(this.successiveFailures, 60) /* Delay by number of seconds as number of failures up to 1 minute */
-				: 1000);
-		} else {
-			this.syncDelayer.cancel();
+		if (!this.enabled) {
+			return this.syncDelayer.cancel();
 		}
+
+		/*
+		If sync is not triggered by sync resource (triggered by other sources like window focus etc.,) or by resource enablement
+		then limit sync to once per 10s
+		*/
+		const hasToLimitSync = sources.indexOf(RESOURCE_ENABLEMENT_SOURCE) === -1 && ALL_SYNC_RESOURCES.every(syncResource => sources.indexOf(syncResource) === -1);
+		if (hasToLimitSync && this.lastSyncTriggerTime
+			&& Math.round((new Date().getTime() - this.lastSyncTriggerTime) / 1000) < 10) {
+			this.logService.debug('Auto Sync Skipped: Limited to once per 10 seconds.');
+			return;
+		}
+
+		this.sources.push(...sources);
+		return this.syncDelayer.trigger(() => {
+			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
+			this.sources = [];
+
+			this.logService.info('Auto Sync: Triggered.');
+			return this.sync(false, true);
+		}, this.successiveFailures
+			? 1000 * 1 * Math.min(Math.pow(2, this.successiveFailures), 60) /* Delay exponentially until max 1 minute */
+			: 0); /* Do not delay if there are no failures */
+
 	}
 
 }

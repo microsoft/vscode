@@ -51,7 +51,7 @@ import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { TunnelOptions } from 'vs/platform/remote/common/tunnel';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor, InternalTimelineOptions } from 'vs/workbench/contrib/timeline/common/timeline';
 import { revive } from 'vs/base/common/marshalling';
-import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEvent, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookMimeTypeSelector, IOutput, INotebookDisplayOrder, NotebookCellMetadata, NotebookDocumentMetadata, ICellEditOperation, NotebookCellsChangedEvent, NotebookDataDto, INotebookKernelInfoDto, IMainCellDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { Dto } from 'vs/base/common/types';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
@@ -393,6 +393,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 export interface MainThreadLanguagesShape extends IDisposable {
 	$getLanguages(): Promise<string[]>;
 	$changeLanguage(resource: UriComponents, languageId: string): Promise<void>;
+	$tokensAtPosition(resource: UriComponents, position: IPosition): Promise<undefined | { type: modes.StandardTokenType, range: IRange }>;
 }
 
 export interface MainThreadMessageOptions {
@@ -690,7 +691,7 @@ export type NotebookCellOutputsSplice = [
 ];
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, hasKernelSupport: boolean): Promise<void>;
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, kernelInfoDto: INotebookKernelInfoDto | undefined): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 	$registerNotebookRenderer(extension: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, handle: number, preloads: UriComponents[]): Promise<void>;
 	$unregisterNotebookRenderer(handle: number): Promise<void>;
@@ -1547,7 +1548,8 @@ export interface INotebookModelAddedData {
 	uri: UriComponents;
 	handle: number;
 	webviewId: string;
-	// versionId: number;
+	versionId: number;
+	cells: IMainCellDto[],
 	viewType: string;
 	metadata?: NotebookDocumentMetadata;
 }

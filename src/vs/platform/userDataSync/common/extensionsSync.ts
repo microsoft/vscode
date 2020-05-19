@@ -63,7 +63,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
 					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
 					this.extensionEnablementService.onDidChangeEnablement),
-				() => undefined, 500)(() => this._onDidChangeLocal.fire()));
+				() => undefined, 500)(() => this.triggerLocalChange()));
 	}
 
 	async pull(): Promise<void> {

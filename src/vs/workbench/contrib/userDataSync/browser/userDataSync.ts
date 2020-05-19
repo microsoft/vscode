@@ -30,7 +30,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	CONTEXT_SYNC_STATE, IUserDataAutoSyncService, IUserDataSyncService, registerConfiguration,
 	SyncResource, SyncStatus, UserDataSyncError, UserDataSyncErrorCode, USER_DATA_SYNC_SCHEME, IUserDataSyncEnablementService, CONTEXT_SYNC_ENABLEMENT,
-	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel, TURN_OFF_SYNC_COMMAND_ID, TURN_ON_SYNC_COMMAND_ID, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID, MANAGE_SYNC_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ACCOUNT_STATE
+	SyncResourceConflicts, Conflict, getSyncResourceFromLocalPreview, getSyncAreaLabel, ENABLE_SYNC_VIEWS_COMMAND_ID, CONFIGURE_SYNC_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ACCOUNT_STATE
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { FloatingClickWidget } from 'vs/workbench/browser/parts/editor/editorWidgets';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -54,6 +54,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Codicon } from 'vs/base/common/codicons';
 import { ViewContainerLocation, IViewContainersRegistry, Extensions, ViewContainer } from 'vs/workbench/common/views';
 import { UserDataSyncViewPaneContainer, UserDataSyncDataViews } from 'vs/workbench/contrib/userDataSync/browser/userDataSyncViews';
+import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSyncWorkbenchService';
 
 const CONTEXT_CONFLICTS_SOURCES = new RawContextKey<string>('conflictsSources', '');
 
@@ -68,8 +69,8 @@ type FirstTimeSyncClassification = {
 	action: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
-const turnOnSyncCommand = { id: TURN_ON_SYNC_COMMAND_ID, title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
-const turnOffSyncCommand = { id: TURN_OFF_SYNC_COMMAND_ID, title: localize('stop sync', "Preferences Sync: Turn Off") };
+const turnOnSyncCommand = { id: 'workbench.userDataSync.actions.turnOn', title: localize('turn on sync with category', "Preferences Sync: Turn On...") };
+const turnOffSyncCommand = { id: 'workbench.userDataSync.actions.turnOff', title: localize('stop sync', "Preferences Sync: Turn Off") };
 const configureSyncCommand = { id: CONFIGURE_SYNC_COMMAND_ID, title: localize('configure sync', "Preferences Sync: Configure...") };
 const resolveSettingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveSettingsConflicts', title: localize('showConflicts', "Preferences Sync: Show Settings Conflicts") };
 const resolveKeybindingsConflictsCommand = { id: 'workbench.userDataSync.actions.resolveKeybindingsConflicts', title: localize('showKeybindingsConflicts', "Preferences Sync: Show Keybindings Conflicts") };
@@ -106,6 +107,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	constructor(
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
+		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IActivityService private readonly activityService: IActivityService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -257,8 +259,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		try {
 			for (const conflict of conflicts) {
 				const modelRef = await this.textModelResolverService.createModelReference(conflict.remote);
-				await this.userDataSyncService.acceptConflict(conflict.remote, modelRef.object.textEditorModel.getValue());
-				modelRef.dispose();
+				try {
+					await this.userDataSyncService.acceptConflict(conflict.remote, modelRef.object.textEditorModel.getValue());
+				} finally {
+					modelRef.dispose();
+				}
 			}
 		} catch (e) {
 			this.notificationService.error(e);
@@ -269,8 +274,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		try {
 			for (const conflict of conflicts) {
 				const modelRef = await this.textModelResolverService.createModelReference(conflict.local);
-				await this.userDataSyncService.acceptConflict(conflict.local, modelRef.object.textEditorModel.getValue());
-				modelRef.dispose();
+				try {
+					await this.userDataSyncService.acceptConflict(conflict.local, modelRef.object.textEditorModel.getValue());
+				} finally {
+					modelRef.dispose();
+				}
 			}
 		} catch (e) {
 			this.notificationService.error(e);
@@ -289,6 +297,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				this.notificationService.notify({
 					severity: Severity.Info,
 					message: localize('turned off', "Preferences sync was turned off from another device."),
+					actions: {
+						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
+					}
+				});
+				return;
+			case UserDataSyncErrorCode.TooManyRequests:
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('too many requests', "Turned off syncing because of making too many requests to server"),
 					actions: {
 						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
 					}
@@ -609,18 +626,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		if (!this.userDataSyncEnablementService.canToggleEnablement()) {
 			return;
 		}
-		if (turnOffEveryWhere) {
-			await this.turnOffEveryWhere();
-		} else {
-			await this.userDataSyncService.resetLocal();
-			this.disableSync();
-		}
-	}
-
-	private async turnOffEveryWhere(): Promise<void> {
-		this.telemetryService.publicLog2('sync/turnOffEveryWhere');
-		await this.userDataSyncService.reset();
-		this.disableSync();
+		await this.userDataSyncWorkbenchService.turnoff(turnOffEveryWhere);
 	}
 
 	private disableSync(source?: SyncResource): void {
@@ -895,7 +901,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this._register(registerAction2(class SyncStatusAction extends Action2 {
 			constructor() {
 				super({
-					id: MANAGE_SYNC_COMMAND_ID,
+					id: 'workbench.userDataSync.actions.manage',
 					title: localize('sync is on', "Preferences Sync is On"),
 					menu: [
 						{
@@ -996,7 +1002,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			run(): Promise<any> {
+			run(accessor: ServicesAccessor): Promise<any> {
+				accessor.get(ITelemetryService).publicLog2(`sync/actions/${syncNowCommand.id}`);
 				return that.userDataSyncService.sync();
 			}
 		}));
@@ -1023,17 +1030,6 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						that.notificationService.error(localize('turn off failed', "Error while turning off sync: {0}", toErrorMessage(e)));
 					}
 				}
-			}
-		}));
-		this._register(registerAction2(class TurnOffEveryWhereAction extends Action2 {
-			constructor() {
-				super({
-					id: TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID,
-					title: turnOffSyncCommand.title,
-				});
-			}
-			run(): Promise<any> {
-				return that.turnOffEveryWhere();
 			}
 		}));
 	}

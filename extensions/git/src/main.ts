@@ -22,7 +22,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { GitTimelineProvider } from './timelineProvider';
 import { registerAPICommands } from './api/api1';
-import { GithubCredentialProviderManager } from './github';
 import { TerminalEnvironmentManager } from './terminal';
 
 const deactivateTasks: { (): Promise<any>; }[] = [];
@@ -43,9 +42,6 @@ async function createModel(context: ExtensionContext, outputChannel: OutputChann
 	const env = askpass.getEnv();
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, env);
 	disposables.push(terminalEnvironmentManager);
-
-	const githubCredentialProviderManager = new GithubCredentialProviderManager(askpass);
-	context.subscriptions.push(githubCredentialProviderManager);
 
 	const git = new Git({ gitPath: info.path, version: info.version, env });
 	const model = new Model(git, askpass, context.globalState, outputChannel);

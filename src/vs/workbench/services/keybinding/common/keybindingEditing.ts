@@ -79,7 +79,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 				if (keybindingItem.isDefault && keybindingItem.resolvedKeybinding) {
 					this.removeDefaultKeybinding(keybindingItem, model);
 				}
-				return this.save().then(() => reference.dispose());
+				return this.save().finally(() => reference.dispose());
 			});
 	}
 
@@ -92,7 +92,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 				} else {
 					this.removeUserKeybinding(keybindingItem, model);
 				}
-				return this.save().then(() => reference.dispose());
+				return this.save().finally(() => reference.dispose());
 			});
 	}
 
@@ -104,7 +104,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 					this.removeUserKeybinding(keybindingItem, model);
 					this.removeUnassignedDefaultKeybinding(keybindingItem, model);
 				}
-				return this.save().then(() => reference.dispose());
+				return this.save().finally(() => reference.dispose());
 			});
 	}
 

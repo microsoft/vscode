@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { TreeViewPane, TreeView } from 'vs/workbench/browser/parts/views/treeView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, IUserDataSyncEnablementService, TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID, ENABLE_SYNC_VIEWS_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ACCOUNT_STATE } from 'vs/platform/userDataSync/common/userDataSync';
+import { ALL_SYNC_RESOURCES, SyncResource, IUserDataSyncService, ISyncResourceHandle, CONTEXT_SYNC_STATE, SyncStatus, getSyncAreaLabel, IUserDataSyncEnablementService, ENABLE_SYNC_VIEWS_COMMAND_ID, AccountStatus, CONTEXT_ENABLE_VIEWS, CONFIGURE_SYNC_COMMAND_ID, SHOW_SYNC_LOG_COMMAND_ID, CONTEXT_ACCOUNT_STATE } from 'vs/platform/userDataSync/common/userDataSync';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyEqualsExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
@@ -31,6 +31,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
+import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSyncWorkbenchService';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
@@ -241,8 +242,8 @@ export class UserDataSyncDataViews extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
-				const commandService = accessor.get(ICommandService);
 				const dialogService = accessor.get(IDialogService);
+				const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
 				const result = await dialogService.confirm({
 					message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
 					title: localize('reset title', "Reset Synced Data"),
@@ -250,7 +251,7 @@ export class UserDataSyncDataViews extends Disposable {
 					primaryButton: localize('reset button', "Reset"),
 				});
 				if (result.confirmed) {
-					await commandService.executeCommand(TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID);
+					await userDataSyncWorkbenchService.turnoff(true);
 					await view.refresh();
 				}
 			}

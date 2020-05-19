@@ -10,7 +10,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { combinedDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, DisposableStore, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/notebook';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -39,7 +39,7 @@ import { CellDragAndDropController, CodeCellRenderer, MarkdownCellRenderer, Note
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IOutput, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, INotebookKernelInfo, INotebookKernelInfoDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -48,6 +48,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { URI } from 'vs/base/common/uri';
 
 const $ = DOM.$;
 
@@ -403,7 +404,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const provider = this.notebookService.getContributedNotebookProviders(this.viewModel!.uri)[0];
 		const availableKernels = this.notebookService.getContributedNotebookKernels(textModel.viewType, textModel.uri);
 
-		if (provider.hasKernelSupport && availableKernels.length > 0) {
+		if (provider.kernel && availableKernels.length > 0) {
 			this.notebookHasMultipleKernels!.set(true);
 		} else if (availableKernels.length > 1) {
 			this.notebookHasMultipleKernels!.set(true);
@@ -411,13 +412,23 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.notebookHasMultipleKernels!.set(false);
 		}
 
-		if (provider && provider.hasKernelSupport) {
+		if (provider && provider.kernel) {
 			// it has a builtin kernel, don't automatically choose a kernel
+			this.loadKernelPreloads(provider.providerExtensionLocation, provider.kernel);
 			return;
 		}
 
 		// the provider doesn't have a builtin kernel, choose a kernel
 		this.activeKernel = availableKernels[0];
+		if (this.activeKernel) {
+			this.loadKernelPreloads(this.activeKernel.extensionLocation, this.activeKernel);
+		}
+	}
+
+	private loadKernelPreloads(extensionLocation: URI, kernel: INotebookKernelInfoDto) {
+		if (kernel.preloads) {
+			this.webview?.updateKernelPreloads([extensionLocation], kernel.preloads.map(preload => URI.revive(preload)));
+		}
 	}
 
 	private updateForMetadata(): void {
@@ -732,6 +743,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private readonly _onMouseDown: Emitter<INotebookEditorMouseEvent> = this._register(new Emitter<INotebookEditorMouseEvent>());
 	public readonly onMouseDown: Event<INotebookEditorMouseEvent> = this._onMouseDown.event;
 
+	private pendingLayouts = new WeakMap<ICellViewModel, IDisposable>();
+
 	//#endregion
 
 	//#region Cell operations
@@ -746,15 +759,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.list?.updateElementHeight2(cell, height);
 		};
 
+		if (this.pendingLayouts.has(cell)) {
+			this.pendingLayouts.get(cell)!.dispose();
+		}
+
 		let r: () => void;
-		DOM.scheduleAtNextAnimationFrame(() => {
+		const layoutDisposable = DOM.scheduleAtNextAnimationFrame(() => {
 			if (this._isDisposed) {
 				return;
 			}
 
+			this.pendingLayouts.delete(cell);
+
 			relayout(cell, height);
 			r();
 		});
+
+		this.pendingLayouts.set(cell, toDisposable(() => {
+			layoutDisposable.dispose();
+			r();
+		}));
 
 		return new Promise(resolve => { r = resolve; });
 	}
@@ -1066,7 +1090,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				if (this._activeKernel) {
 					await this.notebookService.executeNotebook2(this.notebookViewModel!.viewType, this.notebookViewModel!.uri, this._activeKernel.id, tokenSource.token);
-				} else if (provider.hasKernelSupport) {
+				} else if (provider.kernel) {
 					return await this.notebookService.executeNotebook(viewType, notebookUri, true, tokenSource.token);
 				} else {
 					return await this.notebookService.executeNotebook(viewType, notebookUri, false, tokenSource.token);
@@ -1113,7 +1137,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 				if (this._activeKernel) {
 					return await this.notebookService.executeNotebookCell2(viewType, notebookUri, cell.handle, this._activeKernel.id, tokenSource.token);
-				} else if (provider.hasKernelSupport) {
+				} else if (provider.kernel) {
 					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, true, tokenSource.token);
 				} else {
 					return await this.notebookService.executeNotebookCell(viewType, notebookUri, cell.handle, false, tokenSource.token);

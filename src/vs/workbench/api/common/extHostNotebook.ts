@@ -633,6 +633,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _notebookContentProviders = new Map<string, { readonly provider: vscode.NotebookContentProvider, readonly extension: IExtensionDescription; }>();
 	private readonly _notebookKernels = new Map<string, { readonly kernel: vscode.NotebookKernel, readonly extension: IExtensionDescription; }>();
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
+	private readonly _unInitializedDocuments = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any>; }>();
 	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
 
@@ -722,7 +723,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
-		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, !!provider.kernel);
+		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 		return new VSCodeDisposable(() => {
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
@@ -745,10 +746,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	async $resolveNotebookData(viewType: string, uri: UriComponents): Promise<NotebookDataDto | undefined> {
-		let provider = this._notebookContentProviders.get(viewType);
-		let document = this._documents.get(URI.revive(uri).toString());
+		const provider = this._notebookContentProviders.get(viewType);
+		const revivedUri = URI.revive(uri);
 
-		if (provider && document) {
+		if (provider) {
+			let document = this._documents.get(URI.revive(uri).toString());
+
+			if (!document) {
+				document = this._unInitializedDocuments.get(revivedUri.toString()) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, revivedUri, this);
+				this._unInitializedDocuments.set(revivedUri.toString(), document);
+			}
+
 			const rawCells = await provider.provider.openNotebook(URI.revive(uri));
 			const renderers = new Set<number>();
 			const dto = {
@@ -997,9 +1005,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (delta.addedDocuments) {
 			delta.addedDocuments.forEach(modelData => {
 				const revivedUri = URI.revive(modelData.uri);
+				const revivedUriStr = revivedUri.toString();
 				const viewType = modelData.viewType;
-				if (!this._documents.has(revivedUri.toString())) {
-					let document = new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, revivedUri, this);
+				if (!this._documents.has(revivedUriStr)) {
+					let document = this._unInitializedDocuments.get(revivedUriStr) ?? new ExtHostNotebookDocument(this._proxy, this._documentsAndEditors, viewType, revivedUri, this);
+					this._unInitializedDocuments.delete(revivedUriStr);
 					if (modelData.metadata) {
 						document.metadata = {
 							...notebookDocumentMetadataDefaults,
@@ -1007,11 +1017,23 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						};
 					}
 
-					this._documents.set(revivedUri.toString(), document);
+					document.accpetModelChanged({
+						kind: NotebookCellsChangeType.ModelChange,
+						versionId: modelData.versionId,
+						changes: [
+							[
+								0,
+								0,
+								modelData.cells
+							]
+						]
+					});
+
+					this._documents.set(revivedUriStr, document);
 				}
 
 				const onDidReceiveMessage = new Emitter<any>();
-				const document = this._documents.get(revivedUri.toString())!;
+				const document = this._documents.get(revivedUriStr)!;
 
 				let editor = new ExtHostNotebookEditor(
 					viewType,
@@ -1028,7 +1050,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				this._onDidOpenNotebookDocument.fire(document);
 
 				// TODO, does it already exist?
-				this._editors.set(revivedUri.toString(), { editor, onDidReceiveMessage });
+				this._editors.set(revivedUriStr, { editor, onDidReceiveMessage });
 			});
 		}
 

@@ -22,6 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { diff, IOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { clamp } from 'vs/base/common/numbers';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -135,12 +136,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	elementAt(position: number): ICellViewModel | undefined {
-		const idx = this.view.indexAt(position);
-		if (idx >= 0) {
-			return this.element(idx);
+		if (!this.view.length) {
+			return undefined;
 		}
 
-		return undefined;
+		const idx = this.view.indexAt(position);
+		const clamped = clamp(idx, 0, this.view.length - 1);
+		return this.element(clamped);
 	}
 
 	elementHeight(element: ICellViewModel): number {
@@ -355,7 +357,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			}
 		});
 
-		if (!selectionsLeft.length && this._viewModel!.viewCells) {
+		if (!selectionsLeft.length && this._viewModel!.viewCells.length) {
 			// after splice, the selected cells are deleted
 			this._viewModel!.selectionHandles = [this._viewModel!.viewCells[0].handle];
 		}

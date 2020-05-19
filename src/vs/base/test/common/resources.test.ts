@@ -349,6 +349,9 @@ suite('Resources', () => {
 	function assertIsEqual(u1: URI, u2: URI, ignoreCase: boolean | undefined, expected: boolean) {
 		assert.equal(isEqual(u1, u2, ignoreCase), expected, `${u1.toString()}${expected ? '===' : '!=='}${u2.toString()}`);
 		assert.equal(compare(u1, u2, ignoreCase) === 0, expected);
+		if (!ignoreCase) {
+			assert.equal(u1.toString() === u2.toString(), expected);
+		}
 		assert.equal(getComparisonKey(u1, ignoreCase) === getComparisonKey(u2, ignoreCase), expected, `comparison keys ${u1.toString()}, ${u2.toString()}`);
 		assert.equal(isEqualOrParent(u1, u2, ignoreCase), expected, `isEqualOrParent ${u1.toString()}, ${u2.toString()}`);
 	}

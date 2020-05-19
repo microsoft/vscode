@@ -443,11 +443,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
-		this._context.viewLayout.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
+		this._context.model.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
 		this._context.model.tokenizeViewport();
 		this._renderNow();
 		this.viewLines.updateLineWidths();
-		this._context.viewLayout.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
+		this._context.model.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
 	}
 
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
@@ -480,7 +480,6 @@ export class View extends ViewEventHandler {
 		return this._renderOnce(() => {
 			const zonesHaveChanged = this.viewZones.changeViewZones(callback);
 			if (zonesHaveChanged) {
-				this._context.viewLayout.onHeightMaybeChanged();
 				this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
 			}
 			return zonesHaveChanged;

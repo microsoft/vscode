@@ -242,6 +242,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			if (!input!.isDisposed()) {
 				input?.updateGroup(group.id);
 				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
+			} else {
+				this._resourceMapping.delete(resource);
 			}
 		}
 
@@ -276,7 +278,16 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		input.updateGroup(group.id);
 		this._resourceMapping.set(resource, input);
 
-		return { override: this.editorService.openEditor(input, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: !options?.pinned }), group) };
+		/**
+		 * Scenario: we are reopening a file editor input which is pinned, we should open in a new editor tab.
+		 */
+		let index = undefined;
+		if (group.activeEditor === originalInput && isEqual(originalInput.resource, resource)) {
+			const originalEditorIndex = group.getIndexOfEditor(originalInput);
+			index = group.isPinned(originalInput) ? originalEditorIndex + 1 : originalEditorIndex;
+		}
+
+		return { override: this.editorService.openEditor(input, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true, index }), group) };
 	}
 }
 

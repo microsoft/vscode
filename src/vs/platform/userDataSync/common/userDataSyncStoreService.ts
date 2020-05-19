@@ -19,9 +19,12 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWeb } from 'vs/base/common/platform';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const USER_SESSION_ID_KEY = 'sync.user-session-id';
 const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
+const REQUEST_SESSION_LIMIT = 100;
+const REQUEST_SESSION_INTERVAL = 1000 * 60 * 5; /* 5 minutes */
 
 export class UserDataSyncStoreService extends Disposable implements IUserDataSyncStoreService {
 
@@ -29,6 +32,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
 	private readonly commonHeadersPromise: Promise<{ [key: string]: string; }>;
+	private readonly session: RequestsSession;
 
 	constructor(
 		@IProductService productService: IProductService,
@@ -39,6 +43,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
@@ -49,8 +54,14 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 					'X-Client-Version': productService.version,
 					'X-Machine-Id': uuid
 				};
+				if (productService.commit) {
+					headers['X-Client-Commit'] = productService.commit;
+				}
 				return headers;
 			});
+
+		/* A requests session that limits requests per sessions */
+		this.session = new RequestsSession(REQUEST_SESSION_LIMIT, REQUEST_SESSION_INTERVAL, this.requestService, telemetryService);
 	}
 
 	async getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]> {
@@ -219,7 +230,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 	}
 
 	private async request(options: IRequestOptions, source: SyncResource | undefined, token: CancellationToken): Promise<IRequestContext> {
-		const authToken = await this.authTokenService.getToken();
+		const authToken = this.authTokenService.token;
 		if (!authToken) {
 			throw new UserDataSyncStoreError('No Auth Token Available', UserDataSyncErrorCode.Unauthorized, source);
 		}
@@ -237,10 +248,13 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 
 		let context;
 		try {
-			context = await this.requestService.request(options, token);
+			context = await this.session.request(options, token);
 			this.logService.trace('Request finished', { url: options.url, status: context.res.statusCode });
 		} catch (e) {
-			throw new UserDataSyncStoreError(`Connection refused for the request '${options.url?.toString()}'.`, UserDataSyncErrorCode.ConnectionRefused, source);
+			if (!(e instanceof UserDataSyncStoreError)) {
+				e = new UserDataSyncStoreError(`Connection refused for the request '${options.url?.toString()}'.`, UserDataSyncErrorCode.ConnectionRefused, source);
+			}
+			throw e;
 		}
 
 		if (context.res.statusCode === 401) {
@@ -260,6 +274,10 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too large payload (413).`, UserDataSyncErrorCode.TooLarge, source);
 		}
 
+		if (context.res.statusCode === 429) {
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too many requests (429).`, UserDataSyncErrorCode.TooManyRequests, source);
+		}
+
 		return context;
 	}
 
@@ -275,6 +293,45 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		if (userSessionId !== undefined) {
 			headers['X-User-Session-Id'] = userSessionId;
 		}
+	}
+
+}
+
+export class RequestsSession {
+
+	private count: number = 0;
+	private startTime: Date | undefined = undefined;
+
+	constructor(
+		private readonly limit: number,
+		private readonly interval: number, /* in ms */
+		private readonly requestService: IRequestService,
+		private readonly telemetryService: ITelemetryService
+	) { }
+
+	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
+		if (this.isExpired()) {
+			this.reset();
+		}
+
+		if (this.count >= this.limit) {
+			this.telemetryService.publicLog2(`sync/error/${UserDataSyncErrorCode.LocalTooManyRequests}`);
+			throw new UserDataSyncStoreError(`Too many requests. Allowed only ${this.limit} requests in ${this.interval / (1000 * 60)} minutes.`, UserDataSyncErrorCode.LocalTooManyRequests);
+		}
+
+		this.startTime = this.startTime || new Date();
+		this.count++;
+
+		return this.requestService.request(options, token);
+	}
+
+	private isExpired(): boolean {
+		return this.startTime !== undefined && new Date().getTime() - this.startTime.getTime() > this.interval;
+	}
+
+	private reset(): void {
+		this.count = 0;
+		this.startTime = undefined;
 	}
 
 }

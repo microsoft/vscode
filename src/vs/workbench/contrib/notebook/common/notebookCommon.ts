@@ -115,6 +115,13 @@ export interface INotebookKernelInfo {
 	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
 }
 
+export interface INotebookKernelInfoDto {
+	id: string;
+	label: string,
+	extensionLocation: URI;
+	preloads?: UriComponents[];
+}
+
 export interface INotebookSelectors {
 	readonly filenamePattern?: string;
 }
@@ -493,4 +500,10 @@ export interface INotebookEditorModel extends IEditorModel {
 	notebook: NotebookTextModel;
 	isDirty(): boolean;
 	save(): Promise<boolean>;
+}
+
+export interface INotebookTextModelBackup {
+	metadata: NotebookDocumentMetadata;
+	languages: string[];
+	cells: ICellDto2[]
 }

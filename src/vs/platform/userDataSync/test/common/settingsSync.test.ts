@@ -15,6 +15,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Event } from 'vs/base/common/event';
 
 suite('SettingsSync', () => {
 
@@ -265,6 +266,24 @@ suite('SettingsSync', () => {
 		assert.deepEqual(actual, `{
 	,
 }`);
+	});
+
+	test('local change event is triggered when settings are changed', async () => {
+		const content =
+			`{
+	"files.autoSave": "afterDelay",
+	"files.simpleDialog.enable": true,
+}`;
+
+		await updateSettings(content);
+		await testObject.sync(await client.manifest());
+
+		const promise = Event.toPromise(testObject.onDidChangeLocal);
+		await updateSettings(`{
+	"files.autoSave": "off",
+	"files.simpleDialog.enable": true,
+}`);
+		await promise;
 	});
 
 	test('do not sync ignored settings', async () => {

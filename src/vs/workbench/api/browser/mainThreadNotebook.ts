@@ -8,7 +8,7 @@ import { MainContext, MainThreadNotebookShape, NotebookExtensionDescription, IEx
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookMimeTypeSelector, NOTEBOOK_DISPLAY_ORDER, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, CellEditType, CellKind, INotebookKernelInfo, INotebookKernelInfoDto, INotebookTextModelBackup } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -123,8 +123,8 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._notebookService.unregisterNotebookRenderer(handle);
 	}
 
-	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, hasKernelSupport: boolean): Promise<void> {
-		let controller = new MainThreadNotebookController(this._proxy, this, viewType, hasKernelSupport);
+	async $registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, kernel: INotebookKernelInfoDto | undefined): Promise<void> {
+		let controller = new MainThreadNotebookController(this._proxy, this, viewType, kernel);
 		this._notebookProviders.set(viewType, controller);
 		this._notebookService.registerNotebookController(viewType, extension, controller);
 		return;
@@ -206,11 +206,11 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		private readonly _proxy: ExtHostNotebookShape,
 		private _mainThreadNotebook: MainThreadNotebooks,
 		private _viewType: string,
-		readonly hasKernelSupport: boolean
+		readonly kernel: INotebookKernelInfoDto | undefined
 	) {
 	}
 
-	async createNotebook(viewType: string, uri: URI, forBackup: boolean, forceReload: boolean): Promise<NotebookTextModel | undefined> {
+	async createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean): Promise<NotebookTextModel | undefined> {
 		let mainthreadNotebook = this._mapping.get(URI.from(uri).toString());
 
 		if (mainthreadNotebook) {
@@ -231,9 +231,41 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		}
 
 		let document = new MainThreadNotebookDocument(this._proxy, MainThreadNotebookController.documentHandle++, viewType, uri, generateUuid());
-		await this.createNotebookDocument(document);
+		this._mapping.set(document.uri.toString(), document);
 
-		if (forBackup) {
+		if (backup) {
+			// trigger events
+			document.textModel.metadata = backup.metadata;
+			document.textModel.languages = backup.languages;
+
+			document.textModel.applyEdit(document.textModel.versionId, [
+				{
+					editType: CellEditType.Insert,
+					index: 0,
+					cells: backup.cells
+				}
+			]);
+
+			await this._proxy.$acceptDocumentAndEditorsDelta({
+				addedDocuments: [{
+					viewType: document.viewType,
+					handle: document.handle,
+					webviewId: document.webviewId,
+					uri: document.uri,
+					metadata: document.textModel.metadata,
+					versionId: document.textModel.versionId,
+					cells: document.textModel.cells.map(cell => ({
+						handle: cell.handle,
+						uri: cell.uri,
+						source: cell.textBuffer.getLinesContent(),
+						language: cell.language,
+						cellKind: cell.cellKind,
+						outputs: cell.outputs,
+						metadata: cell.metadata
+					}))
+				}]
+			});
+
 			return document.textModel;
 		}
 
@@ -252,6 +284,26 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			const mainCell = document.textModel.createCellTextModel([''], document.textModel.languages.length ? document.textModel.languages[0] : '', CellKind.Code, [], undefined);
 			document.textModel.insertTemplateCell(mainCell);
 		}
+
+		await this._proxy.$acceptDocumentAndEditorsDelta({
+			addedDocuments: [{
+				viewType: document.viewType,
+				handle: document.handle,
+				webviewId: document.webviewId,
+				uri: document.uri,
+				metadata: document.textModel.metadata,
+				versionId: document.textModel.versionId,
+				cells: document.textModel.cells.map(cell => ({
+					handle: cell.handle,
+					uri: cell.uri,
+					source: cell.textBuffer.getLinesContent(),
+					language: cell.language,
+					cellKind: cell.cellKind,
+					outputs: cell.outputs,
+					metadata: cell.metadata
+				}))
+			}]
+		});
 
 		this._proxy.$acceptEditorPropertiesChanged(uri, { selections: null, metadata: document.textModel.metadata });
 
@@ -281,20 +333,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 	onDidReceiveMessage(uri: UriComponents, message: any): void {
 		this._proxy.$onDidReceiveMessage(uri, message);
-	}
-
-	async createNotebookDocument(document: MainThreadNotebookDocument): Promise<void> {
-		this._mapping.set(document.uri.toString(), document);
-
-		await this._proxy.$acceptDocumentAndEditorsDelta({
-			addedDocuments: [{
-				viewType: document.viewType,
-				handle: document.handle,
-				webviewId: document.webviewId,
-				uri: document.uri,
-				metadata: document.textModel.metadata
-			}]
-		});
 	}
 
 	async removeNotebookDocument(notebook: INotebookTextModel): Promise<void> {
