@@ -1041,27 +1041,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 			}
 		}));
-		registerAction2(class extends Action2 {
+		this._register(registerAction2(class TurnOffEveryWhereAction extends Action2 {
 			constructor() {
 				super({
 					id: TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID,
-					title: localize('workbench.actions.syncData.reset', "Reset Synced Data"),
-					precondition: CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available),
+					title: turnOffSyncCommand.title,
 				});
 			}
-			async run(accessor: ServicesAccessor): Promise<void> {
-				const dialogService = accessor.get(IDialogService);
-				const result = await dialogService.confirm({
-					message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
-					title: localize('reset title', "Reset Synced Data"),
-					type: 'info',
-					primaryButton: localize('reset button', "Reset"),
-				});
-				if (result.confirmed) {
-					await that.turnOffEveryWhere();
-				}
+			run(): Promise<any> {
+				return that.turnOffEveryWhere();
 			}
-		});
+		}));
 	}
 
 	private registerConfigureSyncAction(): void {
