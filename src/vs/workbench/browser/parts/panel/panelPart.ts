@@ -144,7 +144,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
 			(id: string, focus?: boolean) => (this.openPanel(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
-			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore)
+			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore),
+			() => this.compositeBar.getCompositeBarItems()
 		);
 
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
@@ -211,7 +212,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const isActive = activePanel?.getId() === panel.id || (!activePanel && this.getLastActivePanelId() === panel.id);
 
 			if (isActive || !this.shouldBeHidden(panel.id, cachedPanel)) {
-				this.compositeBar.addComposite(panel);
+
+				// Override order
+				const newPanel = {
+					id: panel.id,
+					name: panel.name,
+					order: cachedPanel?.order === undefined ? panel.order : cachedPanel.order
+				};
+
+				this.compositeBar.addComposite(newPanel);
 
 				// Pin it by default if it is new
 				if (!cachedPanel) {

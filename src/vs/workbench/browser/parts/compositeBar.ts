@@ -39,6 +39,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 		private targetContainerLocation: ViewContainerLocation,
 		private openComposite: (id: string, focus?: boolean) => Promise<IPaneComposite | null>,
 		private moveComposite: (from: string, to: string, before?: Before2D) => void,
+		private getItems: () => ICompositeBarItem[],
 	) { }
 
 	drop(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent, before?: Before2D): void {
@@ -61,11 +62,14 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 					return;
 				}
 
-				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation);
+				const items = this.getItems();
 
-				if (targetCompositeId) {
-					this.moveComposite(currentContainer.id, targetCompositeId, before);
-				}
+				const before1d = this.targetContainerLocation === ViewContainerLocation.Panel ? before?.horizontallyBefore : before?.verticallyBefore;
+
+				items.forEach(item => console.log(`${item.id}: ${item.order}`));
+				const targetIndex = targetCompositeId ? items.findIndex(o => o.id === targetCompositeId) + (before1d ? 0 : 1) : undefined;
+				console.log(`target: ${targetIndex}(${!!before1d ? 'before' : 'after'} ${targetCompositeId})`);
+				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, targetIndex);
 
 				this.openComposite(currentContainer.id);
 			}
@@ -668,7 +672,16 @@ class CompositeBarModel {
 			}
 			this._items = result;
 		}
+
+		this.updateItemsOrder();
 		return hasChanges;
+	}
+
+
+	private updateItemsOrder(): void {
+		if (this._items) {
+			this.items.forEach((item, index) => item.order = index);
+		}
 	}
 
 	get visibleItems(): ICompositeBarModelItem[] {
@@ -706,6 +719,8 @@ class CompositeBarModel {
 				item.visible = true;
 				changed = true;
 			}
+
+			this.updateItemsOrder();
 			return changed;
 		} else {
 			const item = this.createCompositeBarItem(id, name, order, true, true);
@@ -713,11 +728,14 @@ class CompositeBarModel {
 				this.items.push(item);
 			} else {
 				let index = 0;
+				console.log('adding new item');
 				while (index < this.items.length && typeof this.items[index].order === 'number' && this.items[index].order! < order) {
 					index++;
 				}
 				this.items.splice(index, 0, item);
 			}
+
+			this.updateItemsOrder();
 			return true;
 		}
 	}
@@ -726,6 +744,7 @@ class CompositeBarModel {
 		for (let index = 0; index < this.items.length; index++) {
 			if (this.items[index].id === id) {
 				this.items.splice(index, 1);
+				this.updateItemsOrder();
 				return true;
 			}
 		}
@@ -760,6 +779,8 @@ class CompositeBarModel {
 
 		// Make sure a moved composite gets pinned
 		sourceItem.pinned = true;
+
+		this.updateItemsOrder();
 
 		return true;
 	}

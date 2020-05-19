@@ -157,7 +157,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
 				(id: string, focus?: boolean) => this.viewsService.openViewContainer(id, focus),
-				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.verticallyBefore)
+				(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.verticallyBefore),
+				() => this.compositeBar.getCompositeBarItems(),
 			),
 			compositeSize: 52,
 			colors: (theme: IColorTheme) => this.getActivitybarItemColors(theme),
@@ -542,7 +543,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		}
 
 		this.viewContainerDisposables.delete(viewContainer.id);
-		this.hideComposite(viewContainer.id);
+		this.removeComposite(viewContainer.id);
 	}
 
 	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
@@ -610,6 +611,17 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private hideComposite(compositeId: string): void {
 		this.compositeBar.hideComposite(compositeId);
+
+		const compositeActions = this.compositeActions.get(compositeId);
+		if (compositeActions) {
+			compositeActions.activityAction.dispose();
+			compositeActions.pinnedAction.dispose();
+			this.compositeActions.delete(compositeId);
+		}
+	}
+
+	private removeComposite(compositeId: string): void {
+		this.compositeBar.removeComposite(compositeId);
 
 		const compositeActions = this.compositeActions.get(compositeId);
 		if (compositeActions) {
