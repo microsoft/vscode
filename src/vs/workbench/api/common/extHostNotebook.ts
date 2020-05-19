@@ -963,16 +963,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	}
 
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void {
-		let editor = this._getEditorFromURI(uriComponents);
+		const document = this._documents.get(URI.revive(uriComponents).toString());
 
-		if (editor) {
-			editor.editor.document.accpetModelChanged(event);
+		if (document) {
+			document.accpetModelChanged(event);
 			this._onDidChangeNotebookDocument.fire({
-				document: editor.editor.document,
+				document: document,
 				changes: [event]
 			});
 		}
-
 	}
 
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void {
