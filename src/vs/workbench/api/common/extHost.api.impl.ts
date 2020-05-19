@@ -1083,6 +1083,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
 			NotebookCellRunState: extHostTypes.NotebookCellRunState,
+			NotebookCellsChangeType: extHostTypes.NotebookCellsChangeType,
 			AuthenticationSession2: extHostTypes.AuthenticationSession
 		};
 	};

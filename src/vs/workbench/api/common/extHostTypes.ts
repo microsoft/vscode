@@ -2732,6 +2732,14 @@ export enum NotebookCellRunState {
 	Error = 4
 }
 
+export enum NotebookCellsChangeType {
+	ModelChange = 1,
+	MoveCell = 2,
+	ClearCellOutputs = 3,
+	ClearAllCellsOutputs = 4,
+	ChangeCellLanguage = 5
+}
+
 //#endregion
 
 //#region Timeline

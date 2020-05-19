@@ -1800,6 +1800,45 @@ declare module 'vscode' {
 		preloads?: Uri[];
 	}
 
+	export enum NotebookCellsChangeType {
+		ModelChange = 1,
+		MoveCell = 2,
+		ClearCellOutputs = 3,
+		ClearAllCellsOutputs = 4,
+		ChangeCellLanguage = 5
+	}
+
+	export interface NotebookCellsModelChangedEvent {
+		readonly kind: NotebookCellsChangeType.ModelChange;
+		readonly start: number;
+		readonly deletedCount: number;
+		readonly items: NotebookCell[];
+	}
+
+	export interface NotebookCellsModelMoveEvent {
+		readonly kind: NotebookCellsChangeType.MoveCell;
+		readonly index: number;
+		readonly newIndex: number;
+	}
+
+	export interface NotebookCellClearOutputEvent {
+		readonly kind: NotebookCellsChangeType.ClearCellOutputs;
+		readonly index: number;
+	}
+
+	export interface NotebookCellsClearOutputEvent {
+		readonly kind: NotebookCellsChangeType.ClearAllCellsOutputs;
+	}
+
+	export interface NotebookCellsChangeLanguageEvent {
+		readonly kind: NotebookCellsChangeType.ChangeCellLanguage;
+		readonly index: number;
+		readonly language: string;
+	}
+
+	export type NotebookContentChangeEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
+
+
 	export interface NotebookDocumentChangeEvent {
 
 		/**
@@ -1810,7 +1849,7 @@ declare module 'vscode' {
 		/**
 		 * An array of content changes.
 		 */
-		// readonly contentChanges: ReadonlyArray<TextDocumentContentChangeEvent>;
+		readonly contentChanges: ReadonlyArray<NotebookContentChangeEvent>;
 	}
 
 	export interface NotebookCellData {
