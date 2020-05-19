@@ -1800,56 +1800,57 @@ declare module 'vscode' {
 		preloads?: Uri[];
 	}
 
-	export enum NotebookCellsChangeType {
-		ModelChange = 1,
-		MoveCell = 2,
-		ClearCellOutputs = 3,
-		ClearAllCellsOutputs = 4,
-		ChangeCellLanguage = 5
-	}
 
-	export interface NotebookCellsModelChangedEvent {
-		readonly kind: NotebookCellsChangeType.ModelChange;
+	export interface NotebookCellsChange {
 		readonly start: number;
 		readonly deletedCount: number;
 		readonly items: NotebookCell[];
 	}
 
-	export interface NotebookCellsModelMoveEvent {
-		readonly kind: NotebookCellsChangeType.MoveCell;
-		readonly index: number;
-		readonly newIndex: number;
-	}
-
-	export interface NotebookCellClearOutputEvent {
-		readonly kind: NotebookCellsChangeType.ClearCellOutputs;
-		readonly index: number;
-	}
-
-	export interface NotebookCellsClearOutputEvent {
-		readonly kind: NotebookCellsChangeType.ClearAllCellsOutputs;
-	}
-
-	export interface NotebookCellsChangeLanguageEvent {
-		readonly kind: NotebookCellsChangeType.ChangeCellLanguage;
-		readonly index: number;
-		readonly language: string;
-	}
-
-	export type NotebookContentChangeEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
-
-
-	export interface NotebookDocumentChangeEvent {
+	export interface NotebookCellsChangeEvent {
 
 		/**
 		 * The affected document.
 		 */
 		readonly document: NotebookDocument;
+		readonly changes: ReadonlyArray<NotebookCellsChange>;
+	}
+
+	export interface NotebookCellMoveEvent {
 
 		/**
-		 * An array of content changes.
+		 * The affected document.
 		 */
-		readonly contentChanges: ReadonlyArray<NotebookContentChangeEvent>;
+		readonly document: NotebookDocument;
+		readonly index: number;
+		readonly newIndex: number;
+	}
+
+	export interface NotebookCellOutputsClearEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+	}
+
+	export interface NotebookAllCellsOutputsClearEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+	}
+
+	export interface NotebookCellLanguageChangeEvent {
+
+		/**
+		 * The affected document.
+		 */
+		readonly document: NotebookDocument;
+		readonly cell: NotebookCell;
+		readonly language: string;
 	}
 
 	export interface NotebookCellData {
@@ -1926,8 +1927,11 @@ declare module 'vscode' {
 
 		export let activeNotebookEditor: NotebookEditor | undefined;
 
-		export const onDidChangeNotebookDocument: Event<NotebookDocumentChangeEvent>;
-
+		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
+		export const onDidMoveNotebookCell: Event<NotebookCellMoveEvent>;
+		export const onDidClearCellOutputs: Event<NotebookCellOutputsClearEvent>;
+		export const onDidClearAllCellsOutputs: Event<NotebookAllCellsOutputsClearEvent>;
+		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
 		 * but a selector can be provided to narrow to down the set of cells.

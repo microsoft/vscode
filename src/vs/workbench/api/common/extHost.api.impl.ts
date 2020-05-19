@@ -944,9 +944,25 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.activeNotebookEditor;
 			},
-			onDidChangeNotebookDocument(listener, thisArgs?, disposables?) {
+			onDidChangeNotebookCells(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookDocument(listener, thisArgs, disposables);
+				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
+			},
+			onDidMoveNotebookCell(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidMoveNotebookCell(listener, thisArgs, disposables);
+			},
+			onDidClearCellOutputs(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidClearCellOutputs(listener, thisArgs, disposables);
+			},
+			onDidClearAllCellsOutputs(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidClearAllCellsOutputs(listener, thisArgs, disposables);
+			},
+			onDidChangeCellLanguage(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeCellLanguage(listener, thisArgs, disposables);
 			},
 			createConcatTextDocument(notebook, selector) {
 				checkProposedApiEnabled(extension);
@@ -1083,7 +1099,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CellKind: extHostTypes.CellKind,
 			CellOutputKind: extHostTypes.CellOutputKind,
 			NotebookCellRunState: extHostTypes.NotebookCellRunState,
-			NotebookCellsChangeType: extHostTypes.NotebookCellsChangeType,
 			AuthenticationSession2: extHostTypes.AuthenticationSession
 		};
 	};
