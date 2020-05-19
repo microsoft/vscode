@@ -10,7 +10,7 @@ import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterVa
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand } from 'vs/editor/common/editorCommon';
+import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand, INewScrollPosition } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
@@ -28,6 +28,7 @@ import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { Cursor } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -942,6 +943,18 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	}
 	public setScrollTop(newScrollTop: number, scrollType: ScrollType): void {
 		this.viewLayout.setScrollPosition({ scrollTop: newScrollTop }, scrollType);
+	}
+	public setScrollPosition(position: INewScrollPosition, type: ScrollType): void {
+		this.viewLayout.setScrollPosition(position, type);
+	}
+	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {
+		this.viewLayout.deltaScrollNow(deltaScrollLeft, deltaScrollTop);
+	}
+	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
+		return this.viewLayout.changeWhitespace(callback);
+	}
+	public setMaxLineWidth(maxLineWidth: number): void {
+		this.viewLayout.setMaxLineWidth(maxLineWidth);
 	}
 	//#endregion
 
