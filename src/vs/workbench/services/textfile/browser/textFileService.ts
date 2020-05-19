@@ -253,9 +253,11 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// contents and additional meta data (e.g. encoding).
 		else if (this.textModelService.hasTextModelContentProvider(source.scheme)) {
 			const modelReference = await this.textModelService.createModelReference(source);
-			success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
-
-			modelReference.dispose(); // free up our use of the reference
+			try {
+				success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
+			} finally {
+				modelReference.dispose(); // free up our use of the reference
+			}
 		}
 
 		// Finally we simply check if we can find a editor model that

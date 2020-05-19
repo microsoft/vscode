@@ -257,8 +257,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		try {
 			for (const conflict of conflicts) {
 				const modelRef = await this.textModelResolverService.createModelReference(conflict.remote);
-				await this.userDataSyncService.acceptConflict(conflict.remote, modelRef.object.textEditorModel.getValue());
-				modelRef.dispose();
+				try {
+					await this.userDataSyncService.acceptConflict(conflict.remote, modelRef.object.textEditorModel.getValue());
+				} finally {
+					modelRef.dispose();
+				}
 			}
 		} catch (e) {
 			this.notificationService.error(e);
@@ -269,8 +272,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		try {
 			for (const conflict of conflicts) {
 				const modelRef = await this.textModelResolverService.createModelReference(conflict.local);
-				await this.userDataSyncService.acceptConflict(conflict.local, modelRef.object.textEditorModel.getValue());
-				modelRef.dispose();
+				try {
+					await this.userDataSyncService.acceptConflict(conflict.local, modelRef.object.textEditorModel.getValue());
+				} finally {
+					modelRef.dispose();
+				}
 			}
 		} catch (e) {
 			this.notificationService.error(e);
