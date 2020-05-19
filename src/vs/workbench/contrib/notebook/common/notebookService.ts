@@ -20,7 +20,7 @@ export interface IMainNotebookController {
 	kernel: INotebookKernelInfoDto | undefined;
 	createNotebook(viewType: string, uri: URI, backup: INotebookTextModelBackup | undefined, forceReload: boolean, editorId?: string): Promise<NotebookTextModel | undefined>;
 	executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
-	onDidReceiveMessage(uri: URI, message: any): void;
+	onDidReceiveMessage(editorId: string, message: any): void;
 	executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void>;
 	removeNotebookDocument(notebook: INotebookTextModel): Promise<void>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
@@ -56,7 +56,7 @@ export interface INotebookService {
 	updateActiveNotebookEditor(editor: IEditor): void;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	onDidReceiveMessage(viewType: string, uri: URI, message: any): void;
+	onDidReceiveMessage(viewType: string, editorId: string, message: any): void;
 	setToCopy(items: NotebookCellTextModel[]): void;
 	getToCopy(): NotebookCellTextModel[] | undefined;
 

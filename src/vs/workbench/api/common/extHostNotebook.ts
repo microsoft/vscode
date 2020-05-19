@@ -954,8 +954,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		return editor;
 	}
 
-	$onDidReceiveMessage(uri: UriComponents, message: any): void {
-		let editor = this._getEditorFromURI(uri);
+	$onDidReceiveMessage(editorId: string, message: any): void {
+		let editor = this._editors.get(editorId);
 
 		if (editor) {
 			editor.onDidReceiveMessage.fire(message);

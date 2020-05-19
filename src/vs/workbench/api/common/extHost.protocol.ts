@@ -1574,7 +1574,7 @@ export interface ExtHostNotebookShape {
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
-	$onDidReceiveMessage(uri: UriComponents, message: any): void;
+	$onDidReceiveMessage(editorId: string, message: any): void;
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void;
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): Promise<void>;
