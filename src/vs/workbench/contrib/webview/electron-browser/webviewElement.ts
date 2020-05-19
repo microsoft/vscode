@@ -6,6 +6,7 @@
 import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag } from 'electron';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { equals } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -13,20 +14,22 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
+import { IWebviewMainService } from 'vs/workbench/contrib/webview/electron-browser/webviewMainService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { equals } from 'vs/base/common/arrays';
 
 
 class WebviewTagHandle extends Disposable {
@@ -188,8 +191,15 @@ class WebviewKeyboardHandler {
 	private readonly _webviews = new Set<WebviewTag>();
 	private readonly _isUsingNativeTitleBars: boolean;
 
-	constructor(configurationService: IConfigurationService) {
+	private readonly webviewMainService: IWebviewMainService;
+
+	constructor(
+		configurationService: IConfigurationService,
+		mainProcessService: IMainProcessService,
+	) {
 		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
+
+		this.webviewMainService = createChannelSender<IWebviewMainService>(mainProcessService.getChannel('webview'));
 	}
 
 	public add(webview: WebviewTag): IDisposable {
@@ -231,7 +241,7 @@ class WebviewKeyboardHandler {
 
 	private setIgnoreMenuShortcutsForWebview(webview: WebviewTag, value: boolean) {
 		if (this.shouldToggleMenuShortcutsEnablement) {
-			ipcRenderer.send('vscode:webview.setIgnoreMenuShortcuts', webview.getWebContentsId(), value);
+			this.webviewMainService.setIgnoreMenuShortcuts(webview.getWebContentsId(), value);
 		}
 	}
 }
@@ -240,9 +250,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	private static _webviewKeyboardHandler: WebviewKeyboardHandler | undefined;
 
-	private static getWebviewKeyboardHandler(configService: IConfigurationService) {
+	private static getWebviewKeyboardHandler(
+		configService: IConfigurationService,
+		mainProcessService: IMainProcessService,
+	) {
 		if (!this._webviewKeyboardHandler) {
-			this._webviewKeyboardHandler = new WebviewKeyboardHandler(configService);
+			this._webviewKeyboardHandler = new WebviewKeyboardHandler(configService, mainProcessService);
 		}
 		return this._webviewKeyboardHandler;
 	}
@@ -270,6 +283,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IEnvironmentService environementService: IEnvironmentService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
 		super(id, options, contentOptions, extension, _webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
 
@@ -286,7 +300,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		));
 
 		this._register(addDisposableListener(this.element!, 'did-start-loading', once(() => {
-			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService).add(this.element!));
+			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
 		})));
 
 		this._domReady = new Promise(resolve => {

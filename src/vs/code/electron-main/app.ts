@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow, dialog, session, webContents } from 'electron';
+import { app, ipcMain as ipc, systemPreferences, shell, Event, contentTracing, protocol, powerMonitor, IpcMainEvent, BrowserWindow, dialog, session } from 'electron';
 import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/platform';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -80,6 +80,7 @@ import { INativeEnvironmentService } from 'vs/platform/environment/node/environm
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
+import { WebviewChannel } from 'vs/platform/webview/electron-main/webviewIpcs';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -292,16 +293,6 @@ export class CodeApplication extends Disposable {
 		ipc.on('vscode:openDevTools', (event: IpcMainEvent) => event.sender.openDevTools());
 
 		ipc.on('vscode:reloadWindow', (event: IpcMainEvent) => event.sender.reload());
-
-		ipc.on('vscode:webview.setIgnoreMenuShortcuts', (_event: IpcMainEvent, webContentsId: number, enabled: boolean) => {
-			const contents = webContents.fromId(webContentsId);
-			if (!contents) {
-				throw new Error(`Invalid webContentsId: ${webContentsId}`);
-			}
-			if (!contents.isDestroyed()) {
-				contents.setIgnoreMenuShortcuts(enabled);
-			}
-		});
 
 		// Some listeners after window opened
 		(async () => {
@@ -587,6 +578,9 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
+
+		const webviewChannel = new WebviewChannel();
+		electronIpcServer.registerChannel('webview', webviewChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));
