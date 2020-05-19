@@ -219,6 +219,8 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		return this._versionId;
 	}
 
+	private _disposed = false;
+
 	constructor(
 		private readonly _proxy: MainThreadNotebookShape,
 		private _documentsAndEditors: ExtHostDocumentsAndEditors,
@@ -240,6 +242,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	}
 
 	dispose() {
+		this._disposed = true;
 		super.dispose();
 		this._cellDisposableMapping.forEach(cell => cell.dispose());
 	}
@@ -265,6 +268,10 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	}
 
 	private $spliceNotebookCells(splices: NotebookCellsSplice2[]): void {
+		if (this._disposed) {
+			return;
+		}
+
 		if (!splices.length) {
 			return;
 		}
@@ -1028,21 +1035,23 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 
 		if (delta.removedDocuments) {
 			delta.removedDocuments.forEach((uri) => {
-				let document = this._documents.get(URI.revive(uri).toString());
+				const revivedUri = URI.revive(uri);
+				const revivedUriStr = revivedUri.toString();
+				let document = this._documents.get(revivedUriStr);
 
 				if (document) {
 					document.dispose();
-					this._documents.delete(URI.revive(uri).toString());
+					this._documents.delete(revivedUriStr);
 					this._onDidCloseNotebookDocument.fire(document);
 				}
 
-				let editor = this._editors.get(URI.revive(uri).toString());
-
-				if (editor) {
-					editor.editor.dispose();
-					editor.onDidReceiveMessage.dispose();
-					this._editors.delete(URI.revive(uri).toString());
-				}
+				[...this._editors.values()].forEach((e) => {
+					if (e.editor.uri.toString() === revivedUriStr) {
+						e.editor.dispose();
+						e.onDidReceiveMessage.dispose();
+						this._editors.delete(e.editor.id);
+					}
+				});
 			});
 		}
 
@@ -1073,6 +1082,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						]
 					});
 
+					this._documents.get(revivedUriStr)?.dispose();
 					this._documents.set(revivedUriStr, document);
 
 					// create editor if populated
@@ -1103,6 +1113,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			});
 		}
 
+		const removedEditors: { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any>; }[] = [];
+
 		if (delta.removedEditors) {
 			delta.removedEditors.forEach(editorid => {
 				const editor = this._editors.get(editorid);
@@ -1111,7 +1123,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					editorChanged = true;
 					this._editors.delete(editorid);
 
-					// TODO, dispose the editor
+					if (this.activeNotebookEditor?.id === editor.editor.id) {
+						this._activeNotebookEditor = undefined;
+						this._activeNotebookDocument = undefined;
+					}
+
+					removedEditors.push(editor);
 				}
 			});
 		}
@@ -1119,12 +1136,17 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		if (editorChanged) {
 			this.visibleNotebookEditors = [...this._editors.values()].map(e => e.editor);
 			this._onDidChangeVisibleNotebookEditors.fire(this.visibleNotebookEditors);
+
+			removedEditors.forEach(e => {
+				e.editor.dispose();
+				e.onDidReceiveMessage.dispose();
+			});
 		}
 
 		if (delta.newActiveEditor !== undefined) {
 			if (delta.newActiveEditor) {
 				this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
-				this._activeNotebookDocument = this._documents.get(this._activeNotebookEditor!.uri.toString());
+				this._activeNotebookDocument = this._activeNotebookEditor ? this._documents.get(this._activeNotebookEditor!.uri.toString()) : undefined;
 			} else {
 				this._activeNotebookEditor = undefined;
 				this._activeNotebookDocument = undefined;

@@ -383,6 +383,31 @@ suite('notebook working copy', () => {
 		await vscode.commands.executeCommand('workbench.action.files.saveAll');
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
+
+	test('multiple tabs: different editors with same document', async function () {
+
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		await waitFor(500);
+		const firstNotebookEditor = vscode.notebook.activeNotebookEditor;
+		assert.equal(firstNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(firstNotebookEditor!.selection?.source, 'test');
+		assert.equal(firstNotebookEditor!.selection?.language, 'typescript');
+
+		await vscode.commands.executeCommand('workbench.action.splitEditor');
+		const secondNotebookEditor = vscode.notebook.activeNotebookEditor;
+		assert.equal(secondNotebookEditor !== undefined, true, 'notebook first');
+		assert.equal(secondNotebookEditor!.selection?.source, 'test');
+		assert.equal(secondNotebookEditor!.selection?.language, 'typescript');
+
+		assert.notEqual(firstNotebookEditor, secondNotebookEditor);
+		assert.equal(firstNotebookEditor?.document, secondNotebookEditor?.document, 'split notebook editors share the same document');
+		assert.notEqual(firstNotebookEditor?.asWebviewUri(vscode.Uri.parse('./hello.png')), secondNotebookEditor?.asWebviewUri(vscode.Uri.parse('./hello.png')));
+
+		await vscode.commands.executeCommand('workbench.action.files.saveAll');
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
 });
 
 suite('metadata', () => {
