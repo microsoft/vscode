@@ -9,6 +9,8 @@ import { Color } from 'vs/base/common/color';
 
 export class TestColorTheme implements IColorTheme {
 
+	public readonly label = 'test';
+
 	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
 	}
 

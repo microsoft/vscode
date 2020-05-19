@@ -179,7 +179,7 @@
 		let pendingMessages = [];
 
 		const initData = {
-			initialScrollProgress: undefined
+			initialScrollProgress: undefined,
 		};
 
 
@@ -195,6 +195,8 @@
 			if (body) {
 				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
 				body.classList.add(initData.activeTheme);
+
+				body.dataset.vscodeTheme = initData.themeName || '';
 			}
 
 			if (initData.styles) {
@@ -383,6 +385,7 @@
 			host.onMessage('styles', (_event, data) => {
 				initData.styles = data.styles;
 				initData.activeTheme = data.activeTheme;
+				initData.themeName = data.themeName;
 
 				const target = getActiveFrame();
 				if (!target) {
