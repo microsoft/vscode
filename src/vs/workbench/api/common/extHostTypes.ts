@@ -2774,3 +2774,9 @@ export class AuthenticationSession implements vscode.AuthenticationSession2 {
 }
 
 //#endregion Authentication
+export enum StandardTokenType {
+	Other = 0,
+	Comment = 1,
+	String = 2,
+	RegEx = 4
+}
