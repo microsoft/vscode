@@ -329,17 +329,20 @@ suite('Debug - CallStack', () => {
 		const session = createMockSession(model);
 		model.addSession(session);
 		const { firstStackFrame, secondStackFrame } = createTwoStackFrames(session);
-		let context = getContext(firstStackFrame);
+		let context = getContext(firstStackFrame)!;
+		assert.equal(context.itemType, 'node');
 		assert.equal(context.sessionId, firstStackFrame.thread.session.getId());
 		assert.equal(context.threadId, firstStackFrame.thread.getId());
 		assert.equal(context.frameId, firstStackFrame.getId());
 
-		context = getContext(secondStackFrame.thread);
+		context = getContext(secondStackFrame.thread)!;
+		assert.equal(context.itemType, 'node');
 		assert.equal(context.sessionId, secondStackFrame.thread.session.getId());
 		assert.equal(context.threadId, secondStackFrame.thread.getId());
 		assert.equal(context.frameId, undefined);
 
-		context = getContext(session);
+		context = getContext(session)!;
+		assert.equal(context.itemType, 'node');
 		assert.equal(context.sessionId, session.getId());
 		assert.equal(context.threadId, undefined);
 		assert.equal(context.frameId, undefined);

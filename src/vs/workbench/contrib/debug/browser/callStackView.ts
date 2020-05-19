@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler, ignoreErrors, sequence } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, State, IStackFrame, IDebugSession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE, IDebugModel, CONTEXT_CALLSTACK_SESSION_TYPE, CONTEXT_CALLSTACK_SESSION_ID, CONTEXT_CALLSTACK_FRAME_ID, CONTEXT_CALLSTACK_THREAD_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -48,17 +48,35 @@ const $ = dom.$;
 
 type CallStackItem = IStackFrame | IThread | IDebugSession | string | ThreadAndSessionIds | IStackFrame[];
 
-export function getContext(element: CallStackItem | null): any {
+export function getContext(element: CallStackItem | null): { [K in keyof MenuContextKeys]?: string } | undefined {
 	return element instanceof StackFrame ? {
+		itemType: 'stackFrame',
+		sessionType: element.thread.session.configuration.type,
 		sessionId: element.thread.session.getId(),
 		threadId: element.thread.getId(),
 		frameId: element.getId()
 	} : element instanceof Thread ? {
+		itemType: 'thread',
+		sessionType: element.session.configuration.type,
 		sessionId: element.session.getId(),
 		threadId: element.getId()
 	} : isDebugSession(element) ? {
-		sessionId: element.getId()
+		itemType: 'session',
+		sessionId: element.getId(),
+		sessionType: element.configuration.type,
 	} : undefined;
+}
+
+function updateMenuContext(context: MenuContextKeys, element: CallStackItem | null) {
+	const contextObj = getContext(element) ?? {};
+	for (const key of Object.keys(context) as (keyof MenuContextKeys)[]) {
+		const value = contextObj[key];
+		if (value !== undefined) {
+			context[key].set(value);
+		} else {
+			context[key].reset();
+		}
+	}
 }
 
 // Extensions depend on this context, should not be changed even though it is not fully deterministic
@@ -100,6 +118,14 @@ export function getSpecificSourceName(stackFrame: IStackFrame): string {
 	return (from > 0 ? '...' : '') + stackFrame.source.uri.path.substr(from);
 }
 
+interface MenuContextKeys {
+	itemType: IContextKey<string>;
+	sessionId: IContextKey<string>;
+	sessionType: IContextKey<string>;
+	threadId: IContextKey<string>;
+	frameId: IContextKey<string>;
+}
+
 export class CallStackView extends ViewPane {
 	private pauseMessage!: HTMLSpanElement;
 	private pauseMessageLabel!: HTMLSpanElement;
@@ -107,10 +133,10 @@ export class CallStackView extends ViewPane {
 	private needsRefresh = false;
 	private ignoreSelectionChangedEvent = false;
 	private ignoreFocusStackFrameEvent = false;
-	private callStackItemType: IContextKey<string>;
 	private dataSource!: CallStackDataSource;
 	private tree!: WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>;
 	private menu: IMenu;
+	private menuContextKeys: MenuContextKeys;
 	private parentSessionToExpand = new Set<IDebugSession>();
 	private selectionNeedsUpdate = false;
 
@@ -124,15 +150,23 @@ export class CallStackView extends ViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
-		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
-		this.menu = menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
+		const menuContextKeyService = contextKeyService.createScoped();
+		this.menu = menuService.createMenu(MenuId.DebugCallStackContext, menuContextKeyService);
+		this.menuContextKeys = {
+			itemType: CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(menuContextKeyService),
+			sessionType: CONTEXT_CALLSTACK_SESSION_TYPE.bindTo(menuContextKeyService),
+			sessionId: CONTEXT_CALLSTACK_SESSION_ID.bindTo(menuContextKeyService),
+			threadId: CONTEXT_CALLSTACK_THREAD_ID.bindTo(menuContextKeyService),
+			frameId: CONTEXT_CALLSTACK_FRAME_ID.bindTo(menuContextKeyService),
+		};
+
 		this._register(this.menu);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
@@ -194,7 +228,7 @@ export class CallStackView extends ViewPane {
 		const treeContainer = renderViewTree(container);
 
 		this.dataSource = new CallStackDataSource(this.debugService);
-		const sessionsRenderer = this.instantiationService.createInstance(SessionsRenderer, this.menu);
+		const sessionsRenderer = this.instantiationService.createInstance(SessionsRenderer, this.menu, this.menuContextKeys);
 		this.tree = <WorkbenchAsyncDataTree<CallStackItem | IDebugModel, CallStackItem, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'CallStackView', treeContainer, new CallStackDelegate(), [
 			sessionsRenderer,
 			new ThreadsRenderer(this.instantiationService),
@@ -392,16 +426,7 @@ export class CallStackView extends ViewPane {
 
 	private onContextMenu(e: ITreeContextMenuEvent<CallStackItem>): void {
 		const element = e.element;
-		if (isDebugSession(element)) {
-			this.callStackItemType.set('session');
-		} else if (element instanceof Thread) {
-			this.callStackItemType.set('thread');
-		} else if (element instanceof StackFrame) {
-			this.callStackItemType.set('stackFrame');
-		} else {
-			this.callStackItemType.reset();
-		}
-
+		updateMenuContext(this.menuContextKeys, element);
 
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -411,7 +436,6 @@ export class CallStackView extends ViewPane {
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,
-			getActionsContext: () => getContext(element),
 			onHide: () => dispose(actionsDisposable)
 		});
 	}
@@ -459,6 +483,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 
 	constructor(
 		private menu: IMenu,
+		private menuContextKeys: MenuContextKeys,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -498,6 +523,7 @@ class SessionsRenderer implements ITreeRenderer<IDebugSession, FuzzyScore, ISess
 		const thread = session.getAllThreads().find(t => t.stopped);
 
 		const setActionBar = () => {
+			updateMenuContext(this.menuContextKeys, element.element);
 			const actions = getActions(this.instantiationService, element.element);
 
 			const primary: IAction[] = actions;
