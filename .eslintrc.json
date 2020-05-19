@@ -810,7 +810,8 @@
                             "terminate",
                             "trigger",
                             "unregister",
-                            "write"
+                            "write",
+                            "move"
                         ]
                     }
                 ]

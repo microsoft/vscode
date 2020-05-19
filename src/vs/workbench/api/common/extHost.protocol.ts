@@ -1547,19 +1547,25 @@ export interface INotebookEditorPropertiesChangeData {
 export interface INotebookModelAddedData {
 	uri: UriComponents;
 	handle: number;
-	webviewId: string;
 	versionId: number;
 	cells: IMainCellDto[],
 	viewType: string;
 	metadata?: NotebookDocumentMetadata;
+	attachedEditor?: { id: string; selections: number[]; }
+}
+
+export interface INotebookEditorAddData {
+	id: string;
+	documentUri: UriComponents;
+	selections: number[];
 }
 
 export interface INotebookDocumentsAndEditorsDelta {
 	removedDocuments?: UriComponents[];
 	addedDocuments?: INotebookModelAddedData[];
-	// removedEditors?: string[];
-	// addedEditors?: ITextEditorAddData[];
-	newActiveEditor?: UriComponents | null;
+	removedEditors?: string[];
+	addedEditors?: INotebookEditorAddData[];
+	newActiveEditor?: string | null;
 }
 
 export interface ExtHostNotebookShape {
@@ -1569,7 +1575,7 @@ export interface ExtHostNotebookShape {
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$acceptDisplayOrder(displayOrder: INotebookDisplayOrder): void;
-	$onDidReceiveMessage(uri: UriComponents, message: any): void;
+	$onDidReceiveMessage(editorId: string, message: any): void;
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEvent): void;
 	$acceptEditorPropertiesChanged(uriComponents: UriComponents, data: INotebookEditorPropertiesChangeData): void;
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): Promise<void>;
