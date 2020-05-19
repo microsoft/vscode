@@ -196,7 +196,8 @@
 				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
 				body.classList.add(initData.activeTheme);
 
-				body.dataset.vscodeTheme = initData.themeName || '';
+				body.dataset.vscodeThemeKind = initData.activeTheme;
+				body.dataset.vscodeThemeName = initData.themeName || '';
 			}
 
 			if (initData.styles) {
