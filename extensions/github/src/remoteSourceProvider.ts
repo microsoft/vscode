@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RemoteSourceProvider, RemoteSource } from './typings/git';
+import { API as GitAPI, RemoteSourceProvider, RemoteSource, Repository } from './typings/git';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
+import { publishRepository } from './publish';
 
 function asRemoteSource(raw: any): RemoteSource {
 	return {
@@ -22,6 +23,8 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 	readonly supportsQuery = true;
 
 	private userReposCache: RemoteSource[] = [];
+
+	constructor(private gitAPI: GitAPI) { }
 
 	async getRemoteSources(query?: string): Promise<RemoteSource[]> {
 		const octokit = await getOctokit();
@@ -56,5 +59,9 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 
 		const raw = await octokit.search.repos({ q: query, sort: 'updated' });
 		return raw.data.items.map(asRemoteSource);
+	}
+
+	publishRepository(repository: Repository): Promise<void> {
+		return publishRepository(this.gitAPI, repository);
 	}
 }

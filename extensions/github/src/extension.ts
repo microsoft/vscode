@@ -14,6 +14,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	const gitAPI = gitExtension.getAPI(1);
 
 	context.subscriptions.push(...registerCommands(gitAPI));
-	context.subscriptions.push(gitAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider()));
+	context.subscriptions.push(gitAPI.registerRemoteSourceProvider(new GithubRemoteSourceProvider(gitAPI)));
 	context.subscriptions.push(new GithubCredentialProviderManager(gitAPI));
 }
