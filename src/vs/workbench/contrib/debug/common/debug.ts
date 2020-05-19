@@ -155,6 +155,7 @@ export interface IDebugSessionOptions {
 	noDebug?: boolean;
 	parentSession?: IDebugSession;
 	repl?: IDebugSessionReplMode;
+	compoundRoot?: IDebugCompoundRoot;
 }
 
 export interface IDebugSession extends ITreeElement {
@@ -518,6 +519,7 @@ export interface IConfig extends IEnvConfig {
 
 export interface ICompound {
 	name: string;
+	stopAll?: boolean;
 	preLaunchTask?: string | TaskIdentifier;
 	configurations: (string | { name: string, folder: string })[];
 	presentation?: IConfigPresentation;
@@ -909,4 +911,10 @@ export interface IDebugHelperService {
 	_serviceBrand: undefined;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
+}
+
+export interface IDebugCompoundRoot {
+	onShouldSessionsStop: Event<void>;
+
+	didStop(): void;
 }
