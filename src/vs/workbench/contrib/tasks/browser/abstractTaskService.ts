@@ -11,7 +11,7 @@ import * as json from 'vs/base/common/json';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, IReference } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -72,7 +72,7 @@ import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomat
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { format } from 'vs/base/common/jsonFormatter';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
@@ -1066,15 +1066,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (typeof task === 'string') {
 					stringValue = task;
 				} else {
-					const model = (await this.textModelResolverService.createModelReference(resource)).object.textEditorModel;
-					const { tabSize, insertSpaces } = model.getOptions();
-					const eol = model.getEOL();
-					const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
-					let stringified = applyEdits(JSON.stringify(task), edits);
-					const regex = new RegExp(eol + '\\t', 'g');
-					stringified = stringified.replace(regex, eol + '\t\t\t');
-					const twoTabs = '\t\t';
-					stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+					let reference: IReference<IResolvedTextEditorModel> | undefined;
+					try {
+						reference = await this.textModelResolverService.createModelReference(resource);
+						const model = reference.object.textEditorModel;
+						const { tabSize, insertSpaces } = model.getOptions();
+						const eol = model.getEOL();
+						const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
+						let stringified = applyEdits(JSON.stringify(task), edits);
+						const regex = new RegExp(eol + '\\t', 'g');
+						stringified = stringified.replace(regex, eol + '\t\t\t');
+						const twoTabs = '\t\t';
+						stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+					} finally {
+						if (reference) {
+							reference.dispose();
+						}
+					}
 				}
 
 				const index = contentValue.indexOf(stringValue);
