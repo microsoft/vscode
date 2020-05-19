@@ -1099,6 +1099,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						e.editor.dispose();
 						e.onDidReceiveMessage.dispose();
 						this._editors.delete(e.editor.id);
+						editorChanged = true;
 					}
 				});
 			});
