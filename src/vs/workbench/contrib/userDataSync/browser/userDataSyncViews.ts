@@ -242,17 +242,8 @@ export class UserDataSyncDataViews extends Disposable {
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const commandService = accessor.get(ICommandService);
-				const dialogService = accessor.get(IDialogService);
-				const result = await dialogService.confirm({
-					message: localize('reset', "This will clear your synced data from the cloud and stop sync on all your devices."),
-					title: localize('reset title', "Reset Synced Data"),
-					type: 'info',
-					primaryButton: localize('reset button', "Reset"),
-				});
-				if (result.confirmed) {
-					await commandService.executeCommand(TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID);
-					await view.refresh();
-				}
+				await commandService.executeCommand(TURN_OFF_EVERYWHERE_SYNC_COMMAND_ID);
+				await view.refresh();
 			}
 		});
 	}
