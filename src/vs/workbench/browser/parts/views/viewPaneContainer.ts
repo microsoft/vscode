@@ -1581,7 +1581,7 @@ registerAction2(
 				keybinding: {
 					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.UpArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: undefined
+					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, -1);
 		}
@@ -1597,7 +1597,7 @@ registerAction2(
 				keybinding: {
 					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.LeftArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: undefined
+					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, -1);
 		}
@@ -1613,7 +1613,7 @@ registerAction2(
 				keybinding: {
 					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.DownArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: undefined
+					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, 1);
 		}
@@ -1629,7 +1629,7 @@ registerAction2(
 				keybinding: {
 					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.RightArrow,
 					weight: KeybindingWeight.WorkbenchContrib,
-					when: undefined
+					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, 1);
 		}
