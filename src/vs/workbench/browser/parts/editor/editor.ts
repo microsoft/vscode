@@ -14,6 +14,7 @@ import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { localize } from 'vs/nls';
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
@@ -40,6 +41,24 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	iconTheme: 'vs-seti',
 	splitSizing: 'distribute'
 };
+
+export function computeEditorAriaLabel(input: IEditorInput, group: IEditorGroup | undefined, groupCount: number): string {
+	let ariaLabel = input.ariaLabel;
+	if (group && !group.isPinned(input)) {
+		ariaLabel += localize('preview', ", preview");
+	}
+	if (group && group.isSticky(input)) {
+		ariaLabel += localize('pinned', ", pinned");
+	}
+	// Apply group information to help identify in
+	// which group we are (only if more than one group
+	// is actually opened)
+	if (group && groupCount > 1) {
+		ariaLabel += ', ' + group.ariaLabel;
+	}
+
+	return ariaLabel;
+}
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
 	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme');

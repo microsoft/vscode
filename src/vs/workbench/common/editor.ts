@@ -383,6 +383,8 @@ export interface IEditorInput extends IDisposable {
 	 */
 	readonly resource: URI | undefined;
 
+	ariaLabel: string;
+
 	/**
 	 * Unique type identifier for this inpput.
 	 */
@@ -510,6 +512,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	getTitle(verbosity?: Verbosity): string {
 		return this.getName();
+	}
+
+	get ariaLabel(): string {
+		return this.getTitle(Verbosity.SHORT);
 	}
 
 	/**
