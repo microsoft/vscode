@@ -141,7 +141,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	public hasTextModelContentProvider(scheme: string): boolean {
+	public canHandleResource(resource: URI): boolean {
 		return false;
 	}
 
@@ -548,6 +548,7 @@ export class StandaloneTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
 
 	public isOptedIn = false;
+	public sendErrorTelemetry = false;
 
 	public setEnabled(value: boolean): void {
 	}

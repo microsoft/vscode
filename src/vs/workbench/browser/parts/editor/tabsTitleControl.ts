@@ -31,10 +31,10 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, EditorServiceImpl, EDITOR_TITLE_HEIGHT, computeEditorAriaLabel } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsControl } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -102,7 +102,8 @@ export class TabsTitleControl extends TitleControl {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(parent, accessor, group, contextMenuService, instantiationService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickInputService, themeService, extensionService, configurationService, fileService);
 
@@ -194,15 +195,12 @@ export class TabsTitleControl extends TitleControl {
 
 	private updateBreadcrumbsControl(): void {
 		if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
-			// relayout when we have a breadcrumbs and when update changed
-			// its hidden-status
-			this.group.relayout();
+			this.group.relayout(); // relayout when we have a breadcrumbs and when update changed its hidden-status
 		}
 	}
 
 	protected handleBreadcrumbsEnablementChange(): void {
-		// relayout when breadcrumbs are enable/disabled
-		this.group.relayout();
+		this.group.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
@@ -886,12 +884,12 @@ export class TabsTitleControl extends TitleControl {
 		const { verbosity, shortenDuplicates } = this.getLabelConfigFlags(labelFormat);
 
 		// Build labels and descriptions for each editor
-		const labels = this.group.editors.map(editor => ({
+		const labels = this.group.editors.map((editor, index) => ({
 			editor,
 			name: editor.getName(),
 			description: editor.getDescription(verbosity),
 			title: withNullAsUndefined(editor.getTitle(Verbosity.LONG)),
-			ariaLabel: editor.isReadonly() ? localize('readonlyEditor', "{0} readonly", editor.getTitle(Verbosity.SHORT)) : editor.getTitle(Verbosity.SHORT)
+			ariaLabel: computeEditorAriaLabel(editor, index, this.group, this.editorGroupService.count)
 		}));
 
 		// Shorten labels as needed
@@ -1192,6 +1190,10 @@ export class TabsTitleControl extends TitleControl {
 		}
 
 		return hasModifiedBorderColor;
+	}
+
+	getPreferredHeight(): number {
+		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
 	}
 
 	layout(dimension: Dimension | undefined): void {

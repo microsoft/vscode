@@ -12,7 +12,7 @@ import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID, IExplorerService } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorCloseEvent, Verbosity } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -243,11 +243,6 @@ export class TextFileEditor extends BaseTextEditor {
 
 			this.explorerService.select(input.resource, true);
 		}
-	}
-
-	protected getAriaLabel(): string {
-		const title = this.input?.getTitle(Verbosity.SHORT) || nls.localize('fileEditorAriaLabel', "editor");
-		return this.input?.isReadonly() ? nls.localize('readonlyEditor', "{0} readonly", title) : title;
 	}
 
 	clearInput(): void {

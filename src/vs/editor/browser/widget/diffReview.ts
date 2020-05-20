@@ -269,6 +269,7 @@ export class DiffReview extends Disposable {
 
 	private hide(): void {
 		this._isVisible = false;
+		this._diffEditor.updateOptions({ readOnly: false });
 		this._diffEditor.focus();
 		this._diffEditor.doLayout();
 		this._render();
@@ -541,6 +542,7 @@ export class DiffReview extends Disposable {
 			return;
 		}
 
+		this._diffEditor.updateOptions({ readOnly: true });
 		const diffIndex = this._findDiffIndex(this._diffEditor.getPosition()!);
 
 		if (this._diffs[diffIndex] === this._currentDiff) {

@@ -149,7 +149,7 @@ export const enum SyncResource {
 export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
 
 export interface IUserDataManifest {
-	latest?: Record<SyncResource, string>
+	latest?: Record<ServerResource, string>
 	session: string;
 }
 
@@ -159,16 +159,17 @@ export interface IResourceRefHandle {
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export type ServerResource = SyncResource | 'machines';
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
-	read(resource: SyncResource, oldValue: IUserData | null): Promise<IUserData>;
-	write(resource: SyncResource, content: string, ref: string | null): Promise<string>;
+	read(resource: ServerResource, oldValue: IUserData | null): Promise<IUserData>;
+	write(resource: ServerResource, content: string, ref: string | null): Promise<string>;
 	manifest(): Promise<IUserDataManifest | null>;
 	clear(): Promise<void>;
-	getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: SyncResource, ref: string): Promise<string | null>;
-	delete(resource: SyncResource): Promise<void>;
+	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
+	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
+	delete(resource: ServerResource): Promise<void>;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
@@ -189,12 +190,14 @@ export enum UserDataSyncErrorCode {
 	Forbidden = 'Forbidden',
 	ConnectionRefused = 'ConnectionRefused',
 	RemotePreconditionFailed = 'RemotePreconditionFailed',
+	TooManyRequests = 'RemoteTooManyRequests',
 	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
 
 	// Local Errors
+	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
 	LocalError = 'LocalError',
@@ -223,7 +226,11 @@ export class UserDataSyncError extends Error {
 
 }
 
-export class UserDataSyncStoreError extends UserDataSyncError { }
+export class UserDataSyncStoreError extends UserDataSyncError {
+	constructor(message: string, code: UserDataSyncErrorCode) {
+		super(message, code);
+	}
+}
 
 //#endregion
 
@@ -274,7 +281,8 @@ export interface IUserDataSynchroniser {
 
 	pull(): Promise<void>;
 	push(): Promise<void>;
-	sync(ref?: string): Promise<void>;
+	sync(manifest: IUserDataManifest | null): Promise<void>;
+	replace(uri: URI): Promise<boolean>;
 	stop(): Promise<void>;
 
 	getSyncPreview(): Promise<ISyncPreviewResult>
@@ -330,6 +338,7 @@ export interface IUserDataSyncService {
 	pull(): Promise<void>;
 	sync(): Promise<void>;
 	stop(): Promise<void>;
+	replace(uri: URI): Promise<void>;
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 
@@ -369,9 +378,6 @@ export interface IConflictSetting {
 //#endregion
 
 export const USER_DATA_SYNC_SCHEME = 'vscode-userdata-sync';
-export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
-export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
-
 export const PREVIEW_DIR_NAME = 'preview';
 export function getSyncResourceFromLocalPreview(localPreview: URI, environmentService: IEnvironmentService): SyncResource | undefined {
 	if (localPreview.scheme === USER_DATA_SYNC_SCHEME) {
@@ -380,3 +386,30 @@ export function getSyncResourceFromLocalPreview(localPreview: URI, environmentSe
 	localPreview = localPreview.with({ scheme: environmentService.userDataSyncHome.scheme });
 	return ALL_SYNC_RESOURCES.filter(syncResource => isEqualOrParent(localPreview, joinPath(environmentService.userDataSyncHome, syncResource, PREVIEW_DIR_NAME)))[0];
 }
+
+export function getSyncAreaLabel(source: SyncResource): string {
+	switch (source) {
+		case SyncResource.Settings: return localize('settings', "Settings");
+		case SyncResource.Keybindings: return localize('keybindings', "Keyboard Shortcuts");
+		case SyncResource.Snippets: return localize('snippets', "User Snippets");
+		case SyncResource.Extensions: return localize('extensions', "Extensions");
+		case SyncResource.GlobalState: return localize('ui state label', "UI State");
+	}
+}
+
+export const enum AccountStatus {
+	Uninitialized = 'uninitialized',
+	Unavailable = 'unavailable',
+	Available = 'available',
+}
+
+// Contexts
+export const CONTEXT_SYNC_STATE = new RawContextKey<string>('syncStatus', SyncStatus.Uninitialized);
+export const CONTEXT_SYNC_ENABLEMENT = new RawContextKey<boolean>('syncEnabled', false);
+export const CONTEXT_ENABLE_VIEWS = new RawContextKey<boolean>(`showUserDataSyncViews`, false);
+export const CONTEXT_ACCOUNT_STATE = new RawContextKey<string>('userDataSyncAccountStatus', AccountStatus.Uninitialized);
+
+// Commands
+export const ENABLE_SYNC_VIEWS_COMMAND_ID = 'workbench.userDataSync.actions.enableViews';
+export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
+export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';

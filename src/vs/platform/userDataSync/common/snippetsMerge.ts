@@ -26,7 +26,7 @@ export function merge(local: IStringDictionary<string>, remote: IStringDictionar
 			removed: values(removed),
 			updated,
 			conflicts: [],
-			remote: local
+			remote: Object.keys(local).length > 0 ? local : null
 		};
 	}
 

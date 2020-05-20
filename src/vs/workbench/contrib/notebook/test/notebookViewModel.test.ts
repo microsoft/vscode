@@ -156,11 +156,7 @@ suite('NotebookViewModel', () => {
 			(editor, viewModel) => {
 				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, hasExecutionOrder: true };
 
-				const defaults = {
-					runState: undefined,
-					statusMessage: undefined,
-					executionOrder: undefined
-				};
+				const defaults = {};
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,

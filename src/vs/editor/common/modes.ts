@@ -1411,11 +1411,12 @@ export interface RenameProvider {
  */
 export interface AuthenticationSession {
 	id: string;
-	getAccessToken(): Thenable<string>;
+	accessToken: string;
 	account: {
 		displayName: string;
 		id: string;
 	}
+	scopes: string[];
 }
 
 /**

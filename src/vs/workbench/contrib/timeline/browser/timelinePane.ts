@@ -883,7 +883,7 @@ export class TimelinePane extends ViewPane {
 					if (isLoadMoreCommand(element)) {
 						return element.ariaLabel;
 					}
-					return element.ariaLabel ?? localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
+					return element.accessibilityInformation ? element.accessibilityInformation.label : localize('timeline.aria.item', "{0}: {1}", element.relativeTime ?? '', element.label);
 				},
 				getWidgetAriaLabel(): string {
 					return localize('timeline', "Timeline");

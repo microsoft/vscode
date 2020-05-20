@@ -46,7 +46,7 @@ function doSearchTest(query: ITextQuery, expectedResultCount: number | Function)
 	});
 }
 
-suite('Search-integration', function () {
+suite('TextSearch-integration', function () {
 	this.timeout(1000 * 60); // increase timeout for this suite
 
 	test('Text: GameOfLife', () => {

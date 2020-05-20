@@ -53,7 +53,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IUserDataSyncService, IUserDataSyncStoreService, registerConfiguration, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, StorageKeysSyncRegistryChannelClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
+import { UserDataSyncChannel, UserDataSyncUtilServiceClient, UserDataAutoSyncChannel, StorageKeysSyncRegistryChannelClient, UserDataSyncMachinesServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
@@ -70,6 +70,7 @@ import { AuthenticationTokenServiceChannel } from 'vs/platform/authentication/co
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
+import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 export interface ISharedProcessConfiguration {
 	readonly machineId: string;
@@ -200,6 +201,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 		services.set(IUserDataSyncUtilService, new UserDataSyncUtilServiceClient(server.getChannel('userDataSyncUtil', client => client.ctx !== 'main')));
 		services.set(IGlobalExtensionEnablementService, new SyncDescriptor(GlobalExtensionEnablementService));
 		services.set(IUserDataSyncStoreService, new SyncDescriptor(UserDataSyncStoreService));
+		services.set(IUserDataSyncMachinesService, new SyncDescriptor(UserDataSyncMachinesService));
 		services.set(IUserDataSyncBackupStoreService, new SyncDescriptor(UserDataSyncBackupStoreService));
 		services.set(IUserDataSyncEnablementService, new SyncDescriptor(UserDataSyncEnablementService));
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
@@ -225,12 +227,16 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 			const extensionTipsChannel = new ExtensionTipsChannel(extensionTipsService);
 			server.registerChannel('extensionTipsService', extensionTipsChannel);
 
+			const userDataSyncMachinesService = accessor.get(IUserDataSyncMachinesService);
+			const userDataSyncMachineChannel = new UserDataSyncMachinesServiceChannel(userDataSyncMachinesService);
+			server.registerChannel('userDataSyncMachines', userDataSyncMachineChannel);
+
 			const authTokenService = accessor.get(IAuthenticationTokenService);
 			const authTokenChannel = new AuthenticationTokenServiceChannel(authTokenService);
 			server.registerChannel('authToken', authTokenChannel);
 
 			const userDataSyncService = accessor.get(IUserDataSyncService);
-			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService);
+			const userDataSyncChannel = new UserDataSyncChannel(userDataSyncService, logService);
 			server.registerChannel('userDataSync', userDataSyncChannel);
 
 			const userDataAutoSync = instantiationService2.createInstance(UserDataAutoSyncService);

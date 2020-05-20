@@ -18,7 +18,7 @@ export interface IMergeResult {
 
 export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStorage: IStringDictionary<IStorageValue> | null, baseStorage: IStringDictionary<IStorageValue> | null, storageKeys: ReadonlyArray<IStorageKey>, previouslySkipped: string[], logService: ILogService): IMergeResult {
 	if (!remoteStorage) {
-		return { remote: localStorage, local: { added: {}, removed: [], updated: {} }, skipped: [] };
+		return { remote: Object.keys(localStorage).length > 0 ? localStorage : null, local: { added: {}, removed: [], updated: {} }, skipped: [] };
 	}
 
 	const localToRemote = compare(localStorage, remoteStorage);
@@ -40,7 +40,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
 		if (!storageKey) {
 			skipped.push(key);
-			logService.info(`GlobalState: Skipped adding ${key} in local storage as it is not registered.`);
+			logService.trace(`GlobalState: Skipped adding ${key} in local storage as it is not registered.`);
 			continue;
 		}
 		if (storageKey.version !== remoteValue.version) {
@@ -64,7 +64,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
 		if (!storageKey) {
 			skipped.push(key);
-			logService.info(`GlobalState: Skipped updating ${key} in local storage as is not registered.`);
+			logService.trace(`GlobalState: Skipped updating ${key} in local storage as is not registered.`);
 			continue;
 		}
 		if (storageKey.version !== remoteValue.version) {
@@ -82,7 +82,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	for (const key of values(baseToRemote.removed)) {
 		const storageKey = storageKeys.filter(storageKey => storageKey.key === key)[0];
 		if (!storageKey) {
-			logService.info(`GlobalState: Skipped removing ${key} in local storage. It is not registered to sync.`);
+			logService.trace(`GlobalState: Skipped removing ${key} in local storage. It is not registered to sync.`);
 			continue;
 		}
 		local.removed.push(key);
@@ -120,7 +120,7 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 		// do not remove from remote if storage key is not found
 		if (!storageKey) {
 			skipped.push(key);
-			logService.info(`GlobalState: Skipped removing ${key} in remote storage. It is not registered to sync.`);
+			logService.trace(`GlobalState: Skipped removing ${key} in remote storage. It is not registered to sync.`);
 			continue;
 		}
 

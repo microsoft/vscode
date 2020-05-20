@@ -76,4 +76,14 @@ suite('Links', () => {
 			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
 		);
 	});
+
+	test('node module subfolder resolving', function () {
+
+		let testUri = getTestResource('subdir/about.css');
+		let folders = [{ name: 'x', uri: getTestResource('') }];
+
+		assertLinks('html { background-image: url("~foo/hello.html|")',
+			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
+		);
+	});
 });

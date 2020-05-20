@@ -15,6 +15,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { Event } from 'vs/base/common/event';
 
 suite('SettingsSync', () => {
 
@@ -43,12 +44,66 @@ suite('SettingsSync', () => {
 
 	setup(async () => {
 		client = disposableStore.add(new UserDataSyncClient(server));
-		await client.setUp();
+		await client.setUp(true);
 		testObject = (client.instantiationService.get(IUserDataSyncService) as UserDataSyncService).getSynchroniser(SyncResource.Settings) as SettingsSynchroniser;
 		disposableStore.add(toDisposable(() => client.instantiationService.get(IUserDataSyncStoreService).clear()));
 	});
 
 	teardown(() => disposableStore.clear());
+
+	test('when settings file does not exist', async () => {
+		const fileService = client.instantiationService.get(IFileService);
+		const settingResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+
+		assert.deepEqual(await testObject.getLastSyncUserData(), null);
+		let manifest = await client.manifest();
+		server.reset();
+		await testObject.sync(manifest);
+
+		assert.deepEqual(server.requests, [
+			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
+		]);
+		assert.ok(!await fileService.exists(settingResource));
+
+		const lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
+		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
+		assert.equal(lastSyncUserData!.syncData, null);
+
+		manifest = await client.manifest();
+		server.reset();
+		await testObject.sync(manifest);
+		assert.deepEqual(server.requests, []);
+
+		manifest = await client.manifest();
+		server.reset();
+		await testObject.sync(manifest);
+		assert.deepEqual(server.requests, []);
+	});
+
+	test('when settings file is created after first sync', async () => {
+		const fileService = client.instantiationService.get(IFileService);
+
+		const settingsResource = client.instantiationService.get(IEnvironmentService).settingsResource;
+		await testObject.sync(await client.manifest());
+		await fileService.createFile(settingsResource, VSBuffer.fromString('{}'));
+
+		let lastSyncUserData = await testObject.getLastSyncUserData();
+		const manifest = await client.manifest();
+		server.reset();
+		await testObject.sync(manifest);
+
+		assert.deepEqual(server.requests, [
+			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': lastSyncUserData?.ref } },
+		]);
+
+		lastSyncUserData = await testObject.getLastSyncUserData();
+		const remoteUserData = await testObject.getRemoteUserData(null);
+		assert.deepEqual(lastSyncUserData!.ref, remoteUserData.ref);
+		assert.deepEqual(lastSyncUserData!.syncData, remoteUserData.syncData);
+		assert.equal(testObject.parseSettingsSyncContent(lastSyncUserData!.syncData!.content!)?.settings, '{}');
+	});
 
 	test('sync for first time to the server', async () => {
 		const expected =
@@ -75,7 +130,7 @@ suite('SettingsSync', () => {
 }`;
 
 		await updateSettings(expected);
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -99,7 +154,7 @@ suite('SettingsSync', () => {
 }`;
 		await updateSettings(settingsContent);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -130,7 +185,7 @@ suite('SettingsSync', () => {
 }`;
 		await updateSettings(settingsContent);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -161,7 +216,7 @@ suite('SettingsSync', () => {
 }`;
 		await updateSettings(settingsContent);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -185,7 +240,7 @@ suite('SettingsSync', () => {
 }`;
 		await updateSettings(settingsContent);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -203,7 +258,7 @@ suite('SettingsSync', () => {
 }`;
 		await updateSettings(settingsContent);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -211,6 +266,24 @@ suite('SettingsSync', () => {
 		assert.deepEqual(actual, `{
 	,
 }`);
+	});
+
+	test('local change event is triggered when settings are changed', async () => {
+		const content =
+			`{
+	"files.autoSave": "afterDelay",
+	"files.simpleDialog.enable": true,
+}`;
+
+		await updateSettings(content);
+		await testObject.sync(await client.manifest());
+
+		const promise = Event.toPromise(testObject.onDidChangeLocal);
+		await updateSettings(`{
+	"files.autoSave": "off",
+	"files.simpleDialog.enable": true,
+}`);
+		await promise;
 	});
 
 	test('do not sync ignored settings', async () => {
@@ -237,7 +310,7 @@ suite('SettingsSync', () => {
 }`;
 		await updateSettings(settingsContent);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -285,7 +358,7 @@ suite('SettingsSync', () => {
 }`;
 		await updateSettings(settingsContent);
 
-		await testObject.sync();
+		await testObject.sync(await client.manifest());
 
 		const { content } = await client.read(testObject.resource);
 		assert.ok(content !== null);
@@ -333,7 +406,7 @@ suite('SettingsSync', () => {
 		await updateSettings(expected);
 
 		try {
-			await testObject.sync();
+			await testObject.sync(await client.manifest());
 			assert.fail('should fail with invalid content error');
 		} catch (e) {
 			assert.ok(e instanceof UserDataSyncError);

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { once } from 'vs/base/common/functional';
+import { Iterable } from 'vs/base/common/iterator';
 
 /**
  * Enables logging of potentially leaked disposables.
@@ -54,25 +55,25 @@ export function isDisposable<E extends object>(thing: E): thing is E & IDisposab
 
 export function dispose<T extends IDisposable>(disposable: T): T;
 export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
+export function dispose<T extends IDisposable, A extends IterableIterator<T> = IterableIterator<T>>(disposables: IterableIterator<T>): A;
 export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
 export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
-export function dispose<T extends IDisposable>(disposables: T | T[] | undefined): T | T[] | undefined {
-	if (Array.isArray(disposables)) {
-		disposables.forEach(d => {
+export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
+	if (Iterable.is(arg)) {
+		for (let d of arg) {
 			if (d) {
 				markTracked(d);
 				d.dispose();
 			}
-		});
-		return [];
-	} else if (disposables) {
-		markTracked(disposables);
-		disposables.dispose();
-		return disposables;
-	} else {
-		return undefined;
+		}
+		return arg;
+	} else if (arg) {
+		markTracked(arg);
+		arg.dispose();
+		return arg;
 	}
 }
+
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	disposables.forEach(markTracked);

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IScrollPosition, Scrollable } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { IViewLineTokens } from 'vs/editor/common/core/lineTokens';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { IViewEventListener } from 'vs/editor/common/view/viewEvents';
+import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
+import { IViewEventEmitter, VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
+import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -43,8 +44,6 @@ export interface IViewLayout {
 
 	getScrollable(): Scrollable;
 
-	onMaxLineWidthChanged(width: number): void;
-
 	getScrollWidth(): number;
 	getScrollHeight(): number;
 
@@ -55,9 +54,6 @@ export interface IViewLayout {
 	getFutureViewport(): Viewport;
 
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
-	setScrollPositionNow(position: INewScrollPosition): void;
-	setScrollPositionSmooth(position: INewScrollPosition): void;
-	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
@@ -68,18 +64,10 @@ export interface IViewLayout {
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
-	// --------------- Begin vertical whitespace management
-	changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T;
-
 	/**
 	 * Get the layout information for whitespaces currently in the viewport
 	 */
 	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
-
-	// TODO@Alex whitespace management should work via a change accessor sort of thing
-	onHeightMaybeChanged(): void;
-
-	// --------------- End vertical whitespace management
 }
 
 export interface ICoordinatesConverter {
@@ -95,13 +83,15 @@ export interface ICoordinatesConverter {
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
-export interface IViewModel {
+export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 
-	addEventListener(listener: IViewEventListener): IDisposable;
+	readonly model: ITextModel;
 
 	readonly coordinatesConverter: ICoordinatesConverter;
 
 	readonly viewLayout: IViewLayout;
+
+	readonly cursorConfig: CursorConfiguration;
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
@@ -117,7 +107,7 @@ export interface IViewModel {
 	getCompletelyVisibleViewRange(): Range;
 	getCompletelyVisibleViewRangeAtScrollTop(scrollTop: number): Range;
 
-	getOptions(): TextModelResolvedOptions;
+	getTextModelOptions(): TextModelResolvedOptions;
 	getLineCount(): number;
 	getLineContent(lineNumber: number): string;
 	getLineLength(lineNumber: number): number;
@@ -140,6 +130,38 @@ export interface IViewModel {
 	getEOL(): string;
 	getPlainTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[];
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string, mode: string } | null;
+
+	//#region model
+
+	pushStackElement(): void;
+
+	//#endregion
+
+
+	//#region cursor
+	getPrimaryCursorState(): CursorState;
+	getLastAddedCursorIndex(): number;
+	getCursorStates(): CursorState[];
+	setCursorStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
+	getCursorColumnSelectData(): IColumnSelectData;
+	setCursorColumnSelectData(columnSelectData: IColumnSelectData): void;
+	getPrevEditOperationType(): EditOperationType;
+	setPrevEditOperationType(type: EditOperationType): void;
+	revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean): void;
+	revealTopMostCursor(source: string | null | undefined): void;
+	revealBottomMostCursor(source: string | null | undefined): void;
+	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
+	//#endregion
+
+	//#region viewLayout
+	getVerticalOffsetForLineNumber(viewLineNumber: number): number;
+	getScrollTop(): number;
+	setScrollTop(newScrollTop: number, scrollType: ScrollType): void;
+	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
+	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
+	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
+	setMaxLineWidth(maxLineWidth: number): void;
+	//#endregion
 }
 
 export class MinimapLinesRenderingData {

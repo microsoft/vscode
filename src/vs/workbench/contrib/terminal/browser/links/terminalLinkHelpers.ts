@@ -93,10 +93,12 @@ export function convertBufferRangeToViewport(bufferRange: IBufferRange, viewport
 	};
 }
 
-export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number): string {
+export function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	let line = '';
 	for (let i = lineStart; i <= lineEnd; i++) {
-		line += buffer.getLine(i)?.translateToString(true);
+		// Make sure only 0 to cols are considered as resizing when windows mode is enabled will
+		// retain buffer data outside of the terminal width as reflow is disabled.
+		line += buffer.getLine(i)!.translateToString(true, 0, cols);
 	}
 	return line;
 }

@@ -36,15 +36,17 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 	private readonly _pieceTree: PieceTreeBase;
 	private readonly _BOM: string;
 	private _mightContainRTL: boolean;
+	private _mightContainUnusualLineTerminators: boolean;
 	private _mightContainNonBasicASCII: boolean;
 
 	private readonly _onDidChangeContent: Emitter<void> = new Emitter<void>();
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
+	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, containsUnusualLineTerminators: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
 		this._BOM = BOM;
 		this._mightContainNonBasicASCII = !isBasicASCII;
 		this._mightContainRTL = containsRTL;
+		this._mightContainUnusualLineTerminators = containsUnusualLineTerminators;
 		this._pieceTree = new PieceTreeBase(chunks, eol, eolNormalized);
 	}
 	dispose(): void {
@@ -66,6 +68,12 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 	}
 	public mightContainRTL(): boolean {
 		return this._mightContainRTL;
+	}
+	public mightContainUnusualLineTerminators(): boolean {
+		return this._mightContainUnusualLineTerminators;
+	}
+	public resetMightContainUnusualLineTerminators(): void {
+		this._mightContainUnusualLineTerminators = false;
 	}
 	public mightContainNonBasicASCII(): boolean {
 		return this._mightContainNonBasicASCII;
@@ -216,6 +224,7 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 
 	public applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult {
 		let mightContainRTL = this._mightContainRTL;
+		let mightContainUnusualLineTerminators = this._mightContainUnusualLineTerminators;
 		let mightContainNonBasicASCII = this._mightContainNonBasicASCII;
 		let canReduceOperations = true;
 
@@ -226,12 +235,20 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 				canReduceOperations = false;
 			}
 			let validatedRange = op.range;
-			if (!mightContainRTL && op.text) {
-				// check if the new inserted text contains RTL
-				mightContainRTL = strings.containsRTL(op.text);
-			}
-			if (!mightContainNonBasicASCII && op.text) {
-				mightContainNonBasicASCII = !strings.isBasicASCII(op.text);
+			if (op.text) {
+				let textMightContainNonBasicASCII = true;
+				if (!mightContainNonBasicASCII) {
+					textMightContainNonBasicASCII = !strings.isBasicASCII(op.text);
+					mightContainNonBasicASCII = textMightContainNonBasicASCII;
+				}
+				if (!mightContainRTL && textMightContainNonBasicASCII) {
+					// check if the new inserted text contains RTL
+					mightContainRTL = strings.containsRTL(op.text);
+				}
+				if (!mightContainUnusualLineTerminators && textMightContainNonBasicASCII) {
+					// check if the new inserted text contains unusual line terminators
+					mightContainUnusualLineTerminators = strings.containsUnusualLineTerminators(op.text);
+				}
 			}
 
 			let validText = '';
@@ -340,6 +357,7 @@ export class PieceTreeTextBuffer implements ITextBuffer, IDisposable {
 
 
 		this._mightContainRTL = mightContainRTL;
+		this._mightContainUnusualLineTerminators = mightContainUnusualLineTerminators;
 		this._mightContainNonBasicASCII = mightContainNonBasicASCII;
 
 		const contentChanges = this._doApplyEdits(operations);

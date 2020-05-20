@@ -44,7 +44,7 @@ export interface IListViewDragAndDrop<T> extends IListDragAndDrop<T> {
 export interface IListViewAccessibilityProvider<T> {
 	getSetSize?(element: T, index: number, listLength: number): number;
 	getPosInSet?(element: T, index: number): number;
-	getRole?(element: T): string;
+	getRole?(element: T): string | undefined;
 	isChecked?(element: T): boolean | undefined;
 }
 
@@ -158,7 +158,7 @@ class ListViewAccessibilityProvider<T> implements Required<IListViewAccessibilit
 
 	readonly getSetSize: (element: any, index: number, listLength: number) => number;
 	readonly getPosInSet: (element: any, index: number) => number;
-	readonly getRole: (element: T) => string;
+	readonly getRole: (element: T) => string | undefined;
 	readonly isChecked: (element: T) => boolean | undefined;
 
 	constructor(accessibilityProvider?: IListViewAccessibilityProvider<T>) {
@@ -278,7 +278,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.rowsContainer = document.createElement('div');
 		this.rowsContainer.className = 'monaco-list-rows';
 
-		if (options.transformOptimization) {
+		const transformOptimization = getOrDefault(options, o => o.transformOptimization, DefaultOptions.transformOptimization);
+		if (transformOptimization) {
 			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
 		}
 
@@ -651,7 +652,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		if (!item.row) {
 			item.row = this.cache.alloc(item.templateId);
-			const role = this.accessibilityProvider.getRole(item.element);
+			const role = this.accessibilityProvider.getRole(item.element) || 'listitem';
 			item.row!.domNode!.setAttribute('role', role);
 			const checked = this.accessibilityProvider.isChecked(item.element);
 			if (typeof checked !== 'undefined') {

@@ -7,7 +7,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IScrollPosition, ScrollEvent, Scrollable, ScrollbarVisibility, INewScrollPosition } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
-import { IConfiguration, IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
+import { IConfiguration, IContentSizeChangedEvent, ScrollType } from 'vs/editor/common/editorCommon';
 import { LinesLayout, IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IViewLayout, IViewWhitespaceViewportData, Viewport } from 'vs/editor/common/viewModel/viewModel';
@@ -324,7 +324,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		}
 	}
 
-	public onMaxLineWidthChanged(maxLineWidth: number): void {
+	public setMaxLineWidth(maxLineWidth: number): void {
 		const scrollDimensions = this._scrollable.getScrollDimensions();
 		// const newScrollWidth = ;
 		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
@@ -353,8 +353,11 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	// ---- IVerticalLayoutProvider
-	public changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T {
-		return this._linesLayout.changeWhitespace(callback);
+	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
+		const hadAChange = this._linesLayout.changeWhitespace(callback);
+		if (hadAChange) {
+			this.onHeightMaybeChanged();
+		}
 	}
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
 		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber);
@@ -424,12 +427,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		return this._scrollable.validateScrollPosition(scrollPosition);
 	}
 
-	public setScrollPositionNow(position: INewScrollPosition): void {
-		this._scrollable.setScrollPositionNow(position);
-	}
-
-	public setScrollPositionSmooth(position: INewScrollPosition): void {
-		this._scrollable.setScrollPositionSmooth(position);
+	public setScrollPosition(position: INewScrollPosition, type: ScrollType): void {
+		if (type === ScrollType.Immediate) {
+			this._scrollable.setScrollPositionNow(position);
+		} else {
+			this._scrollable.setScrollPositionSmooth(position);
+		}
 	}
 
 	public deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void {

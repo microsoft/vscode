@@ -486,7 +486,7 @@ class ExtHostTreeView<T> extends Disposable {
 		return node;
 	}
 
-	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem, parent: TreeNode | Root): TreeNode {
+	private createTreeNode(element: T, extensionTreeItem: vscode.TreeItem2, parent: TreeNode | Root): TreeNode {
 		const disposable = new DisposableStore();
 		const handle = this.createHandle(element, extensionTreeItem, parent);
 		const icon = this.getLightIconPath(extensionTreeItem);
@@ -502,7 +502,8 @@ class ExtHostTreeView<T> extends Disposable {
 			icon,
 			iconDark: this.getDarkIconPath(extensionTreeItem) || icon,
 			themeIcon: extensionTreeItem.iconPath instanceof ThemeIcon ? { id: extensionTreeItem.iconPath.id } : undefined,
-			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState
+			collapsibleState: isUndefinedOrNull(extensionTreeItem.collapsibleState) ? TreeItemCollapsibleState.None : extensionTreeItem.collapsibleState,
+			accessibilityInformation: extensionTreeItem.accessibilityInformation
 		};
 
 		return {
