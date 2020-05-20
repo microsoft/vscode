@@ -353,11 +353,12 @@ export class ViewLayout extends Disposable implements IViewLayout {
 	}
 
 	// ---- IVerticalLayoutProvider
-	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
+	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): boolean {
 		const hadAChange = this._linesLayout.changeWhitespace(callback);
 		if (hadAChange) {
 			this.onHeightMaybeChanged();
 		}
+		return hadAChange;
 	}
 	public getVerticalOffsetForLineNumber(lineNumber: number): number {
 		return this._linesLayout.getVerticalOffsetForLineNumber(lineNumber);

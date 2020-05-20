@@ -42,7 +42,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
-import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
@@ -63,8 +62,6 @@ export interface IOverlayWidgetData {
 }
 
 export class View extends ViewEventHandler {
-
-	private readonly eventDispatcher: ViewEventDispatcher;
 
 	private _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
@@ -107,18 +104,15 @@ export class View extends ViewEventHandler {
 
 		const viewController = new ViewController(configuration, model, this.outgoingEvents, commandDelegate);
 
-		// The event dispatcher will always go through _renderOnce before dispatching any events
-		this.eventDispatcher = new ViewEventDispatcher((callback: () => void) => this._renderOnce(callback));
+		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
+		this._context = new ViewContext(configuration, themeService.getColorTheme(), model);
 
 		// Ensure the view is the first event handler in order to update the layout
-		this.eventDispatcher.addEventHandler(this);
-
-		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, themeService.getColorTheme(), model, this.eventDispatcher);
+		this._context.addEventHandler(this);
 
 		this._register(themeService.onDidColorThemeChange(theme => {
 			this._context.theme.update(theme);
-			this.eventDispatcher.emit(new viewEvents.ViewThemeChangedEvent());
+			this._context.model.onDidColorThemeChange();
 			this.render(true, false);
 		}));
 
@@ -224,10 +218,6 @@ export class View extends ViewEventHandler {
 
 		// Pointer handler
 		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
-
-		this._register(model.addViewEventListener((events: viewEvents.ViewEvent[]) => {
-			this.eventDispatcher.emitMany(events);
-		}));
 	}
 
 	private _flushAccumulatedAndRenderNow(): void {
@@ -300,7 +290,10 @@ export class View extends ViewEventHandler {
 	}
 
 	// --- begin event handlers
-
+	public handleEvents(events: viewEvents.ViewEvent[]): void {
+		super.handleEvents(events);
+		this._scheduleRender();
+	}
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		this.domNode.setClassName(this.getEditorClassName());
 		this._applyLayout();
@@ -340,7 +333,7 @@ export class View extends ViewEventHandler {
 			this._renderAnimationFrame = null;
 		}
 
-		this.eventDispatcher.removeEventHandler(this);
+		this._context.removeEventHandler(this);
 		this.outgoingEvents.dispose();
 
 		this.viewLines.dispose();
@@ -352,12 +345,6 @@ export class View extends ViewEventHandler {
 		this.viewParts = [];
 
 		super.dispose();
-	}
-
-	private _renderOnce<T>(callback: () => T): T {
-		const r = safeInvokeNoArg(callback);
-		this._scheduleRender();
-		return r;
 	}
 
 	private _scheduleRender(): void {
@@ -477,13 +464,9 @@ export class View extends ViewEventHandler {
 	}
 
 	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
-		return this._renderOnce(() => {
-			const zonesHaveChanged = this.viewZones.changeViewZones(callback);
-			if (zonesHaveChanged) {
-				this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
-			}
-			return zonesHaveChanged;
-		});
+		const hadAChange = this.viewZones.changeViewZones(callback);
+		this._scheduleRender();
+		return hadAChange;
 	}
 
 	public render(now: boolean, everything: boolean): void {

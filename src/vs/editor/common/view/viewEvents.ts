@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as errors from 'vs/base/common/errors';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ViewModelEventDispatcher } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -330,25 +330,14 @@ export interface IViewEventListener {
 	(events: ViewEvent[]): void;
 }
 
-export interface IViewEventEmitter {
-	addViewEventListener(listener: IViewEventListener): IDisposable;
-}
-
-export class ViewEventEmitter extends Disposable implements IViewEventEmitter {
-	private _listeners: IViewEventListener[];
+export class ViewEventEmitter extends Disposable {
 	private _collector: ViewEventsCollector | null;
 	private _collectorCnt: number;
 
 	constructor() {
 		super();
-		this._listeners = [];
 		this._collector = null;
 		this._collectorCnt = 0;
-	}
-
-	public dispose(): void {
-		this._listeners = [];
-		super.dispose();
 	}
 
 	protected _beginEmitViewEvents(): ViewEventsCollector {
@@ -359,44 +348,24 @@ export class ViewEventEmitter extends Disposable implements IViewEventEmitter {
 		return this._collector!;
 	}
 
-	protected _endEmitViewEvents(): void {
+	protected _endEmitViewEvents(eventDispatcher: ViewModelEventDispatcher): void {
 		this._collectorCnt--;
 		if (this._collectorCnt === 0) {
 			const events = this._collector!.finalize();
 			this._collector = null;
 			if (events.length > 0) {
-				this._emit(events);
+				eventDispatcher.emitMany(events);
 			}
 		}
 	}
 
-	protected _emitSingleViewEvent(event: ViewEvent): void {
+	protected _emitSingleViewEvent(eventDispatcher: ViewModelEventDispatcher, event: ViewEvent): void {
 		try {
 			const eventsCollector = this._beginEmitViewEvents();
 			eventsCollector.emit(event);
 		} finally {
-			this._endEmitViewEvents();
+			this._endEmitViewEvents(eventDispatcher);
 		}
-	}
-
-	private _emit(events: ViewEvent[]): void {
-		const listeners = this._listeners.slice(0);
-		for (let i = 0, len = listeners.length; i < len; i++) {
-			safeInvokeListener(listeners[i], events);
-		}
-	}
-
-	public addViewEventListener(listener: IViewEventListener): IDisposable {
-		this._listeners.push(listener);
-		return toDisposable(() => {
-			let listeners = this._listeners;
-			for (let i = 0, len = listeners.length; i < len; i++) {
-				if (listeners[i] === listener) {
-					listeners.splice(i, 1);
-					break;
-				}
-			}
-		});
 	}
 }
 
@@ -420,12 +389,4 @@ export class ViewEventsCollector {
 		return result;
 	}
 
-}
-
-function safeInvokeListener(listener: IViewEventListener, events: ViewEvent[]): void {
-	try {
-		listener(events);
-	} catch (e) {
-		errors.onUnexpectedError(e);
-	}
 }

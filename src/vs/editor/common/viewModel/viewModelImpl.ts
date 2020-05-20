@@ -29,6 +29,8 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
+import { ViewModelEventDispatcher } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -37,6 +39,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly editorId: number;
 	private readonly configuration: IConfiguration;
 	public readonly model: ITextModel;
+	private readonly _eventDispatcher: ViewModelEventDispatcher;
 	public cursorConfig: CursorConfiguration;
 	private readonly _tokenizeViewportSoon: RunOnceScheduler;
 	private readonly _updateConfigurationViewLineCount: RunOnceScheduler;
@@ -63,6 +66,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.editorId = editorId;
 		this.configuration = configuration;
 		this.model = model;
+		this._eventDispatcher = new ViewModelEventDispatcher();
 		this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this.configuration);
 		this._tokenizeViewportSoon = this._register(new RunOnceScheduler(() => this.tokenizeViewport(), 50));
 		this._updateConfigurationViewLineCount = this._register(new RunOnceScheduler(() => this._updateConfigurationViewLineCountNow(), 0));
@@ -104,11 +108,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			if (e.scrollTopChanged) {
 				this._tokenizeViewportSoon.schedule();
 			}
-			this._emitSingleViewEvent(new viewEvents.ViewScrollChangedEvent(e));
+			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewScrollChangedEvent(e));
 		}));
 
 		this._register(this.viewLayout.onDidContentSizeChange((e) => {
-			this._emitSingleViewEvent(new viewEvents.ViewContentSizeChangedEvent(e));
+			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewContentSizeChangedEvent(e));
 		}));
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
@@ -120,12 +124,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				const eventsCollector = this._beginEmitViewEvents();
 				this._onConfigurationChanged(eventsCollector, e);
 			} finally {
-				this._endEmitViewEvents();
+				this._endEmitViewEvents(this._eventDispatcher);
 			}
 		}));
 
 		this._register(MinimapTokensColorTracker.getInstance().onDidChange(() => {
-			this._emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
+			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
 		this._updateConfigurationViewLineCountNow();
@@ -139,6 +143,14 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.lines.dispose();
 		this.invalidateMinimapColorCache();
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+	}
+
+	public addViewEventHandler(eventHandler: ViewEventHandler): void {
+		this._eventDispatcher.addViewEventHandler(eventHandler);
+	}
+
+	public removeViewEventHandler(eventHandler: ViewEventHandler): void {
+		this._eventDispatcher.removeViewEventHandler(eventHandler);
 	}
 
 	private _updateConfigurationViewLineCountNow(): void {
@@ -155,6 +167,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	public setHasFocus(hasFocus: boolean): void {
 		this.hasFocus = hasFocus;
 		this.cursor.setHasFocus(hasFocus);
+		this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewFocusChangedEvent(hasFocus));
+	}
+
+	public onDidColorThemeChange(): void {
+		this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewThemeChangedEvent());
 	}
 
 	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: ConfigurationChangedEvent): void {
@@ -308,7 +325,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					this.decorations.onLineMappingChanged();
 				}
 			} finally {
-				this._endEmitViewEvents();
+				this._endEmitViewEvents(this._eventDispatcher);
 			}
 
 			// Update the configuration and reset the centered view line
@@ -330,7 +347,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				const eventsCollector = this._beginEmitViewEvents();
 				this.cursor.onModelContentChanged(eventsCollector, e);
 			} finally {
-				this._endEmitViewEvents();
+				this._endEmitViewEvents(this._eventDispatcher);
 			}
 		}));
 
@@ -345,7 +362,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					toLineNumber: viewEndLineNumber
 				};
 			}
-			this._emitSingleViewEvent(new viewEvents.ViewTokensChangedEvent(viewRanges));
+			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewTokensChangedEvent(viewRanges));
 
 			if (e.tokenizationSupportChanged) {
 				this._tokenizeViewportSoon.schedule();
@@ -353,7 +370,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}));
 
 		this._register(this.model.onDidChangeLanguageConfiguration((e) => {
-			this._emitSingleViewEvent(new viewEvents.ViewLanguageConfigurationEvent());
+			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewLanguageConfigurationEvent());
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this.configuration);
 			this.cursor.updateConfiguration(this.cursorConfig);
 		}));
@@ -375,7 +392,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					this.decorations.onLineMappingChanged();
 					this.viewLayout.onFlushed(this.getLineCount());
 				} finally {
-					this._endEmitViewEvents();
+					this._endEmitViewEvents(this._eventDispatcher);
 				}
 				this._updateConfigurationViewLineCount.schedule();
 			}
@@ -386,7 +403,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this._register(this.model.onDidChangeDecorations((e) => {
 			this.decorations.onModelDecorationsChanged();
-			this._emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
+			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewDecorationsChangedEvent(e));
 		}));
 	}
 
@@ -404,7 +421,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				this.viewLayout.onHeightMaybeChanged();
 			}
 		} finally {
-			this._endEmitViewEvents();
+			this._endEmitViewEvents(this._eventDispatcher);
 		}
 		this._updateConfigurationViewLineCount.schedule();
 	}
@@ -951,7 +968,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.viewLayout.deltaScrollNow(deltaScrollLeft, deltaScrollTop);
 	}
 	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
-		return this.viewLayout.changeWhitespace(callback);
+		const hadAChange = this.viewLayout.changeWhitespace(callback);
+		if (hadAChange) {
+			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewZonesChangedEvent());
+		}
 	}
 	public setMaxLineWidth(maxLineWidth: number): void {
 		this.viewLayout.setMaxLineWidth(maxLineWidth);
@@ -963,7 +983,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			const eventsCollector = this._beginEmitViewEvents();
 			callback(eventsCollector);
 		} finally {
-			this._endEmitViewEvents();
+			this._endEmitViewEvents(this._eventDispatcher);
 		}
 	}
 }
