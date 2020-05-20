@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { smokeTestActivate } from './notebookSmokeTestMain';
 
 export function activate(context: vscode.ExtensionContext): any {
@@ -66,13 +67,38 @@ export function activate(context: vscode.ExtensionContext): any {
 				_cell = _document.cells[0];
 			}
 
+			if (_document.uri.path.endsWith('customRenderer.vsctestnb')) {
+				_cell.outputs = [{
+					outputKind: vscode.CellOutputKind.Rich,
+					data: {
+						'text/custom': 'test'
+					}
+				}];
+
+				return;
+			}
+
 			_cell.outputs = [{
 				outputKind: vscode.CellOutputKind.Rich,
 				data: {
 					'text/plain': ['my output']
 				}
 			}];
+
 			return;
+		}
+	}));
+
+	const preloadUri = vscode.Uri.file(path.resolve(__dirname, '../src/customRenderer.js'));
+	context.subscriptions.push(vscode.notebook.registerNotebookOutputRenderer('notebookCoreTestRenderer', {
+		type: 'display_data',
+		subTypes: [
+			'text/custom'
+		]
+	}, {
+		preloads: [preloadUri],
+		render(_document: vscode.NotebookDocument, _output: vscode.CellDisplayOutput, _mimeType: string): string {
+			return '<div>test</div>';
 		}
 	}));
 }

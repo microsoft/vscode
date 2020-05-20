@@ -689,13 +689,32 @@ suite('regression', () => {
 
 });
 
-suite('webview resource uri', () => {
+suite('webview', () => {
 	test('asWebviewUri', async function () {
 		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
 		const uri = vscode.notebook.activeNotebookEditor!.asWebviewUri(vscode.Uri.parse('./hello.png'));
 		assert.equal(uri.scheme, 'vscode-webview-resource');
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
+
+	test('custom renderer message', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './customRenderer.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+
+		const editor = vscode.notebook.activeNotebookEditor;
+		const promise = new Promise(resolve => {
+			const messageEmitter = editor?.onDidReceiveMessage(e => {
+				if (e.type === 'custom_renderer_initialize') {
+					resolve();
+					messageEmitter?.dispose();
+				}
+			});
+		});
+
+		await vscode.commands.executeCommand('notebook.cell.execute');
+		await promise;
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 });
