@@ -43,18 +43,18 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 };
 
 export function computeEditorAriaLabel(input: IEditorInput, group: IEditorGroup | undefined, groupCount: number): string {
-	let ariaLabel = input.ariaLabel;
+	let ariaLabel = input.getAriaLabel();
 	if (group && !group.isPinned(input)) {
-		ariaLabel += localize('preview', ", preview");
+		ariaLabel = `${ariaLabel}, ${localize('preview', "preview")}`;
 	}
 	if (group && group.isSticky(input)) {
-		ariaLabel += localize('pinned', ", pinned");
+		ariaLabel = `${ariaLabel}, ${localize('pinned', "pinned")}`;
 	}
 	// Apply group information to help identify in
 	// which group we are (only if more than one group
 	// is actually opened)
 	if (group && groupCount > 1) {
-		ariaLabel += ', ' + group.ariaLabel;
+		ariaLabel = `${ariaLabel}, ${group.ariaLabel}`;
 	}
 
 	return ariaLabel;
