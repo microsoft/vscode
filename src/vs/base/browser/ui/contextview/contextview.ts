@@ -261,8 +261,8 @@ export class ContextView extends Disposable {
 		DOM.toggleClass(this.view, 'fixed', this.useFixedPosition);
 
 		const containerPosition = DOM.getDomNodePagePosition(this.container!);
-		this.view.style.top = `${top - (this.useFixedPosition ? 0 : containerPosition.top)}px`;
-		this.view.style.left = `${left - (this.useFixedPosition ? 0 : containerPosition.left)}px`;
+		this.view.style.top = `${top - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).top : containerPosition.top)}px`;
+		this.view.style.left = `${left - (this.useFixedPosition ? DOM.getDomNodePagePosition(this.view).left : containerPosition.left)}px`;
 		this.view.style.width = 'initial';
 	}
 
