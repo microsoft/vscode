@@ -179,6 +179,12 @@ declare module 'vscode' {
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
 
 		/**
+		 * The ids of the currently registered authentication providers.
+		 * @returns An array of the ids of authentication providers that are currently registered.
+		 */
+		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
+
+		/**
 		 * An array of the ids of authentication providers that are currently registered.
 		 */
 		export const providerIds: string[];

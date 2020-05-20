@@ -22,6 +22,7 @@ export interface IAuthenticationService {
 	_serviceBrand: undefined;
 
 	isAuthenticationProviderRegistered(id: string): boolean;
+	getProviderIds(): string[];
 	registerAuthenticationProvider(id: string, provider: MainThreadAuthenticationProvider): void;
 	unregisterAuthenticationProvider(id: string): void;
 	requestNewSession(id: string, scopes: string[], extensionId: string, extensionName: string): void;
@@ -31,10 +32,11 @@ export interface IAuthenticationService {
 	readonly onDidUnregisterAuthenticationProvider: Event<string>;
 
 	readonly onDidChangeSessions: Event<{ providerId: string, event: AuthenticationSessionsChangeEvent }>;
-	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession> | undefined>;
+	getSessions(providerId: string): Promise<ReadonlyArray<AuthenticationSession>>;
 	getDisplayName(providerId: string): string;
+	supportsMultipleAccounts(providerId: string): boolean;
 	login(providerId: string, scopes: string[]): Promise<AuthenticationSession>;
-	logout(providerId: string, accountId: string): Promise<void>;
+	logout(providerId: string, sessionId: string): Promise<void>;
 }
 
 export interface AllowedExtension {
@@ -90,6 +92,14 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				precondition: ContextKeyExpr.false()
 			},
 		});
+	}
+
+	getProviderIds(): string[] {
+		const providerIds: string[] = [];
+		this._authenticationProviders.forEach(provider => {
+			providerIds.push(provider.id);
+		});
+		return providerIds;
 	}
 
 	isAuthenticationProviderRegistered(id: string): boolean {
@@ -285,13 +295,22 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession> | undefined> {
+	supportsMultipleAccounts(id: string): boolean {
+		const authProvider = this._authenticationProviders.get(id);
+		if (authProvider) {
+			return authProvider.supportsMultipleAccounts;
+		} else {
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
+		}
+	}
+
+	async getSessions(id: string): Promise<ReadonlyArray<AuthenticationSession>> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
 			return await authProvider.getSessions();
+		} else {
+			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
-
-		return undefined;
 	}
 
 	async login(id: string, scopes: string[]): Promise<AuthenticationSession> {
@@ -303,10 +322,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 	}
 
-	async logout(id: string, accountId: string): Promise<void> {
+	async logout(id: string, sessionId: string): Promise<void> {
 		const authProvider = this._authenticationProviders.get(id);
 		if (authProvider) {
-			return authProvider.logout(accountId);
+			return authProvider.logout(sessionId);
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
