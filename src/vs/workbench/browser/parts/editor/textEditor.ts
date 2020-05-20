@@ -103,7 +103,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 	}
 
 	private computeAriaLabel(): string {
-		return this._input ? computeEditorAriaLabel(this._input, this.group, this.editorGroupService.count) : localize('editor', "Editor");
+		return this._input ? computeEditorAriaLabel(this._input, undefined, this.group, this.editorGroupService.count) : localize('editor', "Editor");
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
