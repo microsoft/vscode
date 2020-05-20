@@ -20,6 +20,9 @@ import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSy
 import { isEqual } from 'vs/base/common/resources';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
 import { Throttler } from 'vs/base/common/async';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { isWeb } from 'vs/base/common/platform';
 
 type SyncClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -67,7 +70,9 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 		this.syncThrottler = new Throttler();
@@ -131,7 +136,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 			// Server has no data but this machine was synced before
 			if (manifest === null && await this.hasPreviouslySynced()) {
-				// Sync was turned off from other machine
+				// Sync was turned off in the cloud
 				throw new UserDataSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
 			}
 
@@ -139,6 +144,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			// Server session is different from client session
 			if (sessionId && manifest && sessionId !== manifest.session) {
 				throw new UserDataSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
+			}
+
+			const machines = await this.userDataSyncMachinesService.getMachines(manifest || undefined);
+			const currentMachine = machines.find(machine => machine.isCurrent);
+
+			// Check if sync was turned off from other machine
+			if (currentMachine?.disabled) {
+				// Unset the current machine
+				await this.userDataSyncMachinesService.unset();
+				// Throw TurnedOff error
+				throw new UserDataSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
 			}
 
 			for (const synchroniser of this.synchronisers) {
@@ -158,6 +174,20 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			// Update local session id
 			if (manifest && manifest.session !== sessionId) {
 				this.storageService.store(SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL);
+			}
+
+			if (!currentMachine) {
+				// add current machine to sync server
+				const namePrefix = `${this.productService.nameLong}${isWeb ? ' (Web)' : ''}`;
+				const nameRegEx = new RegExp(`${namePrefix}\\s#(\\d)`);
+
+				let nameIndex = 0;
+				for (const machine of machines) {
+					const matches = nameRegEx.exec(machine.name);
+					const index = matches ? parseInt(matches[1]) : 0;
+					nameIndex = index > nameIndex ? index : nameIndex;
+				}
+				await this.userDataSyncMachinesService.updateName(`${namePrefix} #${nameIndex + 1}`, manifest || undefined);
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
@@ -248,16 +278,19 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async reset(): Promise<void> {
 		await this.checkEnablement();
 		await this.resetRemote();
-		await this.resetLocal();
+		await this.resetLocal(true);
 	}
 
-	async resetLocal(): Promise<void> {
+	async resetLocal(donotUnsetMachine?: boolean): Promise<void> {
 		await this.checkEnablement();
 		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
+		if (!donotUnsetMachine) {
+			await this.userDataSyncMachinesService.unset();
+		}
 		for (const synchroniser of this.synchronisers) {
 			try {
-				synchroniser.resetLocal();
+				await synchroniser.resetLocal();
 			} catch (e) {
 				this.logService.error(`${synchroniser.resource}: ${toErrorMessage(e)}`);
 				this.logService.error(e);

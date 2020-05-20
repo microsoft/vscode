@@ -32,6 +32,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSyncWorkbenchService';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
@@ -69,19 +71,21 @@ export class UserDataSyncDataViews extends Disposable {
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 	) {
 		super();
 		this.registerViews(container);
 	}
 
 	private registerViews(container: ViewContainer): void {
-		const remoteView = this.registerView(container, true, true);
+		const remoteView = this.registerDataView(container, true, true);
 		this.registerRemoteViewActions(remoteView);
 
-		this.registerView(container, false, false);
+		this.registerDataView(container, false, false);
+		this.registerMachinesView(container);
 	}
 
-	private registerView(container: ViewContainer, remote: boolean, showByDefault: boolean): TreeView {
+	private registerDataView(container: ViewContainer, remote: boolean, showByDefault: boolean): TreeView {
 		const id = `workbench.views.sync.${remote ? 'remote' : 'local'}DataView`;
 		const showByDefaultContext = new RawContextKey<boolean>(id, showByDefault);
 		const viewEnablementContext = showByDefaultContext.bindTo(this.contextKeyService);
@@ -148,11 +152,69 @@ export class UserDataSyncDataViews extends Disposable {
 			}
 		});
 
-		this.registerActions(id);
+		this.registerDataViewActions(id);
 		return treeView;
 	}
 
-	private registerActions(viewId: string) {
+	private registerMachinesView(container: ViewContainer): void {
+		const that = this;
+		const id = `workbench.views.sync.machines`;
+		const name = localize('synced machines', "Synced Machines");
+		const treeView = this.instantiationService.createInstance(TreeView, id, name);
+		treeView.showRefreshAction = true;
+		const disposable = treeView.onDidChangeVisibility(visible => {
+			if (visible && !treeView.dataProvider) {
+				disposable.dispose();
+				treeView.dataProvider = new UserDataSyncMachinesViewDataProvider(treeView, this.userDataSyncMachinesService);
+			}
+		});
+		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+			id,
+			name,
+			ctorDescriptor: new SyncDescriptor(TreeViewPane),
+			when: ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_ACCOUNT_STATE.isEqualTo(AccountStatus.Available), CONTEXT_ENABLE_VIEWS),
+			canToggleVisibility: true,
+			canMoveView: true,
+			treeView,
+			collapsed: false,
+			order: 200,
+		}], container);
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.actions.sync.editCurrentMachineName`,
+					title: localize('workbench.actions.sync.editCurrentMachineName', "Edit Name"),
+					icon: Codicon.edit,
+					menu: {
+						id: MenuId.ViewItemContext,
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', id), ContextKeyEqualsExpr.create('viewItem', 'current-machine')),
+						group: 'inline',
+					},
+				});
+			}
+			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
+				const quickInputService = accessor.get(IQuickInputService);
+				const inputBox = quickInputService.createInputBox();
+				inputBox.placeholder = localize('placeholder', "Enter the name of the machine");
+				inputBox.show();
+				return new Promise((c, e) => {
+					inputBox.onDidAccept(async () => {
+						const name = inputBox.value;
+						if (name) {
+							await that.userDataSyncMachinesService.updateName(name);
+							await treeView.refresh();
+						}
+						inputBox.dispose();
+						c();
+					});
+				});
+			}
+		});
+	}
+
+	private registerDataViewActions(viewId: string) {
 		registerAction2(class extends Action2 {
 			constructor() {
 				super({
@@ -314,6 +376,28 @@ class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvider {
 			});
 		}
 		return [];
+	}
+}
+
+class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
+
+	constructor(
+		private readonly treeView: TreeView,
+		private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+	) { }
+
+	async getChildren(): Promise<ITreeItem[]> {
+		let machines = await this.userDataSyncMachinesService.getMachines();
+		machines = machines.filter(m => !m.disabled).sort((m1, m2) => m1.isCurrent ? -1 : 1);
+		this.treeView.message = machines.length ? undefined : localize('no machines', "No Machines");
+		return machines.map(({ id, name, isCurrent }) => ({
+			handle: id,
+			collapsibleState: TreeItemCollapsibleState.None,
+			label: { label: name },
+			description: isCurrent ? localize({ key: 'current', comment: ['Current machine'] }, "Current") : undefined,
+			themeIcon: Codicon.vm,
+			contextValue: isCurrent ? 'current-machine' : 'other-machine'
+		}));
 	}
 }
 

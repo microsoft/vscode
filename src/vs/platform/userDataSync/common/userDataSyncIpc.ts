@@ -12,6 +12,7 @@ import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 export class UserDataSyncChannel implements IServerChannel {
 
@@ -160,6 +161,26 @@ export class StorageKeysSyncRegistryChannelClient extends Disposable implements 
 
 	registerStorageKey(storageKey: IStorageKey): void {
 		this.channel.call('registerStorageKey', [storageKey]);
+	}
+
+}
+
+export class UserDataSyncMachinesServiceChannel implements IServerChannel {
+
+	constructor(private readonly service: IUserDataSyncMachinesService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	async call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'getMachines': return this.service.getMachines();
+			case 'updateName': return this.service.updateName(args[0]);
+			case 'unset': return this.service.unset();
+			case 'disable': return this.service.disable(args[0]);
+		}
+		throw new Error('Invalid call');
 	}
 
 }

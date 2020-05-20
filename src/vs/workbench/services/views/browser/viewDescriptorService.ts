@@ -617,6 +617,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this.viewContainerModels.set(viewContainer, { viewContainerModel: viewContainerModel, disposable: disposables });
 
 			// Register all views that were statically registered to this container
+			// Potentially, this is registering something that was handled by another container
+			// addViews() handles this by filtering views that are already registered
 			this.onDidRegisterViews([{ views: this.viewsRegistry.getViews(viewContainer), viewContainer }]);
 
 			// Add views that were registered prior to this view container

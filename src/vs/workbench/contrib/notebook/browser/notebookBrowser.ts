@@ -23,9 +23,9 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { ICompositeCodeEditor } from 'vs/editor/common/editorCommon';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
@@ -143,7 +143,7 @@ export interface INotebookEditorContribution {
 	restoreViewState?(state: any): void;
 }
 
-export interface INotebookEditor extends ICompositeCodeEditor {
+export interface INotebookEditor extends IEditor {
 
 	/**
 	 * Notebook view model attached to the current editor
@@ -154,11 +154,13 @@ export interface INotebookEditor extends ICompositeCodeEditor {
 	 * An event emitted when the model of this editor has changed.
 	 * @event
 	 */
-	readonly onDidChangeModel: Event<void>;
+	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
+	readonly onDidFocusEditorWidget: Event<void>;
 	isNotebookEditor: boolean;
 	activeKernel: INotebookKernelInfo | undefined;
 	readonly onDidChangeKernel: Event<void>;
 
+	getId(): string;
 	getDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 
@@ -166,6 +168,8 @@ export interface INotebookEditor extends ICompositeCodeEditor {
 	 * Focus the notebook editor cell list
 	 */
 	focus(): void;
+
+	hasFocus(): boolean;
 
 	/**
 	 * Select & focus cell

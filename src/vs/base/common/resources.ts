@@ -18,7 +18,7 @@ export function originalFSPath(uri: URI): string {
 }
 
 // DO NOT EXPORT, DO NOT USE
-function _hasToIgnoreCase(resource: URI | undefined): boolean {
+function _ignorePathCasingGuess(resource: URI | undefined): boolean {
 	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
 	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
 	return resource && resource.scheme === Schemas.file ? !isLinux : true;
@@ -28,12 +28,12 @@ function _hasToIgnoreCase(resource: URI | undefined): boolean {
  * Creates a key from a resource URI to be used to resource comparison and for resource maps.
  *
  * @param resource Uri
- * @param caseInsensitivePath Ignore casing when comparing path component (defaults mostly to `true`)
+ * @param ignorePathCasing Ignore casing when comparing path component (defaults mostly to `true`)
  * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function getComparisonKey(resource: URI, caseInsensitivePath: boolean = _hasToIgnoreCase(resource), ignoreFragment: boolean = false): string {
+export function getComparisonKey(resource: URI, ignorePathCasing: boolean = _ignorePathCasingGuess(resource), ignoreFragment: boolean = false): string {
 	return resource.with({
-		path: caseInsensitivePath ? resource.path.toLowerCase() : undefined,
+		path: ignorePathCasing ? resource.path.toLowerCase() : undefined,
 		fragment: ignoreFragment ? null : undefined
 	}).toString();
 }
@@ -43,10 +43,10 @@ export function getComparisonKey(resource: URI, caseInsensitivePath: boolean = _
  *
  * @param first Uri
  * @param second Uri
- * @param caseInsensitivePath Ignore casing when comparing path component (defaults mostly to `true`)
+ * @param ignorePathCasing Ignore casing when comparing path component (defaults mostly to `true`)
  * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function isEqual(first: URI | undefined, second: URI | undefined, caseInsensitivePath: boolean = _hasToIgnoreCase(first), ignoreFragment: boolean = false): boolean {
+export function isEqual(first: URI | undefined, second: URI | undefined, ignorePathCasing: boolean = _ignorePathCasingGuess(first), ignoreFragment: boolean = false): boolean {
 	if (first === second) {
 		return true;
 	}
@@ -57,10 +57,10 @@ export function isEqual(first: URI | undefined, second: URI | undefined, caseIns
 		return false;
 	}
 	const p1 = first.path, p2 = second.path;
-	return (p1 === p2 || caseInsensitivePath && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
+	return (p1 === p2 || ignorePathCasing && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
 }
 
-export function compare(uri1: URI, uri2: URI, caseInsensitivePath: boolean = _hasToIgnoreCase(uri1), ignoreFragment: boolean = false): number {
+export function compare(uri1: URI, uri2: URI, ignorePathCasing: boolean = _ignorePathCasingGuess(uri1), ignoreFragment: boolean = false): number {
 	// scheme
 	let ret = strCompare(uri1.scheme, uri2.scheme);
 	if (ret === 0) {
@@ -68,7 +68,7 @@ export function compare(uri1: URI, uri2: URI, caseInsensitivePath: boolean = _ha
 		ret = compareIgnoreCase(uri1.authority, uri2.authority);
 		if (ret === 0) {
 			// path
-			ret = caseInsensitivePath ? compareIgnoreCase(uri1.path, uri2.path) : strCompare(uri1.path, uri2.path);
+			ret = ignorePathCasing ? compareIgnoreCase(uri1.path, uri2.path) : strCompare(uri1.path, uri2.path);
 			// query
 			if (ret === 0) {
 				ret = strCompare(uri1.query, uri2.query);
@@ -87,16 +87,16 @@ export function compare(uri1: URI, uri2: URI, caseInsensitivePath: boolean = _ha
  *
  * @param base A uri which is "longer"
  * @param parentCandidate A uri which is "shorter" then `base`
- * @param caseInsensitivePath Ignore casing when comparing path component (defaults mostly to `true`)
+ * @param ignorePathCasing Ignore casing when comparing path component (defaults mostly to `true`)
  * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function isEqualOrParent(base: URI, parentCandidate: URI, caseInsensitivePath: boolean = _hasToIgnoreCase(base), ignoreFragment: boolean = false): boolean {
+export function isEqualOrParent(base: URI, parentCandidate: URI, ignorePathCasing: boolean = _ignorePathCasingGuess(base), ignoreFragment: boolean = false): boolean {
 	if (base.scheme === parentCandidate.scheme) {
 		if (base.scheme === Schemas.file) {
-			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), caseInsensitivePath) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignorePathCasing) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 		}
 		if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-			return extpath.isEqualOrParent(base.path, parentCandidate.path, caseInsensitivePath, '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+			return extpath.isEqualOrParent(base.path, parentCandidate.path, ignorePathCasing, '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
 		}
 	}
 	return false;
@@ -243,7 +243,7 @@ export function addTrailingPathSeparator(resource: URI, sep: string = paths.sep)
  * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.
  * The returned relative path always uses forward slashes.
  */
-export function relativePath(from: URI, to: URI, caseInsensitivePath = _hasToIgnoreCase(from)): string | undefined {
+export function relativePath(from: URI, to: URI, ignorePathCasing = _ignorePathCasingGuess(from)): string | undefined {
 	if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
 		return undefined;
 	}
@@ -252,7 +252,7 @@ export function relativePath(from: URI, to: URI, caseInsensitivePath = _hasToIgn
 		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
 	}
 	let fromPath = from.path || '/', toPath = to.path || '/';
-	if (caseInsensitivePath) {
+	if (ignorePathCasing) {
 		// make casing of fromPath match toPath
 		let i = 0;
 		for (const len = Math.min(fromPath.length, toPath.length); i < len; i++) {

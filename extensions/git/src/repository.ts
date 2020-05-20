@@ -252,11 +252,13 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get resourceDecoration(): Decoration {
-		const title = this.tooltip;
-		const letter = this.letter;
-		const color = this.color;
-		const priority = this.priority;
-		return { bubble: true, title, letter, color, priority };
+		return {
+			bubble: this.type !== Status.DELETED && this.type !== Status.INDEX_DELETED,
+			title: this.tooltip,
+			letter: this.letter,
+			color: this.color,
+			priority: this.priority
+		};
 	}
 
 	constructor(

@@ -149,7 +149,7 @@ export const enum SyncResource {
 export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
 
 export interface IUserDataManifest {
-	latest?: Record<SyncResource, string>
+	latest?: Record<ServerResource, string>
 	session: string;
 }
 
@@ -159,16 +159,17 @@ export interface IResourceRefHandle {
 }
 
 export const IUserDataSyncStoreService = createDecorator<IUserDataSyncStoreService>('IUserDataSyncStoreService');
+export type ServerResource = SyncResource | 'machines';
 export interface IUserDataSyncStoreService {
 	_serviceBrand: undefined;
 	readonly userDataSyncStore: IUserDataSyncStore | undefined;
-	read(resource: SyncResource, oldValue: IUserData | null): Promise<IUserData>;
-	write(resource: SyncResource, content: string, ref: string | null): Promise<string>;
+	read(resource: ServerResource, oldValue: IUserData | null): Promise<IUserData>;
+	write(resource: ServerResource, content: string, ref: string | null): Promise<string>;
 	manifest(): Promise<IUserDataManifest | null>;
 	clear(): Promise<void>;
-	getAllRefs(resource: SyncResource): Promise<IResourceRefHandle[]>;
-	resolveContent(resource: SyncResource, ref: string): Promise<string | null>;
-	delete(resource: SyncResource): Promise<void>;
+	getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]>;
+	resolveContent(resource: ServerResource, ref: string): Promise<string | null>;
+	delete(resource: ServerResource): Promise<void>;
 }
 
 export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
@@ -225,7 +226,11 @@ export class UserDataSyncError extends Error {
 
 }
 
-export class UserDataSyncStoreError extends UserDataSyncError { }
+export class UserDataSyncStoreError extends UserDataSyncError {
+	constructor(message: string, code: UserDataSyncErrorCode) {
+		super(message, code);
+	}
+}
 
 //#endregion
 
