@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.46.0",
-  "distro": "fee0da8fdb72dec6cd3a0b868bcc930928133a96",
+  "distro": "64a6a85a3b1af4e177210fa8c72b822322b129ab",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -63,7 +63,6 @@
     "xterm": "4.7.0-beta.3",
     "xterm-addon-search": "0.7.0",
     "xterm-addon-unicode11": "0.2.0",
-    "xterm-addon-web-links": "0.4.0",
     "xterm-addon-webgl": "0.7.0",
     "yauzl": "^2.9.2",
     "yazl": "^2.4.3"
