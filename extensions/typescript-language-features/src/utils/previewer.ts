@@ -6,24 +6,11 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 
-function getRootPath(definition: undefined | Proto.DefinitionResponse['body'], editor: vscode.TextEditor, proto: string, pathToUse: string): string | undefined {
-	switch (proto) {
-		case 'workspace': {
-			const [workspaceName] = pathToUse.match(/^[^\/]*/) || [];
-			return (vscode.workspace.workspaceFolders || []).find(workspaceFolder => workspaceFolder.name === workspaceName)?.uri.fsPath;
-		}
-		case 'project':
-		default: {
-			const uri = definition?.[0]?.file ? vscode.Uri.file(definition[0].file) : editor.document.uri;
-			if (/^\.\.?\//.test(pathToUse)) {
-				return path.dirname(uri.path);
-			}
-			return vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
-		}
-	}
-}
-
-function getWorkspacePath(definition: undefined | Proto.DefinitionResponse['body'], proto: string, givenPath: string, withText: undefined | string): [string, string] {
+function getWorkspacePath(
+	definition: undefined | Proto.DefinitionResponse['body'],
+	proto: string, givenPath: string,
+	withText: undefined | string
+): [string, string] {
 	const text = withText || givenPath;
 
 	const editor = vscode.window.activeTextEditor;
@@ -31,18 +18,29 @@ function getWorkspacePath(definition: undefined | Proto.DefinitionResponse['body
 		return [givenPath, text];
 	}
 
-	let pathToUse: string | undefined = givenPath.replace(/(?:workspace|project):\/\//, '');
+	let pathToUse: string | undefined = givenPath.replace(/(?:workspace|project|file):\/\//, '');
+	let rootPath: string | undefined;
 
-	const rootPath = getRootPath(definition, editor, proto, pathToUse);
-	if (!rootPath) {
-		return [givenPath, text];
+	switch (proto) {
+		case 'workspace': {
+			let workspaceName: string | undefined;
+			[, workspaceName, pathToUse] = pathToUse.match(/^([^\/]*)(\/[^ |]*)/) || [];
+			rootPath = (vscode.workspace.workspaceFolders || []).find(workspaceFolder => workspaceFolder.name === workspaceName)?.uri.fsPath;
+		}
+		case 'file':
+		case 'project': {
+			const uri = definition?.[0]?.file ? vscode.Uri.file(definition[0].file) : editor.document.uri;
+			if (/^\.\.?\//.test(pathToUse)) {
+				rootPath = path.dirname(uri.path);
+			} else if (proto === 'file') {
+				return [path.normalize(pathToUse), text];
+			} else {
+				rootPath = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
+			}
+		}
 	}
 
-	if (proto === 'workspace') {
-		pathToUse = pathToUse.replace(/^[^\/]*/, '');
-	}
-
-	return [path.join(rootPath, pathToUse), text];
+	return [rootPath ? path.join(rootPath, pathToUse) : givenPath, text];
 }
 
 function replaceLinks(text: string, definition?: Proto.DefinitionResponse['body']): string {
@@ -57,7 +55,7 @@ function replaceLinks(text: string, definition?: Proto.DefinitionResponse['body'
 					if (!link || !proto) {
 						return _;
 					}
-					if (proto === 'workspace' || proto === 'project') {
+					if (proto === 'workspace' || proto === 'project' || proto === 'file') {
 						[link, text] = getWorkspacePath(definition, proto, link, text);
 					}
 					switch (tag) {
