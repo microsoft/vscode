@@ -37,6 +37,27 @@ export function activate(context: vscode.ExtensionContext): any {
 
 			return dto;
 		},
+		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+			return;
+		},
+		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+			return;
+		}
+	}));
+
+	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookKernelTest', ['*.vsctestnb'], {
+		label: 'Notebook Test Kernel',
+		executeAllCells: async (_document: vscode.NotebookDocument, _token: vscode.CancellationToken) => {
+			let cell = _document.cells[0];
+
+			cell.outputs = [{
+				outputKind: vscode.CellOutputKind.Rich,
+				data: {
+					'text/plain': ['my output']
+				}
+			}];
+			return;
+		},
 		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined, _token: vscode.CancellationToken) => {
 			if (!_cell) {
 				_cell = _document.cells[0];
@@ -48,12 +69,6 @@ export function activate(context: vscode.ExtensionContext): any {
 					'text/plain': ['my output']
 				}
 			}];
-			return;
-		},
-		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-			return;
-		},
-		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
 			return;
 		}
 	}));
