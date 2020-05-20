@@ -50,8 +50,13 @@ function replaceLinks(text: string, definition: Proto.DefinitionResponse['body']
 		text
 			// Http(s) links
 			.replace(
-				/\{@(link|linkplain|linkcode) ((https?|workspace|project):\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}/gi,
-				(_, tag: string, link: string, proto: string, text?: string) => {
+				/(?:\{@(link|linkplain|linkcode) ((https?|workspace|project):\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}|((workspace|project):\/\/[^\s|]*))/gi,
+				(_, tag: string, _link: undefined | string, _proto: undefined | string, text: undefined | string, _link2: undefined | string, _proto2: undefined | string) => {
+					const proto = _proto || _proto2;
+					let link = _link || _link2;
+					if (!link || !proto) {
+						return _;
+					}
 					if (proto === 'workspace' || proto === 'project') {
 						[link, text] = getWorkspacePath(definition, proto, link, text);
 					}
