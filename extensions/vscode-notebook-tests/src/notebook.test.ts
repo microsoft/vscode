@@ -188,6 +188,19 @@ suite('API tests', () => {
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
+
+	test('notebook active editor change', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		const firstEditorOpen = getEventOncePromise(vscode.notebook.onDidChangeActiveNotebookEditor);
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await firstEditorOpen;
+
+		const firstEditorDeactivate = getEventOncePromise(vscode.notebook.onDidChangeActiveNotebookEditor);
+		await vscode.commands.executeCommand('workbench.action.splitEditor');
+		await firstEditorDeactivate;
+
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
 });
 
 suite('notebook workflow', () => {

@@ -721,6 +721,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	readonly onDidChangeCellOutputs = this._onDidChangeCellOutputs.event;
 	private readonly _onDidChangeCellLanguage = new Emitter<vscode.NotebookCellLanguageChangeEvent>();
 	readonly onDidChangeCellLanguage = this._onDidChangeCellLanguage.event;
+	private readonly _onDidChangeActiveNotebookEditor = new Emitter<vscode.NotebookEditor | undefined>();
+	readonly onDidChangeActiveNotebookEditor = this._onDidChangeActiveNotebookEditor.event;
 
 	private _outputDisplayOrder: INotebookDisplayOrder | undefined;
 
@@ -1268,6 +1270,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				this._activeNotebookEditor = undefined;
 				this._activeNotebookDocument = undefined;
 			}
+
+			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor);
 		}
 
 		[...this._editors.values()].forEach((e) => {
