@@ -63,7 +63,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		if (!sanitizedRepo) {
 			quickpick.items = [];
 		} else {
-			quickpick.items = [{ label: `$(repo) Create private repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo }];
+			quickpick.items = [{ label: `$(repo) Publish to GitHub private repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo }];
 		}
 	};
 
@@ -80,7 +80,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			try {
 				quickpick.busy = true;
 				await octokit.repos.get({ owner, repo: repo });
-				quickpick.items = [{ label: `$(error) Repository already exists`, description: `$(github) ${owner}/${repo}`, alwaysShow: true }];
+				quickpick.items = [{ label: `$(error) GitHub repository already exists`, description: `$(github) ${owner}/${repo}`, alwaysShow: true }];
 			} catch {
 				break;
 			} finally {
@@ -96,7 +96,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 	}
 
 	const githubRepository = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, cancellable: false, title: 'Publish to GitHub' }, async progress => {
-		progress.report({ message: 'Creating private repository in GitHub', increment: 25 });
+		progress.report({ message: 'Publishing to GitHub private repository', increment: 25 });
 
 		const res = await octokit.repos.createForAuthenticatedUser({
 			name: repo!,
