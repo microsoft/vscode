@@ -1795,6 +1795,11 @@ declare module 'vscode' {
 		readonly visible: boolean;
 
 		/**
+		 * Fired when the panel is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
 		readonly onDidReceiveMessage: Event<any>;

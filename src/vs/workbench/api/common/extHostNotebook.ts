@@ -565,6 +565,8 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 		this._active = value;
 	}
 
+	private _onDidDispose = new Emitter<void>();
+	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 	onDidReceiveMessage: vscode.Event<any> = this._onDidReceiveMessage.event;
 
 	constructor(
@@ -663,6 +665,10 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 
 	asWebviewUri(localResource: vscode.Uri): vscode.Uri {
 		return asWebviewUri(this._webviewInitData, this.id, localResource);
+	}
+	dispose() {
+		this._onDidDispose.fire();
+		super.dispose();
 	}
 }
 
