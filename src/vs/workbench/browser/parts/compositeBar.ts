@@ -62,15 +62,7 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 					return;
 				}
 
-				const items = this.getItems();
-
-				const before1d = this.targetContainerLocation === ViewContainerLocation.Panel ? before?.horizontallyBefore : before?.verticallyBefore;
-
-				items.forEach(item => console.log(`${item.id}: ${item.order}`));
-				const targetIndex = targetCompositeId ? items.findIndex(o => o.id === targetCompositeId) + (before1d ? 0 : 1) : undefined;
-				console.log(`target: ${targetIndex}(${!!before1d ? 'before' : 'after'} ${targetCompositeId})`);
-				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, targetIndex);
-
+				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before));
 				this.openComposite(currentContainer.id);
 			}
 		}
@@ -102,6 +94,16 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 
 	onDragOver(data: CompositeDragAndDropData, targetCompositeId: string | undefined, originalEvent: DragEvent): boolean {
 		return this.canDrop(data, targetCompositeId);
+	}
+
+	private getTargetIndex(targetId: string | undefined, before2d: Before2D | undefined): number | undefined {
+		if (!targetId) {
+			return undefined;
+		}
+
+		const items = this.getItems();
+		const before = this.targetContainerLocation === ViewContainerLocation.Panel ? before2d?.horizontallyBefore : before2d?.verticallyBefore;
+		return items.findIndex(o => o.id === targetId) + (before ? 0 : 1);
 	}
 
 	private canDrop(data: CompositeDragAndDropData, targetCompositeId: string | undefined): boolean {
@@ -728,7 +730,6 @@ class CompositeBarModel {
 				this.items.push(item);
 			} else {
 				let index = 0;
-				console.log('adding new item');
 				while (index < this.items.length && typeof this.items[index].order === 'number' && this.items[index].order! < order) {
 					index++;
 				}

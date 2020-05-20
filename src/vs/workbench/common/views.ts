@@ -50,8 +50,6 @@ export interface IViewContainerDescriptor {
 
 	readonly alwaysUseContainerInfo?: boolean;
 
-	order?: number;
-
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 
 	readonly viewOrderDelegate?: ViewOrderDelegate;
@@ -61,6 +59,8 @@ export interface IViewContainerDescriptor {
 	readonly extensionId?: ExtensionIdentifier;
 
 	readonly rejectAddedViews?: boolean;
+
+	order?: number;
 }
 
 export interface IViewContainersRegistry {
