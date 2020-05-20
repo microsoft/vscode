@@ -721,7 +721,7 @@ interface IWebkitDataTransferItem {
 }
 
 interface IWebkitDataTransferItemEntry {
-	name: string;
+	name: string | undefined;
 	isFile: boolean;
 	isDirectory: boolean;
 
@@ -986,7 +986,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	}
 
 	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined): Promise<{ isFile: boolean, resource: URI } | undefined> {
-		if (!entry.isFile && !entry.isDirectory) {
+		if (!entry.name || !entry.isFile && !entry.isDirectory) {
 			return undefined;
 		}
 
@@ -1003,14 +1003,25 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Handle file upload
 		if (entry.isFile) {
 			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
-			const reader = new FileReader();
-			reader.readAsArrayBuffer(file);
-			reader.onload = async (event) => {
-				const name = file.name;
-				if (typeof name === 'string' && event.target?.result instanceof ArrayBuffer) {
-					await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
-				}
-			};
+			await new Promise<void>((resolve, reject) => {
+				const reader = new FileReader();
+				reader.onload = async event => {
+					try {
+						if (event.target?.result instanceof ArrayBuffer) {
+							await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
+						} else {
+							throw new Error('Could not read from dropped file.');
+						}
+
+						resolve();
+					} catch (error) {
+						reject(error);
+					}
+				};
+
+				// Start reading the file to trigger `onload`
+				reader.readAsArrayBuffer(file);
+			});
 
 			return { isFile: true, resource };
 		}
