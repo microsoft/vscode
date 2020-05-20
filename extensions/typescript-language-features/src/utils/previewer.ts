@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 
-function getRootPath(definition: Proto.DefinitionResponse['body'], editor: vscode.TextEditor, proto: string, pathToUse: string): string | undefined {
+function getRootPath(definition: undefined | Proto.DefinitionResponse['body'], editor: vscode.TextEditor, proto: string, pathToUse: string): string | undefined {
 	switch (proto) {
 		case 'workspace': {
 			const [workspaceName] = pathToUse.match(/^[^\/]*/) || [];
@@ -23,7 +23,7 @@ function getRootPath(definition: Proto.DefinitionResponse['body'], editor: vscod
 	}
 }
 
-function getWorkspacePath(definition: Proto.DefinitionResponse['body'], proto: string, givenPath: string, withText: undefined | string): [string, string] {
+function getWorkspacePath(definition: undefined | Proto.DefinitionResponse['body'], proto: string, givenPath: string, withText: undefined | string): [string, string] {
 	const text = withText || givenPath;
 
 	const editor = vscode.window.activeTextEditor;
@@ -45,12 +45,12 @@ function getWorkspacePath(definition: Proto.DefinitionResponse['body'], proto: s
 	return [path.join(rootPath, pathToUse), text];
 }
 
-function replaceLinks(text: string, definition: Proto.DefinitionResponse['body']): string {
+function replaceLinks(text: string, definition?: Proto.DefinitionResponse['body']): string {
 	return (
 		text
 			// Http(s) links
 			.replace(
-				/(?:\{@(link|linkplain|linkcode) ((https?|workspace|project):\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}|((workspace|project):\/\/[^\s|]*))/gi,
+				/(?:\{@(link|linkplain|linkcode) ((https?|workspace|project):\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}|((workspace|project|file):\/\/[^\s|]*))/gi,
 				(_, tag: string, _link: undefined | string, _proto: undefined | string, text: undefined | string, _link2: undefined | string, _proto2: undefined | string) => {
 					const proto = _proto || _proto2;
 					let link = _link || _link2;
@@ -71,11 +71,11 @@ function replaceLinks(text: string, definition: Proto.DefinitionResponse['body']
 	);
 }
 
-function processInlineTags(text: string, definition: Proto.DefinitionResponse['body']): string {
+function processInlineTags(text: string, definition?: Proto.DefinitionResponse['body']): string {
 	return replaceLinks(text, definition);
 }
 
-function getTagBodyText(tag: Proto.JSDocTagInfo, definition: Proto.DefinitionResponse['body']): string | undefined {
+function getTagBodyText(tag: Proto.JSDocTagInfo, definition?: Proto.DefinitionResponse['body']): string | undefined {
 	if (!tag.text) {
 		return undefined;
 	}
@@ -113,7 +113,7 @@ function getTagBodyText(tag: Proto.JSDocTagInfo, definition: Proto.DefinitionRes
 	return processInlineTags(tag.text, definition);
 }
 
-function getTagDocumentation(tag: Proto.JSDocTagInfo, definition: Proto.DefinitionResponse['body']): string | undefined {
+function getTagDocumentation(tag: Proto.JSDocTagInfo, definition?: Proto.DefinitionResponse['body']): string | undefined {
 	switch (tag.name) {
 		case 'augments':
 		case 'extends':
@@ -142,7 +142,7 @@ function getTagDocumentation(tag: Proto.JSDocTagInfo, definition: Proto.Definiti
 
 export function plain(
 	parts: Proto.SymbolDisplayPart[] | string,
-	definition: Proto.DefinitionResponse['body']
+	definition?: Proto.DefinitionResponse['body']
 ): string {
 	return processInlineTags(
 		typeof parts === 'string'
@@ -152,14 +152,14 @@ export function plain(
 	);
 }
 
-export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[], definition: Proto.DefinitionResponse['body']): string {
+export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[], definition?: Proto.DefinitionResponse['body']): string {
 	return tags.map(tag => getTagDocumentation(tag, definition)).join('  \n\n');
 }
 
 export function markdownDocumentation(
 	documentation: Proto.SymbolDisplayPart[] | string,
 	tags: Proto.JSDocTagInfo[],
-	definition: Proto.DefinitionResponse['body']
+	definition?: Proto.DefinitionResponse['body']
 ): vscode.MarkdownString {
 	const out = new vscode.MarkdownString();
 	addMarkdownDocumentation(out, documentation, tags, definition);
@@ -170,7 +170,7 @@ export function addMarkdownDocumentation(
 	out: vscode.MarkdownString,
 	documentation: Proto.SymbolDisplayPart[] | string | undefined,
 	tags: Proto.JSDocTagInfo[] | undefined,
-	definition: Proto.DefinitionResponse['body']
+	definition?: Proto.DefinitionResponse['body']
 ): vscode.MarkdownString {
 	if (documentation) {
 		out.appendMarkdown(plain(documentation, definition));

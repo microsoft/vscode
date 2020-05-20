@@ -231,23 +231,7 @@ export class LinkComputer {
 				lastIncludedCharIndex--;
 			}
 		}
-		// const url = line.substring(linkBeginIndex, lastIncludedCharIndex + 1);
-		// console.log('Creating Link: ', url, url.substring(0, 2));
-		// const urlStart = url.substring(0, 2);
-		// if (urlStart === 'pr' || urlStart === 'wo') {
-		// 	console.log('project! ', url);
-		// 	return {
-		// 		range: {
-		// 			startLineNumber: lineNumber,
-		// 			startColumn: linkBeginIndex + 1,
-		// 			endLineNumber: lineNumber,
-		// 			endColumn: lastIncludedCharIndex + 2
-		// 		},
-		// 		// @ts-ignore
-		// 		url: '/Users/Shared/Development/projects/vscode/out/vs/editor/common/modes/linkComputer.js',
-		// 		// url: line.substring(linkBeginIndex, lastIncludedCharIndex + 1)
-		// 	};
-		// }
+
 		return {
 			range: {
 				startLineNumber: lineNumber,
@@ -381,7 +365,7 @@ export class LinkComputer {
 			}
 
 		}
-		console.log(result);
+
 		return result;
 	}
 }
