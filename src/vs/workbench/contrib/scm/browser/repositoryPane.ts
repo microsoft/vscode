@@ -88,7 +88,6 @@ function splitMatches(uri: URI, filterData: FuzzyScore | undefined): [IMatch[] |
 		const fileName = basename(uri);
 		const allMatches = createMatches(filterData);
 
-		console.log(allMatches);
 		for (const match of allMatches) {
 			if (match.start <= fileName.length && match.end <= fileName.length) {
 				matches!.push(match);
