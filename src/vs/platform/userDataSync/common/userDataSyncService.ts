@@ -257,7 +257,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
 		for (const synchroniser of this.synchronisers) {
 			try {
-				synchroniser.resetLocal();
+				await synchroniser.resetLocal();
 			} catch (e) {
 				this.logService.error(`${synchroniser.resource}: ${toErrorMessage(e)}`);
 				this.logService.error(e);
