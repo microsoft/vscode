@@ -255,6 +255,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.getSynchroniser(resource).getAssociatedResources(syncResourceHandle);
 	}
 
+	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
+		return this.getSynchroniser(resource).getMachineId(syncResourceHandle);
+	}
+
 	async isFirstTimeSyncWithMerge(): Promise<boolean> {
 		await this.checkEnablement();
 		if (!await this.userDataSyncStoreService.manifest()) {

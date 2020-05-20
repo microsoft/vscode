@@ -54,6 +54,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
 			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0]);
 			case 'getAssociatedResources': return this.service.getAssociatedResources(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
+			case 'getMachineId': return this.service.getMachineId(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
 		}
 		throw new Error('Invalid call');
 	}
