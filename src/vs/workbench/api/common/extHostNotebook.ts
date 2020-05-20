@@ -807,6 +807,10 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			throw new Error(`Notebook provider for '${viewType}' already registered`);
 		}
 
+		if ((<any>provider).executeCell) {
+			throw new Error('NotebookContentKernel.executeCell is removed, please use vscode.notebook.registerNotebookKernel instead.');
+		}
+
 		this._notebookContentProviders.set(viewType, { extension, provider });
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 		return new extHostTypes.Disposable(() => {
@@ -963,8 +967,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				} else {
 					return provider.kernel.executeAllCells(document, token);
 				}
-			} else {
-				return provider.executeCell(document, cell, token);
 			}
 		}
 	}
