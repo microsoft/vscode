@@ -13,6 +13,84 @@ import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
 
+//#region IExtUri
+
+export interface IExtUri {
+
+	/**
+	 * Compares two uris.
+	 *
+	 * @param uri1 Uri
+	 * @param uri2 Uri
+	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 */
+	compare(uri1: URI, uri2: URI, ignoreFragment?: boolean): number;
+
+	/**
+	 * Tests whether two uris are equal
+	 *
+	 * @param uri1 Uri
+	 * @param uri2 Uri
+	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 */
+	isEqual(uri1: URI, uri2: URI, ignoreFragment?: boolean): boolean;
+
+	/**
+	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
+	 * @see ResourceMap
+	 * @param uri Uri
+	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 */
+	getComparisonKey(uri: URI, ignoreFragment?: boolean): string;
+}
+
+export class ExtUri implements IExtUri {
+
+	constructor(private _ignorePathCasing: (uri: URI) => boolean) { }
+
+	compare(uri1: URI, uri2: URI, ignoreFragment: boolean = false): number {
+		// scheme
+		let ret = strCompare(uri1.scheme, uri2.scheme);
+		if (ret === 0) {
+			// authority
+			ret = compareIgnoreCase(uri1.authority, uri2.authority);
+			if (ret === 0) {
+				// path
+				ret = this._ignorePathCasing(uri1) ? compareIgnoreCase(uri1.path, uri2.path) : strCompare(uri1.path, uri2.path);
+				// query
+				if (ret === 0) {
+					ret = strCompare(uri1.query, uri2.query);
+					// fragment
+					if (ret === 0 && !ignoreFragment) {
+						ret = strCompare(uri1.fragment, uri2.fragment);
+					}
+				}
+			}
+		}
+		return ret;
+	}
+
+	getComparisonKey(uri: URI, ignoreFragment: boolean = false): string {
+		return getComparisonKey(uri, this._ignorePathCasing(uri), ignoreFragment);
+	}
+
+	isEqual(uri1: URI, uri2: URI, ignoreFragment: boolean = false): boolean {
+		return isEqual(uri1, uri2, this._ignorePathCasing(uri1), ignoreFragment);
+	}
+}
+
+/**
+ * Unbiased utility that takes uris "as they are". This means it can be interchanged with
+ * uri#toString() usages. The following is true
+ * ```
+ * assertEqual(aUri.toString() === bUri.toString(), exturi.isEqual(aUri, bUri))
+ * ```
+ */
+export const exturi = new ExtUri(() => false);
+
+
+//#endregion
+
 export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);
 }
@@ -60,27 +138,6 @@ export function isEqual(first: URI | undefined, second: URI | undefined, ignoreP
 	return (p1 === p2 || ignorePathCasing && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
 }
 
-export function compare(uri1: URI, uri2: URI, ignorePathCasing: boolean = _ignorePathCasingGuess(uri1), ignoreFragment: boolean = false): number {
-	// scheme
-	let ret = strCompare(uri1.scheme, uri2.scheme);
-	if (ret === 0) {
-		// authority
-		ret = compareIgnoreCase(uri1.authority, uri2.authority);
-		if (ret === 0) {
-			// path
-			ret = ignorePathCasing ? compareIgnoreCase(uri1.path, uri2.path) : strCompare(uri1.path, uri2.path);
-			// query
-			if (ret === 0) {
-				ret = strCompare(uri1.query, uri2.query);
-				// fragment
-				if (ret === 0 && !ignoreFragment) {
-					ret = strCompare(uri1.fragment, uri2.fragment);
-				}
-			}
-		}
-	}
-	return ret;
-}
 
 /**
  * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
