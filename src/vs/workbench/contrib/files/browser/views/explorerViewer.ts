@@ -971,41 +971,24 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		// Calculate files and bytes to upload
-		const notification = this.notificationService.notify({
-			sticky: true,
-			severity: Severity.Info,
-			message: `Scanning files...`,
-			progress: {
-				infinite: true
-			}
-		});
-
-		const stats = { totalFiles: 0, totalSize: 0 };
-		for (let entry of entries) {
-			const itemStats = await this.scanFileEntity(entry);
-			stats.totalFiles += itemStats.totalFiles;
-			stats.totalSize += itemStats.totalSize;
-		}
-
-		if (entries.length === 1 && entries[0].isFile) {
-			notification.updateMessage(`Uploading ${entries[0].name}`);
-		} else {
-			notification.updateMessage(`Uploading ${stats.totalFiles} files...`);
-		}
-		notification.progress.total(stats.totalSize);
+		// const stats = { totalFiles: 0, totalSize: 0 };
+		// for (let entry of entries) {
+		// 	const itemStats = await this.scanFileEntity(entry);
+		// 	stats.totalFiles += itemStats.totalFiles;
+		// 	stats.totalSize += itemStats.totalSize;
+		// }
 
 		// Start upload
 		const results: { isFile: boolean, resource: URI }[] = [];
 		for (let entry of entries) {
 			const result = await this.doUploadWebFileEntry(entry, target.resource, target, (bytes: number) => {
-				notification.progress.worked(bytes);
+				// update progress
 			});
 
 			if (result) {
 				results.push(result);
 			}
 		}
-		notification.close();
 
 		// Open uploaded file in editor only if we upload just one
 		if (results.length === 1 && results[0].isFile) {
