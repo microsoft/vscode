@@ -203,7 +203,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Make the container tab-able for keyboard navigation
 		this.container.tabIndex = 0;
-		this.container.setAttribute('role', this.options.icon ? 'button' : 'tab');
+		this.container.setAttribute('role', 'tab');
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => {
@@ -649,9 +649,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		if (this.getAction().checked) {
 			dom.addClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
+			this.container.setAttribute('aria-expanded', 'true');
 		} else {
 			dom.removeClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-expanded', 'false');
 		}
 		this.updateStyles();
 	}
