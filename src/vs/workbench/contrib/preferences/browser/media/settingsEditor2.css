@@ -45,6 +45,10 @@
 	top: 6px;
 }
 
+.settings-editor > .settings-header > .search-container > .settings-count-widget:empty {
+	visibility: hidden;
+}
+
 .settings-editor > .settings-header > .search-container > .settings-clear-widget {
 	margin: 6px 0px;
 	padding: 0px 8px;
