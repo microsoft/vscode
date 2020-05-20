@@ -154,7 +154,6 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	}
 
 	onDeselect() {
-		this.editState = CellEditState.Preview;
 	}
 
 	getMarkdownRenderer() {
