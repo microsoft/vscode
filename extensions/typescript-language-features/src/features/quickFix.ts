@@ -344,7 +344,7 @@ const preferredFixes = new Map<string, { readonly value: number, readonly thereC
 	[fixNames.constructorForDerivedNeedSuperCall, { value: 1 }],
 	[fixNames.extendsInterfaceBecomesImplements, { value: 1 }],
 	[fixNames.awaitInSyncFunction, { value: 1 }],
-	[fixNames.classIncorrectlyImplementsInterface, { value: 1 }],
+	[fixNames.classIncorrectlyImplementsInterface, { value: 3 }],
 	[fixNames.unreachableCode, { value: 1 }],
 	[fixNames.unusedIdentifier, { value: 1 }],
 	[fixNames.forgottenThisPropertyAccess, { value: 1 }],
@@ -378,6 +378,8 @@ function isPreferredFix(
 		const otherFixPriority = preferredFixes.get(otherAction.tsAction.fixName);
 		if (!otherFixPriority || otherFixPriority.value < fixPriority.value) {
 			return true;
+		} else if (otherFixPriority.value > fixPriority.value) {
+			return false;
 		}
 
 		if (fixPriority.thereCanOnlyBeOne && action.tsAction.fixName === otherAction.tsAction.fixName) {
