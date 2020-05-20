@@ -119,7 +119,7 @@ export interface ICompositeBarColors {
 	inactiveForegroundColor?: Color;
 	badgeBackground?: Color;
 	badgeForeground?: Color;
-	dragAndDropBackground?: Color;
+	dragAndDropBorder?: Color;
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
@@ -169,16 +169,14 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 					this.label.style.color = foreground ? foreground.toString() : '';
 					this.label.style.backgroundColor = '';
 				}
-
-				const dragColor = colors.activeBackgroundColor || colors.activeForegroundColor;
-				this.container.style.setProperty('--insert-border-color', dragColor ? dragColor.toString() : '');
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
-				this.container.style.setProperty('--insert-border-color', colors.activeForegroundColor ? colors.activeForegroundColor.toString() : '');
 			}
+
+			this.container.style.setProperty('--insert-border-color', colors.dragAndDropBorder ? colors.dragAndDropBorder.toString() : '');
 		}
 
 		// Badge

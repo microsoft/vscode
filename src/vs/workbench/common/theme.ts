@@ -289,11 +289,18 @@ export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
 	hc: null
 }, nls.localize('panelInputBorder', "Input box border for inputs in the panel."));
 
-export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackground', {
+export const PANEL_DRAG_AND_DROP_BORDER = registerColor('panel.dropBorder', {
+	dark: PANEL_ACTIVE_TITLE_FOREGROUND,
+	light: PANEL_ACTIVE_TITLE_FOREGROUND,
+	hc: PANEL_ACTIVE_TITLE_FOREGROUND,
+}, nls.localize('panelDragAndDropBorder', "Drag and drop feedback color for the panel titles. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+
+export const PANEL_SECTION_DRAG_AND_DROP_BACKGROUND = registerColor('panelSection.dropBackground', {
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	hc: EDITOR_DRAG_AND_DROP_BACKGROUND,
-}, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel sections. The color should have transparency so that the panel sections can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
+}, nls.localize('panelSectionDragAndDropBackground', "Drag and drop feedback color for the panel sections. The color should have transparency so that the panel sections can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
 export const PANEL_SECTION_HEADER_BACKGROUND = registerColor('panelSectionHeader.background', {
 	dark: Color.fromHex('#808080').transparent(0.2),
@@ -432,11 +439,11 @@ export const ACTIVITY_BAR_ACTIVE_BACKGROUND = registerColor('activityBar.activeB
 	hc: null
 }, nls.localize('activityBarActiveBackground', "Activity bar background color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
-export const ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('activityBar.dropBackground', {
-	dark: Color.white.transparent(0.12),
-	light: Color.white.transparent(0.12),
-	hc: Color.white.transparent(0.12),
-}, nls.localize('activityBarDragAndDropBackground', "Drag and drop feedback color for the activity bar items. The color should have transparency so that the activity bar entries can still shine through. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
+export const ACTIVITY_BAR_DRAG_AND_DROP_BORDER = registerColor('activityBar.dropBorder', {
+	dark: ACTIVITY_BAR_FOREGROUND,
+	light: ACTIVITY_BAR_FOREGROUND,
+	hc: ACTIVITY_BAR_FOREGROUND,
+}, nls.localize('activityBarDragAndDropBorder', "Drag and drop feedback color for the activity bar items. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 
 export const ACTIVITY_BAR_BADGE_BACKGROUND = registerColor('activityBarBadge.background', {
 	dark: '#007ACC',
