@@ -15,7 +15,9 @@ export class UriIdentityService implements IUriIdentityService {
 	_serviceBrand: undefined;
 
 	readonly extUri: IExtUri;
+
 	private _canonicalUris: URI[] = []; // use SkipList or BinaryTree instead of array...
+	private readonly _limit = 10_000;
 
 	constructor(@IFileService private readonly _fileService: IFileService) {
 
@@ -51,16 +53,16 @@ export class UriIdentityService implements IUriIdentityService {
 		}
 
 		// (2) find the uri in its canonical form or use this uri to define it
-		// perf@jrieken
-		// * using a SkipList or BinaryTree for faster insertion
 		const idx = binarySearch(this._canonicalUris, uri, (a, b) => this.extUri.compare(a, b, true));
 		if (idx >= 0) {
 			return this._canonicalUris[idx].with({ fragment: uri.fragment });
 		}
 
 		// using slice/concat is faster than splice
-		const before = this._canonicalUris.slice(0, ~idx);
-		const after = this._canonicalUris.slice(~idx);
+		// total len should be being _limit and 2*_limit
+		const insertIdx = ~idx;
+		const before = this._canonicalUris.slice(Math.max(0, insertIdx - this._limit), insertIdx);
+		const after = this._canonicalUris.slice(insertIdx, insertIdx + this._limit);
 		this._canonicalUris = before.concat(uri.with({ fragment: null }), after);
 		return uri;
 	}
