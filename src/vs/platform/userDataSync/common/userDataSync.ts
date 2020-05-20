@@ -149,7 +149,7 @@ export const enum SyncResource {
 export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
 
 export interface IUserDataManifest {
-	latest?: Record<SyncResource, string>
+	latest?: Record<ServerResource, string>
 	session: string;
 }
 

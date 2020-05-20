@@ -146,7 +146,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				throw new UserDataSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
 			}
 
-			const machines = await this.userDataSyncMachinesService.getMachines();
+			const machines = await this.userDataSyncMachinesService.getMachines(manifest || undefined);
 			const currentMachine = machines.find(machine => machine.isCurrent);
 
 			// Check if sync was turned off from other machine
@@ -187,7 +187,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					const index = matches ? parseInt(matches[1]) : 0;
 					nameIndex = index > nameIndex ? index : nameIndex;
 				}
-				await this.userDataSyncMachinesService.updateName(`${namePrefix} #${nameIndex + 1}`);
+				await this.userDataSyncMachinesService.updateName(`${namePrefix} #${nameIndex + 1}`, manifest || undefined);
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
@@ -277,15 +277,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async reset(): Promise<void> {
 		await this.checkEnablement();
-		await this.resetLocal();
 		await this.resetRemote();
+		await this.resetLocal(true);
 	}
 
-	async resetLocal(): Promise<void> {
+	async resetLocal(donotUnsetMachine?: boolean): Promise<void> {
 		await this.checkEnablement();
 		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
-		await this.userDataSyncMachinesService.unset();
+		if (!donotUnsetMachine) {
+			await this.userDataSyncMachinesService.unset();
+		}
 		for (const synchroniser of this.synchronisers) {
 			try {
 				await synchroniser.resetLocal();

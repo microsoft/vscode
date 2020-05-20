@@ -9,7 +9,7 @@ import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/service
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IUserDataSyncStoreService, IUserData, IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserData, IUserDataSyncLogService, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
 
@@ -31,11 +31,11 @@ export const IUserDataSyncMachinesService = createDecorator<IUserDataSyncMachine
 export interface IUserDataSyncMachinesService {
 	_serviceBrand: any;
 
-	getMachines(): Promise<IUserDataSyncMachine[]>;
-	updateName(name: string): Promise<void>;
-	unset(): Promise<void>;
-
+	getMachines(manifest?: IUserDataManifest): Promise<IUserDataSyncMachine[]>;
+	updateName(name: string, manifest?: IUserDataManifest): Promise<void>;
 	disable(id: string): Promise<void>
+
+	unset(): Promise<void>;
 }
 
 export class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
@@ -60,15 +60,15 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
 	}
 
-	async getMachines(): Promise<IUserDataSyncMachine[]> {
+	async getMachines(manifest?: IUserDataManifest): Promise<IUserDataSyncMachine[]> {
 		const currentMachineId = await this.currentMachineIdPromise;
-		const machineData = await this.readMachinesData();
+		const machineData = await this.readMachinesData(manifest);
 		return machineData.machines.map<IUserDataSyncMachine>(machine => ({ ...machine, ...{ isCurrent: machine.id === currentMachineId } }));
 	}
 
-	async updateName(name: string): Promise<void> {
+	async updateName(name: string, manifest?: IUserDataManifest): Promise<void> {
 		const currentMachineId = await this.currentMachineIdPromise;
-		const machineData = await this.readMachinesData();
+		const machineData = await this.readMachinesData(manifest);
 		let currentMachine = machineData.machines.find(({ id }) => id === currentMachineId);
 		if (currentMachine) {
 			currentMachine.name = name;
@@ -97,8 +97,8 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		}
 	}
 
-	private async readMachinesData(): Promise<IMachinesData> {
-		this.userData = await this.userDataSyncStoreService.read(UserDataSyncMachinesService.RESOURCE, this.userData);
+	private async readMachinesData(manifest?: IUserDataManifest): Promise<IMachinesData> {
+		this.userData = await this.readUserData(manifest);
 		const machinesData = this.parse(this.userData);
 		if (machinesData.version !== UserDataSyncMachinesService.VERSION) {
 			throw new Error(localize('error incompatible', "Cannot read machines data as the current version is incompatible. Please update {0} and try again.", this.productService.nameLong));
@@ -110,6 +110,25 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		const content = JSON.stringify(machinesData);
 		const ref = await this.userDataSyncStoreService.write(UserDataSyncMachinesService.RESOURCE, content, this.userData?.ref || null);
 		this.userData = { ref, content };
+	}
+
+	private async readUserData(manifest?: IUserDataManifest): Promise<IUserData> {
+		if (this.userData) {
+
+			const latestRef = manifest && manifest.latest ? manifest.latest[UserDataSyncMachinesService.RESOURCE] : undefined;
+
+			// Last time synced resource and latest resource on server are same
+			if (this.userData.ref === latestRef) {
+				return this.userData;
+			}
+
+			// There is no resource on server and last time it was synced with no resource
+			if (latestRef === undefined && this.userData.content === null) {
+				return this.userData;
+			}
+		}
+
+		return this.userDataSyncStoreService.read(UserDataSyncMachinesService.RESOURCE, this.userData);
 	}
 
 	private parse(userData: IUserData): IMachinesData {
