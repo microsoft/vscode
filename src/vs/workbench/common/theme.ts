@@ -283,17 +283,42 @@ export const PANEL_ACTIVE_TITLE_BORDER = registerColor('panelTitle.activeBorder'
 	hc: contrastBorder
 }, nls.localize('panelActiveTitleBorder', "Border color for the active panel title. Panels are shown below the editor area and contain views like output and integrated terminal."));
 
-export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackground', {
-	dark: Color.white.transparent(0.12),
-	light: Color.fromHex('#2677CB').transparent(0.18),
-	hc: Color.white.transparent(0.12)
-}, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel title items. The color should have transparency so that the panel entries can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
-
 export const PANEL_INPUT_BORDER = registerColor('panelInput.border', {
 	dark: null,
 	light: Color.fromHex('#ddd'),
 	hc: null
 }, nls.localize('panelInputBorder', "Input box border for inputs in the panel."));
+
+export const PANEL_DRAG_AND_DROP_BACKGROUND = registerColor('panel.dropBackground', {
+	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
+	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
+	hc: EDITOR_DRAG_AND_DROP_BACKGROUND,
+}, nls.localize('panelDragAndDropBackground', "Drag and drop feedback color for the panel sections. The color should have transparency so that the panel sections can still shine through. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_SECTION_HEADER_BACKGROUND = registerColor('panelSectionHeader.background', {
+	dark: Color.fromHex('#808080').transparent(0.2),
+	light: Color.fromHex('#808080').transparent(0.2),
+	hc: null
+}, nls.localize('panelSectionHeaderBackground', "Panel section header background color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_SECTION_HEADER_FOREGROUND = registerColor('panelSectionHeader.foreground', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('panelSectionHeaderForeground', "Panel section header foreground color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_SECTION_HEADER_BORDER = registerColor('panelSectionHeader.border', {
+	dark: contrastBorder,
+	light: contrastBorder,
+	hc: contrastBorder
+}, nls.localize('panelSectionHeaderBorder', "Panel section header border color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
+export const PANEL_SECTION_BORDER = registerColor('panelSection.border', {
+	dark: PANEL_BORDER,
+	light: PANEL_BORDER,
+	hc: PANEL_BORDER
+}, nls.localize('panelSectionBorder', "Panel section border color. Panels are shown below the editor area and contain views like output and integrated terminal."));
+
 
 // < --- Status --- >
 
@@ -480,9 +505,9 @@ export const SIDE_BAR_TITLE_FOREGROUND = registerColor('sideBarTitle.foreground'
 }, nls.localize('sideBarTitleForeground', "Side bar title foreground color. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_DRAG_AND_DROP_BACKGROUND = registerColor('sideBar.dropBackground', {
-	dark: Color.white.transparent(0.12),
-	light: Color.black.transparent(0.1),
-	hc: Color.white.transparent(0.3),
+	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
+	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
+	hc: EDITOR_DRAG_AND_DROP_BACKGROUND,
 }, nls.localize('sideBarDragAndDropBackground', "Drag and drop feedback color for the side bar sections. The color should have transparency so that the side bar sections can still shine through. The side bar is the container for views like explorer and search."));
 
 export const SIDE_BAR_SECTION_HEADER_BACKGROUND = registerColor('sideBarSectionHeader.background', {
