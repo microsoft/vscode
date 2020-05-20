@@ -98,6 +98,11 @@ export class DebugSession implements IDebugSession {
 				dispose(toDispose);
 			}));
 		}
+
+		const compoundRoot = this._options.compoundRoot;
+		if (compoundRoot) {
+			toDispose.push(compoundRoot.onDidSessionStop(() => this.terminate()));
+		}
 	}
 
 	getId(): string {
@@ -280,6 +285,10 @@ export class DebugSession implements IDebugSession {
 		} else {
 			await this.raw.disconnect(restart);
 		}
+
+		if (!restart) {
+			this._options.compoundRoot?.sessionStopped();
+		}
 	}
 
 	/**
@@ -292,6 +301,10 @@ export class DebugSession implements IDebugSession {
 
 		this.cancelAllRequests();
 		await this.raw.disconnect(restart);
+
+		if (!restart) {
+			this._options.compoundRoot?.sessionStopped();
+		}
 	}
 
 	/**
