@@ -163,11 +163,27 @@ suite('API tests', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const firstEditor = vscode.notebook.activeNotebookEditor;
 		assert.equal(firstEditor?.active, true);
+		assert.equal(firstEditor?.visible, true);
 
 		await vscode.commands.executeCommand('workbench.action.splitEditor');
 		const secondEditor = vscode.notebook.activeNotebookEditor;
 		assert.equal(secondEditor?.active, true);
+		assert.equal(secondEditor?.visible, true);
 		assert.equal(firstEditor?.active, false);
+
+		assert.equal(vscode.notebook.visibleNotebookEditors.length, 2);
+
+		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+		assert.equal(firstEditor?.visible, true);
+		assert.equal(firstEditor?.active, false);
+		assert.equal(secondEditor?.visible, false);
+		assert.equal(secondEditor?.active, false);
+		assert.equal(vscode.notebook.visibleNotebookEditors.length, 1);
+
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		assert.equal(secondEditor?.active, true);
+		assert.equal(secondEditor?.visible, true);
+		assert.equal(vscode.notebook.visibleNotebookEditors.length, 2);
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');

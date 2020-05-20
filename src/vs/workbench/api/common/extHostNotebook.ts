@@ -1231,13 +1231,24 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (editorChanged) {
-			this.visibleNotebookEditors = [...this._editors.values()].map(e => e.editor);
-			this._onDidChangeVisibleNotebookEditors.fire(this.visibleNotebookEditors);
-
 			removedEditors.forEach(e => {
 				e.editor.dispose();
 				e.onDidReceiveMessage.dispose();
 			});
+		}
+
+		if (delta.visibleEditors) {
+			this.visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)?.editor).filter(editor => !!editor) as ExtHostNotebookEditor[];
+			const visibleEditorsSet = new Set<string>();
+			this.visibleNotebookEditors.forEach(editor => visibleEditorsSet.add(editor.id));
+
+			[...this._editors.values()].forEach((e) => {
+				const newValue = visibleEditorsSet.has(e.editor.id);
+				e.editor._acceptVisibility(newValue);
+			});
+
+			this.visibleNotebookEditors = [...this._editors.values()].map(e => e.editor).filter(e => e.visible);
+			this._onDidChangeVisibleNotebookEditors.fire(this.visibleNotebookEditors);
 		}
 
 		if (delta.newActiveEditor !== undefined) {
@@ -1251,9 +1262,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			}
 		}
 
-		this.visibleNotebookEditors.forEach((editor) => {
-			if (editor !== this.activeNotebookEditor) {
-				editor._acceptActivity(false);
+		[...this._editors.values()].forEach((e) => {
+			if (e.editor !== this.activeNotebookEditor) {
+				e.editor._acceptActivity(false);
 			}
 		});
 	}

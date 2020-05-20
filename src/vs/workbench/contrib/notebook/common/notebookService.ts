@@ -31,7 +31,8 @@ export interface INotebookService {
 	_serviceBrand: undefined;
 	modelManager: INotebookEditorModelManager;
 	canResolve(viewType: string): Promise<boolean>;
-	onDidChangeActiveEditor: Event<string>;
+	onDidChangeActiveEditor: Event<string | null>;
+	onDidChangeVisibleEditors: Event<string[]>;
 	onNotebookEditorAdd: Event<IEditor>;
 	onNotebookEditorRemove: Event<IEditor>;
 	onDidChangeKernels: Event<void>;
@@ -53,7 +54,8 @@ export interface INotebookService {
 	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
 	getNotebookProviderResourceRoots(): URI[];
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void;
-	updateActiveNotebookEditor(editor: IEditor): void;
+	updateActiveNotebookEditor(editor: IEditor | null): void;
+	updateVisibleNotebookEditor(editors: string[]): void;
 	save(viewType: string, resource: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(viewType: string, resource: URI, target: URI, token: CancellationToken): Promise<boolean>;
 	onDidReceiveMessage(viewType: string, editorId: string, message: any): void;

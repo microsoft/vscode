@@ -102,8 +102,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	notebookProviderInfoStore: NotebookProviderInfoStore = new NotebookProviderInfoStore();
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
 	private readonly _models: { [modelId: string]: ModelData; };
-	private _onDidChangeActiveEditor = new Emitter<string>();
-	onDidChangeActiveEditor: Event<string> = this._onDidChangeActiveEditor.event;
+	private _onDidChangeActiveEditor = new Emitter<string | null>();
+	onDidChangeActiveEditor: Event<string | null> = this._onDidChangeActiveEditor.event;
+	private _onDidChangeVisibleEditors = new Emitter<string[]>();
+	onDidChangeVisibleEditors: Event<string[]> = this._onDidChangeVisibleEditors.event;
 	private readonly _onNotebookEditorAdd: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
 	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
 	private readonly _onNotebookEditorRemove: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
@@ -386,8 +388,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 	}
 
-	updateActiveNotebookEditor(editor: INotebookEditor) {
-		this._onDidChangeActiveEditor.fire(editor.getId());
+	updateActiveNotebookEditor(editor: INotebookEditor | null) {
+		this._onDidChangeActiveEditor.fire(editor ? editor.getId() : null);
+	}
+
+	updateVisibleNotebookEditor(editors: string[]) {
+		this._onDidChangeVisibleEditors.fire(editors);
 	}
 
 	setToCopy(items: NotebookCellTextModel[]) {

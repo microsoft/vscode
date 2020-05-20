@@ -162,6 +162,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			});
 		}));
 
+		this._register(this._notebookService.onDidChangeVisibleEditors(e => {
+			this._proxy.$acceptDocumentAndEditorsDelta({
+				visibleEditors: e
+			});
+		}));
+
 		this._register(this._notebookService.onNotebookEditorAdd(editor => {
 			this._addNotebookEditor(editor);
 		}));
