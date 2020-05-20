@@ -17,6 +17,7 @@ import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
+import { equals } from '../utils/objects';
 
 const localize = nls.loadMessageBundle();
 
@@ -147,6 +148,11 @@ class CodeActionSet {
 	}
 
 	public addAction(action: VsCodeCodeAction) {
+		for (const existing of this._actions) {
+			if (action.tsAction.fixName === existing.tsAction.fixName && equals(action.edit, existing.edit)) {
+				this._actions.delete(existing);
+			}
+		}
 		this._actions.add(action);
 	}
 

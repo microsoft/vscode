@@ -87,6 +87,23 @@ suite('TypeScript Quick Fix', () => {
 			`foo;`
 		));
 	});
+
+	test('Only a single ts-ignore should be returned if there are multiple errors on one line #98274', async () => {
+		const testDocumentUri = workspaceFile('foojs.js');
+		const editor = await createTestEditor(testDocumentUri,
+			`//@ts-check`,
+			`const a = require('./bla');`);
+
+		await wait(3000);
+
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
+			testDocumentUri,
+			editor.document.lineAt(1).range
+		);
+
+		const ignoreFixes = fixes?.filter(x => x.title === 'Ignore this error message');
+		assert.strictEqual(ignoreFixes?.length, 1);
+	});
 });
 
 
