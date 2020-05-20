@@ -50,8 +50,6 @@ export interface IViewContainerDescriptor {
 
 	readonly alwaysUseContainerInfo?: boolean;
 
-	readonly order?: number;
-
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 
 	readonly viewOrderDelegate?: ViewOrderDelegate;
@@ -61,6 +59,8 @@ export interface IViewContainerDescriptor {
 	readonly extensionId?: ExtensionIdentifier;
 
 	readonly rejectAddedViews?: boolean;
+
+	order?: number;
 }
 
 export interface IViewContainersRegistry {
@@ -510,7 +510,7 @@ export interface IViewDescriptorService {
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void;
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, order?: number): void;
 
 	// Views
 	getViewDescriptorById(id: string): IViewDescriptor | null;
