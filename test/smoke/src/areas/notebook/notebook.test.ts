@@ -12,7 +12,7 @@ import { Application } from '../../../../automation';
 
 
 export function setup() {
-	describe.only('Notebooks', () => {
+	describe('Notebooks', () => {
 		after(async function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
