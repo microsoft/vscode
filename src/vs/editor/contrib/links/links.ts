@@ -129,9 +129,7 @@ export class LinkDetector implements IEditorContribution {
 		@IOpenerService openerService: IOpenerService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkspaceContextService workspaceService: IWorkspaceContextService
-
 	) {
-		console.log('workspace?: ', workspaceService.getWorkspace().folders);
 		this.editor = editor;
 		this.openerService = openerService;
 		this.notificationService = notificationService;
@@ -305,7 +303,6 @@ export class LinkDetector implements IEditorContribution {
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
 			// Support for workspace://<workspace-name>/path/to/file and project://path/to/file (and relative project path)
 			if (typeof uri === 'string' && this.editor.hasModel()) {
-
 				const modelUri = this.editor.getModel().uri;
 				if (modelUri.scheme === Schemas.file && /^(?:file|project|workspace):/.test(uri)) {
 					const parsedUri = URI.parse(uri);
