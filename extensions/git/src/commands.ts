@@ -217,6 +217,11 @@ function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	return [...heads, ...tags, ...remoteHeads];
 }
 
+function sanitizeRemoteName(name: string) {
+	name = name.trim();
+	return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
+}
+
 class TagItem implements QuickPickItem {
 	get label(): string { return this.ref.name ?? ''; }
 	get description(): string { return this.ref.commit?.substr(0, 8) ?? ''; }
@@ -529,7 +534,7 @@ export class CommandCenter {
 				.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('clonefrom', "Clone from {0}", provider.name), alwaysShow: true, provider }));
 
 			quickpick.placeholder = providers.length === 0
-				? localize('provide url', "Provide repository URL.")
+				? localize('provide url', "Provide repository URL")
 				: localize('provide url or pick', "Provide repository URL or pick a repository source.");
 
 			const updatePicks = (value?: string) => {
@@ -2119,48 +2124,79 @@ export class CommandCenter {
 
 	@command('git.addRemote', { repository: true })
 	async addRemote(repository: Repository): Promise<string | undefined> {
-		const remotes = repository.remotes;
+		const quickpick = window.createQuickPick<(QuickPickItem & { provider?: RemoteSourceProvider, url?: string })>();
+		quickpick.ignoreFocusOut = true;
 
-		const sanitize = (name: string) => {
-			name = name.trim();
-			return name && name.replace(/^\.|\/\.|\.\.|~|\^|:|\/$|\.lock$|\.lock\/|\\|\*|\s|^\s*$|\.$|\[|\]$/g, '-');
+		const providers = this.model.getRemoteProviders()
+			.map(provider => ({ label: (provider.icon ? `$(${provider.icon}) ` : '') + localize('addfrom', "Add remote from {0}", provider.name), alwaysShow: true, provider }));
+
+		quickpick.placeholder = providers.length === 0
+			? localize('provide url', "Provide repository URL")
+			: localize('provide url or pick', "Provide repository URL or pick a repository source.");
+
+		const updatePicks = (value?: string) => {
+			if (value) {
+				quickpick.items = [{
+					label: localize('addFrom', "Add remote from URL"),
+					description: value,
+					alwaysShow: true,
+					url: value
+				},
+				...providers];
+			} else {
+				quickpick.items = providers;
+			}
 		};
+
+		quickpick.onDidChangeValue(updatePicks);
+		updatePicks();
+
+		const result = await getQuickPickResult(quickpick);
+		let url: string | undefined;
+
+		if (result) {
+			if (result.url) {
+				url = result.url;
+			} else if (result.provider) {
+				const quickpick = new RemoteSourceProviderQuickPick(result.provider);
+				const remote = await quickpick.pick();
+
+				if (remote) {
+					if (typeof remote.url === 'string') {
+						url = remote.url;
+					} else if (remote.url.length > 0) {
+						url = await window.showQuickPick(remote.url, { ignoreFocusOut: true, placeHolder: localize('pick url', "Choose a URL to clone from.") });
+					}
+				}
+			}
+		}
+
+		if (!url) {
+			return;
+		}
 
 		const resultName = await window.showInputBox({
 			placeHolder: localize('remote name', "Remote name"),
 			prompt: localize('provide remote name', "Please provide a remote name"),
 			ignoreFocusOut: true,
 			validateInput: (name: string) => {
-				if (sanitize(name)) {
-					return null;
+				if (!sanitizeRemoteName(name)) {
+					return localize('remote name format invalid', "Remote name format invalid");
+				} else if (repository.remotes.find(r => r.name === name)) {
+					return localize('remote already exists', "Remote '{0}' already exists.", name);
 				}
-				return localize('remote name format invalid', "Remote name format invalid");
+
+				return null;
 			}
 		});
 
-		const name = sanitize(resultName || '');
+		const name = sanitizeRemoteName(resultName || '');
 
 		if (!name) {
 			return;
 		}
 
-		if (remotes.find(r => r.name === name)) {
-			window.showErrorMessage(localize('remote already exists', "Remote '{0}' already exists.", name));
-			return;
-		}
-
-		const url = await window.showInputBox({
-			placeHolder: localize('remote url', "Remote URL"),
-			prompt: localize('provide remote URL', "Enter URL for remote \"{0}\"", name),
-			ignoreFocusOut: true
-		});
-
-		if (!url) {
-			return;
-		}
-
 		await repository.addRemote(name, url);
-
 		return name;
 	}
 
