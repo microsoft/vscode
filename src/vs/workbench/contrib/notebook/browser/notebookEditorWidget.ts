@@ -1140,7 +1140,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const tokenSource = new CancellationTokenSource();
 		try {
-			this._executeNotebookCell(cell, tokenSource);
+			await this._executeNotebookCell(cell, tokenSource);
 		} finally {
 			tokenSource.dispose();
 		}
