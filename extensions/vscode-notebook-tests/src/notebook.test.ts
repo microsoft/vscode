@@ -118,7 +118,7 @@ suite('API tests', () => {
 			]
 		});
 
-		const moveCellEvent = getEventOncePromise<vscode.NotebookCellMoveEvent>(vscode.notebook.onDidChangeNotebookCells);
+		const moveCellEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.moveUp');
 		const moveCellEventRet = await moveCellEvent;
 		assert.deepEqual(moveCellEventRet, {

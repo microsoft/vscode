@@ -50,6 +50,26 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 
 			return dto;
 		},
+		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+			return;
+		},
+		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+			return;
+		}
+	}));
+
+	context.subscriptions.push(vscode.notebook.registerNotebookKernel('notebookSmokeTest', ['*.vsctestnb'], {
+		label: 'notebookSmokeTest',
+		executeAllCells: async (_document: vscode.NotebookDocument) => {
+			for (let i = 0; i < _document.cells.length; i++) {
+				_document.cells[i].outputs = [{
+					outputKind: vscode.CellOutputKind.Rich,
+					data: {
+						'text/html': ['test output']
+					}
+				}];
+			}
+		},
 		executeCell: async (_document: vscode.NotebookDocument, _cell: vscode.NotebookCell | undefined, _token: vscode.CancellationToken) => {
 			if (!_cell) {
 				_cell = _document.cells[0];
@@ -63,11 +83,5 @@ export function smokeTestActivate(context: vscode.ExtensionContext): any {
 			}];
 			return;
 		},
-		saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-			return;
-		},
-		saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-			return;
-		}
 	}));
 }
