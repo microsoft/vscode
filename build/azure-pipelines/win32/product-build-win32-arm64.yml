@@ -1,0 +1,21 @@
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: "12.13.0"
+
+- task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
+  inputs:
+    versionSpec: "1.x"
+
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '2.x'
+    addToPath: true
+
+- powershell: |
+    . build/azure-pipelines/win32/exec.ps1
+    $ErrorActionPreference = "Stop"
+    $env:npm_config_arch="$(VSCODE_ARCH)"
+    $env:CHILD_CONCURRENCY="1"
+    exec { yarn --frozen-lockfile }
+  displayName: Install dependencies
