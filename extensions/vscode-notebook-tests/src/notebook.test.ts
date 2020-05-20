@@ -347,6 +347,9 @@ suite('notebook workflow', () => {
 
 		const newActiveCell = vscode.notebook.activeNotebookEditor!.selection;
 		assert.deepEqual(activeCell, newActiveCell);
+		await vscode.commands.executeCommand('workbench.action.files.saveAll');
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+
 		// TODO@rebornix, there are still some events order issue.
 		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(newActiveCell!), 2);
 	});
