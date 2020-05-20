@@ -47,10 +47,6 @@ class MockTerminalInstanceService implements ITerminalInstanceService {
 	getXtermUnicode11Constructor(): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
-	// TODO: Remove this from the interface
-	async getXtermWebLinksConstructor(): Promise<any> {
-		// return (await import('xterm-addon-web-links')).WebLinksAddon;
-	}
 	getXtermWebglConstructor(): Promise<any> {
 		throw new Error('Method not implemented.');
 	}
