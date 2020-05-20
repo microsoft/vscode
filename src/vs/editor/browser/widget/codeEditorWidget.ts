@@ -54,6 +54,7 @@ import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/m
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 
 let EDITOR_ID = 0;
 
@@ -1509,6 +1510,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._onDidChangeCursorSelection.fire(e2);
 		}));
 
+		listenersToRemove.push(viewModel.onEvent((e) => {
+			switch (e.kind) {
+				case OutgoingViewModelEventKind.ContentSizeChanged:
+					this._onDidContentSizeChange.fire(e);
+					break;
+			}
+		}));
+
 		const [view, hasRealView] = this._createView(viewModel);
 		if (hasRealView) {
 			this._domElement.appendChild(view.domNode.domNode);
@@ -1592,7 +1601,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 
 		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
-		viewOutgoingEvents.onDidContentSizeChange = (e) => this._onDidContentSizeChange.fire(e);
 		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
 		viewOutgoingEvents.onDidGainFocus = () => onDidChangeTextFocus(true);
 		viewOutgoingEvents.onDidLoseFocus = () => onDidChangeTextFocus(false);

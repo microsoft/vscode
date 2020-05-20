@@ -3,33 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewModelEventDispatcher } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { ScrollType, IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/model/textModelEvents';
 
 export const enum ViewEventType {
-	ViewConfigurationChanged = 1,
-	ViewContentSizeChanged = 2,
-	ViewCursorStateChanged = 3,
-	ViewDecorationsChanged = 4,
-	ViewFlushed = 5,
-	ViewFocusChanged = 6,
-	ViewLanguageConfigurationChanged = 7,
-	ViewLineMappingChanged = 8,
-	ViewLinesChanged = 9,
-	ViewLinesDeleted = 10,
-	ViewLinesInserted = 11,
-	ViewRevealRangeRequest = 12,
-	ViewScrollChanged = 13,
-	ViewThemeChanged = 14,
-	ViewTokensChanged = 15,
-	ViewTokensColorsChanged = 16,
-	ViewZonesChanged = 17,
+	ViewConfigurationChanged,
+	ViewCursorStateChanged,
+	ViewDecorationsChanged,
+	ViewFlushed,
+	ViewFocusChanged,
+	ViewLanguageConfigurationChanged,
+	ViewLineMappingChanged,
+	ViewLinesChanged,
+	ViewLinesDeleted,
+	ViewLinesInserted,
+	ViewRevealRangeRequest,
+	ViewScrollChanged,
+	ViewThemeChanged,
+	ViewTokensChanged,
+	ViewTokensColorsChanged,
+	ViewZonesChanged,
 }
 
 export class ViewConfigurationChangedEvent {
@@ -44,25 +41,6 @@ export class ViewConfigurationChangedEvent {
 
 	public hasChanged(id: EditorOption): boolean {
 		return this._source.hasChanged(id);
-	}
-}
-
-export class ViewContentSizeChangedEvent implements IContentSizeChangedEvent {
-
-	public readonly type = ViewEventType.ViewContentSizeChanged;
-
-	public readonly contentWidth: number;
-	public readonly contentHeight: number;
-
-	public readonly contentWidthChanged: boolean;
-	public readonly contentHeightChanged: boolean;
-
-	constructor(source: IContentSizeChangedEvent) {
-		this.contentWidth = source.contentWidth;
-		this.contentHeight = source.contentHeight;
-
-		this.contentWidthChanged = source.contentWidthChanged;
-		this.contentHeightChanged = source.contentHeightChanged;
 	}
 }
 
@@ -308,7 +286,6 @@ export class ViewZonesChangedEvent {
 
 export type ViewEvent = (
 	ViewConfigurationChangedEvent
-	| ViewContentSizeChangedEvent
 	| ViewCursorStateChangedEvent
 	| ViewDecorationsChangedEvent
 	| ViewFlushedEvent
@@ -325,49 +302,6 @@ export type ViewEvent = (
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent
 );
-
-export interface IViewEventListener {
-	(events: ViewEvent[]): void;
-}
-
-export class ViewEventEmitter extends Disposable {
-	private _collector: ViewEventsCollector | null;
-	private _collectorCnt: number;
-
-	constructor() {
-		super();
-		this._collector = null;
-		this._collectorCnt = 0;
-	}
-
-	protected _beginEmitViewEvents(): ViewEventsCollector {
-		this._collectorCnt++;
-		if (this._collectorCnt === 1) {
-			this._collector = new ViewEventsCollector();
-		}
-		return this._collector!;
-	}
-
-	protected _endEmitViewEvents(eventDispatcher: ViewModelEventDispatcher): void {
-		this._collectorCnt--;
-		if (this._collectorCnt === 0) {
-			const events = this._collector!.finalize();
-			this._collector = null;
-			if (events.length > 0) {
-				eventDispatcher.emitMany(events);
-			}
-		}
-	}
-
-	protected _emitSingleViewEvent(eventDispatcher: ViewModelEventDispatcher, event: ViewEvent): void {
-		try {
-			const eventsCollector = this._beginEmitViewEvents();
-			eventsCollector.emit(event);
-		} finally {
-			this._endEmitViewEvents(eventDispatcher);
-		}
-	}
-}
 
 export class ViewEventsCollector {
 
@@ -388,5 +322,4 @@ export class ViewEventsCollector {
 		this._events = [];
 		return result;
 	}
-
 }

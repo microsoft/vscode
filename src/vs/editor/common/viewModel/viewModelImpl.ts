@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from 'vs/base/common/color';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { ConfigurationChangedEvent, EDITOR_FONT_DEFAULTS, EditorOption, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -29,17 +30,18 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewModelEventDispatcher } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { ViewModelEventDispatcher, OutgoingViewModelEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
-export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel {
+export class ViewModel extends Disposable implements IViewModel {
 
 	private readonly editorId: number;
 	private readonly configuration: IConfiguration;
 	public readonly model: ITextModel;
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
+	public readonly onEvent: Event<OutgoingViewModelEvent>;
 	public cursorConfig: CursorConfiguration;
 	private readonly _tokenizeViewportSoon: RunOnceScheduler;
 	private readonly _updateConfigurationViewLineCount: RunOnceScheduler;
@@ -67,6 +69,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.configuration = configuration;
 		this.model = model;
 		this._eventDispatcher = new ViewModelEventDispatcher();
+		this.onEvent = this._eventDispatcher.onEvent;
 		this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this.configuration);
 		this._tokenizeViewportSoon = this._register(new RunOnceScheduler(() => this.tokenizeViewport(), 50));
 		this._updateConfigurationViewLineCount = this._register(new RunOnceScheduler(() => this._updateConfigurationViewLineCountNow(), 0));
@@ -108,11 +111,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			if (e.scrollTopChanged) {
 				this._tokenizeViewportSoon.schedule();
 			}
-			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewScrollChangedEvent(e));
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewScrollChangedEvent(e));
 		}));
 
 		this._register(this.viewLayout.onDidContentSizeChange((e) => {
-			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewContentSizeChangedEvent(e));
+			this._eventDispatcher.emitOutgoingEvent(e);
 		}));
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
@@ -121,15 +124,15 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this._register(this.configuration.onDidChange((e) => {
 			try {
-				const eventsCollector = this._beginEmitViewEvents();
+				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 				this._onConfigurationChanged(eventsCollector, e);
 			} finally {
-				this._endEmitViewEvents(this._eventDispatcher);
+				this._eventDispatcher.endEmitViewEvents();
 			}
 		}));
 
 		this._register(MinimapTokensColorTracker.getInstance().onDidChange(() => {
-			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewTokensColorsChangedEvent());
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensColorsChangedEvent());
 		}));
 
 		this._updateConfigurationViewLineCountNow();
@@ -143,6 +146,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.lines.dispose();
 		this.invalidateMinimapColorCache();
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, null, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+		this._eventDispatcher.dispose();
 	}
 
 	public addViewEventHandler(eventHandler: ViewEventHandler): void {
@@ -167,11 +171,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	public setHasFocus(hasFocus: boolean): void {
 		this.hasFocus = hasFocus;
 		this.cursor.setHasFocus(hasFocus);
-		this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewFocusChangedEvent(hasFocus));
+		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
 	}
 
 	public onDidColorThemeChange(): void {
-		this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewThemeChangedEvent());
+		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent());
 	}
 
 	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: ConfigurationChangedEvent): void {
@@ -231,7 +235,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this._register(this.model.onDidChangeRawContentFast((e) => {
 			try {
-				const eventsCollector = this._beginEmitViewEvents();
+				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 
 				let hadOtherModelChange = false;
 				let hadModelLineChangeThatChangedLineMapping = false;
@@ -325,7 +329,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					this.decorations.onLineMappingChanged();
 				}
 			} finally {
-				this._endEmitViewEvents(this._eventDispatcher);
+				this._eventDispatcher.endEmitViewEvents();
 			}
 
 			// Update the configuration and reset the centered view line
@@ -344,10 +348,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 
 			try {
-				const eventsCollector = this._beginEmitViewEvents();
+				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 				this.cursor.onModelContentChanged(eventsCollector, e);
 			} finally {
-				this._endEmitViewEvents(this._eventDispatcher);
+				this._eventDispatcher.endEmitViewEvents();
 			}
 		}));
 
@@ -362,7 +366,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					toLineNumber: viewEndLineNumber
 				};
 			}
-			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewTokensChangedEvent(viewRanges));
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewTokensChangedEvent(viewRanges));
 
 			if (e.tokenizationSupportChanged) {
 				this._tokenizeViewportSoon.schedule();
@@ -370,7 +374,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		}));
 
 		this._register(this.model.onDidChangeLanguageConfiguration((e) => {
-			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewLanguageConfigurationEvent());
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewLanguageConfigurationEvent());
 			this.cursorConfig = new CursorConfiguration(this.model.getLanguageIdentifier(), this.model.getOptions(), this.configuration);
 			this.cursor.updateConfiguration(this.cursorConfig);
 		}));
@@ -384,7 +388,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			// A tab size change causes a line mapping changed event => all view parts will repaint OK, no further event needed here
 			if (this.lines.setTabSize(this.model.getOptions().tabSize)) {
 				try {
-					const eventsCollector = this._beginEmitViewEvents();
+					const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 					eventsCollector.emit(new viewEvents.ViewFlushedEvent());
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
 					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
@@ -392,7 +396,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					this.decorations.onLineMappingChanged();
 					this.viewLayout.onFlushed(this.getLineCount());
 				} finally {
-					this._endEmitViewEvents(this._eventDispatcher);
+					this._eventDispatcher.endEmitViewEvents();
 				}
 				this._updateConfigurationViewLineCount.schedule();
 			}
@@ -403,13 +407,13 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		this._register(this.model.onDidChangeDecorations((e) => {
 			this.decorations.onModelDecorationsChanged();
-			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewDecorationsChangedEvent(e));
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 		}));
 	}
 
 	public setHiddenAreas(ranges: Range[]): void {
 		try {
-			const eventsCollector = this._beginEmitViewEvents();
+			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 			let lineMappingChanged = this.lines.setHiddenAreas(ranges);
 			if (lineMappingChanged) {
 				eventsCollector.emit(new viewEvents.ViewFlushedEvent());
@@ -421,7 +425,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				this.viewLayout.onHeightMaybeChanged();
 			}
 		} finally {
-			this._endEmitViewEvents(this._eventDispatcher);
+			this._eventDispatcher.endEmitViewEvents();
 		}
 		this._updateConfigurationViewLineCount.schedule();
 	}
@@ -970,7 +974,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	public changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void {
 		const hadAChange = this.viewLayout.changeWhitespace(callback);
 		if (hadAChange) {
-			this._emitSingleViewEvent(this._eventDispatcher, new viewEvents.ViewZonesChangedEvent());
+			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewZonesChangedEvent());
 		}
 	}
 	public setMaxLineWidth(maxLineWidth: number): void {
@@ -980,10 +984,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private _withViewEventsCollector(callback: (eventsCollector: viewEvents.ViewEventsCollector) => void): void {
 		try {
-			const eventsCollector = this._beginEmitViewEvents();
+			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 			callback(eventsCollector);
 		} finally {
-			this._endEmitViewEvents(this._eventDispatcher);
+			this._eventDispatcher.endEmitViewEvents();
 		}
 	}
 }

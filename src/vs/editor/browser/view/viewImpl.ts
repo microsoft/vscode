@@ -299,10 +299,6 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 		return false;
 	}
-	public onContentSizeChanged(e: viewEvents.ViewContentSizeChangedEvent): boolean {
-		this.outgoingEvents.emitContentSizeChange(e);
-		return false;
-	}
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		this._selections = e.selections;
 		return false;

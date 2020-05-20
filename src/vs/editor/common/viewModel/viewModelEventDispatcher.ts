@@ -4,21 +4,58 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { ViewEvent } from 'vs/editor/common/view/viewEvents';
+import { ViewEvent, ViewEventsCollector } from 'vs/editor/common/view/viewEvents';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-export class ViewModelEventDispatcher {
+export class ViewModelEventDispatcher extends Disposable {
+
+	private readonly _onEvent = this._register(new Emitter<OutgoingViewModelEvent>());
+	public readonly onEvent = this._onEvent.event;
 
 	private readonly _eventHandlers: ViewEventHandler[];
 	private _viewEventQueue: ViewEvent[] | null;
 	private _isConsumingViewEventQueue: boolean;
-	// private _outgoingContentSizeChangedEvent: OutgoingContentSizeChangedEvent | null;
+	private _collector: ViewEventsCollector | null;
+	private _collectorCnt: number;
+	private _outgoingEvents: OutgoingViewModelEvent[];
 
 	constructor() {
+		super();
 		this._eventHandlers = [];
 		this._viewEventQueue = null;
 		this._isConsumingViewEventQueue = false;
-		// this._outgoingContentSizeChangedEvent = null;
+		this._collector = null;
+		this._collectorCnt = 0;
+		this._outgoingEvents = [];
+	}
+
+	public emitOutgoingEvent(e: OutgoingViewModelEvent): void {
+		this._addOutgoingEvent(e);
+		this._emitOugoingEvents();
+	}
+
+	private _addOutgoingEvent(e: OutgoingViewModelEvent): void {
+		for (let i = 0, len = this._outgoingEvents.length; i < len; i++) {
+			if (this._outgoingEvents[i].kind === e.kind) {
+				this._outgoingEvents[i] = this._outgoingEvents[i].merge(e);
+				return;
+			}
+		}
+		// not merged
+		this._outgoingEvents.push(e);
+	}
+
+	private _emitOugoingEvents(): void {
+		while (this._outgoingEvents.length > 0) {
+			if (this._collector || this._isConsumingViewEventQueue) {
+				// right now collecting or emitting view events, so let's postpone emitting
+				return;
+			}
+			const event = this._outgoingEvents.shift()!;
+			this._onEvent.fire(event);
+		}
 	}
 
 	public addViewEventHandler(eventHandler: ViewEventHandler): void {
@@ -39,7 +76,36 @@ export class ViewModelEventDispatcher {
 		}
 	}
 
-	public emitMany(events: ViewEvent[]): void {
+	public beginEmitViewEvents(): ViewEventsCollector {
+		this._collectorCnt++;
+		if (this._collectorCnt === 1) {
+			this._collector = new ViewEventsCollector();
+		}
+		return this._collector!;
+	}
+
+	public endEmitViewEvents(): void {
+		this._collectorCnt--;
+		if (this._collectorCnt === 0) {
+			const events = this._collector!.finalize();
+			this._collector = null;
+			if (events.length > 0) {
+				this._emitMany(events);
+			}
+		}
+		this._emitOugoingEvents();
+	}
+
+	public emitSingleViewEvent(event: ViewEvent): void {
+		try {
+			const eventsCollector = this.beginEmitViewEvents();
+			eventsCollector.emit(event);
+		} finally {
+			this.endEmitViewEvents();
+		}
+	}
+
+	private _emitMany(events: ViewEvent[]): void {
 		if (this._viewEventQueue) {
 			this._viewEventQueue = this._viewEventQueue.concat(events);
 		} else {
@@ -75,7 +141,13 @@ export class ViewModelEventDispatcher {
 	}
 }
 
-export class OutgoingContentSizeChangedEvent implements IContentSizeChangedEvent {
+export const enum OutgoingViewModelEventKind {
+	ContentSizeChanged,
+}
+
+export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
+
+	public readonly kind = OutgoingViewModelEventKind.ContentSizeChanged;
 
 	private readonly _oldContentWidth: number;
 	private readonly _oldContentHeight: number;
@@ -93,4 +165,10 @@ export class OutgoingContentSizeChangedEvent implements IContentSizeChangedEvent
 		this.contentWidthChanged = (this._oldContentWidth !== this.contentWidth);
 		this.contentHeightChanged = (this._oldContentHeight !== this.contentHeight);
 	}
+
+	public merge(other: ContentSizeChangedEvent): ContentSizeChangedEvent {
+		return new ContentSizeChangedEvent(this._oldContentWidth, this._oldContentHeight, other.contentWidth, other.contentHeight);
+	}
 }
+
+export type OutgoingViewModelEvent = ContentSizeChangedEvent;
