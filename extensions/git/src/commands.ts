@@ -2005,9 +2005,17 @@ export class CommandCenter {
 		const remotes = repository.remotes;
 
 		if (remotes.length === 0) {
-			if (!pushOptions.silent) {
-				window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			if (pushOptions.silent) {
+				return;
 			}
+
+			const addRemote = localize('addremote', 'Add Remote');
+			const result = await window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."), addRemote);
+
+			if (result === addRemote) {
+				await this.addRemote(repository);
+			}
+
 			return;
 		}
 
