@@ -433,7 +433,9 @@ ${loaderJs}
 			case 'clearOutput':
 				{
 					let output = document.getElementById(id);
-					document.getElementById(id).parentNode.removeChild(output);
+					if (output && output.parentNode) {
+						document.getElementById(id).parentNode.removeChild(output);
+					}
 					// @TODO remove observer
 				}
 				break;
@@ -751,6 +753,10 @@ ${loaderJs}
 				this.kernelPreloadsCache.set(e.toString(), true);
 			}
 		});
+
+		if (!resources.length) {
+			return;
+		}
 
 		this.kernelRootsCache = [...extensionLocations, ...this.kernelRootsCache];
 		this._updatePreloads(resources);
