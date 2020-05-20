@@ -54,7 +54,7 @@ class SelectionAnchorController implements IEditorContribution {
 			}]);
 			this.decorationId = newDecorationId[0];
 			this.selectionAnchorSetContextKey.set(!!this.decorationId);
-			alert(localize('anchorSet', "Anchor set"));
+			alert(localize('anchorSet', "Anchor set at {0}:{1}", position.lineNumber, position.column));
 		}
 	}
 
