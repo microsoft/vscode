@@ -262,7 +262,7 @@ export enum NotebookCellsChangeType {
 
 export interface NotebookCellsModelChangedEvent {
 	readonly kind: NotebookCellsChangeType.ModelChange;
-	readonly changes: NotebookCellsSplice2[];
+	readonly change: NotebookCellsSplice2;
 	readonly versionId: number;
 }
 

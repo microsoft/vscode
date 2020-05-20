@@ -118,13 +118,23 @@ suite('API tests', () => {
 			]
 		});
 
-		const moveCellEvent = getEventOncePromise<vscode.NotebookCellMoveEvent>(vscode.notebook.onDidMoveNotebookCell);
+		const moveCellEvent = getEventOncePromise<vscode.NotebookCellMoveEvent>(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.moveUp');
 		const moveCellEventRet = await moveCellEvent;
 		assert.deepEqual(moveCellEventRet, {
 			document: vscode.notebook.activeNotebookEditor!.document,
-			index: 1,
-			newIndex: 0
+			changes: [
+				{
+					start: 1,
+					deletedCount: 1,
+					items: []
+				},
+				{
+					start: 0,
+					deletedCount: 0,
+					items: [vscode.notebook.activeNotebookEditor?.document.cells[0]]
+				}
+			]
 		});
 
 		const cellOutputChange = getEventOncePromise<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs);
@@ -156,6 +166,35 @@ suite('API tests', () => {
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	});
+
+	test('editor move cell event', async function () {
+		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
+		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
+		await vscode.commands.executeCommand('notebook.focusTop');
+
+		const activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 0);
+		const moveChange = getEventOncePromise(vscode.notebook.onDidChangeNotebookCells);
+		await vscode.commands.executeCommand('notebook.cell.moveDown');
+		const ret = await moveChange;
+		assert.deepEqual(ret, {
+			document: vscode.notebook.activeNotebookEditor?.document,
+			changes: [
+				{
+					start: 0,
+					deletedCount: 1,
+					items: []
+				},
+				{
+					start: 1,
+					deletedCount: 0,
+					items: [activeCell]
+				}
+			]
+		});
 	});
 
 	test('notebook editor active/visible', async function () {
