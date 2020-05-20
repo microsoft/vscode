@@ -177,9 +177,10 @@ export class UserDataSyncMachinesServiceChannel implements IServerChannel {
 	async call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'getMachines': return this.service.getMachines();
-			case 'updateName': return this.service.updateName(args[0]);
-			case 'unset': return this.service.unset();
-			case 'disable': return this.service.disable(args[0]);
+			case 'addCurrentMachine': return this.service.addCurrentMachine(args[0]);
+			case 'removeCurrentMachine': return this.service.removeCurrentMachine();
+			case 'renameMachine': return this.service.renameMachine(args[0], args[1]);
+			case 'disableMachine': return this.service.disableMachine(args[0]);
 		}
 		throw new Error('Invalid call');
 	}

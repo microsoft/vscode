@@ -20,9 +20,10 @@ import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSy
 import { isEqual } from 'vs/base/common/resources';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
 import { Throttler } from 'vs/base/common/async';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { isWeb } from 'vs/base/common/platform';
+import { platform, PlatformToString } from 'vs/base/common/platform';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 type SyncClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -152,7 +153,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			// Check if sync was turned off from other machine
 			if (currentMachine?.disabled) {
 				// Unset the current machine
-				await this.userDataSyncMachinesService.unset();
+				await this.userDataSyncMachinesService.removeCurrentMachine(manifest || undefined);
 				// Throw TurnedOff error
 				throw new UserDataSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
 			}
@@ -177,17 +178,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			if (!currentMachine) {
-				// add current machine to sync server
-				const namePrefix = `${this.productService.nameLong}${isWeb ? ' (Web)' : ''}`;
-				const nameRegEx = new RegExp(`${namePrefix}\\s#(\\d)`);
-
-				let nameIndex = 0;
-				for (const machine of machines) {
-					const matches = nameRegEx.exec(machine.name);
-					const index = matches ? parseInt(matches[1]) : 0;
-					nameIndex = index > nameIndex ? index : nameIndex;
-				}
-				await this.userDataSyncMachinesService.updateName(`${namePrefix} #${nameIndex + 1}`, manifest || undefined);
+				const name = this.computeDefaultMachineName(machines);
+				await this.userDataSyncMachinesService.addCurrentMachine(name, manifest || undefined);
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
@@ -290,7 +282,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
 		if (!donotUnsetMachine) {
-			await this.userDataSyncMachinesService.unset();
+			await this.userDataSyncMachinesService.removeCurrentMachine();
 		}
 		for (const synchroniser of this.synchronisers) {
 			try {
@@ -394,6 +386,20 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private computeConflicts(): SyncResourceConflicts[] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
 			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts }));
+	}
+
+	private computeDefaultMachineName(machines: IUserDataSyncMachine[]): string {
+		const namePrefix = `${this.productService.nameLong} (${PlatformToString(platform)})`;
+		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
+
+		let nameIndex = 0;
+		for (const machine of machines) {
+			const matches = nameRegEx.exec(machine.name);
+			const index = matches ? parseInt(matches[1]) : 0;
+			nameIndex = index > nameIndex ? index : nameIndex;
+		}
+
+		return `${namePrefix} #${nameIndex + 1}`;
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {

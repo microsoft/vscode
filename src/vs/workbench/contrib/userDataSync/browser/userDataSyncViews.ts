@@ -191,7 +191,7 @@ export class UserDataSyncDataViews extends Disposable {
 					icon: Codicon.edit,
 					menu: {
 						id: MenuId.ViewItemContext,
-						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', id), ContextKeyEqualsExpr.create('viewItem', 'current-machine')),
+						when: ContextKeyExpr.and(ContextKeyEqualsExpr.create('view', id), ContextKeyEqualsExpr.create('viewItem', 'sync-machine')),
 						group: 'inline',
 					},
 				});
@@ -207,7 +207,7 @@ export class UserDataSyncDataViews extends Disposable {
 						inputBox.dispose();
 						if (name) {
 							try {
-								await that.userDataSyncMachinesService.updateName(name);
+								await that.userDataSyncMachinesService.renameMachine(handle.$treeItemHandle, name);
 								await treeView.refresh();
 								c();
 							} catch (error) {
@@ -470,7 +470,7 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 			label: { label: name },
 			description: isCurrent ? localize({ key: 'current', comment: ['Current machine'] }, "Current") : undefined,
 			themeIcon: Codicon.vm,
-			contextValue: isCurrent ? 'current-machine' : 'other-machine'
+			contextValue: 'sync-machine'
 		}));
 	}
 }
