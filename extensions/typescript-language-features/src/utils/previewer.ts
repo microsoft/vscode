@@ -2,29 +2,75 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 
-function replaceLinks(text: string): string {
-	return text
-		// Http(s) links
-		.replace(/\{@(link|linkplain|linkcode) (https?:\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}/gi, (_, tag: string, link: string, text?: string) => {
-			switch (tag) {
-				case 'linkcode':
-					return `[\`${text ? text.trim() : link}\`](${link})`;
-
-				default:
-					return `[${text ? text.trim() : link}](${link})`;
+function getRootPath(definition: Proto.DefinitionResponse['body'], editor: vscode.TextEditor, proto: string, pathToUse: string): string | undefined {
+	switch (proto) {
+		case 'workspace': {
+			const [workspaceName] = pathToUse.match(/^[^\/]*/) || [];
+			return (vscode.workspace.workspaceFolders || []).find(workspaceFolder => workspaceFolder.name === workspaceName)?.uri.fsPath;
+		}
+		case 'project':
+		default: {
+			const uri = definition?.[0]?.file ? vscode.Uri.file(definition[0].file) : editor.document.uri;
+			if (/^\.\.?\//.test(pathToUse)) {
+				return path.dirname(uri.path);
 			}
-		});
+			return vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
+		}
+	}
 }
 
-function processInlineTags(text: string): string {
-	return replaceLinks(text);
+function getWorkspacePath(definition: Proto.DefinitionResponse['body'], proto: string, givenPath: string, withText: undefined | string): [string, string] {
+	const text = withText || givenPath;
+
+	const editor = vscode.window.activeTextEditor;
+	if (!editor) {
+		return [givenPath, text];
+	}
+
+	let pathToUse: string | undefined = givenPath.replace(/(?:workspace|project):\/\//, '');
+
+	const rootPath = getRootPath(definition, editor, proto, pathToUse);
+	if (!rootPath) {
+		return [givenPath, text];
+	}
+
+	if (proto === 'workspace') {
+		pathToUse = pathToUse.replace(/^[^\/]*/, '');
+	}
+
+	return [path.join(rootPath, pathToUse), text];
 }
 
-function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
+function replaceLinks(text: string, definition: Proto.DefinitionResponse['body']): string {
+	return (
+		text
+			// Http(s) links
+			.replace(
+				/\{@(link|linkplain|linkcode) ((https?|workspace|project):\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}/gi,
+				(_, tag: string, link: string, proto: string, text?: string) => {
+					if (proto === 'workspace' || proto === 'project') {
+						[link, text] = getWorkspacePath(definition, proto, link, text);
+					}
+					switch (tag) {
+						case 'linkcode':
+							return `[\`${text ? text.trim() : link}\`](${link})`;
+						default:
+							return `[${text ? text.trim() : link}](${link})`;
+					}
+				},
+			)
+	);
+}
+
+function processInlineTags(text: string, definition: Proto.DefinitionResponse['body']): string {
+	return replaceLinks(text, definition);
+}
+
+function getTagBodyText(tag: Proto.JSDocTagInfo, definition: Proto.DefinitionResponse['body']): string | undefined {
 	if (!tag.text) {
 		return undefined;
 	}
@@ -59,10 +105,10 @@ function getTagBodyText(tag: Proto.JSDocTagInfo): string | undefined {
 			return makeCodeblock(tag.text);
 	}
 
-	return processInlineTags(tag.text);
+	return processInlineTags(tag.text, definition);
 }
 
-function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
+function getTagDocumentation(tag: Proto.JSDocTagInfo, definition: Proto.DefinitionResponse['body']): string | undefined {
 	switch (tag.name) {
 		case 'augments':
 		case 'extends':
@@ -76,50 +122,57 @@ function getTagDocumentation(tag: Proto.JSDocTagInfo): string | undefined {
 				if (!doc) {
 					return label;
 				}
-				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc) : ` — ${processInlineTags(doc)}`);
+				return label + (doc.match(/\r\n|\n/g) ? '  \n' + processInlineTags(doc, definition) : ` — ${processInlineTags(doc, definition)}`);
 			}
 	}
 
 	// Generic tag
 	const label = `*@${tag.name}*`;
-	const text = getTagBodyText(tag);
+	const text = getTagBodyText(tag, definition);
 	if (!text) {
 		return label;
 	}
 	return label + (text.match(/\r\n|\n/g) ? '  \n' + text : ` — ${text}`);
 }
 
-export function plain(parts: Proto.SymbolDisplayPart[] | string): string {
+export function plain(
+	parts: Proto.SymbolDisplayPart[] | string,
+	definition: Proto.DefinitionResponse['body']
+): string {
 	return processInlineTags(
 		typeof parts === 'string'
 			? parts
-			: parts.map(part => part.text).join(''));
+			: parts.map(part => part.text).join(''),
+		definition
+	);
 }
 
-export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[]): string {
-	return tags.map(getTagDocumentation).join('  \n\n');
+export function tagsMarkdownPreview(tags: Proto.JSDocTagInfo[], definition: Proto.DefinitionResponse['body']): string {
+	return tags.map(tag => getTagDocumentation(tag, definition)).join('  \n\n');
 }
 
 export function markdownDocumentation(
 	documentation: Proto.SymbolDisplayPart[] | string,
-	tags: Proto.JSDocTagInfo[]
+	tags: Proto.JSDocTagInfo[],
+	definition: Proto.DefinitionResponse['body']
 ): vscode.MarkdownString {
 	const out = new vscode.MarkdownString();
-	addMarkdownDocumentation(out, documentation, tags);
+	addMarkdownDocumentation(out, documentation, tags, definition);
 	return out;
 }
 
 export function addMarkdownDocumentation(
 	out: vscode.MarkdownString,
 	documentation: Proto.SymbolDisplayPart[] | string | undefined,
-	tags: Proto.JSDocTagInfo[] | undefined
+	tags: Proto.JSDocTagInfo[] | undefined,
+	definition: Proto.DefinitionResponse['body']
 ): vscode.MarkdownString {
 	if (documentation) {
-		out.appendMarkdown(plain(documentation));
+		out.appendMarkdown(plain(documentation, definition));
 	}
 
 	if (tags) {
-		const tagsPreview = tagsMarkdownPreview(tags);
+		const tagsPreview = tagsMarkdownPreview(tags, definition);
 		if (tagsPreview) {
 			out.appendMarkdown('\n\n' + tagsPreview);
 		}

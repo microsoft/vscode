@@ -11,6 +11,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ICodeEditor, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
@@ -120,16 +121,21 @@ export class LinkDetector implements IEditorContribution {
 	private activeLinkDecorationId: string | null;
 	private readonly openerService: IOpenerService;
 	private readonly notificationService: INotificationService;
+	private readonly workspaceService: IWorkspaceContextService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
 	constructor(
 		editor: ICodeEditor,
 		@IOpenerService openerService: IOpenerService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IWorkspaceContextService workspaceService: IWorkspaceContextService
+
 	) {
+		console.log('workspace?: ', workspaceService.getWorkspace().folders);
 		this.editor = editor;
 		this.openerService = openerService;
 		this.notificationService = notificationService;
+		this.workspaceService = workspaceService;
 
 		let clickLinkGesture = new ClickLinkGesture(editor);
 		this.listenersToRemove.add(clickLinkGesture);
@@ -297,22 +303,46 @@ export class LinkDetector implements IEditorContribution {
 		link.resolve(CancellationToken.None).then(uri => {
 
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
+			// Support for workspace://<workspace-name>/path/to/file and project://path/to/file (and relative project path)
 			if (typeof uri === 'string' && this.editor.hasModel()) {
+
 				const modelUri = this.editor.getModel().uri;
-				if (modelUri.scheme === Schemas.file && strings.startsWith(uri, 'file:')) {
+				if (modelUri.scheme === Schemas.file && /^(?:file|project|workspace):/.test(uri)) {
 					const parsedUri = URI.parse(uri);
-					if (parsedUri.scheme === Schemas.file) {
-						const fsPath = resources.originalFSPath(parsedUri);
+					switch (parsedUri.scheme) {
+						case Schemas.file: {
+							const fsPath = resources.originalFSPath(parsedUri);
 
-						let relativePath: string | null = null;
-						if (strings.startsWith(fsPath, '/./')) {
-							relativePath = `.${fsPath.substr(1)}`;
-						} else if (strings.startsWith(fsPath, '//./')) {
-							relativePath = `.${fsPath.substr(2)}`;
+							let relativePath: string | null = null;
+							if (strings.startsWith(fsPath, '/./')) {
+								relativePath = `.${fsPath.substr(1)}`;
+							} else if (strings.startsWith(fsPath, '//./')) {
+								relativePath = `.${fsPath.substr(2)}`;
+							}
+
+							if (relativePath) {
+								uri = resources.joinPath(modelUri, relativePath);
+							}
+							break;
 						}
-
-						if (relativePath) {
-							uri = resources.joinPath(modelUri, relativePath);
+						case Schemas.project:
+						case Schemas.workspace: {
+							let pathToUse: string | undefined = uri.replace(/(?:workspace|project):\/\//, '');
+							let rootUri: URI | undefined;
+							let workspaceName: undefined | string;
+							if (parsedUri.scheme === Schemas.workspace) {
+								[, workspaceName, pathToUse] = pathToUse.match(/^([^\/]*)(\/[^ |]*)/) || [];
+								rootUri = (this.workspaceService.getWorkspace().folders || []).find(workspaceFolder => workspaceFolder.name === workspaceName)?.uri;
+							} else {
+								[pathToUse] = pathToUse.match(/^([^ |]*)/) || [];
+								rootUri = /^\.\.?\//.test(pathToUse) ? resources.dirname(modelUri) : this.workspaceService.getWorkspaceFolder(modelUri)?.uri;
+							}
+							if (!rootUri) {
+								break;
+							}
+							uri = resources.joinPath(rootUri, pathToUse);
+							console.log({ workspaceName, uri, rootUri, pathToUse });
+							break;
 						}
 					}
 				}
