@@ -83,7 +83,7 @@ import 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import 'vs/workbench/services/views/browser/viewDescriptorService';
 import 'vs/workbench/services/quickinput/browser/quickInputService';
-import 'vs/workbench/services/userDataSync/common/userDataSyncWorkbenchService';
+import 'vs/workbench/services/userDataSync/browser/userDataSyncWorkbenchService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
