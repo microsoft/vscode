@@ -21,6 +21,8 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { dirname } from 'vs/base/common/resources';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
 export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
@@ -144,10 +146,12 @@ export class BackLayerWebView extends Disposable {
 	constructor(
 		public notebookEditor: INotebookEditor,
 		public id: string,
+		public documentUri: URI,
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -168,9 +172,11 @@ export class BackLayerWebView extends Disposable {
 			resolveFunc = resolve;
 		});
 
+		const baseUrl = asWebviewUri(this.workbenchEnvironmentService, this.id, dirname(documentUri));
+
 		if (!isWeb) {
 			coreDependencies = `<script src="${loader}"></script>`;
-			const htmlContent = this.generateContent(8, coreDependencies);
+			const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
 			this.initialize(htmlContent);
 			resolveFunc!();
 		} else {
@@ -186,18 +192,20 @@ export class BackLayerWebView extends Disposable {
 ${loaderJs}
 </script>
 `;
-				const htmlContent = this.generateContent(8, coreDependencies);
+
+				const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
 				this.initialize(htmlContent);
 				resolveFunc!();
 			});
 		}
 	}
 
-	generateContent(outputNodePadding: number, coreDependencies: string) {
+	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
 		return html`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
+				<base url="${baseUrl}/"/>
 				<style>
 					#container > div > div {
 						width: 100%;
@@ -565,7 +573,9 @@ ${loaderJs}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
-		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), rootPath];
+		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
+
+		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];
 
 		const webview = webviewService.createWebviewElement(this.id, {
 			enableFindWidget: false,
