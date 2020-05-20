@@ -329,6 +329,7 @@ export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
 	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
+	readonly renderers: number[];
 }
 
 

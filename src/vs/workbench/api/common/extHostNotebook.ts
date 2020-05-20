@@ -891,9 +891,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 						source: cell.source,
 						outputs: transformedOutputs
 					};
-				})
+				}),
+				renderers: [] as number[]
 			};
 
+			dto.renderers = [...renderers];
 			return dto;
 		}
 

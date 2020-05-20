@@ -67,9 +67,6 @@ export class NotebookEditorOptions extends EditorOptions {
 	}
 }
 
-
-let EDITOR_ID = 0;
-
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
@@ -95,7 +92,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private scrollBeyondLastLine: boolean;
 	private readonly memento: Memento;
 	private _isDisposed: boolean = false;
-	private readonly _id: number;
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -105,7 +101,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@ILayoutService private readonly _layoutService: ILayoutService
 	) {
 		super();
-		this._id = (++EDITOR_ID);
 		this.memento = new Memento(NotebookEditorWidget.ID, storageService);
 
 		this.outputRenderer = new OutputRenderer(this, this.instantiationService);
@@ -124,8 +119,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.notebookService.addNotebookEditor(this);
 	}
 
+	private _uuid = generateUuid();
 	public getId(): string {
-		return 'vs.editor.INotebookEditor:' + this._id;
+		return this._uuid;
 	}
 
 	private readonly _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
