@@ -338,7 +338,6 @@ export class LinkDetector implements IEditorContribution {
 								break;
 							}
 							uri = resources.joinPath(rootUri, pathToUse);
-							console.log({ workspaceName, uri, rootUri, pathToUse });
 							break;
 						}
 					}
