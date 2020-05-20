@@ -101,7 +101,7 @@ export class DebugSession implements IDebugSession {
 
 		const compoundRoot = this._options.compoundRoot;
 		if (compoundRoot) {
-			toDispose.push(compoundRoot.onShouldSessionsStop(() => this.terminate()));
+			toDispose.push(compoundRoot.onDidSessionStop(() => this.terminate()));
 		}
 	}
 
@@ -287,7 +287,7 @@ export class DebugSession implements IDebugSession {
 		}
 
 		if (!restart) {
-			this._options.compoundRoot?.didStop();
+			this._options.compoundRoot?.sessionStopped();
 		}
 	}
 
@@ -303,7 +303,7 @@ export class DebugSession implements IDebugSession {
 		await this.raw.disconnect(restart);
 
 		if (!restart) {
-			this._options.compoundRoot?.didStop();
+			this._options.compoundRoot?.sessionStopped();
 		}
 	}
 

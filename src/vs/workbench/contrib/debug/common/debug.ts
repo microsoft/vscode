@@ -24,6 +24,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DebugConfigurationProviderTriggerKind } from 'vs/workbench/api/common/extHostTypes';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 
 export const VIEWLET_ID = 'workbench.view.debug';
 
@@ -155,7 +156,7 @@ export interface IDebugSessionOptions {
 	noDebug?: boolean;
 	parentSession?: IDebugSession;
 	repl?: IDebugSessionReplMode;
-	compoundRoot?: IDebugCompoundRoot;
+	compoundRoot?: DebugCompoundRoot;
 }
 
 export interface IDebugSession extends ITreeElement {
@@ -911,10 +912,4 @@ export interface IDebugHelperService {
 	_serviceBrand: undefined;
 
 	createTelemetryService(configurationService: IConfigurationService, args: string[]): TelemetryService | undefined;
-}
-
-export interface IDebugCompoundRoot {
-	onShouldSessionsStop: Event<void>;
-
-	didStop(): void;
 }

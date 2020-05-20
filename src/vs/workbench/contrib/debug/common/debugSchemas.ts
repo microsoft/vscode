@@ -218,7 +218,7 @@ export const launchSchema: IJSONSchema = {
 					stopAll: {
 						type: 'boolean',
 						default: false,
-						description: nls.localize('app.launch.json.compound.stopAll', "Whether to stop all of the compound sessions when any session is terminated.")
+						description: nls.localize('app.launch.json.compound.stopAll', "Controls whether manually terminating one session will stop all of the compound sessions.")
 					},
 					preLaunchTask: {
 						type: 'string',
