@@ -9,6 +9,52 @@
 	margin-bottom: 4px;
 }
 
+.monaco-workbench .activitybar > .content > .home-bar > .monaco-action-bar .action-item {
+	margin-bottom: 0;
+}
+
+.monaco-workbench .activitybar > .content .composite-bar > .monaco-action-bar .action-item::before,
+.monaco-workbench .activitybar > .content .composite-bar > .monaco-action-bar .action-item::after {
+	position: absolute;
+	content: '';
+	width: 48px;
+	height: 2px;
+	display: block;
+	background-color: transparent;
+	transition-property: background-color;
+	transition-duration: 0ms;
+	transition-delay: 100ms;
+}
+
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::before {
+	margin-top: -3px;
+	margin-bottom: 1px;
+}
+
+/* Override top element since it would be cut off */
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item:first-of-type::before {
+	margin-top: 0px;
+	margin-bottom: 0px;
+}
+
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::after {
+	margin-top: 1px;
+	margin-bottom: -3px;
+}
+
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::after,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::before,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::after {
+	transition-delay: 0s;
+}
+
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
+.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::after,
+.monaco-workbench .activitybar > .content.dragged-over > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
+	background-color: var(--insert-border-color);
+}
+
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-label {
 	position: relative;
 	z-index: 1;
@@ -54,7 +100,7 @@
 }
 
 /* Hides active elements in high contrast mode */
-.hc-black .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+.monaco-workbench.hc-black .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
 	display: none;
 }
 
@@ -73,8 +119,8 @@
 }
 
 /* Hides outline on HC as focus is handled by border */
-.hc-black .monaco-workbench .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
-.hc-black .monaco-workbench .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
+.monaco-workbench.hc-black .activitybar.left > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before,
+.monaco-workbench.hc-black .activitybar.right > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus:before {
 	outline: none;
 }
 

@@ -122,7 +122,7 @@
 	},
 	{
 		"c": "%d",
-		"t": "source.cpp string.quoted.double.cpp constant.other.placeholder",
+		"t": "source.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -430,7 +430,7 @@
 	},
 	{
 		"c": "%d",
-		"t": "source.cpp string.quoted.double.cpp constant.other.placeholder",
+		"t": "source.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -474,7 +474,7 @@
 	},
 	{
 		"c": "user_candidate",
-		"t": "source.cpp meta.bracket.square.access variable.other.object",
+		"t": "source.cpp meta.bracket.square.access.cpp variable.other.object.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -485,7 +485,7 @@
 	},
 	{
 		"c": "[",
-		"t": "source.cpp meta.bracket.square.access punctuation.definition.begin.bracket.square",
+		"t": "source.cpp meta.bracket.square.access.cpp punctuation.definition.begin.bracket.square.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -496,7 +496,7 @@
 	},
 	{
 		"c": "i",
-		"t": "source.cpp meta.bracket.square.access",
+		"t": "source.cpp meta.bracket.square.access.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -507,7 +507,7 @@
 	},
 	{
 		"c": "]",
-		"t": "source.cpp meta.bracket.square.access punctuation.definition.end.bracket.square",
+		"t": "source.cpp meta.bracket.square.access.cpp punctuation.definition.end.bracket.square.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -727,7 +727,7 @@
 	},
 	{
 		"c": "O",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp entity.name.type.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp entity.name.type.parameter.cpp",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
 			"light_plus": "entity.name.type: #267F99",
@@ -738,7 +738,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -749,7 +749,7 @@
 	},
 	{
 		"c": "obj",
-		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters meta.parameter.cpp variable.parameter.cpp",
+		"t": "source.cpp meta.function.definition.cpp meta.head.function.definition.cpp meta.function.definition.parameters.cpp meta.parameter.cpp variable.parameter.cpp",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -1464,7 +1464,7 @@
 	},
 	{
 		"c": "%s",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.other.placeholder",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1486,7 +1486,7 @@
 	},
 	{
 		"c": "%s",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.other.placeholder",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp string.quoted.double.cpp constant.other.placeholder.cpp",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -1805,7 +1805,7 @@
 	},
 	{
 		"c": "movw $0x38, %ax; ltr %ax",
-		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp meta.embedded.assembly",
+		"t": "source.cpp meta.function.definition.cpp meta.body.function.definition.cpp meta.asm.cpp string.quoted.double.cpp meta.embedded.assembly.cpp",
 		"r": {
 			"dark_plus": "meta.embedded.assembly: #CE9178",
 			"light_plus": "meta.embedded.assembly: #A31515",

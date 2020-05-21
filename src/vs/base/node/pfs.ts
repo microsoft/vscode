@@ -9,7 +9,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as platform from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-import { endsWith } from 'vs/base/common/strings';
 import { promisify } from 'util';
 import { isRootOrDriveLetter } from 'vs/base/common/extpath';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -292,7 +291,7 @@ export function writeFile(path: string, data: string | Buffer | Uint8Array, opti
 function toQueueKey(path: string): string {
 	let queueKey = path;
 	if (platform.isWindows || platform.isMacintosh) {
-		queueKey = queueKey.toLowerCase(); // accomodate for case insensitive file systems
+		queueKey = queueKey.toLowerCase(); // accommodate for case insensitive file systems
 	}
 
 	return queueKey;
@@ -492,7 +491,7 @@ export async function move(source: string, target: string): Promise<void> {
 		//
 		// 2.) The user tries to rename a file/folder that ends with a dot. This is not
 		// really possible to move then, at least on UNC devices.
-		if (source.toLowerCase() !== target.toLowerCase() && error.code === 'EXDEV' || endsWith(source, '.')) {
+		if (source.toLowerCase() !== target.toLowerCase() && error.code === 'EXDEV' || source.endsWith('.')) {
 			await copy(source, target);
 			await rimraf(source, RimRafMode.MOVE);
 			await updateMtime(target);

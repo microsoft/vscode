@@ -6,7 +6,6 @@
 import { createApiFactoryAndRegisterActors } from 'vs/workbench/api/common/extHost.api.impl';
 import { ExtensionActivationTimesBuilder } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { AbstractExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
-import { endsWith } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { RequireInterceptor } from 'vs/workbench/api/common/extHostRequireInterceptor';
 
@@ -51,7 +50,8 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 		}
 
 		// fetch JS sources as text and create a new function around it
-		const initFn = new Function('module', 'exports', 'require', 'window', await response.text());
+		const source = await response.text();
+		const initFn = new Function('module', 'exports', 'require', 'window', `${source}\n//# sourceURL=${module.toString(true)}`);
 
 		// define commonjs globals: `module`, `exports`, and `require`
 		const _exports = {};
@@ -79,5 +79,5 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 }
 
 function ensureSuffix(path: string, suffix: string): string {
-	return endsWith(path, suffix) ? path : path + suffix;
+	return path.endsWith(suffix) ? path : path + suffix;
 }

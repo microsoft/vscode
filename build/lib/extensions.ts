@@ -27,7 +27,6 @@ const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
 const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
-const product = require('../../product.json');
 
 function fromLocal(extensionPath: string): Stream {
 	const webpackFilename = path.join(extensionPath, 'extension.webpack.config.js');
@@ -216,23 +215,22 @@ export function fromMarketplace(extensionName: string, version: string, metadata
 
 const excludedExtensions = [
 	'vscode-api-tests',
+	'vscode-web-playground',
 	'vscode-colorize-tests',
 	'vscode-test-resolver',
 	'ms-vscode.node-debug',
 	'ms-vscode.node-debug2',
-	'ms.vscode.js-debug-nightly'
+	'vscode-notebook-tests'
 ];
 
 interface IBuiltInExtension {
 	name: string;
 	version: string;
 	repo: string;
-	forQualities?: ReadonlyArray<string>;
 	metadata: any;
 }
 
-const builtInExtensions = (<IBuiltInExtension[]>require('../builtInExtensions.json'))
-	.filter(({ forQualities }) => !product.quality || forQualities?.includes?.(product.quality) !== false);
+const builtInExtensions: IBuiltInExtension[] = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8')).builtInExtensions;
 
 export function packageLocalExtensionsStream(): NodeJS.ReadWriteStream {
 	const localExtensionDescriptions = (<string[]>glob.sync('extensions/*/package.json'))

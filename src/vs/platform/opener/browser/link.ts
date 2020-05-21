@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { $ } from 'vs/base/browser/dom';
+import { $, EventHelper, EventLike } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -46,9 +46,12 @@ export class Link extends Disposable {
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.Enter)
 			.event;
-		const onOpen = Event.any(onClick, onEnterPress);
+		const onOpen = Event.any<EventLike>(onClick, onEnterPress);
 
-		this._register(onOpen(_ => openerService.open(link.href)));
+		this._register(onOpen(e => {
+			EventHelper.stop(e, true);
+			openerService.open(link.href);
+		}));
 
 		this.applyStyles();
 	}

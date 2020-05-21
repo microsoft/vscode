@@ -55,6 +55,7 @@ const mappings = [
 	['vb', 'source.asp.vb.net'],
 	['xml', 'text.xml'],
 	['yaml', 'source.yaml'],
+	['yml', 'source.yaml'],
 ];
 
 const scopes = {

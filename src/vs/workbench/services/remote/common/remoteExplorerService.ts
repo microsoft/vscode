@@ -29,6 +29,7 @@ export interface ITunnelItem {
 	remoteHost: string;
 	remotePort: number;
 	localAddress?: string;
+	localPort?: number;
 	name?: string;
 	closeable?: boolean;
 	description?: string;
@@ -114,11 +115,9 @@ export class TunnelModel extends Disposable {
 				this._onClosePort.fire(address);
 			}
 		}));
-
-		this.restoreForwarded();
 	}
 
-	private async restoreForwarded() {
+	async restoreForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
 			const tunnelsString = this.storageService.get(TUNNELS_TO_RESTORE, StorageScope.WORKSPACE);
 			if (tunnelsString) {
@@ -181,7 +180,7 @@ export class TunnelModel extends Disposable {
 			this.detected.set(MakeAddress(tunnel.remoteAddress.host, tunnel.remoteAddress.port), {
 				remoteHost: tunnel.remoteAddress.host,
 				remotePort: tunnel.remoteAddress.port,
-				localAddress: tunnel.localAddress,
+				localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : MakeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 				closeable: false
 			});
 		});
@@ -238,6 +237,7 @@ export interface IRemoteExplorerService {
 	registerCandidateFinder(finder: () => Promise<{ host: string, port: number, detail: string }[]>): void;
 	setCandidateFilter(filter: ((candidates: { host: string, port: number, detail: string }[]) => Promise<{ host: string, port: number, detail: string }[]>) | undefined): IDisposable;
 	refresh(): Promise<void>;
+	restore(): Promise<void>;
 }
 
 class RemoteExplorerService implements IRemoteExplorerService {
@@ -327,6 +327,10 @@ class RemoteExplorerService implements IRemoteExplorerService {
 
 	refresh(): Promise<void> {
 		return this.tunnelModel.refresh();
+	}
+
+	restore(): Promise<void> {
+		return this.tunnelModel.restoreForwarded();
 	}
 }
 

@@ -3,19 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IWebviewService, Webview, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { Dimension } from 'vs/base/browser/dom';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 /**
  * Webview editor overlay that creates and destroys the underlying webview as needed.
  */
-export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEditorOverlay {
+export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOverlay {
+
 	private readonly _onDidWheel = this._register(new Emitter<IMouseWheelEvent>());
 	public readonly onDidWheel = this._onDidWheel.event;
 
@@ -26,26 +28,39 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 	private _html: string = '';
 	private _initialScrollProgress: number = 0;
 	private _state: string | undefined = undefined;
-	private _extension: WebviewExtensionDescription | undefined;
 
 	private _contentOptions: WebviewContentOptions;
 	private _options: WebviewOptions;
 
 	private _owner: any = undefined;
 
+	private readonly _scopedContextKeyService = this._register(new MutableDisposable<IContextKeyService>());
+	private _findWidgetVisible: IContextKey<boolean>;
+
 	public constructor(
 		private readonly id: string,
 		initialOptions: WebviewOptions,
 		initialContentOptions: WebviewContentOptions,
-		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
-		@IWebviewService private readonly _webviewService: IWebviewService
+		public readonly extension: WebviewExtensionDescription | undefined,
+		@ILayoutService private readonly _layoutService: ILayoutService,
+		@IWebviewService private readonly _webviewService: IWebviewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
 		this._options = initialOptions;
 		this._contentOptions = initialContentOptions;
 
-		this._register(toDisposable(() => this.container.remove()));
+		this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(_contextKeyService);
+	}
+
+	private readonly _onDispose = this._register(new Emitter<void>());
+	public onDispose = this._onDispose.event;
+
+	dispose() {
+		this.container.remove();
+		this._onDispose.fire();
+		super.dispose();
 	}
 
 	@memoize
@@ -56,7 +71,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 
 		// Webviews cannot be reparented in the dom as it will destory their contents.
 		// Mount them to a high level node to avoid this.
-		this._layoutService.getWorkbenchElement().appendChild(container);
+		this._layoutService.container.appendChild(container);
 
 		return container;
 	}
@@ -82,6 +97,7 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		if (!this.container || !this.container.parentElement) {
 			return;
 		}
+
 		const frameRect = element.getBoundingClientRect();
 		const containerRect = this.container.parentElement.getBoundingClientRect();
 		this.container.style.position = 'absolute';
@@ -93,23 +109,27 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 
 	private show() {
 		if (!this._webview.value) {
-			const webview = this._webviewService.createWebview(this.id, this._options, this._contentOptions);
+			const webview = this._webviewService.createWebviewElement(this.id, this._options, this._contentOptions, this.extension);
 			this._webview.value = webview;
 			webview.state = this._state;
 			webview.html = this._html;
-			webview.extension = this._extension;
 			if (this._options.tryRestoreScrollPosition) {
 				webview.initialScrollProgress = this._initialScrollProgress;
 			}
+
 			webview.mountTo(this.container);
+			this._scopedContextKeyService.value = this._contextKeyService.createScoped(this.container);
+			this._findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._scopedContextKeyService.value);
 
 			// Forward events from inner webview to outer listeners
 			this._webviewEvents.clear();
 			this._webviewEvents.add(webview.onDidFocus(() => { this._onDidFocus.fire(); }));
+			this._webviewEvents.add(webview.onDidBlur(() => { this._onDidBlur.fire(); }));
 			this._webviewEvents.add(webview.onDidClickLink(x => { this._onDidClickLink.fire(x); }));
 			this._webviewEvents.add(webview.onMessage(x => { this._onMessage.fire(x); }));
 			this._webviewEvents.add(webview.onMissingCsp(x => { this._onMissingCsp.fire(x); }));
 			this._webviewEvents.add(webview.onDidWheel(x => { this._onDidWheel.fire(x); }));
+			this._webviewEvents.add(webview.onDidReload(() => { this._onDidReload.fire(); }));
 
 			this._webviewEvents.add(webview.onDidScroll(x => {
 				this._initialScrollProgress = x.scrollYPercentage;
@@ -154,17 +174,17 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 		this.withWebview(webview => webview.contentOptions = value);
 	}
 
-	public get extension() { return this._extension; }
-	public set extension(value) {
-		this._extension = value;
-		this.withWebview(webview => webview.extension = value);
-	}
-
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	public readonly onDidBlur: Event<void> = this._onDidBlur.event;
+
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink: Event<string> = this._onDidClickLink.event;
+
+	private readonly _onDidReload = this._register(new Emitter<void>());
+	public readonly onDidReload = this._onDidReload.event;
 
 	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number; }>());
 	public readonly onDidScroll: Event<{ scrollYPercentage: number; }> = this._onDidScroll.event;
@@ -188,10 +208,21 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewEd
 
 	focus(): void { this.withWebview(webview => webview.focus()); }
 	reload(): void { this.withWebview(webview => webview.reload()); }
-	showFind(): void { this.withWebview(webview => webview.showFind()); }
-	hideFind(): void { this.withWebview(webview => webview.hideFind()); }
-	runFindAction(previous: boolean): void { this.withWebview(webview => webview.runFindAction(previous)); }
 	selectAll(): void { this.withWebview(webview => webview.selectAll()); }
+
+	showFind() {
+		if (this._webview.value) {
+			this._webview.value.showFind();
+			this._findWidgetVisible.set(true);
+		}
+	}
+
+	hideFind() {
+		this._findWidgetVisible.reset();
+		this._webview.value?.hideFind();
+	}
+
+	runFindAction(previous: boolean): void { this.withWebview(webview => webview.runFindAction(previous)); }
 
 	public getInnerWebview() {
 		return this._webview.value;

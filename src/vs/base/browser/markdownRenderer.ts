@@ -16,16 +16,22 @@ import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { renderCodicons, markdownEscapeEscapedCodicons } from 'vs/base/common/codicons';
+import { resolvePath } from 'vs/base/common/resources';
+
+export interface MarkedOptions extends marked.MarkedOptions {
+	baseUrl?: never;
+}
 
 export interface MarkdownRenderOptions extends FormattedTextRenderOptions {
 	codeBlockRenderer?: (modeId: string, value: string) => Promise<string>;
 	codeBlockRenderCallback?: () => void;
+	baseUrl?: URI;
 }
 
 /**
  * Create html nodes for the given content element.
  */
-export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: marked.MarkedOptions = {}): HTMLElement {
+export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRenderOptions = {}, markedOptions: MarkedOptions = {}): HTMLElement {
 	const element = createElement(options);
 
 	const _uriMassage = function (part: string): string {
@@ -58,12 +64,16 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			return href; // no tranformation performed
 		}
 		if (isDomUri) {
-			uri = DOM.asDomUri(uri);
+			// this URI will end up as "src"-attribute of a dom node
+			// and because of that special rewriting needs to be done
+			// so that the URI uses a protocol that's understood by
+			// browsers (like http or https)
+			return DOM.asDomUri(uri).toString(true);
 		}
 		if (uri.query) {
 			uri = uri.with({ query: _uriMassage(uri.query) });
 		}
-		return uri.toString(true);
+		return uri.toString();
 	};
 
 	// signal to code-block render that the
@@ -78,6 +88,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		if (href) {
 			({ href, dimensions } = parseHrefAndDimensions(href));
 			href = _href(href, true);
+			if (options.baseUrl) {
+				href = resolvePath(options.baseUrl, href).toString();
+			}
 			attributes.push(`src="${href}"`);
 		}
 		if (text) {
@@ -97,6 +110,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			text = removeMarkdownEscapes(text);
 		}
 		href = _href(href, false);
+		if (options.baseUrl) {
+			href = resolvePath(options.baseUrl, href).toString();
+		}
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);
 		if (
@@ -179,8 +195,8 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 
 	const renderedMarkdown = marked.parse(
 		markdown.supportThemeIcons
-			? markdownEscapeEscapedCodicons(markdown.value)
-			: markdown.value,
+			? markdownEscapeEscapedCodicons(markdown.value || '')
+			: (markdown.value || ''),
 		markedOptions
 	);
 
@@ -191,7 +207,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 			'iframe': ['allowfullscreen', 'frameborder', 'src'],
 			'img': ['src', 'title', 'alt', 'width', 'height'],
 			'div': ['class', 'data-code'],
-			'span': ['class']
+			'span': ['class'],
+			// https://github.com/microsoft/vscode/issues/95937
+			'th': ['align'],
+			'td': ['align']
 		}
 	});
 

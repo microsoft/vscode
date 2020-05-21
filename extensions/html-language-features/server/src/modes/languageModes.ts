@@ -47,6 +47,7 @@ export interface LanguageMode {
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;
 	doRename?: (document: TextDocument, position: Position, newName: string) => WorkspaceEdit | null;
+	doOnTypeRename?: (document: TextDocument, position: Position) => Range[] | null;
 	findDocumentHighlight?: (document: TextDocument, position: Position) => DocumentHighlight[];
 	findDocumentSymbols?: (document: TextDocument) => SymbolInformation[];
 	findDocumentLinks?: (document: TextDocument, documentContext: DocumentContext) => DocumentLink[];
@@ -94,8 +95,8 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		modes['css'] = getCSSMode(cssLanguageService, documentRegions, workspace);
 	}
 	if (supportedLanguages['javascript']) {
-		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript');
-		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript');
+		modes['javascript'] = getJavaScriptMode(documentRegions, 'javascript', workspace);
+		modes['typescript'] = getJavaScriptMode(documentRegions, 'typescript', workspace);
 	}
 	return {
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {

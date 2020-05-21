@@ -248,6 +248,10 @@ export class InputBox extends Widget {
 		}
 	}
 
+	public getAriaLabel(): string {
+		return this.ariaLabel;
+	}
+
 	public get mirrorElement(): HTMLElement | undefined {
 		return this.mirror;
 	}
@@ -289,6 +293,10 @@ export class InputBox extends Widget {
 		if (range) {
 			this.input.setSelectionRange(range.start, range.end);
 		}
+	}
+
+	public isSelectionAtEnd(): boolean {
+		return this.input.selectionEnd === this.input.value.length && this.input.selectionStart === this.input.selectionEnd;
 	}
 
 	public enable(): void {
@@ -368,18 +376,6 @@ export class InputBox extends Widget {
 
 		const styles = this.stylesForType(this.message.type);
 		this.element.style.border = styles.border ? `1px solid ${styles.border}` : '';
-
-		// ARIA Support
-		let alertText: string;
-		if (message.type === MessageType.ERROR) {
-			alertText = nls.localize('alertErrorMessage', "Error: {0}", message.content);
-		} else if (message.type === MessageType.WARNING) {
-			alertText = nls.localize('alertWarningMessage', "Warning: {0}", message.content);
-		} else {
-			alertText = nls.localize('alertInfoMessage', "Info: {0}", message.content);
-		}
-
-		aria.alert(alertText);
 
 		if (this.hasFocus() || force) {
 			this._showMessage();
@@ -481,6 +477,18 @@ export class InputBox extends Widget {
 			layout: layout
 		});
 
+		// ARIA Support
+		let alertText: string;
+		if (this.message.type === MessageType.ERROR) {
+			alertText = nls.localize('alertErrorMessage', "Error: {0}", this.message.content);
+		} else if (this.message.type === MessageType.WARNING) {
+			alertText = nls.localize('alertWarningMessage', "Warning: {0}", this.message.content);
+		} else {
+			alertText = nls.localize('alertInfoMessage', "Info: {0}", this.message.content);
+		}
+
+		aria.alert(alertText);
+
 		this.state = 'open';
 	}
 
@@ -552,7 +560,7 @@ export class InputBox extends Widget {
 
 		this.element.style.backgroundColor = background;
 		this.element.style.color = foreground;
-		this.input.style.backgroundColor = background;
+		this.input.style.backgroundColor = 'inherit';
 		this.input.style.color = foreground;
 
 		this.element.style.borderWidth = border ? '1px' : '';

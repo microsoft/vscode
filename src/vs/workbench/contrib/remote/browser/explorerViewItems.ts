@@ -77,11 +77,13 @@ export class SwitchRemoteViewItem extends SelectActionViewItem {
 	}
 
 	render(container: HTMLElement) {
-		super.render(container);
-		dom.addClass(container, 'switch-remote');
-		this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
-			container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
-		}));
+		if (this.optionsItems.length > 1) {
+			super.render(container);
+			dom.addClass(container, 'switch-remote');
+			this._register(attachStylerCallback(this.themeService, { selectBorder }, colors => {
+				container.style.border = colors.selectBorder ? `1px solid ${colors.selectBorder}` : '';
+			}));
+		}
 	}
 
 	protected getActionContext(_: string, index: number): any {

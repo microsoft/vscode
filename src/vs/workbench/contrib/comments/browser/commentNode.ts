@@ -33,6 +33,7 @@ import { ContextAwareMenuEntryActionViewItem } from 'vs/platform/actions/browser
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { CommentFormActions } from 'vs/workbench/contrib/comments/browser/commentFormActions';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
@@ -100,7 +101,7 @@ export class CommentNode extends Disposable {
 
 		this.createHeader(this._commentDetailsContainer);
 
-		this._body = dom.append(this._commentDetailsContainer, dom.$('div.comment-body'));
+		this._body = dom.append(this._commentDetailsContainer, dom.$(`div.comment-body.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		this._md = this.markdownRenderer.render(comment.body).element;
 		this._body.appendChild(this._md);
 
@@ -120,7 +121,7 @@ export class CommentNode extends Disposable {
 	}
 
 	private createHeader(commentDetailsContainer: HTMLElement): void {
-		const header = dom.append(commentDetailsContainer, dom.$('div.comment-title'));
+		const header = dom.append(commentDetailsContainer, dom.$(`div.comment-title.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		const author = dom.append(header, dom.$('strong.author'));
 		author.innerText = this.comment.userName;
 
@@ -158,7 +159,7 @@ export class CommentNode extends Disposable {
 						},
 						this.actionRunner!,
 						undefined,
-						'toolbar-toggle-pickReactions',
+						'toolbar-toggle-pickReactions codicon codicon-reactions',
 						() => { return AnchorAlignment.RIGHT; }
 					);
 				}
@@ -339,6 +340,11 @@ export class CommentNode extends Disposable {
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: 90 });
 		this._commentEditor.focus();
 
+		dom.scheduleAtNextAnimationFrame(() => {
+			this._commentEditor!.layout({ width: container.clientWidth - 14, height: 90 });
+			this._commentEditor!.focus();
+		});
+
 		const lastLine = this._commentEditorModel.getLineCount();
 		const lastColumn = this._commentEditorModel.getLineContent(lastLine).length + 1;
 		this._commentEditor.setSelection(new Selection(lastLine, lastColumn, lastLine, lastColumn));
@@ -438,6 +444,9 @@ export class CommentNode extends Disposable {
 			this._actionsToolbarContainer.classList.remove('hidden');
 			this._actionsToolbarContainer.classList.add('tabfocused');
 			this._domNode.tabIndex = 0;
+			if (this.comment.mode === modes.CommentMode.Editing) {
+				this._commentEditor?.focus();
+			}
 		} else {
 			if (this._actionsToolbarContainer.classList.contains('tabfocused') && !this._actionsToolbarContainer.classList.contains('mouseover')) {
 				this._actionsToolbarContainer.classList.add('hidden');

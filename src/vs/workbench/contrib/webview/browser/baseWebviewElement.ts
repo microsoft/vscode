@@ -21,6 +21,7 @@ export const enum WebviewMessageChannels {
 	didScroll = 'did-scroll',
 	didFocus = 'did-focus',
 	didBlur = 'did-blur',
+	didLoad = 'did-load',
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
 	loadResource = 'load-resource',
@@ -58,13 +59,13 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	protected content: WebviewContent;
 
-	public extension: WebviewExtensionDescription | undefined;
 
 	constructor(
 		// TODO: matb, this should not be protected. The only reason it needs to be is that the base class ends up using it in the call to createElement
 		protected readonly id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		public readonly extension: WebviewExtensionDescription | undefined,
 		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IEnvironmentService private readonly _environementService: IEnvironmentService,
@@ -78,7 +79,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			state: undefined
 		};
 
-		this._element = this.createElement(options);
+		this._element = this.createElement(options, contentOptions);
 
 		this._ready = new Promise(resolve => {
 			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
@@ -153,6 +154,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
 
+	private readonly _onDidReload = this._register(new Emitter<void>());
+	public readonly onDidReload = this._onDidReload.event;
+
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage = this._onMessage.event;
 
@@ -168,6 +172,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	private readonly _onDidFocus = this._register(new Emitter<void>());
 	public readonly onDidFocus = this._onDidFocus.event;
 
+	private readonly _onDidBlur = this._register(new Emitter<void>());
+	public readonly onDidBlur = this._onDidBlur.event;
+
 	public sendMessage(data: any): void {
 		this._send('message', data);
 	}
@@ -180,7 +187,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	protected abstract readonly extraContentOptions: { readonly [key: string]: string };
 
-	protected abstract createElement(options: WebviewOptions): T;
+	protected abstract createElement(options: WebviewOptions, contentOptions: WebviewContentOptions): T;
 
 	protected abstract on<T = unknown>(channel: string, handler: (data: T) => void): IDisposable;
 
@@ -213,6 +220,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	public reload(): void {
 		this.doUpdateContent();
+		const subscription = this._register(this.on(WebviewMessageChannels.didLoad, () => {
+			this._onDidReload.fire();
+			subscription.dispose();
+		}));
 	}
 
 	public set html(value: string) {
@@ -259,14 +270,16 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	protected style(): void {
-		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
-		this._send('styles', { styles, activeTheme });
+		const { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
+		this._send('styles', { styles, activeTheme, themeName: themeLabel });
 	}
 
 	protected handleFocusChange(isFocused: boolean): void {
 		this._focused = isFocused;
 		if (isFocused) {
 			this._onDidFocus.fire();
+		} else {
+			this._onDidBlur.fire();
 		}
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 
@@ -42,7 +42,7 @@ export interface IHistoryService {
 	/**
 	 * Removes an entry from history.
 	 */
-	remove(input: IEditorInput | IResourceInput): void;
+	remove(input: IEditorInput | IResourceEditorInput): void;
 
 	/**
 	 * Clears all history.
@@ -57,7 +57,7 @@ export interface IHistoryService {
 	/**
 	 * Get the entire history of editors that were opened.
 	 */
-	getHistory(): ReadonlyArray<IEditorInput | IResourceInput>;
+	getHistory(): ReadonlyArray<IEditorInput | IResourceEditorInput>;
 
 	/**
 	 * Looking at the editor history, returns the workspace root of the last file that was

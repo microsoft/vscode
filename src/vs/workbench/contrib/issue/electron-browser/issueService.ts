@@ -12,9 +12,9 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { webFrame } from 'electron';
 import { assign } from 'vs/base/common/objects';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/electron-browser/issue';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	_serviceBrand: undefined;
@@ -27,36 +27,33 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) { }
 
-	openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
-		return this.extensionManagementService.getInstalled(ExtensionType.User).then(extensions => {
-			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
-			const extensionData: IssueReporterExtensionData[] = enabledExtensions.map(extension => {
-				const { manifest } = extension;
-				const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
-				const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-
-				return {
-					name: manifest.name,
-					publisher: manifest.publisher,
-					version: manifest.version,
-					repositoryUrl: manifest.repository && manifest.repository.url,
-					bugsUrl: manifest.bugs && manifest.bugs.url,
-					displayName: manifest.displayName,
-					id: extension.identifier.id,
-					isTheme: isTheme
-				};
-			});
-			const theme = this.themeService.getColorTheme();
-			const issueReporterData: IssueReporterData = assign(
-				{
-					styles: getIssueReporterStyles(theme),
-					zoomLevel: webFrame.getZoomLevel(),
-					enabledExtensions: extensionData
-				},
-				dataOverrides);
-
-			return this.issueService.openReporter(issueReporterData);
+	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
+		const extensions = await this.extensionManagementService.getInstalled();
+		const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension));
+		const extensionData = enabledExtensions.map((extension): IssueReporterExtensionData => {
+			const { manifest } = extension;
+			const manifestKeys = manifest.contributes ? Object.keys(manifest.contributes) : [];
+			const isTheme = !manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
+			const isBuiltin = extension.type === ExtensionType.System;
+			return {
+				name: manifest.name,
+				publisher: manifest.publisher,
+				version: manifest.version,
+				repositoryUrl: manifest.repository && manifest.repository.url,
+				bugsUrl: manifest.bugs && manifest.bugs.url,
+				displayName: manifest.displayName,
+				id: extension.identifier.id,
+				isTheme,
+				isBuiltin,
+			};
 		});
+		const theme = this.themeService.getColorTheme();
+		const issueReporterData: IssueReporterData = assign({
+			styles: getIssueReporterStyles(theme),
+			zoomLevel: webFrame.getZoomLevel(),
+			enabledExtensions: extensionData,
+		}, dataOverrides);
+		return this.issueService.openReporter(issueReporterData);
 	}
 
 	openProcessExplorer(): Promise<void> {

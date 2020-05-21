@@ -526,7 +526,7 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			this.activeRequests.add(disposable);
 		});
 
-		return result.finally(() => this.activeRequests.delete(disposable));
+		return result.finally(() => { this.activeRequests.delete(disposable); });
 	}
 
 	private requestEvent(channelName: string, name: string, arg?: any): Event<any> {

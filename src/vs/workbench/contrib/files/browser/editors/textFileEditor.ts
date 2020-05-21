@@ -245,19 +245,6 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	protected getAriaLabel(): string {
-		const inputName = this.input?.getName();
-
-		let ariaLabel: string;
-		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyFileEditorWithInputAriaLabel', "{0} readonly editor", inputName) : nls.localize('readonlyFileEditorAriaLabel', "Readonly editor");
-		} else {
-			ariaLabel = inputName ? nls.localize('fileEditorWithInputAriaLabel', "{0} editor", inputName) : nls.localize('fileEditorAriaLabel', "Editor");
-		}
-
-		return ariaLabel;
-	}
-
 	clearInput(): void {
 
 		// Update/clear editor view state in settings

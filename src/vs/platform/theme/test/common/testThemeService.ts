@@ -9,6 +9,8 @@ import { Color } from 'vs/base/common/color';
 
 export class TestColorTheme implements IColorTheme {
 
+	public readonly label = 'test';
+
 	constructor(private colors: { [id: string]: string; } = {}, public type = DARK) {
 	}
 
@@ -24,9 +26,11 @@ export class TestColorTheme implements IColorTheme {
 		throw new Error('Method not implemented.');
 	}
 
-	getTokenStyleMetadata(type: string, modifiers: string[]): ITokenStyle | undefined {
+	getTokenStyleMetadata(type: string, modifiers: string[], modelLanguage: string): ITokenStyle | undefined {
 		return undefined;
 	}
+
+	readonly semanticHighlighting = false;
 
 	get tokenColorMap(): string[] {
 		return [];

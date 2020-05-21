@@ -336,6 +336,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 
 	const black_queue: ts.Node[] = [];
 	const gray_queue: ts.Node[] = [];
+	const export_import_queue: ts.Node[] = [];
 	const sourceFilesLoaded: { [fileName: string]: boolean } = {};
 
 	function enqueueTopLevelModuleStatements(sourceFile: ts.SourceFile): void {
@@ -351,9 +352,15 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 			}
 
 			if (ts.isExportDeclaration(node)) {
-				if (node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+				if (!node.exportClause && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+					// export * from "foo";
 					setColor(node, NodeColor.Black);
 					enqueueImport(node, node.moduleSpecifier.text);
+				}
+				if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+					for (const exportSpecifier of node.exportClause.elements) {
+						export_import_queue.push(exportSpecifier);
+					}
 				}
 				return;
 			}
@@ -429,7 +436,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 		setColor(node, NodeColor.Black);
 		black_queue.push(node);
 
-		if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
+		if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
 			const references = languageService.getReferencesAtPosition(node.getSourceFile().fileName, node.name.pos + node.name.getLeadingTriviaWidth());
 			if (references) {
 				for (let i = 0, len = references.length; i < len; i++) {
@@ -529,7 +536,7 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 						continue;
 					}
 
-					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration))) {
+					if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(program, checker, declaration)) {
 						enqueue_black(declaration.name!);
 
 						for (let j = 0; j < declaration.members.length; j++) {
@@ -540,6 +547,8 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 								|| ts.isConstructSignatureDeclaration(member)
 								|| ts.isIndexSignatureDeclaration(member)
 								|| ts.isCallSignatureDeclaration(member)
+								|| memberName === '[Symbol.iterator]'
+								|| memberName === '[Symbol.toStringTag]'
 								|| memberName === 'toJSON'
 								|| memberName === 'toString'
 								|| memberName === 'dispose'// TODO: keeping all `dispose` methods
@@ -563,6 +572,23 @@ function markNodes(languageService: ts.LanguageService, options: ITreeShakingOpt
 			node.forEachChild(loop);
 		};
 		node.forEachChild(loop);
+	}
+
+	while (export_import_queue.length > 0) {
+		const node = export_import_queue.shift()!;
+		if (nodeOrParentIsBlack(node)) {
+			continue;
+		}
+		const symbol: ts.Symbol | undefined = (<any>node).symbol;
+		if (!symbol) {
+			continue;
+		}
+		const aliased = checker.getAliasedSymbol(symbol);
+		if (aliased.declarations && aliased.declarations.length > 0) {
+			if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
+				setColor(node, NodeColor.Black);
+			}
+		}
 	}
 }
 
@@ -665,6 +691,22 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 				}
 			}
 
+			if (ts.isExportDeclaration(node)) {
+				if (node.exportClause && node.moduleSpecifier && ts.isNamedExports(node.exportClause)) {
+					let survivingExports: string[] = [];
+					for (const exportSpecifier of node.exportClause.elements) {
+						if (getColor(exportSpecifier) === NodeColor.Black) {
+							survivingExports.push(exportSpecifier.getFullText(sourceFile));
+						}
+					}
+					const leadingTriviaWidth = node.getLeadingTriviaWidth();
+					const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
+					if (survivingExports.length > 0) {
+						return write(`${leadingTrivia}export {${survivingExports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
+					}
+				}
+			}
+
 			if (shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) && nodeOrChildIsBlack(node)) {
 				let toWrite = node.getFullText();
 				for (let i = node.members.length - 1; i >= 0; i--) {
@@ -710,6 +752,36 @@ function generateResult(languageService: ts.LanguageService, shakeLevel: ShakeLe
 
 //#region Utils
 
+function isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(program: ts.Program, checker: ts.TypeChecker, declaration: ts.ClassDeclaration | ts.InterfaceDeclaration): boolean {
+	if (!program.isSourceFileDefaultLibrary(declaration.getSourceFile()) && declaration.heritageClauses) {
+		for (const heritageClause of declaration.heritageClauses) {
+			for (const type of heritageClause.types) {
+				const symbol = findSymbolFromHeritageType(checker, type);
+				if (symbol) {
+					const decl = symbol.valueDeclaration || (symbol.declarations && symbol.declarations[0]);
+					if (decl && program.isSourceFileDefaultLibrary(decl.getSourceFile())) {
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}
+
+function findSymbolFromHeritageType(checker: ts.TypeChecker, type: ts.ExpressionWithTypeArguments | ts.Expression | ts.PrivateIdentifier): ts.Symbol | null {
+	if (ts.isExpressionWithTypeArguments(type)) {
+		return findSymbolFromHeritageType(checker, type.expression);
+	}
+	if (ts.isIdentifier(type)) {
+		return getRealNodeSymbol(checker, type)[0];
+	}
+	if (ts.isPropertyAccessExpression(type)) {
+		return findSymbolFromHeritageType(checker, type.name);
+	}
+	return null;
+}
+
 /**
  * Returns the node's symbol and the `import` node (if the symbol resolved from a different module)
  */
@@ -727,7 +799,7 @@ function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol |
 	//   (2) when the aliased symbol is originating from an import.
 	//
 	function shouldSkipAlias(node: ts.Node, declaration: ts.Node): boolean {
-		if (node.kind !== ts.SyntaxKind.Identifier) {
+		if (!ts.isShorthandPropertyAssignment(node) && node.kind !== ts.SyntaxKind.Identifier) {
 			return false;
 		}
 		if (node.parent === declaration) {
@@ -752,7 +824,12 @@ function getRealNodeSymbol(checker: ts.TypeChecker, node: ts.Node): [ts.Symbol |
 
 	const { parent } = node;
 
-	let symbol = checker.getSymbolAtLocation(node);
+	let symbol = (
+		ts.isShorthandPropertyAssignment(node)
+			? checker.getShorthandAssignmentValueSymbol(node)
+			: checker.getSymbolAtLocation(node)
+	);
+
 	let importNode: ts.Declaration | null = null;
 	// If this is an alias, and the request came at the declaration location
 	// get the aliased symbol instead. This allows for goto def on an import e.g.

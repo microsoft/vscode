@@ -12,12 +12,3 @@ export function getPathFromAmdModule(requirefn: typeof require, relativePath: st
 export function getUriFromAmdModule(requirefn: typeof require, relativePath: string): URI {
 	return URI.parse(requirefn.toUrl(relativePath));
 }
-
-/**
- * Reference a resource that might be inlined.
- * Do not inline icons that will be used by the native mac touchbar.
- * Do not rename this method unless you adopt the build scripts.
- */
-export function registerAndGetAmdImageURL(absolutePath: string): string {
-	return require.toUrl(absolutePath);
-}

@@ -5,12 +5,12 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { distinct, deepClone, assign } from 'vs/base/common/objects';
+import { distinct, deepClone } from 'vs/base/common/objects';
 import { Event } from 'vs/base/common/event';
 import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, IEditorMemento, ITextEditor, TextEditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -23,6 +23,7 @@ import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { computeEditorAriaLabel } from 'vs/workbench/browser/parts/editor/editor';
 
 export interface IEditorConfiguration {
 	editor: object;
@@ -33,7 +34,7 @@ export interface IEditorConfiguration {
  * The base class of editors that leverage the text editor for the editing experience. This class is only intended to
  * be subclassed and not instantiated.
  */
-export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
+export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPane {
 
 	static readonly TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -93,7 +94,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 		// Specific editor options always overwrite user configuration
 		const editorConfiguration: IEditorOptions = isObject(configuration.editor) ? deepClone(configuration.editor) : Object.create(null);
-		assign(editorConfiguration, this.getConfigurationOverrides());
+		Object.assign(editorConfiguration, this.getConfigurationOverrides());
 
 		// ARIA label
 		editorConfiguration.ariaLabel = this.computeAriaLabel();
@@ -102,16 +103,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	}
 
 	private computeAriaLabel(): string {
-		let ariaLabel = this.getAriaLabel();
-
-		// Apply group information to help identify in
-		// which group we are (only if more than one group
-		// is actually opened)
-		if (ariaLabel && this.group && this.editorGroupService.count > 1) {
-			ariaLabel = localize('editorLabelWithGroup', "{0}, {1}", ariaLabel, this.group.ariaLabel);
-		}
-
-		return ariaLabel;
+		return this._input ? computeEditorAriaLabel(this._input, undefined, this.group, this.editorGroupService.count) : localize('editor', "Editor");
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {
@@ -302,8 +294,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 
 		return undefined;
 	}
-
-	protected abstract getAriaLabel(): string;
 
 	dispose(): void {
 		this.lastAppliedEditorOptions = undefined;

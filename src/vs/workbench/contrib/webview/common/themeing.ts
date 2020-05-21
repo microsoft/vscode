@@ -13,6 +13,7 @@ import { Emitter } from 'vs/base/common/event';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
+	readonly themeLabel: string;
 	readonly styles: { readonly [key: string]: string | number; };
 }
 
@@ -63,7 +64,7 @@ export class WebviewThemeDataProvider extends Disposable {
 		}, {} as { [key: string]: string; });
 
 		const styles = {
-			'vscode-font-family': '-apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			'vscode-font-family': 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 			'vscode-font-weight': 'normal',
 			'vscode-font-size': '13px',
 			'vscode-editor-font-family': editorFontFamily,
@@ -73,7 +74,7 @@ export class WebviewThemeDataProvider extends Disposable {
 		};
 
 		const activeTheme = ApiThemeClassName.fromTheme(theme);
-		return { styles, activeTheme };
+		return { styles, activeTheme, themeLabel: theme.label, };
 	}
 
 	private reset() {

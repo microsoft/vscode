@@ -8,7 +8,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EncodingMode } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { TextFileEditorModelState, snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
-import { createFileInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createFileEditorInput, workbenchInstantiationService, TestServiceAccessor, TestReadonlyTextFileEditorModel } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
@@ -141,6 +141,40 @@ suite('Files - TextFileEditorModel', () => {
 
 		assert.ok(savedEvent);
 		assert.ok(!workingCopyEvent);
+
+		model.dispose();
+		assert.ok(!accessor.modelService.getModel(model.resource));
+	});
+
+	test('save - touching with error turns model dirty', async function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
+
+		await model.load();
+
+		let saveErrorEvent = false;
+		model.onDidSaveError(() => saveErrorEvent = true);
+
+		let savedEvent = false;
+		model.onDidSave(() => savedEvent = true);
+
+		accessor.fileService.writeShouldThrowError = new Error('failed to write');
+		try {
+			await model.save({ force: true });
+
+			assert.ok(model.hasState(TextFileEditorModelState.ERROR));
+			assert.ok(model.isDirty());
+			assert.ok(saveErrorEvent);
+
+			assert.equal(accessor.workingCopyService.dirtyCount, 1);
+			assert.equal(accessor.workingCopyService.isDirty(model.resource), true);
+		} finally {
+			accessor.fileService.writeShouldThrowError = undefined;
+		}
+
+		await model.save({ force: true });
+
+		assert.ok(savedEvent);
+		assert.ok(!model.isDirty());
 
 		model.dispose();
 		assert.ok(!accessor.modelService.getModel(model.resource));
@@ -469,8 +503,8 @@ suite('Files - TextFileEditorModel', () => {
 	});
 
 	test('save() and isDirty() - proper with check for mtimes', async function () {
-		const input1 = createFileInput(instantiationService, toResource.call(this, '/path/index_async2.txt'));
-		const input2 = createFileInput(instantiationService, toResource.call(this, '/path/index_async.txt'));
+		const input1 = createFileEditorInput(instantiationService, toResource.call(this, '/path/index_async2.txt'));
+		const input2 = createFileEditorInput(instantiationService, toResource.call(this, '/path/index_async.txt'));
 
 		const model1 = await input1.resolve() as TextFileEditorModel;
 		const model2 = await input2.resolve() as TextFileEditorModel;

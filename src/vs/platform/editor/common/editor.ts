@@ -24,7 +24,7 @@ export interface IEditorModel {
 	dispose(): void;
 }
 
-export interface IBaseResourceInput {
+export interface IBaseResourceEditorInput {
 
 	/**
 	 * Optional options to use when opening the text input.
@@ -60,7 +60,7 @@ export interface IBaseResourceInput {
 	readonly forceUntitled?: boolean;
 }
 
-export interface IResourceInput extends IBaseResourceInput {
+export interface IResourceEditorInput extends IBaseResourceEditorInput {
 
 	/**
 	 * The resource URI of the resource to open.
@@ -169,6 +169,12 @@ export interface IEditorOptions {
 	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
 	 */
 	readonly pinned?: boolean;
+
+	/**
+	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
+	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
+	 */
+	readonly sticky?: boolean;
 
 	/**
 	 * The index in the document stack where to insert the editor into when opening.

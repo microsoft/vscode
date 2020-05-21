@@ -13,18 +13,23 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BaseConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class ConfigurationResolverService extends BaseConfigurationResolverService {
 
 	constructor(
 		@IEditorService editorService: IEditorService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IQuickInputService quickInputService: IQuickInputService
 	) {
-		super(process.env as IProcessEnvironment, editorService, environmentService, configurationService, commandService, workspaceContextService, quickInputService);
+		super({
+			getExecPath: (): string | undefined => {
+				return environmentService.execPath;
+			}
+		}, process.env as IProcessEnvironment, editorService, configurationService, commandService, workspaceContextService, quickInputService);
 	}
 }
 

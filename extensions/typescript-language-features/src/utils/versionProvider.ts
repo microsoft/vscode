@@ -12,7 +12,7 @@ import { RelativeWorkspacePathResolver } from './relativePathResolver';
 
 const localize = nls.loadMessageBundle();
 
-export const enum TypeScriptVersionSource {
+const enum TypeScriptVersionSource {
 	Bundled = 'bundled',
 	TsNightlyExtension = 'ts-nightly-extension',
 	NodeModules = 'node-modules',
@@ -227,7 +227,7 @@ export class TypeScriptVersionProvider {
 		const versions: TypeScriptVersion[] = [];
 		for (const root of vscode.workspace.workspaceFolders) {
 			let label: string = relativePath;
-			if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 1) {
+			if (vscode.workspace.workspaceFolders.length > 1) {
 				label = path.join(root.name, relativePath);
 			}
 

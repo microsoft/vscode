@@ -36,7 +36,7 @@ export class ViewMenuActions extends Disposable {
 		const updateActions = () => {
 			this.primaryActions = [];
 			this.secondaryActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(menu, undefined, { primary: this.primaryActions, secondary: this.secondaryActions });
+			this.titleActionsDisposable.value = createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, { primary: this.primaryActions, secondary: this.secondaryActions });
 			this._onDidChangeTitle.fire();
 		};
 		this._register(menu.onDidChange(updateActions));
@@ -45,7 +45,7 @@ export class ViewMenuActions extends Disposable {
 		const contextMenu = this._register(this.menuService.createMenu(contextMenuId, scopedContextKeyService));
 		const updateContextMenuActions = () => {
 			this.contextMenuActions = [];
-			this.titleActionsDisposable.value = createAndFillInActionBarActions(contextMenu, undefined, { primary: [], secondary: this.contextMenuActions });
+			this.titleActionsDisposable.value = createAndFillInActionBarActions(contextMenu, { shouldForwardArgs: true }, { primary: [], secondary: this.contextMenuActions });
 		};
 		this._register(contextMenu.onDidChange(updateContextMenuActions));
 		updateContextMenuActions();
@@ -63,6 +63,40 @@ export class ViewMenuActions extends Disposable {
 
 	getSecondaryActions(): IAction[] {
 		return this.secondaryActions;
+	}
+
+	getContextMenuActions(): IAction[] {
+		return this.contextMenuActions;
+	}
+}
+
+export class ViewContainerMenuActions extends Disposable {
+
+	private readonly titleActionsDisposable = this._register(new MutableDisposable());
+	private contextMenuActions: IAction[] = [];
+
+	constructor(
+		containerId: string,
+		contextMenuId: MenuId,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
+	) {
+		super();
+
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped());
+		scopedContextKeyService.createKey('container', containerId);
+
+		const contextMenu = this._register(this.menuService.createMenu(contextMenuId, scopedContextKeyService));
+		const updateContextMenuActions = () => {
+			this.contextMenuActions = [];
+			this.titleActionsDisposable.value = createAndFillInActionBarActions(contextMenu, { shouldForwardArgs: true }, { primary: [], secondary: this.contextMenuActions });
+		};
+		this._register(contextMenu.onDidChange(updateContextMenuActions));
+		updateContextMenuActions();
+
+		this._register(toDisposable(() => {
+			this.contextMenuActions = [];
+		}));
 	}
 
 	getContextMenuActions(): IAction[] {

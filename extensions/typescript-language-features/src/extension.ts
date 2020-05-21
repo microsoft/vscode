@@ -18,7 +18,7 @@ import { lazy, Lazy } from './utils/lazy';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
-import * as ProjectStatus from './utils/projectStatus';
+import * as ProjectStatus from './utils/largeProjectStatus';
 import TscTaskProvider from './features/task';
 
 export function activate(

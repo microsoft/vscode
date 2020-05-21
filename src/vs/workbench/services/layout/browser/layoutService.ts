@@ -94,6 +94,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	hasFocus(part: Parts): boolean;
 
 	/**
+	 * Focuses the part. If the part is not visible this is a noop.
+	 */
+	focusPart(part: Parts): void;
+
+	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
 	getContainer(part: Parts): HTMLElement | undefined;
@@ -112,11 +117,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Set activity bar hidden or not
 	 */
 	setActivityBarHidden(hidden: boolean): void;
-
-	/**
-	 * Number of pixels (adjusted for zooming) that the title bar (if visible) pushes down the workbench contents.
-	 */
-	getTitleBarOffset(): number;
 
 	/**
 	 *
@@ -186,11 +186,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getWorkbenchContainer(): HTMLElement;
 
 	/**
-	 * Returns the element that contains the workbench.
-	 */
-	getWorkbenchElement(): HTMLElement;
-
-	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
 	 */
 	toggleZenMode(): void;
@@ -215,7 +210,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 */
 	registerPart(part: Part): void;
 
-
 	/**
 	 * Returns whether the window is maximized.
 	 */
@@ -230,4 +224,9 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the next visible view part in a given direction
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
+
+	/**
+	 * True if a default layout with default editors was applied at startup
+	 */
+	readonly openedDefaultEditors: boolean;
 }
