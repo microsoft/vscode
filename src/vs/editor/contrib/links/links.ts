@@ -300,6 +300,7 @@ export class LinkDetector implements IEditorContribution {
 
 		link.resolve(CancellationToken.None).then(uri => {
 
+
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
 			// Support for workspace://<workspace-name>/path/to/file and project://path/to/file (and relative project path)
 			if (typeof uri === 'string' && this.editor.hasModel()) {
@@ -324,15 +325,15 @@ export class LinkDetector implements IEditorContribution {
 						}
 						case Schemas.project:
 						case Schemas.workspace: {
-							let pathToUse: string | undefined = uri.replace(/(?:workspace|project):\/\//, '');
+							let pathToUse: string | undefined = uri.replace(/(?:workspace|project|file):\/\//, '');
 							let rootUri: URI | undefined;
 							let workspaceName: undefined | string;
 							if (parsedUri.scheme === Schemas.workspace) {
-								[, workspaceName, pathToUse] = pathToUse.match(/^([^\/]*)(\/[^ |]*)/) || [];
+								[, workspaceName, pathToUse] = pathToUse.match(/^\/?([^\/]*)(\/[^ |}]*)/) || [];
 								rootUri = (this.workspaceService.getWorkspace().folders || []).find(workspaceFolder => workspaceFolder.name === workspaceName)?.uri;
 							} else {
 								[pathToUse] = pathToUse.match(/^([^ |]*)/) || [];
-								rootUri = /^\.\.?\//.test(pathToUse) ? resources.dirname(modelUri) : this.workspaceService.getWorkspaceFolder(modelUri)?.uri;
+								rootUri = /^\/?\.\.?\//.test(pathToUse) ? resources.dirname(modelUri) : this.workspaceService.getWorkspaceFolder(modelUri)?.uri;
 							}
 							if (!rootUri) {
 								break;
