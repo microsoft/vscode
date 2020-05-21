@@ -11,7 +11,7 @@ function getWorkspacePath(
 	proto: string, givenPath: string,
 	withText: undefined | string
 ): [string, string] {
-	const text = withText || givenPath;
+	let text = withText || givenPath;
 
 	const editor = vscode.window.activeTextEditor;
 	if (!editor) {
@@ -26,12 +26,14 @@ function getWorkspacePath(
 			let workspaceName: string | undefined;
 			[, workspaceName, pathToUse] = pathToUse.match(/^([^\/]*)(\/[^ |]*)/) || [];
 			rootPath = (vscode.workspace.workspaceFolders || []).find(workspaceFolder => workspaceFolder.name === workspaceName)?.uri.fsPath;
+			break;
 		}
 		case 'file':
 		case 'project': {
 			const uri = definition?.[0]?.file ? vscode.Uri.file(definition[0].file) : editor.document.uri;
 			if (/^\.\.?\//.test(pathToUse)) {
 				rootPath = path.dirname(uri.path);
+
 			} else if (proto === 'file') {
 				return [path.normalize(pathToUse), text];
 			} else {
