@@ -1012,7 +1012,7 @@ registerAction2(class extends NotebookAction {
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.CtrlCmd | KeyCode.DownArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.DownArrow, },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.DownArrow, },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -1036,7 +1036,7 @@ registerAction2(class extends NotebookAction {
 			keybinding: {
 				when: NOTEBOOK_EDITOR_FOCUSED,
 				primary: KeyMod.CtrlCmd | KeyCode.UpArrow,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.UpArrow, },
+				mac: { primary: KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.UpArrow, },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
