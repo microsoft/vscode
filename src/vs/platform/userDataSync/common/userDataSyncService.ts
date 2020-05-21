@@ -132,7 +132,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.setStatus(SyncStatus.Syncing);
 			}
 
-			this.telemetryService.publicLog2<{}, SyncClassification>('sync/getmanifest');
+			this.telemetryService.publicLog2('sync/getmanifest');
 			let manifest = await this.userDataSyncStoreService.manifest();
 
 			// Server has no data but this machine was synced before
