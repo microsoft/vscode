@@ -33,6 +33,11 @@ function getWorkspacePath(
 			const uri = definition?.[0]?.file ? vscode.Uri.file(definition[0].file) : editor.document.uri;
 			if (/^\/?\.\.?\//.test(pathToUse)) {
 				rootPath = path.dirname(uri.path);
+				if (!withText) {
+					// remove proto in preview if custom text not given and
+					// path is relative (project|file)://./types.ts -> ./types.ts
+					text = pathToUse;
+				}
 			} else if (proto === 'file') {
 				return [path.normalize(pathToUse), text];
 			} else {
