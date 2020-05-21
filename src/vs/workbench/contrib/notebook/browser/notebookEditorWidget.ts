@@ -1130,6 +1130,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		if (cell.cellKind === CellKind.Markdown) {
+			cell.editState = CellEditState.Preview;
+			return;
+		}
+
 		if (!cell.getEvaluatedMetadata(this.notebookViewModel!.metadata).runnable) {
 			return;
 		}

@@ -33,6 +33,7 @@ const NOTEBOOK_UNDO = 'notebook.undo';
 const NOTEBOOK_CURSOR_UP = 'notebook.cursorUp';
 const NOTEBOOK_CURSOR_DOWN = 'notebook.cursorDown';
 const CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID = 'notebook.clearAllCellsOutputs';
+const RENDER_ALL_MARKDOWN_CELLS = 'notebook.renderAllMarkdownCells';
 
 // Cell Commands
 const INSERT_CODE_CELL_ABOVE_COMMAND_ID = 'notebook.cell.insertCodeCellAbove';
@@ -264,6 +265,22 @@ registerAction2(class extends NotebookAction {
 registerAction2(class extends NotebookAction {
 	constructor() {
 		super({
+			id: RENDER_ALL_MARKDOWN_CELLS,
+			title: localize('notebookActions.renderMarkdown', "Render All Markdown Cells"),
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
+			f1: true
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		renderAllMarkdownCells(context);
+	}
+});
+
+registerAction2(class extends NotebookAction {
+	constructor() {
+		super({
 			id: EXECUTE_NOTEBOOK_COMMAND_ID,
 			title: localize('notebookActions.executeNotebook', "Execute Notebook"),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
@@ -273,9 +290,18 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
+		renderAllMarkdownCells(context);
 		return context.notebookEditor.executeNotebook();
 	}
 });
+
+function renderAllMarkdownCells(context: INotebookCellActionContext): void {
+	context.notebookEditor.viewModel!.viewCells.forEach(cell => {
+		if (cell.cellKind === CellKind.Markdown) {
+			cell.editState = CellEditState.Preview;
+		}
+	});
+}
 
 registerAction2(class extends NotebookAction {
 	constructor() {
