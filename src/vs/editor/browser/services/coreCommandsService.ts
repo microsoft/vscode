@@ -9,10 +9,21 @@ import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/com
 export const ICoreCommandsService = createDecorator<ICoreCommandsService>('ICoreCommandsService');
 
 export interface ICoreCommandsService {
-	_serviceBrand: unknown;
+	_serviceBrand: undefined;
 
-	register(command: CoreCommand, implementation: CoreCommandImplementation): IDisposable;
+	/**
+	 * Registers an override for a core command.
+	 *
+	 * When a command is run with `tryRun`, the overrides are checked sequentially to find the first one that
+	 * can successfully run the command.
+	 */
+	registerOverride(command: CoreCommand, override: CoreCommandOverride): IDisposable;
 
+	/**
+	 * Try to run the command.
+	 *
+	 * @return `true` if the command was successfully run. This stops other overrides from being executed.
+	 */
 	tryRun(command: CoreCommand, accessor: ServicesAccessor, args: unknown): boolean;
 }
 
@@ -21,21 +32,23 @@ export const enum CoreCommand {
 	Redo,
 }
 
-export interface CoreCommandImplementation {
-	tryRunCommand(accessor: ServicesAccessor, args: unknown): boolean;
-}
-
+/**
+ * Potential implementation of a core command.
+ *
+ * @return `true` if the command was successfully run. This stops other overrides from being executed.
+ */
+export type CoreCommandOverride = (accessor: ServicesAccessor, args: unknown) => boolean;
 
 export class CoreCommandsService implements ICoreCommandsService {
-	_serviceBrand: unknown;
+	_serviceBrand: undefined;
 
-	private readonly _coreCommands = new Map<CoreCommand, Set<CoreCommandImplementation>>();
+	private readonly _overrides = new Map<CoreCommand, Set<CoreCommandOverride>>();
 
-	public register(command: CoreCommand, implementation: CoreCommandImplementation): IDisposable {
-		let entry = this._coreCommands.get(command);
+	public registerOverride(command: CoreCommand, implementation: CoreCommandOverride): IDisposable {
+		let entry = this._overrides.get(command);
 		if (!entry) {
 			entry = new Set();
-			this._coreCommands.set(command, entry);
+			this._overrides.set(command, entry);
 		}
 		entry.add(implementation);
 
@@ -45,8 +58,8 @@ export class CoreCommandsService implements ICoreCommandsService {
 	}
 
 	public tryRun(command: CoreCommand, accessor: ServicesAccessor, args: unknown): boolean {
-		for (const impl of this._coreCommands.get(command) || []) {
-			if (impl.tryRunCommand(accessor, args)) {
+		for (const override of this._overrides.get(command) || []) {
+			if (override(accessor, args)) {
 				return true;
 			}
 		}

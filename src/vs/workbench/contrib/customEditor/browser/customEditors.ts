@@ -83,12 +83,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}
 		}));
 
-		coreCommandsService.register(CoreCommand.Undo, {
-			tryRunCommand: () => this.withActiveCustomEditor(e => e.undo())
-		});
-		coreCommandsService.register(CoreCommand.Redo, {
-			tryRunCommand: () => this.withActiveCustomEditor(e => e.redo())
-		});
+		coreCommandsService.registerOverride(CoreCommand.Undo, () => this.withActiveCustomEditor(e => e.undo()));
+		coreCommandsService.registerOverride(CoreCommand.Redo, () => this.withActiveCustomEditor(e => e.redo()));
 
 		this.updateContexts();
 	}
