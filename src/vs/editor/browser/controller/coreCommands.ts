@@ -27,6 +27,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { ICoreCommandsService, CoreCommand } from 'vs/editor/browser/services/coreCommandsService';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -1723,6 +1724,14 @@ class SelectAllCommand extends EditorOrNativeTextInputCommand {
 }
 
 class UndoCommand extends EditorOrNativeTextInputCommand {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const coreCommandService = accessor.get(ICoreCommandsService);
+		if (!coreCommandService.tryRun(CoreCommand.Undo, accessor, args)) {
+			super.runCommand(accessor, args);
+		}
+	}
+
 	public runDOMCommand(): void {
 		document.execCommand('undo');
 	}
@@ -1735,6 +1744,14 @@ class UndoCommand extends EditorOrNativeTextInputCommand {
 }
 
 class RedoCommand extends EditorOrNativeTextInputCommand {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const coreCommandService = accessor.get(ICoreCommandsService);
+		if (!coreCommandService.tryRun(CoreCommand.Redo, accessor, args)) {
+			super.runCommand(accessor, args);
+		}
+	}
+
 	public runDOMCommand(): void {
 		document.execCommand('redo');
 	}
@@ -1886,7 +1903,6 @@ export namespace CoreEditingCommands {
 		precondition: EditorContextKeys.writable,
 		kbOpts: {
 			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_Z
 		},
 		menuOpts: [{
@@ -1909,7 +1925,6 @@ export namespace CoreEditingCommands {
 		precondition: EditorContextKeys.writable,
 		kbOpts: {
 			weight: CORE_WEIGHT,
-			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_Y,
 			secondary: [KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z],
 			mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Z }

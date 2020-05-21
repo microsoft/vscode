@@ -11,6 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { CoreCommand, ICoreCommandsService } from 'vs/editor/browser/services/coreCommandsService';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -54,6 +55,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IFileService fileService: IFileService,
 		@IStorageService storageService: IStorageService,
+		@ICoreCommandsService coreCommandsService: ICoreCommandsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -66,7 +68,6 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._customEditorContextKey = CONTEXT_CUSTOM_EDITORS.bindTo(contextKeyService);
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 		this._webviewHasOwnEditFunctions = webviewHasOwnEditFunctionsContext.bindTo(contextKeyService);
-
 
 		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
 		this._register(this._contributedEditors.onChange(() => {
@@ -82,7 +83,23 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 			}
 		}));
 
+		coreCommandsService.register(CoreCommand.Undo, {
+			tryRunCommand: () => this.withActiveCustomEditor(e => e.undo())
+		});
+		coreCommandsService.register(CoreCommand.Redo, {
+			tryRunCommand: () => this.withActiveCustomEditor(e => e.redo())
+		});
+
 		this.updateContexts();
+	}
+
+	private withActiveCustomEditor(f: (editor: CustomEditorInput) => void): boolean {
+		const activeCustomEditor = this.editorService.activeEditor instanceof CustomEditorInput ? this.editorService.activeEditor : undefined;
+		if (!activeCustomEditor) {
+			return false;
+		}
+		f(activeCustomEditor);
+		return true;
 	}
 
 	getViewTypes(): ICustomEditorInfo[] {
