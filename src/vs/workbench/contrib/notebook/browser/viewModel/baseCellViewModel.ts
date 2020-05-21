@@ -13,7 +13,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
 import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 import { EDITOR_TOOLBAR_HEIGHT, EDITOR_TOP_MARGIN } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellEditState, CellFocusMode, CellRunState, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChangeEvent, IEditableCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
@@ -65,19 +65,13 @@ export abstract class BaseCellViewModel extends Disposable {
 		}
 	}
 
-	// TODO@roblourens - move any "run"/"status" concept to Code-specific places
 	private _currentTokenSource: CancellationTokenSource | undefined;
 	public set currentTokenSource(v: CancellationTokenSource | undefined) {
 		this._currentTokenSource = v;
-		this._onDidChangeState.fire({ runStateChanged: true });
 	}
 
 	public get currentTokenSource(): CancellationTokenSource | undefined {
 		return this._currentTokenSource;
-	}
-
-	get runState(): CellRunState {
-		return this._currentTokenSource ? CellRunState.Running : CellRunState.Idle;
 	}
 
 	private _focusMode: CellFocusMode = CellFocusMode.Container;

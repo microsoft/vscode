@@ -107,7 +107,6 @@ export interface ICellViewModel {
 	language: string;
 	cellKind: CellKind;
 	editState: CellEditState;
-	readonly runState: CellRunState;
 	currentTokenSource: CancellationTokenSource | undefined;
 	focusMode: CellFocusMode;
 	getText(): string;
@@ -475,11 +474,6 @@ export enum CellRevealPosition {
 	Center
 }
 
-export enum CellRunState {
-	Idle,
-	Running
-}
-
 export enum CellEditState {
 	/**
 	 * Default state.
@@ -511,7 +505,6 @@ export interface CellViewModelStateChangeEvent {
 	metadataChanged?: boolean;
 	selectionChanged?: boolean;
 	focusModeChanged?: boolean;
-	runStateChanged?: boolean;
 	editStateChanged?: boolean;
 	languageChanged?: boolean;
 	foldingStateChanged?: boolean;
