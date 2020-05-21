@@ -432,13 +432,7 @@ export class NativeWindow extends Disposable {
 
 			// With appCenter enabled, crashes will be uploaded
 			if (product.appCenter) {
-				this.setupCrashReporter(companyName, productName, product.appCenter, undefined);
-			}
-
-			// With a provided crash reporter directory, crashes
-			// will be stored only locally in that folder
-			else if (this.environmentService.crashReporterDirectory) {
-				this.setupCrashReporter(companyName, productName, undefined, this.environmentService.crashReporterDirectory);
+				this.setupCrashReporter(companyName, productName, product.appCenter, this.environmentService.crashReporterDirectory);
 			}
 		}
 	}
@@ -552,8 +546,6 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private async setupCrashReporter(companyName: string, productName: string, appCenter: typeof product.appCenter, crashesDirectory: undefined): Promise<void>;
-	private async setupCrashReporter(companyName: string, productName: string, appCenter: undefined, crashesDirectory: string): Promise<void>;
 	private async setupCrashReporter(companyName: string, productName: string, appCenter: typeof product.appCenter | undefined, crashesDirectory: string | undefined): Promise<void> {
 		let submitURL: string | undefined = undefined;
 		if (appCenter) {
