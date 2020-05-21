@@ -8,9 +8,10 @@ import type * as Proto from '../protocol';
 
 function getWorkspacePath(
 	definition: undefined | Proto.DefinitionResponse['body'],
-	proto: string, givenPath: string,
+	proto: string,
+	givenPath: string,
 	withText: undefined | string
-): [string, string] {
+): [string | undefined, string] {
 	let text = withText || givenPath;
 
 	const editor = vscode.window.activeTextEditor;
@@ -30,8 +31,15 @@ function getWorkspacePath(
 		}
 		case 'file':
 		case 'project': {
-			const uri = definition?.[0]?.file ? vscode.Uri.file(definition[0].file) : editor.document.uri;
+			const definitionFile = definition?.[0]?.file;
+			const uri = definitionFile ? vscode.Uri.file(definitionFile) : editor.document.uri;
 			if (/^\/?\.\.?\//.test(pathToUse)) {
+				// when definition is not provided we can not reliably render a relative path due to a limitation of
+				// the LSP server. This is due to completions providing no way of resolving the definition of the
+				// type which is being completed so it is not possible to know where to resolve relative to.
+				if (!definitionFile) {
+					return [undefined, text];
+				}
 				rootPath = path.dirname(uri.path);
 				if (!withText) {
 					// remove proto in preview if custom text not given and
@@ -64,6 +72,9 @@ function replaceLinks(text: string, definition?: Proto.DefinitionResponse['body'
 					}
 					if (proto === 'workspace' || proto === 'project' || proto === 'file') {
 						[link, text] = getWorkspacePath(definition, proto, link, text);
+					}
+					if (!link) {
+						return text || _;
 					}
 					switch (tag) {
 						case 'linkcode':
