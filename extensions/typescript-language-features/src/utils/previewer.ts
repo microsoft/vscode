@@ -38,6 +38,7 @@ function getWorkspacePath(
 			} else {
 				rootPath = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
 			}
+			break;
 		}
 	}
 
