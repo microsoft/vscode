@@ -374,7 +374,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 					this.telemetryService.publicLog2<{ source: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { source });
 					break;
 				case UserDataSyncErrorCode.TooManyRequests:
-					this.telemetryService.publicLog2(`sync/error/${UserDataSyncErrorCode.TooManyRequests}`);
+				case UserDataSyncErrorCode.LocalTooManyRequests:
+					this.telemetryService.publicLog2(`sync/error/${e.code}`);
 					break;
 			}
 			throw e;

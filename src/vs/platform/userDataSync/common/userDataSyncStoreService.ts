@@ -61,7 +61,7 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			});
 
 		/* A requests session that limits requests per sessions */
-		this.session = new RequestsSession(REQUEST_SESSION_LIMIT, REQUEST_SESSION_INTERVAL, this.requestService, telemetryService);
+		this.session = new RequestsSession(REQUEST_SESSION_LIMIT, REQUEST_SESSION_INTERVAL, this.requestService);
 	}
 
 	async getAllRefs(resource: ServerResource): Promise<IResourceRefHandle[]> {
@@ -306,7 +306,6 @@ export class RequestsSession {
 		private readonly limit: number,
 		private readonly interval: number, /* in ms */
 		private readonly requestService: IRequestService,
-		private readonly telemetryService: ITelemetryService
 	) { }
 
 	request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
@@ -315,7 +314,7 @@ export class RequestsSession {
 		}
 
 		if (this.count >= this.limit) {
-			this.telemetryService.publicLog2(`sync/error/${UserDataSyncErrorCode.LocalTooManyRequests}`);
+
 			throw new UserDataSyncStoreError(`Too many requests. Allowed only ${this.limit} requests in ${this.interval / (1000 * 60)} minutes.`, UserDataSyncErrorCode.LocalTooManyRequests);
 		}
 
