@@ -1,4 +1,4 @@
-{
+{.vscode/settings.json
 	"editor.insertSpaces": false,
 	"files.trimTrailingWhitespace": true,
 	"files.exclude": {
