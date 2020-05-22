@@ -42,3 +42,4 @@ jobs:
           config-path: classifieds 
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}} azure-pipelines.yml
 goals-an-growth:master. ![.github/workflows/classifier-apply.yml](https://github.com/Goals-an-growth/vscode/workflows/.github/workflows/classifier-apply.yml/badge.svg?branch=master .editorconfig)
+![.github/workflows/classifier-apply.yml](https://github.com/Goals-an-growth/vscode/workflows/.github/workflows/classifier-apply.yml/badge.svg?branch=lovingld-patch-1)
