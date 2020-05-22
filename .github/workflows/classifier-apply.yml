@@ -41,3 +41,4 @@ jobs:
         with:
           config-path: classifier
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}} azure-pipelines.yml
+goals-an-growth:master
