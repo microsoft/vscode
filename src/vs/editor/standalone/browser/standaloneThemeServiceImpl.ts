@@ -48,6 +48,10 @@ class StandaloneTheme implements IStandaloneTheme {
 		this._tokenTheme = null;
 	}
 
+	public get label(): string {
+		return this.themeName;
+	}
+
 	public get base(): string {
 		return this.themeData.base;
 	}

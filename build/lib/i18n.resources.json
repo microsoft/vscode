@@ -139,6 +139,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/sash",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/scm",
 			"project": "vscode-workbench"
 		},
@@ -336,6 +340,10 @@
 		},
 		{
 			"name": "vs/workbench/services/userDataSync",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/views",
 			"project": "vscode-workbench"
 		},
 		{

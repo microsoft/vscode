@@ -784,7 +784,7 @@ class StatusbarEntryItem extends Disposable {
 			const command = entry.command;
 			if (command) {
 				this.commandMouseListener.value = addDisposableListener(this.labelContainer, EventType.CLICK, () => this.executeCommand(command));
-				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_UP, e => {
+				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
 						this.executeCommand(command);
@@ -944,6 +944,30 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	handler: (accessor: ServicesAccessor) => {
 		const statusBarService = accessor.get(IStatusbarService);
 		statusBarService.focusNextEntry();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.statusBar.focusFirst',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.Home,
+	when: CONTEXT_STATUS_BAR_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const statusBarService = accessor.get(IStatusbarService);
+		statusBarService.focus(false);
+		statusBarService.focusNextEntry();
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.statusBar.focusLast',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyCode.End,
+	when: CONTEXT_STATUS_BAR_FOCUSED,
+	handler: (accessor: ServicesAccessor) => {
+		const statusBarService = accessor.get(IStatusbarService);
+		statusBarService.focus(false);
+		statusBarService.focusPreviousEntry();
 	}
 });
 

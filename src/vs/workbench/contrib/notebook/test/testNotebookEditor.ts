@@ -19,9 +19,10 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookEditorModel, IOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, INotebookEditorModel, IOutput, NotebookCellMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
+
 export class TestCell extends NotebookCellTextModel {
 	constructor(
 		public viewType: string,
@@ -43,14 +44,29 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+
+	hasModel(): boolean {
+		return true;
+	}
+
+	onDidFocusEditorWidget: Event<void> = new Emitter<void>().event;
+	hasFocus(): boolean {
+		return true;
+	}
+	getId(): string {
+		return 'notebook.testEditor';
+	}
+
+	activeKernel: INotebookKernelInfo | undefined;
+	onDidChangeKernel: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
 	activeCodeEditor: IEditor | undefined;
 	getDomNode(): HTMLElement {
 		throw new Error('Method not implemented.');
 	}
 
-	private _onDidChangeModel = new Emitter<void>();
-	onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+	private _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
+	onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	getContribution<T extends INotebookEditorContribution>(id: string): T {
 		throw new Error('Method not implemented.');
 	}

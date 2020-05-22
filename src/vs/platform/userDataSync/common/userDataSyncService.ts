@@ -19,9 +19,14 @@ import { URI } from 'vs/base/common/uri';
 import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSync';
 import { isEqual } from 'vs/base/common/resources';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
+import { Throttler } from 'vs/base/common/async';
+import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { platform, PlatformToString } from 'vs/base/common/platform';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
-type SyncErrorClassification = {
-	source: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+type SyncClassification = {
+	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
 const SESSION_ID_KEY = 'sync.sessionId';
@@ -31,6 +36,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	_serviceBrand: any;
 
+	private readonly syncThrottler: Throttler;
 	private readonly synchronisers: IUserDataSynchroniser[];
 
 	private _status: SyncStatus = SyncStatus.Uninitialized;
@@ -65,9 +71,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
+		this.syncThrottler = new Throttler();
 		this.settingsSynchroniser = this._register(this.instantiationService.createInstance(SettingsSynchroniser));
 		this.keybindingsSynchroniser = this._register(this.instantiationService.createInstance(KeybindingsSynchroniser));
 		this.snippetsSynchroniser = this._register(this.instantiationService.createInstance(SnippetsSynchroniser));
@@ -111,7 +120,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async sync(): Promise<void> {
 		await this.checkEnablement();
+		await this.syncThrottler.queue(() => this.doSync());
+	}
 
+	private async doSync(): Promise<void> {
 		const startTime = new Date().getTime();
 		this._syncErrors = [];
 		try {
@@ -120,11 +132,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.setStatus(SyncStatus.Syncing);
 			}
 
+			this.telemetryService.publicLog2('sync/getmanifest');
 			let manifest = await this.userDataSyncStoreService.manifest();
 
 			// Server has no data but this machine was synced before
 			if (manifest === null && await this.hasPreviouslySynced()) {
-				// Sync was turned off from other machine
+				// Sync was turned off in the cloud
 				throw new UserDataSyncError(localize('turned off', "Cannot sync because syncing is turned off in the cloud"), UserDataSyncErrorCode.TurnedOff);
 			}
 
@@ -132,6 +145,17 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			// Server session is different from client session
 			if (sessionId && manifest && sessionId !== manifest.session) {
 				throw new UserDataSyncError(localize('session expired', "Cannot sync because current session is expired"), UserDataSyncErrorCode.SessionExpired);
+			}
+
+			const machines = await this.userDataSyncMachinesService.getMachines(manifest || undefined);
+			const currentMachine = machines.find(machine => machine.isCurrent);
+
+			// Check if sync was turned off from other machine
+			if (currentMachine?.disabled) {
+				// Unset the current machine
+				await this.userDataSyncMachinesService.removeCurrentMachine(manifest || undefined);
+				// Throw TurnedOff error
+				throw new UserDataSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
 			}
 
 			for (const synchroniser of this.synchronisers) {
@@ -153,12 +177,26 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.storageService.store(SESSION_ID_KEY, manifest.session, StorageScope.GLOBAL);
 			}
 
+			if (!currentMachine) {
+				const name = this.computeDefaultMachineName(machines);
+				await this.userDataSyncMachinesService.addCurrentMachine(name, manifest || undefined);
+			}
+
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
 			this.updateLastSyncTime();
 
 		} finally {
 			this.updateStatus();
 			this._onSyncErrors.fire(this._syncErrors);
+		}
+	}
+
+	async replace(uri: URI): Promise<void> {
+		await this.checkEnablement();
+		for (const synchroniser of this.synchronisers) {
+			if (await synchroniser.replace(uri)) {
+				return;
+			}
 		}
 	}
 
@@ -209,6 +247,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.getSynchroniser(resource).getAssociatedResources(syncResourceHandle);
 	}
 
+	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
+		return this.getSynchroniser(resource).getMachineId(syncResourceHandle);
+	}
+
 	async isFirstTimeSyncWithMerge(): Promise<boolean> {
 		await this.checkEnablement();
 		if (!await this.userDataSyncStoreService.manifest()) {
@@ -232,16 +274,19 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async reset(): Promise<void> {
 		await this.checkEnablement();
 		await this.resetRemote();
-		await this.resetLocal();
+		await this.resetLocal(true);
 	}
 
-	async resetLocal(): Promise<void> {
+	async resetLocal(donotUnsetMachine?: boolean): Promise<void> {
 		await this.checkEnablement();
 		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
+		if (!donotUnsetMachine) {
+			await this.userDataSyncMachinesService.removeCurrentMachine();
+		}
 		for (const synchroniser of this.synchronisers) {
 			try {
-				synchroniser.resetLocal();
+				await synchroniser.resetLocal();
 			} catch (e) {
 				this.logService.error(`${synchroniser.resource}: ${toErrorMessage(e)}`);
 				this.logService.error(e);
@@ -326,7 +371,12 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (e instanceof UserDataSyncStoreError) {
 			switch (e.code) {
 				case UserDataSyncErrorCode.TooLarge:
-					this.telemetryService.publicLog2<{ source: string }, SyncErrorClassification>('sync/errorTooLarge', { source });
+					this.telemetryService.publicLog2<{ source: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { source });
+					break;
+				case UserDataSyncErrorCode.TooManyRequests:
+				case UserDataSyncErrorCode.LocalTooManyRequests:
+					this.telemetryService.publicLog2(`sync/error/${e.code}`);
+					break;
 			}
 			throw e;
 		}
@@ -337,6 +387,20 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private computeConflicts(): SyncResourceConflicts[] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
 			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts }));
+	}
+
+	private computeDefaultMachineName(machines: IUserDataSyncMachine[]): string {
+		const namePrefix = `${this.productService.nameLong} (${PlatformToString(platform)})`;
+		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
+
+		let nameIndex = 0;
+		for (const machine of machines) {
+			const matches = nameRegEx.exec(machine.name);
+			const index = matches ? parseInt(matches[1]) : 0;
+			nameIndex = index > nameIndex ? index : nameIndex;
+		}
+
+		return `${namePrefix} #${nameIndex + 1}`;
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {

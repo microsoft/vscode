@@ -77,6 +77,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('stop');
 	}
 
+	replace(uri: URI): Promise<void> {
+		return this.channel.call('replace', [uri]);
+	}
+
 	reset(): Promise<void> {
 		return this.channel.call('reset');
 	}
@@ -110,6 +114,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	async getAssociatedResources(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI, comparableResource?: URI }[]> {
 		const result = await this.channel.call<{ resource: URI, comparableResource?: URI }[]>('getAssociatedResources', [resource, syncResourceHandle]);
 		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
+	}
+
+	async getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
+		return this.channel.call<string | undefined>('getMachineId', [resource, syncResourceHandle]);
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

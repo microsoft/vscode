@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
@@ -35,7 +35,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { ViewMenuActions, ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
@@ -144,7 +144,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
 			(id: string, focus?: boolean) => (this.openPanel(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
-			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore)
+			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore),
+			() => this.compositeBar.getCompositeBarItems()
 		);
 
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
@@ -175,7 +176,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
 				badgeBackground: theme.getColor(badgeBackground),
 				badgeForeground: theme.getColor(badgeForeground),
-				dragAndDropBackground: theme.getColor(PANEL_DRAG_AND_DROP_BACKGROUND)
+				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			})
 		}));
 
@@ -196,6 +197,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				result.push(...viewMenuActions.getContextMenuActions());
 				viewMenuActions.dispose();
 			}
+
+			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container.id, MenuId.ViewContainerTitleContext);
+			result.push(...viewContainerMenuActions.getContextMenuActions());
+			viewContainerMenuActions.dispose();
 		}
 		return result;
 	}
@@ -207,7 +212,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const isActive = activePanel?.getId() === panel.id || (!activePanel && this.getLastActivePanelId() === panel.id);
 
 			if (isActive || !this.shouldBeHidden(panel.id, cachedPanel)) {
-				this.compositeBar.addComposite(panel);
+
+				// Override order
+				const newPanel = {
+					id: panel.id,
+					name: panel.name,
+					order: cachedPanel?.order === undefined ? panel.order : cachedPanel.order
+				};
+
+				this.compositeBar.addComposite(newPanel);
 
 				// Pin it by default if it is new
 				if (!cachedPanel) {
@@ -402,15 +415,16 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private createEmptyPanelMessage(): void {
+		const contentArea = this.getContentArea()!;
 		this.emptyPanelMessageElement = document.createElement('div');
 		addClass(this.emptyPanelMessageElement, 'empty-panel-message-area');
 
 		const messageElement = document.createElement('div');
 		addClass(messageElement, 'empty-panel-message');
-		messageElement.innerText = localize('panel.emptyMessage', "No panels to display. Drag a view into the panel.");
+		messageElement.innerText = localize('panel.emptyMessage', "Drag a view into the panel to display.");
 
 		this.emptyPanelMessageElement.appendChild(messageElement);
-		this.element.appendChild(this.emptyPanelMessageElement);
+		contentArea.appendChild(this.emptyPanelMessageElement);
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.emptyPanelMessageElement, {
 			onDragOver: (e) => {
@@ -469,7 +483,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return this.openComposite(id, focus) as Panel;
 	}
 
 	async openPanel(id?: string, focus?: boolean): Promise<Panel | undefined> {

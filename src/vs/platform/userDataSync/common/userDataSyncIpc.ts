@@ -11,10 +11,12 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { IStorageKeysSyncRegistryService, IStorageKey } from 'vs/platform/userDataSync/common/storageKeys';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 export class UserDataSyncChannel implements IServerChannel {
 
-	constructor(private readonly service: IUserDataSyncService) { }
+	constructor(private readonly service: IUserDataSyncService, private readonly logService: ILogService) { }
 
 	listen(_: unknown, event: string): Event<any> {
 		switch (event) {
@@ -27,12 +29,23 @@ export class UserDataSyncChannel implements IServerChannel {
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(context: any, command: string, args?: any): Promise<any> {
+	async call(context: any, command: string, args?: any): Promise<any> {
+		try {
+			const result = await this._call(context, command, args);
+			return result;
+		} catch (e) {
+			this.logService.error(e);
+			throw e;
+		}
+	}
+
+	private _call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case '_getInitialData': return Promise.resolve([this.service.status, this.service.conflicts, this.service.lastSyncTime]);
 			case 'pull': return this.service.pull();
 			case 'sync': return this.service.sync();
 			case 'stop': this.service.stop(); return Promise.resolve();
+			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
 			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
@@ -41,6 +54,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
 			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0]);
 			case 'getAssociatedResources': return this.service.getAssociatedResources(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
+			case 'getMachineId': return this.service.getMachineId(args[0], { created: args[1].created, uri: URI.revive(args[1].uri) });
 		}
 		throw new Error('Invalid call');
 	}
@@ -148,6 +162,27 @@ export class StorageKeysSyncRegistryChannelClient extends Disposable implements 
 
 	registerStorageKey(storageKey: IStorageKey): void {
 		this.channel.call('registerStorageKey', [storageKey]);
+	}
+
+}
+
+export class UserDataSyncMachinesServiceChannel implements IServerChannel {
+
+	constructor(private readonly service: IUserDataSyncMachinesService) { }
+
+	listen(_: unknown, event: string): Event<any> {
+		throw new Error(`Event not found: ${event}`);
+	}
+
+	async call(context: any, command: string, args?: any): Promise<any> {
+		switch (command) {
+			case 'getMachines': return this.service.getMachines();
+			case 'addCurrentMachine': return this.service.addCurrentMachine(args[0]);
+			case 'removeCurrentMachine': return this.service.removeCurrentMachine();
+			case 'renameMachine': return this.service.renameMachine(args[0], args[1]);
+			case 'disableMachine': return this.service.disableMachine(args[0]);
+		}
+		throw new Error('Invalid call');
 	}
 
 }

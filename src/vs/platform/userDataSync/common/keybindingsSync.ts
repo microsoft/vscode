@@ -16,10 +16,11 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { isUndefined } from 'vs/base/common/types';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 interface ISyncContent {
 	mac?: string;
@@ -42,10 +43,11 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(environmentService.keybindingsResource, SyncResource.Keybindings, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.keybindingsResource, SyncResource.Keybindings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
 	async pull(): Promise<void> {
@@ -212,6 +214,24 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		}
 	}
 
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
+		const content = this.getKeybindingsContentFromSyncContent(syncData.content);
+
+		if (content !== null) {
+			const fileContent = await this.getLocalFileContent();
+			this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<IFileSyncPreviewResult>({
+				fileContent,
+				remoteUserData,
+				lastSyncUserData,
+				content,
+				hasConflicts: false,
+				hasLocalChanged: true,
+				hasRemoteChanged: true,
+			}));
+			await this.apply();
+		}
+	}
+
 	private async apply(forcePush?: boolean): Promise<void> {
 		if (!this.syncPreviewResultPromise) {
 			return;
@@ -251,7 +271,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized keybindings...`);
 			const lastSyncContent = content !== null || fileContent !== null ? this.toSyncContent(content !== null ? content : fileContent!.value.toString(), null) : null;
-			await this.updateLastSyncUserData({ ref: remoteUserData.ref, syncData: lastSyncContent ? { version: remoteUserData.syncData!.version, content: lastSyncContent } : null });
+			await this.updateLastSyncUserData({ ref: remoteUserData.ref, syncData: lastSyncContent ? { version: remoteUserData.syncData!.version, machineId: remoteUserData.syncData!.machineId, content: lastSyncContent } : null });
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized keybindings`);
 		}
 

@@ -26,9 +26,9 @@ export interface ITextModelService {
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable;
 
 	/**
-	 * Check if a provider for the given `scheme` exists
+	 * Check if the given resource can be resolved to a text model.
 	 */
-	hasTextModelContentProvider(scheme: string): boolean;
+	canHandleResource(resource: URI): boolean;
 }
 
 export interface ITextModelContentProvider {

@@ -6610,7 +6610,7 @@ declare module 'vscode' {
 		readonly enableCommandUris?: boolean;
 
 		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
+		 * Root paths from which the webview can load local (filesystem) resources using uris from `asWebviewUri`
 		 *
 		 * Default to the root folders of the current workspace plus the extension's install directory.
 		 *
@@ -7889,7 +7889,7 @@ declare module 'vscode' {
 		 * In order to expand the revealed element, set the option `expand` to `true`. To expand recursively set `expand` to the number of levels to expand.
 		 * **NOTE:** You can expand only to 3 levels maximum.
 		 *
-		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
+		 * **NOTE:** The [TreeDataProvider](#TreeDataProvider) that the `TreeView` [is registered with](#window.createTreeView) with must implement [getParent](#TreeDataProvider.getParent) method to access this API.
 		 */
 		reveal(element: T, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
 	}
@@ -9274,9 +9274,11 @@ declare module 'vscode' {
 		 * An event that is emitted when a [text document](#TextDocument) is disposed or when the language id
 		 * of a text document [has been changed](#languages.setTextDocumentLanguage).
 		 *
-		 * To add an event listener when a visible text document is closed, use the [TextEditor](#TextEditor) events in the
-		 * [window](#window) namespace. Note that this event is not emitted when a [TextEditor](#TextEditor) is closed
-		 * but the document remains open in another [visible text editor](#window.visibleTextEditors).
+		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed, use the
+		 * [`onDidChangeVisibleTextEditors`](#window.onDidChangeVisibleTextEditors)-event to know when editors change.
+		 *
+		 * *Note 2:* A document can be open but not shown in an editor which means this event can fire
+		 * for a document that has not been shown in an editor.
 		 */
 		export const onDidCloseTextDocument: Event<TextDocument>;
 

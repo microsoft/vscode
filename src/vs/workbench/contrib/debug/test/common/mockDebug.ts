@@ -136,6 +136,10 @@ export class MockDebugService implements IDebugService {
 
 export class MockSession implements IDebugSession {
 
+	stepInTargets(frameId: number): Promise<{ id: number; label: string; }[]> {
+		throw new Error('Method not implemented.');
+	}
+
 	cancel(_progressId: string): Promise<DebugProtocol.CancelResponse> {
 		throw new Error('Method not implemented.');
 	}
@@ -304,7 +308,7 @@ export class MockSession implements IDebugSession {
 	next(threadId: number): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepIn(threadId: number): Promise<void> {
+	stepIn(threadId: number, targetId?: number): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	stepOut(threadId: number): Promise<void> {

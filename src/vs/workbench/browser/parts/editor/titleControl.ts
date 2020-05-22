@@ -31,7 +31,7 @@ import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceData
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { EDITOR_TITLE_HEIGHT, IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, toResource, IEditorPartOptions, SideBySideEditor, EditorPinnedContext, EditorStickyContext } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -51,7 +51,7 @@ export abstract class TitleControl extends Themable {
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
 
-	protected breadcrumbsControl?: BreadcrumbsControl;
+	protected breadcrumbsControl: BreadcrumbsControl | undefined = undefined;
 
 	private currentPrimaryEditorActionIds: string[] = [];
 	private currentSecondaryEditorActionIds: string[] = [];
@@ -117,6 +117,7 @@ export abstract class TitleControl extends Themable {
 				this.handleBreadcrumbsEnablementChange();
 			}
 		}));
+
 		if (config.getValue()) {
 			this.breadcrumbsControl = this.instantiationService.createInstance(BreadcrumbsControl, container, options, this.group);
 		}
@@ -400,15 +401,9 @@ export abstract class TitleControl extends Themable {
 
 	abstract updateStyles(): void;
 
-	layout(dimension: Dimension): void {
-		if (this.breadcrumbsControl) {
-			this.breadcrumbsControl.layout(undefined);
-		}
-	}
+	abstract layout(dimension: Dimension): void;
 
-	getPreferredHeight(): number {
-		return EDITOR_TITLE_HEIGHT + (this.breadcrumbsControl && !this.breadcrumbsControl.isHidden() ? BreadcrumbsControl.HEIGHT : 0);
-	}
+	abstract getPreferredHeight(): number;
 
 	dispose(): void {
 		dispose(this.breadcrumbsControl);

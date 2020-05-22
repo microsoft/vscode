@@ -13,7 +13,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { edit } from 'vs/platform/userDataSync/common/content';
 import { merge } from 'vs/platform/userDataSync/common/globalStateMerge';
 import { parse } from 'vs/base/common/json';
-import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
@@ -56,7 +56,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		@IStorageService private readonly storageService: IStorageService,
 		@IStorageKeysSyncRegistryService private readonly storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 	) {
-		super(SyncResource.GlobalState, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.GlobalState, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(this.environmentService.argvResource)));
 		this._register(
 			Event.any(
@@ -66,7 +66,7 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 				Event.filter(this.storageService.onDidChangeStorage, e => storageKeysSyncRegistryService.storageKeys.some(({ key }) => e.key === key)),
 				/* Storage key registered */
 				this.storageKeysSyncRegistryService.onDidChangeStorageKeys
-			)((() => this._onDidChangeLocal.fire()))
+			)((() => this.triggerLocalChange()))
 		);
 	}
 
@@ -198,6 +198,18 @@ export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUs
 		const result = await this.generatePreview(remoteUserData, lastSyncUserData);
 		await this.apply(result);
 		return SyncStatus.Idle;
+	}
+
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
+		const localUserData = await this.getLocalGlobalState();
+		const syncGlobalState: IGlobalState = JSON.parse(syncData.content);
+		const { local, skipped } = merge(localUserData.storage, syncGlobalState.storage, localUserData.storage, this.getSyncStorageKeys(), lastSyncUserData?.skippedStorageKeys || [], this.logService);
+		await this.apply({
+			local, remote: syncGlobalState.storage, remoteUserData, localUserData, lastSyncUserData,
+			skippedStorageKeys: skipped,
+			hasLocalChanged: Object.keys(local.added).length > 0 || Object.keys(local.updated).length > 0 || local.removed.length > 0,
+			hasRemoteChanged: true
+		});
 	}
 
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IGlobalSyncPreviewResult> {

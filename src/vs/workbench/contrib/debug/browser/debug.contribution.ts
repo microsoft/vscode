@@ -6,6 +6,7 @@
 import 'vs/css!./media/debug.contribution';
 import 'vs/css!./media/debugHover';
 import * as nls from 'vs/nls';
+import { Color } from 'vs/base/common/color';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -37,14 +38,14 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { LoadedScriptsView } from 'vs/workbench/contrib/debug/browser/loadedScriptsView';
-import { TOGGLE_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID, RunToCursorAction } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
+import { ADD_LOG_POINT_ID, TOGGLE_CONDITIONAL_BREAKPOINT_ID, TOGGLE_BREAKPOINT_ID, RunToCursorAction } from 'vs/workbench/contrib/debug/browser/debugEditorActions';
 import { WatchExpressionsView } from 'vs/workbench/contrib/debug/browser/watchExpressionsView';
 import { VariablesView } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { ClearReplAction, Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
 import { ThemeIcon, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { registerColor, foreground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, foreground, badgeBackground, badgeForeground, listDeemphasizedForeground, contrastBorder, inputBorder, editorWarningForeground, errorForeground, editorInfoForeground } from 'vs/platform/theme/common/colorRegistry';
 import { DebugViewPaneContainer, OpenDebugConsoleAction } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
@@ -512,7 +513,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
 MenuRegistry.appendMenuItem(MenuId.MenubarNewBreakpointMenu, {
 	group: '1_breakpoints',
 	command: {
-		id: TOGGLE_LOG_POINT_ID,
+		id: ADD_LOG_POINT_ID,
 		title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "&&Logpoint...")
 	},
 	order: 4
@@ -599,11 +600,17 @@ const debugTokenExpressionBoolean = registerColor('debugTokenExpression.boolean'
 const debugTokenExpressionNumber = registerColor('debugTokenExpression.number', { dark: '#b5cea8', light: '#098658', hc: '#89d185' }, 'Foreground color for numbers in the debug views (ie. the Variables or Watch view).');
 const debugTokenExpressionError = registerColor('debugTokenExpression.error', { dark: '#f48771', light: '#e51400', hc: '#f48771' }, 'Foreground color for expression errors in the debug views (ie. the Variables or Watch view) and for error logs shown in the debug console.');
 
-const debugViewExceptionLabelForeground = registerColor('debugView.exceptionLabelForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
+const debugViewExceptionLabelForeground = registerColor('debugView.exceptionLabelForeground', { dark: foreground, light: '#FFF', hc: foreground }, 'Foreground color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
 const debugViewExceptionLabelBackground = registerColor('debugView.exceptionLabelBackground', { dark: '#6C2022', light: '#A31515', hc: '#6C2022' }, 'Background color for a label shown in the CALL STACK view when the debugger breaks on an exception.');
 const debugViewStateLabelForeground = registerColor('debugView.stateLabelForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for a label in the CALL STACK view showing the current session\'s or thread\'s state.');
 const debugViewStateLabelBackground = registerColor('debugView.stateLabelBackground', { dark: '#88888844', light: '#88888844', hc: '#88888844' }, 'Background color for a label in the CALL STACK view showing the current session\'s or thread\'s state.');
 const debugViewValueChangedHighlight = registerColor('debugView.valueChangedHighlight', { dark: '#569CD6', light: '#569CD6', hc: '#569CD6' }, 'Color used to highlight value changes in the debug views (ie. in the Variables view).');
+
+const debugConsoleInfoForeground = registerColor('debugConsole.infoForeground', { dark: editorInfoForeground, light: editorInfoForeground, hc: foreground }, 'Foreground color for info messages in debug REPL console.');
+const debugConsoleWarningForeground = registerColor('debugConsole.warningForeground', { dark: editorWarningForeground, light: editorWarningForeground, hc: '#008000' }, 'Foreground color for warning messages in debug REPL console.');
+const debugConsoleErrorForeground = registerColor('debugConsole.errorForeground', { dark: errorForeground, light: errorForeground, hc: errorForeground }, 'Foreground color for error messages in debug REPL console.');
+const debugConsoleSourceForeground = registerColor('debugConsole.sourceForeground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for source filenames in debug REPL console.');
+const debugConsoleInputIconForeground = registerColor('debugConsoleInputIcon.foreground', { dark: foreground, light: foreground, hc: foreground }, 'Foreground color for debug console input marker icon.');
 
 registerThemingParticipant((theme, collector) => {
 	// All these colours provide a default value so they will never be undefined, hence the `!`
@@ -714,4 +721,53 @@ registerThemingParticipant((theme, collector) => {
 			color: ${tokenNumberColor};
 		}
 	`);
+
+	const debugConsoleInputBorderColor = theme.getColor(inputBorder) || Color.fromHex('#80808060');
+	const debugConsoleInfoForegroundColor = theme.getColor(debugConsoleInfoForeground)!;
+	const debugConsoleWarningForegroundColor = theme.getColor(debugConsoleWarningForeground)!;
+	const debugConsoleErrorForegroundColor = theme.getColor(debugConsoleErrorForeground)!;
+	const debugConsoleSourceForegroundColor = theme.getColor(debugConsoleSourceForeground)!;
+	const debugConsoleInputIconForegroundColor = theme.getColor(debugConsoleInputIconForeground)!;
+
+	collector.addRule(`
+		.repl .repl-input-wrapper {
+			border-top: 1px solid ${debugConsoleInputBorderColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .output .expression .value.info {
+			color: ${debugConsoleInfoForegroundColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .output .expression .value.warn {
+			color: ${debugConsoleWarningForegroundColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .output .expression .value.error {
+			color: ${debugConsoleErrorForegroundColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .output .expression .source {
+			color: ${debugConsoleSourceForegroundColor};
+		}
+
+		.monaco-workbench .repl .repl-tree .monaco-tl-contents .arrow {
+			color: ${debugConsoleInputIconForegroundColor};
+		}
+	`);
+
+	if (!theme.defines(debugConsoleInputIconForeground)) {
+		collector.addRule(`
+			.monaco-workbench.vs .repl .repl-tree .monaco-tl-contents .arrow {
+				opacity: 0.25;
+			}
+
+			.monaco-workbench.vs-dark .repl .repl-tree .monaco-tl-contents .arrow {
+				opacity: 0.4;
+			}
+
+			.monaco-workbench.hc-black .repl .repl-tree .monaco-tl-contents .arrow {
+				opacity: 1;
+			}
+		`);
+	}
 });

@@ -14,11 +14,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { updateIgnoredSettings, merge, getIgnoredSettings, isEmpty } from 'vs/platform/userDataSync/common/settingsMerge';
 import { edit } from 'vs/platform/userDataSync/common/content';
-import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export interface ISettingsSyncContent {
 	settings: string;
@@ -41,6 +42,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 	constructor(
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
@@ -50,7 +52,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 	) {
-		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
 	protected setStatus(status: SyncStatus): void {
@@ -254,6 +256,27 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 				}
 			}
 			throw e;
+		}
+	}
+
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
+		const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+		if (settingsSyncContent) {
+			const fileContent = await this.getLocalFileContent();
+			const formatUtils = await this.getFormattingOptions();
+			const ignoredSettings = await this.getIgnoredSettings();
+			const content = updateIgnoredSettings(settingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
+			this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<IFileSyncPreviewResult>({
+				fileContent,
+				remoteUserData,
+				lastSyncUserData,
+				content,
+				hasLocalChanged: true,
+				hasRemoteChanged: true,
+				hasConflicts: false,
+			}));
+
+			await this.apply();
 		}
 	}
 

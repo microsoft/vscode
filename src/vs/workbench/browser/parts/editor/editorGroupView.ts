@@ -611,11 +611,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control Switch between showing tabs <=> not showing tabs
 		if (event.oldPartOptions.showTabs !== event.newPartOptions.showTabs) {
 
-			// Recreate and layout control
+			// Recreate title control
 			this.createTitleAreaControl();
-			if (this.dimension) {
-				this.layoutTitleAreaControl(this.dimension.width);
-			}
+
+			// Re-layout
+			this.relayout();
 
 			// Ensure to show active editor if any
 			if (this._group.activeEditor) {

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { IUserDataSyncStoreService, SyncResource, SyncStatus, IUserDataSyncEnablementService, ISyncPreviewResult } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userDataSync/test/common/userDataSyncClient';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { AbstractSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { AbstractSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 
@@ -39,6 +39,8 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return this.syncResult.status || SyncStatus.Idle;
 	}
 
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> { }
+
 	async apply(ref: string): Promise<void> {
 		ref = await this.userDataSyncStoreService.write(this.resource, '', ref);
 		await this.updateLastSyncUserData({ ref, syncData: { content: '', version: this.version } });
@@ -47,6 +49,16 @@ class TestSynchroniser extends AbstractSynchroniser {
 	async stop(): Promise<void> {
 		this.cancelled = true;
 		this.syncBarrier.open();
+	}
+
+	async triggerLocalChange(): Promise<void> {
+		super.triggerLocalChange();
+	}
+
+	onDidTriggerLocalChangeCall: Emitter<void> = this._register(new Emitter<void>());
+	protected async doTriggerLocalChange(): Promise<void> {
+		await super.doTriggerLocalChange();
+		this.onDidTriggerLocalChangeCall.fire();
 	}
 
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult> {
@@ -199,6 +211,19 @@ suite('TestSynchronizer', () => {
 			{ type: 'GET', url: `${server.url}/v1/resource/${testObject.resource}/latest`, headers: {} },
 			{ type: 'POST', url: `${server.url}/v1/resource/${testObject.resource}`, headers: { 'If-Match': `${parseInt(ref) + 1}` } },
 		]);
+	});
+
+	test('no requests are made to server when local change is triggered', async () => {
+		const testObject: TestSynchroniser = client.instantiationService.createInstance(TestSynchroniser, SyncResource.Settings);
+		testObject.syncBarrier.open();
+		await testObject.sync(await client.manifest());
+
+		server.reset();
+		const promise = Event.toPromise(testObject.onDidTriggerLocalChangeCall.event);
+		await testObject.triggerLocalChange();
+
+		await promise;
+		assert.deepEqual(server.requests, []);
 	});
 
 

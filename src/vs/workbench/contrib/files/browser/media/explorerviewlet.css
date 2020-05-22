@@ -95,6 +95,6 @@
 }
 
 /* High Contrast Theming */
-.hc-black .monaco-workbench .explorer-viewlet .explorer-item {
+.monaco-workbench.hc-black .explorer-viewlet .explorer-item {
 	line-height: 20px;
 }

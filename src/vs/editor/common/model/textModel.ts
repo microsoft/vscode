@@ -37,6 +37,7 @@ import { Color } from 'vs/base/common/color';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { TextChange } from 'vs/editor/common/model/textChange';
+import { Constants } from 'vs/base/common/uint';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -699,6 +700,17 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.mightContainRTL();
 	}
 
+	public mightContainUnusualLineTerminators(): boolean {
+		return this._buffer.mightContainUnusualLineTerminators();
+	}
+
+	public removeUnusualLineTerminators(selections: Selection[] | null = null): void {
+		const matches = this.findMatches(strings.UNUSUAL_LINE_TERMINATORS.source, false, true, false, null, false, Constants.MAX_SAFE_SMALL_INTEGER);
+		const eol = this.getEOL();
+		this._buffer.resetMightContainUnusualLineTerminators();
+		this.pushEditOperations(selections, matches.map(m => ({ range: m.range, text: eol })), () => null);
+	}
+
 	public mightContainNonBasicASCII(): boolean {
 		return this._buffer.mightContainNonBasicASCII();
 	}
@@ -1097,7 +1109,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._buffer.findMatchesLineByLine(searchRange, searchData, captureMatches, limitResultCount);
 	}
 
-	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
+	public findMatches(searchString: string, rawSearchScope: any, isRegex: boolean, matchCase: boolean, wordSeparators: string | null, captureMatches: boolean, limitResultCount: number = LIMIT_FIND_COUNT): model.FindMatch[] {
 		this._assertNotDisposed();
 
 		let searchRange: Range;

@@ -246,12 +246,16 @@
 	background-color: rgba(255, 255, 255, 0.9);
 }
 
-.vs-dark .notebookOverlay .cell-statusbar-container .cell-language-picker:hover {
+.monaco-workbench.vs-dark .notebookOverlay .cell-statusbar-container .cell-language-picker:hover {
 	background-color: rgba(255, 255, 255, 0.15);
 }
 
-.vs-dark .notebookOverlay .cell-statusbar-container .cell-language-picker:active {
+.monaco-workbench.vs-dark .notebookOverlay .cell-statusbar-container .cell-language-picker:active {
 	background-color: rgba(255, 255, 255, 0.2);
+}
+
+.notebookOverlay .cell-statusbar-container .cell-run-duration {
+	margin-right: 8px;
 }
 
 .notebookOverlay .cell-statusbar-container .cell-status-message {
@@ -276,7 +280,7 @@
 	color: #89D185;
 }
 
-.vs .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-check {
+.monaco-workbench.vs .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-check {
 	color: #388A34;
 }
 
@@ -290,7 +294,7 @@
 	top: 0px;
 }
 
-.vs .notebookOverlay .cell-status-placeholder {
+.monaco-workbench.vs .notebookOverlay .cell-status-placeholder {
 	color: #616161e6;
 }
 
@@ -376,12 +380,18 @@
 	bottom: 36px;
 	visibility: hidden;
 	cursor: pointer;
+	opacity: 0.6;
 }
 
 .notebookOverlay .monaco-list .monaco-list-row:hover .notebook-cell-focus-indicator,
 .notebookOverlay .monaco-list .monaco-list-row.cell-output-hover .notebook-cell-focus-indicator,
 .notebookOverlay .monaco-list .monaco-list-row.focused .notebook-cell-focus-indicator {
 	visibility: visible;
+}
+
+.notebookOverlay .monaco-list:focus .monaco-list-row .notebook-cell-focus-indicator,
+.notebookOverlay .monaco-list:focus-within .monaco-list-row .notebook-cell-focus-indicator {
+	opacity: 1;
 }
 
 .notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before {
@@ -500,7 +510,7 @@
 	border-color: rgba(255, 255, 255, 0.18);
 }
 
-.vs .notebookOverlay .cell.markdown h1 {
+.monaco-workbench.vs .notebookOverlay .cell.markdown h1 {
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
@@ -604,8 +614,8 @@
 	filter: brightness(0) invert(0)
 }
 
-.vs-dark .notebookOverlay .cell.markdown .latex img,
-.vs-dark .notebookOverlay .cell.markdown .latex-block img {
+.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex img,
+.monaco-workbench.vs-dark .notebookOverlay .cell.markdown .latex-block img {
 	filter: brightness(0) invert(1)
 }
 
@@ -616,21 +626,25 @@
 	cursor: pointer;
 }
 
+.notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
+	visibility: visible;
+}
+
 /** Theming */
 
 /* .notebookOverlay .cell.markdown pre {
 	background-color: rgba(220, 220, 220, 0.4);
 }
 
-.vs-dark .notebookOverlay .cell.markdown pre {
+.monaco-workbench.vs-dark .notebookOverlay .cell.markdown pre {
 	background-color: rgba(10, 10, 10, 0.4);
 }
 
-.hc-black .notebookOverlay .cell.markdown pre {
+.monaco-workbench.hc-black .notebookOverlay .cell.markdown pre {
 	background-color: rgb(0, 0, 0);
 }
 
-.hc-black .notebookOverlay .cell.markdown h1 {
+.monaco-workbench.hc-black .notebookOverlay .cell.markdown h1 {
 	border-color: rgb(0, 0, 0);
 }
 
@@ -638,7 +652,7 @@
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
-.vs-dark .notebookOverlay .cell.markdown table > thead > tr > th {
+.monaco-workbench.vs-dark .notebookOverlay .cell.markdown table > thead > tr > th {
 	border-color: rgba(255, 255, 255, 0.18);
 }
 
@@ -648,8 +662,8 @@
 	border-color: rgba(0, 0, 0, 0.18);
 }
 
-.vs-dark .notebookOverlay .cell.markdown h1,
-.vs-dark .notebookOverlay .cell.markdown hr,
-.vs-dark .notebookOverlay .cell.markdown table > tbody > tr > td {
+.monaco-workbench.vs-dark .notebookOverlay .cell.markdown h1,
+.monaco-workbench.vs-dark .notebookOverlay .cell.markdown hr,
+.monaco-workbench.vs-dark .notebookOverlay .cell.markdown table > tbody > tr > td {
 	border-color: rgba(255, 255, 255, 0.18);
 } */

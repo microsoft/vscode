@@ -28,6 +28,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Codicon } from 'vs/base/common/codicons';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -286,6 +288,42 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 }
 
 export class HomeAction extends Action {
+
+	constructor(
+		private readonly href: string,
+		name: string,
+		icon: Codicon
+	) {
+		super('workbench.action.home', name, icon.classNames);
+	}
+
+	async run(event: MouseEvent): Promise<void> {
+		let openInNewWindow = false;
+		if (isMacintosh) {
+			openInNewWindow = event.metaKey;
+		} else {
+			openInNewWindow = event.ctrlKey;
+		}
+
+		if (openInNewWindow) {
+			DOM.windowOpenNoOpener(this.href);
+		} else {
+			window.location.href = this.href;
+		}
+	}
+}
+
+export class HomeActionViewItem extends ActionViewItem {
+
+	constructor(action: IAction) {
+		super(undefined, action, { icon: true, label: false, useEventAsContext: true });
+	}
+}
+
+/**
+ * @deprecated TODO@ben remove me eventually
+ */
+export class DeprecatedHomeAction extends Action {
 
 	constructor(
 		private readonly command: string,

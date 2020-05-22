@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { Selection } from 'vs/editor/common/core/selection';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -36,10 +37,9 @@ import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDeco
 import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
 import { ViewZones } from 'vs/editor/browser/viewParts/viewZones/viewZones';
-import { Cursor } from 'vs/editor/common/controller/cursor';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IConfiguration } from 'vs/editor/common/editorCommon';
+import { IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
 import { RenderingContext } from 'vs/editor/common/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/view/viewContext';
 import { ViewEventDispatcher } from 'vs/editor/common/view/viewEventDispatcher';
@@ -68,7 +68,7 @@ export class View extends ViewEventHandler {
 
 	private _scrollbar: EditorScrollbar;
 	private readonly _context: ViewContext;
-	private readonly _cursor: Cursor;
+	private _selections: Selection[];
 
 	// The view lines
 	private viewLines: ViewLines;
@@ -98,11 +98,10 @@ export class View extends ViewEventHandler {
 		configuration: IConfiguration,
 		themeService: IThemeService,
 		model: IViewModel,
-		cursor: Cursor,
 		outgoingEvents: ViewOutgoingEvents
 	) {
 		super();
-		this._cursor = cursor;
+		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
 		this.outgoingEvents = outgoingEvents;
 
@@ -226,11 +225,7 @@ export class View extends ViewEventHandler {
 		// Pointer handler
 		this.pointerHandler = this._register(new PointerHandler(this._context, viewController, this.createPointerHandlerHelper()));
 
-		this._register(model.addEventListener((events: viewEvents.ViewEvent[]) => {
-			this.eventDispatcher.emitMany(events);
-		}));
-
-		this._register(this._cursor.addEventListener((events: viewEvents.ViewEvent[]) => {
+		this._register(model.addViewEventListener((events: viewEvents.ViewEvent[]) => {
 			this.eventDispatcher.emitMany(events);
 		}));
 	}
@@ -315,9 +310,12 @@ export class View extends ViewEventHandler {
 		this.outgoingEvents.emitContentSizeChange(e);
 		return false;
 	}
+	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
+		this._selections = e.selections;
+		return false;
+	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this.domNode.setClassName(this.getEditorClassName());
-		this._context.model.setHasFocus(e.isFocused);
 		if (e.isFocused) {
 			this.outgoingEvents.emitViewFocusGained();
 		} else {
@@ -404,7 +402,7 @@ export class View extends ViewEventHandler {
 		this._context.model.setViewport(partialViewportData.startLineNumber, partialViewportData.endLineNumber, partialViewportData.centeredLineNumber);
 
 		const viewportData = new ViewportData(
-			this._cursor.getViewSelections(),
+			this._selections,
 			partialViewportData,
 			this._context.viewLayout.getWhitespaceViewportData(),
 			this._context.model
@@ -445,11 +443,11 @@ export class View extends ViewEventHandler {
 	}
 
 	public restoreState(scrollPosition: { scrollLeft: number; scrollTop: number; }): void {
-		this._context.viewLayout.setScrollPositionNow({ scrollTop: scrollPosition.scrollTop });
+		this._context.model.setScrollPosition({ scrollTop: scrollPosition.scrollTop }, ScrollType.Immediate);
 		this._context.model.tokenizeViewport();
 		this._renderNow();
 		this.viewLines.updateLineWidths();
-		this._context.viewLayout.setScrollPositionNow({ scrollLeft: scrollPosition.scrollLeft });
+		this._context.model.setScrollPosition({ scrollLeft: scrollPosition.scrollLeft }, ScrollType.Immediate);
 	}
 
 	public getOffsetForColumn(modelLineNumber: number, modelColumn: number): number {
@@ -482,7 +480,6 @@ export class View extends ViewEventHandler {
 		return this._renderOnce(() => {
 			const zonesHaveChanged = this.viewZones.changeViewZones(callback);
 			if (zonesHaveChanged) {
-				this._context.viewLayout.onHeightMaybeChanged();
 				this._context.privateViewEventBus.emit(new viewEvents.ViewZonesChangedEvent());
 			}
 			return zonesHaveChanged;

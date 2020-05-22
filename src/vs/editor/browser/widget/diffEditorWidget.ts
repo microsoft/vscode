@@ -7,7 +7,7 @@ import 'vs/css!./media/diffEditor';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState } from 'vs/base/browser/ui/sash/sash';
+import { ISashEvent, IVerticalSashLayoutProvider, Sash, SashState, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -49,6 +49,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { Codicon, registerIcon } from 'vs/base/common/codicons';
+import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor/mouseCursor';
 
 interface IEditorDiffDecorations {
 	decorations: IModelDeltaDecoration[];
@@ -887,7 +888,7 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 		this._cleanViewZonesAndDecorations();
 	}
 
-	public trigger(source: string, handlerId: string, payload: any): void {
+	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
 		this.modifiedEditor.trigger(source, handlerId, payload);
 	}
 
@@ -1657,7 +1658,7 @@ class DiffEditorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffE
 		this._sashRatio = null;
 		this._sashPosition = null;
 		this._startSashPosition = null;
-		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this));
+		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this, { orientation: Orientation.VERTICAL }));
 
 		if (this._disableSash) {
 			this._sash.state = SashState.Disabled;
@@ -2095,7 +2096,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 		maxCharsPerLine += this.modifiedEditorOptions.get(EditorOption.scrollBeyondLastColumn);
 
 		let domNode = document.createElement('div');
-		domNode.className = 'view-lines line-delete';
+		domNode.className = `view-lines line-delete ${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`;
 		domNode.innerHTML = sb.build();
 		Configuration.applyFontInfoSlow(domNode, fontInfo);
 

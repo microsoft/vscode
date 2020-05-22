@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, Conflict, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncPreviewResult, IUserDataManifest } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { joinPath, dirname, isEqual, basename } from 'vs/base/common/resources';
-import { CancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ParseError, parse } from 'vs/base/common/json';
@@ -21,6 +21,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { isString } from 'vs/base/common/types';
 import { uppercaseFirstLetter } from 'vs/base/common/strings';
 import { equals } from 'vs/base/common/arrays';
+import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 type SyncSourceClassification = {
 	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -33,19 +35,33 @@ export interface IRemoteUserData {
 
 export interface ISyncData {
 	version: number;
+	machineId?: string;
 	content: string;
 }
 
 function isSyncData(thing: any): thing is ISyncData {
-	return thing
+	if (thing
 		&& (thing.version && typeof thing.version === 'number')
-		&& (thing.content && typeof thing.content === 'string')
-		&& Object.keys(thing).length === 2;
+		&& (thing.content && typeof thing.content === 'string')) {
+
+		if (Object.keys(thing).length === 2) {
+			return true;
+		}
+
+		if (Object.keys(thing).length === 3
+			&& (thing.machineId && typeof thing.machineId === 'string')) {
+			return true;
+		}
+	}
+
+	return false;
 }
+
 
 export abstract class AbstractSynchroniser extends Disposable {
 
 	protected readonly syncFolder: URI;
+	private readonly currentMachineIdPromise: Promise<string>;
 
 	private _status: SyncStatus = SyncStatus.Idle;
 	get status(): SyncStatus { return this._status; }
@@ -57,7 +73,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 	private _onDidChangeConflicts: Emitter<Conflict[]> = this._register(new Emitter<Conflict[]>());
 	readonly onDidChangeConflicts: Event<Conflict[]> = this._onDidChangeConflicts.event;
 
-	protected readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
+	private readonly localChangeTriggerScheduler = new RunOnceScheduler(() => this.doTriggerLocalChange(), 50);
+	private readonly _onDidChangeLocal: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeLocal: Event<void> = this._onDidChangeLocal.event;
 
 	protected readonly lastSyncResource: URI;
@@ -67,6 +84,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		readonly resource: SyncResource,
 		@IFileService protected readonly fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService protected readonly userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService protected readonly userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncEnablementService protected readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -78,6 +96,22 @@ export abstract class AbstractSynchroniser extends Disposable {
 		this.syncResourceLogLabel = uppercaseFirstLetter(this.resource);
 		this.syncFolder = joinPath(environmentService.userDataSyncHome, resource);
 		this.lastSyncResource = joinPath(this.syncFolder, `lastSync${this.resource}.json`);
+		this.currentMachineIdPromise = getServiceMachineId(environmentService, fileService, storageService);
+	}
+
+	protected async triggerLocalChange(): Promise<void> {
+		if (this.isEnabled()) {
+			this.localChangeTriggerScheduler.schedule();
+		}
+	}
+
+	protected async doTriggerLocalChange(): Promise<void> {
+		this.logService.trace(`${this.syncResourceLogLabel}: Checking for local changes...`);
+		const lastSyncUserData = await this.getLastSyncUserData();
+		const hasRemoteChanged = lastSyncUserData ? (await this.generatePreview(lastSyncUserData, lastSyncUserData)).hasRemoteChanged : true;
+		if (hasRemoteChanged) {
+			this._onDidChangeLocal.fire();
+		}
 	}
 
 	protected setStatus(status: SyncStatus): void {
@@ -142,6 +176,33 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} finally {
 			this.setStatus(status);
 		}
+	}
+
+	async replace(uri: URI): Promise<boolean> {
+		const content = await this.resolveContent(uri);
+		if (!content) {
+			return false;
+		}
+
+		const syncData = this.parseSyncData(content);
+		if (!syncData) {
+			return false;
+		}
+
+		await this.stop();
+
+		try {
+			this.logService.trace(`${this.syncResourceLogLabel}: Started resetting ${this.resource.toLowerCase()}...`);
+			this.setStatus(SyncStatus.Syncing);
+			const lastSyncUserData = await this.getLastSyncUserData();
+			const remoteUserData = await this.getLatestRemoteUserData(null, lastSyncUserData);
+			await this.performReplace(syncData, remoteUserData, lastSyncUserData);
+			this.logService.info(`${this.syncResourceLogLabel}: Finished resetting ${this.resource.toLowerCase()}.`);
+		} finally {
+			this.setStatus(SyncStatus.Idle);
+		}
+
+		return true;
 	}
 
 	private async getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
@@ -223,6 +284,18 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	private toLocalBackupResource(ref: string): URI {
 		return URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'local-backup', path: `/${this.resource}/${ref}` });
+	}
+
+	async getMachineId({ uri }: ISyncResourceHandle): Promise<string | undefined> {
+		const ref = basename(uri);
+		if (isEqual(uri, this.toRemoteBackupResource(ref))) {
+			const { content } = await this.getUserData(ref);
+			if (content) {
+				const syncData = this.parseSyncData(content);
+				return syncData?.machineId;
+			}
+		}
+		return undefined;
 	}
 
 	async resolveContent(uri: URI): Promise<string | null> {
@@ -309,7 +382,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
-		const syncData: ISyncData = { version: this.version, content };
+		const machineId = await this.currentMachineIdPromise;
+		const syncData: ISyncData = { version: this.version, machineId, content };
 		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref);
 		return { ref, syncData };
 	}
@@ -323,6 +397,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	protected abstract readonly version: number;
 	protected abstract performSync(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<SyncStatus>;
+	protected abstract performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void>;
 	protected abstract generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<ISyncPreviewResult>;
 }
 
@@ -343,6 +418,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		resource: SyncResource,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -350,7 +426,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(resource, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(this.fileService.watch(dirname(file)));
 		this._register(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
 	}
@@ -425,7 +501,7 @@ export abstract class AbstractFileSynchroniser extends AbstractSynchroniser {
 
 		// Otherwise fire change event
 		else {
-			this._onDidChangeLocal.fire();
+			this.triggerLocalChange();
 		}
 
 	}
@@ -448,6 +524,7 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		resource: SyncResource,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
@@ -456,7 +533,7 @@ export abstract class AbstractJsonFileSynchroniser extends AbstractFileSynchroni
 		@IUserDataSyncUtilService protected readonly userDataSyncUtilService: IUserDataSyncUtilService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(file, resource, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(file, resource, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 	}
 
 	protected hasErrors(content: string): boolean {

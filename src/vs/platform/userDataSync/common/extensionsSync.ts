@@ -20,6 +20,7 @@ import { joinPath, dirname, basename, isEqual } from 'vs/base/common/resources';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { compare } from 'vs/base/common/strings';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 interface IExtensionsSyncPreviewResult extends ISyncPreviewResult {
 	readonly localExtensions: ISyncExtension[];
@@ -46,6 +47,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -56,14 +58,14 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncResource.Extensions, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.Extensions, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
 					Event.filter(this.extensionManagementService.onDidInstallExtension, (e => !!e.gallery)),
 					Event.filter(this.extensionManagementService.onDidUninstallExtension, (e => !e.error)),
 					this.extensionEnablementService.onDidChangeEnablement),
-				() => undefined, 500)(() => this._onDidChangeLocal.fire()));
+				() => undefined, 500)(() => this.triggerLocalChange()));
 	}
 
 	async pull(): Promise<void> {
@@ -198,6 +200,18 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const previewResult = await this.generatePreview(remoteUserData, lastSyncUserData);
 		await this.apply(previewResult);
 		return SyncStatus.Idle;
+	}
+
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
+		const localExtensions = await this.getLocalExtensions();
+		const syncExtensions = this.parseExtensions(syncData);
+		const { added, updated, removed } = merge(localExtensions, syncExtensions, localExtensions, [], this.getIgnoredExtensions());
+
+		await this.apply({
+			added, removed, updated, remote: syncExtensions, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
+			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
+			hasRemoteChanged: true
+		});
 	}
 
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionsSyncPreviewResult> {

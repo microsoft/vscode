@@ -62,7 +62,8 @@ export class NotebookTextModelSnapshot implements ITextSnapshot {
 }
 
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
-	private static _cellhandlePool: number = 0;
+
+	private _cellhandlePool: number = 0;
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
@@ -116,7 +117,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		outputs: IOutput[],
 		metadata: NotebookCellMetadata | undefined
 	) {
-		const cellHandle = NotebookTextModel._cellhandlePool++;
+		const cellHandle = this._cellhandlePool++;
 		const cellUri = CellUri.generate(this.uri, cellHandle);
 		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata);
 	}
@@ -126,7 +127,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._versionId = 0;
 
 		const mainCells = cells.map(cell => {
-			const cellHandle = NotebookTextModel._cellhandlePool++;
+			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
 			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 		});
@@ -176,7 +177,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				case CellEditType.Insert:
 					const insertEdit = operations[i] as ICellInsertEdit;
 					const mainCells = insertEdit.cells.map(cell => {
-						const cellHandle = NotebookTextModel._cellhandlePool++;
+						const cellHandle = this._cellhandlePool++;
 						const cellUri = CellUri.generate(this.uri, cellHandle);
 						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 					});
@@ -253,7 +254,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._onDidModelChangeProxy.fire({
 			kind: NotebookCellsChangeType.ModelChange,
-			versionId: this._versionId, changes: [
+			versionId: this._versionId, change:
 				[
 					0,
 					0,
@@ -267,7 +268,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						metadata: cell.metadata
 					}]
 				]
-			]
 		});
 
 		return;
@@ -290,7 +290,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({
 			kind: NotebookCellsChangeType.ModelChange,
-			versionId: this._versionId, changes: [
+			versionId: this._versionId, change:
 				[
 					index,
 					0,
@@ -304,7 +304,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						metadata: cell.metadata
 					}))
 				]
-			]
 		});
 
 		return;
@@ -322,7 +321,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]] });
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, change: [index, count, []] });
 	}
 
 	moveCellToIdx(index: number, newIdx: number) {

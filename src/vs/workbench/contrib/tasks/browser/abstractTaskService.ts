@@ -11,7 +11,7 @@ import * as json from 'vs/base/common/json';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, IReference } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -72,9 +72,9 @@ import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomat
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { format } from 'vs/base/common/jsonFormatter';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
-import { ITextEditorPane, SaveReason } from 'vs/workbench/common/editor';
+import { SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { find } from 'vs/base/common/arrays';
@@ -1051,14 +1051,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return false;
 	}
 
-	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<ITextEditorPane | null | undefined> {
+	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<boolean> {
 		if (resource === undefined) {
-			return Promise.resolve(undefined);
+			return Promise.resolve(false);
 		}
 		let selection: ITextEditorSelection | undefined;
 		return this.fileService.readFile(resource).then(content => content.value).then(async content => {
 			if (!content) {
-				return undefined;
+				return false;
 			}
 			if (task) {
 				const contentValue = content.toString();
@@ -1066,15 +1066,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (typeof task === 'string') {
 					stringValue = task;
 				} else {
-					const model = (await this.textModelResolverService.createModelReference(resource)).object.textEditorModel;
-					const { tabSize, insertSpaces } = model.getOptions();
-					const eol = model.getEOL();
-					const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
-					let stringified = applyEdits(JSON.stringify(task), edits);
-					const regex = new RegExp(eol + '\\t', 'g');
-					stringified = stringified.replace(regex, eol + '\t\t\t');
-					const twoTabs = '\t\t';
-					stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+					let reference: IReference<IResolvedTextEditorModel> | undefined;
+					try {
+						reference = await this.textModelResolverService.createModelReference(resource);
+						const model = reference.object.textEditorModel;
+						const { tabSize, insertSpaces } = model.getOptions();
+						const eol = model.getEOL();
+						const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
+						let stringified = applyEdits(JSON.stringify(task), edits);
+						const regex = new RegExp(eol + '\\t', 'g');
+						stringified = stringified.replace(regex, eol + '\t\t\t');
+						const twoTabs = '\t\t';
+						stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+					} finally {
+						if (reference) {
+							reference.dispose();
+						}
+					}
 				}
 
 				const index = contentValue.indexOf(stringValue);
@@ -1101,13 +1109,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					selection,
 					selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
 				}
-			});
+			}).then(() => !!selection);
 		});
 	}
 
-	private createCustomizableTask(task: ContributedTask | CustomTask): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
+	private createCustomizableTask(task: ContributedTask | CustomTask | ConfiguringTask): TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined {
 		let toCustomize: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | undefined;
-		let taskConfig = CustomTask.is(task) ? task._source.config : undefined;
+		let taskConfig = CustomTask.is(task) || ConfiguringTask.is(task) ? task._source.config : undefined;
 		if (taskConfig && taskConfig.element) {
 			toCustomize = { ...(taskConfig.element) };
 		} else if (ContributedTask.is(task)) {
@@ -1138,7 +1146,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return toCustomize;
 	}
 
-	public customize(task: ContributedTask | CustomTask, properties?: CustomizationProperties, openConfig?: boolean): Promise<void> {
+	public customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: CustomizationProperties, openConfig?: boolean): Promise<void> {
 		const workspaceFolder = task.getWorkspaceFolder();
 		if (!workspaceFolder) {
 			return Promise.resolve(undefined);
@@ -1272,14 +1280,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<void> {
+	public openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
 		let resource: URI | undefined;
 		if (task) {
 			resource = this.getResourceForTask(task);
 		} else {
 			resource = (this._workspaceFolders && (this._workspaceFolders.length > 0)) ? this._workspaceFolders[0].toResource('.vscode/tasks.json') : undefined;
 		}
-		return this.openEditorAtTask(resource, task ? task._label : undefined).then(() => undefined);
+		return this.openEditorAtTask(resource, task ? task._label : undefined);
 	}
 
 	private createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } | undefined {
@@ -2365,10 +2373,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (identifier !== undefined) {
 			this.getGroupedTasks().then(async (grouped) => {
 				let resolver = this.createResolver(grouped);
-				let folders: (IWorkspaceFolder | string)[] = this.contextService.getWorkspace().folders;
-				folders = folders.concat([USER_TASKS_GROUP_KEY]);
-				for (let folder of folders) {
-					let task = await resolver.resolve(typeof folder === 'string' ? folder : folder.uri, identifier);
+				let folderURIs: (URI | string)[] = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+					folderURIs.push(this.contextService.getWorkspace().configuration!);
+				}
+				folderURIs.push(USER_TASKS_GROUP_KEY);
+				for (let uri of folderURIs) {
+					let task = await resolver.resolve(uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here

@@ -29,8 +29,8 @@ export class ViewOutgoingEvents extends Disposable {
 	public onContextMenu: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseMove: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseLeave: EventCallback<IPartialEditorMouseEvent> | null = null;
-	public onMouseUp: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDown: EventCallback<IEditorMouseEvent> | null = null;
+	public onMouseUp: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDrag: EventCallback<IEditorMouseEvent> | null = null;
 	public onMouseDrop: EventCallback<IPartialEditorMouseEvent> | null = null;
 	public onMouseWheel: EventCallback<IMouseWheelEvent> | null = null;
@@ -96,15 +96,15 @@ export class ViewOutgoingEvents extends Disposable {
 		}
 	}
 
-	public emitMouseUp(e: IEditorMouseEvent): void {
-		if (this.onMouseUp) {
-			this.onMouseUp(this._convertViewToModelMouseEvent(e));
-		}
-	}
-
 	public emitMouseDown(e: IEditorMouseEvent): void {
 		if (this.onMouseDown) {
 			this.onMouseDown(this._convertViewToModelMouseEvent(e));
+		}
+	}
+
+	public emitMouseUp(e: IEditorMouseEvent): void {
+		if (this.onMouseUp) {
+			this.onMouseUp(this._convertViewToModelMouseEvent(e));
 		}
 	}
 

@@ -35,7 +35,7 @@
 	position: relative;
 }
 
-.vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
+.monaco-workbench.vs .settings-editor > .settings-header > .search-container > .suggest-input-container {
 	border: 1px solid #ddd;
 }
 
@@ -43,6 +43,10 @@
 	position: absolute;
 	right: 35px;
 	top: 6px;
+}
+
+.settings-editor > .settings-header > .search-container > .settings-count-widget:empty {
+	visibility: hidden;
 }
 
 .settings-editor > .settings-header > .search-container > .settings-clear-widget {
@@ -86,11 +90,11 @@
 	opacity: 1;
 }
 
-.vs .settings-editor > .settings-header > .settings-header-controls {
+.monaco-workbench.vs .settings-editor > .settings-header > .settings-header-controls {
 	border-color: #cccccc;
 }
 
-.vs-dark .settings-editor > .settings-header > .settings-header-controls {
+.monaco-workbench.vs-dark .settings-editor > .settings-header > .settings-header-controls {
 	border-color: #3c3c3c;
 }
 

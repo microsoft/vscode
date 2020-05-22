@@ -600,7 +600,7 @@ export class ExtensionEditor extends BaseEditor {
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
 				enableFindWidget: true,
 				tryRestoreScrollPosition: true,
-			}, {}));
+			}, {}, undefined));
 
 			webview.initialScrollProgress = this.initialScrollProgress[webviewIndex];
 

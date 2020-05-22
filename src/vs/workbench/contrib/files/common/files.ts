@@ -58,7 +58,7 @@ export interface IExplorerService {
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.
 	 * Will try to resolve the path in case the explorer is not yet expanded to the file yet.
 	 */
-	select(resource: URI, reveal?: boolean): Promise<void>;
+	select(resource: URI, reveal?: boolean | string): Promise<void>;
 
 	registerView(contextAndRefreshProvider: IExplorerView): void;
 }
@@ -66,7 +66,7 @@ export interface IExplorerService {
 export interface IExplorerView {
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	refresh(recursive: boolean, item?: ExplorerItem): Promise<void>;
-	selectResource(resource: URI | undefined, reveal?: boolean): Promise<void>;
+	selectResource(resource: URI | undefined, reveal?: boolean | string): Promise<void>;
 	setTreeInput(): Promise<void>;
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
@@ -121,7 +121,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		openEditors: {
 			visible: number;
 		};
-		autoReveal: boolean;
+		autoReveal: boolean | 'focusNoScroll';
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
