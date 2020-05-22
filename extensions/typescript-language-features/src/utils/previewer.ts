@@ -91,7 +91,6 @@ function parseLinkMatch(match: unknown, definition?: Proto.DefinitionResponse['b
 		});
 	}
 
-	console.log({ rootUri, uri, linkSegment });
 	return [rootUri?.toString() || link, text || link];
 
 }
@@ -113,7 +112,6 @@ function replaceLinks(text: string, definition?: Proto.DefinitionResponse['body'
 				match = parseMarkdownLink(matches[1]);
 			}
 			const result = parseLinkMatch(match, definition);
-			console.log(result);
 			if (result[0] === null) {
 				return result[1] || _;
 			}
