@@ -41,8 +41,8 @@ export interface ISyncData {
 
 function isSyncData(thing: any): thing is ISyncData {
 	if (thing
-		&& (thing.version && typeof thing.version === 'number')
-		&& (thing.content && typeof thing.content === 'string')) {
+		&& (thing.version !== undefined && typeof thing.version === 'number')
+		&& (thing.content !== undefined && typeof thing.content === 'string')) {
 
 		// backward compatibility
 		if (Object.keys(thing).length === 2) {
@@ -50,7 +50,7 @@ function isSyncData(thing: any): thing is ISyncData {
 		}
 
 		if (Object.keys(thing).length === 3
-			&& (thing.machineId && typeof thing.machineId === 'string')) {
+			&& (thing.machineId !== undefined && typeof thing.machineId === 'string')) {
 			return true;
 		}
 	}
@@ -356,9 +356,13 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected parseSyncData(content: string): ISyncData {
-		const syncData: ISyncData = JSON.parse(content);
-		if (isSyncData(syncData)) {
-			return syncData;
+		try {
+			const syncData: ISyncData = JSON.parse(content);
+			if (isSyncData(syncData)) {
+				return syncData;
+			}
+		} catch (error) {
+			this.logService.error(error);
 		}
 		throw new UserDataSyncError(localize('incompatible sync data', "Cannot parse sync data as it is not compatible with current version."), UserDataSyncErrorCode.Incompatible, this.resource);
 	}
