@@ -35,7 +35,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 
 	_serviceBrand: any;
 
-	protected readonly version: number = 2;
+	protected readonly version: number = 1;
 	protected readonly localPreviewResource: URI = joinPath(this.syncFolder, PREVIEW_DIR_NAME, 'settings.json');
 	protected readonly remotePreviewResource: URI = this.localPreviewResource.with({ scheme: USER_DATA_SYNC_SCHEME });
 

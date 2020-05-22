@@ -32,7 +32,7 @@ interface ISinppetsSyncPreviewResult extends ISyncPreviewResult {
 
 export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
-	protected readonly version: number = 2;
+	protected readonly version: number = 1;
 	private readonly snippetsFolder: URI;
 	private readonly snippetsPreviewFolder: URI;
 	private syncPreviewResultPromise: CancelablePromise<ISinppetsSyncPreviewResult> | null = null;

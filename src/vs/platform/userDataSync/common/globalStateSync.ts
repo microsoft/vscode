@@ -42,7 +42,7 @@ interface ILastSyncUserData extends IRemoteUserData {
 export class GlobalStateSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static readonly GLOBAL_STATE_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'globalState', path: `/current.json` });
-	protected readonly version: number = 2;
+	protected readonly version: number = 1;
 
 	constructor(
 		@IFileService fileService: IFileService,

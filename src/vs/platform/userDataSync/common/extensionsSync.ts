@@ -41,7 +41,7 @@ interface ILastSyncUserData extends IRemoteUserData {
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static readonly EXTENSIONS_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'extensions', path: `/current.json` });
-	protected readonly version: number = 3;
+	protected readonly version: number = 2;
 	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
 
 	constructor(
@@ -355,10 +355,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	private parseExtensions(syncData: ISyncData): ISyncExtension[] {
 		let extensions: ISyncExtension[] = JSON.parse(syncData.content);
-		if (syncData.version !== this.version) {
+		if (syncData.version === 1) {
 			extensions = extensions.map(e => {
 				// #region Migration from v1 (enabled -> disabled)
-				if (!(<any>e).enabled) {
+				if ((<any>e).enabled === false) {
 					e.disabled = true;
 				}
 				delete (<any>e).enabled;
