@@ -118,8 +118,15 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.updateLastSyncTime();
 	}
 
+	private recoveredSettings: boolean = false;
 	async sync(): Promise<void> {
 		await this.checkEnablement();
+
+		if (!this.recoveredSettings) {
+			await this.settingsSynchroniser.recoverSettings();
+			this.recoveredSettings = true;
+		}
+
 		await this.syncThrottler.queue(() => this.doSync());
 	}
 
