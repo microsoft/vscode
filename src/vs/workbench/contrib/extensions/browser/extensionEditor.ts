@@ -164,6 +164,11 @@ interface IExtensionEditorTemplate {
 	header: HTMLElement;
 }
 
+const enum WebviewIndex {
+	Readme,
+	Changelog
+}
+
 export class ExtensionEditor extends BaseEditor {
 
 	static readonly ID: string = 'workbench.editor.extension';
@@ -174,8 +179,8 @@ export class ExtensionEditor extends BaseEditor {
 	private extensionChangelog: Cache<string> | null;
 	private extensionManifest: Cache<IExtensionManifest | null> | null;
 
-	// Some action bar items use a webview whose vertical scroll position we track in this array (Readme=0, Changelog=1)
-	private initialScrollProgress: number[] = [];
+	// Some action bar items use a webview whose vertical scroll position we track in this map
+	private initialScrollProgress: Map<WebviewIndex, number> = new Map();
 
 	// Spot when an ExtensionEditor instance gets reused for a different extension, in which case the vertical scroll positions must be zeroed
 	private currentIdentifier: string = '';
@@ -334,7 +339,7 @@ export class ExtensionEditor extends BaseEditor {
 		const extension = input.extension;
 
 		if (this.currentIdentifier !== extension.identifier.id) {
-			this.initialScrollProgress = [0, 0];
+			this.initialScrollProgress.clear();
 			this.currentIdentifier = extension.identifier.id;
 		}
 
@@ -593,7 +598,7 @@ export class ExtensionEditor extends BaseEditor {
 		return Promise.resolve(null);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate, webviewIndex: number): Promise<IActiveElement> {
+	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, template: IExtensionEditorTemplate, webviewIndex: WebviewIndex): Promise<IActiveElement> {
 		try {
 			const body = await this.renderMarkdown(cacheResult, template);
 
@@ -602,7 +607,7 @@ export class ExtensionEditor extends BaseEditor {
 				tryRestoreScrollPosition: true,
 			}, {}, undefined));
 
-			webview.initialScrollProgress = this.initialScrollProgress[webviewIndex];
+			webview.initialScrollProgress = this.initialScrollProgress.get(webviewIndex) || 0;
 
 			webview.layoutWebviewOverElement(template.content);
 			webview.html = body;
@@ -610,7 +615,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			this.contentDisposables.add(webview.onDidFocus(() => this.fireOnDidFocus()));
 
-			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress[webviewIndex] = webview.initialScrollProgress));
+			this.contentDisposables.add(webview.onDidScroll(() => this.initialScrollProgress.set(webviewIndex, webview.initialScrollProgress)));
 
 			const removeLayoutParticipant = arrays.insert(this.layoutParticipants, {
 				layout: () => {
@@ -854,7 +859,7 @@ export class ExtensionEditor extends BaseEditor {
 		if (manifest && manifest.extensionPack && manifest.extensionPack.length) {
 			return this.openExtensionPackReadme(manifest, template);
 		}
-		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template, 0);
+		return this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), template, WebviewIndex.Readme);
 	}
 
 	private async openExtensionPackReadme(manifest: IExtensionManifest, template: IExtensionEditorTemplate): Promise<IActiveElement> {
@@ -882,14 +887,14 @@ export class ExtensionEditor extends BaseEditor {
 
 		await Promise.all([
 			this.renderExtensionPack(manifest, extensionPackContent),
-			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), { ...template, ...{ content: readmeContent } }, 0),
+			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), { ...template, ...{ content: readmeContent } }, WebviewIndex.Readme),
 		]);
 
 		return { focus: () => extensionPackContent.focus() };
 	}
 
 	private openChangelog(template: IExtensionEditorTemplate): Promise<IActiveElement> {
-		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, 1);
+		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template, WebviewIndex.Changelog);
 	}
 
 	private openContributions(template: IExtensionEditorTemplate): Promise<IActiveElement> {
