@@ -24,6 +24,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadAuthentication);
 	}
 
+	getProviderIds(): Promise<ReadonlyArray<string>> {
+		return this._proxy.$getProviderIds();
+	}
+
 	get providerIds(): string[] {
 		const ids: string[] = [];
 		this._authenticationProviders.forEach(provider => {
@@ -33,31 +37,42 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return ids;
 	}
 
-	async hasSessions(providerId: string, scopes: string[]): Promise<boolean> {
+	private async resolveSessions(providerId: string): Promise<ReadonlyArray<modes.AuthenticationSession>> {
 		const provider = this._authenticationProviders.get(providerId);
+
+		let sessions;
 		if (!provider) {
-			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
+			sessions = await this._proxy.$getSessions(providerId);
+		} else {
+			sessions = await provider.getSessions();
 		}
 
-		const orderedScopes = scopes.sort().join(' ');
-		return !!(await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes).length;
+		return sessions;
 	}
 
+	async hasSessions(providerId: string, scopes: string[]): Promise<boolean> {
+		const orderedScopes = scopes.sort().join(' ');
+		const sessions = await this.resolveSessions(providerId);
+		return !!(sessions.filter(session => session.scopes.sort().join(' ') === orderedScopes).length);
+	}
+
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession2>;
 	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession2 | undefined> {
 		const provider = this._authenticationProviders.get(providerId);
+		const extensionName = requestingExtension.displayName || requestingExtension.name;
+		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
+
 		if (!provider) {
-			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
+			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
 		}
 
 		const orderedScopes = scopes.sort().join(' ');
 		const sessions = (await provider.getSessions()).filter(session => session.scopes.sort().join(' ') === orderedScopes);
-		const extensionName = requestingExtension.displayName || requestingExtension.name;
-		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		if (sessions.length) {
 
+		if (sessions.length) {
 			if (!provider.supportsMultipleAccounts) {
 				const session = sessions[0];
-				const allowed = await this._proxy.$getSessionsPrompt(provider.id, session.account.displayName, provider.displayName, extensionId, extensionName);
+				const allowed = await this._proxy.$getSessionsPrompt(providerId, session.account.displayName, provider.displayName, extensionId, extensionName);
 				if (allowed) {
 					return session;
 				} else {
@@ -66,7 +81,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			}
 
 			// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
-			const selected = await this._proxy.$getSession(provider.id, provider.displayName, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
+			const selected = await this._proxy.$selectSession(providerId, provider.displayName, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
 			return sessions.find(session => session.id === selected.id);
 		} else {
 			if (options.createIfNone) {
@@ -76,25 +91,20 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 				}
 
 				const session = await provider.login(scopes);
-				await this._proxy.$setTrustedExtension(provider.id, session.account.displayName, extensionId, extensionName);
+				await this._proxy.$setTrustedExtension(providerId, session.account.displayName, extensionId, extensionName);
 				return session;
 			} else {
-				await this._proxy.$requestNewSession(provider.id, scopes, extensionId, extensionName);
+				await this._proxy.$requestNewSession(providerId, scopes, extensionId, extensionName);
 				return undefined;
 			}
 		}
 	}
 
 	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: string[]): Promise<readonly vscode.AuthenticationSession[]> {
-		const provider = this._authenticationProviders.get(providerId);
-		if (!provider) {
-			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
-		}
-
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const orderedScopes = scopes.sort().join(' ');
-
-		return (await provider.getSessions())
+		const sessions = await this.resolveSessions(providerId);
+		return sessions
 			.filter(session => session.scopes.sort().join(' ') === orderedScopes)
 			.map(session => {
 				return {
@@ -103,9 +113,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 					scopes: session.scopes,
 					getAccessToken: async () => {
 						const isAllowed = await this._proxy.$getSessionsPrompt(
-							provider.id,
+							providerId,
 							session.account.displayName,
-							provider.displayName,
+							'', // TODO
+							// provider.displayName,
 							extensionId,
 							requestingExtension.displayName || requestingExtension.name);
 
@@ -157,7 +168,7 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	async logout(providerId: string, sessionId: string): Promise<void> {
 		const provider = this._authenticationProviders.get(providerId);
 		if (!provider) {
-			throw new Error(`No authentication provider with id '${providerId}' is currently registered.`);
+			return this._proxy.$logout(providerId, sessionId);
 		}
 
 		return provider.logout(sessionId);
@@ -171,18 +182,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		this._authenticationProviders.set(provider.id, provider);
 
 		const listener = provider.onDidChangeSessions(e => {
-			this._proxy.$onDidChangeSessions(provider.id, e);
-			this._onDidChangeSessions.fire({ [provider.id]: e });
+			this._proxy.$sendDidChangeSessions(provider.id, e);
 		});
 
-		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName);
-		this._onDidChangeAuthenticationProviders.fire({ added: [provider.id], removed: [] });
+		this._proxy.$registerAuthenticationProvider(provider.id, provider.displayName, provider.supportsMultipleAccounts);
 
 		return new Disposable(() => {
 			listener.dispose();
 			this._authenticationProviders.delete(provider.id);
 			this._proxy.$unregisterAuthenticationProvider(provider.id);
-			this._onDidChangeAuthenticationProviders.fire({ added: [], removed: [provider.id] });
 		});
 	}
 
@@ -226,5 +234,15 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
+	}
+
+	$onDidChangeAuthenticationSessions(providerId: string, event: modes.AuthenticationSessionsChangeEvent) {
+		this._onDidChangeSessions.fire({ [providerId]: event });
+		return Promise.resolve();
+	}
+
+	$onDidChangeAuthenticationProviders(added: string[], removed: string[]) {
+		this._onDidChangeAuthenticationProviders.fire({ added, removed });
+		return Promise.resolve();
 	}
 }

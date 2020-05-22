@@ -7,17 +7,15 @@ import { CharCode } from 'vs/base/common/charCode';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { EditorAutoClosingStrategy, EditorAutoSurroundStrategy, ConfigurationChangedEvent, EditorAutoClosingOvertypeStrategy, EditorOption, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { ICommand, IConfiguration, ScrollType } from 'vs/editor/common/editorCommon';
+import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { IAutoClosingPair, StandardAutoClosingPairConditional } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
-import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { Constants } from 'vs/base/common/uint';
 
@@ -44,23 +42,6 @@ export const enum EditOperationType {
 	Typing = 1,
 	DeletingLeft = 2,
 	DeletingRight = 3
-}
-
-export interface ICursors {
-	readonly context: CursorContext;
-	getPrimaryCursor(): CursorState;
-	getLastAddedCursorIndex(): number;
-	getAll(): CursorState[];
-
-	getColumnSelectData(): IColumnSelectData;
-	setColumnSelectData(columnSelectData: IColumnSelectData): void;
-
-	setStates(source: string | null | undefined, reason: CursorChangeReason, states: PartialCursorState[] | null): void;
-	reveal(source: string | null | undefined, horizontal: boolean, target: RevealTarget, scrollType: ScrollType): void;
-	revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: VerticalRevealType, scrollType: ScrollType): void;
-
-	getPrevEditOperationType(): EditOperationType;
-	setPrevEditOperationType(type: EditOperationType): void;
 }
 
 export interface CharacterMap {
@@ -355,19 +336,13 @@ export class CursorContext {
 	_cursorContextBrand: void;
 
 	public readonly model: ITextModel;
-	public readonly viewModel: ICursorSimpleModel;
 	public readonly coordinatesConverter: ICoordinatesConverter;
-	public readonly config: CursorConfiguration;
+	public readonly cursorConfig: CursorConfiguration;
 
-	constructor(configuration: IConfiguration, model: ITextModel, viewModel: ICursorSimpleModel, coordinatesConverter: ICoordinatesConverter) {
+	constructor(model: ITextModel, coordinatesConverter: ICoordinatesConverter, cursorConfig: CursorConfiguration) {
 		this.model = model;
-		this.viewModel = viewModel;
 		this.coordinatesConverter = coordinatesConverter;
-		this.config = new CursorConfiguration(
-			this.model.getLanguageIdentifier(),
-			this.model.getOptions(),
-			configuration
-		);
+		this.cursorConfig = cursorConfig;
 	}
 }
 

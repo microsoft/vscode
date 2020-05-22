@@ -55,7 +55,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	runnable: true,
 	cellEditable: true,
 	cellRunnable: true,
-	hasExecutionOrder: true,
+	cellHasExecutionOrder: true,
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {}
 };
@@ -65,7 +65,7 @@ export interface NotebookDocumentMetadata {
 	runnable: boolean;
 	cellEditable: boolean;
 	cellRunnable: boolean;
-	hasExecutionOrder: boolean;
+	cellHasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
 	custom?: { [key: string]: any };
 }
@@ -81,6 +81,7 @@ export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
 	breakpointMargin?: boolean;
+	hasExecutionOrder?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
@@ -113,6 +114,13 @@ export interface INotebookKernelInfo {
 	extensionLocation: URI,
 	preloads: URI[];
 	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+}
+
+export interface INotebookKernelInfoDto {
+	id: string;
+	label: string,
+	extensionLocation: URI;
+	preloads?: UriComponents[];
 }
 
 export interface INotebookSelectors {
@@ -255,7 +263,7 @@ export enum NotebookCellsChangeType {
 
 export interface NotebookCellsModelChangedEvent {
 	readonly kind: NotebookCellsChangeType.ModelChange;
-	readonly changes: NotebookCellsSplice2[];
+	readonly change: NotebookCellsSplice2;
 	readonly versionId: number;
 }
 
@@ -322,6 +330,7 @@ export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
 	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
+	readonly renderers: number[];
 }
 
 
@@ -493,4 +502,21 @@ export interface INotebookEditorModel extends IEditorModel {
 	notebook: NotebookTextModel;
 	isDirty(): boolean;
 	save(): Promise<boolean>;
+}
+
+export interface INotebookTextModelBackup {
+	metadata: NotebookDocumentMetadata;
+	languages: string[];
+	cells: ICellDto2[]
+}
+
+export interface IEditor extends editorCommon.ICompositeCodeEditor {
+	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
+	readonly onDidFocusEditorWidget: Event<void>;
+	isNotebookEditor: boolean;
+	uri?: URI;
+	textModel?: NotebookTextModel;
+	getId(): string;
+	hasFocus(): boolean;
+	hasModel(): boolean;
 }

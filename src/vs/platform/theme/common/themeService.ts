@@ -87,7 +87,10 @@ export interface ITokenStyle {
 }
 
 export interface IColorTheme {
+
 	readonly type: ThemeType;
+
+	readonly label: string;
 
 	/**
 	 * Resolves the color of the given color identifier. If the theme does not

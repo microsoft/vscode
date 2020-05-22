@@ -263,8 +263,6 @@ export abstract class Pane extends Disposable implements IView {
 	style(styles: IPaneStyles): void {
 		this.styles = styles;
 
-		this.element.style.borderLeft = this.styles.leftBorder && this.orientation === Orientation.HORIZONTAL ? `1px solid ${this.styles.leftBorder}` : '';
-
 		if (!this.header) {
 			return;
 		}
@@ -284,6 +282,7 @@ export abstract class Pane extends Disposable implements IView {
 		this.header.style.backgroundColor = this.styles.headerBackground ? this.styles.headerBackground.toString() : '';
 		this.header.style.borderTop = this.styles.headerBorder && this.orientation === Orientation.VERTICAL ? `1px solid ${this.styles.headerBorder}` : '';
 		this._dropBackground = this.styles.dropBackground;
+		this.element.style.borderLeft = this.styles.leftBorder && this.orientation === Orientation.HORIZONTAL ? `1px solid ${this.styles.leftBorder}` : '';
 	}
 
 	protected abstract renderHeader(container: HTMLElement): void;

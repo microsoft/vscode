@@ -31,7 +31,7 @@ suite('Cursor move command test', () => {
 	test('move left should move to left character', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveLeft(editor, viewModel);
+			moveLeft(viewModel);
 			cursorEqual(viewModel, 1, 7);
 		});
 	});
@@ -39,7 +39,7 @@ suite('Cursor move command test', () => {
 	test('move left should move to left by n characters', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveLeft(editor, viewModel, 3);
+			moveLeft(viewModel, 3);
 			cursorEqual(viewModel, 1, 5);
 		});
 	});
@@ -47,7 +47,7 @@ suite('Cursor move command test', () => {
 	test('move left should move to left by half line', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveLeft(editor, viewModel, 1, CursorMove.RawUnit.HalfLine);
+			moveLeft(viewModel, 1, CursorMove.RawUnit.HalfLine);
 			cursorEqual(viewModel, 1, 1);
 		});
 	});
@@ -55,7 +55,7 @@ suite('Cursor move command test', () => {
 	test('move left moves to previous line', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 2, 3);
-			moveLeft(editor, viewModel, 10);
+			moveLeft(viewModel, 10);
 			cursorEqual(viewModel, 1, 21);
 		});
 	});
@@ -63,7 +63,7 @@ suite('Cursor move command test', () => {
 	test('move right should move to right character', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 5);
-			moveRight(editor, viewModel);
+			moveRight(viewModel);
 			cursorEqual(viewModel, 1, 6);
 		});
 	});
@@ -71,7 +71,7 @@ suite('Cursor move command test', () => {
 	test('move right should move to right by n characters', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 2);
-			moveRight(editor, viewModel, 6);
+			moveRight(viewModel, 6);
 			cursorEqual(viewModel, 1, 8);
 		});
 	});
@@ -79,7 +79,7 @@ suite('Cursor move command test', () => {
 	test('move right should move to right by half line', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 4);
-			moveRight(editor, viewModel, 1, CursorMove.RawUnit.HalfLine);
+			moveRight(viewModel, 1, CursorMove.RawUnit.HalfLine);
 			cursorEqual(viewModel, 1, 14);
 		});
 	});
@@ -87,7 +87,7 @@ suite('Cursor move command test', () => {
 	test('move right moves to next line', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveRight(editor, viewModel, 100);
+			moveRight(viewModel, 100);
 			cursorEqual(viewModel, 2, 1);
 		});
 	});
@@ -95,7 +95,7 @@ suite('Cursor move command test', () => {
 	test('move to first character of line from middle', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveToLineStart(editor, viewModel);
+			moveToLineStart(viewModel);
 			cursorEqual(viewModel, 1, 1);
 		});
 	});
@@ -103,7 +103,7 @@ suite('Cursor move command test', () => {
 	test('move to first character of line from first non white space character', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 6);
-			moveToLineStart(editor, viewModel);
+			moveToLineStart(viewModel);
 			cursorEqual(viewModel, 1, 1);
 		});
 	});
@@ -111,7 +111,7 @@ suite('Cursor move command test', () => {
 	test('move to first character of line from first character', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 1);
-			moveToLineStart(editor, viewModel);
+			moveToLineStart(viewModel);
 			cursorEqual(viewModel, 1, 1);
 		});
 	});
@@ -119,7 +119,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from middle', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveToLineFirstNonWhitespaceCharacter(editor, viewModel);
+			moveToLineFirstNonWhitespaceCharacter(viewModel);
 			cursorEqual(viewModel, 1, 6);
 		});
 	});
@@ -127,7 +127,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from first non white space character', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 6);
-			moveToLineFirstNonWhitespaceCharacter(editor, viewModel);
+			moveToLineFirstNonWhitespaceCharacter(viewModel);
 			cursorEqual(viewModel, 1, 6);
 		});
 	});
@@ -135,7 +135,7 @@ suite('Cursor move command test', () => {
 	test('move to first non white space character of line from first character', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 1);
-			moveToLineFirstNonWhitespaceCharacter(editor, viewModel);
+			moveToLineFirstNonWhitespaceCharacter(viewModel);
 			cursorEqual(viewModel, 1, 6);
 		});
 	});
@@ -143,7 +143,7 @@ suite('Cursor move command test', () => {
 	test('move to end of line from middle', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveToLineEnd(editor, viewModel);
+			moveToLineEnd(viewModel);
 			cursorEqual(viewModel, 1, 21);
 		});
 	});
@@ -151,7 +151,7 @@ suite('Cursor move command test', () => {
 	test('move to end of line from last non white space character', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 19);
-			moveToLineEnd(editor, viewModel);
+			moveToLineEnd(viewModel);
 			cursorEqual(viewModel, 1, 21);
 		});
 	});
@@ -159,7 +159,7 @@ suite('Cursor move command test', () => {
 	test('move to end of line from line end', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 21);
-			moveToLineEnd(editor, viewModel);
+			moveToLineEnd(viewModel);
 			cursorEqual(viewModel, 1, 21);
 		});
 	});
@@ -167,7 +167,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from middle', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveToLineLastNonWhitespaceCharacter(editor, viewModel);
+			moveToLineLastNonWhitespaceCharacter(viewModel);
 			cursorEqual(viewModel, 1, 19);
 		});
 	});
@@ -175,7 +175,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from last non white space character', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 19);
-			moveToLineLastNonWhitespaceCharacter(editor, viewModel);
+			moveToLineLastNonWhitespaceCharacter(viewModel);
 			cursorEqual(viewModel, 1, 19);
 		});
 	});
@@ -183,7 +183,7 @@ suite('Cursor move command test', () => {
 	test('move to last non white space character from line end', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 21);
-			moveToLineLastNonWhitespaceCharacter(editor, viewModel);
+			moveToLineLastNonWhitespaceCharacter(viewModel);
 			cursorEqual(viewModel, 1, 19);
 		});
 	});
@@ -191,7 +191,7 @@ suite('Cursor move command test', () => {
 	test('move to center of line not from center', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 8);
-			moveToLineCenter(editor, viewModel);
+			moveToLineCenter(viewModel);
 			cursorEqual(viewModel, 1, 11);
 		});
 	});
@@ -199,23 +199,23 @@ suite('Cursor move command test', () => {
 	test('move to center of line from center', () => {
 		executeTest((editor, viewModel) => {
 			moveTo(viewModel, 1, 11);
-			moveToLineCenter(editor, viewModel);
+			moveToLineCenter(viewModel);
 			cursorEqual(viewModel, 1, 11);
 		});
 	});
 
 	test('move to center of line from start', () => {
 		executeTest((editor, viewModel) => {
-			moveToLineStart(editor, viewModel);
-			moveToLineCenter(editor, viewModel);
+			moveToLineStart(viewModel);
+			moveToLineCenter(viewModel);
 			cursorEqual(viewModel, 1, 11);
 		});
 	});
 
 	test('move to center of line from end', () => {
 		executeTest((editor, viewModel) => {
-			moveToLineEnd(editor, viewModel);
-			moveToLineCenter(editor, viewModel);
+			moveToLineEnd(viewModel);
+			moveToLineCenter(viewModel);
 			cursorEqual(viewModel, 1, 11);
 		});
 	});
@@ -225,10 +225,10 @@ suite('Cursor move command test', () => {
 			moveTo(viewModel, 3, 5);
 			cursorEqual(viewModel, 3, 5);
 
-			moveUp(editor, viewModel, 2);
+			moveUp(viewModel, 2);
 			cursorEqual(viewModel, 1, 5);
 
-			moveUp(editor, viewModel, 1);
+			moveUp(viewModel, 1);
 			cursorEqual(viewModel, 1, 1);
 		});
 	});
@@ -238,10 +238,10 @@ suite('Cursor move command test', () => {
 			moveTo(viewModel, 3, 5);
 			cursorEqual(viewModel, 3, 5);
 
-			moveUpByModelLine(editor, viewModel, 2);
+			moveUpByModelLine(viewModel, 2);
 			cursorEqual(viewModel, 1, 5);
 
-			moveUpByModelLine(editor, viewModel, 1);
+			moveUpByModelLine(viewModel, 1);
 			cursorEqual(viewModel, 1, 1);
 		});
 	});
@@ -251,10 +251,10 @@ suite('Cursor move command test', () => {
 			moveTo(viewModel, 3, 5);
 			cursorEqual(viewModel, 3, 5);
 
-			moveDownByModelLine(editor, viewModel, 2);
+			moveDownByModelLine(viewModel, 2);
 			cursorEqual(viewModel, 5, 2);
 
-			moveDownByModelLine(editor, viewModel, 1);
+			moveDownByModelLine(viewModel, 1);
 			cursorEqual(viewModel, 5, 2);
 		});
 	});
@@ -264,10 +264,10 @@ suite('Cursor move command test', () => {
 			moveTo(viewModel, 3, 5);
 			cursorEqual(viewModel, 3, 5);
 
-			moveUp(editor, viewModel, 1, true);
+			moveUp(viewModel, 1, true);
 			cursorEqual(viewModel, 2, 2, 3, 5);
 
-			moveUp(editor, viewModel, 1, true);
+			moveUp(viewModel, 1, true);
 			cursorEqual(viewModel, 1, 5, 3, 5);
 		});
 	});
@@ -277,19 +277,19 @@ suite('Cursor move command test', () => {
 			moveTo(viewModel, 1, 5);
 			cursorEqual(viewModel, 1, 5);
 
-			moveDown(editor, viewModel, 4);
+			moveDown(viewModel, 4);
 			cursorEqual(viewModel, 5, 2);
 
-			moveUp(editor, viewModel, 1);
+			moveUp(viewModel, 1);
 			cursorEqual(viewModel, 4, 1);
 
-			moveUp(editor, viewModel, 1);
+			moveUp(viewModel, 1);
 			cursorEqual(viewModel, 3, 5);
 
-			moveUp(editor, viewModel, 1);
+			moveUp(viewModel, 1);
 			cursorEqual(viewModel, 2, 2);
 
-			moveUp(editor, viewModel, 1);
+			moveUp(viewModel, 1);
 			cursorEqual(viewModel, 1, 5);
 		});
 	});
@@ -302,16 +302,16 @@ suite('Cursor move command test', () => {
 			moveToEndOfLine(viewModel);
 			cursorEqual(viewModel, 1, 21);
 
-			moveDown(editor, viewModel, 2);
+			moveDown(viewModel, 2);
 			cursorEqual(viewModel, 3, 17);
 
-			moveDown(editor, viewModel, 1);
+			moveDown(viewModel, 1);
 			cursorEqual(viewModel, 4, 1);
 
-			moveDown(editor, viewModel, 1);
+			moveDown(viewModel, 1);
 			cursorEqual(viewModel, 5, 2);
 
-			moveUp(editor, viewModel, 4);
+			moveUp(viewModel, 4);
 			cursorEqual(viewModel, 1, 21);
 		});
 	});
@@ -321,7 +321,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 10, 1);
 
 			moveTo(viewModel, 2, 2);
-			moveToTop(editor, viewModel);
+			moveToTop(viewModel);
 
 			cursorEqual(viewModel, 1, 6);
 		});
@@ -332,7 +332,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(2, 1, 10, 1);
 
 			moveTo(viewModel, 4, 1);
-			moveToTop(editor, viewModel);
+			moveToTop(viewModel);
 
 			cursorEqual(viewModel, 2, 2);
 		});
@@ -343,7 +343,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 10, 1);
 
 			moveTo(viewModel, 4, 1);
-			moveToTop(editor, viewModel, 3);
+			moveToTop(viewModel, 3);
 
 			cursorEqual(viewModel, 3, 5);
 		});
@@ -354,7 +354,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 3, 1);
 
 			moveTo(viewModel, 2, 2);
-			moveToTop(editor, viewModel, 4);
+			moveToTop(viewModel, 4);
 
 			cursorEqual(viewModel, 3, 5);
 		});
@@ -365,7 +365,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(3, 1, 3, 1);
 
 			moveTo(viewModel, 2, 2);
-			moveToCenter(editor, viewModel);
+			moveToCenter(viewModel);
 
 			cursorEqual(viewModel, 3, 5);
 		});
@@ -376,7 +376,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 5, 1);
 
 			moveTo(viewModel, 2, 2);
-			moveToBottom(editor, viewModel);
+			moveToBottom(viewModel);
 
 			cursorEqual(viewModel, 5, 1);
 		});
@@ -387,7 +387,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(2, 1, 3, 1);
 
 			moveTo(viewModel, 2, 2);
-			moveToBottom(editor, viewModel);
+			moveToBottom(viewModel);
 
 			cursorEqual(viewModel, 3, 5);
 		});
@@ -398,7 +398,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(1, 1, 5, 1);
 
 			moveTo(viewModel, 4, 1);
-			moveToBottom(editor, viewModel, 3);
+			moveToBottom(viewModel, 3);
 
 			cursorEqual(viewModel, 3, 5);
 		});
@@ -409,7 +409,7 @@ suite('Cursor move command test', () => {
 			viewModel.getCompletelyVisibleViewRange = () => new Range(2, 1, 5, 1);
 
 			moveTo(viewModel, 4, 1);
-			moveToBottom(editor, viewModel, 5);
+			moveToBottom(viewModel, 5);
 
 			cursorEqual(viewModel, 2, 2);
 		});
@@ -418,64 +418,64 @@ suite('Cursor move command test', () => {
 
 // Move command
 
-function move(editor: ITestCodeEditor, viewModel: ViewModel, args: any) {
-	CoreNavigationCommands.CursorMove.runCoreEditorCommand(editor, viewModel, viewModel.getCursors(), args);
+function move(viewModel: ViewModel, args: any) {
+	CoreNavigationCommands.CursorMove.runCoreEditorCommand(viewModel, args);
 }
 
-function moveToLineStart(editor: ITestCodeEditor, viewModel: ViewModel) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.WrappedLineStart });
+function moveToLineStart(viewModel: ViewModel) {
+	move(viewModel, { to: CursorMove.RawDirection.WrappedLineStart });
 }
 
-function moveToLineFirstNonWhitespaceCharacter(editor: ITestCodeEditor, viewModel: ViewModel) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.WrappedLineFirstNonWhitespaceCharacter });
+function moveToLineFirstNonWhitespaceCharacter(viewModel: ViewModel) {
+	move(viewModel, { to: CursorMove.RawDirection.WrappedLineFirstNonWhitespaceCharacter });
 }
 
-function moveToLineCenter(editor: ITestCodeEditor, viewModel: ViewModel) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.WrappedLineColumnCenter });
+function moveToLineCenter(viewModel: ViewModel) {
+	move(viewModel, { to: CursorMove.RawDirection.WrappedLineColumnCenter });
 }
 
-function moveToLineEnd(editor: ITestCodeEditor, viewModel: ViewModel) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.WrappedLineEnd });
+function moveToLineEnd(viewModel: ViewModel) {
+	move(viewModel, { to: CursorMove.RawDirection.WrappedLineEnd });
 }
 
-function moveToLineLastNonWhitespaceCharacter(editor: ITestCodeEditor, viewModel: ViewModel) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.WrappedLineLastNonWhitespaceCharacter });
+function moveToLineLastNonWhitespaceCharacter(viewModel: ViewModel) {
+	move(viewModel, { to: CursorMove.RawDirection.WrappedLineLastNonWhitespaceCharacter });
 }
 
-function moveLeft(editor: ITestCodeEditor, viewModel: ViewModel, value?: number, by?: string, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.Left, by: by, value: value, select: select });
+function moveLeft(viewModel: ViewModel, value?: number, by?: string, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.Left, by: by, value: value, select: select });
 }
 
-function moveRight(editor: ITestCodeEditor, viewModel: ViewModel, value?: number, by?: string, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.Right, by: by, value: value, select: select });
+function moveRight(viewModel: ViewModel, value?: number, by?: string, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.Right, by: by, value: value, select: select });
 }
 
-function moveUp(editor: ITestCodeEditor, viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.Up, by: CursorMove.RawUnit.WrappedLine, value: noOfLines, select: select });
+function moveUp(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.Up, by: CursorMove.RawUnit.WrappedLine, value: noOfLines, select: select });
 }
 
-function moveUpByModelLine(editor: ITestCodeEditor, viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.Up, value: noOfLines, select: select });
+function moveUpByModelLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.Up, value: noOfLines, select: select });
 }
 
-function moveDown(editor: ITestCodeEditor, viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.Down, by: CursorMove.RawUnit.WrappedLine, value: noOfLines, select: select });
+function moveDown(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.Down, by: CursorMove.RawUnit.WrappedLine, value: noOfLines, select: select });
 }
 
-function moveDownByModelLine(editor: ITestCodeEditor, viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.Down, value: noOfLines, select: select });
+function moveDownByModelLine(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.Down, value: noOfLines, select: select });
 }
 
-function moveToTop(editor: ITestCodeEditor, viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.ViewPortTop, value: noOfLines, select: select });
+function moveToTop(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.ViewPortTop, value: noOfLines, select: select });
 }
 
-function moveToCenter(editor: ITestCodeEditor, viewModel: ViewModel, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.ViewPortCenter, select: select });
+function moveToCenter(viewModel: ViewModel, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.ViewPortCenter, select: select });
 }
 
-function moveToBottom(editor: ITestCodeEditor, viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
-	move(editor, viewModel, { to: CursorMove.RawDirection.ViewPortBottom, value: noOfLines, select: select });
+function moveToBottom(viewModel: ViewModel, noOfLines: number = 1, select?: boolean) {
+	move(viewModel, { to: CursorMove.RawDirection.ViewPortBottom, value: noOfLines, select: select });
 }
 
 function cursorEqual(viewModel: ViewModel, posLineNumber: number, posColumn: number, selLineNumber: number = posLineNumber, selColumn: number = posColumn) {
@@ -503,11 +503,11 @@ function selectionEqual(selection: Selection, posLineNumber: number, posColumn: 
 
 function moveTo(viewModel: ViewModel, lineNumber: number, column: number, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(viewModel.getCursors(), {
+		CoreNavigationCommands.MoveToSelect.runCoreEditorCommand(viewModel, {
 			position: new Position(lineNumber, column)
 		});
 	} else {
-		CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel.getCursors(), {
+		CoreNavigationCommands.MoveTo.runCoreEditorCommand(viewModel, {
 			position: new Position(lineNumber, column)
 		});
 	}
@@ -515,8 +515,8 @@ function moveTo(viewModel: ViewModel, lineNumber: number, column: number, inSele
 
 function moveToEndOfLine(viewModel: ViewModel, inSelectionMode: boolean = false) {
 	if (inSelectionMode) {
-		CoreNavigationCommands.CursorEndSelect.runCoreEditorCommand(viewModel.getCursors(), {});
+		CoreNavigationCommands.CursorEndSelect.runCoreEditorCommand(viewModel, {});
 	} else {
-		CoreNavigationCommands.CursorEnd.runCoreEditorCommand(viewModel.getCursors(), {});
+		CoreNavigationCommands.CursorEnd.runCoreEditorCommand(viewModel, {});
 	}
 }

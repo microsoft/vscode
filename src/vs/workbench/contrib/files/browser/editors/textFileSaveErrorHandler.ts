@@ -350,18 +350,23 @@ export const acceptLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as IResolvedTextFileEditorModel;
 
-	clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
+	try {
 
-	// Trigger save
-	await model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
+		// hide any previously shown message about how to use these actions
+		clearPendingResolveSaveConflictMessages();
 
-	// Reopen file input
-	await editorService.openEditor({ resource: model.resource }, group);
+		// Trigger save
+		await model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 
-	// Clean up
-	group.closeEditor(editor);
-	editor.dispose();
-	reference.dispose();
+		// Reopen file input
+		await editorService.openEditor({ resource: model.resource }, group);
+
+		// Clean up
+		group.closeEditor(editor);
+		editor.dispose();
+	} finally {
+		reference.dispose();
+	}
 };
 
 export const revertLocalChangesCommand = async (accessor: ServicesAccessor, resource: URI) => {
@@ -379,16 +384,21 @@ export const revertLocalChangesCommand = async (accessor: ServicesAccessor, reso
 	const reference = await resolverService.createModelReference(resource);
 	const model = reference.object as ITextFileEditorModel;
 
-	clearPendingResolveSaveConflictMessages(); // hide any previously shown message about how to use these actions
+	try {
 
-	// Revert on model
-	await model.revert();
+		// hide any previously shown message about how to use these actions
+		clearPendingResolveSaveConflictMessages();
 
-	// Reopen file input
-	await editorService.openEditor({ resource: model.resource }, group);
+		// Revert on model
+		await model.revert();
 
-	// Clean up
-	group.closeEditor(editor);
-	editor.dispose();
-	reference.dispose();
+		// Reopen file input
+		await editorService.openEditor({ resource: model.resource }, group);
+
+		// Clean up
+		group.closeEditor(editor);
+		editor.dispose();
+	} finally {
+		reference.dispose();
+	}
 };

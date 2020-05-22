@@ -1004,7 +1004,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public getOptions(): TextModelResolvedOptions {
-		return this._context.model.getOptions();
+		return this._context.model.getTextModelOptions();
 	}
 
 	public revealLineNumber(lineNumber: number): void {
@@ -1022,7 +1022,7 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public setScrollTop(scrollTop: number): void {
-		this._context.viewLayout.setScrollPosition({
+		this._context.model.setScrollPosition({
 			scrollTop: scrollTop
 		}, ScrollType.Immediate);
 	}

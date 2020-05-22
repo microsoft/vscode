@@ -54,6 +54,7 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransf
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -143,10 +144,22 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			open: (editor, options, group, id) => this.onEditorOpening(editor, options, group, id)
 		}));
 
+		this._register(this.editorService.onDidVisibleEditorsChange(() => {
+			const visibleNotebookEditors = editorService.visibleEditorPanes
+				.filter(pane => (pane as any).isNotebookEditor)
+				.map(pane => pane.getControl() as INotebookEditor)
+				.map(editor => editor.getId());
+
+			this.notebookService.updateVisibleNotebookEditor(visibleNotebookEditors);
+		}));
+
 		this._register(this.editorService.onDidActiveEditorChange(() => {
-			if (this.editorService.activeEditor && this.editorService.activeEditor! instanceof NotebookEditorInput) {
-				let editorInput = this.editorService.activeEditor! as NotebookEditorInput;
-				this.notebookService.updateActiveNotebookDocument(editorInput.viewType!, editorInput.resource!);
+			const activeEditorPane = editorService.activeEditorPane as any | undefined;
+			const notebookEditor = activeEditorPane?.isNotebookEditor ? activeEditorPane.getControl() : undefined;
+			if (notebookEditor) {
+				this.notebookService.updateActiveNotebookEditor(notebookEditor);
+			} else {
+				this.notebookService.updateActiveNotebookEditor(null);
 			}
 		}));
 
@@ -242,6 +255,8 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 			if (!input!.isDisposed()) {
 				input?.updateGroup(group.id);
 				return { override: this.editorService.openEditor(input!, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group) };
+			} else {
+				this._resourceMapping.delete(resource);
 			}
 		}
 
@@ -276,7 +291,16 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		input.updateGroup(group.id);
 		this._resourceMapping.set(resource, input);
 
-		return { override: this.editorService.openEditor(input, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: !options?.pinned }), group) };
+		/**
+		 * Scenario: we are reopening a file editor input which is pinned, we should open in a new editor tab.
+		 */
+		let index = undefined;
+		if (group.activeEditor === originalInput && isEqual(originalInput.resource, resource)) {
+			const originalEditorIndex = group.getIndexOfEditor(originalInput);
+			index = group.isPinned(originalInput) ? originalEditorIndex + 1 : originalEditorIndex;
+		}
+
+		return { override: this.editorService.openEditor(input, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true, index }), group) };
 	}
 }
 

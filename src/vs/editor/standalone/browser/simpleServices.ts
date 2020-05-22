@@ -141,7 +141,7 @@ export class SimpleEditorModelResolverService implements ITextModelService {
 		};
 	}
 
-	public hasTextModelContentProvider(scheme: string): boolean {
+	public canHandleResource(resource: URI): boolean {
 		return false;
 	}
 
