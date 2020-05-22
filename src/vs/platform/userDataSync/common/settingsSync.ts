@@ -418,33 +418,35 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 	}
 
 	async recoverSettings(): Promise<void> {
-		const fileContent = await this.getLocalFileContent();
-		if (!fileContent) {
-			return;
-		}
+		try {
+			const fileContent = await this.getLocalFileContent();
+			if (!fileContent) {
+				return;
+			}
 
-		const syncData: ISyncData = JSON.parse(fileContent.value.toString());
-		if (!isSyncData(syncData)) {
-			return;
-		}
+			const syncData: ISyncData = JSON.parse(fileContent.value.toString());
+			if (!isSyncData(syncData)) {
+				return;
+			}
 
-		const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
-		if (!settingsSyncContent) {
-			return;
-		}
+			const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+			if (!settingsSyncContent || !settingsSyncContent.settings) {
+				return;
+			}
 
-		let settings = settingsSyncContent.settings;
-		const formattingOptions = await this.getFormattingOptions();
-		for (const key in syncData) {
-			if (['version', 'content', 'machineId'].indexOf(key) === -1 && (syncData as any)[key] !== undefined) {
-				const edits: Edit[] = setProperty(settings, [key], (syncData as any)[key], formattingOptions);
-				if (edits.length) {
-					settings = applyEdits(settings, edits);
+			let settings = settingsSyncContent.settings;
+			const formattingOptions = await this.getFormattingOptions();
+			for (const key in syncData) {
+				if (['version', 'content', 'machineId'].indexOf(key) === -1 && (syncData as any)[key] !== undefined) {
+					const edits: Edit[] = setProperty(settings, [key], (syncData as any)[key], formattingOptions);
+					if (edits.length) {
+						settings = applyEdits(settings, edits);
+					}
 				}
 			}
-		}
 
-		await this.fileService.writeFile(this.file, VSBuffer.fromString(settings));
+			await this.fileService.writeFile(this.file, VSBuffer.fromString(settings));
+		} catch (e) {/* ignore */ }
 	}
 }
 
