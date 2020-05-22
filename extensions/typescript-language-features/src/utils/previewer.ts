@@ -6,84 +6,109 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type * as Proto from '../protocol';
 
-function getWorkspacePath(
-	definition: undefined | Proto.DefinitionResponse['body'],
-	proto: string,
-	givenPath: string,
-	withText: undefined | string
-): [string | undefined, string] {
-	let text = withText || givenPath;
+function regexConcat(re: RegExp[], flags?: string, sep: string = '') {
+	return new RegExp(re.map(re => re.source).join(sep), flags);
+}
 
+const LINK_SEARCHES = [
+	/\{@(link|linkplain|linkcode)\s+([^}]*)\}/, // {@link <link>}
+	/(\[[^\]]*\]\([^)]*\))/, // match markdown url so we dont replace it twice [<text>](<link>)
+	/(?=workspace|project|file:\/\/)([^\s{}\)\[\]]+)/, // match supported top level links
+];
+
+const LINK_REGEXP = regexConcat(LINK_SEARCHES, 'gi', '|');
+
+function parseLinkMatch(match: unknown, definition?: Proto.DefinitionResponse['body']): [null, string?] | [string, string, string?] {
 	const editor = vscode.window.activeTextEditor;
-	if (!editor) {
-		return [givenPath, text];
+
+	if (!editor || typeof match !== 'string') {
+		return [null];
 	}
 
-	let pathToUse: string | undefined = givenPath.replace(/(?:workspace|project|file):\/\//, '');
-	let rootPath: string | undefined;
+	let nameSepIdx = match.indexOf('|');
+	nameSepIdx = nameSepIdx === -1 ? match.indexOf(' ') : nameSepIdx;
+	const linkSegment = nameSepIdx !== -1 ? match.substring(0, nameSepIdx) : match;
 
-	switch (proto) {
+	let link = linkSegment;
+	let text = nameSepIdx !== -1 ? match.substring(nameSepIdx + 1).trim() : undefined;
+
+	const uri = vscode.Uri.parse(link, true);
+	let rootUri: vscode.Uri | undefined;
+
+	switch (uri.scheme) {
+		case 'http':
+		case 'https':
+			return [link, text || linkSegment];
 		case 'workspace': {
-			let workspaceName: string | undefined;
-			[, workspaceName, pathToUse] = pathToUse.match(/^\/?([^\/]*)(\/[^ |]*)/) || [];
-			rootPath = (vscode.workspace.workspaceFolders || []).find(workspaceFolder => workspaceFolder.name === workspaceName)?.uri.fsPath;
+			link = uri.path;
+			if (!text) {
+				text = linkSegment;
+			}
+			rootUri = (vscode.workspace.workspaceFolders || []).find(workspaceFolder => workspaceFolder.name === uri.authority)?.uri;
+			if (!rootUri) {
+				// when workspace not found
+				return [linkSegment, `~_${linkSegment}_~`, `Unknown Workspace: ${uri.authority}`];
+			}
 			break;
 		}
 		case 'file':
 		case 'project': {
+			const isRelativeAuthority = uri.authority === '.' || uri.authority === '..';
 			const definitionFile = definition?.[0]?.file;
-			const uri = definitionFile ? vscode.Uri.file(definitionFile) : editor.document.uri;
-			if (/^\/?\.\.?\//.test(pathToUse)) {
+
+			rootUri = definitionFile ? vscode.Uri.file(definitionFile) : editor.document.uri;
+			link = isRelativeAuthority || uri.scheme === 'project' ? uri.authority + uri.path : uri.path;
+
+			if (isRelativeAuthority || /^\/?\.\.?\//.test(link)) {
 				// when definition is not provided we can not reliably render a relative path due to a limitation of
 				// the LSP server. This is due to completions providing no way of resolving the definition of the
 				// type which is being completed so it is not possible to know where to resolve relative to.
 				if (!definitionFile) {
-					return [undefined, text];
+					return [null, text || linkSegment];
 				}
-				rootPath = path.dirname(uri.path);
-				if (!withText) {
+				if (!text) {
 					// remove proto in preview if custom text not given and
 					// path is relative (project|file)://./types.ts -> ./types.ts
-					text = pathToUse;
+					text = uri.authority + uri.path;
 				}
-			} else if (proto === 'file') {
-				return [path.normalize(pathToUse), text];
+				rootUri = rootUri.with({
+					path: path.dirname(rootUri.path)
+				});
+			} else if (uri.scheme === 'project') {
+				rootUri = vscode.workspace.getWorkspaceFolder(rootUri)?.uri;
 			} else {
-				rootPath = vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath;
+				rootUri = vscode.Uri.parse('file:///', true);
 			}
 			break;
 		}
 	}
 
-	return [rootPath ? path.join(rootPath, pathToUse) : givenPath, text];
+	if (rootUri) {
+		rootUri = rootUri.with({
+			path: vscode.Uri.joinPath(rootUri, link).path,
+			query: uri.query,
+			fragment: uri.fragment
+		});
+	}
+
+	return [rootUri?.toString() || link, text || link];
+
 }
 
 function replaceLinks(text: string, definition?: Proto.DefinitionResponse['body']): string {
 	return (
-		text
-			// Http(s) links
-			.replace(
-				/(?:\{@(link|linkplain|linkcode) ((https?|workspace|project):\/\/[^ |}]+?)(?:[| ]([^{}\n]+?))?\}|((workspace|project|file):\/\/[^\s|]*))/gi,
-				(_, tag: string, _link: undefined | string, _proto: undefined | string, text: undefined | string, _link2: undefined | string, _proto2: undefined | string) => {
-					const proto = _proto || _proto2;
-					let link = _link || _link2;
-					if (!link || !proto) {
-						return _;
-					}
-					if (proto === 'workspace' || proto === 'project' || proto === 'file') {
-						[link, text] = getWorkspacePath(definition, proto, link, text);
-					}
-					if (!link) {
-						return text || _;
-					}
-					switch (tag) {
-						case 'linkcode':
-							return `[\`${text ? text.trim() : link}\`](${link})`;
-						default:
-							return `[${text ? text.trim() : link}](${link})`;
-					}
-				},
-			)
+		text.replace(LINK_REGEXP, (_, tag: string, ...matches: unknown[]) => {
+			const result = parseLinkMatch(matches[0] || matches[2], definition);
+			if (result[0] === null) {
+				return result[1] || _;
+			}
+			switch (tag) {
+				case 'linkcode':
+					return `[\`${result[1]}\`](${result[0]}${result[2] ? ` "${result[2]}"` : ''})`;
+				default:
+					return `[${result[1]}](${result[0]}${result[2] ? ` "${result[2]}"` : ''})`;
+			}
+		})
 	);
 }
 

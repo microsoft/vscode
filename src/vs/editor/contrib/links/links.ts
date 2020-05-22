@@ -30,6 +30,8 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
 
+const ROOT_FILE_URI = URI.from({ scheme: 'file', authority: '', path: '/' });
+
 function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	const executeCmd = link.url && /^command:/i.test(link.url.toString());
 
@@ -298,7 +300,6 @@ export class LinkDetector implements IEditorContribution {
 		const { link } = occurrence;
 
 		link.resolve(CancellationToken.None).then(uri => {
-			console.log('link resolve: ', uri);
 			let uriToUse = uri;
 
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
@@ -326,7 +327,7 @@ export class LinkDetector implements IEditorContribution {
 							} else if (parsedUri.scheme === Schemas.project) {
 								rootUri = this.workspaceService.getWorkspaceFolder(modelUri)?.uri;
 							} else {
-								rootUri = URI.from({ scheme: 'file', authority: '', path: '/' });
+								rootUri = ROOT_FILE_URI;
 							}
 
 							if (!rootUri) {
