@@ -15,7 +15,7 @@
     "onLanguage:scss",
     "onCommand:_css.applyCodeAction"
   ],
-  "main": "./client/out/cssMain",
+  "main": "./client/out/node/cssClientMain",
   "enableProposedApi": true,
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",

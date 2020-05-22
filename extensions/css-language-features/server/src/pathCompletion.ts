@@ -3,100 +3,103 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
-import { URI } from 'vscode-uri';
-
 import { TextDocument, CompletionList, CompletionItemKind, CompletionItem, TextEdit, Range, Position } from 'vscode-languageserver-types';
-import { WorkspaceFolder } from 'vscode-languageserver';
-import { ICompletionParticipant } from 'vscode-css-languageservice';
+import { ICompletionParticipant, URILiteralCompletionContext, ImportPathCompletionContext, FileType, DocumentContext } from 'vscode-css-languageservice';
 
 import { startsWith, endsWith } from './utils/strings';
+import { joinPath, RequestService } from './requests';
 
-export function getPathCompletionParticipant(
-	document: TextDocument,
-	workspaceFolders: WorkspaceFolder[],
-	result: CompletionList
-): ICompletionParticipant {
-	return {
-		onCssURILiteralValue: ({ position, range, uriValue }) => {
-			const fullValue = stripQuotes(uriValue);
-			if (!shouldDoPathCompletion(uriValue, workspaceFolders)) {
-				if (fullValue === '.' || fullValue === '..') {
-					result.isIncomplete = true;
-				}
-				return;
-			}
+export class PathCompletionParticipant implements ICompletionParticipant {
+	private literalCompletions: URILiteralCompletionContext[] = [];
+	private importCompletions: ImportPathCompletionContext[] = [];
 
-			let suggestions = providePathSuggestions(uriValue, position, range, document, workspaceFolders);
-			result.items = [...suggestions, ...result.items];
-		},
-		onCssImportPath: ({ position, range, pathValue }) => {
-			const fullValue = stripQuotes(pathValue);
-			if (!shouldDoPathCompletion(pathValue, workspaceFolders)) {
-				if (fullValue === '.' || fullValue === '..') {
-					result.isIncomplete = true;
-				}
-				return;
-			}
+	constructor(private readonly requestService: RequestService) {
+	}
 
-			let suggestions = providePathSuggestions(pathValue, position, range, document, workspaceFolders);
+	public onCssURILiteralValue(context: URILiteralCompletionContext) {
+		this.literalCompletions.push(context);
+	}
 
-			if (document.languageId === 'scss') {
-				suggestions.forEach(s => {
-					if (startsWith(s.label, '_') && endsWith(s.label, '.scss')) {
-						if (s.textEdit) {
-							s.textEdit.newText = s.label.slice(1, -5);
-						} else {
-							s.label = s.label.slice(1, -5);
-						}
-					}
-				});
-			}
+	public onCssImportPath(context: ImportPathCompletionContext) {
+		this.importCompletions.push(context);
+	}
 
-			result.items = [...suggestions, ...result.items];
+	public async computeCompletions(document: TextDocument, documentContext: DocumentContext): Promise<CompletionList> {
+		const result: CompletionList = { items: [], isIncomplete: false };
+		if (!(startsWith(document.uri, 'file:'))) {
+			return result;
 		}
-	};
-}
+		for (const literalCompletion of this.literalCompletions) {
+			const uriValue = literalCompletion.uriValue;
+			const fullValue = stripQuotes(uriValue);
+			if (fullValue === '.' || fullValue === '..') {
+				result.isIncomplete = true;
+			} else {
+				const items = await this.providePathSuggestions(uriValue, literalCompletion.position, literalCompletion.range, document, documentContext);
+				for (let item of items) {
+					result.items.push(item);
+				}
+			}
+		}
+		for (const importCompletion of this.importCompletions) {
+			const pathValue = importCompletion.pathValue;
+			const fullValue = stripQuotes(pathValue);
+			if (fullValue === '.' || fullValue === '..') {
+				result.isIncomplete = true;
+			} else {
+				let suggestions = await this.providePathSuggestions(pathValue, importCompletion.position, importCompletion.range, document, documentContext);
 
-function providePathSuggestions(pathValue: string, position: Position, range: Range, document: TextDocument, workspaceFolders: WorkspaceFolder[]) {
-	const fullValue = stripQuotes(pathValue);
-	const isValueQuoted = startsWith(pathValue, `'`) || startsWith(pathValue, `"`);
-	const valueBeforeCursor = isValueQuoted
-		? fullValue.slice(0, position.character - (range.start.character + 1))
-		: fullValue.slice(0, position.character - range.start.character);
-	const workspaceRoot = resolveWorkspaceRoot(document, workspaceFolders);
-	const currentDocFsPath = URI.parse(document.uri).fsPath;
-
-	const paths = providePaths(valueBeforeCursor, currentDocFsPath, workspaceRoot)
-		.filter(p => {
-			// Exclude current doc's path
-			return path.resolve(currentDocFsPath, '../', p) !== currentDocFsPath;
-		})
-		.filter(p => {
-			// Exclude paths that start with `.`
-			return p[0] !== '.';
-		});
-
-	const fullValueRange = isValueQuoted ? shiftRange(range, 1, -1) : range;
-	const replaceRange = pathToReplaceRange(valueBeforeCursor, fullValue, fullValueRange);
-
-	const suggestions = paths.map(p => pathToSuggestion(p, replaceRange));
-	return suggestions;
-}
-
-function shouldDoPathCompletion(pathValue: string, workspaceFolders: WorkspaceFolder[]): boolean {
-	const fullValue = stripQuotes(pathValue);
-	if (fullValue === '.' || fullValue === '..') {
-		return false;
+				if (document.languageId === 'scss') {
+					suggestions.forEach(s => {
+						if (startsWith(s.label, '_') && endsWith(s.label, '.scss')) {
+							if (s.textEdit) {
+								s.textEdit.newText = s.label.slice(1, -5);
+							} else {
+								s.label = s.label.slice(1, -5);
+							}
+						}
+					});
+				}
+				for (let item of suggestions) {
+					result.items.push(item);
+				}
+			}
+		}
+		return result;
 	}
 
-	if (!workspaceFolders || workspaceFolders.length === 0) {
-		return false;
-	}
+	private async providePathSuggestions(pathValue: string, position: Position, range: Range, document: TextDocument, documentContext: DocumentContext): Promise<CompletionItem[]> {
+		const fullValue = stripQuotes(pathValue);
+		const isValueQuoted = startsWith(pathValue, `'`) || startsWith(pathValue, `"`);
+		const valueBeforeCursor = isValueQuoted
+			? fullValue.slice(0, position.character - (range.start.character + 1))
+			: fullValue.slice(0, position.character - range.start.character);
 
-	return true;
+		const currentDocUri = document.uri;
+
+		const fullValueRange = isValueQuoted ? shiftRange(range, 1, -1) : range;
+		const replaceRange = pathToReplaceRange(valueBeforeCursor, fullValue, fullValueRange);
+
+		const valueBeforeLastSlash = valueBeforeCursor.substring(0, valueBeforeCursor.lastIndexOf('/') + 1); // keep the last slash
+
+		let parentDir = documentContext.resolveReference(valueBeforeLastSlash || '.', currentDocUri);
+		try {
+			const result: CompletionItem[] = [];
+			const infos = await this.requestService.readDirectory(parentDir);
+			for (const [name, type] of infos) {
+				// Exclude paths that start with `.`
+				if (name.charCodeAt(0) !== CharCode_dot && (type === FileType.Directory || joinPath(parentDir, name) !== currentDocUri)) {
+					result.push(createCompletionItem(name, type === FileType.Directory, replaceRange));
+				}
+			}
+			return result;
+		} catch (e) {
+			return [];
+		}
+	}
 }
+
+const CharCode_dot = '.'.charCodeAt(0);
 
 function stripQuotes(fullValue: string) {
 	if (startsWith(fullValue, `'`) || startsWith(fullValue, `"`)) {
@@ -105,43 +108,6 @@ function stripQuotes(fullValue: string) {
 		return fullValue;
 	}
 }
-
-/**
- * Get a list of path suggestions. Folder suggestions are suffixed with a slash.
- */
-function providePaths(valueBeforeCursor: string, activeDocFsPath: string, root?: string): string[] {
-	const lastIndexOfSlash = valueBeforeCursor.lastIndexOf('/');
-	const valueBeforeLastSlash = valueBeforeCursor.slice(0, lastIndexOfSlash + 1);
-
-	const startsWithSlash = startsWith(valueBeforeCursor, '/');
-	let parentDir: string;
-	if (startsWithSlash) {
-		if (!root) {
-			return [];
-		}
-		parentDir = path.resolve(root, '.' + valueBeforeLastSlash);
-	} else {
-		parentDir = path.resolve(activeDocFsPath, '..', valueBeforeLastSlash);
-	}
-
-	try {
-		return fs.readdirSync(parentDir).map(f => {
-			return isDir(path.resolve(parentDir, f))
-				? f + '/'
-				: f;
-		});
-	} catch (e) {
-		return [];
-	}
-}
-
-const isDir = (p: string) => {
-	try {
-		return fs.statSync(p).isDirectory();
-	} catch (e) {
-		return false;
-	}
-};
 
 function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullValueRange: Range) {
 	let replaceRange: Range;
@@ -167,14 +133,13 @@ function pathToReplaceRange(valueBeforeCursor: string, fullValue: string, fullVa
 	return replaceRange;
 }
 
-function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
-	const isDir = p[p.length - 1] === '/';
-
+function createCompletionItem(name: string, isDir: boolean, replaceRange: Range): CompletionItem {
 	if (isDir) {
+		name = name + '/';
 		return {
-			label: escapePath(p),
+			label: escapePath(name),
 			kind: CompletionItemKind.Folder,
-			textEdit: TextEdit.replace(replaceRange, escapePath(p)),
+			textEdit: TextEdit.replace(replaceRange, escapePath(name)),
 			command: {
 				title: 'Suggest',
 				command: 'editor.action.triggerSuggest'
@@ -182,9 +147,9 @@ function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
 		};
 	} else {
 		return {
-			label: escapePath(p),
+			label: escapePath(name),
 			kind: CompletionItemKind.File,
-			textEdit: TextEdit.replace(replaceRange, escapePath(p))
+			textEdit: TextEdit.replace(replaceRange, escapePath(name))
 		};
 	}
 }
@@ -193,16 +158,6 @@ function pathToSuggestion(p: string, replaceRange: Range): CompletionItem {
 function escapePath(p: string) {
 	return p.replace(/(\s|\(|\)|,|"|')/g, '\\$1');
 }
-
-function resolveWorkspaceRoot(activeDoc: TextDocument, workspaceFolders: WorkspaceFolder[]): string | undefined {
-	for (const folder of workspaceFolders) {
-		if (startsWith(activeDoc.uri, folder.uri)) {
-			return path.resolve(URI.parse(folder.uri).fsPath);
-		}
-	}
-	return undefined;
-}
-
 function shiftPosition(pos: Position, offset: number): Position {
 	return Position.create(pos.line, pos.character + offset);
 }
@@ -211,3 +166,4 @@ function shiftRange(range: Range, startOffset: number, endOffset: number): Range
 	const end = shiftPosition(range.end, endOffset);
 	return Range.create(start, end);
 }
+
