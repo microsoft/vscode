@@ -44,6 +44,7 @@ function isSyncData(thing: any): thing is ISyncData {
 		&& (thing.version && typeof thing.version === 'number')
 		&& (thing.content && typeof thing.content === 'string')) {
 
+		// backward compatibility
 		if (Object.keys(thing).length === 2) {
 			return true;
 		}
@@ -324,14 +325,13 @@ export abstract class AbstractSynchroniser extends Disposable {
 			if (userData.content === null) {
 				return { ref: parsed.ref, syncData: null } as T;
 			}
-			let syncData: ISyncData = JSON.parse(userData.content);
+			const syncData: ISyncData = JSON.parse(userData.content);
 
-			// Migration from old content to sync data
-			if (!isSyncData(syncData)) {
-				syncData = { version: this.version, content: userData.content };
+			/* Check if syncData is of expected type. Return only if matches */
+			if (isSyncData(syncData)) {
+				return { ...parsed, ...{ syncData, content: undefined } };
 			}
 
-			return { ...parsed, ...{ syncData, content: undefined } };
 		} catch (error) {
 			if (!(error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND)) {
 				// log error always except when file does not exist
@@ -355,20 +355,12 @@ export abstract class AbstractSynchroniser extends Disposable {
 		return { ref, syncData };
 	}
 
-	protected parseSyncData(content: string): ISyncData | null {
-		let syncData: ISyncData | null = null;
-		try {
-			syncData = <ISyncData>JSON.parse(content);
-
-			// Migration from old content to sync data
-			if (!isSyncData(syncData)) {
-				syncData = { version: this.version, content };
-			}
-
-		} catch (e) {
-			this.logService.error(e);
+	protected parseSyncData(content: string): ISyncData {
+		const syncData: ISyncData = JSON.parse(content);
+		if (isSyncData(syncData)) {
+			return syncData;
 		}
-		return syncData;
+		throw new UserDataSyncError(localize('incompatible sync data', "Cannot parse sync data as it is not compatible with current version."), UserDataSyncErrorCode.Incompatible, this.resource);
 	}
 
 	private async getUserData(refOrLastSyncData: string | IRemoteUserData | null): Promise<IUserData> {
