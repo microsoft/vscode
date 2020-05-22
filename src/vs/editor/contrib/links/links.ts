@@ -29,7 +29,6 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import * as resources from 'vs/base/common/resources';
-import * as strings from 'vs/base/common/strings';
 
 function getHoverMessage(link: Link, useMetaKey: boolean): MarkdownString {
 	const executeCmd = link.url && /^command:/i.test(link.url.toString());
@@ -299,54 +298,55 @@ export class LinkDetector implements IEditorContribution {
 		const { link } = occurrence;
 
 		link.resolve(CancellationToken.None).then(uri => {
-
+			console.log('link resolve: ', uri);
+			let uriToUse = uri;
 
 			// Support for relative file URIs of the shape file://./relativeFile.txt or file:///./relativeFile.txt
 			// Support for workspace://<workspace-name>/path/to/file and project://path/to/file (and relative project path)
-			if (typeof uri === 'string' && this.editor.hasModel()) {
+			if (typeof uriToUse === 'string' && this.editor.hasModel()) {
 				const modelUri = this.editor.getModel().uri;
-				if (modelUri.scheme === Schemas.file && /^(?:file|project|workspace):/.test(uri)) {
-					const parsedUri = URI.parse(uri);
+
+				// strip name part of link now that {@link https://google.com|Google is allowed}
+				uriToUse = uriToUse.substring(0, uriToUse.indexOf('|')) || uriToUse;
+
+				if (modelUri.scheme === Schemas.file) {
+					const parsedUri = URI.parse(uriToUse);
+					const isRelativeAuthority = parsedUri.authority === '.' || parsedUri.authority === '..';
+					let pathToUse = isRelativeAuthority || parsedUri.scheme === Schemas.project ? parsedUri.authority + parsedUri.path : parsedUri.path;
+					let rootUri: URI | undefined;
+
 					switch (parsedUri.scheme) {
-						case Schemas.file: {
-							const fsPath = resources.originalFSPath(parsedUri);
-
-							let relativePath: string | null = null;
-							if (strings.startsWith(fsPath, '/./')) {
-								relativePath = `.${fsPath.substr(1)}`;
-							} else if (strings.startsWith(fsPath, '//./')) {
-								relativePath = `.${fsPath.substr(2)}`;
-							}
-
-							if (relativePath) {
-								uri = resources.joinPath(modelUri, relativePath);
-							}
-							break;
-						}
+						case Schemas.file:
 						case Schemas.project:
 						case Schemas.workspace: {
-							let pathToUse: string | undefined = uri.replace(/(?:workspace|project|file):\/\//, '');
-							let rootUri: URI | undefined;
-							let workspaceName: undefined | string;
 							if (parsedUri.scheme === Schemas.workspace) {
-								[, workspaceName, pathToUse] = pathToUse.match(/^\/?([^\/]*)(\/[^ |}]*)/) || [];
-								rootUri = (this.workspaceService.getWorkspace().folders || []).find(workspaceFolder => workspaceFolder.name === workspaceName)?.uri;
+								rootUri = (this.workspaceService.getWorkspace().folders || []).find(workspaceFolder => workspaceFolder.name === parsedUri.authority)?.uri;
+							} else if (isRelativeAuthority || /^\/?\.\.?\//.test(pathToUse)) {
+								rootUri = resources.dirname(modelUri);
+							} else if (parsedUri.scheme === Schemas.project) {
+								rootUri = this.workspaceService.getWorkspaceFolder(modelUri)?.uri;
 							} else {
-								[pathToUse] = pathToUse.match(/^([^ |]*)/) || [];
-								rootUri = /^\/?\.\.?\//.test(pathToUse) ? resources.dirname(modelUri) : this.workspaceService.getWorkspaceFolder(modelUri)?.uri;
+								rootUri = URI.from({ scheme: 'file', authority: '', path: '/' });
 							}
+
 							if (!rootUri) {
 								break;
 							}
-							uri = resources.joinPath(rootUri, pathToUse);
+
+							uriToUse = rootUri.with({
+								path: URI.joinPath(rootUri, pathToUse).path,
+								query: parsedUri.query,
+								fragment: parsedUri.fragment
+							});
 							break;
 						}
+						default:
+							break;
 					}
 				}
 			}
 
-			return this.openerService.open(uri, { openToSide, fromUserGesture });
-
+			return this.openerService.open(uriToUse || uri, { openToSide, fromUserGesture });
 		}, err => {
 			const messageOrError =
 				err instanceof Error ? (<Error>err).message : err;
