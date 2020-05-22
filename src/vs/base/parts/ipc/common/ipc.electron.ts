@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface Sender {
-	send(channel: string, msg: Buffer | null): void;
+	send(channel: string, msg: unknown): void;
 }
 
 export class Protocol implements IMessagePassingProtocol {
@@ -17,13 +17,13 @@ export class Protocol implements IMessagePassingProtocol {
 
 	send(message: VSBuffer): void {
 		try {
-			this.sender.send('ipc:message', (<Buffer>message.buffer));
+			this.sender.send('vscode:message', message.buffer);
 		} catch (e) {
 			// systems are going down
 		}
 	}
 
 	dispose(): void {
-		this.sender.send('ipc:disconnect', null);
+		this.sender.send('vscode:disconnect', null);
 	}
 }
