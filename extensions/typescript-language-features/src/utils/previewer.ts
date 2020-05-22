@@ -13,7 +13,7 @@ function regexConcat(re: RegExp[], flags?: string, sep: string = '') {
 const LINK_SEARCHES = [
 	/\{@(link|linkplain|linkcode)\s+([^}]*)\}/, // {@link <link>}
 	/(\[[^\]]*\]\([^)]*\))/, // match markdown url so we dont replace it twice [<text>](<link>)
-	/(?=workspace|project|file:\/\/)([^\s{}\)\[\]]+)/, // match supported top level links
+	/(?=(?:workspace|project|file):\/\/)([^\s{}\)\[\]]+)/, // match supported top level links
 ];
 
 const LINK_REGEXP = regexConcat(LINK_SEARCHES, 'gi', '|');
@@ -32,7 +32,7 @@ function parseLinkMatch(match: unknown, definition?: Proto.DefinitionResponse['b
 	let link = linkSegment;
 	let text = nameSepIdx !== -1 ? match.substring(nameSepIdx + 1).trim() : undefined;
 
-	const uri = vscode.Uri.parse(link, true);
+	const uri = vscode.Uri.parse(link);
 	let rootUri: vscode.Uri | undefined;
 
 	switch (uri.scheme) {
@@ -91,14 +91,29 @@ function parseLinkMatch(match: unknown, definition?: Proto.DefinitionResponse['b
 		});
 	}
 
+	console.log({ rootUri, uri, linkSegment });
 	return [rootUri?.toString() || link, text || link];
 
+}
+
+function parseMarkdownLink(str: string) {
+	const [, text, link] = str.match(/\[([^\]]*)\]\((?=\s*(?:workspace|project|file):\/\/)([^\)]*)\)/) || [];
+	if (!link) {
+		return;
+	}
+	return `${link.trim()}${text ? `|${text}` : ''}`;
 }
 
 function replaceLinks(text: string, definition?: Proto.DefinitionResponse['body']): string {
 	return (
 		text.replace(LINK_REGEXP, (_, tag: string, ...matches: unknown[]) => {
-			const result = parseLinkMatch(matches[0] || matches[2], definition);
+			let match = matches[0] || matches[2];
+			if (!match && typeof matches[1] === 'string') {
+				// we need to handle any protocol links or they will be resolved by markdown
+				match = parseMarkdownLink(matches[1]);
+			}
+			const result = parseLinkMatch(match, definition);
+			console.log(result);
 			if (result[0] === null) {
 				return result[1] || _;
 			}
