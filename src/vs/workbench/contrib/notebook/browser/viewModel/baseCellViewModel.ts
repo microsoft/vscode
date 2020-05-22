@@ -17,11 +17,6 @@ import { CellEditState, CellFocusMode, CursorAtBoundary, CellViewModelStateChang
 import { CellKind, NotebookCellMetadata, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
-export const NotebookCellMetadataDefaults = {
-	editable: true,
-	runnable: true
-};
-
 export abstract class BaseCellViewModel extends Disposable {
 	protected readonly _onDidChangeEditorAttachState = new Emitter<void>();
 	// Do not merge this event with `onDidChangeState` as we are using `Event.once(onDidChangeEditorAttachState)` elsewhere.
@@ -344,20 +339,22 @@ export abstract class BaseCellViewModel extends Disposable {
 		return cellMatches;
 	}
 
-	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata | undefined): NotebookCellMetadata {
-		const editable: boolean = this.metadata?.editable === undefined
-			? (documentMetadata?.cellEditable === undefined ? NotebookCellMetadataDefaults.editable : documentMetadata?.cellEditable)
-			: this.metadata?.editable;
+	getEvaluatedMetadata(documentMetadata: NotebookDocumentMetadata): NotebookCellMetadata {
+		const editable = this.metadata?.editable ??
+			documentMetadata.cellEditable;
 
-		const runnable: boolean = this.metadata?.runnable === undefined
-			? (documentMetadata?.cellRunnable === undefined ? NotebookCellMetadataDefaults.runnable : documentMetadata?.cellRunnable)
-			: this.metadata?.runnable;
+		const runnable = this.metadata?.runnable ??
+			documentMetadata.cellRunnable;
+
+		const hasExecutionOrder = this.metadata?.hasExecutionOrder ??
+			documentMetadata.cellHasExecutionOrder;
 
 		return {
 			...(this.metadata || {}),
 			...{
 				editable,
-				runnable
+				runnable,
+				hasExecutionOrder
 			}
 		};
 	}

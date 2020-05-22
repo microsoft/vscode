@@ -50,7 +50,7 @@ import { StatefullMarkdownCell } from 'vs/workbench/contrib/notebook/browser/vie
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, NotebookCellRunState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellRunState, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const $ = DOM.$;
 
@@ -1006,7 +1006,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		const metadata = element.getEvaluatedMetadata(this.notebookEditor.viewModel!.notebookDocument.metadata);
 		DOM.toggleClass(templateData.cellContainer, 'runnable', !!metadata.runnable);
-		this.renderExecutionOrder(element, templateData);
+		this.updateExecutionOrder(metadata, templateData);
 		cellEditableKey.set(!!metadata.editable);
 		cellRunnableKey.set(!!metadata.runnable);
 		templateData.cellStatusMessageContainer.textContent = metadata?.statusMessage || '';
@@ -1040,12 +1040,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		this.updateForRunState(metadata.runState, templateData);
 	}
 
-	private renderExecutionOrder(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
-		const hasExecutionOrder = this.notebookEditor.viewModel!.notebookDocument.metadata?.hasExecutionOrder;
-		if (hasExecutionOrder) {
-			const executionOrdeerLabel = typeof element.metadata?.executionOrder === 'number' ? `[${element.metadata.executionOrder}]` :
+	private updateExecutionOrder(metadata: NotebookCellMetadata, templateData: CodeCellRenderTemplate): void {
+		if (metadata.hasExecutionOrder) {
+			const executionOrderLabel = typeof metadata.executionOrder === 'number' ?
+				`[${metadata.executionOrder}]` :
 				'[ ]';
-			templateData.executionOrderLabel.innerText = executionOrdeerLabel;
+			templateData.executionOrderLabel.innerText = executionOrderLabel;
 		} else {
 			templateData.executionOrderLabel.innerText = '';
 		}

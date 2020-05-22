@@ -55,7 +55,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	runnable: true,
 	cellEditable: true,
 	cellRunnable: true,
-	hasExecutionOrder: true,
+	cellHasExecutionOrder: true,
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {}
 };
@@ -65,7 +65,7 @@ export interface NotebookDocumentMetadata {
 	runnable: boolean;
 	cellEditable: boolean;
 	cellRunnable: boolean;
-	hasExecutionOrder: boolean;
+	cellHasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
 	custom?: { [key: string]: any };
 }
@@ -81,6 +81,7 @@ export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
 	breakpointMargin?: boolean;
+	hasExecutionOrder?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
