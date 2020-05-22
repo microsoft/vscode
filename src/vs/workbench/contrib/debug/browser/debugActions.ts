@@ -142,7 +142,10 @@ export class StartAction extends AbstractDebugAction {
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if ((sessions.length > 0) && !debugService.getConfigurationManager().selectedConfiguration.name) {
+		let { name, config } = debugService.getConfigurationManager().selectedConfiguration;
+		let nameToStart = name || config?.name;
+
+		if (sessions.some(s => s.configuration.name === nameToStart)) {
 			// There is already a debug session running and we do not have any launch configuration selected
 			return false;
 		}

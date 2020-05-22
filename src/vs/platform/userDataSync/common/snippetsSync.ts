@@ -16,6 +16,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { merge } from 'vs/platform/userDataSync/common/snippetsMerge';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 interface ISinppetsSyncPreviewResult extends ISyncPreviewResult {
 	readonly local: IStringDictionary<IFileContent>;
@@ -39,6 +40,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
@@ -46,7 +48,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncResource.Snippets, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.Snippets, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this.snippetsFolder = environmentService.snippetsHome;
 		this.snippetsPreviewFolder = joinPath(this.syncFolder, PREVIEW_DIR_NAME);
 		this._register(this.fileService.watch(environmentService.userRoamingDataHome));

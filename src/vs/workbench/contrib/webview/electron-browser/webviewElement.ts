@@ -390,13 +390,13 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		return value
 			.replace(/(["'])vscode-resource:(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
 				if (scheme) {
-					return `${startQuote}${Schemas.vscodeWebviewResource}:${this.id}/${scheme}${path}${endQuote}`;
+					return `${startQuote}${Schemas.vscodeWebviewResource}://${this.id}/${scheme}${path}${endQuote}`;
 				}
 				if (!path.startsWith('//')) {
 					// Add an empty authority if we don't already have one
 					path = '//' + path;
 				}
-				return `${startQuote}${Schemas.vscodeWebviewResource}:${this.id}/file${path}${endQuote}`;
+				return `${startQuote}${Schemas.vscodeWebviewResource}://${this.id}/file${path}${endQuote}`;
 			});
 	}
 

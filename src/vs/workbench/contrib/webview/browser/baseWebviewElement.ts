@@ -270,8 +270,8 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 	}
 
 	protected style(): void {
-		const { styles, activeTheme } = this.webviewThemeDataProvider.getWebviewThemeData();
-		this._send('styles', { styles, activeTheme });
+		const { styles, activeTheme, themeLabel } = this.webviewThemeDataProvider.getWebviewThemeData();
+		this._send('styles', { styles, activeTheme, themeName: themeLabel });
 	}
 
 	protected handleFocusChange(isFocused: boolean): void {

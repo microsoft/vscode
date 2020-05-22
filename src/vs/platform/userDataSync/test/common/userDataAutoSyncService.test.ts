@@ -10,7 +10,7 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDat
 import { IUserDataSyncService, SyncResource, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
-	protected getDefaultEnablementValue(): boolean { return true; }
+	protected startAutoSync(): boolean { return false; }
 }
 
 suite('UserDataAutoSyncService', () => {
@@ -53,13 +53,11 @@ suite('UserDataAutoSyncService', () => {
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with settings change multiple times
-		for (let counter = 0; counter < 3; counter++) {
+		for (let counter = 0; counter < 2; counter++) {
 			await testObject.triggerAutoSync([SyncResource.Settings]);
 		}
 
-		// Make sure only one request is made
 		assert.deepEqual(target.requests, [
-			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} }
 		]);
@@ -99,7 +97,7 @@ suite('UserDataAutoSyncService', () => {
 		const testObject: UserDataAutoSyncService = client.instantiationService.createInstance(TestUserDataAutoSyncService);
 
 		// Trigger auto sync with window focus multiple times
-		for (let counter = 0; counter < 100; counter++) {
+		for (let counter = 0; counter < 2; counter++) {
 			await testObject.triggerAutoSync(['windowFocus']);
 		}
 

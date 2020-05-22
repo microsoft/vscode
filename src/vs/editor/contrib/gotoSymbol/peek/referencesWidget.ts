@@ -12,7 +12,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, IReference, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basenameOrAuthority, dirname, isEqual } from 'vs/base/common/resources';
+import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -62,12 +62,13 @@ class DecorationsManager implements IDisposable {
 	private _onModelChanged(): void {
 		this._callOnModelChange.clear();
 		const model = this._editor.getModel();
-		if (model) {
-			for (const ref of this._model.groups) {
-				if (isEqual(ref.uri, model.uri)) {
-					this._addDecorations(ref);
-					return;
-				}
+		if (!model) {
+			return;
+		}
+		for (let ref of this._model.references) {
+			if (ref.uri.toString() === model.uri.toString()) {
+				this._addDecorations(ref.parent);
+				return;
 			}
 		}
 	}
@@ -76,7 +77,7 @@ class DecorationsManager implements IDisposable {
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		this._callOnModelChange.add(this._editor.getModel().onDidChangeDecorations((event) => this._onDecorationChanged()));
+		this._callOnModelChange.add(this._editor.getModel().onDidChangeDecorations(() => this._onDecorationChanged()));
 
 		const newDecorations: IModelDeltaDecoration[] = [];
 		const newDecorationsActualIndex: number[] = [];
