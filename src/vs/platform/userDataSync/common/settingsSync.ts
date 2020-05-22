@@ -429,6 +429,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 				return;
 			}
 
+			this.telemetryService.publicLog2('sync/settingsCorrupted');
 			const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
 			if (!settingsSyncContent || !settingsSyncContent.settings) {
 				return;
