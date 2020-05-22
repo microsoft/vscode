@@ -27,25 +27,33 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		}
 
 		const args = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
+
 		const response = await this.client.interruptGetErr(() => this.client.execute('quickinfo', args, token));
+
 		if (response.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
+		// we only need to do this if quickinfo resolves
+		const definitionResponse = await this.client.interruptGetErr(() => this.client.execute('definition', args, token));
+		const definition = definitionResponse.type === 'response' && definitionResponse.body ? definitionResponse.body : undefined;
+
+
 		return new vscode.Hover(
-			TypeScriptHoverProvider.getContents(response.body),
+			TypeScriptHoverProvider.getContents(response.body, definition),
 			typeConverters.Range.fromTextSpan(response.body));
 	}
 
 	private static getContents(
-		data: Proto.QuickInfoResponseBody
+		data: Proto.QuickInfoResponseBody,
+		definition: Proto.DefinitionResponse['body']
 	) {
 		const parts = [];
 
 		if (data.displayString) {
 			parts.push({ language: 'typescript', value: data.displayString });
 		}
-		parts.push(markdownDocumentation(data.documentation, data.tags));
+		parts.push(markdownDocumentation(data.documentation, data.tags, definition));
 		return parts;
 	}
 }

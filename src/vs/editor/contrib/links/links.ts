@@ -371,6 +371,7 @@ export class LinkDetector implements IEditorContribution {
 			endLineNumber: position.lineNumber,
 			endColumn: position.column
 		}, 0, true);
+
 		for (const decoration of decorations) {
 			const currentOccurrence = this.currentOccurrences[decoration.id];
 			if (currentOccurrence) {

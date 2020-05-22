@@ -577,16 +577,20 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		};
 
 		const response = await this.client.interruptGetErr(() => this.client.execute('completionEntryDetails', args, token));
+
 		if (response.type !== 'response' || !response.body || !response.body.length) {
 			return item;
 		}
 
+		const definitionResponse = await this.client.interruptGetErr(() => this.client.execute('definition', typeConverters.Position.toFileLocationRequestArgs(filepath, item.position), token));
+
 		const detail = response.body[0];
+		const definition = definitionResponse.type === 'response' && definitionResponse.body ? definitionResponse.body : undefined;
 
 		if (!item.detail && detail.displayParts.length) {
-			item.detail = Previewer.plain(detail.displayParts);
+			item.detail = Previewer.plain(detail.displayParts, definition);
 		}
-		item.documentation = this.getDocumentation(detail, item);
+		item.documentation = this.getDocumentation(detail, item, definition);
 
 		const codeAction = this.getCodeActions(detail, filepath);
 		const commands: vscode.Command[] = [{
@@ -734,15 +738,16 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 
 	private getDocumentation(
 		detail: Proto.CompletionEntryDetails,
-		item: MyCompletionItem
+		item: MyCompletionItem,
+		definition: undefined | Proto.DefinitionResponse['body']
 	): vscode.MarkdownString | undefined {
 		const documentation = new vscode.MarkdownString();
 		if (detail.source) {
-			const importPath = `'${Previewer.plain(detail.source)}'`;
+			const importPath = `'${Previewer.plain(detail.source, definition)}'`;
 			const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
 			item.detail = `${autoImportLabel}\n${item.detail}`;
 		}
-		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags);
+		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags, definition);
 
 		return documentation.value.length ? documentation : undefined;
 	}
