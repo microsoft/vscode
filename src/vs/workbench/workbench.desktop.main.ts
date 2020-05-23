@@ -11,9 +11,10 @@
 // #######################################################################
 
 
-//#region --- workbench common
+//#region --- workbench common & sandbox
 
 import 'vs/workbench/workbench.common.main';
+import 'vs/workbench/workbench.sandbox.main';
 
 //#endregion
 
@@ -27,6 +28,7 @@ import 'vs/workbench/electron-browser/desktop.main';
 
 
 //#region --- workbench services
+
 import 'vs/workbench/services/dialogs/electron-browser/fileDialogService';
 import 'vs/workbench/services/integrity/node/integrityService';
 import 'vs/workbench/services/textMate/electron-browser/textMateService';
@@ -48,7 +50,6 @@ import 'vs/workbench/services/accessibility/electron-browser/accessibilityServic
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/url/electron-browser/urlService';
-import 'vs/workbench/services/workspaces/electron-browser/workspacesService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/storageKeysSyncRegistryService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';

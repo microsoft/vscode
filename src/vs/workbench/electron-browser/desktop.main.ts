@@ -31,6 +31,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService2, MainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
@@ -169,9 +170,13 @@ class DesktopMain extends Disposable {
 		// CONTRIBUTE IT VIA WORKBENCH.DESKTOP.MAIN.TS AND registerSingleton().
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-		// Main Process
+		// Main Process (legacy)
 		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
+
+		// Main Process (sandbox)
+		const mainProcessService2 = this._register(new MainProcessService2(this.configuration.windowId));
+		serviceCollection.set(IMainProcessService2, mainProcessService2);
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);

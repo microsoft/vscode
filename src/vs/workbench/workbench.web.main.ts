@@ -26,6 +26,7 @@ import 'vs/workbench/browser/web.main';
 
 
 //#region --- workbench services
+
 import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';
 import 'vs/workbench/services/search/common/searchService';

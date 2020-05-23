@@ -9,15 +9,6 @@
 
 	const { ipcRenderer } = require('electron');
 
-	/**
-	 * @param {string} channel
-	 */
-	function validateIPC(channel) {
-		if (!channel || !channel.startsWith('vscode:')) {
-			throw new Error(`Unsupported event IPC channel '${channel}'`);
-		}
-	}
-
 	// @ts-ignore
 	window.vscode = {
 
@@ -58,4 +49,17 @@
 			}
 		}
 	};
+
+	//#region Utilities
+
+	/**
+	 * @param {string} channel
+	 */
+	function validateIPC(channel) {
+		if (!channel || !channel.startsWith('vscode:')) {
+			throw new Error(`Unsupported event IPC channel '${channel}'`);
+		}
+	}
+
+	//#endregion
 }());

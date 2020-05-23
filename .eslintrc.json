@@ -762,6 +762,54 @@
                 ]
             },
             {
+                "target": "**/src/vs/workbench/workbench.common.main.ts",
+                "restrictions": [
+                    "vs/nls",
+                    "**/vs/base/**/{common,browser}/**",
+                    "**/vs/base/parts/**/{common,browser}/**",
+                    "**/vs/platform/**/{common,browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/**/{common,browser}/**"
+                ]
+            },
+            {
+                "target": "**/src/vs/workbench/workbench.web.main.ts",
+                "restrictions": [
+                    "vs/nls",
+                    "**/vs/base/**/{common,browser}/**",
+                    "**/vs/base/parts/**/{common,browser}/**",
+                    "**/vs/platform/**/{common,browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/**/{common,browser}/**",
+                    "**/vs/workbench/workbench.common.main"
+                ]
+            },
+            {
+                "target": "**/src/vs/workbench/workbench.sandbox.main.ts",
+                "restrictions": [
+                    "vs/nls",
+                    "**/vs/base/**/{common,browser,electron-sandbox}/**",
+                    "**/vs/base/parts/**/{common,browser,electron-sandbox}/**",
+                    "**/vs/platform/**/{common,browser,electron-sandbox}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/**/{common,browser,electron-sandbox}/**",
+                    "**/vs/workbench/workbench.common.main"
+                ]
+            },
+            {
+                "target": "**/src/vs/workbench/workbench.desktop.main.ts",
+                "restrictions": [
+                    "vs/nls",
+                    "**/vs/base/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+                    "**/vs/base/parts/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+                    "**/vs/platform/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+                    "**/vs/editor/**",
+                    "**/vs/workbench/**/{common,browser,node,electron-sandbox,electron-browser}/**",
+                    "**/vs/workbench/workbench.common.main",
+                    "**/vs/workbench/workbench.sandbox.main"
+                ]
+            },
+            {
                 "target": "**/extensions/**",
                 "restrictions": "**/*"
             },

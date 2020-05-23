@@ -5,7 +5,7 @@
 
 import { IIssueService } from 'vs/platform/issue/node/issue';
 import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class IssueService {

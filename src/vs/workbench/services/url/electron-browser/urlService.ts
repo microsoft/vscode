@@ -11,7 +11,7 @@ import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { IElectronService } from 'vs/platform/electron/node/electron';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
