@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMenubarService } from 'vs/platform/menubar/node/menubar';
+import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { IMainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';

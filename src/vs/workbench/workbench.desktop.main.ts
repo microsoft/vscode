@@ -64,7 +64,6 @@ import 'vs/workbench/services/localizations/electron-browser/localizationsServic
 import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
 import 'vs/workbench/services/update/electron-browser/updateService';
 import 'vs/workbench/services/issue/electron-browser/issueService';
-import 'vs/workbench/services/menubar/electron-browser/menubarService';
 import 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/electron-browser/pathService';
 
