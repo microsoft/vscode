@@ -6,7 +6,7 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import * as electron from 'electron';
 import { timeout } from 'vs/base/common/async';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
@@ -47,7 +47,7 @@ class WindowDriver extends BaseWindowDriver {
 
 export async function registerWindowDriver(accessor: ServicesAccessor, windowId: number): Promise<IDisposable> {
 	const instantiationService = accessor.get(IInstantiationService);
-	const mainProcessService = accessor.get(IMainProcessService);
+	const mainProcessService = accessor.get(IMainProcessService2);
 
 	const windowDriver = instantiationService.createInstance(WindowDriver);
 	const windowDriverChannel = new WindowDriverChannel(windowDriver);

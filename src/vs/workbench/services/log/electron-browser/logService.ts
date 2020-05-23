@@ -6,7 +6,7 @@
 import { DelegatedLogService, ILogService, ConsoleLogInMainService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,7 +20,7 @@ export class DesktopLogService extends DelegatedLogService {
 	private readonly windowId: number;
 	private readonly environmentService: NativeWorkbenchEnvironmentService;
 
-	constructor(windowId: number, mainProcessService: IMainProcessService, environmentService: NativeWorkbenchEnvironmentService) {
+	constructor(windowId: number, mainProcessService: IMainProcessService2, environmentService: NativeWorkbenchEnvironmentService) {
 
 		const disposables = new DisposableStore();
 		const loggerClient = new LoggerChannelClient(mainProcessService.getChannel('logger'));

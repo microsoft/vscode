@@ -5,13 +5,13 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ExtensionHostDebugChannelClient, ExtensionHostDebugBroadcastChannel } from 'vs/platform/debug/common/extensionHostDebugIpc';
 
 export class ExtensionHostDebugService extends ExtensionHostDebugChannelClient {
 
 	constructor(
-		@IMainProcessService readonly mainProcessService: IMainProcessService
+		@IMainProcessService2 readonly mainProcessService: IMainProcessService2
 	) {
 		super(mainProcessService.getChannel(ExtensionHostDebugBroadcastChannel.ChannelName));
 	}

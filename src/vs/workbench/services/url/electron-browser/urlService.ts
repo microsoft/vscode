@@ -5,7 +5,7 @@
 
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
 import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -26,7 +26,7 @@ export class RelayURLService extends URLService implements IURLHandler, IOpener 
 	private urlService: IURLService;
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService,
+		@IMainProcessService2 mainProcessService: IMainProcessService2,
 		@IOpenerService openerService: IOpenerService,
 		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IElectronService private electronService: IElectronService

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/issueReporter';
 import { clipboard, ipcRenderer, shell, webFrame } from 'electron';
 import * as os from 'os';
 import * as browser from 'vs/base/browser/browser';
@@ -20,7 +21,6 @@ import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import 'vs/css!./media/issueReporter';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';

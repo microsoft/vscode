@@ -6,7 +6,7 @@
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class NativeUpdateService implements IUpdateService {
@@ -21,7 +21,7 @@ export class NativeUpdateService implements IUpdateService {
 
 	private channel: IChannel;
 
-	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
+	constructor(@IMainProcessService2 mainProcessService: IMainProcessService2) {
 		this.channel = mainProcessService.getChannel('update');
 
 		// always set this._state as the state changes
