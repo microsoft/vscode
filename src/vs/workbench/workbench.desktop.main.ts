@@ -105,7 +105,6 @@ import 'vs/workbench/contrib/backup/electron-browser/backup.contribution';
 
 // Debug
 import 'vs/workbench/contrib/debug/node/debugHelperService';
-import 'vs/workbench/contrib/debug/electron-browser/extensionHostDebugService';
 
 // Webview
 import 'vs/workbench/contrib/webview/electron-browser/webview.contribution';

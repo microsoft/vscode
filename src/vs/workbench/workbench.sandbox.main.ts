@@ -19,3 +19,11 @@ import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
 
 //#endregion
+
+
+//#region --- workbench contributions
+
+// Debug
+import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
+
+//#endregion
