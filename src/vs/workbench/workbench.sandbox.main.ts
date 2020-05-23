@@ -14,5 +14,6 @@
 //#region --- workbench services
 
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
+import 'vs/workbench/services/userDataSync/electron-sandbox/storageKeysSyncRegistryService';
 
 //#endregion

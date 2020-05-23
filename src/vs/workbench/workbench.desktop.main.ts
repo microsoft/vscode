@@ -51,7 +51,6 @@ import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
 import 'vs/workbench/services/url/electron-browser/urlService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
-import 'vs/workbench/services/userDataSync/electron-browser/storageKeysSyncRegistryService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/authentication/electron-browser/authenticationTokenService';
