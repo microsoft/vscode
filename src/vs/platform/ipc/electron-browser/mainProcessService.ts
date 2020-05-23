@@ -3,21 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/electron-browser/ipc.electron-browser';
 import { Disposable } from 'vs/base/common/lifecycle';
-
-export const IMainProcessService = createDecorator<IMainProcessService>('mainProcessService');
-
-export interface IMainProcessService {
-
-	_serviceBrand: undefined;
-
-	getChannel(channelName: string): IChannel;
-
-	registerChannel(channelName: string, channel: IServerChannel<string>): void;
-}
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 
 export class MainProcessService extends Disposable implements IMainProcessService {
 
@@ -26,7 +15,7 @@ export class MainProcessService extends Disposable implements IMainProcessServic
 	private mainProcessConnection: Client;
 
 	constructor(
-		windowId: number
+		public readonly windowId: number
 	) {
 		super();
 

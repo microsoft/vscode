@@ -30,7 +30,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
-import { IMainProcessService2, MainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/electron-browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { RemoteAgentService } from 'vs/workbench/services/remote/electron-browser/remoteAgentServiceImpl';
@@ -170,8 +171,8 @@ class DesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 		// Main Process
-		const mainProcessService = this._register(new MainProcessService2(this.configuration.windowId));
-		serviceCollection.set(IMainProcessService2, mainProcessService);
+		const mainProcessService = this._register(new MainProcessService(this.configuration.windowId));
+		serviceCollection.set(IMainProcessService, mainProcessService);
 
 		// Environment
 		serviceCollection.set(IWorkbenchEnvironmentService, this.environmentService);
@@ -297,7 +298,7 @@ class DesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService2): Promise<NativeStorageService> {
+	private async createStorageService(payload: IWorkspaceInitializationPayload, logService: ILogService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
 		const globalStorageDatabase = new GlobalStorageDatabaseChannelClient(mainProcessService.getChannel('storage'));
 		const storageService = new NativeStorageService(globalStorageDatabase, logService, this.environmentService);
 

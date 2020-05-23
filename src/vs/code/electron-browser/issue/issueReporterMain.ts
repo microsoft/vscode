@@ -26,7 +26,8 @@ import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/com
 import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { getLogLevel, ILogService } from 'vs/platform/log/common/log';

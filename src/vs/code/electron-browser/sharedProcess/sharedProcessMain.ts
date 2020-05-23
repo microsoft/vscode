@@ -40,7 +40,7 @@ import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/co
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { DiagnosticsChannel } from 'vs/platform/diagnostics/node/diagnosticsIpc';
@@ -89,7 +89,12 @@ interface ISharedProcessInitData {
 const eventPrefix = 'monacoworkbench';
 
 class MainProcessService implements IMainProcessService {
-	constructor(private server: Server, private mainRouter: StaticRouter) { }
+
+	constructor(
+		public readonly windowId: number,
+		private server: Server,
+		private mainRouter: StaticRouter
+	) { }
 
 	_serviceBrand: undefined;
 
@@ -121,7 +126,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	disposables.add(logService);
 	logService.info('main', JSON.stringify(configuration));
 
-	const mainProcessService = new MainProcessService(server, mainRouter);
+	const mainProcessService = new MainProcessService(configuration.windowId, server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);
 
 	// Files

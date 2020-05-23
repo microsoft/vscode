@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
-import { IMainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
@@ -12,7 +12,7 @@ export class MenubarService {
 
 	_serviceBrand: undefined;
 
-	constructor(@IMainProcessService2 mainProcessService: IMainProcessService2) {
+	constructor(@IMainProcessService mainProcessService: IMainProcessService) {
 		return createChannelSender<IMenubarService>(mainProcessService.getChannel('menubar'));
 	}
 }

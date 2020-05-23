@@ -6,7 +6,7 @@
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect } from 'vs/base/parts/ipc/node/ipc.net';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IMainProcessService2 } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -20,7 +20,7 @@ export class SharedProcessService implements ISharedProcessService {
 	private sharedProcessMainChannel: IChannel;
 
 	constructor(
-		@IMainProcessService2 mainProcessService: IMainProcessService2,
+		@IMainProcessService mainProcessService: IMainProcessService,
 		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		this.sharedProcessMainChannel = mainProcessService.getChannel('sharedProcess');
