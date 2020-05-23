@@ -102,7 +102,7 @@ interface ITestService {
 	error(message: string): Promise<void>;
 	neverComplete(): Promise<void>;
 	neverCompleteCT(cancellationToken: CancellationToken): Promise<void>;
-	buffersLength(buffers: Buffer[]): Promise<number>;
+	buffersLength(buffers: VSBuffer[]): Promise<number>;
 	marshall(uri: URI): Promise<URI>;
 	context(): Promise<unknown>;
 
@@ -134,8 +134,8 @@ class TestService implements ITestService {
 		return new Promise((_, e) => cancellationToken.onCancellationRequested(() => e(canceled())));
 	}
 
-	buffersLength(buffers: Buffer[]): Promise<number> {
-		return Promise.resolve(buffers.reduce((r, b) => r + b.length, 0));
+	buffersLength(buffers: VSBuffer[]): Promise<number> {
+		return Promise.resolve(buffers.reduce((r, b) => r + b.buffer.length, 0));
 	}
 
 	ping(msg: string): void {
@@ -198,7 +198,7 @@ class TestChannelClient implements ITestService {
 		return this.channel.call('neverCompleteCT', undefined, cancellationToken);
 	}
 
-	buffersLength(buffers: Buffer[]): Promise<number> {
+	buffersLength(buffers: VSBuffer[]): Promise<number> {
 		return this.channel.call('buffersLength', buffers);
 	}
 
@@ -316,7 +316,7 @@ suite('Base IPC', function () {
 		});
 
 		test('buffers in arrays', async function () {
-			const r = await ipcService.buffersLength([Buffer.allocUnsafe(2), Buffer.allocUnsafe(3)]);
+			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.equal(r, 5);
 		});
 	});
@@ -382,7 +382,7 @@ suite('Base IPC', function () {
 		});
 
 		test('buffers in arrays', async function () {
-			const r = await ipcService.buffersLength([Buffer.allocUnsafe(2), Buffer.allocUnsafe(3)]);
+			const r = await ipcService.buffersLength([VSBuffer.alloc(2), VSBuffer.alloc(3)]);
 			return assert.equal(r, 5);
 		});
 	});
