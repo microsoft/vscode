@@ -355,10 +355,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	private parseExtensions(syncData: ISyncData): ISyncExtension[] {
 		let extensions: ISyncExtension[] = JSON.parse(syncData.content);
-		if (syncData.version !== this.version) {
+		if (syncData.version === 1) {
 			extensions = extensions.map(e => {
 				// #region Migration from v1 (enabled -> disabled)
-				if (!(<any>e).enabled) {
+				if ((<any>e).enabled === false) {
 					e.disabled = true;
 				}
 				delete (<any>e).enabled;
