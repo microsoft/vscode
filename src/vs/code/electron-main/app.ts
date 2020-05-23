@@ -44,7 +44,7 @@ import { getMachineId } from 'vs/base/node/id';
 import { Win32UpdateService } from 'vs/platform/update/electron-main/updateService.win32';
 import { LinuxUpdateService } from 'vs/platform/update/electron-main/updateService.linux';
 import { DarwinUpdateService } from 'vs/platform/update/electron-main/updateService.darwin';
-import { IIssueService } from 'vs/platform/issue/node/issue';
+import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';

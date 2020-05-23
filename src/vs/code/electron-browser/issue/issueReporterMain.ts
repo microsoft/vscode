@@ -28,7 +28,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/node/issue';
+import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
 import { FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
