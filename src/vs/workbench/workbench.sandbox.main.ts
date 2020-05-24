@@ -18,6 +18,7 @@ import 'vs/workbench/services/userDataSync/electron-sandbox/storageKeysSyncRegis
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
+import 'vs/workbench/services/contextmenu/electron-sandbox/contextmenuService';
 
 //#endregion
 

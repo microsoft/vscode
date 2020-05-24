@@ -27,7 +27,7 @@ import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/envir
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { getLogLevel, ILogService } from 'vs/platform/log/common/log';

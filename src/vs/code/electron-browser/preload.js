@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer } = require('electron');
+	const { ipcRenderer, webFrame } = require('electron');
 
 	// @ts-ignore
 	window.vscode = {
@@ -15,6 +15,8 @@
 		/**
 		 * A minimal set of methods exposed from ipcRenderer
 		 * to support communication to electron-main
+		 *
+		 * @type {typeof import('../../base/electron-sandbox/globals').ipcRenderer}
 		 */
 		ipcRenderer: {
 
@@ -42,10 +44,32 @@
 			 * @param {string} channel
 			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
 			 */
+			once(channel, listener) {
+				validateIPC(channel);
+
+				ipcRenderer.once(channel, listener);
+			},
+
+			/**
+			 * @param {string} channel
+			 * @param {(event: import('electron').IpcRendererEvent, ...args: any[]) => void} listener
+			 */
 			removeListener(channel, listener) {
 				validateIPC(channel);
 
 				ipcRenderer.removeListener(channel, listener);
+			}
+		},
+
+		/**
+		 * Support for methods of webFrame type.
+		 *
+		 * @type {typeof import('../../base/electron-sandbox/globals').webFrame}
+		 */
+		webFrame: {
+
+			getZoomFactor() {
+				return webFrame.getZoomFactor();
 			}
 		}
 	};

@@ -18,6 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { URI } from 'vs/base/common/uri';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
@@ -189,6 +190,7 @@ export class IssueMainService implements IIssueService {
 						title: localize('issueReporter', "Issue Reporter"),
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
+							preload: URI.parse(require.toUrl('vs/code/electron-browser/preload.js')).fsPath,
 							nodeIntegration: true,
 							enableWebSQL: false
 						}
@@ -239,6 +241,7 @@ export class IssueMainService implements IIssueService {
 						backgroundColor: data.styles.backgroundColor,
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
+							preload: URI.parse(require.toUrl('vs/code/electron-browser/preload.js')).fsPath,
 							nodeIntegration: true,
 							enableWebSQL: false
 						}

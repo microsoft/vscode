@@ -12,6 +12,12 @@ export const ipcRenderer = (window as any).vscode.ipcRenderer as {
 	on(channel: string, listener: Function): void;
 
 	/**
+	 * Adds a one time `listener` function for the event. This `listener` is invoked
+	 * only the next time a message is sent to `channel`, after which it is removed.
+	 */
+	once(channel: string, listener: Function): void;
+
+	/**
 	 * Removes the specified `listener` from the listener array for the specified
 	 * `channel`.
 	 */
@@ -31,4 +37,12 @@ export const ipcRenderer = (window as any).vscode.ipcRenderer as {
 	 * module.
 	 */
 	send(channel: string, ...args: any[]): void;
+};
+
+export const webFrame = (window as any).vscode.webFrame as {
+
+	/**
+	 * The current zoom factor.
+	 */
+	getZoomFactor(): number;
 };

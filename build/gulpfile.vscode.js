@@ -157,7 +157,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			'vs/workbench/workbench.desktop.main.js',
 			'vs/workbench/workbench.desktop.main.css',
 			'vs/workbench/services/extensions/node/extensionHostProcess.js',
-			'vs/code/electron-browser/workbench/preload.js',
+			'vs/code/electron-browser/preload.js',
 			'vs/code/electron-browser/workbench/workbench.html',
 			'vs/code/electron-browser/workbench/workbench.js'
 		]);
