@@ -35,7 +35,8 @@ import { getDelayedChannel, StaticRouter, createChannelReceiver } from 'vs/base/
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWindowsMainService, ICodeWindow, ActiveWindowManager } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { ActiveWindowManager } from 'vs/platform/windows/electron-main/windowTracker';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';
