@@ -30,7 +30,7 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent, ViewModelEventsCollector, ReadOnlyEditAttemptEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
@@ -52,7 +52,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
-	public readonly cursor: Cursor;
+	private readonly cursor: Cursor;
 	private readonly decorations: ViewModelDecorations;
 
 	constructor(
@@ -914,32 +914,42 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._withViewEventsCollector(eventsCollector => this.cursor.restoreState(eventsCollector, states));
 	}
 
+	private _executeCursorEdit(callback: (eventsCollector: ViewModelEventsCollector) => void): void {
+		if (this.cursor.context.cursorConfig.readOnly) {
+			// we cannot edit when read only...
+			this._eventDispatcher.emitOutgoingEvent(new ReadOnlyEditAttemptEvent());
+			return;
+		}
+		this._withViewEventsCollector(callback);
+	}
 	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer));
+		this._executeCursorEdit(eventsCollector => this.cursor.executeEdits(eventsCollector, source, edits, cursorStateComputer));
 	}
 	public startComposition(): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.startComposition(eventsCollector));
+		this.cursor.setIsDoingComposition(true);
+		this._executeCursorEdit(eventsCollector => this.cursor.startComposition(eventsCollector));
 	}
 	public endComposition(source?: string | null | undefined): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.endComposition(eventsCollector, source));
+		this.cursor.setIsDoingComposition(false);
+		this._executeCursorEdit(eventsCollector => this.cursor.endComposition(eventsCollector, source));
 	}
 	public type(text: string, source?: string | null | undefined): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.type(eventsCollector, text, source));
+		this._executeCursorEdit(eventsCollector => this.cursor.type(eventsCollector, text, source));
 	}
 	public replacePreviousChar(text: string, replaceCharCnt: number, source?: string | null | undefined): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.replacePreviousChar(eventsCollector, text, replaceCharCnt, source));
+		this._executeCursorEdit(eventsCollector => this.cursor.replacePreviousChar(eventsCollector, text, replaceCharCnt, source));
 	}
 	public paste(text: string, pasteOnNewLine: boolean, multicursorText?: string[] | null | undefined, source?: string | null | undefined): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));
+		this._executeCursorEdit(eventsCollector => this.cursor.paste(eventsCollector, text, pasteOnNewLine, multicursorText, source));
 	}
 	public cut(source?: string | null | undefined): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.cut(eventsCollector, source));
+		this._executeCursorEdit(eventsCollector => this.cursor.cut(eventsCollector, source));
 	}
 	public executeCommand(command: ICommand, source?: string | null | undefined): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.executeCommand(eventsCollector, command, source));
+		this._executeCursorEdit(eventsCollector => this.cursor.executeCommand(eventsCollector, command, source));
 	}
 	public executeCommands(commands: ICommand[], source?: string | null | undefined): void {
-		this._withViewEventsCollector(eventsCollector => this.cursor.executeCommands(eventsCollector, commands, source));
+		this._executeCursorEdit(eventsCollector => this.cursor.executeCommands(eventsCollector, commands, source));
 	}
 	public revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean): void {
 		this._withViewEventsCollector(eventsCollector => this.cursor.revealPrimary(eventsCollector, source, revealHorizontal, ScrollType.Smooth));

@@ -1473,10 +1473,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
 		listenersToRemove.push(model.onWillDispose(() => this.setModel(null)));
 
-		listenersToRemove.push(viewModel.cursor.onDidAttemptReadOnlyEdit(() => {
-			this._onDidAttemptReadOnlyEdit.fire(undefined);
-		}));
-
 		listenersToRemove.push(viewModel.onEvent((e) => {
 			switch (e.kind) {
 				case OutgoingViewModelEventKind.ContentSizeChanged:
@@ -1490,6 +1486,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ViewZonesChanged:
 					this._onDidChangeViewZones.fire();
+					break;
+				case OutgoingViewModelEventKind.ReadOnlyEditAttempt:
+					this._onDidAttemptReadOnlyEdit.fire();
 					break;
 				case OutgoingViewModelEventKind.CursorStateChanged: {
 					if (e.reachedMaxCursorCount) {

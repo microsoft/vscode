@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
 import * as strings from 'vs/base/common/strings';
 import { CursorCollection } from 'vs/editor/common/controller/cursorCollection';
 import { CursorColumns, CursorConfiguration, CursorContext, CursorState, EditOperationResult, EditOperationType, IColumnSelectData, PartialCursorState, ICursorSimpleModel } from 'vs/editor/common/controller/cursorCommon';
@@ -123,9 +122,6 @@ class AutoClosedAction {
 export class Cursor extends Disposable {
 
 	public static readonly MAX_CURSOR_COUNT = 10000;
-
-	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
 
 	private readonly _model: ITextModel;
 	private _knownModelVersionId: number;
@@ -598,7 +594,6 @@ export class Cursor extends Disposable {
 	private _executeEdit(callback: () => void, eventsCollector: ViewModelEventsCollector, source: string | null | undefined, cursorChangeReason: CursorChangeReason = CursorChangeReason.NotSet): void {
 		if (this.context.cursorConfig.readOnly) {
 			// we cannot edit when read only...
-			this._onDidAttemptReadOnlyEdit.fire(undefined);
 			return;
 		}
 
@@ -621,15 +616,17 @@ export class Cursor extends Disposable {
 		}
 	}
 
+	public setIsDoingComposition(isDoingComposition: boolean): void {
+		this._isDoingComposition = isDoingComposition;
+	}
+
 	public startComposition(eventsCollector: ViewModelEventsCollector): void {
-		this._isDoingComposition = true;
 		this._selectionsWhenCompositionStarted = this.getSelections().slice(0);
 	}
 
 	public endComposition(eventsCollector: ViewModelEventsCollector, source?: string | null | undefined): void {
-		this._isDoingComposition = false;
 		this._executeEdit(() => {
-			if (!this._isDoingComposition && source === 'keyboard') {
+			if (source === 'keyboard') {
 				// composition finishes, let's check if we need to auto complete if necessary.
 				const autoClosedCharacters = AutoClosedAction.getAllAutoClosedCharacters(this._autoClosedActions);
 				this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.cursorConfig, this._model, this._selectionsWhenCompositionStarted, this.getSelections(), autoClosedCharacters));
