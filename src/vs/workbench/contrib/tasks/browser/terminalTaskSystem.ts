@@ -1276,9 +1276,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 
-		if (basename === 'cmd' && platform === Platform.Platform.Windows && commandQuoted && argQuoted) {
-			commandLine = '"' + commandLine + '"';
-		}
 		return commandLine;
 	}
 
