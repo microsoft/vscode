@@ -8,7 +8,6 @@ import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/plat
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
-import { ActiveWindowManager } from 'vs/code/electron-main/windows';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
@@ -36,7 +35,7 @@ import { getDelayedChannel, StaticRouter, createChannelReceiver } from 'vs/base/
 import product from 'vs/platform/product/common/product';
 import { ProxyAuthHandler } from 'vs/code/electron-main/auth';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
+import { IWindowsMainService, ICodeWindow, ActiveWindowManager } from 'vs/platform/windows/electron-main/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspacesService } from 'vs/platform/workspaces/electron-main/workspacesService';

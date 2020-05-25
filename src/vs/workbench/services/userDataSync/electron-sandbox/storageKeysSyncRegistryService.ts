@@ -5,7 +5,7 @@
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { StorageKeysSyncRegistryChannelClient } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 
 class StorageKeysSyncRegistryService extends StorageKeysSyncRegistryChannelClient implements IStorageKeysSyncRegistryService {

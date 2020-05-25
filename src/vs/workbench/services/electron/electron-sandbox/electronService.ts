@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 
 export class ElectronService {

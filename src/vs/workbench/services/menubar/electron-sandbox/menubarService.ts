@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 

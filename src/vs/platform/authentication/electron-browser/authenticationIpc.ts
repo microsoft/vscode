@@ -7,7 +7,6 @@ import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event } from 'vs/base/common/event';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 
-
 export class AuthenticationTokenServiceChannel implements IServerChannel {
 	constructor(private readonly service: IAuthenticationTokenService) { }
 

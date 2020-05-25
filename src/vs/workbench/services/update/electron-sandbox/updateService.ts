@@ -6,7 +6,7 @@
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IUpdateService, State } from 'vs/platform/update/common/update';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 
 export class NativeUpdateService implements IUpdateService {

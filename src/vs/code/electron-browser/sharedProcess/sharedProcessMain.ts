@@ -40,7 +40,7 @@ import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/co
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
-import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
 import { DiagnosticsService, IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { DiagnosticsChannel } from 'vs/platform/diagnostics/node/diagnosticsIpc';
@@ -65,7 +65,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
 import { IAuthenticationTokenService, AuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
-import { AuthenticationTokenServiceChannel } from 'vs/platform/authentication/common/authenticationIpc';
+import { AuthenticationTokenServiceChannel } from 'vs/platform/authentication/electron-browser/authenticationIpc';
 import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ExtensionTipsService } from 'vs/platform/extensionManagement/node/extensionTipsService';
