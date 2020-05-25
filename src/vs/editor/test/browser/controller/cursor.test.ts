@@ -796,8 +796,6 @@ suite('Editor Controller - Cursor', () => {
 				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
 					events++;
 					assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
-				} else {
-					assert.ok(false);
 				}
 			});
 			moveTo(editor, viewModel, 1, 2);
@@ -812,8 +810,6 @@ suite('Editor Controller - Cursor', () => {
 				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
 					events++;
 					assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
-				} else {
-					assert.ok(false);
 				}
 			});
 			moveTo(editor, viewModel, 1, 2, true);
