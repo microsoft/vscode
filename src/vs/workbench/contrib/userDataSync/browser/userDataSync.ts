@@ -288,10 +288,11 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 				return;
 			case UserDataSyncErrorCode.Incompatible:
+			case UserDataSyncErrorCode.UpgradeRequired:
 				this.disableSync();
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('error incompatible', "Turned off sync because local data is incompatible with the data in the cloud. Please update {0} and turn on sync to continue syncing.", this.productService.nameLong),
+					message: localize('error upgrade required', "Turned off sync because the current version of {0} (version {1}) is not compatible with the Preferences Sync Service. Please update {2} and turn on sync to continue syncing.", this.productService.nameLong, this.productService.version, this.productService.nameLong),
 				});
 				return;
 		}

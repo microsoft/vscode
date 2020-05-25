@@ -246,7 +246,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (e) {
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.RemotePreconditionFailed:
+					case UserDataSyncErrorCode.PreconditionFailed:
 						// Rejected as there is a new remote version. Syncing again...
 						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize as there is a new remote version available. Synchronizing again...`);
 
