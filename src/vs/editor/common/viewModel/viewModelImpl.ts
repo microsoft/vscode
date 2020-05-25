@@ -126,7 +126,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this._registerModelEvents();
 
-		this._register(this._configuration.onDidChange((e) => {
+		this._register(this._configuration.onDidChangeFast((e) => {
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 				this._onConfigurationChanged(eventsCollector, e);

@@ -283,6 +283,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 	private _onDidChange = this._register(new Emitter<ConfigurationChangedEvent>());
 	public readonly onDidChange: Event<ConfigurationChangedEvent> = this._onDidChange.event;
 
+	private _onDidChangeFast = this._register(new Emitter<ConfigurationChangedEvent>());
+	public readonly onDidChangeFast: Event<ConfigurationChangedEvent> = this._onDidChangeFast.event;
+
 	public readonly isSimpleWidget: boolean;
 	private _computeOptionsMemory: ComputeOptionsMemory;
 	public options!: ComputedEditorOptions;
@@ -334,6 +337,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements IC
 			}
 
 			this.options = newOptions;
+			this._onDidChangeFast.fire(changeEvent);
 			this._onDidChange.fire(changeEvent);
 		}
 	}
