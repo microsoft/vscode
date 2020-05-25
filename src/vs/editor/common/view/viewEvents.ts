@@ -302,24 +302,3 @@ export type ViewEvent = (
 	| ViewTokensColorsChangedEvent
 	| ViewZonesChangedEvent
 );
-
-export class ViewEventsCollector {
-
-	private _events: ViewEvent[];
-	private _eventsLen = 0;
-
-	constructor() {
-		this._events = [];
-		this._eventsLen = 0;
-	}
-
-	public emit(event: ViewEvent) {
-		this._events[this._eventsLen++] = event;
-	}
-
-	public finalize(): ViewEvent[] {
-		let result = this._events;
-		this._events = [];
-		return result;
-	}
-}

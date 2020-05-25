@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
-import { ViewEvent, ViewEventsCollector } from 'vs/editor/common/view/viewEvents';
+import { ViewEvent } from 'vs/editor/common/view/viewEvents';
 import { IContentSizeChangedEvent } from 'vs/editor/common/editorCommon';
 import { Emitter } from 'vs/base/common/event';
+import { Selection } from 'vs/editor/common/core/selection';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 
 export class ViewModelEventDispatcher extends Disposable {
 
@@ -17,7 +19,7 @@ export class ViewModelEventDispatcher extends Disposable {
 	private readonly _eventHandlers: ViewEventHandler[];
 	private _viewEventQueue: ViewEvent[] | null;
 	private _isConsumingViewEventQueue: boolean;
-	private _collector: ViewEventsCollector | null;
+	private _collector: ViewModelEventsCollector | null;
 	private _collectorCnt: number;
 	private _outgoingEvents: OutgoingViewModelEvent[];
 
@@ -79,10 +81,10 @@ export class ViewModelEventDispatcher extends Disposable {
 		}
 	}
 
-	public beginEmitViewEvents(): ViewEventsCollector {
+	public beginEmitViewEvents(): ViewModelEventsCollector {
 		this._collectorCnt++;
 		if (this._collectorCnt === 1) {
-			this._collector = new ViewEventsCollector();
+			this._collector = new ViewModelEventsCollector();
 		}
 		return this._collector!;
 	}
@@ -90,10 +92,16 @@ export class ViewModelEventDispatcher extends Disposable {
 	public endEmitViewEvents(): void {
 		this._collectorCnt--;
 		if (this._collectorCnt === 0) {
-			const events = this._collector!.finalize();
+			const outgoingEvents = this._collector!.outgoingEvents;
+			const viewEvents = this._collector!.viewEvents;
 			this._collector = null;
-			if (events.length > 0) {
-				this._emitMany(events);
+
+			for (const outgoingEvent of outgoingEvents) {
+				this._addOutgoingEvent(outgoingEvent);
+			}
+
+			if (viewEvents.length > 0) {
+				this._emitMany(viewEvents);
 			}
 		}
 		this._emitOugoingEvents();
@@ -102,7 +110,7 @@ export class ViewModelEventDispatcher extends Disposable {
 	public emitSingleViewEvent(event: ViewEvent): void {
 		try {
 			const eventsCollector = this.beginEmitViewEvents();
-			eventsCollector.emit(event);
+			eventsCollector.emitViewEvent(event);
 		} finally {
 			this.endEmitViewEvents();
 		}
@@ -144,11 +152,31 @@ export class ViewModelEventDispatcher extends Disposable {
 	}
 }
 
+export class ViewModelEventsCollector {
+
+	public readonly viewEvents: ViewEvent[];
+	public readonly outgoingEvents: OutgoingViewModelEvent[];
+
+	constructor() {
+		this.viewEvents = [];
+		this.outgoingEvents = [];
+	}
+
+	public emitViewEvent(event: ViewEvent) {
+		this.viewEvents.push(event);
+	}
+
+	public emitOutgoingEvent(e: OutgoingViewModelEvent): void {
+		this.outgoingEvents.push(e);
+	}
+}
+
 export const enum OutgoingViewModelEventKind {
 	ContentSizeChanged,
 	FocusChanged,
 	ScrollChanged,
 	ViewZonesChanged,
+	CursorStateChanged,
 }
 
 export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
@@ -279,9 +307,69 @@ export class ViewZonesChangedEvent {
 	}
 }
 
+export class CursorStateChangedEvent {
+
+	public readonly kind = OutgoingViewModelEventKind.CursorStateChanged;
+
+	public readonly oldSelections: Selection[] | null;
+	public readonly selections: Selection[];
+	public readonly oldModelVersionId: number;
+	public readonly modelVersionId: number;
+	public readonly source: string;
+	public readonly reason: CursorChangeReason;
+	public readonly reachedMaxCursorCount: boolean;
+
+	constructor(oldSelections: Selection[] | null, selections: Selection[], oldModelVersionId: number, modelVersionId: number, source: string, reason: CursorChangeReason, reachedMaxCursorCount: boolean) {
+		this.oldSelections = oldSelections;
+		this.selections = selections;
+		this.oldModelVersionId = oldModelVersionId;
+		this.modelVersionId = modelVersionId;
+		this.source = source;
+		this.reason = reason;
+		this.reachedMaxCursorCount = reachedMaxCursorCount;
+	}
+
+	private static _selectionsAreEqual(a: Selection[] | null, b: Selection[] | null): boolean {
+		if (!a && !b) {
+			return true;
+		}
+		if (!a || !b) {
+			return false;
+		}
+		const aLen = a.length;
+		const bLen = b.length;
+		if (aLen !== bLen) {
+			return false;
+		}
+		for (let i = 0; i < aLen; i++) {
+			if (!a[i].equalsSelection(b[i])) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public isNoOp(): boolean {
+		return (
+			CursorStateChangedEvent._selectionsAreEqual(this.oldSelections, this.selections)
+			&& this.oldModelVersionId === this.modelVersionId
+		);
+	}
+
+	public merge(other: OutgoingViewModelEvent): CursorStateChangedEvent {
+		if (other.kind !== OutgoingViewModelEventKind.CursorStateChanged) {
+			return this;
+		}
+		return new CursorStateChangedEvent(
+			this.oldSelections, other.selections, this.oldModelVersionId, other.modelVersionId, other.source, other.reason, this.reachedMaxCursorCount || other.reachedMaxCursorCount
+		);
+	}
+}
+
 export type OutgoingViewModelEvent = (
 	ContentSizeChangedEvent
 	| FocusChangedEvent
 	| ScrollChangedEvent
 	| ViewZonesChangedEvent
+	| CursorStateChangedEvent
 );

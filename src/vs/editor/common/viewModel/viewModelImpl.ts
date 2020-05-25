@@ -30,7 +30,7 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
@@ -183,7 +183,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewThemeChangedEvent());
 	}
 
-	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: ConfigurationChangedEvent): void {
+	private _onConfigurationChanged(eventsCollector: ViewModelEventsCollector, e: ConfigurationChangedEvent): void {
 
 		// We might need to restore the current centered view range, so save it (if available)
 		let previousViewportStartModelPosition: Position | null = null;
@@ -200,9 +200,9 @@ export class ViewModel extends Disposable implements IViewModel {
 		const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
 		if (this.lines.setWrappingSettings(fontInfo, wrappingStrategy, wrappingInfo.wrappingColumn, wrappingIndent)) {
-			eventsCollector.emit(new viewEvents.ViewFlushedEvent());
-			eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+			eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
+			eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 			this.cursor.onLineMappingChanged(eventsCollector);
 			this.decorations.onLineMappingChanged();
 			this.viewLayout.onFlushed(this.getLineCount());
@@ -218,10 +218,10 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (e.hasChanged(EditorOption.readOnly)) {
 			// Must read again all decorations due to readOnly filtering
 			this.decorations.reset();
-			eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
 
-		eventsCollector.emit(new viewEvents.ViewConfigurationChangedEvent(e));
+		eventsCollector.emitViewEvent(new viewEvents.ViewConfigurationChangedEvent(e));
 		this.viewLayout.onConfigurationChanged(e);
 
 		if (restorePreviousViewportStart && previousViewportStartModelPosition) {
@@ -272,7 +272,7 @@ export class ViewModel extends Disposable implements IViewModel {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.Flush: {
 							this.lines.onModelFlushed();
-							eventsCollector.emit(new viewEvents.ViewFlushedEvent());
+							eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
 							this.decorations.reset();
 							this.viewLayout.onFlushed(this.getLineCount());
 							hadOtherModelChange = true;
@@ -281,7 +281,7 @@ export class ViewModel extends Disposable implements IViewModel {
 						case textModelEvents.RawContentChangedType.LinesDeleted: {
 							const linesDeletedEvent = this.lines.onModelLinesDeleted(versionId, change.fromLineNumber, change.toLineNumber);
 							if (linesDeletedEvent !== null) {
-								eventsCollector.emit(linesDeletedEvent);
+								eventsCollector.emitViewEvent(linesDeletedEvent);
 								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
 							}
 							hadOtherModelChange = true;
@@ -293,7 +293,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 							const linesInsertedEvent = this.lines.onModelLinesInserted(versionId, change.fromLineNumber, change.toLineNumber, insertedLineBreaks);
 							if (linesInsertedEvent !== null) {
-								eventsCollector.emit(linesInsertedEvent);
+								eventsCollector.emitViewEvent(linesInsertedEvent);
 								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
 							}
 							hadOtherModelChange = true;
@@ -306,14 +306,14 @@ export class ViewModel extends Disposable implements IViewModel {
 							const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] = this.lines.onModelLineChanged(versionId, change.lineNumber, changedLineBreakData);
 							hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
 							if (linesChangedEvent) {
-								eventsCollector.emit(linesChangedEvent);
+								eventsCollector.emitViewEvent(linesChangedEvent);
 							}
 							if (linesInsertedEvent) {
-								eventsCollector.emit(linesInsertedEvent);
+								eventsCollector.emitViewEvent(linesInsertedEvent);
 								this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
 							}
 							if (linesDeletedEvent) {
-								eventsCollector.emit(linesDeletedEvent);
+								eventsCollector.emitViewEvent(linesDeletedEvent);
 								this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
 							}
 							break;
@@ -328,8 +328,8 @@ export class ViewModel extends Disposable implements IViewModel {
 				this.viewLayout.onHeightMaybeChanged();
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 					this.cursor.onLineMappingChanged(eventsCollector);
 					this.decorations.onLineMappingChanged();
 				}
@@ -394,9 +394,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (this.lines.setTabSize(this.model.getOptions().tabSize)) {
 				try {
 					const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-					eventsCollector.emit(new viewEvents.ViewFlushedEvent());
-					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+					eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
+					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 					this.cursor.onLineMappingChanged(eventsCollector);
 					this.decorations.onLineMappingChanged();
 					this.viewLayout.onFlushed(this.getLineCount());
@@ -421,9 +421,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 			let lineMappingChanged = this.lines.setHiddenAreas(ranges);
 			if (lineMappingChanged) {
-				eventsCollector.emit(new viewEvents.ViewFlushedEvent());
-				eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
-				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent(null));
+				eventsCollector.emitViewEvent(new viewEvents.ViewFlushedEvent());
+				eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
+				eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 				this.cursor.onLineMappingChanged(eventsCollector);
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
@@ -947,15 +947,15 @@ export class ViewModel extends Disposable implements IViewModel {
 	public revealTopMostCursor(source: string | null | undefined): void {
 		const viewPosition = this.cursor.getTopMostViewPosition();
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
 	}
 	public revealBottomMostCursor(source: string | null | undefined): void {
 		const viewPosition = this.cursor.getBottomMostViewPosition();
 		const viewRange = new Range(viewPosition.lineNumber, viewPosition.column, viewPosition.lineNumber, viewPosition.column);
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, viewEvents.VerticalRevealType.Simple, true, ScrollType.Smooth)));
 	}
 	public revealRange(source: string | null | undefined, revealHorizontal: boolean, viewRange: Range, verticalType: viewEvents.VerticalRevealType, scrollType: ScrollType): void {
-		this._withViewEventsCollector(eventsCollector => eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, verticalType, revealHorizontal, scrollType)));
+		this._withViewEventsCollector(eventsCollector => eventsCollector.emitViewEvent(new viewEvents.ViewRevealRangeRequestEvent(source, viewRange, null, verticalType, revealHorizontal, scrollType)));
 	}
 
 	//#endregion
@@ -988,7 +988,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 	//#endregion
 
-	private _withViewEventsCollector(callback: (eventsCollector: viewEvents.ViewEventsCollector) => void): void {
+	private _withViewEventsCollector(callback: (eventsCollector: ViewModelEventsCollector) => void): void {
 		try {
 			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 			callback(eventsCollector);

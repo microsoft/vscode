@@ -23,7 +23,7 @@ import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
 import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, IEditorConstructionOptions, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -1477,36 +1477,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._onDidAttemptReadOnlyEdit.fire(undefined);
 		}));
 
-		listenersToRemove.push(viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
-			if (e.reachedMaxCursorCount) {
-				this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
-			}
-
-			const positions: Position[] = [];
-			for (let i = 0, len = e.selections.length; i < len; i++) {
-				positions[i] = e.selections[i].getPosition();
-			}
-
-			const e1: ICursorPositionChangedEvent = {
-				position: positions[0],
-				secondaryPositions: positions.slice(1),
-				reason: e.reason,
-				source: e.source
-			};
-			this._onDidChangeCursorPosition.fire(e1);
-
-			const e2: ICursorSelectionChangedEvent = {
-				selection: e.selections[0],
-				secondarySelections: e.selections.slice(1),
-				modelVersionId: e.modelVersionId,
-				oldSelections: e.oldSelections,
-				oldModelVersionId: e.oldModelVersionId,
-				source: e.source,
-				reason: e.reason
-			};
-			this._onDidChangeCursorSelection.fire(e2);
-		}));
-
 		listenersToRemove.push(viewModel.onEvent((e) => {
 			switch (e.kind) {
 				case OutgoingViewModelEventKind.ContentSizeChanged:
@@ -1521,6 +1491,38 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				case OutgoingViewModelEventKind.ViewZonesChanged:
 					this._onDidChangeViewZones.fire();
 					break;
+				case OutgoingViewModelEventKind.CursorStateChanged: {
+					if (e.reachedMaxCursorCount) {
+						this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
+					}
+
+					const positions: Position[] = [];
+					for (let i = 0, len = e.selections.length; i < len; i++) {
+						positions[i] = e.selections[i].getPosition();
+					}
+
+					const e1: ICursorPositionChangedEvent = {
+						position: positions[0],
+						secondaryPositions: positions.slice(1),
+						reason: e.reason,
+						source: e.source
+					};
+					this._onDidChangeCursorPosition.fire(e1);
+
+					const e2: ICursorSelectionChangedEvent = {
+						selection: e.selections[0],
+						secondarySelections: e.selections.slice(1),
+						modelVersionId: e.modelVersionId,
+						oldSelections: e.oldSelections,
+						oldModelVersionId: e.oldModelVersionId,
+						source: e.source,
+						reason: e.reason
+					};
+					this._onDidChangeCursorSelection.fire(e2);
+
+					break;
+				}
+
 			}
 		}));
 
