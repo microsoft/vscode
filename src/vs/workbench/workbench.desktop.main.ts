@@ -13,15 +13,20 @@
 
 //#region --- workbench common & sandbox
 
-import 'vs/workbench/workbench.common.main';
 import 'vs/workbench/workbench.sandbox.main';
+
+//#endregion
+
+
+//#region --- workbench actions
+
+import 'vs/workbench/electron-browser/actions/developerActions';
 
 //#endregion
 
 
 //#region --- workbench (desktop main)
 
-import 'vs/workbench/electron-browser/desktop.contribution';
 import 'vs/workbench/electron-browser/desktop.main';
 
 //#endregion

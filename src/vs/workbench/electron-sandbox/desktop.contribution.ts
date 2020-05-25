@@ -5,13 +5,12 @@
 
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as nls from 'vs/nls';
-import * as os from 'os';
 import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { ToggleSharedProcessAction, ToggleDevToolsAction, ConfigureRuntimeArgumentsAction } from 'vs/workbench/electron-browser/actions/developerActions';
+import { ToggleDevToolsAction, ConfigureRuntimeArgumentsAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
 import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseCurrentWindowAction, SwitchWindow, QuickSwitchWindow, ReloadWindowWithExtensionsDisabledAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -91,7 +90,6 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 	// Actions: Developer
 	(function registerDeveloperActions(): void {
 		const developerCategory = nls.localize('developer', "Developer");
-		registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSharedProcessAction), 'Developer: Toggle Shared Process', developerCategory);
 		registry.registerWorkbenchAction(SyncActionDescriptor.from(ReloadWindowWithExtensionsDisabledAction), 'Developer: Reload With Extensions Disabled', developerCategory);
 		registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleDevToolsAction), 'Developer: Toggle Developer Tools', developerCategory);
 
@@ -282,7 +280,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
 				'description': nls.localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
-				'included': isMacintosh && parseFloat(os.release()) >= 17 // Minimum: macOS Sierra (10.13.x = darwin 17.x)
+				'included': isMacintosh
 			},
 			'window.nativeFullScreen': {
 				'type': 'boolean',

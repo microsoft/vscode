@@ -10,6 +10,12 @@
 // ###                                                                 ###
 // #######################################################################
 
+//#region --- workbench common
+
+import 'vs/workbench/workbench.common.main';
+
+//#endregion
+
 
 //#region --- workbench services
 
@@ -26,6 +32,9 @@ import 'vs/workbench/electron-sandbox/parts/titlebar/titlebarPart';
 
 
 //#region --- workbench contributions
+
+// Desktop
+import 'vs/workbench/electron-sandbox/desktop.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/electron-sandbox/fileActions.contribution';
