@@ -50,8 +50,7 @@ import { LoggerChannel } from 'vs/platform/log/common/logIpc';
 import { setUnexpectedErrorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { IMenubarService } from 'vs/platform/menubar/common/menubar';
-import { MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
+import { IMenubarMainService, MenubarMainService } from 'vs/platform/menubar/electron-main/menubarMainService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerContextMenuListener } from 'vs/base/parts/contextmenu/electron-main/contextmenu';
 import { homedir } from 'os';
@@ -474,7 +473,7 @@ export class CodeApplication extends Disposable {
 		services.set(IIssueService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
-		services.set(IMenubarService, new SyncDescriptor(MenubarMainService));
+		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
 		const storageMainService = new StorageMainService(this.logService, this.environmentService);
 		services.set(IStorageMainService, storageMainService);
@@ -572,8 +571,8 @@ export class CodeApplication extends Disposable {
 		const workspacesChannel = createChannelReceiver(workspacesService);
 		electronIpcServer.registerChannel('workspaces', workspacesChannel);
 
-		const menubarService = accessor.get(IMenubarService);
-		const menubarChannel = createChannelReceiver(menubarService);
+		const menubarMainService = accessor.get(IMenubarMainService);
+		const menubarChannel = createChannelReceiver(menubarMainService);
 		electronIpcServer.registerChannel('menubar', menubarChannel);
 
 		const urlService = accessor.get(IURLService);
