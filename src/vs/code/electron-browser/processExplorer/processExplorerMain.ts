@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
-import { webFrame, clipboard } from 'electron';
-import { ipcRenderer } from 'vs/base/electron-sandbox/globals';
+import { clipboard } from 'electron';
+import { webFrame, ipcRenderer } from 'vs/base/electron-sandbox/globals';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/product/common/product';

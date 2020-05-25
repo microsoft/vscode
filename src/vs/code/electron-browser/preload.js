@@ -70,6 +70,17 @@
 
 			getZoomFactor() {
 				return webFrame.getZoomFactor();
+			},
+
+			getZoomLevel() {
+				return webFrame.getZoomLevel();
+			},
+
+			/**
+			 * @param {number} level
+			 */
+			setZoomLevel(level) {
+				webFrame.setZoomLevel(level);
 			}
 		}
 	};
