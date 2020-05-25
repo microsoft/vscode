@@ -9,7 +9,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { basename } from 'vs/base/common/path';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/common/electron';
 
 export class DiskFileSystemProvider extends NodeDiskFileSystemProvider {
 

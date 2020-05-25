@@ -10,7 +10,7 @@ import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { remote } from 'electron';
 import { timeout } from 'vs/base/common/async';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/common/electron';
 
 class WindowDriver extends BaseWindowDriver {
 

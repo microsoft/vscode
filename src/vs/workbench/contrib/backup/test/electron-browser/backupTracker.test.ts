@@ -34,7 +34,7 @@ import { HotExitConfiguration } from 'vs/platform/files/common/files';
 import { ShutdownReason, ILifecycleService, BeforeShutdownEvent } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService, Workspace } from 'vs/platform/workspace/common/workspace';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/common/electron';
 import { BackupTracker } from 'vs/workbench/contrib/backup/common/backupTracker';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

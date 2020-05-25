@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/common/electron';
 
 export class ActiveWindowManager extends Disposable {
 

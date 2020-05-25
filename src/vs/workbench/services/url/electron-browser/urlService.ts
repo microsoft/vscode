@@ -12,7 +12,7 @@ import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/commo
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/common/electron';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 

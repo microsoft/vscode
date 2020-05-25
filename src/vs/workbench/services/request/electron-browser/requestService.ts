@@ -8,7 +8,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { RequestService } from 'vs/platform/request/browser/requestService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/common/electron';
 
 export class NativeRequestService extends RequestService {
 

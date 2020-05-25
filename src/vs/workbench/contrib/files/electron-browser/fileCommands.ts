@@ -9,7 +9,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { sequence } from 'vs/base/common/async';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/common/electron';
 
 // Commands
 
