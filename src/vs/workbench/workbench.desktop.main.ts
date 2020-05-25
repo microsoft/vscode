@@ -49,7 +49,6 @@ import 'vs/workbench/services/extensionManagement/node/extensionManagementServic
 import 'vs/workbench/services/accessibility/electron-browser/accessibilityService';
 import 'vs/workbench/services/remote/node/tunnelService';
 import 'vs/workbench/services/backup/node/backupFileService';
-import 'vs/workbench/services/url/electron-browser/urlService';
 import 'vs/workbench/services/workspaces/electron-browser/workspaceEditingService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachinesService';
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';

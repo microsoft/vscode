@@ -7,28 +7,25 @@ import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/commo
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { URLHandlerChannel } from 'vs/platform/url/common/urlIpc';
-import { URLService } from 'vs/platform/url/node/urlService';
 import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/common/opener';
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { IElectronService } from 'vs/platform/electron/common/electron';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { NativeURLService } from 'vs/platform/url/common/urlService';
 
 export interface IRelayOpenURLOptions extends IOpenURLOptions {
 	openToSide?: boolean;
 	openExternal?: boolean;
 }
 
-export class RelayURLService extends URLService implements IURLHandler, IOpener {
+export class RelayURLService extends NativeURLService implements IURLHandler, IOpener {
 
 	private urlService: IURLService;
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService,
+		@IMainProcessService private readonly mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IElectronService private electronService: IElectronService
 	) {
 		super();
@@ -44,9 +41,9 @@ export class RelayURLService extends URLService implements IURLHandler, IOpener 
 
 		let query = uri.query;
 		if (!query) {
-			query = `windowId=${encodeURIComponent(this.environmentService.configuration.windowId)}`;
+			query = `windowId=${encodeURIComponent(this.mainProcessService.windowId)}`;
 		} else {
-			query += `&windowId=${encodeURIComponent(this.environmentService.configuration.windowId)}`;
+			query += `&windowId=${encodeURIComponent(this.mainProcessService.windowId)}`;
 		}
 
 		return uri.with({ query });

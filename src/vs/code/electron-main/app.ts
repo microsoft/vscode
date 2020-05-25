@@ -64,7 +64,7 @@ import { GlobalStorageDatabaseChannel } from 'vs/platform/storage/node/storageIp
 import { BackupMainService } from 'vs/platform/backup/electron-main/backupMainService';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { WorkspacesHistoryMainService, IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { URLService } from 'vs/platform/url/node/urlService';
+import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { WorkspacesMainService, IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
 import { statSync } from 'fs';
 import { DiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsIpc';
@@ -484,7 +484,7 @@ export class CodeApplication extends Disposable {
 		services.set(IBackupMainService, backupMainService);
 
 		services.set(IWorkspacesHistoryMainService, new SyncDescriptor(WorkspacesHistoryMainService));
-		services.set(IURLService, new SyncDescriptor(URLService));
+		services.set(IURLService, new SyncDescriptor(NativeURLService));
 		services.set(IWorkspacesMainService, new SyncDescriptor(WorkspacesMainService));
 
 		// Telemetry
