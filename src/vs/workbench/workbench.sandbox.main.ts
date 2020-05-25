@@ -20,11 +20,18 @@ import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
 import 'vs/workbench/services/url/electron-sandbox/urlService';
 import 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
+import 'vs/workbench/electron-sandbox/parts/titlebar/titlebarPart';
 
 //#endregion
 
 
 //#region --- workbench contributions
+
+// Explorer
+import 'vs/workbench/contrib/files/electron-sandbox/fileActions.contribution';
+
+// Backup
+import 'vs/workbench/contrib/backup/electron-sandbox/backup.contribution';
 
 // CodeEditor Contributions
 import 'vs/workbench/contrib/codeEditor/electron-sandbox/codeEditor.contribution';

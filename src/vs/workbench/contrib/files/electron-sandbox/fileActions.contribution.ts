@@ -17,7 +17,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { getMultiSelectedResources } from 'vs/workbench/contrib/files/browser/files';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-browser/fileCommands';
+import { revealResourcesInOS } from 'vs/workbench/contrib/files/electron-sandbox/fileCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';

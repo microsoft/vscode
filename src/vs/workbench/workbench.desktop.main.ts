@@ -65,13 +65,10 @@ import 'vs/workbench/services/path/electron-browser/pathService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { KeytarCredentialsService } from 'vs/platform/credentials/node/credentialsService';
-import { TitlebarPart } from 'vs/workbench/electron-browser/parts/titlebar/titlebarPart';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataAutoSyncService } from 'vs/workbench/contrib/userDataSync/electron-browser/userDataAutoSyncService';
 
 registerSingleton(ICredentialsService, KeytarCredentialsService, true);
-registerSingleton(ITitleService, TitlebarPart);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 
 //#endregion
@@ -94,10 +91,6 @@ import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
 
 // Explorer
 import 'vs/workbench/contrib/files/electron-browser/files.contribution';
-import 'vs/workbench/contrib/files/electron-browser/fileActions.contribution';
-
-// Backup
-import 'vs/workbench/contrib/backup/electron-browser/backup.contribution';
 
 // Debug
 import 'vs/workbench/contrib/debug/node/debugHelperService';
