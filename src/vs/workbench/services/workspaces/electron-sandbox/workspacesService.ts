@@ -7,7 +7,7 @@ import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { IElectronService } from 'vs/platform/electron/common/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 export class NativeWorkspacesService {
 

@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IElectronService } from 'vs/platform/electron/common/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';

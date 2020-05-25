@@ -11,7 +11,7 @@ import { IOpenerService, IOpener, matchesScheme } from 'vs/platform/opener/commo
 import product from 'vs/platform/product/common/product';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
-import { IElectronService } from 'vs/platform/electron/common/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { NativeURLService } from 'vs/platform/url/common/urlService';
 
 export interface IRelayOpenURLOptions extends IOpenURLOptions {

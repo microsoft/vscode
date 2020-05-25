@@ -8,7 +8,7 @@ import { IProcessEnvironment, isWindows, isMacintosh } from 'vs/base/common/plat
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { OpenContext } from 'vs/platform/windows/node/window';
-import { ActiveWindowManager } from 'vs/code/node/activeWindowTracker';
+import { ActiveWindowManager } from 'vs/code/electron-main/windows';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';

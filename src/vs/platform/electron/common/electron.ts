@@ -5,14 +5,11 @@
 
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, INativeOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 
-export const IElectronService = createDecorator<IElectronService>('electronService');
-
-export interface IElectronService {
+export interface ICommonElectronService {
 
 	_serviceBrand: undefined;
 

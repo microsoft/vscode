@@ -13,7 +13,7 @@ import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractTelemetryOptOut } from 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut';
-import { IElectronService } from 'vs/platform/electron/common/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 export class NativeTelemetryOptOut extends AbstractTelemetryOptOut {
 

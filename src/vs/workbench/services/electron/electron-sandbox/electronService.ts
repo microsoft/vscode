@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IElectronService } from 'vs/platform/electron/common/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 

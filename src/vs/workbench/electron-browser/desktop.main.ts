@@ -51,7 +51,7 @@ import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourc
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { DesktopLogService } from 'vs/workbench/services/log/electron-browser/logService';
 import { ElectronService } from 'vs/workbench/services/electron/electron-sandbox/electronService';
-import { IElectronService } from 'vs/platform/electron/common/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 class DesktopMain extends Disposable {
 
