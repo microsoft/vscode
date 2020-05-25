@@ -24,6 +24,9 @@ import 'vs/workbench/services/update/electron-sandbox/updateService';
 
 //#region --- workbench contributions
 
+// CodeEditor Contributions
+import 'vs/workbench/contrib/codeEditor/electron-sandbox/codeEditor.contribution';
+
 // Debug
 import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
 

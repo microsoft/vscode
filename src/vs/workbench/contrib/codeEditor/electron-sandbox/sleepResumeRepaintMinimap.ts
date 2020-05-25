@@ -6,7 +6,7 @@
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ipcRenderer as ipc } from 'electron';
+import { ipcRenderer } from 'vs/base/electron-sandbox/globals';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 class SleepResumeRepaintMinimap implements IWorkbenchContribution {
@@ -14,7 +14,7 @@ class SleepResumeRepaintMinimap implements IWorkbenchContribution {
 	constructor(
 		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
-		ipc.on('vscode:osResume', () => {
+		ipcRenderer.on('vscode:osResume', () => {
 			codeEditorService.listCodeEditors().forEach(editor => editor.render(true));
 		});
 	}

@@ -22,7 +22,8 @@ import * as browser from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/nativeKeymapService';
-import { ipcRenderer as ipc, webFrame, crashReporter, CrashReporterStartOptions, Event as IpcEvent } from 'electron';
+import { webFrame, crashReporter, CrashReporterStartOptions } from 'electron';
+import { ipcRenderer } from 'vs/base/electron-sandbox/globals';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -127,7 +128,7 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Support runAction event
-		ipc.on('vscode:runAction', async (event: IpcEvent, request: IRunActionInWindowRequest) => {
+		ipcRenderer.on('vscode:runAction', async (event: unknown, request: IRunActionInWindowRequest) => {
 			const args: unknown[] = request.args || [];
 
 			// If we run an action from the touchbar, we fill in the currently active resource
@@ -158,47 +159,47 @@ export class NativeWindow extends Disposable {
 		});
 
 		// Support runKeybinding event
-		ipc.on('vscode:runKeybinding', (event: IpcEvent, request: IRunKeybindingInWindowRequest) => {
+		ipcRenderer.on('vscode:runKeybinding', (event: unknown, request: IRunKeybindingInWindowRequest) => {
 			if (document.activeElement) {
 				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
 			}
 		});
 
 		// Error reporting from main
-		ipc.on('vscode:reportError', (event: IpcEvent, error: string) => {
+		ipcRenderer.on('vscode:reportError', (event: unknown, error: string) => {
 			if (error) {
 				errors.onUnexpectedError(JSON.parse(error));
 			}
 		});
 
 		// Support openFiles event for existing and new files
-		ipc.on('vscode:openFiles', (event: IpcEvent, request: IOpenFileRequest) => this.onOpenFiles(request));
+		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this.onOpenFiles(request));
 
 		// Support addFolders event if we have a workspace opened
-		ipc.on('vscode:addFolders', (event: IpcEvent, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
+		ipcRenderer.on('vscode:addFolders', (event: unknown, request: IAddFoldersRequest) => this.onAddFoldersRequest(request));
 
 		// Message support
-		ipc.on('vscode:showInfoMessage', (event: IpcEvent, message: string) => {
+		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => {
 			this.notificationService.info(message);
 		});
 
-		ipc.on('vscode:displayChanged', (event: IpcEvent) => {
+		ipcRenderer.on('vscode:displayChanged', () => {
 			clearAllFontInfos();
 		});
 
 		// Fullscreen Events
-		ipc.on('vscode:enterFullScreen', async () => {
+		ipcRenderer.on('vscode:enterFullScreen', async () => {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
 			browser.setFullscreen(true);
 		});
 
-		ipc.on('vscode:leaveFullScreen', async () => {
+		ipcRenderer.on('vscode:leaveFullScreen', async () => {
 			await this.lifecycleService.when(LifecyclePhase.Ready);
 			browser.setFullscreen(false);
 		});
 
 		// High Contrast Events
-		ipc.on('vscode:enterHighContrast', async () => {
+		ipcRenderer.on('vscode:enterHighContrast', async () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig?.autoDetectHighContrast) {
 				await this.lifecycleService.when(LifecyclePhase.Ready);
@@ -206,7 +207,7 @@ export class NativeWindow extends Disposable {
 			}
 		});
 
-		ipc.on('vscode:leaveHighContrast', async () => {
+		ipcRenderer.on('vscode:leaveHighContrast', async () => {
 			const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 			if (windowConfig?.autoDetectHighContrast) {
 				await this.lifecycleService.when(LifecyclePhase.Ready);
@@ -215,12 +216,12 @@ export class NativeWindow extends Disposable {
 		});
 
 		// keyboard layout changed event
-		ipc.on('vscode:keyboardLayoutChanged', () => {
+		ipcRenderer.on('vscode:keyboardLayoutChanged', () => {
 			KeyboardMapperFactory.INSTANCE._onKeyboardLayoutChanged();
 		});
 
 		// accessibility support changed event
-		ipc.on('vscode:accessibilitySupportChanged', (event: IpcEvent, accessibilitySupportEnabled: boolean) => {
+		ipcRenderer.on('vscode:accessibilitySupportChanged', (event: unknown, accessibilitySupportEnabled: boolean) => {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
@@ -399,7 +400,7 @@ export class NativeWindow extends Disposable {
 		this.setupOpenHandlers();
 
 		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipc.send('vscode:workbenchReady', this.environmentService.configuration.windowId));
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipcRenderer.send('vscode:workbenchReady', this.environmentService.configuration.windowId));
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));

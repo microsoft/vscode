@@ -164,12 +164,11 @@ export class IssueMainService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('windowsInfoRequest', (event: IpcMainEvent) => {
+		ipcMain.on('vscode:windowsInfoRequest', (event: IpcMainEvent) => {
 			this.launchMainService.getMainProcessInfo().then(info => {
 				event.sender.send('vscode:windowsInfoResponse', info.windows);
 			});
 		});
-
 	}
 
 	openReporter(data: IssueReporterData): Promise<void> {
@@ -227,7 +226,7 @@ export class IssueMainService implements IIssueService {
 			if (!this._processExplorerWindow) {
 				this._processExplorerParentWindow = BrowserWindow.getFocusedWindow();
 				if (this._processExplorerParentWindow) {
-					const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 300);
+					const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 500);
 					this._processExplorerWindow = new BrowserWindow({
 						skipTaskbar: true,
 						resizable: true,

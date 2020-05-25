@@ -13,7 +13,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions): void 
 
 	const contextMenuId = contextMenuIdPool++;
 	const onClickChannel = `vscode:onContextMenu${contextMenuId}`;
-	const onClickChannelHandler = (_event: Event, itemId: number, context: IContextMenuEvent) => {
+	const onClickChannelHandler = (event: unknown, itemId: number, context: IContextMenuEvent) => {
 		const item = processedItems[itemId];
 		if (item.click) {
 			item.click(context);
@@ -21,7 +21,7 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions): void 
 	};
 
 	ipcRenderer.once(onClickChannel, onClickChannelHandler);
-	ipcRenderer.once(CONTEXT_MENU_CLOSE_CHANNEL, (_event: Event, closedContextMenuId: number) => {
+	ipcRenderer.once(CONTEXT_MENU_CLOSE_CHANNEL, (event: unknown, closedContextMenuId: number) => {
 		if (closedContextMenuId !== contextMenuId) {
 			return;
 		}

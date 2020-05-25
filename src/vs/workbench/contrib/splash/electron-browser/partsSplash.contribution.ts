@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer as ipc } from 'electron';
+import { ipcRenderer } from 'vs/base/electron-sandbox/globals';
 import { join } from 'vs/base/common/path';
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { getTotalHeight, getTotalWidth } from 'vs/base/browser/dom';
@@ -112,7 +112,7 @@ class PartsSplash {
 			// the color needs to be in hex
 			const backgroundColor = this._themeService.getColorTheme().getColor(editorBackground) || themes.WORKBENCH_BACKGROUND(this._themeService.getColorTheme());
 			const payload = JSON.stringify({ baseTheme, background: Color.Format.CSS.formatHex(backgroundColor) });
-			ipc.send('vscode:changeColorTheme', this._envService.configuration.windowId, payload);
+			ipcRenderer.send('vscode:changeColorTheme', this._envService.configuration.windowId, payload);
 		}
 	}
 

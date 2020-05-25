@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ShutdownReason, StartupKind, handleVetos, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
-import { ipcRenderer as ipc } from 'electron';
+import { ipcRenderer } from 'vs/base/electron-sandbox/globals';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { AbstractLifecycleService } from 'vs/platform/lifecycle/common/lifecycleService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import Severity from 'vs/base/common/severity';
-import { localize } from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
@@ -60,7 +60,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		const windowId = this.environmentService.configuration.windowId;
 
 		// Main side indicates that window is about to unload, check for vetos
-		ipc.on('vscode:onBeforeUnload', (_event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
+		ipcRenderer.on('vscode:onBeforeUnload', (event: unknown, reply: { okChannel: string, cancelChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onBeforeUnload (reason: ${reply.reason})`);
 
 			// trigger onBeforeShutdown events and veto collecting
@@ -68,18 +68,18 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 				if (veto) {
 					this.logService.trace('lifecycle: onBeforeUnload prevented via veto');
 
-					ipc.send(reply.cancelChannel, windowId);
+					ipcRenderer.send(reply.cancelChannel, windowId);
 				} else {
 					this.logService.trace('lifecycle: onBeforeUnload continues without veto');
 
 					this.shutdownReason = reply.reason;
-					ipc.send(reply.okChannel, windowId);
+					ipcRenderer.send(reply.okChannel, windowId);
 				}
 			});
 		});
 
 		// Main side indicates that we will indeed shutdown
-		ipc.on('vscode:onWillUnload', async (_event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
+		ipcRenderer.on('vscode:onWillUnload', async (event: unknown, reply: { replyChannel: string, reason: ShutdownReason }) => {
 			this.logService.trace(`lifecycle: onWillUnload (reason: ${reply.reason})`);
 
 			// trigger onWillShutdown events and joining
@@ -89,7 +89,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			this._onShutdown.fire();
 
 			// acknowledge to main side
-			ipc.send(reply.replyChannel, windowId);
+			ipcRenderer.send(reply.replyChannel, windowId);
 		});
 
 		// Save shutdown reason to retrieve on next startup

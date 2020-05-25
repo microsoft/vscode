@@ -27,7 +27,7 @@ import { resolveCommonProperties } from 'vs/platform/telemetry/node/commonProper
 import { TelemetryAppenderChannel } from 'vs/platform/telemetry/node/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { ipcRenderer } from 'electron';
+import { ipcRenderer } from 'vs/base/electron-sandbox/globals';
 import { ILogService, LogLevel, ILoggerService } from 'vs/platform/log/common/log';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { LocalizationsService } from 'vs/platform/localizations/node/localizations';
@@ -114,7 +114,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 
 	const onExit = () => disposables.dispose();
 	process.once('exit', onExit);
-	ipcRenderer.once('electron-main->shared-process: exit', onExit);
+	ipcRenderer.once('vscode:electron-main->shared-process=exit', onExit);
 
 	disposables.add(server);
 
@@ -302,17 +302,17 @@ async function handshake(configuration: ISharedProcessConfiguration): Promise<vo
 
 	// receive payload from electron-main to start things
 	const data = await new Promise<ISharedProcessInitData>(c => {
-		ipcRenderer.once('electron-main->shared-process: payload', (_: any, r: ISharedProcessInitData) => c(r));
+		ipcRenderer.once('vscode:electron-main->shared-process=payload', (event: unknown, r: ISharedProcessInitData) => c(r));
 
 		// tell electron-main we are ready to receive payload
-		ipcRenderer.send('shared-process->electron-main: ready-for-payload');
+		ipcRenderer.send('vscode:shared-process->electron-main=ready-for-payload');
 	});
 
 	// await IPC connection and signal this back to electron-main
 	const server = await setupIPC(data.sharedIPCHandle);
-	ipcRenderer.send('shared-process->electron-main: ipc-ready');
+	ipcRenderer.send('vscode:shared-process->electron-main=ipc-ready');
 
 	// await initialization and signal this back to electron-main
 	await main(server, data, configuration);
-	ipcRenderer.send('shared-process->electron-main: init-done');
+	ipcRenderer.send('vscode:shared-process->electron-main=init-done');
 }
