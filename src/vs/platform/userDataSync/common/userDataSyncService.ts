@@ -96,26 +96,40 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async pull(): Promise<void> {
 		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			try {
-				await synchroniser.pull();
-			} catch (e) {
-				this.handleSynchronizerError(e, synchroniser.resource);
+		try {
+			for (const synchroniser of this.synchronisers) {
+				try {
+					await synchroniser.pull();
+				} catch (e) {
+					this.handleSynchronizerError(e, synchroniser.resource);
+				}
 			}
+			this.updateLastSyncTime();
+		} catch (error) {
+			if (error instanceof UserDataSyncError) {
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { resource: error.resource });
+			}
+			throw error;
 		}
-		this.updateLastSyncTime();
 	}
 
 	async push(): Promise<void> {
 		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			try {
-				await synchroniser.push();
-			} catch (e) {
-				this.handleSynchronizerError(e, synchroniser.resource);
+		try {
+			for (const synchroniser of this.synchronisers) {
+				try {
+					await synchroniser.push();
+				} catch (e) {
+					this.handleSynchronizerError(e, synchroniser.resource);
+				}
 			}
+			this.updateLastSyncTime();
+		} catch (error) {
+			if (error instanceof UserDataSyncError) {
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { resource: error.resource });
+			}
+			throw error;
 		}
-		this.updateLastSyncTime();
 	}
 
 	private recoveredSettings: boolean = false;
