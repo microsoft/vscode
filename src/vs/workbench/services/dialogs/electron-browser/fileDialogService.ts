@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SaveDialogOptions, OpenDialogOptions } from 'electron';
+import { SaveDialogOptions, OpenDialogOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';

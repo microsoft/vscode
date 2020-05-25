@@ -22,6 +22,7 @@ export interface IClipboardService {
 	 */
 	readText(type?: string): Promise<string>;
 
+	/** @deprecated */
 	readTextSync(): string | undefined;
 
 	/**

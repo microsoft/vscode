@@ -779,7 +779,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private doGetPreloadUrl(): string {
-		return require.toUrl('vs/code/electron-browser/preload.js');
+		return require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js');
 	}
 
 	serializeWindowState(): IWindowState {

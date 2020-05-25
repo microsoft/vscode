@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/issueReporter';
-import { clipboard, shell } from 'electron';
-import { ipcRenderer, webFrame } from 'vs/base/electron-sandbox/globals';
+import { clipboard } from 'electron';
+import { ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as os from 'os';
 import * as browser from 'vs/base/browser/browser';
-import { $ } from 'vs/base/browser/dom';
+import { $, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
@@ -463,7 +463,7 @@ export class IssueReporter extends Disposable {
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
 			const url = (<HTMLElement>e.target).innerText;
-			shell.openExternal(url);
+			windowOpenNoOpener(url);
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
@@ -1195,7 +1195,7 @@ export class IssueReporter extends Disposable {
 		event.stopPropagation();
 		// Exclude right click
 		if (event.which < 3) {
-			shell.openExternal((<HTMLAnchorElement>event.target).href);
+			windowOpenNoOpener((<HTMLAnchorElement>event.target).href);
 			this.telemetryService.publicLog2('issueReporterViewSimilarIssue');
 		}
 	}

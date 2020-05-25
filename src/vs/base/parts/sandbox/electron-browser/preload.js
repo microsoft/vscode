@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame } = require('electron');
+	const { ipcRenderer, webFrame, crashReporter } = require('electron');
 
 	// @ts-ignore
 	window.vscode = {
@@ -16,7 +16,7 @@
 		 * A minimal set of methods exposed from ipcRenderer
 		 * to support communication to electron-main
 		 *
-		 * @type {typeof import('../../base/electron-sandbox/globals').ipcRenderer}
+		 * @type {typeof import('../electron-sandbox/globals').ipcRenderer}
 		 */
 		ipcRenderer: {
 
@@ -64,7 +64,7 @@
 		/**
 		 * Support for methods of webFrame type.
 		 *
-		 * @type {typeof import('../../base/electron-sandbox/globals').webFrame}
+		 * @type {typeof import('../electron-sandbox/globals').webFrame}
 		 */
 		webFrame: {
 
@@ -81,6 +81,21 @@
 			 */
 			setZoomLevel(level) {
 				webFrame.setZoomLevel(level);
+			}
+		},
+
+		/**
+		 * Support for methods of crashReporter type.
+		 *
+		 * @type {typeof import('../electron-sandbox/globals').crashReporter}
+		 */
+		crashReporter: {
+
+			/**
+			 * @param {Electron.CrashReporterStartOptions} options
+			 */
+			start(options) {
+				crashReporter.start(options);
 			}
 		}
 	};

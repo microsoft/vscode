@@ -22,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IElectronService } from 'vs/platform/electron/node/electron';
-import { MessageBoxOptions } from 'electron';
+import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { fromNow } from 'vs/base/common/date';
 
 interface IMassagedMessageBoxOptions {

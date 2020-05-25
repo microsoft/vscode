@@ -10,7 +10,7 @@ import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { webFrame } from 'vs/base/electron-sandbox/globals';
+import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';

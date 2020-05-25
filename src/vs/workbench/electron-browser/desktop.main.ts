@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as gracefulFs from 'graceful-fs';
-import { webFrame } from 'vs/base/electron-sandbox/globals';
+import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { importEntries, mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-browser/window';

@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { webFrame } from 'vs/base/electron-sandbox/globals';
+import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { unmnemonicLabel } from 'vs/base/common/labels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';

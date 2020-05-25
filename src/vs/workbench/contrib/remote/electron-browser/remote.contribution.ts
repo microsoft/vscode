@@ -21,7 +21,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogChannel } from 'vs/platform/dialogs/electron-browser/dialogIpc';
 import { DownloadServiceChannel } from 'vs/platform/download/common/downloadIpc';
 import { LoggerChannel } from 'vs/platform/log/common/logIpc';
-import { ipcRenderer } from 'vs/base/electron-sandbox/globals';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IDiagnosticInfoOptions, IRemoteDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
