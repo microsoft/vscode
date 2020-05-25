@@ -4,19 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
 import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IViewModel, ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter } from 'vs/editor/common/viewModel/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 
 export interface EventCallback<T> {
 	(event: T): void;
 }
 
-export class ViewOutgoingEvents extends Disposable {
+export class ViewUserInputEvents {
 
 	public onKeyDown: EventCallback<IKeyboardEvent> | null = null;
 	public onKeyUp: EventCallback<IKeyboardEvent> | null = null;
@@ -29,11 +28,10 @@ export class ViewOutgoingEvents extends Disposable {
 	public onMouseDrop: EventCallback<IPartialEditorMouseEvent> | null = null;
 	public onMouseWheel: EventCallback<IMouseWheelEvent> | null = null;
 
-	private readonly _viewModel: IViewModel;
+	private readonly _coordinatesConverter: ICoordinatesConverter;
 
-	constructor(viewModel: IViewModel) {
-		super();
-		this._viewModel = viewModel;
+	constructor(coordinatesConverter: ICoordinatesConverter) {
+		this._coordinatesConverter = coordinatesConverter;
 	}
 
 	public emitKeyDown(e: IKeyboardEvent): void {
@@ -109,7 +107,7 @@ export class ViewOutgoingEvents extends Disposable {
 	}
 
 	private _convertViewToModelMouseTarget(target: IMouseTarget): IMouseTarget {
-		return ViewOutgoingEvents.convertViewToModelMouseTarget(target, this._viewModel.coordinatesConverter);
+		return ViewUserInputEvents.convertViewToModelMouseTarget(target, this._coordinatesConverter);
 	}
 
 	public static convertViewToModelMouseTarget(target: IMouseTarget, coordinatesConverter: ICoordinatesConverter): IMouseTarget {

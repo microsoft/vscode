@@ -14,7 +14,7 @@ import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
 import { ITextAreaHandlerHelper, TextAreaHandler } from 'vs/editor/browser/controller/textAreaHandler';
 import { IContentWidget, IContentWidgetPosition, IOverlayWidget, IOverlayWidgetPosition, IMouseTarget, IViewZoneChangeAccessor, IEditorAriaOptions } from 'vs/editor/browser/editorBrowser';
 import { ICommandDelegate, ViewController } from 'vs/editor/browser/view/viewController';
-import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ContentViewOverlays, MarginViewOverlays } from 'vs/editor/browser/view/viewOverlays';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { ViewContentWidgets } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
@@ -80,8 +80,6 @@ export class View extends ViewEventHandler {
 	private readonly _textAreaHandler: TextAreaHandler;
 	private readonly pointerHandler: PointerHandler;
 
-	private readonly outgoingEvents: ViewOutgoingEvents;
-
 	// Dom nodes
 	private linesContent: FastDomNode<HTMLElement>;
 	public domNode: FastDomNode<HTMLElement>;
@@ -95,14 +93,13 @@ export class View extends ViewEventHandler {
 		configuration: IConfiguration,
 		themeService: IThemeService,
 		model: IViewModel,
-		outgoingEvents: ViewOutgoingEvents
+		userInputEvents: ViewUserInputEvents
 	) {
 		super();
 		this._selections = [new Selection(1, 1, 1, 1)];
 		this._renderAnimationFrame = null;
-		this.outgoingEvents = outgoingEvents;
 
-		const viewController = new ViewController(configuration, model, this.outgoingEvents, commandDelegate);
+		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
 		this._context = new ViewContext(configuration, themeService.getColorTheme(), model);
@@ -321,7 +318,6 @@ export class View extends ViewEventHandler {
 		}
 
 		this._context.removeEventHandler(this);
-		this.outgoingEvents.dispose();
 
 		this.viewLines.dispose();
 
@@ -443,7 +439,7 @@ export class View extends ViewEventHandler {
 		if (!mouseTarget) {
 			return null;
 		}
-		return ViewOutgoingEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
+		return ViewUserInputEvents.convertViewToModelMouseTarget(mouseTarget, this._context.model.coordinatesConverter);
 	}
 
 	public createOverviewRuler(cssClassName: string): OverviewRuler {
