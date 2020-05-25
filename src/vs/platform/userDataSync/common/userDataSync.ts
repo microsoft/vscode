@@ -239,6 +239,7 @@ export interface ISyncExtension {
 	identifier: IExtensionIdentifier;
 	version?: string;
 	disabled?: boolean;
+	installed?: boolean;
 }
 
 export interface IStorageValue {
