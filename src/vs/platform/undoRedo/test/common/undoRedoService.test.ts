@@ -194,6 +194,10 @@ suite('UndoRedoService', () => {
 		await service.redo(resource2);
 		assert.equal(undoCall1, 1);
 		assert.equal(redoCall1, 1);
+		assert.equal(undoCall11, 0);
+		assert.equal(redoCall11, 0);
+		assert.equal(undoCall12, 0);
+		assert.equal(redoCall12, 0);
 		assert.equal(service.canUndo(resource1), true);
 		assert.equal(service.canRedo(resource1), false);
 		assert.equal(service.hasElements(resource1), true);
