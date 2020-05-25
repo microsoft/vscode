@@ -50,6 +50,8 @@ import product from 'vs/platform/product/common/product';
 import { NativeResourceIdentityService } from 'vs/platform/resource/node/resourceIdentityServiceImpl';
 import { IResourceIdentityService } from 'vs/platform/resource/common/resourceIdentityService';
 import { DesktopLogService } from 'vs/workbench/services/log/electron-browser/logService';
+import { ElectronService } from 'vs/workbench/services/electron/electron-browser/electronService';
+import { IElectronService } from 'vs/platform/electron/node/electron';
 
 class DesktopMain extends Disposable {
 
@@ -192,14 +194,19 @@ class DesktopMain extends Disposable {
 		const signService = new SignService();
 		serviceCollection.set(ISignService, signService);
 
+		// Remote Agent
 		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
+
+		// Electron
+		const electronService = new ElectronService(mainProcessService) as IElectronService;
+		serviceCollection.set(IElectronService, electronService);
 
 		// Files
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService));
+		const diskFileSystemProvider = this._register(new DiskFileSystemProvider(logService, electronService));
 		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
 
 		// User Data Provider

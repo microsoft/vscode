@@ -59,7 +59,6 @@ import 'vs/workbench/services/host/electron-browser/desktopHostService';
 import 'vs/workbench/services/request/electron-browser/requestService';
 import 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
-import 'vs/workbench/services/electron/electron-browser/electronService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
 import 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';

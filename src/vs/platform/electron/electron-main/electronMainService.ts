@@ -293,6 +293,10 @@ export class ElectronMainService implements IElectronMainService {
 		}
 	}
 
+	async moveItemToTrash(windowId: number | undefined, fullPath: string, deleteOnFail?: boolean): Promise<boolean> {
+		return shell.moveItemToTrash(fullPath, deleteOnFail);
+	}
+
 	//#endregion
 
 	//#region macOS Touchbar

@@ -61,6 +61,7 @@ export interface IElectronService {
 	setDocumentEdited(edited: boolean): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
+	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 
 	// macOS Touchbar
 	newWindowTab(): Promise<void>;
