@@ -30,7 +30,7 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent, ViewZonesChangedEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
@@ -980,6 +980,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		const hadAChange = this.viewLayout.changeWhitespace(callback);
 		if (hadAChange) {
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewZonesChangedEvent());
+			this._eventDispatcher.emitOutgoingEvent(new ViewZonesChangedEvent());
 		}
 	}
 	public setMaxLineWidth(maxLineWidth: number): void {

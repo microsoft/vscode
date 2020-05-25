@@ -148,6 +148,7 @@ export const enum OutgoingViewModelEventKind {
 	ContentSizeChanged,
 	FocusChanged,
 	ScrollChanged,
+	ViewZonesChanged,
 }
 
 export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
@@ -251,7 +252,6 @@ export class ScrollChangedEvent {
 		return (!this.scrollWidthChanged && !this.scrollLeftChanged && !this.scrollHeightChanged && !this.scrollTopChanged);
 	}
 
-
 	public merge(other: OutgoingViewModelEvent): ScrollChangedEvent {
 		if (other.kind !== OutgoingViewModelEventKind.ScrollChanged) {
 			return this;
@@ -263,8 +263,25 @@ export class ScrollChangedEvent {
 	}
 }
 
+export class ViewZonesChangedEvent {
+
+	public readonly kind = OutgoingViewModelEventKind.ViewZonesChanged;
+
+	constructor() {
+	}
+
+	public isNoOp(): boolean {
+		return false;
+	}
+
+	public merge(other: OutgoingViewModelEvent): ViewZonesChangedEvent {
+		return this;
+	}
+}
+
 export type OutgoingViewModelEvent = (
 	ContentSizeChangedEvent
 	| FocusChangedEvent
 	| ScrollChangedEvent
+	| ViewZonesChangedEvent
 );

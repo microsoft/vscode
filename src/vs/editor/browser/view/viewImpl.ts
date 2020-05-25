@@ -450,10 +450,9 @@ export class View extends ViewEventHandler {
 		return new OverviewRuler(this._context, cssClassName);
 	}
 
-	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): boolean {
-		const hadAChange = this.viewZones.changeViewZones(callback);
+	public change(callback: (changeAccessor: IViewZoneChangeAccessor) => any): void {
+		this.viewZones.changeViewZones(callback);
 		this._scheduleRender();
-		return hadAChange;
 	}
 
 	public render(now: boolean, everything: boolean): void {

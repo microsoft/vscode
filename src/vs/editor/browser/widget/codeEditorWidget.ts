@@ -1385,10 +1385,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		const hasChanges = this._modelData.view.change(callback);
-		if (hasChanges) {
-			this._onDidChangeViewZones.fire();
-		}
+		this._modelData.view.change(callback);
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget | null {
@@ -1520,6 +1517,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					break;
 				case OutgoingViewModelEventKind.ScrollChanged:
 					this._onDidScrollChange.fire(e);
+					break;
+				case OutgoingViewModelEventKind.ViewZonesChanged:
+					this._onDidChangeViewZones.fire();
 					break;
 			}
 		}));
