@@ -27,8 +27,8 @@ export class DesktopHostService extends Disposable implements IHostService {
 
 	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
 	private _onDidChangeFocus: Event<boolean> = Event.latch(Event.any(
-		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.environmentService.configuration.windowId), () => this.hasFocus),
-		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.environmentService.configuration.windowId), () => this.hasFocus)
+		Event.map(Event.filter(this.electronService.onWindowFocus, id => id === this.electronService.windowId), () => this.hasFocus),
+		Event.map(Event.filter(this.electronService.onWindowBlur, id => id === this.electronService.windowId), () => this.hasFocus)
 	));
 
 	get hasFocus(): boolean {
@@ -42,7 +42,7 @@ export class DesktopHostService extends Disposable implements IHostService {
 			return false;
 		}
 
-		return activeWindowId === this.environmentService.configuration.windowId;
+		return activeWindowId === this.electronService.windowId;
 	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;

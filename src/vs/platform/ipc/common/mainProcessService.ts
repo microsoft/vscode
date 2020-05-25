@@ -12,8 +12,6 @@ export interface IMainProcessService {
 
 	_serviceBrand: undefined;
 
-	readonly windowId: number;
-
 	getChannel(channelName: string): IChannel;
 
 	registerChannel(channelName: string, channel: IServerChannel<string>): void;

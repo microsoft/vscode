@@ -91,7 +91,6 @@ const eventPrefix = 'monacoworkbench';
 class MainProcessService implements IMainProcessService {
 
 	constructor(
-		public readonly windowId: number,
 		private server: Server,
 		private mainRouter: StaticRouter
 	) { }
@@ -126,7 +125,7 @@ async function main(server: Server, initData: ISharedProcessInitData, configurat
 	disposables.add(logService);
 	logService.info('main', JSON.stringify(configuration));
 
-	const mainProcessService = new MainProcessService(configuration.windowId, server, mainRouter);
+	const mainProcessService = new MainProcessService(server, mainRouter);
 	services.set(IMainProcessService, mainProcessService);
 
 	// Files

@@ -41,6 +41,12 @@ export class ElectronMainService implements IElectronMainService {
 	) {
 	}
 
+	//#region Properties
+
+	get windowId(): never { throw new Error('Not implemented in electron-main'); }
+
+	//#endregion
+
 	//#region Events
 
 	readonly onWindowOpen: Event<number> = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-created', (_, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));

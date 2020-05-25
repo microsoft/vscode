@@ -285,8 +285,8 @@ export class NativeWindow extends Disposable {
 
 		// Detect minimize / maximize
 		this._register(Event.any(
-			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.environmentService.configuration.windowId), () => true),
-			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.environmentService.configuration.windowId), () => false)
+			Event.map(Event.filter(this.electronService.onWindowMaximize, id => id === this.electronService.windowId), () => true),
+			Event.map(Event.filter(this.electronService.onWindowUnmaximize, id => id === this.electronService.windowId), () => false)
 		)(e => this.onDidChangeMaximized(e)));
 
 		this.onDidChangeMaximized(this.environmentService.configuration.maximized ?? false);
@@ -400,7 +400,7 @@ export class NativeWindow extends Disposable {
 		this.setupOpenHandlers();
 
 		// Emit event when vscode is ready
-		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipcRenderer.send('vscode:workbenchReady', this.environmentService.configuration.windowId));
+		this.lifecycleService.when(LifecyclePhase.Ready).then(() => ipcRenderer.send('vscode:workbenchReady', this.electronService.windowId));
 
 		// Integrity warning
 		this.integrityService.isPure().then(res => this.titleService.updateProperties({ isPure: res.isPure }));
@@ -727,6 +727,7 @@ class NativeMenubarControl extends MenubarControl {
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
+		@IElectronService private readonly electronService: IElectronService
 	) {
 		super(
 			menuService,
@@ -775,7 +776,7 @@ class NativeMenubarControl extends MenubarControl {
 		// Send menus to main process to be rendered by Electron
 		const menubarData = { menus: {}, keybindings: {} };
 		if (this.getMenubarMenus(menubarData)) {
-			this.menubarService.updateMenubar(this.environmentService.configuration.windowId, menubarData);
+			this.menubarService.updateMenubar(this.electronService.windowId, menubarData);
 		}
 	}
 

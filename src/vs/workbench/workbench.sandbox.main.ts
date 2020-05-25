@@ -19,6 +19,7 @@ import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
 import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
 import 'vs/workbench/services/url/electron-sandbox/urlService';
+import 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
 
 //#endregion
 

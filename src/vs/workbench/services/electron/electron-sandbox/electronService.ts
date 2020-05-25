@@ -12,8 +12,17 @@ export class ElectronService {
 	_serviceBrand: undefined;
 
 	constructor(
+		readonly windowId: number,
 		@IMainProcessService mainProcessService: IMainProcessService
 	) {
-		return createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), { context: mainProcessService.windowId });
+		return createChannelSender<IElectronService>(mainProcessService.getChannel('electron'), {
+			context: windowId,
+			properties: (() => {
+				const properties = new Map<string, unknown>();
+				properties.set('windowId', windowId);
+
+				return properties;
+			})()
+		});
 	}
 }

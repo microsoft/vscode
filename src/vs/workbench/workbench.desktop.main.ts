@@ -56,7 +56,6 @@ import 'vs/workbench/services/authentication/electron-browser/authenticationToke
 import 'vs/workbench/services/authentication/browser/authenticationService';
 import 'vs/workbench/services/host/electron-browser/desktopHostService';
 import 'vs/workbench/services/request/electron-browser/requestService';
-import 'vs/workbench/services/lifecycle/electron-browser/lifecycleService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 import 'vs/workbench/services/clipboard/electron-browser/clipboardService';

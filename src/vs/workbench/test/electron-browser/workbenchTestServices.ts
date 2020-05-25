@@ -162,6 +162,8 @@ export class TestSharedProcessService implements ISharedProcessService {
 export class TestElectronService implements IElectronService {
 	_serviceBrand: undefined;
 
+	readonly windowId = -1;
+
 	onWindowOpen: Event<number> = Event.None;
 	onWindowMaximize: Event<number> = Event.None;
 	onWindowUnmaximize: Event<number> = Event.None;

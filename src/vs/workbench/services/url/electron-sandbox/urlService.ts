@@ -24,7 +24,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 	private urlService: IURLService;
 
 	constructor(
-		@IMainProcessService private readonly mainProcessService: IMainProcessService,
+		@IMainProcessService mainProcessService: IMainProcessService,
 		@IOpenerService openerService: IOpenerService,
 		@IElectronService private electronService: IElectronService
 	) {
@@ -41,9 +41,9 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 
 		let query = uri.query;
 		if (!query) {
-			query = `windowId=${encodeURIComponent(this.mainProcessService.windowId)}`;
+			query = `windowId=${encodeURIComponent(this.electronService.windowId)}`;
 		} else {
-			query += `&windowId=${encodeURIComponent(this.mainProcessService.windowId)}`;
+			query += `&windowId=${encodeURIComponent(this.electronService.windowId)}`;
 		}
 
 		return uri.with({ query });

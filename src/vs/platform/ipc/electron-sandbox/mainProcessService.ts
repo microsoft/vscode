@@ -15,7 +15,7 @@ export class MainProcessService extends Disposable implements IMainProcessServic
 	private mainProcessConnection: Client;
 
 	constructor(
-		public readonly windowId: number
+		windowId: number
 	) {
 		super();
 

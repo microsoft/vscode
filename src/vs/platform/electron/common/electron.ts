@@ -16,6 +16,9 @@ export interface IElectronService {
 
 	_serviceBrand: undefined;
 
+	// Properties
+	readonly windowId: number;
+
 	// Events
 	readonly onWindowOpen: Event<number>;
 

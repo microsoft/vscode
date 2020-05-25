@@ -199,7 +199,7 @@ class DesktopMain extends Disposable {
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Electron
-		const electronService = new ElectronService(mainProcessService) as IElectronService;
+		const electronService = new ElectronService(this.configuration.windowId, mainProcessService) as IElectronService;
 		serviceCollection.set(IElectronService, electronService);
 
 		// Files

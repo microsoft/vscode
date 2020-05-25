@@ -1002,6 +1002,12 @@ export interface IChannelSenderOptions extends IBaseChannelOptions {
 	 * to each method call to the target.
 	 */
 	context?: unknown;
+
+	/**
+	 * If provided, will not proxy any of the properties
+	 * that are part of the Map but rather return that value.
+	 */
+	properties?: Map<string, unknown>;
 }
 
 export function createChannelSender<T>(channel: IChannel, options?: IChannelSenderOptions): T {
@@ -1010,6 +1016,11 @@ export function createChannelSender<T>(channel: IChannel, options?: IChannelSend
 	return new Proxy({}, {
 		get(_target: T, propKey: PropertyKey) {
 			if (typeof propKey === 'string') {
+
+				// Check for predefined values
+				if (options?.properties?.has(propKey)) {
+					return options.properties.get(propKey);
+				}
 
 				// Event
 				if (propertyIsEvent(propKey)) {
