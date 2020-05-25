@@ -54,6 +54,9 @@ export class ViewModelEventDispatcher extends Disposable {
 				return;
 			}
 			const event = this._outgoingEvents.shift()!;
+			if (event.isNoOp()) {
+				continue;
+			}
 			this._onEvent.fire(event);
 		}
 	}
@@ -143,6 +146,8 @@ export class ViewModelEventDispatcher extends Disposable {
 
 export const enum OutgoingViewModelEventKind {
 	ContentSizeChanged,
+	FocusChanged,
+	ScrollChanged,
 }
 
 export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
@@ -166,9 +171,100 @@ export class ContentSizeChangedEvent implements IContentSizeChangedEvent {
 		this.contentHeightChanged = (this._oldContentHeight !== this.contentHeight);
 	}
 
-	public merge(other: ContentSizeChangedEvent): ContentSizeChangedEvent {
+	public isNoOp(): boolean {
+		return (!this.contentWidthChanged && !this.contentHeightChanged);
+	}
+
+
+	public merge(other: OutgoingViewModelEvent): ContentSizeChangedEvent {
+		if (other.kind !== OutgoingViewModelEventKind.ContentSizeChanged) {
+			return this;
+		}
 		return new ContentSizeChangedEvent(this._oldContentWidth, this._oldContentHeight, other.contentWidth, other.contentHeight);
 	}
 }
 
-export type OutgoingViewModelEvent = ContentSizeChangedEvent;
+export class FocusChangedEvent {
+
+	public readonly kind = OutgoingViewModelEventKind.FocusChanged;
+
+	readonly oldHasFocus: boolean;
+	readonly hasFocus: boolean;
+
+	constructor(oldHasFocus: boolean, hasFocus: boolean) {
+		this.oldHasFocus = oldHasFocus;
+		this.hasFocus = hasFocus;
+	}
+
+	public isNoOp(): boolean {
+		return (this.oldHasFocus === this.hasFocus);
+	}
+
+	public merge(other: OutgoingViewModelEvent): FocusChangedEvent {
+		if (other.kind !== OutgoingViewModelEventKind.FocusChanged) {
+			return this;
+		}
+		return new FocusChangedEvent(this.oldHasFocus, other.hasFocus);
+	}
+}
+
+export class ScrollChangedEvent {
+
+	public readonly kind = OutgoingViewModelEventKind.ScrollChanged;
+
+	private readonly _oldScrollWidth: number;
+	private readonly _oldScrollLeft: number;
+	private readonly _oldScrollHeight: number;
+	private readonly _oldScrollTop: number;
+
+	public readonly scrollWidth: number;
+	public readonly scrollLeft: number;
+	public readonly scrollHeight: number;
+	public readonly scrollTop: number;
+
+	public readonly scrollWidthChanged: boolean;
+	public readonly scrollLeftChanged: boolean;
+	public readonly scrollHeightChanged: boolean;
+	public readonly scrollTopChanged: boolean;
+
+	constructor(
+		oldScrollWidth: number, oldScrollLeft: number, oldScrollHeight: number, oldScrollTop: number,
+		scrollWidth: number, scrollLeft: number, scrollHeight: number, scrollTop: number,
+	) {
+		this._oldScrollWidth = oldScrollWidth;
+		this._oldScrollLeft = oldScrollLeft;
+		this._oldScrollHeight = oldScrollHeight;
+		this._oldScrollTop = oldScrollTop;
+
+		this.scrollWidth = scrollWidth;
+		this.scrollLeft = scrollLeft;
+		this.scrollHeight = scrollHeight;
+		this.scrollTop = scrollTop;
+
+		this.scrollWidthChanged = (this._oldScrollWidth !== this.scrollWidth);
+		this.scrollLeftChanged = (this._oldScrollLeft !== this.scrollLeft);
+		this.scrollHeightChanged = (this._oldScrollHeight !== this.scrollHeight);
+		this.scrollTopChanged = (this._oldScrollTop !== this.scrollTop);
+	}
+
+	public isNoOp(): boolean {
+		return (!this.scrollWidthChanged && !this.scrollLeftChanged && !this.scrollHeightChanged && !this.scrollTopChanged);
+	}
+
+
+	public merge(other: OutgoingViewModelEvent): ScrollChangedEvent {
+		if (other.kind !== OutgoingViewModelEventKind.ScrollChanged) {
+			return this;
+		}
+		return new ScrollChangedEvent(
+			this._oldScrollWidth, this._oldScrollLeft, this._oldScrollHeight, this._oldScrollTop,
+			other.scrollWidth, other.scrollLeft, other.scrollHeight, other.scrollTop
+		);
+	}
+}
+
+export type OutgoingViewModelEvent = (
+	ContentSizeChangedEvent
+	| FocusChangedEvent
+	| ScrollChangedEvent
+);

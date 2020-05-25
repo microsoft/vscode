@@ -30,7 +30,7 @@ import { Cursor } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
-import { ViewModelEventDispatcher, OutgoingViewModelEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
+import { ViewModelEventDispatcher, OutgoingViewModelEvent, FocusChangedEvent, ScrollChangedEvent } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
@@ -112,6 +112,10 @@ export class ViewModel extends Disposable implements IViewModel {
 				this._tokenizeViewportSoon.schedule();
 			}
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewScrollChangedEvent(e));
+			this._eventDispatcher.emitOutgoingEvent(new ScrollChangedEvent(
+				e.oldScrollWidth, e.oldScrollLeft, e.oldScrollHeight, e.oldScrollTop,
+				e.scrollWidth, e.scrollLeft, e.scrollHeight, e.scrollTop
+			));
 		}));
 
 		this._register(this.viewLayout.onDidContentSizeChange((e) => {
@@ -172,6 +176,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this.hasFocus = hasFocus;
 		this.cursor.setHasFocus(hasFocus);
 		this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewFocusChangedEvent(hasFocus));
+		this._eventDispatcher.emitOutgoingEvent(new FocusChangedEvent(!hasFocus, hasFocus));
 	}
 
 	public onDidColorThemeChange(): void {

@@ -305,15 +305,6 @@ export class View extends ViewEventHandler {
 	}
 	public onFocusChanged(e: viewEvents.ViewFocusChangedEvent): boolean {
 		this.domNode.setClassName(this.getEditorClassName());
-		if (e.isFocused) {
-			this.outgoingEvents.emitViewFocusGained();
-		} else {
-			this.outgoingEvents.emitViewFocusLost();
-		}
-		return false;
-	}
-	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
-		this.outgoingEvents.emitScrollChanged(e);
 		return false;
 	}
 	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
