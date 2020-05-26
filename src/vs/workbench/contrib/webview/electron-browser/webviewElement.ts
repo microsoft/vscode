@@ -380,6 +380,11 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		super.contentOptions = options;
 	}
 
+	public set localResourcesRoot(resources: URI[]) {
+		this._protocolProvider.update(resources || []);
+		super.localResourcesRoot = resources;
+	}
+
 	protected readonly extraContentOptions = {};
 
 	public set html(value: string) {

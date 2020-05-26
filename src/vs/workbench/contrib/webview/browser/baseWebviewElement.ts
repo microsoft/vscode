@@ -6,6 +6,7 @@
 import { addClass } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -246,6 +247,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			state: this.content.state,
 		};
 		this.doUpdateContent();
+	}
+
+	public set localResourcesRoot(resources: URI[]) {
+		/** no op */
 	}
 
 	public set state(state: string | undefined) {

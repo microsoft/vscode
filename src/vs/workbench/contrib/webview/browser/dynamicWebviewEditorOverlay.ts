@@ -7,6 +7,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -172,6 +173,10 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 	public set contentOptions(value: WebviewContentOptions) {
 		this._contentOptions = value;
 		this.withWebview(webview => webview.contentOptions = value);
+	}
+
+	public set localResourcesRoot(resources: URI[]) {
+		this.withWebview(webview => webview.localResourcesRoot = resources);
 	}
 
 	private readonly _onDidFocus = this._register(new Emitter<void>());
