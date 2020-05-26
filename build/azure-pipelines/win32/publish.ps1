@@ -3,11 +3,7 @@ $ErrorActionPreference = "Stop"
 
 $Arch = "$env:VSCODE_ARCH"
 
-if ("$Arch" -eq "arm64") {
-	exec { yarn gulp "vscode-win32-$Arch-archive" }
-} else {
-	exec { yarn gulp "vscode-win32-$Arch-archive" "vscode-win32-$Arch-system-setup" "vscode-win32-$Arch-user-setup" --sign }
-}
+exec { yarn gulp "vscode-win32-$Arch-archive" "vscode-win32-$Arch-system-setup" "vscode-win32-$Arch-user-setup" --sign }
 
 $Repo = "$(pwd)"
 $Root = "$Repo\.."
@@ -32,9 +28,9 @@ $Version = $PackageJson.version
 $AssetPlatform = if ("$Arch" -eq "ia32") { "win32" } else { "win32-$Arch" }
 
 exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-archive" archive "VSCode-win32-$Arch-$Version.zip" $Zip }
+exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup "VSCodeSetup-$Arch-$Version.exe" $SystemExe }
+exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup "VSCodeUserSetup-$Arch-$Version.exe" $UserExe }
 
 if ("$Arch" -ne "arm64") {
-	exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform" setup "VSCodeSetup-$Arch-$Version.exe" $SystemExe }
-	exec { node build/azure-pipelines/common/createAsset.js "$AssetPlatform-user" setup "VSCodeUserSetup-$Arch-$Version.exe" $UserExe }
 	exec { node build/azure-pipelines/common/createAsset.js "server-$AssetPlatform" archive "vscode-server-win32-$Arch.zip" $ServerZip }
 }

@@ -157,24 +157,24 @@ steps:
       ]
     SessionTimeout: 120
 
-# - task: NuGetCommand@2
-#   displayName: Install ESRPClient.exe
-#   inputs:
-#     restoreSolution: 'build\azure-pipelines\win32\ESRPClient\packages.config'
-#     feedsToUse: config
-#     nugetConfigPath: 'build\azure-pipelines\win32\ESRPClient\NuGet.config'
-#     externalFeedCredentials: 3fc0b7f7-da09-4ae7-a9c8-d69824b1819b
-#     restoreDirectory: packages
+- task: NuGetCommand@2
+  displayName: Install ESRPClient.exe
+  inputs:
+    restoreSolution: 'build\azure-pipelines\win32\ESRPClient\packages.config'
+    feedsToUse: config
+    nugetConfigPath: 'build\azure-pipelines\win32\ESRPClient\NuGet.config'
+    externalFeedCredentials: 3fc0b7f7-da09-4ae7-a9c8-d69824b1819b
+    restoreDirectory: packages
 
-# - task: ESRPImportCertTask@1
-#   displayName: Import ESRP Request Signing Certificate
-#   inputs:
-#     ESRP: 'ESRP CodeSign'
+- task: ESRPImportCertTask@1
+  displayName: Import ESRP Request Signing Certificate
+  inputs:
+    ESRP: 'ESRP CodeSign'
 
-# - powershell: |
-#     $ErrorActionPreference = "Stop"
-#     .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(esrp-auth-certificate) -AuthCertificateKey $(esrp-auth-certificate-key)
-#   displayName: Import ESRP Auth Certificate
+- powershell: |
+    $ErrorActionPreference = "Stop"
+    .\build\azure-pipelines\win32\import-esrp-auth-cert.ps1 -AuthCertificateBase64 $(esrp-auth-certificate) -AuthCertificateKey $(esrp-auth-certificate-key)
+  displayName: Import ESRP Auth Certificate
 
 - powershell: |
     . build/azure-pipelines/win32/exec.ps1
