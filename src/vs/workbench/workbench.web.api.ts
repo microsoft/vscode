@@ -35,6 +35,17 @@ interface IExternalUriResolver {
 	(uri: URI): Promise<URI>;
 }
 
+interface ITunnelProvider {
+	/**
+	 * Support for creating tunnels.
+	 */
+	tunnelFactory?: ITunnelFactory;
+	/**
+	 * Support for filtering candidate ports
+	 */
+	showPortCandidate?: IShowPortCandidate;
+}
+
 interface ITunnelFactory {
 	(tunnelOptions: ITunnelOptions): Promise<ITunnel> | undefined;
 }
@@ -197,15 +208,8 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly resolveExternalUri?: IExternalUriResolver;
 
-	/**
-	 * Support for creating tunnels.
-	 */
-	readonly tunnelFactory?: ITunnelFactory;
 
-	/**
-	 * Support for filtering candidate ports
-	 */
-	readonly showCandidate?: IShowPortCandidate;
+	readonly tunnelProvider?: ITunnelProvider;
 
 	//#endregion
 
