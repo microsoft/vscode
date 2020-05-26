@@ -404,6 +404,11 @@ export interface IEditorInput extends IDisposable {
 	getTitle(verbosity?: Verbosity): string | undefined;
 
 	/**
+	 * Returns the aria label to be read out by a screen reader.
+	 */
+	getAriaLabel(): string;
+
+	/**
 	 * Resolves the input.
 	 */
 	resolve(): Promise<IEditorModel | null>;
@@ -510,6 +515,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	getTitle(verbosity?: Verbosity): string {
 		return this.getName();
+	}
+
+	getAriaLabel(): string {
+		return this.getTitle(Verbosity.SHORT);
 	}
 
 	/**

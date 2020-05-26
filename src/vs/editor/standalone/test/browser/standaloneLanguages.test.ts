@@ -42,6 +42,8 @@ suite('TokenizationSupport2Adapter', () => {
 		}
 		public getColorTheme(): IStandaloneTheme {
 			return {
+				label: 'mock',
+
 				tokenTheme: new MockTokenTheme(),
 
 				themeName: LIGHT,

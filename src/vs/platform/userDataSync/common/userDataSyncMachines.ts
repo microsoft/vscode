@@ -32,10 +32,12 @@ export interface IUserDataSyncMachinesService {
 	_serviceBrand: any;
 
 	getMachines(manifest?: IUserDataManifest): Promise<IUserDataSyncMachine[]>;
-	updateName(name: string, manifest?: IUserDataManifest): Promise<void>;
-	disable(id: string): Promise<void>
 
-	unset(): Promise<void>;
+	addCurrentMachine(name: string, manifest?: IUserDataManifest): Promise<void>;
+	removeCurrentMachine(manifest?: IUserDataManifest): Promise<void>;
+
+	renameMachine(machineId: string, name: string): Promise<void>;
+	disableMachine(machineId: string): Promise<void>
 }
 
 export class UserDataSyncMachinesService extends Disposable implements IUserDataSyncMachinesService {
@@ -66,7 +68,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		return machineData.machines.map<IUserDataSyncMachine>(machine => ({ ...machine, ...{ isCurrent: machine.id === currentMachineId } }));
 	}
 
-	async updateName(name: string, manifest?: IUserDataManifest): Promise<void> {
+	async addCurrentMachine(name: string, manifest?: IUserDataManifest): Promise<void> {
 		const currentMachineId = await this.currentMachineIdPromise;
 		const machineData = await this.readMachinesData(manifest);
 		let currentMachine = machineData.machines.find(({ id }) => id === currentMachineId);
@@ -78,9 +80,9 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		await this.writeMachinesData(machineData);
 	}
 
-	async unset(): Promise<void> {
+	async removeCurrentMachine(manifest?: IUserDataManifest): Promise<void> {
 		const currentMachineId = await this.currentMachineIdPromise;
-		const machineData = await this.readMachinesData();
+		const machineData = await this.readMachinesData(manifest);
 		const updatedMachines = machineData.machines.filter(({ id }) => id !== currentMachineId);
 		if (updatedMachines.length !== machineData.machines.length) {
 			machineData.machines = updatedMachines;
@@ -88,7 +90,16 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 		}
 	}
 
-	async disable(machineId: string): Promise<void> {
+	async renameMachine(machineId: string, name: string, manifest?: IUserDataManifest): Promise<void> {
+		const machineData = await this.readMachinesData(manifest);
+		const currentMachine = machineData.machines.find(({ id }) => id === machineId);
+		if (currentMachine) {
+			currentMachine.name = name;
+			await this.writeMachinesData(machineData);
+		}
+	}
+
+	async disableMachine(machineId: string): Promise<void> {
 		const machineData = await this.readMachinesData();
 		const machine = machineData.machines.find(({ id }) => id === machineId);
 		if (machine) {

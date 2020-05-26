@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncStoreError, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, SyncStatus, IUserDataSyncStoreService, SyncResource, IUserDataSyncLogService, IUserDataSynchroniser, UserDataSyncErrorCode, UserDataSyncError, SyncResourceConflicts, ISyncResourceHandle } from 'vs/platform/userDataSync/common/userDataSync';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -20,12 +20,13 @@ import { SettingsSynchroniser } from 'vs/platform/userDataSync/common/settingsSy
 import { isEqual } from 'vs/base/common/resources';
 import { SnippetsSynchroniser } from 'vs/platform/userDataSync/common/snippetsSync';
 import { Throttler } from 'vs/base/common/async';
-import { IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
+import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { isWeb } from 'vs/base/common/platform';
+import { platform, PlatformToString } from 'vs/base/common/platform';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 type SyncClassification = {
-	source?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	resource?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 };
 
 const SESSION_ID_KEY = 'sync.sessionId';
@@ -95,30 +96,51 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 	async pull(): Promise<void> {
 		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			try {
-				await synchroniser.pull();
-			} catch (e) {
-				this.handleSyncError(e, synchroniser.resource);
+		try {
+			for (const synchroniser of this.synchronisers) {
+				try {
+					await synchroniser.pull();
+				} catch (e) {
+					this.handleSynchronizerError(e, synchroniser.resource);
+				}
 			}
+			this.updateLastSyncTime();
+		} catch (error) {
+			if (error instanceof UserDataSyncError) {
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { resource: error.resource });
+			}
+			throw error;
 		}
-		this.updateLastSyncTime();
 	}
 
 	async push(): Promise<void> {
 		await this.checkEnablement();
-		for (const synchroniser of this.synchronisers) {
-			try {
-				await synchroniser.push();
-			} catch (e) {
-				this.handleSyncError(e, synchroniser.resource);
+		try {
+			for (const synchroniser of this.synchronisers) {
+				try {
+					await synchroniser.push();
+				} catch (e) {
+					this.handleSynchronizerError(e, synchroniser.resource);
+				}
 			}
+			this.updateLastSyncTime();
+		} catch (error) {
+			if (error instanceof UserDataSyncError) {
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { resource: error.resource });
+			}
+			throw error;
 		}
-		this.updateLastSyncTime();
 	}
 
+	private recoveredSettings: boolean = false;
 	async sync(): Promise<void> {
 		await this.checkEnablement();
+
+		if (!this.recoveredSettings) {
+			await this.settingsSynchroniser.recoverSettings();
+			this.recoveredSettings = true;
+		}
+
 		await this.syncThrottler.queue(() => this.doSync());
 	}
 
@@ -131,7 +153,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				this.setStatus(SyncStatus.Syncing);
 			}
 
-			this.telemetryService.publicLog2<{}, SyncClassification>('sync/getmanifest');
+			this.telemetryService.publicLog2('sync/getmanifest');
 			let manifest = await this.userDataSyncStoreService.manifest();
 
 			// Server has no data but this machine was synced before
@@ -152,7 +174,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			// Check if sync was turned off from other machine
 			if (currentMachine?.disabled) {
 				// Unset the current machine
-				await this.userDataSyncMachinesService.unset();
+				await this.userDataSyncMachinesService.removeCurrentMachine(manifest || undefined);
 				// Throw TurnedOff error
 				throw new UserDataSyncError(localize('turned off machine', "Cannot sync because syncing is turned off on this machine from another machine."), UserDataSyncErrorCode.TurnedOff);
 			}
@@ -161,7 +183,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				try {
 					await synchroniser.sync(manifest);
 				} catch (e) {
-					this.handleSyncError(e, synchroniser.resource);
+					this.handleSynchronizerError(e, synchroniser.resource);
 					this._syncErrors.push([synchroniser.resource, UserDataSyncError.toUserDataSyncError(e)]);
 				}
 			}
@@ -177,22 +199,18 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			}
 
 			if (!currentMachine) {
-				// add current machine to sync server
-				const namePrefix = `${this.productService.nameLong}${isWeb ? ' (Web)' : ''}`;
-				const nameRegEx = new RegExp(`${namePrefix}\\s#(\\d)`);
-
-				let nameIndex = 0;
-				for (const machine of machines) {
-					const matches = nameRegEx.exec(machine.name);
-					const index = matches ? parseInt(matches[1]) : 0;
-					nameIndex = index > nameIndex ? index : nameIndex;
-				}
-				await this.userDataSyncMachinesService.updateName(`${namePrefix} #${nameIndex + 1}`, manifest || undefined);
+				const name = this.computeDefaultMachineName(machines);
+				await this.userDataSyncMachinesService.addCurrentMachine(name, manifest || undefined);
 			}
 
 			this.logService.info(`Sync done. Took ${new Date().getTime() - startTime}ms`);
 			this.updateLastSyncTime();
 
+		} catch (error) {
+			if (error instanceof UserDataSyncError) {
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { resource: error.resource });
+			}
+			throw error;
 		} finally {
 			this.updateStatus();
 			this._onSyncErrors.fire(this._syncErrors);
@@ -255,6 +273,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.getSynchroniser(resource).getAssociatedResources(syncResourceHandle);
 	}
 
+	getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
+		return this.getSynchroniser(resource).getMachineId(syncResourceHandle);
+	}
+
 	async isFirstTimeSyncWithMerge(): Promise<boolean> {
 		await this.checkEnablement();
 		if (!await this.userDataSyncStoreService.manifest()) {
@@ -286,7 +308,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.storageService.remove(SESSION_ID_KEY, StorageScope.GLOBAL);
 		this.storageService.remove(LAST_SYNC_TIME_KEY, StorageScope.GLOBAL);
 		if (!donotUnsetMachine) {
-			await this.userDataSyncMachinesService.unset();
+			await this.userDataSyncMachinesService.removeCurrentMachine();
 		}
 		for (const synchroniser of this.synchronisers) {
 			try {
@@ -371,17 +393,16 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		}
 	}
 
-	private handleSyncError(e: Error, source: SyncResource): void {
-		if (e instanceof UserDataSyncStoreError) {
+	private handleSynchronizerError(e: Error, source: SyncResource): void {
+		if (e instanceof UserDataSyncError) {
 			switch (e.code) {
 				case UserDataSyncErrorCode.TooLarge:
-					this.telemetryService.publicLog2<{ source: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { source });
-					break;
 				case UserDataSyncErrorCode.TooManyRequests:
-					this.telemetryService.publicLog2(`sync/error/${UserDataSyncErrorCode.TooManyRequests}`);
-					break;
+				case UserDataSyncErrorCode.LocalTooManyRequests:
+				case UserDataSyncErrorCode.UpgradeRequired:
+				case UserDataSyncErrorCode.Incompatible:
+					throw e;
 			}
-			throw e;
 		}
 		this.logService.error(e);
 		this.logService.error(`${source}: ${toErrorMessage(e)}`);
@@ -390,6 +411,20 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private computeConflicts(): SyncResourceConflicts[] {
 		return this.synchronisers.filter(s => s.status === SyncStatus.HasConflicts)
 			.map(s => ({ syncResource: s.resource, conflicts: s.conflicts }));
+	}
+
+	private computeDefaultMachineName(machines: IUserDataSyncMachine[]): string {
+		const namePrefix = `${this.productService.nameLong} (${PlatformToString(platform)})`;
+		const nameRegEx = new RegExp(`${escapeRegExpCharacters(namePrefix)}\\s#(\\d)`);
+
+		let nameIndex = 0;
+		for (const machine of machines) {
+			const matches = nameRegEx.exec(machine.name);
+			const index = matches ? parseInt(matches[1]) : 0;
+			nameIndex = index > nameIndex ? index : nameIndex;
+		}
+
+		return `${namePrefix} #${nameIndex + 1}`;
 	}
 
 	getSynchroniser(source: SyncResource): IUserDataSynchroniser {

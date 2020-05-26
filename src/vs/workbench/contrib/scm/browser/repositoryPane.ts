@@ -40,7 +40,7 @@ import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten, find } from 'vs/base/common/arrays';
@@ -76,6 +76,34 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
+
+function splitMatches(uri: URI, filterData: FuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+	let matches: IMatch[] | undefined;
+	let descriptionMatches: IMatch[] | undefined;
+
+	if (filterData) {
+		matches = [];
+		descriptionMatches = [];
+
+		const fileName = basename(uri);
+		const allMatches = createMatches(filterData);
+
+		for (const match of allMatches) {
+			if (match.end <= fileName.length) {
+				matches!.push(match);
+			} else {
+				descriptionMatches!.push(
+					{
+						start: match.start - fileName.length,
+						end: match.end - fileName.length
+					}
+				);
+			}
+		}
+	}
+
+	return [matches, descriptionMatches];
+}
 
 interface ResourceGroupTemplate {
 	readonly name: HTMLElement;
@@ -188,7 +216,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
 		const name = append(element, $('.name'));
-		const fileLabel = this.labels.create(name, { supportHighlights: true });
+		const fileLabel = this.labels.create(name, { supportDescriptionHighlights: true, supportHighlights: true });
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
@@ -214,11 +242,13 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
 
+		const [matches, descriptionMatches] = splitMatches(uri, node.filterData);
 		template.fileLabel.setFile(uri, {
 			fileDecorations: { colors: false, badges: !icon },
 			hidePath: viewModel.mode === ViewModelMode.Tree,
 			fileKind,
-			matches: createMatches(node.filterData)
+			matches,
+			descriptionMatches
 		});
 
 		template.actionBar.clear();
@@ -270,10 +300,12 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const label = compressed.elements.map(e => e.name).join('/');
 		const fileKind = FileKind.FOLDER;
 
+		const [matches, descriptionMatches] = splitMatches(folder.uri, node.filterData);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
-			matches: createMatches(node.filterData)
+			matches,
+			descriptionMatches
 		});
 
 		template.actionBar.clear();
@@ -358,13 +390,20 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<TreeElement> {
 
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			return basename(element.sourceUri);
+			// Since a match in the file name takes precedence over a match
+			// in the folder name we are returning the label as file/folder.
+			const fileName = basename(element.sourceUri);
+			const filePath = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true });
+
+			return filePath.length !== 0 ? `${fileName}${filePath}` : fileName;
 		}
 	}
 
@@ -877,7 +916,7 @@ export class RepositoryPane extends ViewPane {
 
 		const filter = new SCMTreeFilter();
 		const sorter = new SCMTreeSorter(() => this.viewModel);
-		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
+		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider);
 		const identityProvider = new SCMResourceIdentityProvider();
 
 		this.tree = this.instantiationService.createInstance(

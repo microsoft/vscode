@@ -90,7 +90,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this.logService.info('Auto Sync: Did reset the local sync state.');
 			this.userDataSyncEnablementService.setEnablement(false);
 			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
-		} else if (userDataSyncError.code === UserDataSyncErrorCode.TooManyRequests) {
+		} else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests) {
 			this.userDataSyncEnablementService.setEnablement(false);
 			this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
 		} else {

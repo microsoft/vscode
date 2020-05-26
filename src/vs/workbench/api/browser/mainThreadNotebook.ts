@@ -377,6 +377,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 					{ editType: CellEditType.Delete, count: mainthreadNotebook.textModel.cells.length, index: 0 },
 					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
 				]);
+				mainthreadNotebook.textModel.updateRenderers(data.renderers);
 			}
 			return mainthreadNotebook.textModel;
 		}
@@ -396,6 +397,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 					cells: backup.cells || []
 				}
 			]);
+
+			// TODO@rebornix load renderers after reloading
 
 			this._mainThreadNotebook.addNotebookDocument({
 				viewType: document.viewType,
@@ -429,6 +432,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 		document.textModel.languages = data.languages;
 		document.textModel.metadata = data.metadata;
+		document.textModel.updateRenderers(data.renderers);
 
 		if (data.cells.length) {
 			document.textModel.initialize(data!.cells);

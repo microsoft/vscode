@@ -20,6 +20,7 @@ import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData, 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 interface ISyncContent {
 	mac?: string;
@@ -42,10 +43,11 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncUtilService userDataSyncUtilService: IUserDataSyncUtilService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(environmentService.keybindingsResource, SyncResource.Keybindings, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.keybindingsResource, SyncResource.Keybindings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
 	async pull(): Promise<void> {
@@ -269,7 +271,7 @@ export class KeybindingsSynchroniser extends AbstractJsonFileSynchroniser implem
 		if (lastSyncUserData?.ref !== remoteUserData.ref) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Updating last synchronized keybindings...`);
 			const lastSyncContent = content !== null || fileContent !== null ? this.toSyncContent(content !== null ? content : fileContent!.value.toString(), null) : null;
-			await this.updateLastSyncUserData({ ref: remoteUserData.ref, syncData: lastSyncContent ? { version: remoteUserData.syncData!.version, content: lastSyncContent } : null });
+			await this.updateLastSyncUserData({ ref: remoteUserData.ref, syncData: lastSyncContent ? { version: remoteUserData.syncData!.version, machineId: remoteUserData.syncData!.machineId, content: lastSyncContent } : null });
 			this.logService.info(`${this.syncResourceLogLabel}: Updated last synchronized keybindings`);
 		}
 

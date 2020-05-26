@@ -87,6 +87,41 @@ suite('TypeScript Quick Fix', () => {
 			`foo;`
 		));
 	});
+
+	test('Only a single ts-ignore should be returned if there are multiple errors on one line #98274', async () => {
+		const testDocumentUri = workspaceFile('foojs.js');
+		const editor = await createTestEditor(testDocumentUri,
+			`//@ts-check`,
+			`const a = require('./bla');`);
+
+		await wait(3000);
+
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
+			testDocumentUri,
+			editor.document.lineAt(1).range
+		);
+
+		const ignoreFixes = fixes?.filter(x => x.title === 'Ignore this error message');
+		assert.strictEqual(ignoreFixes?.length, 1);
+	});
+
+	test('Should prioritize implement interface over remove unused #94212', async () => {
+		const testDocumentUri = workspaceFile('foo.ts');
+		const editor = await createTestEditor(testDocumentUri,
+			`export interface IFoo { value: string; }`,
+			`class Foo implements IFoo { }`);
+
+		await wait(3000);
+
+		const fixes = await vscode.commands.executeCommand<vscode.CodeAction[]>('vscode.executeCodeActionProvider',
+			testDocumentUri,
+			editor.document.lineAt(1).range
+		);
+
+		assert.strictEqual(fixes?.length, 2);
+		assert.strictEqual(fixes![0].title, `Implement interface 'IFoo'`);
+		assert.strictEqual(fixes![1].title, `Remove unused declaration for: 'Foo'`);
+	});
 });
 
 
