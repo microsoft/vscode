@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-main/windows';
-import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app } from 'electron';
+import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app, clipboard } from 'electron';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IOpenedWindow, INativeOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
@@ -301,6 +301,39 @@ export class ElectronMainService implements IElectronMainService {
 
 	async moveItemToTrash(windowId: number | undefined, fullPath: string, deleteOnFail?: boolean): Promise<boolean> {
 		return shell.moveItemToTrash(fullPath, deleteOnFail);
+	}
+
+	//#endregion
+
+
+	//#region clipboard
+
+	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
+		return clipboard.readText(type);
+	}
+
+	async writeClipboardText(windowId: number | undefined, text: string, type?: 'selection' | 'clipboard'): Promise<void> {
+		return clipboard.writeText(text, type);
+	}
+
+	async readClipboardFindText(windowId: number | undefined,): Promise<string> {
+		return clipboard.readFindText();
+	}
+
+	async writeClipboardFindText(windowId: number | undefined, text: string): Promise<void> {
+		return clipboard.writeFindText(text);
+	}
+
+	async writeClipboardBuffer(windowId: number | undefined, format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void> {
+		return clipboard.writeBuffer(format, buffer as Buffer, type);
+	}
+
+	async readClipboardBuffer(windowId: number | undefined, format: string): Promise<Uint8Array> {
+		return clipboard.readBuffer(format);
+	}
+
+	async hasClipboard(windowId: number | undefined, format: string, type?: 'selection' | 'clipboard'): Promise<boolean> {
+		return clipboard.has(format, type);
 	}
 
 	//#endregion

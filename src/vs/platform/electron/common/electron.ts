@@ -62,6 +62,15 @@ export interface ICommonElectronService {
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
 
+	// clipboard
+	readClipboardText(type?: 'selection' | 'clipboard'): Promise<string>;
+	writeClipboardText(text: string, type?: 'selection' | 'clipboard'): Promise<void>;
+	readClipboardFindText(): Promise<string>;
+	writeClipboardFindText(text: string): Promise<void>;
+	writeClipboardBuffer(format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard'): Promise<void>;
+	readClipboardBuffer(format: string): Promise<Uint8Array>;
+	hasClipboard(format: string, type?: 'selection' | 'clipboard'): Promise<boolean>;
+
 	// macOS Touchbar
 	newWindowTab(): Promise<void>;
 	showPreviousWindowTab(): Promise<void>;

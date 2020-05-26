@@ -471,7 +471,7 @@ export class ExplorerView extends ViewPane {
 		}
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
+	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
 		const disposables = new DisposableStore();
 		let stat = e.element;
 		let anchor = e.anchor;
@@ -490,7 +490,7 @@ export class ExplorerView extends ViewPane {
 		}
 
 		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
+		this.fileCopiedContextKey.set(await this.clipboardService.hasResources());
 		this.setContextKeys(stat);
 
 		const selection = this.tree.getSelection();

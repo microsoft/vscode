@@ -160,6 +160,7 @@ export class TestSharedProcessService implements ISharedProcessService {
 }
 
 export class TestElectronService implements IElectronService {
+
 	_serviceBrand: undefined;
 
 	readonly windowId = -1;
@@ -217,6 +218,13 @@ export class TestElectronService implements IElectronService {
 	async toggleDevTools(): Promise<void> { }
 	async startCrashReporter(options: Electron.CrashReporterStartOptions): Promise<void> { }
 	async resolveProxy(url: string): Promise<string | undefined> { return undefined; }
+	async readClipboardText(type?: 'selection' | 'clipboard' | undefined): Promise<string> { return ''; }
+	async writeClipboardText(text: string, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async readClipboardFindText(): Promise<string> { return ''; }
+	async writeClipboardFindText(text: string): Promise<void> { }
+	async writeClipboardBuffer(format: string, buffer: Uint8Array, type?: 'selection' | 'clipboard' | undefined): Promise<void> { }
+	async readClipboardBuffer(format: string): Promise<Uint8Array> { return Uint8Array.from([]); }
+	async hasClipboard(format: string, type?: 'selection' | 'clipboard' | undefined): Promise<boolean> { return false; }
 }
 
 export function workbenchInstantiationService(): ITestInstantiationService {

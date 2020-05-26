@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/issueReporter';
-import { clipboard } from 'electron';
+import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as os from 'os';
 import * as browser from 'vs/base/browser/browser';
@@ -64,6 +64,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 
 export class IssueReporter extends Disposable {
 	private environmentService!: INativeEnvironmentService;
+	private electronService!: IElectronService;
 	private telemetryService!: ITelemetryService;
 	private logService!: ILogService;
 	private readonly issueReporterModel: IssueReporterModel;
@@ -323,6 +324,9 @@ export class IssueReporter extends Disposable {
 		const serviceCollection = new ServiceCollection();
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
+
+		this.electronService = new ElectronService(configuration.windowId, mainProcessService) as IElectronService;
+		serviceCollection.set(IElectronService, this.electronService);
 
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
@@ -941,9 +945,9 @@ export class IssueReporter extends Disposable {
 
 	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
 		return new Promise((resolve, reject) => {
-			ipcRenderer.once('vscode:issueReporterClipboardResponse', (_: unknown, shouldWrite: boolean) => {
+			ipcRenderer.once('vscode:issueReporterClipboardResponse', async (event: unknown, shouldWrite: boolean) => {
 				if (shouldWrite) {
-					clipboard.writeText(issueBody);
+					await this.electronService.writeClipboardText(issueBody);
 					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
 				} else {
 					reject();
