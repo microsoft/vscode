@@ -26,7 +26,7 @@ import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
 import 'vs/workbench/services/url/electron-sandbox/urlService';
 import 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
-import 'vs/workbench/services/title/electron-sandbox/titleService.ts';
+import 'vs/workbench/services/title/electron-sandbox/titleService';
 import 'vs/workbench/services/host/electron-sandbox/desktopHostService';
 import 'vs/workbench/services/request/electron-sandbox/requestService';
 import 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extensionResourceLoaderService';
@@ -36,10 +36,14 @@ import 'vs/workbench/services/extensionResourceLoader/electron-sandbox/extension
 
 //#region --- workbench contributions
 
+// Localizations
+import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
+
 // Desktop
 import 'vs/workbench/electron-sandbox/desktop.contribution';
 
 // Explorer
+import 'vs/workbench/contrib/files/electron-sandbox/files.contribution';
 import 'vs/workbench/contrib/files/electron-sandbox/fileActions.contribution';
 
 // Backup
@@ -50,5 +54,8 @@ import 'vs/workbench/contrib/codeEditor/electron-sandbox/codeEditor.contribution
 
 // Debug
 import 'vs/workbench/contrib/debug/electron-sandbox/extensionHostDebugService';
+
+// Telemetry Opt Out
+import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-sandbox/telemetryOptOut.contribution';
 
 //#endregion

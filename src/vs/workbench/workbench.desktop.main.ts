@@ -78,9 +78,6 @@ registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService);
 
 //#region --- workbench contributions
 
-// Localizations
-import 'vs/workbench/contrib/localizations/browser/localizations.contribution';
-
 // Logs
 import 'vs/workbench/contrib/logs/electron-browser/logs.contribution';
 
@@ -90,9 +87,6 @@ import 'vs/workbench/contrib/tags/electron-browser/tags.contribution';
 
 // Rapid Render Splash
 import 'vs/workbench/contrib/splash/electron-browser/partsSplash.contribution';
-
-// Explorer
-import 'vs/workbench/contrib/files/electron-browser/files.contribution';
 
 // Debug
 import 'vs/workbench/contrib/debug/node/debugHelperService';
@@ -135,9 +129,6 @@ import 'vs/workbench/contrib/tasks/electron-browser/taskService';
 
 // User Data Sync
 import 'vs/workbench/contrib/userDataSync/electron-browser/userDataSync.contribution';
-
-// Telemetry Opt Out
-import 'vs/workbench/contrib/welcome/telemetryOptOut/electron-browser/telemetryOptOut.contribution';
 
 // Configuration Exporter
 import 'vs/workbench/contrib/configExporter/electron-browser/configurationExportHelper.contribution';
