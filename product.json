@@ -42,7 +42,7 @@
 		},
 		{
 			"name": "ms-vscode.node-debug2",
-			"version": "1.42.3",
+			"version": "1.42.4",
 			"repo": "https://github.com/Microsoft/vscode-node-debug2",
 			"metadata": {
 				"id": "36d19e17-7569-4841-a001-947eb18602b2",
@@ -87,7 +87,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-nightly",
-			"version": "2020.5.417",
+			"version": "2020.5.1917",
 			"repo": "https://github.com/Microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "7acbb4ce-c85a-49d4-8d95-a8054406ae97",

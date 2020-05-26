@@ -22,7 +22,6 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellKind, CellUri, INotebookEditorModel, IOutput, NotebookCellMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
-import { generateUuid } from 'vs/base/common/uuid';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -45,6 +44,19 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+
+	hasModel(): boolean {
+		return true;
+	}
+
+	onDidFocusEditorWidget: Event<void> = new Emitter<void>().event;
+	hasFocus(): boolean {
+		return true;
+	}
+	getId(): string {
+		return 'notebook.testEditor';
+	}
+
 	activeKernel: INotebookKernelInfo | undefined;
 	onDidChangeKernel: Event<void> = new Emitter<void>().event;
 	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
@@ -53,8 +65,8 @@ export class TestNotebookEditor implements INotebookEditor {
 		throw new Error('Method not implemented.');
 	}
 
-	private _onDidChangeModel = new Emitter<void>();
-	onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+	private _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
+	onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	getContribution<T extends INotebookEditorContribution>(id: string): T {
 		throw new Error('Method not implemented.');
 	}
@@ -268,7 +280,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
-	const notebook = new NotebookTextModel(0, viewType, URI.parse('test'), generateUuid());
+	const notebook = new NotebookTextModel(0, viewType, URI.parse('test'));
 	notebook.cells = cells.map((cell, index) => {
 		return new NotebookCellTextModel(notebook.uri, index, cell[0], cell[1], cell[2], cell[3], cell[4]);
 	});

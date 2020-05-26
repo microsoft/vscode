@@ -150,6 +150,7 @@ export interface ILineChange extends IChange {
  * @internal
  */
 export interface IConfiguration extends IDisposable {
+	onDidChangeFast(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 	onDidChange(listener: (e: ConfigurationChangedEvent) => void): IDisposable;
 
 	readonly options: IComputedEditorOptions;

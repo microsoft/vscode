@@ -111,7 +111,10 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		}
 		href = _href(href, false);
 		if (options.baseUrl) {
-			href = resolvePath(options.baseUrl, href).toString();
+			const hasScheme = /^\w[\w\d+.-]*:/.test(href);
+			if (!hasScheme) {
+				href = resolvePath(options.baseUrl, href).toString();
+			}
 		}
 		title = removeMarkdownEscapes(title);
 		href = removeMarkdownEscapes(href);

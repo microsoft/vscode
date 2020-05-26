@@ -67,8 +67,6 @@ export class NotebookEditorOptions extends EditorOptions {
 	}
 }
 
-
-
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	static readonly ID: string = 'workbench.editor.notebook';
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
@@ -94,8 +92,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private scrollBeyondLastLine: boolean;
 	private readonly memento: Memento;
 	private _isDisposed: boolean = false;
-
-
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -119,19 +115,40 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 		});
+
+		this.notebookService.addNotebookEditor(this);
 	}
 
-	private readonly _onDidChangeModel = new Emitter<void>();
-	readonly onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+	private _uuid = generateUuid();
+	public getId(): string {
+		return this._uuid;
+	}
 
+	private readonly _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
+	readonly onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
+
+	private readonly _onDidFocusEditorWidget = new Emitter<void>();
+	readonly onDidFocusEditorWidget = this._onDidFocusEditorWidget.event;
 
 	set viewModel(newModel: NotebookViewModel | undefined) {
 		this.notebookViewModel = newModel;
-		this._onDidChangeModel.fire();
+		this._onDidChangeModel.fire(newModel?.notebookDocument);
 	}
 
 	get viewModel() {
 		return this.notebookViewModel;
+	}
+
+	get uri() {
+		return this.notebookViewModel?.uri;
+	}
+
+	get textModel() {
+		return this.notebookViewModel?.notebookDocument;
+	}
+
+	hasModel() {
+		return !!this.notebookViewModel;
 	}
 
 	private _activeKernel: INotebookKernelInfo | undefined = undefined;
@@ -158,11 +175,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	//#region Editor Core
 
 	protected getEditorMemento<T>(editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
-		const mementoKey = `${this.getId()}${key}`;
+		const mementoKey = `${NotebookEditorWidget.ID}${key}`;
 
 		let editorMemento = NotebookEditorWidget.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
+			editorMemento = new EditorMemento(NotebookEditorWidget.ID, key, this.getMemento(StorageScope.WORKSPACE), limit, editorGroupService);
 			NotebookEditorWidget.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
@@ -173,12 +190,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.memento.getMemento(scope);
 	}
 
-
-	getId(): string {
-		return NotebookEditorWidget.ID;
-	}
-
-
 	public get isNotebookEditor() {
 		return true;
 	}
@@ -187,6 +198,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// Note - focus going to the webview will fire 'blur', but the webview element will be
 		// a descendent of the notebook editor root.
 		this.editorFocus?.set(DOM.isAncestor(document.activeElement, this.overlayContainer));
+	}
+
+	hasFocus() {
+		return this.editorFocus?.get() || false;
 	}
 
 	createEditor(): void {
@@ -345,10 +360,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	focus() {
 		this.editorFocus?.set(true);
 		this.list?.domFocus();
+		this._onDidFocusEditorWidget.fire();
 	}
 
 	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, options: EditorOptions | undefined): Promise<void> {
-		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(textModel) || this.webview === null) {
+		if (this.notebookViewModel === undefined || !this.notebookViewModel.equal(textModel)) {
 			this.detachModel();
 			await this.attachModel(textModel, viewState);
 		}
@@ -438,21 +454,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
 	}
 
-	private createWebview(id: string) {
-		this.webview = this.instantiationService.createInstance(BackLayerWebView, this, id);
+	private async createWebview(id: string, document: URI): Promise<void> {
+		this.webview = this.instantiationService.createInstance(BackLayerWebView, this, id, document);
+		await this.webview.waitForInitialization();
 		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
 		this.webview.webview.onDidFocus(() => this.updateEditorFocus());
 		this.localStore.add(this.webview.onMessage(message => {
 			if (this.viewModel) {
-				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.viewModel.uri, message);
+				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), message);
 			}
 		}));
 		this.list?.rowsContainer.insertAdjacentElement('afterbegin', this.webview.element);
 	}
 
 	private async attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
-		this.createWebview(textModel.webviewId);
-		await this.webview!.waitForInitialization();
+		await this.createWebview(this.getId(), textModel.uri);
 
 		this.eventDispatcher = new NotebookEventDispatcher();
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this.eventDispatcher, this.getLayoutInfo());
@@ -1114,13 +1130,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		if (cell.cellKind === CellKind.Markdown) {
+			cell.editState = CellEditState.Preview;
+			return;
+		}
+
 		if (!cell.getEvaluatedMetadata(this.notebookViewModel!.metadata).runnable) {
 			return;
 		}
 
 		const tokenSource = new CancellationTokenSource();
 		try {
-			this._executeNotebookCell(cell, tokenSource);
+			await this._executeNotebookCell(cell, tokenSource);
 		} finally {
 			tokenSource.dispose();
 		}
@@ -1256,6 +1277,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	dispose() {
 		this._isDisposed = true;
+		this.notebookService.removeNotebookEditor(this);
 		const keys = Object.keys(this._contributions);
 		for (let i = 0, len = keys.length; i < len; i++) {
 			const contributionId = keys[i];

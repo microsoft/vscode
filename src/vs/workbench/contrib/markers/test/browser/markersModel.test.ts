@@ -141,6 +141,28 @@ suite('MarkersModel Test', () => {
 		assert.equal(JSON.stringify({ ...marker, resource: marker.resource.path, relatedInformation: marker.relatedInformation!.map(r => ({ ...r, resource: r.resource.path })) }, null, '\t'), testObject.toString());
 	});
 
+	test('Markers for same-document but different fragment', function () {
+		const model = new TestMarkersModel([anErrorWithRange(1)]);
+
+		assert.equal(model.total, 1);
+
+		const document = URI.parse('foo://test/path/file');
+		const frag1 = URI.parse('foo://test/path/file#1');
+		const frag2 = URI.parse('foo://test/path/file#two');
+
+		model.setResourceMarkers([[document, [{ ...aMarker(), resource: frag1 }, { ...aMarker(), resource: frag2 }]]]);
+
+		assert.equal(model.total, 3);
+		let a = model.getResourceMarkers(document);
+		let b = model.getResourceMarkers(frag1);
+		let c = model.getResourceMarkers(frag2);
+		assert.ok(a === b);
+		assert.ok(a === c);
+
+		model.setResourceMarkers([[document, [{ ...aMarker(), resource: frag2 }]]]);
+		assert.equal(model.total, 2);
+	});
+
 	function compareResource(a: ResourceMarkers, b: string): boolean {
 		return a.resource.toString() === URI.file(b).toString();
 	}

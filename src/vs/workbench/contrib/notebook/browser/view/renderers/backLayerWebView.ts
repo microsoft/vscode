@@ -21,6 +21,13 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { dirname } from 'vs/base/common/resources';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+
+export interface WebviewIntialized {
+	__vscode_notebook_message: boolean;
+	type: 'initialized'
+}
 
 export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
@@ -105,6 +112,7 @@ export interface IScrollRequestMessage {
 export interface IUpdatePreloadResourceMessage {
 	type: 'preload';
 	resources: string[];
+	source: string;
 }
 
 interface ICachedInset {
@@ -122,7 +130,7 @@ function html(strings: TemplateStringsArray, ...values: any[]): string {
 	return str;
 }
 
-type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage;
+type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage | WebviewIntialized;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
@@ -132,22 +140,24 @@ export class BackLayerWebView extends Disposable {
 	hiddenInsetMapping: Set<IOutput> = new Set();
 	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
-	kernelPreloadsCache: Map<string, boolean> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
 	kernelRootsCache: URI[] = [];
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
+	private _loaded!: Promise<void>;
 	private _initalized: Promise<void>;
 	private _disposed = false;
 
 	constructor(
 		public notebookEditor: INotebookEditor,
 		public id: string,
+		public documentUri: URI,
 		@IWebviewService readonly webviewService: IWebviewService,
 		@IOpenerService readonly openerService: IOpenerService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -168,9 +178,11 @@ export class BackLayerWebView extends Disposable {
 			resolveFunc = resolve;
 		});
 
+		const baseUrl = asWebviewUri(this.workbenchEnvironmentService, this.id, dirname(documentUri));
+
 		if (!isWeb) {
 			coreDependencies = `<script src="${loader}"></script>`;
-			const htmlContent = this.generateContent(8, coreDependencies);
+			const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
 			this.initialize(htmlContent);
 			resolveFunc!();
 		} else {
@@ -186,18 +198,20 @@ export class BackLayerWebView extends Disposable {
 ${loaderJs}
 </script>
 `;
-				const htmlContent = this.generateContent(8, coreDependencies);
+
+				const htmlContent = this.generateContent(8, coreDependencies, baseUrl.toString());
 				this.initialize(htmlContent);
 				resolveFunc!();
 			});
 		}
 	}
 
-	generateContent(outputNodePadding: number, coreDependencies: string) {
+	generateContent(outputNodePadding: number, coreDependencies: string, baseUrl: string) {
 		return html`
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
+				<base url="${baseUrl}/"/>
 				<style>
 					#container > div > div {
 						width: 100%;
@@ -433,7 +447,9 @@ ${loaderJs}
 			case 'clearOutput':
 				{
 					let output = document.getElementById(id);
-					document.getElementById(id).parentNode.removeChild(output);
+					if (output && output.parentNode) {
+						document.getElementById(id).parentNode.removeChild(output);
+					}
 					// @TODO remove observer
 				}
 				break;
@@ -462,6 +478,11 @@ ${loaderJs}
 					break;
 				}
 		}
+	});
+
+	vscode.postMessage({
+		__vscode_notebook_message: true,
+		type: 'initialized'
 	});
 }());
 
@@ -563,7 +584,9 @@ ${loaderJs}
 
 	private _createInset(webviewService: IWebviewService, content: string) {
 		const rootPath = URI.file(path.dirname(getPathFromAmdModule(require, '')));
-		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), rootPath];
+		const workspaceFolders = this.contextService.getWorkspace().folders.map(x => x.uri);
+
+		this.localResourceRootsCache = [...this.notebookService.getNotebookProviderResourceRoots(), ...workspaceFolders, rootPath];
 
 		const webview = webviewService.createWebviewElement(this.id, {
 			enableFindWidget: false,
@@ -572,6 +595,19 @@ ${loaderJs}
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache
 		}, undefined);
+
+		let resolveFunc: () => void;
+		this._loaded = new Promise<void>((resolve, reject) => {
+			resolveFunc = resolve;
+		});
+
+		let dispose = webview.onMessage((data: IMessage) => {
+			if (data.__vscode_notebook_message && data.type === 'initialized') {
+				resolveFunc();
+				dispose.dispose();
+			}
+		});
+
 		webview.html = content;
 		return webview;
 	}
@@ -732,10 +768,12 @@ ${loaderJs}
 		}, 50);
 	}
 
-	updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
+	async updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
 		if (this._disposed) {
 			return;
 		}
+
+		await this._loaded;
 
 		let resources: string[] = [];
 		preloads = preloads.map(preload => {
@@ -746,20 +784,26 @@ ${loaderJs}
 		});
 
 		preloads.forEach(e => {
-			if (!this.kernelPreloadsCache.has(e.toString())) {
+			if (!this.preloadsCache.has(e.toString())) {
 				resources.push(e.toString());
-				this.kernelPreloadsCache.set(e.toString(), true);
+				this.preloadsCache.set(e.toString(), true);
 			}
 		});
 
+		if (!resources.length) {
+			return;
+		}
+
 		this.kernelRootsCache = [...extensionLocations, ...this.kernelRootsCache];
-		this._updatePreloads(resources);
+		this._updatePreloads(resources, 'kernel');
 	}
 
-	updateRendererPreloads(preloads: ReadonlySet<number>) {
+	async updateRendererPreloads(preloads: ReadonlySet<number>) {
 		if (this._disposed) {
 			return;
 		}
+
+		await this._loaded;
 
 		let resources: string[] = [];
 		let extensionLocations: URI[] = [];
@@ -783,23 +827,23 @@ ${loaderJs}
 			}
 		});
 
+		if (!resources.length) {
+			return;
+		}
+
 		this.rendererRootsCache = extensionLocations;
-		this._updatePreloads(resources);
+		this._updatePreloads(resources, 'renderer');
 	}
 
-	private _updatePreloads(resources: string[]) {
+	private _updatePreloads(resources: string[], source: string) {
 		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
 
-		this.webview.contentOptions = {
-			allowMultipleAPIAcquire: true,
-			allowScripts: true,
-			enableCommandUris: true,
-			localResourceRoots: mixedResourceRoots
-		};
+		this.webview.localResourcesRoot = mixedResourceRoots;
 
 		let message: IUpdatePreloadResourceMessage = {
 			type: 'preload',
-			resources: resources
+			resources: resources,
+			source: source
 		};
 
 		this.webview.sendMessage(message);

@@ -20,6 +20,7 @@ import { joinPath, dirname, basename, isEqual } from 'vs/base/common/resources';
 import { format } from 'vs/base/common/jsonFormatter';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { compare } from 'vs/base/common/strings';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 interface IExtensionsSyncPreviewResult extends ISyncPreviewResult {
 	readonly localExtensions: ISyncExtension[];
@@ -40,12 +41,16 @@ interface ILastSyncUserData extends IRemoteUserData {
 export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUserDataSynchroniser {
 
 	private static readonly EXTENSIONS_DATA_URI = URI.from({ scheme: USER_DATA_SYNC_SCHEME, authority: 'extensions', path: `/current.json` });
-	protected readonly version: number = 2;
+	/*
+		Version 3 - Introduce installed property to skip installing built in extensions
+	*/
+	protected readonly version: number = 3;
 	protected isEnabled(): boolean { return super.isEnabled() && this.extensionGalleryService.isEnabled(); }
 
 	constructor(
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
@@ -56,7 +61,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		@IUserDataSyncEnablementService userDataSyncEnablementService: IUserDataSyncEnablementService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(SyncResource.Extensions, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
+		super(SyncResource.Extensions, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService);
 		this._register(
 			Event.debounce(
 				Event.any<any>(
@@ -83,7 +88,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 			if (remoteUserData.syncData !== null) {
 				const localExtensions = await this.getLocalExtensions();
-				const remoteExtensions = this.parseExtensions(remoteUserData.syncData);
+				const remoteExtensions = await this.parseAndMigrateExtensions(remoteUserData.syncData);
 				const { added, updated, remote, removed } = merge(localExtensions, remoteExtensions, localExtensions, [], this.getIgnoredExtensions());
 				await this.apply({
 					added, removed, updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
@@ -202,7 +207,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
 		const localExtensions = await this.getLocalExtensions();
-		const syncExtensions = this.parseExtensions(syncData);
+		const syncExtensions = await this.parseAndMigrateExtensions(syncData);
 		const { added, updated, removed } = merge(localExtensions, syncExtensions, localExtensions, [], this.getIgnoredExtensions());
 
 		await this.apply({
@@ -213,8 +218,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionsSyncPreviewResult> {
-		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? this.parseExtensions(remoteUserData.syncData) : null;
-		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? this.parseExtensions(lastSyncUserData.syncData!) : null;
+		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await this.parseAndMigrateExtensions(remoteUserData.syncData) : null;
+		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? await this.parseAndMigrateExtensions(lastSyncUserData.syncData!) : null;
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
 
 		const localExtensions = await this.getLocalExtensions();
@@ -351,30 +356,49 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return newSkippedExtensions;
 	}
 
-	private parseExtensions(syncData: ISyncData): ISyncExtension[] {
-		let extensions: ISyncExtension[] = JSON.parse(syncData.content);
-		if (syncData.version !== this.version) {
-			extensions = extensions.map(e => {
+	private async parseAndMigrateExtensions(syncData: ISyncData): Promise<ISyncExtension[]> {
+		const extensions = this.parseExtensions(syncData);
+		if (syncData.version === 1
+			|| syncData.version === 2
+		) {
+			const systemExtensions = await this.extensionManagementService.getInstalled(ExtensionType.System);
+			for (const extension of extensions) {
 				// #region Migration from v1 (enabled -> disabled)
-				if (!(<any>e).enabled) {
-					e.disabled = true;
+				if (syncData.version === 1) {
+					if ((<any>extension).enabled === false) {
+						extension.disabled = true;
+					}
+					delete (<any>extension).enabled;
 				}
-				delete (<any>e).enabled;
 				// #endregion
-				return e;
-			});
+
+				// #region Migration from v2 (set installed property on extension)
+				if (syncData.version === 2) {
+					if (systemExtensions.every(installed => !areSameExtensions(installed.identifier, extension.identifier))) {
+						extension.installed = true;
+					}
+				}
+				// #endregion
+			}
 		}
 		return extensions;
+	}
+
+	private parseExtensions(syncData: ISyncData): ISyncExtension[] {
+		return JSON.parse(syncData.content);
 	}
 
 	private async getLocalExtensions(): Promise<ISyncExtension[]> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const disabledExtensions = this.extensionEnablementService.getDisabledExtensions();
 		return installedExtensions
-			.map(({ identifier }) => {
+			.map(({ identifier, type }) => {
 				const syncExntesion: ISyncExtension = { identifier };
 				if (disabledExtensions.some(disabledExtension => areSameExtensions(disabledExtension, identifier))) {
 					syncExntesion.disabled = true;
+				}
+				if (type === ExtensionType.User) {
+					syncExntesion.installed = true;
 				}
 				return syncExntesion;
 			});

@@ -10,12 +10,13 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { INewScrollPosition, ScrollType } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecorationOptions, TextModelResolvedOptions, ITextModel } from 'vs/editor/common/model';
-import { IViewEventEmitter, VerticalRevealType } from 'vs/editor/common/view/viewEvents';
+import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
 import { IPartialViewLinesViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { IEditorWhitespace, IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
+import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -44,8 +45,6 @@ export interface IViewLayout {
 
 	getScrollable(): Scrollable;
 
-	onMaxLineWidthChanged(width: number): void;
-
 	getScrollWidth(): number;
 	getScrollHeight(): number;
 
@@ -56,8 +55,6 @@ export interface IViewLayout {
 	getFutureViewport(): Viewport;
 
 	validateScrollPosition(scrollPosition: INewScrollPosition): IScrollPosition;
-	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
-	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
 
 	getLinesViewportData(): IPartialViewLinesViewportData;
 	getLinesViewportDataAtScrollTop(scrollTop: number): IPartialViewLinesViewportData;
@@ -68,18 +65,10 @@ export interface IViewLayout {
 	getVerticalOffsetForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
-	// --------------- Begin vertical whitespace management
-	changeWhitespace<T>(callback: (accessor: IWhitespaceChangeAccessor) => T): T;
-
 	/**
 	 * Get the layout information for whitespaces currently in the viewport
 	 */
 	getWhitespaceViewportData(): IViewWhitespaceViewportData[];
-
-	// TODO@Alex whitespace management should work via a change accessor sort of thing
-	onHeightMaybeChanged(): void;
-
-	// --------------- End vertical whitespace management
 }
 
 export interface ICoordinatesConverter {
@@ -95,7 +84,7 @@ export interface ICoordinatesConverter {
 	modelPositionIsVisible(modelPosition: Position): boolean;
 }
 
-export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
+export interface IViewModel extends ICursorSimpleModel {
 
 	readonly model: ITextModel;
 
@@ -105,12 +94,16 @@ export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 
 	readonly cursorConfig: CursorConfiguration;
 
+	addViewEventHandler(eventHandler: ViewEventHandler): void;
+	removeViewEventHandler(eventHandler: ViewEventHandler): void;
+
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
 	tokenizeViewport(): void;
 	setHasFocus(hasFocus: boolean): void;
+	onDidColorThemeChange(): void;
 
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
 	getViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
@@ -169,6 +162,10 @@ export interface IViewModel extends IViewEventEmitter, ICursorSimpleModel {
 	getVerticalOffsetForLineNumber(viewLineNumber: number): number;
 	getScrollTop(): number;
 	setScrollTop(newScrollTop: number, scrollType: ScrollType): void;
+	setScrollPosition(position: INewScrollPosition, type: ScrollType): void;
+	deltaScrollNow(deltaScrollLeft: number, deltaScrollTop: number): void;
+	changeWhitespace(callback: (accessor: IWhitespaceChangeAccessor) => void): void;
+	setMaxLineWidth(maxLineWidth: number): void;
 	//#endregion
 }
 

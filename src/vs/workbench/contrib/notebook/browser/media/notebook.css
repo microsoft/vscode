@@ -626,6 +626,10 @@
 	cursor: pointer;
 }
 
+.notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
+	visibility: visible;
+}
+
 /** Theming */
 
 /* .notebookOverlay .cell.markdown pre {

@@ -79,7 +79,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 				if (keybindingItem.isDefault && keybindingItem.resolvedKeybinding) {
 					this.removeDefaultKeybinding(keybindingItem, model);
 				}
-				return this.save().then(() => reference.dispose());
+				return this.save().finally(() => reference.dispose());
 			});
 	}
 
@@ -92,7 +92,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 				} else {
 					this.removeUserKeybinding(keybindingItem, model);
 				}
-				return this.save().then(() => reference.dispose());
+				return this.save().finally(() => reference.dispose());
 			});
 	}
 
@@ -104,7 +104,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 					this.removeUserKeybinding(keybindingItem, model);
 					this.removeUnassignedDefaultKeybinding(keybindingItem, model);
 				}
-				return this.save().then(() => reference.dispose());
+				return this.save().finally(() => reference.dispose());
 			});
 	}
 
@@ -230,10 +230,12 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 				if (model.getValue()) {
 					const parsed = this.parse(model);
 					if (parsed.parseErrors.length) {
+						reference.dispose();
 						return Promise.reject<any>(new Error(localize('parseErrors', "Unable to write to the keybindings configuration file. Please open it to correct errors/warnings in the file and try again.")));
 					}
 					if (parsed.result) {
 						if (!isArray(parsed.result)) {
+							reference.dispose();
 							return Promise.reject<any>(new Error(localize('errorInvalidConfiguration', "Unable to write to the keybindings configuration file. It has an object which is not of type Array. Please open the file to clean up and try again.")));
 						}
 					} else {

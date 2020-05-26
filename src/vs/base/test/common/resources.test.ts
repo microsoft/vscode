@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, normalizePath, isAbsolutePath, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath, addTrailingPathSeparator, getComparisonKey, compare } from 'vs/base/common/resources';
+import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, normalizePath, isAbsolutePath, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath, addTrailingPathSeparator, getComparisonKey, exturi } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { toSlashes } from 'vs/base/common/extpath';
@@ -348,8 +348,8 @@ suite('Resources', () => {
 
 	function assertIsEqual(u1: URI, u2: URI, ignoreCase: boolean | undefined, expected: boolean) {
 		assert.equal(isEqual(u1, u2, ignoreCase), expected, `${u1.toString()}${expected ? '===' : '!=='}${u2.toString()}`);
-		assert.equal(compare(u1, u2, ignoreCase) === 0, expected);
 		if (!ignoreCase) {
+			assert.equal(exturi.compare(u1, u2) === 0, expected);
 			assert.equal(u1.toString() === u2.toString(), expected);
 		}
 		assert.equal(getComparisonKey(u1, ignoreCase) === getComparisonKey(u2, ignoreCase), expected, `comparison keys ${u1.toString()}, ${u2.toString()}`);

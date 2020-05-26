@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -24,6 +23,7 @@ import { IRelaxedTextModelCreationOptions, createTextModel } from 'vs/editor/tes
 import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
+import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 
 // --------- utils
 
@@ -782,7 +782,7 @@ suite('Editor Controller - Cursor', () => {
 
 	test('no move doesn\'t trigger event', () => {
 		runTest((editor, viewModel) => {
-			viewModel.cursor.onDidChange((e) => {
+			viewModel.onEvent((e) => {
 				assert.ok(false, 'was not expecting event');
 			});
 			moveTo(editor, viewModel, 1, 1);
@@ -792,9 +792,11 @@ suite('Editor Controller - Cursor', () => {
 	test('move eventing', () => {
 		runTest((editor, viewModel) => {
 			let events = 0;
-			viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
-				events++;
-				assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
+			viewModel.onEvent((e) => {
+				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
+					events++;
+					assert.deepEqual(e.selections, [new Selection(1, 2, 1, 2)]);
+				}
 			});
 			moveTo(editor, viewModel, 1, 2);
 			assert.equal(events, 1, 'receives 1 event');
@@ -804,9 +806,11 @@ suite('Editor Controller - Cursor', () => {
 	test('move in selection mode eventing', () => {
 		runTest((editor, viewModel) => {
 			let events = 0;
-			viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
-				events++;
-				assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
+			viewModel.onEvent((e) => {
+				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
+					events++;
+					assert.deepEqual(e.selections, [new Selection(1, 1, 1, 2)]);
+				}
 			});
 			moveTo(editor, viewModel, 1, 2, true);
 			assert.equal(events, 1, 'receives 1 event');
