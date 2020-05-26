@@ -19,6 +19,9 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	preferNewWindow?: boolean;
 
 	noRecentEntry?: boolean;
+
+	diffMode?: boolean;
+	gotoLineMode?: boolean;
 }
 
 export interface INativeOpenWindowOptions extends IOpenWindowOptions {

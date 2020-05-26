@@ -142,8 +142,8 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 
 		const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)([^.]*)\.git\s*$/mg;
 		while (match = RemoteMatcher.exec(content)) {
-			const [domain, repo] = [match[1], match[2]];
-			if (domain && repo) {
+			const repo = match[1];
+			if (repo) {
 				domains.add(`https://github.com/${repo}/`);
 			}
 		}
