@@ -2645,7 +2645,6 @@ declare module 'vscode' {
 		TypeParameter = 25
 	}
 
-
 	/**
 	 * Symbol tags are extra annotations that tweak the rendering of a symbol.
 	 */
@@ -3054,7 +3053,6 @@ declare module 'vscode' {
 		 * @param metadata Optional metadata for the entry.
 		 */
 		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
-
 
 		/**
 		 * Get all text edits grouped by resource.
@@ -3963,7 +3961,6 @@ declare module 'vscode' {
 		 */
 		resolveCompletionItem?(item: T, token: CancellationToken): ProviderResult<T>;
 	}
-
 
 	/**
 	 * A document link is a range in a text document that links to an internal or external resource, like another
@@ -5656,7 +5653,6 @@ declare module 'vscode' {
 
 		private constructor(id: string, label: string);
 	}
-
 
 	/**
 	 * A structure that defines a task kind in the system.
@@ -8957,7 +8953,6 @@ declare module 'vscode' {
 		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
-
 	/**
 	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
 	 */
@@ -10640,7 +10635,6 @@ declare module 'vscode' {
 		 * List of breakpoints.
 		 */
 		export let breakpoints: Breakpoint[];
-
 
 		/**
 		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)
