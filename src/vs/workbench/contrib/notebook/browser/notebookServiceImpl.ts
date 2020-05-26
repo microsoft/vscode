@@ -259,6 +259,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		if (renderer) {
 			return {
 				id: renderer.extensionData.id,
+				rendererType: renderer.type,
 				extensionLocation: URI.revive(renderer.extensionData.location),
 				preloads: renderer.preloads
 			};

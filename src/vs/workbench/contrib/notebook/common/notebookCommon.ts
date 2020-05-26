@@ -102,6 +102,7 @@ export interface INotebookMimeTypeSelector {
 
 export interface INotebookRendererInfo {
 	id: ExtensionIdentifier;
+	rendererType: string;
 	extensionLocation: URI,
 	preloads: URI[]
 }

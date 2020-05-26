@@ -16,7 +16,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IOutput, CellOutputKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
@@ -86,6 +86,7 @@ export interface ICreationRequestMessage {
 	top: number;
 	left: number;
 	initiallyHidden?: boolean;
+	apiNamespace?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
@@ -109,10 +110,12 @@ export interface IScrollRequestMessage {
 	version: number;
 }
 
+interface IPreloadResource { apiNamespace: string; uri: string }
+
 export interface IUpdatePreloadResourceMessage {
 	type: 'preload';
-	resources: string[];
-	source: string;
+	resources: IPreloadResource[];
+	source: 'renderer' | 'kernel';
 }
 
 interface ICachedInset {
@@ -352,6 +355,94 @@ ${loaderJs}
 		return element;
 	}
 
+	const dontEmit = Symbol('dontEmit');
+
+	function createEmitter(listenerChange = () => undefined) {
+		const listeners = new Set();
+		return {
+			fire(data) {
+				for (const listener of [...listeners]) {
+					listener.fn.call(listener.thisArg, data);
+				}
+			},
+			event: function (fn, thisArg, disposables) {
+				const listenerObj = { fn, thisArg };
+				const disposable = {
+					dispose: () => {
+						listeners.delete(listenerObj);
+						listenerChange(listeners);
+					},
+				};
+
+				listeners.add(listenerObj);
+				listenerChange(listeners);
+
+				if (disposables) {
+					disposables.push(disposable);
+				}
+
+				return disposable;
+			},
+		};
+	}
+
+	// Maps the events in the given emitter, invoking mapFn on each one. mapFn can return
+	// the dontEmit symbol to skip emission.
+	function mapEmitter(emitter, mapFn) {
+		let listener;
+		const mapped = createEmitter(listeners => {
+			if (listeners.size && !listener) {
+				listener = emitter.event(data => {
+					const v = mapFn(data);
+					if (v !== dontEmit) {
+						mapped.fire(v);
+					}
+				});
+			} else if (listener && !listeners.size) {
+				listener.dispose();
+			}
+		});
+
+		return mapped.event;
+	}
+
+	const namespacedElements = new WeakMap/*<HTMLElement, namespace>*/();
+	const onWillUnmountCell = createEmitter/*<[namespace | undefined, cellUri | undefined]>*/();
+	const onDidMountCell = createEmitter/*<[namespace | undefined, HTMLElement]>*/();
+
+	function resolveApiNamespace(preferred, currentElement = document.currentScript) {
+		if (preferred) {
+			return preferred;
+		}
+
+		for (let node = document.currentScript; node; node = node.parentElement) {
+			if (namespacedElements.has(node)) {
+				return namespacedElements.get(node);
+			}
+		}
+
+		throw new Error('acquireNotebookRendererApi should be called synchronously in a <script>, or you should pass the renderer ID used in "registerNotebookRenderer" to it.');
+	}
+
+	window.acquireNotebookRendererApi = function(rendererType) {
+		const namespace = resolveApiNamespace(rendererType);
+		const stateKey = ${'`__notebook_${namespace}`'};
+
+		return {
+			postMessage: vscode.postMessage,
+			setState(newState) {
+				vscode.setState({ ...vscode.getState(), [stateKey]: newState });
+			},
+			getState() {
+				const state = vscode.getState();
+				return typeof state === 'object' && state ? state[stateKey] : undefined;
+			},
+			onWillUnmountCell: mapEmitter(onWillUnmountCell, ([ns, cellUri]) =>
+				ns === undefined || ns === namespace ? cellUri : dontEmit),
+			onDidMountCell: mapEmitter(onDidMountCell, ([ns, element]) => ns === namespace ? element : dontEmit),
+		};
+	};
+
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', event => {
@@ -405,11 +496,13 @@ ${loaderJs}
 					outputNode.id = outputId;
 					let content = event.data.content;
 					outputNode.innerHTML = content;
+					namespacedElements.set(outputNode, event.data.apiNamespace);
 					cellOutputContainer.appendChild(outputNode);
 
 					// eval
 					domEval(outputNode);
 					resizeObserve(outputNode, outputId);
+					onDidMountCell.fire([event.data.apiNamespace, outputNode]);
 
 					vscode.postMessage({
 						__vscode_notebook_message: true,
@@ -437,6 +530,7 @@ ${loaderJs}
 					break;
 				}
 			case 'clear':
+				onWillUnmountCell.fire([]);
 				document.getElementById('container').innerHTML = '';
 				for (let i = 0; i < observers.length; i++) {
 					observers[i].disconnect();
@@ -446,6 +540,7 @@ ${loaderJs}
 				break;
 			case 'clearOutput':
 				{
+					onWillUnmountCell.fire([event.data.apiNamespace, event.data.cellUri]);
 					let output = document.getElementById(id);
 					if (output && output.parentNode) {
 						document.getElementById(id).parentNode.removeChild(output);
@@ -467,8 +562,10 @@ ${loaderJs}
 				let resources = event.data.resources;
 				let preloadsContainer = document.getElementById('__vscode_preloads');
 				for (let i = 0; i < resources.length; i++) {
-					let scriptTag = document.createElement('script');
-					scriptTag.setAttribute('src', resources[i]);
+					const { uri, apiNamespace } = resources[i];
+					const scriptTag = document.createElement('script');
+					scriptTag.setAttribute('src', uri);
+					namespacedElements.set(scriptTag, apiNamespace);
 					preloadsContainer.appendChild(scriptTag)
 				}
 				break;
@@ -686,11 +783,19 @@ ${loaderJs}
 		}
 
 		let outputId = UUID.generateUuid();
+		let apiNamespace: string | undefined;
+		if (output.outputKind === CellOutputKind.Rich) {
+			const pickedMimeTypeRenderer = output.orderedMimeTypes[output.pickedMimeTypeIndex];
+			if (pickedMimeTypeRenderer.rendererId) {
+				apiNamespace = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId)?.rendererType;
+			}
+		}
 
 		let message: ICreationRequestMessage = {
 			type: 'html',
 			content: shadowContent,
 			id: cell.id,
+			apiNamespace,
 			outputId: outputId,
 			top: initialTop,
 			left: 0
@@ -716,6 +821,8 @@ ${loaderJs}
 
 		this.webview.sendMessage({
 			type: 'clearOutput',
+			apiNamespace: outputCache.cachedCreation.apiNamespace,
+			cellUri: outputCache.cell.uri.toString(),
 			id: id
 		});
 		this.insetMapping.delete(output);
@@ -775,7 +882,7 @@ ${loaderJs}
 
 		await this._loaded;
 
-		let resources: string[] = [];
+		let resources: IPreloadResource[] = [];
 		preloads = preloads.map(preload => {
 			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
 				return preload;
@@ -785,7 +892,7 @@ ${loaderJs}
 
 		preloads.forEach(e => {
 			if (!this.preloadsCache.has(e.toString())) {
-				resources.push(e.toString());
+				resources.push({ apiNamespace: 'kernel', uri: e.toString() });
 				this.preloadsCache.set(e.toString(), true);
 			}
 		});
@@ -805,7 +912,7 @@ ${loaderJs}
 
 		await this._loaded;
 
-		let resources: string[] = [];
+		let resources: IPreloadResource[] = [];
 		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
 			let rendererInfo = this.notebookService.getRendererInfo(preload);
@@ -820,7 +927,7 @@ ${loaderJs}
 				extensionLocations.push(rendererInfo.extensionLocation);
 				preloadResources.forEach(e => {
 					if (!this.preloadsCache.has(e.toString())) {
-						resources.push(e.toString());
+						resources.push({ apiNamespace: rendererInfo!.rendererType, uri: e.toString() });
 						this.preloadsCache.set(e.toString(), true);
 					}
 				});
@@ -835,7 +942,7 @@ ${loaderJs}
 		this._updatePreloads(resources, 'renderer');
 	}
 
-	private _updatePreloads(resources: string[], source: string) {
+	private _updatePreloads(resources: IPreloadResource[], source: 'renderer' | 'kernel') {
 		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
 
 		this.webview.localResourcesRoot = mixedResourceRoots;
