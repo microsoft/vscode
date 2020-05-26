@@ -237,6 +237,11 @@ export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
 	size?: number;
 }
 
+export interface IAddedViewDescriptorState {
+	viewDescriptor: IViewDescriptor,
+	collapsed?: boolean;
+}
+
 export interface IViewContainerModel {
 
 	readonly title: string;
