@@ -376,27 +376,23 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 
-	private _workspaceUndo(resource: URI, element: WorkspaceStackElement): Promise<void> | void {
+	private _verifyWorkspaceUndo(element: WorkspaceStackElement): WorkspaceVerificationResult {
 		if (element.removedResources) {
-			this._splitPastWorkspaceElement(element, element.removedResources);
 			const message = nls.localize('cannotWorkspaceUndo', "Could not undo '{0}' across all files. {1}", element.label, element.removedResources.createMessage());
-			this._notificationService.info(message);
-			return this.undo(resource);
+			return new InvalidWorkspaceVerificationResult(message, element.removedResources);
 		}
 		if (element.invalidatedResources) {
-			this._splitPastWorkspaceElement(element, element.invalidatedResources);
 			const message = nls.localize('cannotWorkspaceUndo', "Could not undo '{0}' across all files. {1}", element.label, element.invalidatedResources.createMessage());
-			this._notificationService.info(message);
-			return this.undo(resource);
+			return new InvalidWorkspaceVerificationResult(message, element.invalidatedResources);
 		}
 
 		// this must be the last past element in all the impacted resources!
-		let affectedEditStacks: ResourceEditStack[] = [];
+		const affectedEditStacks: ResourceEditStack[] = [];
 		for (const strResource of element.strResources) {
 			affectedEditStacks.push(this._editStacks.get(strResource)!);
 		}
 
-		let cannotUndoDueToResources: URI[] = [];
+		const cannotUndoDueToResources: URI[] = [];
 		for (const editStack of affectedEditStacks) {
 			if (editStack.past.length === 0 || editStack.past[editStack.past.length - 1] !== element) {
 				cannotUndoDueToResources.push(editStack.resource);
@@ -404,13 +400,28 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		if (cannotUndoDueToResources.length > 0) {
-			this._splitPastWorkspaceElement(element, null);
 			const paths = cannotUndoDueToResources.map(r => r.scheme === Schemas.file ? r.fsPath : r.path);
 			const message = nls.localize('cannotWorkspaceUndoDueToChanges', "Could not undo '{0}' across all files because changes were made to {1}", element.label, paths.join(', '));
-			this._notificationService.info(message);
+			return new InvalidWorkspaceVerificationResult(message, null);
+		}
+
+		return new ValidWorkspaceVerificationResult(affectedEditStacks);
+	}
+
+	private _workspaceUndo(resource: URI, element: WorkspaceStackElement): Promise<void> | void {
+		const verificationResult = this._verifyWorkspaceUndo(element);
+		if (verificationResult.type === WorkspaceVerificationResultType.Invalid) {
+			// cannot apply the workspace undo
+			this._splitPastWorkspaceElement(element, verificationResult.ignoreResources);
+			this._notificationService.info(verificationResult.message);
 			return this.undo(resource);
 		}
 
+		const affectedEditStacks = verificationResult.affectedEditStacks;
+		return this._confirmAndExecuteWorkspaceUndo(resource, element, affectedEditStacks);
+	}
+
+	private async _confirmAndExecuteWorkspaceUndo(resource: URI, element: WorkspaceStackElement, affectedEditStacks: ResourceEditStack[]): Promise<void> {
 		return this._dialogService.show(
 			Severity.Info,
 			nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
@@ -479,18 +490,14 @@ export class UndoRedoService implements IUndoRedoService {
 		return false;
 	}
 
-	private _workspaceRedo(resource: URI, element: WorkspaceStackElement): Promise<void> | void {
+	private _verifyWorkspaceRedo(element: WorkspaceStackElement): WorkspaceVerificationResult {
 		if (element.removedResources) {
-			this._splitFutureWorkspaceElement(element, element.removedResources);
 			const message = nls.localize('cannotWorkspaceRedo', "Could not redo '{0}' across all files. {1}", element.label, element.removedResources.createMessage());
-			this._notificationService.info(message);
-			return this.redo(resource);
+			return new InvalidWorkspaceVerificationResult(message, element.removedResources);
 		}
 		if (element.invalidatedResources) {
-			this._splitFutureWorkspaceElement(element, element.invalidatedResources);
 			const message = nls.localize('cannotWorkspaceRedo', "Could not redo '{0}' across all files. {1}", element.label, element.invalidatedResources.createMessage());
-			this._notificationService.info(message);
-			return this.redo(resource);
+			return new InvalidWorkspaceVerificationResult(message, element.invalidatedResources);
 		}
 
 		// this must be the last future element in all the impacted resources!
@@ -507,13 +514,24 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		if (cannotRedoDueToResources.length > 0) {
-			this._splitFutureWorkspaceElement(element, null);
 			const paths = cannotRedoDueToResources.map(r => r.scheme === Schemas.file ? r.fsPath : r.path);
 			const message = nls.localize('cannotWorkspaceRedoDueToChanges', "Could not redo '{0}' across all files because changes were made to {1}", element.label, paths.join(', '));
-			this._notificationService.info(message);
+			return new InvalidWorkspaceVerificationResult(message, null);
+		}
+
+		return new ValidWorkspaceVerificationResult(affectedEditStacks);
+	}
+
+	private _workspaceRedo(resource: URI, element: WorkspaceStackElement): Promise<void> | void {
+		const verificationResult = this._verifyWorkspaceRedo(element);
+		if (verificationResult.type === WorkspaceVerificationResultType.Invalid) {
+			// cannot apply the workspace redo
+			this._splitFutureWorkspaceElement(element, verificationResult.ignoreResources);
+			this._notificationService.info(verificationResult.message);
 			return this.redo(resource);
 		}
 
+		const affectedEditStacks = verificationResult.affectedEditStacks;
 		for (const editStack of affectedEditStacks) {
 			editStack.future.pop();
 			editStack.past.push(element);
@@ -552,5 +570,22 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 }
+
+const enum WorkspaceVerificationResultType {
+	Invalid = 0,
+	Valid = 1
+}
+class InvalidWorkspaceVerificationResult {
+	public readonly type = WorkspaceVerificationResultType.Invalid;
+	constructor(
+		public readonly message: string,
+		public readonly ignoreResources: RemovedResources | null
+	) { }
+}
+class ValidWorkspaceVerificationResult {
+	public readonly type = WorkspaceVerificationResultType.Valid;
+	constructor(public readonly affectedEditStacks: ResourceEditStack[]) { }
+}
+type WorkspaceVerificationResult = InvalidWorkspaceVerificationResult | ValidWorkspaceVerificationResult;
 
 registerSingleton(IUndoRedoService, UndoRedoService);
