@@ -24,8 +24,6 @@ import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron
 import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Codicon } from 'vs/base/common/codicons';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private appIcon: HTMLElement | undefined;
@@ -243,5 +241,3 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		}
 	}
 }
-
-registerSingleton(ITitleService, TitlebarPart);

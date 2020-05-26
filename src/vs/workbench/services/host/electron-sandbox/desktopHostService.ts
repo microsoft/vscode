@@ -11,7 +11,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class DesktopHostService extends Disposable implements IHostService {
 
@@ -20,7 +19,7 @@ export class DesktopHostService extends Disposable implements IHostService {
 	constructor(
 		@IElectronService private readonly electronService: IElectronService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}

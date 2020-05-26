@@ -59,12 +59,9 @@ import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncMachines
 import 'vs/workbench/services/userDataSync/electron-browser/userDataSyncService';
 import 'vs/workbench/services/authentication/electron-browser/authenticationTokenService';
 import 'vs/workbench/services/authentication/browser/authenticationService';
-import 'vs/workbench/services/host/electron-browser/desktopHostService';
-import 'vs/workbench/services/request/electron-browser/requestService';
 import 'vs/workbench/services/sharedProcess/electron-browser/sharedProcessService';
 import 'vs/workbench/services/localizations/electron-browser/localizationsService';
 import 'vs/workbench/services/clipboard/electron-browser/clipboardService';
-import 'vs/workbench/services/extensionResourceLoader/electron-browser/extensionResourceLoaderService';
 import 'vs/workbench/services/path/electron-browser/pathService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
