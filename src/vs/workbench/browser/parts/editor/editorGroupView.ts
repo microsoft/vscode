@@ -1125,7 +1125,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Move across groups
 		else {
-			this.doMoveOrCopyEditorAcrossGroups(editor, target, options);
+			this.doMoveOrCopyEditorAcrossGroups(editor, target, options, false);
 		}
 	}
 
@@ -1167,7 +1167,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const options = getActiveTextEditorOptions(this, editor, EditorOptions.create({
 			...moveOptions,
 			pinned: true, 							// always pin moved editor
-			sticky: this._group.isSticky(editor)	// preserve sticky state
+			sticky: this._group.isSticky(editor),	// preserve sticky state,
+			shouldCreateNewWhenOverride: keepCopy
 		}));
 
 		// A move to another group is an open first...

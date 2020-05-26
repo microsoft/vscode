@@ -55,6 +55,7 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransfo
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -168,9 +169,15 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				return;
 			}
 
-			if (!this.editorService.editors.some(other => other === editor)) {
-				editor.dispose();
+			if (!this.editorService.editors.some(other => (
+				other.resource === editor.resource
+				&& other instanceof NotebookEditorInput
+				&& other.viewType === editor.viewType
+			))) {
+				editor.clearTextModel();
 			}
+
+			editor.dispose();
 		}));
 	}
 
@@ -208,12 +215,14 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				const copiedInput = this.instantiationService.createInstance(NotebookEditorInput, originalInput.resource, originalInput.name, originalInput.viewType);
 				copiedInput.updateGroup(group.id);
 
-				// transfer ownership of editor widget
-				// const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
-				// if (widgetRef) {
-				// 	NotebookRegistry.releaseNotebookEditorWidget(originalInput);
-				// 	NotebookRegistry.claimNotebookEditorWidget(copiedInput, widgetRef);
-				// }
+				if (!options?.shouldCreateNewWhenOverride) {
+					// transfer ownership of editor widget
+					const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
+					if (widgetRef) {
+						NotebookRegistry.releaseNotebookEditorWidget(originalInput);
+						NotebookRegistry.claimNotebookEditorWidget(copiedInput, widgetRef);
+					}
+				}
 
 				return {
 					override: this.editorService.openEditor(copiedInput, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group)

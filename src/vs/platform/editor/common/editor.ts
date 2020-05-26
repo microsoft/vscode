@@ -202,6 +202,12 @@ export interface IEditorOptions {
 	readonly ignoreOverrides?: boolean;
 
 	/**
+	 * When editor overrides are used while opening the editor, the original editor input
+	 * will be closed after the new editor is opened, if `shouldCreateNewWhenOverride` is true.
+	 */
+	readonly shouldCreateNewWhenOverride?: boolean;
+
+	/**
 	 * A optional hint to signal in which context the editor opens.
 	 *
 	 * If configured to be `EditorOpenContext.USER`, this hint can be
