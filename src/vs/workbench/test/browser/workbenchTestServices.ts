@@ -107,8 +107,6 @@ import { TestWorkingCopyService, TestContextService, TestStorageService, TestTex
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
-import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
-import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -152,7 +150,6 @@ export function workbenchInstantiationService(overrides?: {
 	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
 	instantiationService.stub(IFileService, new TestFileService());
-	instantiationService.stub(IUriIdentityService, instantiationService.createInstance(UriIdentityService));
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
