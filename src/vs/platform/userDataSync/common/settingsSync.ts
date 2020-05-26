@@ -20,6 +20,8 @@ import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Edit } from 'vs/base/common/jsonFormatter';
+import { setProperty, applyEdits } from 'vs/base/common/jsonEdit';
 
 export interface ISettingsSyncContent {
 	settings: string;
@@ -414,4 +416,49 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
 		}
 	}
+
+	async recoverSettings(): Promise<void> {
+		try {
+			const fileContent = await this.getLocalFileContent();
+			if (!fileContent) {
+				return;
+			}
+
+			const syncData: ISyncData = JSON.parse(fileContent.value.toString());
+			if (!isSyncData(syncData)) {
+				return;
+			}
+
+			this.telemetryService.publicLog2('sync/settingsCorrupted');
+			const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+			if (!settingsSyncContent || !settingsSyncContent.settings) {
+				return;
+			}
+
+			let settings = settingsSyncContent.settings;
+			const formattingOptions = await this.getFormattingOptions();
+			for (const key in syncData) {
+				if (['version', 'content', 'machineId'].indexOf(key) === -1 && (syncData as any)[key] !== undefined) {
+					const edits: Edit[] = setProperty(settings, [key], (syncData as any)[key], formattingOptions);
+					if (edits.length) {
+						settings = applyEdits(settings, edits);
+					}
+				}
+			}
+
+			await this.fileService.writeFile(this.file, VSBuffer.fromString(settings));
+		} catch (e) {/* ignore */ }
+	}
+}
+
+function isSyncData(thing: any): thing is ISyncData {
+	if (thing
+		&& (thing.version !== undefined && typeof thing.version === 'number')
+		&& (thing.content !== undefined && typeof thing.content === 'string')
+		&& (thing.machineId !== undefined && typeof thing.machineId === 'string')
+	) {
+		return true;
+	}
+
+	return false;
 }
