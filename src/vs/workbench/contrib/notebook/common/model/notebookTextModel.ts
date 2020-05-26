@@ -254,7 +254,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._onDidModelChangeProxy.fire({
 			kind: NotebookCellsChangeType.ModelChange,
-			versionId: this._versionId, changes: [
+			versionId: this._versionId, change:
 				[
 					0,
 					0,
@@ -268,7 +268,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						metadata: cell.metadata
 					}]
 				]
-			]
 		});
 
 		return;
@@ -291,7 +290,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._increaseVersionId();
 		this._onDidModelChangeProxy.fire({
 			kind: NotebookCellsChangeType.ModelChange,
-			versionId: this._versionId, changes: [
+			versionId: this._versionId, change:
 				[
 					index,
 					0,
@@ -305,7 +304,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						metadata: cell.metadata
 					}))
 				]
-			]
 		});
 
 		return;
@@ -323,7 +321,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]] });
+		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, change: [index, count, []] });
 	}
 
 	moveCellToIdx(index: number, newIdx: number) {

@@ -21,9 +21,9 @@ import { EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/edi
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { IContentWidgetData, IOverlayWidgetData, View } from 'vs/editor/browser/view/viewImpl';
-import { ViewOutgoingEvents } from 'vs/editor/browser/view/viewOutgoingEvents';
+import { ViewUserInputEvents } from 'vs/editor/browser/view/viewUserInputEvents';
 import { ConfigurationChangedEvent, EditorLayoutInfo, IEditorOptions, EditorOption, IComputedEditorOptions, FindComputedEditorOptionValueById, IEditorConstructionOptions, filterValidationDecorations } from 'vs/editor/common/config/editorOptions';
-import { Cursor, CursorStateChangedEvent } from 'vs/editor/common/controller/cursor';
+import { Cursor } from 'vs/editor/common/controller/cursor';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -54,6 +54,7 @@ import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/m
 import { DOMLineBreaksComputerFactory } from 'vs/editor/browser/view/domLineBreaksComputer';
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
+import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModel/viewModelEventDispatcher';
 
 let EDITOR_ID = 0;
 
@@ -1384,10 +1385,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData || !this._modelData.hasRealView) {
 			return;
 		}
-		const hasChanges = this._modelData.view.change(callback);
-		if (hasChanges) {
-			this._onDidChangeViewZones.fire();
-		}
+		this._modelData.view.change(callback);
 	}
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): editorBrowser.IMouseTarget | null {
@@ -1475,38 +1473,56 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model
 		listenersToRemove.push(model.onWillDispose(() => this.setModel(null)));
 
-		listenersToRemove.push(viewModel.cursor.onDidAttemptReadOnlyEdit(() => {
-			this._onDidAttemptReadOnlyEdit.fire(undefined);
-		}));
+		listenersToRemove.push(viewModel.onEvent((e) => {
+			switch (e.kind) {
+				case OutgoingViewModelEventKind.ContentSizeChanged:
+					this._onDidContentSizeChange.fire(e);
+					break;
+				case OutgoingViewModelEventKind.FocusChanged:
+					this._editorTextFocus.setValue(e.hasFocus);
+					break;
+				case OutgoingViewModelEventKind.ScrollChanged:
+					this._onDidScrollChange.fire(e);
+					break;
+				case OutgoingViewModelEventKind.ViewZonesChanged:
+					this._onDidChangeViewZones.fire();
+					break;
+				case OutgoingViewModelEventKind.ReadOnlyEditAttempt:
+					this._onDidAttemptReadOnlyEdit.fire();
+					break;
+				case OutgoingViewModelEventKind.CursorStateChanged: {
+					if (e.reachedMaxCursorCount) {
+						this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
+					}
 
-		listenersToRemove.push(viewModel.cursor.onDidChange((e: CursorStateChangedEvent) => {
-			if (e.reachedMaxCursorCount) {
-				this._notificationService.warn(nls.localize('cursors.maximum', "The number of cursors has been limited to {0}.", Cursor.MAX_CURSOR_COUNT));
+					const positions: Position[] = [];
+					for (let i = 0, len = e.selections.length; i < len; i++) {
+						positions[i] = e.selections[i].getPosition();
+					}
+
+					const e1: ICursorPositionChangedEvent = {
+						position: positions[0],
+						secondaryPositions: positions.slice(1),
+						reason: e.reason,
+						source: e.source
+					};
+					this._onDidChangeCursorPosition.fire(e1);
+
+					const e2: ICursorSelectionChangedEvent = {
+						selection: e.selections[0],
+						secondarySelections: e.selections.slice(1),
+						modelVersionId: e.modelVersionId,
+						oldSelections: e.oldSelections,
+						oldModelVersionId: e.oldModelVersionId,
+						source: e.source,
+						reason: e.reason
+					};
+					this._onDidChangeCursorSelection.fire(e2);
+
+					break;
+				}
+
 			}
-
-			const positions: Position[] = [];
-			for (let i = 0, len = e.selections.length; i < len; i++) {
-				positions[i] = e.selections[i].getPosition();
-			}
-
-			const e1: ICursorPositionChangedEvent = {
-				position: positions[0],
-				secondaryPositions: positions.slice(1),
-				reason: e.reason,
-				source: e.source
-			};
-			this._onDidChangeCursorPosition.fire(e1);
-
-			const e2: ICursorSelectionChangedEvent = {
-				selection: e.selections[0],
-				secondarySelections: e.selections.slice(1),
-				modelVersionId: e.modelVersionId,
-				oldSelections: e.oldSelections,
-				oldModelVersionId: e.oldModelVersionId,
-				source: e.source,
-				reason: e.reason
-			};
-			this._onDidChangeCursorSelection.fire(e2);
 		}));
 
 		const [view, hasRealView] = this._createView(viewModel);
@@ -1587,32 +1603,24 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			};
 		}
 
-		const onDidChangeTextFocus = (textFocus: boolean) => {
-			this._editorTextFocus.setValue(textFocus);
-		};
-
-		const viewOutgoingEvents = new ViewOutgoingEvents(viewModel);
-		viewOutgoingEvents.onDidContentSizeChange = (e) => this._onDidContentSizeChange.fire(e);
-		viewOutgoingEvents.onDidScroll = (e) => this._onDidScrollChange.fire(e);
-		viewOutgoingEvents.onDidGainFocus = () => onDidChangeTextFocus(true);
-		viewOutgoingEvents.onDidLoseFocus = () => onDidChangeTextFocus(false);
-		viewOutgoingEvents.onKeyDown = (e) => this._onKeyDown.fire(e);
-		viewOutgoingEvents.onKeyUp = (e) => this._onKeyUp.fire(e);
-		viewOutgoingEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
-		viewOutgoingEvents.onMouseMove = (e) => this._onMouseMove.fire(e);
-		viewOutgoingEvents.onMouseLeave = (e) => this._onMouseLeave.fire(e);
-		viewOutgoingEvents.onMouseDown = (e) => this._onMouseDown.fire(e);
-		viewOutgoingEvents.onMouseUp = (e) => this._onMouseUp.fire(e);
-		viewOutgoingEvents.onMouseDrag = (e) => this._onMouseDrag.fire(e);
-		viewOutgoingEvents.onMouseDrop = (e) => this._onMouseDrop.fire(e);
-		viewOutgoingEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
+		const viewUserInputEvents = new ViewUserInputEvents(viewModel.coordinatesConverter);
+		viewUserInputEvents.onKeyDown = (e) => this._onKeyDown.fire(e);
+		viewUserInputEvents.onKeyUp = (e) => this._onKeyUp.fire(e);
+		viewUserInputEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
+		viewUserInputEvents.onMouseMove = (e) => this._onMouseMove.fire(e);
+		viewUserInputEvents.onMouseLeave = (e) => this._onMouseLeave.fire(e);
+		viewUserInputEvents.onMouseDown = (e) => this._onMouseDown.fire(e);
+		viewUserInputEvents.onMouseUp = (e) => this._onMouseUp.fire(e);
+		viewUserInputEvents.onMouseDrag = (e) => this._onMouseDrag.fire(e);
+		viewUserInputEvents.onMouseDrop = (e) => this._onMouseDrop.fire(e);
+		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
 
 		const view = new View(
 			commandDelegate,
 			this._configuration,
 			this._themeService,
 			viewModel,
-			viewOutgoingEvents
+			viewUserInputEvents
 		);
 
 		return [view, true];

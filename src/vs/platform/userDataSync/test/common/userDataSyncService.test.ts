@@ -31,6 +31,8 @@ suite('UserDataSyncService', () => {
 		assert.deepEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Machines
+			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -47,6 +49,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Machines
+			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '0' } },
 		]);
 
 	});
@@ -64,6 +68,8 @@ suite('UserDataSyncService', () => {
 		assert.deepEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Machines
+			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: {} },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			// Keybindings
@@ -76,6 +82,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Machines
+			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '0' } },
 		]);
 
 	});
@@ -179,11 +187,13 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			/* sync */
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/snippets/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '1' } },
 		]);
 
 	});
@@ -219,6 +229,7 @@ suite('UserDataSyncService', () => {
 
 			/* first time sync */
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/keybindings/latest`, headers: {} },
@@ -227,6 +238,7 @@ suite('UserDataSyncService', () => {
 			{ type: 'POST', url: `${target.url}/v1/resource/snippets`, headers: { 'If-Match': '1' } },
 			{ type: 'GET', url: `${target.url}/v1/resource/globalState/latest`, headers: {} },
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
+			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '1' } },
 		]);
 
 	});
@@ -366,6 +378,8 @@ suite('UserDataSyncService', () => {
 		assert.deepEqual(target.requests, [
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Machines
+			{ type: 'GET', url: `${target.url}/v1/resource/machines/latest`, headers: { 'If-None-Match': '1' } },
 			// Settings
 			{ type: 'GET', url: `${target.url}/v1/resource/settings/latest`, headers: {} },
 			{ type: 'POST', url: `${target.url}/v1/resource/settings`, headers: { 'If-Match': '0' } },
@@ -382,6 +396,8 @@ suite('UserDataSyncService', () => {
 			{ type: 'GET', url: `${target.url}/v1/resource/extensions/latest`, headers: {} },
 			// Manifest
 			{ type: 'GET', url: `${target.url}/v1/manifest`, headers: {} },
+			// Machines
+			{ type: 'POST', url: `${target.url}/v1/resource/machines`, headers: { 'If-Match': '0' } },
 		]);
 
 	});

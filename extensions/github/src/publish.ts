@@ -5,6 +5,8 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
+import * as path from 'path';
+import { promises as fs } from 'fs';
 import { API as GitAPI, Repository } from './typings/git';
 import { getOctokit } from './auth';
 
@@ -42,7 +44,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		folder = pick.folder;
 	}
 
-	const quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh' }>();
+	let quickpick = vscode.window.createQuickPick<vscode.QuickPickItem & { repo?: string, auth?: 'https' | 'ssh' }>();
 	quickpick.ignoreFocusOut = true;
 
 	quickpick.placeholder = 'Repository Name';
@@ -63,7 +65,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		if (!sanitizedRepo) {
 			quickpick.items = [];
 		} else {
-			quickpick.items = [{ label: `$(repo) Create private repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo }];
+			quickpick.items = [{ label: `$(repo) Publish to GitHub private repository`, description: `$(github) ${owner}/${sanitizedRepo}`, alwaysShow: true, repo: sanitizedRepo }];
 		}
 	};
 
@@ -80,7 +82,7 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 			try {
 				quickpick.busy = true;
 				await octokit.repos.get({ owner, repo: repo });
-				quickpick.items = [{ label: `$(error) Repository already exists`, description: `$(github) ${owner}/${repo}`, alwaysShow: true }];
+				quickpick.items = [{ label: `$(error) GitHub repository already exists`, description: `$(github) ${owner}/${repo}`, alwaysShow: true }];
 			} catch {
 				break;
 			} finally {
@@ -95,8 +97,41 @@ export async function publishRepository(gitAPI: GitAPI, repository?: Repository)
 		return;
 	}
 
+	quickpick = vscode.window.createQuickPick();
+	quickpick.placeholder = localize('ignore', "Select which files should be included in the repository.");
+	quickpick.canSelectMany = true;
+	quickpick.show();
+
+	try {
+		quickpick.busy = true;
+
+		const repositoryPath = folder.uri.fsPath;
+		const currentPath = path.join(repositoryPath);
+		const children = await fs.readdir(currentPath);
+		quickpick.items = children.map(name => ({ label: name }));
+		quickpick.selectedItems = quickpick.items;
+		quickpick.busy = false;
+
+		const result = await Promise.race([
+			new Promise<readonly vscode.QuickPickItem[]>(c => quickpick.onDidAccept(() => c(quickpick.selectedItems))),
+			new Promise<undefined>(c => quickpick.onDidHide(() => c(undefined)))
+		]);
+
+		if (!result) {
+			return;
+		}
+
+		const ignored = new Set(children);
+		result.forEach(c => ignored.delete(c.label));
+
+		const raw = [...ignored].map(i => `/${i}`).join('\n');
+		await fs.writeFile(path.join(repositoryPath, '.gitignore'), raw, 'utf8');
+	} finally {
+		quickpick.dispose();
+	}
+
 	const githubRepository = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, cancellable: false, title: 'Publish to GitHub' }, async progress => {
-		progress.report({ message: 'Creating private repository in GitHub', increment: 25 });
+		progress.report({ message: 'Publishing to GitHub private repository', increment: 25 });
 
 		const res = await octokit.repos.createForAuthenticatedUser({
 			name: repo!,

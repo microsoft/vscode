@@ -215,19 +215,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return options;
 	}
 
-	protected getAriaLabel(): string {
-		let ariaLabel: string;
-
-		const inputName = this.input?.getName();
-		if (this.input?.isReadonly()) {
-			ariaLabel = inputName ? nls.localize('readonlyEditorWithInputAriaLabel', "{0} readonly compare", inputName) : nls.localize('readonlyEditorAriaLabel', "Readonly compare");
-		} else {
-			ariaLabel = inputName ? nls.localize('editableEditorWithInputAriaLabel', "{0} compare", inputName) : nls.localize('editableEditorAriaLabel', "Compare");
-		}
-
-		return ariaLabel;
-	}
-
 	private isFileBinaryError(error: Error[]): boolean;
 	private isFileBinaryError(error: Error): boolean;
 	private isFileBinaryError(error: Error | Error[]): boolean {

@@ -295,7 +295,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return this.viewContainersRegistry.getDefaultViewContainer(location);
 	}
 
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void {
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, order?: number): void {
 		const from = this.getViewContainerLocation(viewContainer);
 		const to = location;
 		if (from !== to) {
@@ -303,6 +303,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			const defaultLocation = this.isGeneratedContainerId(viewContainer.id) ? true : this.getViewContainerLocation(viewContainer) === this.getDefaultViewContainerLocation(viewContainer);
 			this.getOrCreateDefaultViewContainerLocationContextKey(viewContainer).set(defaultLocation);
+
+			if (order !== undefined) {
+				viewContainer.order = order;
+			}
 
 			this._onDidChangeContainerLocation.fire({ viewContainer, from, to });
 
