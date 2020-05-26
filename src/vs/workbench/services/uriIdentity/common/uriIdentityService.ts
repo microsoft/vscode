@@ -5,7 +5,6 @@
 
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { URI } from 'vs/base/common/uri';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { binarySearch } from 'vs/base/common/arrays';
 import { ExtUri, IExtUri, normalizePath } from 'vs/base/common/resources';
@@ -67,5 +66,3 @@ export class UriIdentityService implements IUriIdentityService {
 		return uri;
 	}
 }
-
-registerSingleton(IUriIdentityService, UriIdentityService, true);

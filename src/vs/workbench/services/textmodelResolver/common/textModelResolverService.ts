@@ -16,6 +16,7 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -167,12 +168,16 @@ export class TextModelResolverService implements ITextModelService {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IUriIdentityService private readonly uriIdentService: IUriIdentityService,
 	) {
 	}
 
 	async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {
-		const ref = this.resourceModelCollection.acquire(resource.toString());
+
+		const canonicalResource = this.uriIdentService.asCanonicalUri(resource);
+
+		const ref = this.resourceModelCollection.acquire(canonicalResource.toString());
 
 		try {
 			const model = await ref.object;

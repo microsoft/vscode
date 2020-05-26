@@ -53,7 +53,6 @@ import 'vs/workbench/browser/parts/views/viewsService';
 //#region --- workbench services
 
 import 'vs/platform/undoRedo/common/undoRedoService';
-import 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 import 'vs/workbench/services/extensions/browser/extensionUrlHandler';
 import 'vs/workbench/services/bulkEdit/browser/bulkEditService';
 import 'vs/workbench/services/keybinding/common/keybindingEditing';
@@ -112,6 +111,8 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSyncEnablementService';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 registerSingleton(IUserDataSyncEnablementService, UserDataSyncEnablementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
@@ -127,6 +128,7 @@ registerSingleton(ITextResourceConfigurationService, TextResourceConfigurationSe
 registerSingleton(IMenuService, MenuService, true);
 registerSingleton(IDownloadService, DownloadService, true);
 registerSingleton(IOpenerService, OpenerService, true);
+registerSingleton(IUriIdentityService, UriIdentityService, true);
 
 //#endregion
 
