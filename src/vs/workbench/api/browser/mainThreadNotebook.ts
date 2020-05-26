@@ -35,6 +35,7 @@ export class MainThreadNotebookDocument extends Disposable {
 		this._textModel = new NotebookTextModel(handle, viewType, uri);
 		this._register(this._textModel.onDidModelChange(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
+			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: this._textModel.selections }, metadata: null });
 		}));
 		this._register(this._textModel.onDidSelectionChange(e => {
 			const selectionsChange = e ? { selections: e } : null;

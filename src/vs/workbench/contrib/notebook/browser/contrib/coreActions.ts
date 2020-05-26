@@ -469,10 +469,10 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 }
 
 export interface INotebookCellActionContext {
-	cellTemplate?: BaseCellRenderTemplate;
-	cell: ICellViewModel;
-	notebookEditor: INotebookEditor;
-	ui?: boolean;
+	readonly cellTemplate?: BaseCellRenderTemplate;
+	readonly cell: ICellViewModel;
+	readonly notebookEditor: INotebookEditor;
+	readonly ui?: boolean;
 }
 
 abstract class InsertCellCommand extends NotebookAction {
