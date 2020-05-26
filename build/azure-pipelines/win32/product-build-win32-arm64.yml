@@ -99,7 +99,7 @@ steps:
     $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-min-ci" }
     exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-code-helper" }
-# exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }
+    exec { yarn gulp "vscode-win32-$env:VSCODE_ARCH-inno-updater" }
   displayName: Build
 
 - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
