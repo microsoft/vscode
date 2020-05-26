@@ -7,9 +7,9 @@ import { Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IResourceEditorInputType, IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -19,6 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { domEvent } from 'vs/base/browser/event';
 import { memoize } from 'vs/base/common/decorators';
+import { parseLineAndColumnAware } from 'vs/base/common/extpath';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -135,14 +136,31 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 				// Same Window: open via editor service in current window
 				if (this.shouldReuse(options, true /* file */)) {
-					const inputs: IResourceEditorInputType[] = await pathsToEditors([openable], this.fileService);
-					this.editorService.openEditors(inputs);
+					let openables: IPathData[] = [];
+
+					// Support: --goto parameter to open on line/col
+					if (options?.gotoLineMode) {
+						const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
+						openables = [{
+							fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
+							lineNumber: pathColumnAware.line,
+							columnNumber: pathColumnAware.column
+						}];
+					} else {
+						openables = [openable];
+					}
+
+					this.editorService.openEditors(await pathsToEditors(openables, this.fileService));
 				}
 
 				// New Window: open into empty window
 				else {
 					const environment = new Map<string, string>();
 					environment.set('openFile', openable.fileUri.toString());
+
+					if (options?.gotoLineMode) {
+						environment.set('gotoLineMode', 'true');
+					}
 
 					this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
 				}
@@ -183,7 +201,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return this.labelService.getUriLabel(openable.fileUri);
 	}
 
-	private shouldReuse(options: IOpenWindowOptions = {}, isFile: boolean): boolean {
+	private shouldReuse(options: IOpenWindowOptions = Object.create(null), isFile: boolean): boolean {
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openInNewWindowConfig = isFile ? (windowConfig?.openFilesInNewWindow || 'off' /* default */) : (windowConfig?.openFoldersInNewWindow || 'default' /* default */);
 
