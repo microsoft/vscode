@@ -117,15 +117,15 @@ suite('BoundModelReferenceCollection', () => {
 				}
 			});
 
-		col.dispose(URI.parse('test:///unknown'));
+		col.remove(URI.parse('test:///unknown'));
 		assert.equal(disposed.length, 0);
 
-		col.dispose(URI.parse('test:///farboo'));
+		col.remove(URI.parse('test:///farboo'));
 		assert.deepEqual(disposed, [0]);
 
 		disposed = [];
 
-		col.dispose(URI.parse('test:///boo'));
+		col.remove(URI.parse('test:///boo'));
 		assert.deepEqual(disposed, [2, 3]);
 	});
 

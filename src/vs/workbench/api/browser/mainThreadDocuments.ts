@@ -31,19 +31,11 @@ export class BoundModelReferenceCollection {
 		//
 	}
 
-	dispose(uri?: URI): void {
-		if (uri) {
-			this._disposeResource(uri);
-		} else {
-			this._disposeAll();
-		}
-	}
-
-	private _disposeAll(): void {
+	dispose(): void {
 		this._data = dispose(this._data);
 	}
 
-	private _disposeResource(uri: URI): void {
+	remove(uri: URI): void {
 		for (const entry of [...this._data] /* copy array because dispose will modify it */) {
 			if (isEqualOrParent(entry.uri, uri)) {
 				entry.dispose();
@@ -128,8 +120,8 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		}));
 
 		this._toDispose.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			if (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE) {
-				this._modelReferenceCollection.dispose(e.source);
+			if (e.source && (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE)) {
+				this._modelReferenceCollection.remove(e.source);
 			}
 		}));
 
