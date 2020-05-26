@@ -9,7 +9,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData } from 'vs/platform/windows/common/windows';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen } from 'vs/platform/windows/common/windows';
 import { pathsToEditors } from 'vs/workbench/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -115,11 +115,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		const payload = this.preservePayload();
+		const fileOpenables: IFileToOpen[] = [];
 
-		for (let i = 0; i < toOpen.length; i++) {
-			const openable = toOpen[i];
+		for (const openable of toOpen) {
 			openable.label = openable.label || this.getRecentLabel(openable);
-
 
 			// Folder
 			if (isFolderToOpen(openable)) {
@@ -131,38 +130,74 @@ export class BrowserHostService extends Disposable implements IHostService {
 				this.workspaceProvider.open({ workspaceUri: openable.workspaceUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
 			}
 
-			// File
+			// File (handled later in bulk)
 			else if (isFileToOpen(openable)) {
+				fileOpenables.push(openable);
+			}
+		}
+
+		// Handle Files
+		if (fileOpenables.length > 0) {
+
+			// Support diffMode
+			if (options?.diffMode && fileOpenables.length === 2) {
+				const editors = await pathsToEditors(fileOpenables, this.fileService);
+				if (editors.length !== 2 || !editors[0].resource || !editors[1].resource) {
+					return; // invalid resources
+				}
 
 				// Same Window: open via editor service in current window
 				if (this.shouldReuse(options, true /* file */)) {
-					let openables: IPathData[] = [];
-
-					// Support: --goto parameter to open on line/col
-					if (options?.gotoLineMode) {
-						const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
-						openables = [{
-							fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
-							lineNumber: pathColumnAware.line,
-							columnNumber: pathColumnAware.column
-						}];
-					} else {
-						openables = [openable];
-					}
-
-					this.editorService.openEditors(await pathsToEditors(openables, this.fileService));
+					this.editorService.openEditor({
+						leftResource: editors[0].resource,
+						rightResource: editors[1].resource
+					});
 				}
 
 				// New Window: open into empty window
 				else {
 					const environment = new Map<string, string>();
-					environment.set('openFile', openable.fileUri.toString());
-
-					if (options?.gotoLineMode) {
-						environment.set('gotoLineMode', 'true');
-					}
+					environment.set('diffFileDetail', editors[0].resource.toString());
+					environment.set('diffFileMaster', editors[1].resource.toString());
 
 					this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
+				}
+			}
+
+			// Just open normally
+			else {
+				for (const openable of fileOpenables) {
+
+					// Same Window: open via editor service in current window
+					if (this.shouldReuse(options, true /* file */)) {
+						let openables: IPathData[] = [];
+
+						// Support: --goto parameter to open on line/col
+						if (options?.gotoLineMode) {
+							const pathColumnAware = parseLineAndColumnAware(openable.fileUri.path);
+							openables = [{
+								fileUri: openable.fileUri.with({ path: pathColumnAware.path }),
+								lineNumber: pathColumnAware.line,
+								columnNumber: pathColumnAware.column
+							}];
+						} else {
+							openables = [openable];
+						}
+
+						this.editorService.openEditors(await pathsToEditors(openables, this.fileService));
+					}
+
+					// New Window: open into empty window
+					else {
+						const environment = new Map<string, string>();
+						environment.set('openFile', openable.fileUri.toString());
+
+						if (options?.gotoLineMode) {
+							environment.set('gotoLineMode', 'true');
+						}
+
+						this.workspaceProvider.open(undefined, { payload: Array.from(environment.entries()) });
+					}
 				}
 			}
 		}
