@@ -15,6 +15,8 @@ const util = require('util');
 const opn = require('opn');
 const minimist = require('minimist');
 
+const webpack = require("webpack");
+
 const APP_ROOT = path.dirname(__dirname);
 const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
 const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench', 'workbench-dev.html');
@@ -140,30 +142,42 @@ function handleStaticExtension(req, res, parsedUrl) {
  */
 async function handleRoot(req, res) {
 	const extensionFolders = await util.promisify(fs.readdir)(EXTENSIONS_ROOT);
-	const mapExtensionFolderToExtensionPackageJSON = new Map();
+
+	const staticExtensions = [];
+
+	const webpackConfigs = [];
 
 	await Promise.all(extensionFolders.map(async extensionFolder => {
 		try {
 			const packageJSON = JSON.parse((await util.promisify(fs.readFile)(path.join(EXTENSIONS_ROOT, extensionFolder, 'package.json'))).toString());
-			if (packageJSON.main && packageJSON.name !== 'vscode-web-playground') {
+			if (packageJSON.main && !packageJSON.browser) {
 				return; // unsupported
 			}
-			packageJSON.extensionKind = ['web']; // enable for Web
+			if (packageJSON.browser) {
+				packageJSON.main = packageJSON.browser;
+				const webpackConfigPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'extension-browser.webpack.config.js');
+				if ((await util.promisify(fs.exists)(webpackConfigPath))) {
+					webpackConfigs.push(require(webpackConfigPath));
+					packageJSON.main.replace('/out/', '/dist/');
+				}
+			}
 
-			mapExtensionFolderToExtensionPackageJSON.set(extensionFolder, packageJSON);
+			packageJSON.extensionKind = ['web']; // enable for Web
+			staticExtensions.push({
+				packageJSON,
+				extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` }
+			});
 		} catch (error) {
 			return null;
 		}
 	}));
 
-	const staticExtensions = [];
-
-	// Built in extensions
-	mapExtensionFolderToExtensionPackageJSON.forEach((packageJSON, extensionFolder) => {
-		staticExtensions.push({
-			packageJSON,
-			extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` }
-		});
+	webpack(webpackConfigs).watch({}, (err, stats) => {
+		if (err) {
+			console.log(err);
+		} else {
+			console.log(stats.toString());
+		}
 	});
 
 	const webConfiguration = escapeAttribute(JSON.stringify({ staticExtensions, folderUri: { scheme: 'memfs', path: `/sample-folder` }}));

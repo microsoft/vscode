@@ -217,10 +217,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "VS Code (Web)",
-			"runtimeExecutable": "yarn",
-			"runtimeArgs": [
-				"web"
-			],
+			"program": "${workspaceFolder}/scripts/code-web.js",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2

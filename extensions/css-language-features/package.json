@@ -16,6 +16,7 @@
     "onCommand:_css.applyCodeAction"
   ],
   "main": "./client/out/node/cssClientMain",
+  "browser": "./client/dist/browser/cssClientBrowserMain",
   "enableProposedApi": true,
   "scripts": {
     "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
