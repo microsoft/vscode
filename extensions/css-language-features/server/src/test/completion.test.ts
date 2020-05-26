@@ -8,8 +8,7 @@ import * as path from 'path';
 import { URI } from 'vscode-uri';
 import { TextDocument, CompletionList } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol';
-import { PathCompletionParticipant } from '../pathCompletion';
-import { getCSSLanguageService } from 'vscode-css-languageservice';
+import { getCSSLanguageService, LanguageServiceOptions, getSCSSLanguageService } from 'vscode-css-languageservice';
 import { getNodeFSRequestService } from '../node/nodeFs';
 import { getDocumentContext } from '../utils/documentContext';
 
@@ -19,8 +18,6 @@ export interface ItemDescription {
 }
 
 suite('Completions', () => {
-	const cssLanguageService = getCSSLanguageService();
-	const requestService = getNodeFSRequestService();
 
 	let assertCompletion = function (completions: CompletionList, expected: ItemDescription, document: TextDocument, _offset: number) {
 		let matches = completions.items.filter(completion => {
@@ -45,16 +42,12 @@ suite('Completions', () => {
 			workspaceFolders = [{ name: 'x', uri: testUri.substr(0, testUri.lastIndexOf('/')) }];
 		}
 
-		const participant = new PathCompletionParticipant(requestService);
-		cssLanguageService.setCompletionParticipants([participant]);
-
-		const stylesheet = cssLanguageService.parseStylesheet(document);
-		let list = cssLanguageService.doComplete(document, position, stylesheet)!;
+		const lsOptions: LanguageServiceOptions = { fileSystemProvider: getNodeFSRequestService() };
+		const cssLanguageService = lang === 'scss' ? getSCSSLanguageService(lsOptions) : getCSSLanguageService(lsOptions);
 
 		const context = getDocumentContext(testUri, workspaceFolders);
-
-		let participantResult = await participant.computeCompletions(document, context);
-		list.items = list.items.concat(participantResult.items);
+		const stylesheet = cssLanguageService.parseStylesheet(document);
+		let list = await cssLanguageService.doComplete2(document, position, stylesheet, context);
 
 		if (expected.count) {
 			assert.equal(list.items.length, expected.count);

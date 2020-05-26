@@ -9,7 +9,6 @@ import {
 import { URI } from 'vscode-uri';
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position } from 'vscode-css-languageservice';
 import { getLanguageModelCache } from './languageModelCache';
-import { PathCompletionParticipant } from './pathCompletion';
 import { formatError, runSafeAsync } from './utils/runner';
 import { getDocumentContext } from './utils/documentContext';
 import { fetchDataProviders } from './customData';
@@ -206,21 +205,13 @@ export function startServer(connection: IConnection, runtime: RuntimeEnvironment
 	connection.onCompletion((textDocumentPosition, token) => {
 		return runSafeAsync(async () => {
 			const document = documents.get(textDocumentPosition.textDocument.uri);
-			if (!document) {
-				return null;
+			if (document) {
+				await dataProvidersReady;
+				const styleSheet = stylesheets.get(document);
+				const documentContext = getDocumentContext(document.uri, workspaceFolders);
+				return getLanguageService(document).doComplete2(document, textDocumentPosition.position, styleSheet, documentContext);
 			}
-			await dataProvidersReady;
-			const cssLS = getLanguageService(document);
-			const participant = new PathCompletionParticipant(requestService);
-			cssLS.setCompletionParticipants([participant]);
-
-			const result = cssLS.doComplete(document, textDocumentPosition.position, stylesheets.get(document));
-			const documentContext = getDocumentContext(document.uri, workspaceFolders);
-			const pathCompletionResult = await participant.computeCompletions(document, documentContext);
-			return {
-				isIncomplete: result.isIncomplete || pathCompletionResult.isIncomplete,
-				items: pathCompletionResult.items.concat(result.items)
-			};
+			return null;
 		}, null, `Error while computing completions for ${textDocumentPosition.textDocument.uri}`, token);
 	});
 
