@@ -440,18 +440,17 @@ export class UndoRedoService implements IUndoRedoService {
 			}
 		);
 
-		// At this point, it is possible that the element has been made invalid in the meantime (due to the confirmation await)
-		const verificationError = this._checkWorkspaceUndo(resource, element, affectedEditStacks);
-		if (verificationError) {
-			return verificationError.returnValue;
-		}
-
 		if (result.choice === 2) {
 			// cancel
 			return;
 		}
 
 		if (result.choice === 0) {
+			// At this point, it is possible that the element has been made invalid in the meantime (due to the confirmation await)
+			const verificationError = this._checkWorkspaceUndo(resource, element, affectedEditStacks);
+			if (verificationError) {
+				return verificationError.returnValue;
+			}
 			for (const editStack of affectedEditStacks) {
 				editStack.past.pop();
 				editStack.future.push(element);
