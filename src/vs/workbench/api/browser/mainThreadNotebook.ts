@@ -53,11 +53,6 @@ export class MainThreadNotebookDocument extends Disposable {
 		await this.notebookService.transformSpliceOutputs(this.textModel, splices);
 		this._textModel.$spliceNotebookCellOutputs(cellHandle, splices);
 	}
-
-	updateRenderers(renderers: string[]) {
-		this._textModel.updateRenderers(renderers);
-	}
-
 	dispose() {
 		this._textModel.dispose();
 		super.dispose();

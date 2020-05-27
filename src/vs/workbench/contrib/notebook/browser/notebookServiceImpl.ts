@@ -11,7 +11,7 @@ import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from '
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
@@ -382,7 +382,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					output.pickedMimeTypeIndex = pickedMimeTypeIndex;
 					output.orderedMimeTypes = orderedMimeTypes;
 
-					if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== '_builtin') {
+					if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
 						outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType });
 						renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
 					}
@@ -416,7 +416,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 							output.pickedMimeTypeIndex = pickedMimeTypeIndex;
 							output.orderedMimeTypes = orderedMimeTypes;
 
-							if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== '_builtin') {
+							if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
 								outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, output: output });
 								renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
 							}
@@ -452,7 +452,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					output.pickedMimeTypeIndex = pickedMimeTypeIndex;
 					output.orderedMimeTypes = orderedMimeTypes;
 
-					if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== '_builtin') {
+					if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
 						outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, output: output });
 						renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
 					}
@@ -468,6 +468,37 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		});
 
 		textModel.updateRenderers([...renderers]);
+	}
+
+	async transformSingleOutput(textModel: NotebookTextModel, output: IProcessedOutput, rendererId: string, mimeType: string): Promise<IOrderedMimeType | undefined> {
+		const items = [
+			{
+				key: 0,
+				outputs: [
+					{
+						index: 0,
+						handlerId: rendererId,
+						mimeType: mimeType,
+						output: output
+					}
+				]
+			}
+		];
+		const response = await this._notebookRenderers.get(rendererId)?.render2<number>(textModel.uri, { items: items });
+
+		if (response) {
+			textModel.updateRenderers([rendererId]);
+			const outputInfo = response.items[0].outputs[0];
+
+			return {
+				mimeType: outputInfo.mimeType,
+				isResolved: true,
+				rendererId: outputInfo.handlerId,
+				output: outputInfo.transformedOutput
+			};
+		}
+
+		return;
 	}
 
 	private _transformMimeTypes(output: IDisplayOutput, documentDisplayOrder: string[]): ITransformedDisplayOutputDto {
@@ -501,13 +532,14 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 					orderMimeTypes.push({
 						mimeType: mimeType,
 						isResolved: false,
-						rendererId: '_builtin'
+						rendererId: BUILTIN_RENDERER_ID
 					});
 				}
 			} else {
 				orderMimeTypes.push({
 					mimeType: mimeType,
-					isResolved: false
+					isResolved: false,
+					rendererId: BUILTIN_RENDERER_ID
 				});
 			}
 		});

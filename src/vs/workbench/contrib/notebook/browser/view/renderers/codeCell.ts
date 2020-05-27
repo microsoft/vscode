@@ -15,7 +15,7 @@ import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workb
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellOutputKind, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto, BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDimension } from 'vs/editor/common/editorCommon';
@@ -387,7 +387,7 @@ export class CodeCell extends Disposable {
 	}
 
 	generateRendererInfo(renderId: string | undefined): string {
-		if (renderId === undefined || renderId === '_builtin') {
+		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
 			return nls.localize('builtinRenderInfo', "built-in");
 		}
 
@@ -441,6 +441,16 @@ export class CodeCell extends Disposable {
 			}
 
 			output.pickedMimeTypeIndex = pick;
+
+			if (!output.orderedMimeTypes![pick].isResolved && output.orderedMimeTypes![pick].rendererId !== BUILTIN_RENDERER_ID) {
+				// since it's not build in renderer and not resolved yet
+				// let's see if we can activate the extension and then render
+				// await this.notebookService.transformSpliceOutputs(this.notebookEditor.textModel!, [[0, 0, output]])
+				const outputRet = await this.notebookService.transformSingleOutput(this.notebookEditor.textModel!, output, output.orderedMimeTypes![pick].rendererId!, output.orderedMimeTypes![pick].mimeType);
+				if (outputRet) {
+					output.orderedMimeTypes![pick] = outputRet;
+				}
+			}
 
 			this.renderOutput(output, index, nextElement);
 			this.relayoutCell();
