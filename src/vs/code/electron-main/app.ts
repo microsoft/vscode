@@ -79,7 +79,6 @@ import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { IFileService } from 'vs/platform/files/common/files';
-import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { WebviewChannel } from 'vs/platform/webview/electron-main/webviewIpcs';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
@@ -102,8 +101,6 @@ export class CodeApplication extends Disposable {
 		super();
 
 		this.registerListeners();
-
-		this._register(new WebviewProtocolProvider(fileService));
 	}
 
 	private registerListeners(): void {
