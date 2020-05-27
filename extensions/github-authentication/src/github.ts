@@ -44,8 +44,6 @@ export class GitHubAuthenticationProvider {
 			// Ignore, network request failed
 		}
 
-		// TODO revert Cannot validate tokens from auth server, no available clientId
-		// await this.validateSessions();
 		this.pollForChange();
 	}
 
@@ -144,20 +142,10 @@ export class GitHubAuthenticationProvider {
 	}
 
 	public async login(scopes: string): Promise<vscode.AuthenticationSession2> {
-		const token = scopes === 'vso' ? await this.loginAndInstallApp(scopes) : await this._githubServer.login(scopes);
+		const token = await this._githubServer.login(scopes);
 		const session = await this.tokenToSession(token, scopes.split(' '));
 		await this.setToken(session);
 		return session;
-	}
-
-	public async loginAndInstallApp(scopes: string): Promise<string> {
-		const token = await this._githubServer.login(scopes);
-		const hasUserInstallation = await this._githubServer.hasUserInstallation(token);
-		if (hasUserInstallation) {
-			return token;
-		} else {
-			return this._githubServer.installApp();
-		}
 	}
 
 	public async manuallyProvideToken(): Promise<void> {
@@ -184,14 +172,6 @@ export class GitHubAuthenticationProvider {
 		const sessionIndex = this._sessions.findIndex(session => session.id === id);
 		if (sessionIndex > -1) {
 			this._sessions.splice(sessionIndex, 1);
-			// TODO revert
-			// Cannot revoke tokens from auth server, no clientId available
-			// const token = await session.getAccessToken();
-			// try {
-			// 	await this._githubServer.revokeToken(token);
-			// } catch (_) {
-			// 	// ignore, should still remove from keychain
-			// }
 		}
 
 		await this.storeSessions();

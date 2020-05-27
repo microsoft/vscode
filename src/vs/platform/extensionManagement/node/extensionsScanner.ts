@@ -127,14 +127,13 @@ export class ExtensionsScanner extends Disposable {
 		throw new Error(localize('cannot read', "Cannot read the extension from {0}", this.extensionsPath));
 	}
 
-	async saveMetadataForLocalExtension(local: ILocalExtension): Promise<ILocalExtension> {
-		if (local.metadata) {
-			const manifestPath = path.join(local.location.fsPath, 'package.json');
-			const raw = await pfs.readFile(manifestPath, 'utf8');
-			const { manifest } = await this.parseManifest(raw);
-			assign(manifest, { __metadata: local.metadata });
-			await pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
-		}
+	async saveMetadataForLocalExtension(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
+		this.setMetadata(local, metadata);
+		const manifestPath = path.join(local.location.fsPath, 'package.json');
+		const raw = await pfs.readFile(manifestPath, 'utf8');
+		const { manifest } = await this.parseManifest(raw);
+		assign(manifest, { __metadata: metadata });
+		await pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
 		return local;
 	}
 
@@ -228,7 +227,7 @@ export class ExtensionsScanner extends Disposable {
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 			const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : null;
 			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-			const local = <ILocalExtension>{ type, identifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
+			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null };
 			if (metadata) {
 				this.setMetadata(local, metadata);
 			}
@@ -257,7 +256,8 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	private setMetadata(local: ILocalExtension, metadata: IGalleryMetadata): void {
-		local.metadata = metadata;
+		local.publisherDisplayName = metadata.publisherDisplayName;
+		local.publisherId = metadata.publisherId;
 		local.identifier.uuid = metadata.id;
 	}
 
@@ -314,7 +314,7 @@ export class ExtensionsScanner extends Disposable {
 		return this._devSystemExtensionsPath;
 	}
 
-	private async readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
+	private async readManifest(extensionPath: string): Promise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata | null; }> {
 		const promises = [
 			pfs.readFile(path.join(extensionPath, 'package.json'), 'utf8')
 				.then(raw => this.parseManifest(raw)),
@@ -330,7 +330,7 @@ export class ExtensionsScanner extends Disposable {
 		};
 	}
 
-	private parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata; }> {
+	private parseManifest(raw: string): Promise<{ manifest: IExtensionManifest; metadata: IGalleryMetadata | null; }> {
 		return new Promise((c, e) => {
 			try {
 				const manifest = JSON.parse(raw);

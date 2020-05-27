@@ -92,7 +92,8 @@ export interface IGalleryMetadata {
 
 export interface ILocalExtension extends IExtension {
 	readonly manifest: IExtensionManifest;
-	metadata: IGalleryMetadata;
+	publisherId: string | null;
+	publisherDisplayName: string | null;
 	readmeUrl: URI | null;
 	changelogUrl: URI | null;
 }
