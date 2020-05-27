@@ -22,7 +22,8 @@
 
 .monaco-workbench.vs .monaco-action-bar .markers-panel-action-filter .monaco-inputbox {
 	height: 25px;
-	border: 1px solid transparent;
+	border-width: 1px;
+	border-style: solid;
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls {
