@@ -56,7 +56,7 @@ export class SharedProcess implements ISharedProcess {
 		};
 
 		const url = `${require.toUrl('vs/code/electron-browser/sharedProcess/sharedProcess.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
-		this.window.loadURL(url);
+		this.window.loadURL('vscode-file://localhost' + url.slice(7));
 
 		// Prevent the window from dying
 		const onClose = (e: ElectronEvent) => {

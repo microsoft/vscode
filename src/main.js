@@ -88,6 +88,14 @@ protocol.registerSchemesAsPrivileged([
 			corsEnabled: true,
 		}
 	},
+	{
+		scheme: 'vscode-file',
+		privileges: {
+			secure: true,
+			standard: true,
+			corsEnabled: true
+		}
+	}
 ]);
 
 // Global app listeners
@@ -160,6 +168,24 @@ async function onReady() {
 
 	try {
 		const [cachedDataDir, nlsConfig] = await Promise.all([nodeCachedDataDir.ensureExists(), resolveNlsConfiguration()]);
+
+		protocol.registerFileProtocol('vscode-file', async (request, callback) => {
+			const uri = new URL(request.url);
+
+			if (uri.pathname.startsWith(app.getAppPath())) {
+				return callback({
+					path: uri.pathname
+				});
+			} else {
+				console.error('vscode-file: Cannot load resource outside of app root');
+				return callback({ error: -3 /* ABORTED */ });
+			}
+		});
+
+		protocol.interceptFileProtocol('file', async (request, callback) => {
+			console.error('file: protocol is not allowed in this app');
+			return callback({ error: -3 /* ABORTED */ });
+		});
 
 		startup(cachedDataDir, nlsConfig);
 	} catch (error) {
