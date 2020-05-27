@@ -848,11 +848,6 @@
           "when": "scmProvider == git"
         },
         {
-          "command": "git.stageAllMerge",
-          "group": "5_stage",
-          "when": "scmProvider == git"
-        },
-        {
           "command": "git.unstageAll",
           "group": "5_stage",
           "when": "scmProvider == git"
