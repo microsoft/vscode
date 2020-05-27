@@ -55,6 +55,7 @@ import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransfo
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -118,10 +119,24 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
 		super();
+
+		this._register(undoRedoService.registerUriComparisonKeyComputer({
+			getComparisonKey: (uri: URI): string | null => {
+				// !!! Leave a fast check statement here !!!
+				if (uri.scheme !== CellUri.scheme) {
+					return null;
+				}
+				const data = CellUri.parse(uri);
+				if (!data) {
+					return null;
+				}
+				return data.notebook.toString();
+			}
+		}));
 
 		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
