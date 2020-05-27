@@ -261,7 +261,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 	accpetModelChanged(event: NotebookCellsChangedEvent): void {
 		this._versionId = event.versionId;
 		if (event.kind === NotebookCellsChangeType.ModelChange) {
-			this.$spliceNotebookCells(event.change);
+			this.$spliceNotebookCells(event.changes);
 		} else if (event.kind === NotebookCellsChangeType.Move) {
 			this.$moveCell(event.index, event.newIdx);
 		} else if (event.kind === NotebookCellsChangeType.CellClearOutput) {
@@ -273,50 +273,52 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		}
 	}
 
-	private $spliceNotebookCells(splice: NotebookCellsSplice2): void {
+	private $spliceNotebookCells(splices: NotebookCellsSplice2[]): void {
 		if (this._disposed) {
 			return;
 		}
 
 		let contentChangeEvents: vscode.NotebookCellsChangeData[] = [];
 
-		let cellDtos = splice[2];
-		let newCells = cellDtos.map(cell => {
-			const extCell = new ExtHostCell(this.viewType, this.uri, cell.handle, URI.revive(cell.uri), cell.source.join('\n'), cell.cellKind, cell.language, cell.outputs, cell.metadata, this._proxy);
-			const documentData = this._documentsAndEditors.getDocument(URI.revive(cell.uri));
+		splices.reverse().forEach(splice => {
+			let cellDtos = splice[2];
+			let newCells = cellDtos.map(cell => {
+				const extCell = new ExtHostCell(this.viewType, this.uri, cell.handle, URI.revive(cell.uri), cell.source.join('\n'), cell.cellKind, cell.language, cell.outputs, cell.metadata, this._proxy);
+				const documentData = this._documentsAndEditors.getDocument(URI.revive(cell.uri));
 
-			if (documentData) {
-				extCell.attachTextDocument(documentData);
+				if (documentData) {
+					extCell.attachTextDocument(documentData);
+				}
+
+				if (!this._cellDisposableMapping.has(extCell.handle)) {
+					this._cellDisposableMapping.set(extCell.handle, new DisposableStore());
+				}
+
+				let store = this._cellDisposableMapping.get(extCell.handle)!;
+
+				store.add(extCell.onDidChangeOutputs((diffs) => {
+					this.eventuallyUpdateCellOutputs(extCell, diffs);
+				}));
+
+				return extCell;
+			});
+
+			for (let j = splice[0]; j < splice[0] + splice[1]; j++) {
+				this._cellDisposableMapping.get(this.cells[j].handle)?.dispose();
+				this._cellDisposableMapping.delete(this.cells[j].handle);
+
 			}
 
-			if (!this._cellDisposableMapping.has(extCell.handle)) {
-				this._cellDisposableMapping.set(extCell.handle, new DisposableStore());
-			}
+			this.cells.splice(splice[0], splice[1], ...newCells);
 
-			let store = this._cellDisposableMapping.get(extCell.handle)!;
+			const event: vscode.NotebookCellsChangeData = {
+				start: splice[0],
+				deletedCount: splice[1],
+				items: newCells
+			};
 
-			store.add(extCell.onDidChangeOutputs((diffs) => {
-				this.eventuallyUpdateCellOutputs(extCell, diffs);
-			}));
-
-			return extCell;
+			contentChangeEvents.push(event);
 		});
-
-		for (let j = splice[0]; j < splice[0] + splice[1]; j++) {
-			this._cellDisposableMapping.get(this.cells[j].handle)?.dispose();
-			this._cellDisposableMapping.delete(this.cells[j].handle);
-
-		}
-
-		this.cells.splice(splice[0], splice[1], ...newCells);
-
-		const event: vscode.NotebookCellsChangeData = {
-			start: splice[0],
-			deletedCount: splice[1],
-			items: newCells
-		};
-
-		contentChangeEvents.push(event);
 
 		this._emitter.emitModelChange({
 			document: this,
@@ -1096,11 +1098,11 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					document.accpetModelChanged({
 						kind: NotebookCellsChangeType.ModelChange,
 						versionId: modelData.versionId,
-						change: [
+						changes: [[
 							0,
 							0,
 							modelData.cells
-						]
+						]]
 					});
 
 					this._documents.get(revivedUriStr)?.dispose();
