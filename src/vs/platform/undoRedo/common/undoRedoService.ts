@@ -12,6 +12,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 function uriGetComparisonKey(resource: URI): string {
 	return resource.toString();
@@ -76,7 +77,7 @@ class RemovedResources {
 
 		let messages: string[] = [];
 		if (externalRemoval.length > 0) {
-			messages.push(nls.localize('externalRemoval', "The following files have been closed: {0}.", externalRemoval.join(', ')));
+			messages.push(nls.localize('externalRemoval', "The following files have been closed and modified on disk: {0}.", externalRemoval.join(', ')));
 		}
 		if (noParallelUniverses.length > 0) {
 			messages.push(nls.localize('noParallelUniverses', "The following files have been modified in an incompatible way: {0}.", noParallelUniverses.join(', ')));
@@ -386,7 +387,7 @@ export class UndoRedoService implements IUndoRedoService {
 		};
 	}
 
-	private _safeInvokeWithLocks(element: StackElement, invoke: () => Promise<void> | void, affectedEditStacks: ResourceEditStack[]): Promise<void> | void {
+	private _safeInvokeWithLocks(element: StackElement, invoke: () => Promise<void> | void, affectedEditStacks: ResourceEditStack[], cleanup: IDisposable = Disposable.None): Promise<void> | void {
 		const releaseLocks = this._acquireLocks(affectedEditStacks);
 
 		let result: Promise<void> | void;
@@ -394,6 +395,7 @@ export class UndoRedoService implements IUndoRedoService {
 			result = invoke();
 		} catch (err) {
 			releaseLocks();
+			cleanup.dispose();
 			return this._onError(err, element);
 		}
 
@@ -402,16 +404,30 @@ export class UndoRedoService implements IUndoRedoService {
 			return result.then(
 				() => {
 					releaseLocks();
+					cleanup.dispose();
 				},
 				(err) => {
 					releaseLocks();
+					cleanup.dispose();
 					return this._onError(err, element);
 				}
 			);
 		} else {
 			// result is void
 			releaseLocks();
+			cleanup.dispose();
 		}
+	}
+
+	private async _invokePrepare(element: WorkspaceStackElement): Promise<IDisposable> {
+		if (typeof element.actual.prepareUndoRedo === 'undefined') {
+			return Disposable.None;
+		}
+		const result = element.actual.prepareUndoRedo();
+		if (typeof result === 'undefined') {
+			return Disposable.None;
+		}
+		return result;
 	}
 
 	private _getAffectedEditStacks(element: WorkspaceStackElement): ResourceEditStack[] {
@@ -422,14 +438,14 @@ export class UndoRedoService implements IUndoRedoService {
 		return affectedEditStacks;
 	}
 
-	private _checkWorkspaceUndo(resource: URI, element: WorkspaceStackElement, affectedEditStacks: ResourceEditStack[]): WorkspaceVerificationError | null {
+	private _checkWorkspaceUndo(resource: URI, element: WorkspaceStackElement, affectedEditStacks: ResourceEditStack[], checkInvalidatedResources: boolean): WorkspaceVerificationError | null {
 		if (element.removedResources) {
 			this._splitPastWorkspaceElement(element, element.removedResources);
 			const message = nls.localize('cannotWorkspaceUndo', "Could not undo '{0}' across all files. {1}", element.label, element.removedResources.createMessage());
 			this._notificationService.info(message);
 			return new WorkspaceVerificationError(this.undo(resource));
 		}
-		if (element.invalidatedResources) {
+		if (checkInvalidatedResources && element.invalidatedResources) {
 			this._splitPastWorkspaceElement(element, element.invalidatedResources);
 			const message = nls.localize('cannotWorkspaceUndo', "Could not undo '{0}' across all files. {1}", element.label, element.invalidatedResources.createMessage());
 			this._notificationService.info(message);
@@ -470,7 +486,7 @@ export class UndoRedoService implements IUndoRedoService {
 
 	private _workspaceUndo(resource: URI, element: WorkspaceStackElement): Promise<void> | void {
 		const affectedEditStacks = this._getAffectedEditStacks(element);
-		const verificationError = this._checkWorkspaceUndo(resource, element, affectedEditStacks);
+		const verificationError = this._checkWorkspaceUndo(resource, element, affectedEditStacks, /*invalidated resources will be checked after the prepare call*/false);
 		if (verificationError) {
 			return verificationError.returnValue;
 		}
@@ -492,29 +508,44 @@ export class UndoRedoService implements IUndoRedoService {
 		);
 
 		if (result.choice === 2) {
-			// cancel
+			// choice: cancel
 			return;
 		}
 
 		if (result.choice === 1) {
-			// undo this file
+			// choice: undo this file
 			this._splitPastWorkspaceElement(element, null);
 			return this.undo(resource);
 		}
 
-		// undo in all files
+		// choice: undo in all files
+
 		// At this point, it is possible that the element has been made invalid in the meantime (due to the confirmation await)
-		const verificationError = this._checkWorkspaceUndo(resource, element, affectedEditStacks);
-		if (verificationError) {
-			return verificationError.returnValue;
+		const verificationError1 = this._checkWorkspaceUndo(resource, element, affectedEditStacks, /*invalidated resources will be checked after the prepare call*/false);
+		if (verificationError1) {
+			return verificationError1.returnValue;
+		}
+
+		// prepare
+		let cleanup: IDisposable;
+		try {
+			cleanup = await this._invokePrepare(element);
+		} catch (err) {
+			return this._onError(err, element);
+		}
+
+		// At this point, it is possible that the element has been made invalid in the meantime (due to the prepare await)
+		const verificationError2 = this._checkWorkspaceUndo(resource, element, affectedEditStacks, /*now also check that there are no more invalidated resources*/true);
+		if (verificationError2) {
+			cleanup.dispose();
+			return verificationError2.returnValue;
 		}
 
 		for (const editStack of affectedEditStacks) {
 			editStack.past.pop();
 			editStack.future.push(element);
 		}
-
-		return this._safeInvokeWithLocks(element, () => element.actual.undo(), affectedEditStacks);
+		return this._safeInvokeWithLocks(element, () => element.actual.undo(), affectedEditStacks, cleanup);
 	}
 
 	private _resourceUndo(editStack: ResourceEditStack, element: ResourceStackElement): Promise<void> | void {
@@ -562,14 +593,14 @@ export class UndoRedoService implements IUndoRedoService {
 		return false;
 	}
 
-	private _checkWorkspaceRedo(resource: URI, element: WorkspaceStackElement, affectedEditStacks: ResourceEditStack[]): WorkspaceVerificationError | null {
+	private _checkWorkspaceRedo(resource: URI, element: WorkspaceStackElement, affectedEditStacks: ResourceEditStack[], checkInvalidatedResources: boolean): WorkspaceVerificationError | null {
 		if (element.removedResources) {
 			this._splitFutureWorkspaceElement(element, element.removedResources);
 			const message = nls.localize('cannotWorkspaceRedo', "Could not redo '{0}' across all files. {1}", element.label, element.removedResources.createMessage());
 			this._notificationService.info(message);
 			return new WorkspaceVerificationError(this.redo(resource));
 		}
-		if (element.invalidatedResources) {
+		if (checkInvalidatedResources && element.invalidatedResources) {
 			this._splitFutureWorkspaceElement(element, element.invalidatedResources);
 			const message = nls.localize('cannotWorkspaceRedo', "Could not redo '{0}' across all files. {1}", element.label, element.invalidatedResources.createMessage());
 			this._notificationService.info(message);
@@ -610,8 +641,26 @@ export class UndoRedoService implements IUndoRedoService {
 
 	private _workspaceRedo(resource: URI, element: WorkspaceStackElement): Promise<void> | void {
 		const affectedEditStacks = this._getAffectedEditStacks(element);
-		const verificationError = this._checkWorkspaceRedo(resource, element, affectedEditStacks);
+		const verificationError = this._checkWorkspaceRedo(resource, element, affectedEditStacks, /*invalidated resources will be checked after the prepare call*/false);
 		if (verificationError) {
+			return verificationError.returnValue;
+		}
+		return this._executeWorkspaceRedo(resource, element, affectedEditStacks);
+	}
+
+	private async _executeWorkspaceRedo(resource: URI, element: WorkspaceStackElement, affectedEditStacks: ResourceEditStack[]): Promise<void> {
+		// prepare
+		let cleanup: IDisposable;
+		try {
+			cleanup = await this._invokePrepare(element);
+		} catch (err) {
+			return this._onError(err, element);
+		}
+
+		// At this point, it is possible that the element has been made invalid in the meantime (due to the prepare await)
+		const verificationError = this._checkWorkspaceRedo(resource, element, affectedEditStacks, /*now also check that there are no more invalidated resources*/true);
+		if (verificationError) {
+			cleanup.dispose();
 			return verificationError.returnValue;
 		}
 
@@ -619,7 +668,7 @@ export class UndoRedoService implements IUndoRedoService {
 			editStack.future.pop();
 			editStack.past.push(element);
 		}
-		return this._safeInvokeWithLocks(element, () => element.actual.redo(), affectedEditStacks);
+		return this._safeInvokeWithLocks(element, () => element.actual.redo(), affectedEditStacks, cleanup);
 	}
 
 	private _resourceRedo(editStack: ResourceEditStack, element: ResourceStackElement): Promise<void> | void {

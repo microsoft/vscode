@@ -12,6 +12,7 @@ import { IUndoRedoService, IResourceUndoRedoElement, UndoRedoElementType, IWorks
 import { URI } from 'vs/base/common/uri';
 import { TextChange, compressConsecutiveTextChanges } from 'vs/editor/common/model/textChange';
 import * as buffer from 'vs/base/common/buffer';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 function uriGetComparisonKey(resource: URI): string {
 	return resource.toString();
@@ -138,6 +139,10 @@ class SingleModelEditStackData {
 	}
 }
 
+export interface IUndoRedoDelegate {
+	prepareUndoRedo(element: MultiModelEditStackElement): Promise<IDisposable> | IDisposable | void;
+}
+
 export class SingleModelEditStackElement implements IResourceUndoRedoElement {
 
 	public model: ITextModel | URI;
@@ -224,6 +229,8 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 	private readonly _editStackElementsArr: SingleModelEditStackElement[];
 	private readonly _editStackElementsMap: Map<string, SingleModelEditStackElement>;
 
+	private _delegate: IUndoRedoDelegate | null;
+
 	public get resources(): readonly URI[] {
 		return this._editStackElementsArr.map(editStackElement => editStackElement.resource);
 	}
@@ -240,6 +247,27 @@ export class MultiModelEditStackElement implements IWorkspaceUndoRedoElement {
 			const key = uriGetComparisonKey(editStackElement.resource);
 			this._editStackElementsMap.set(key, editStackElement);
 		}
+		this._delegate = null;
+	}
+
+	public setDelegate(delegate: IUndoRedoDelegate): void {
+		this._delegate = delegate;
+	}
+
+	public prepareUndoRedo(): Promise<IDisposable> | IDisposable | void {
+		if (this._delegate) {
+			return this._delegate.prepareUndoRedo(this);
+		}
+	}
+
+	public getMissingModels(): URI[] {
+		const result: URI[] = [];
+		for (const editStackElement of this._editStackElementsArr) {
+			if (URI.isUri(editStackElement.model)) {
+				result.push(editStackElement.model);
+			}
+		}
+		return result;
 	}
 
 	public setModel(model: ITextModel | URI): void {
