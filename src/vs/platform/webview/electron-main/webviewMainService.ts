@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { webContents } from 'electron';
-import { IWebviewMainService } from 'vs/platform/webview/common/webviewMainService';
+import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 
-export class WebviewMainService implements IWebviewMainService {
+export class WebviewMainService implements IWebviewManagerService {
 
 	_serviceBrand: undefined;
 

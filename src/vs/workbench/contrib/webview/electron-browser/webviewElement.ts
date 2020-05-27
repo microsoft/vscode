@@ -14,13 +14,11 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
@@ -29,7 +27,9 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { IWebviewMainService } from 'vs/platform/webview/common/webviewMainService';
+import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 
 class WebviewTagHandle extends Disposable {
 
@@ -190,7 +190,7 @@ class WebviewKeyboardHandler {
 	private readonly _webviews = new Set<WebviewTag>();
 	private readonly _isUsingNativeTitleBars: boolean;
 
-	private readonly webviewMainService: IWebviewMainService;
+	private readonly webviewMainService: IWebviewManagerService;
 
 	constructor(
 		configurationService: IConfigurationService,
@@ -198,7 +198,7 @@ class WebviewKeyboardHandler {
 	) {
 		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
 
-		this.webviewMainService = createChannelSender<IWebviewMainService>(mainProcessService.getChannel('webview'));
+		this.webviewMainService = createChannelSender<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 	}
 
 	public add(webview: WebviewTag): IDisposable {

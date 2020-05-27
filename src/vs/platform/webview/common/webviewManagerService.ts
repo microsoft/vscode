@@ -5,9 +5,9 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
-export const IWebviewMainService = createDecorator<IWebviewMainService>('webviewMainService');
+export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
-export interface IWebviewMainService {
+export interface IWebviewManagerService {
 	_serviceBrand: unknown;
 
 	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): void;

@@ -5,12 +5,12 @@
 
 import { Event } from 'vs/base/common/event';
 import { IServerChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWebviewMainService } from 'vs/platform/webview/common/webviewMainService';
+import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 
 export class WebviewChannel implements IServerChannel {
 
 	constructor(
-		@IWebviewMainService private readonly webviewMainService: IWebviewMainService,
+		@IWebviewManagerService private readonly webviewMainService: IWebviewManagerService,
 	) { }
 
 	listen(_: unknown, event: string): Event<any> {
