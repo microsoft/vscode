@@ -190,8 +190,7 @@ export class IssueMainService implements IIssueService {
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
-							nodeIntegration: true,
-							enableWebSQL: false
+							nodeIntegration: true
 						}
 					});
 
@@ -241,8 +240,7 @@ export class IssueMainService implements IIssueService {
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
 							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
-							nodeIntegration: true,
-							enableWebSQL: false
+							nodeIntegration: true
 						}
 					});
 

@@ -104,6 +104,7 @@ suite('MainThreadEditors', () => {
 			};
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
+			onDidRunWorkingCopyFileOperation = Event.None;
 			move(source: URI, target: URI) {
 				movedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
