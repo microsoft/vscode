@@ -189,8 +189,7 @@ export class IssueMainService implements IIssueService {
 						title: localize('issueReporter', "Issue Reporter"),
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
-							nodeIntegration: true,
-							enableWebSQL: false
+							nodeIntegration: true
 						}
 					});
 
@@ -239,8 +238,7 @@ export class IssueMainService implements IIssueService {
 						backgroundColor: data.styles.backgroundColor,
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
-							nodeIntegration: true,
-							enableWebSQL: false
+							nodeIntegration: true
 						}
 					});
 

@@ -165,8 +165,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				webPreferences: {
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
-					webviewTag: true,
-					enableWebSQL: false
+					webviewTag: true
 				}
 			};
 
