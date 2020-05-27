@@ -240,6 +240,10 @@
 						if (scrollTarget) {
 							scrollTarget.scrollIntoView();
 						}
+					} else if (node.href.startsWith('blob:')) {
+						handleBlobUrlClick(node.href, node.download);
+					} else if (node.href.startsWith('data:')) {
+						handleDataUrlClick(node.href, node.download);
 					} else {
 						host.postMessage('did-click-link', node.href.baseVal || node.href);
 					}
@@ -247,6 +251,31 @@
 					break;
 				}
 				node = node.parentNode;
+			}
+		};
+
+		const handleDataUrlClick = async (url, downloadName) => {
+			host.postMessage('save-resource', {
+				data: url,
+				downloadName
+			});
+		};
+
+		const handleBlobUrlClick = async (url, downloadName) => {
+			try {
+				const response = await fetch(url);
+				const blob = await response.blob();
+				const reader = new FileReader();
+				reader.addEventListener('load', () => {
+					const data = reader.result;
+					host.postMessage('save-resource', {
+						data,
+						downloadName
+					});
+				});
+				reader.readAsDataURL(blob);
+			} catch (e) {
+				console.error(e.message);
 			}
 		};
 

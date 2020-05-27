@@ -18,12 +18,15 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewElement, IDataLinkClickEvent } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { dirname } from 'vs/base/common/resources';
+import { dirname, joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IFileService } from 'vs/platform/files/common/files';
+import { VSBuffer } from 'vs/base/common/buffer';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -160,6 +163,8 @@ export class BackLayerWebView extends Disposable {
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this.element = document.createElement('div');
@@ -516,6 +521,10 @@ ${loaderJs}
 			}
 		}));
 
+		this._register(this.webview.onDidClickDataLink(event => {
+			this._onDidClickDataLink(event);
+		}));
+
 		this._register(this.webview.onDidReload(() => {
 			this.preloadsCache.clear();
 			for (const [output, inset] of this.insetMapping.entries()) {
@@ -584,6 +593,33 @@ ${loaderJs}
 
 			this._onMessage.fire(data);
 		}));
+	}
+
+	private async _onDidClickDataLink(event: IDataLinkClickEvent): Promise<void> {
+		const defaultDir = dirname(this.documentUri);
+		const defaultUri = joinPath(defaultDir, event.downloadName || 'download.png');
+
+		const newFileUri = await this.fileDialogService.showSaveDialog({
+			defaultUri
+		});
+		if (!newFileUri) {
+			return;
+		}
+
+		const splitData = event.dataURL.split(';base64,')[1];
+		if (!splitData) {
+			return;
+		}
+
+		const decoded = atob(splitData);
+		const typedArray = new Uint8Array(decoded.length);
+		for (let i = 0; i < decoded.length; i++) {
+			typedArray[i] = decoded.charCodeAt(i);
+		}
+
+		const buff = VSBuffer.wrap(typedArray);
+		await this.fileService.writeFile(newFileUri, buff);
+		await this.openerService.open(newFileUri);
 	}
 
 	async waitForInitialization() {

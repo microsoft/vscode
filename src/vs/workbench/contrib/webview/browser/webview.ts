@@ -73,6 +73,11 @@ export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 }
 
+export interface IDataLinkClickEvent {
+	dataURL: string;
+	downloadName?: string;
+}
+
 export interface Webview extends IDisposable {
 	html: string;
 	contentOptions: WebviewContentOptions;
@@ -84,6 +89,7 @@ export interface Webview extends IDisposable {
 	readonly onDidFocus: Event<void>;
 	readonly onDidBlur: Event<void>;
 	readonly onDidClickLink: Event<string>;
+	readonly onDidClickDataLink: Event<IDataLinkClickEvent>;
 	readonly onDidScroll: Event<{ scrollYPercentage: number }>;
 	readonly onDidWheel: Event<IMouseWheelEvent>;
 	readonly onDidUpdateState: Event<string | undefined>;

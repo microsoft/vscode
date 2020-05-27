@@ -6,12 +6,12 @@
 import { addClass } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { WebviewExtensionDescription, WebviewOptions, WebviewContentOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IDataLinkClickEvent, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { areWebviewInputOptionsEqual } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,6 +26,7 @@ export const enum WebviewMessageChannels {
 	doUpdateState = 'do-update-state',
 	doReload = 'do-reload',
 	loadResource = 'load-resource',
+	saveResource = 'save-resource',
 	loadLocalhost = 'load-localhost',
 	webviewReady = 'webview-ready',
 	wheel = 'did-scroll-wheel'
@@ -136,6 +137,10 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			this.handleKeyDown(data);
 		}));
 
+		this._register(this.on(WebviewMessageChannels.saveResource, (event: IDataLinkClickEvent) => {
+			this._onDidClickDataLink.fire(event);
+		}));
+
 		this.style();
 		this._register(webviewThemeDataProvider.onThemeDataChanged(this.style, this));
 	}
@@ -154,6 +159,9 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink = this._onDidClickLink.event;
+
+	private readonly _onDidClickDataLink = this._register(new Emitter<IDataLinkClickEvent>());
+	public readonly onDidClickDataLink = this._onDidClickDataLink.event;
 
 	private readonly _onDidReload = this._register(new Emitter<void>());
 	public readonly onDidReload = this._onDidReload.event;
