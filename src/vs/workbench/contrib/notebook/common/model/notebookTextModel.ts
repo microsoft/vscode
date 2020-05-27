@@ -43,7 +43,8 @@ export class NotebookTextModelSnapshot implements ITextSnapshot {
 				source: cell.getValue(),
 				metadata: cell.metadata,
 				cellKind: cell.cellKind,
-				language: cell.language
+				language: cell.language,
+				outputs: cell.outputs
 			};
 
 			const rawStr = JSON.stringify(data);

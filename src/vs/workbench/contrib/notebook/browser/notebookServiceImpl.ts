@@ -291,6 +291,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false, editorId);
+		await this.transformTextModelOutputs(notebookModel!);
 		if (!notebookModel) {
 			return undefined;
 		}

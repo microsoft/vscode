@@ -102,11 +102,6 @@ class DocumentAndEditorState {
 		// const oldActiveEditor = before.activeEditor !== after.activeEditor ? before.activeEditor : undefined;
 		const newActiveEditor = before.activeEditor !== after.activeEditor ? after.activeEditor : undefined;
 
-		// return new DocumentAndEditorStateDelta(
-		// 	documentDelta.removed, documentDelta.added,
-		// 	editorDelta.removed, editorDelta.added,
-		// 	oldActiveEditor, newActiveEditor
-		// );
 		return {
 			addedEditors: addedAPIEditors,
 			removedEditors: removedAPIEditors,
@@ -522,11 +517,6 @@ export class MainThreadNotebookController implements IMainNotebookController {
 		let document = this._mapping.get(URI.from(resource).toString());
 		document?.textModel.updateNotebookCellMetadata(handle, metadata);
 	}
-
-	// updateNotebookRenderers(resource: UriComponents, renderers: number[]): void {
-	// 	let document = this._mapping.get(URI.from(resource).toString());
-	// 	document?.textModel.updateRenderers(renderers);
-	// }
 
 	async executeNotebookCell(uri: URI, handle: number, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {
 		return this._proxy.$executeNotebook(this._viewType, uri, handle, useAttachedKernel, token);
