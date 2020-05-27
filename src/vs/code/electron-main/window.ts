@@ -166,7 +166,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
-					webviewTag: true
+					webviewTag: true,
+					enableWebSQL: false
 				}
 			};
 
