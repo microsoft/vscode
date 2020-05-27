@@ -1171,7 +1171,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}));
 
 		// A move to another group is an open first...
-		target.openEditor(editor, options);
+		target.openEditor(editor, options, keepCopy ? OpenEditorInGroupContext.COPY_EDITOR : OpenEditorInGroupContext.MOVE_EDITOR);
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
