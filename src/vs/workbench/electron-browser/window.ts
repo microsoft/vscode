@@ -432,15 +432,15 @@ export class NativeWindow extends Disposable {
 			const companyName = product.crashReporter?.companyName || 'Microsoft';
 			const productName = product.crashReporter?.productName || product.nameShort;
 
-			// With appCenter enabled, crashes will be uploaded
-			if (product.appCenter) {
-				this.setupCrashReporter(companyName, productName, product.appCenter, undefined);
-			}
-
 			// With a provided crash reporter directory, crashes
 			// will be stored only locally in that folder
-			else if (this.environmentService.crashReporterDirectory) {
+			if (this.environmentService.crashReporterDirectory) {
 				this.setupCrashReporter(companyName, productName, undefined, this.environmentService.crashReporterDirectory);
+			}
+
+			// With appCenter enabled, crashes will be uploaded
+			else if (product.appCenter) {
+				this.setupCrashReporter(companyName, productName, product.appCenter, undefined);
 			}
 		}
 	}
