@@ -152,16 +152,147 @@ class WorkspaceStackElement {
 type StackElement = ResourceStackElement | WorkspaceStackElement;
 
 class ResourceEditStack {
-	public resource: URI;
-	public past: StackElement[];
-	public future: StackElement[];
+	public readonly resource: URI;
+	private readonly strResource: string;
+	private _past: StackElement[];
+	private _future: StackElement[];
 	public locked: boolean;
 
-	constructor(resource: URI) {
+	constructor(resource: URI, strResource: string) {
 		this.resource = resource;
-		this.past = [];
-		this.future = [];
+		this.strResource = strResource;
+		this._past = [];
+		this._future = [];
 		this.locked = false;
+	}
+
+	public dispose(): void {
+		for (const element of this._past) {
+			if (element.type === UndoRedoElementType.Workspace) {
+				element.removeResource(this.resource, this.strResource, RemovedResourceReason.ExternalRemoval);
+			}
+		}
+		for (const element of this._future) {
+			if (element.type === UndoRedoElementType.Workspace) {
+				element.removeResource(this.resource, this.strResource, RemovedResourceReason.ExternalRemoval);
+			}
+		}
+	}
+
+	public flushAllElements(): void {
+		this._past = [];
+		this._future = [];
+	}
+
+	public setElementsIsValid(isValid: boolean): void {
+		for (const element of this._past) {
+			if (element.type === UndoRedoElementType.Workspace) {
+				element.setValid(this.resource, this.strResource, isValid);
+			} else {
+				element.setValid(isValid);
+			}
+		}
+		for (const element of this._future) {
+			if (element.type === UndoRedoElementType.Workspace) {
+				element.setValid(this.resource, this.strResource, isValid);
+			} else {
+				element.setValid(isValid);
+			}
+		}
+	}
+
+	public pushElement(element: StackElement): void {
+		// remove the future
+		for (const futureElement of this._future) {
+			if (futureElement.type === UndoRedoElementType.Workspace) {
+				futureElement.removeResource(this.resource, this.strResource, RemovedResourceReason.NoParallelUniverses);
+			}
+		}
+		this._future = [];
+		if (this._past.length > 0) {
+			const lastElement = this._past[this._past.length - 1];
+			if (lastElement.type === UndoRedoElementType.Resource && !lastElement.isValid) {
+				// clear undo stack
+				this._past = [];
+			}
+		}
+		this._past.push(element);
+	}
+
+	public getElements(): IPastFutureElements {
+		const past: IUndoRedoElement[] = [];
+		const future: IUndoRedoElement[] = [];
+
+		for (const element of this._past) {
+			past.push(element.actual);
+		}
+		for (const element of this._future) {
+			future.push(element.actual);
+		}
+
+		return { past, future };
+	}
+
+	public getClosestPastElement(): StackElement | null {
+		if (this._past.length === 0) {
+			return null;
+		}
+		return this._past[this._past.length - 1];
+	}
+
+	public getClosestFutureElement(): StackElement | null {
+		if (this._future.length === 0) {
+			return null;
+		}
+		return this._future[this._future.length - 1];
+	}
+
+	public hasPastElements(): boolean {
+		return (this._past.length > 0);
+	}
+
+	public hasFutureElements(): boolean {
+		return (this._future.length > 0);
+	}
+
+	public splitPastWorkspaceElement(toRemove: WorkspaceStackElement, individualMap: Map<string, ResourceStackElement>): void {
+		for (let j = this._past.length - 1; j >= 0; j--) {
+			if (this._past[j] === toRemove) {
+				if (individualMap.has(this.strResource)) {
+					// gets replaced
+					this._past[j] = individualMap.get(this.strResource)!;
+				} else {
+					// gets deleted
+					this._past.splice(j, 1);
+				}
+				break;
+			}
+		}
+	}
+
+	public splitFutureWorkspaceElement(toRemove: WorkspaceStackElement, individualMap: Map<string, ResourceStackElement>): void {
+		for (let j = this._future.length - 1; j >= 0; j--) {
+			if (this._future[j] === toRemove) {
+				if (individualMap.has(this.strResource)) {
+					// gets replaced
+					this._future[j] = individualMap.get(this.strResource)!;
+				} else {
+					// gets deleted
+					this._future.splice(j, 1);
+				}
+				break;
+			}
+		}
+	}
+
+	public moveBackward(element: StackElement): void {
+		this._past.pop();
+		this._future.push(element);
+	}
+
+	public moveForward(element: StackElement): void {
+		this._future.pop();
+		this._past.push(element);
 	}
 }
 
@@ -187,25 +318,11 @@ export class UndoRedoService implements IUndoRedoService {
 			if (this._editStacks.has(strResource)) {
 				editStack = this._editStacks.get(strResource)!;
 			} else {
-				editStack = new ResourceEditStack(resource);
+				editStack = new ResourceEditStack(resource, strResource);
 				this._editStacks.set(strResource, editStack);
 			}
 
-			// remove the future
-			for (const futureElement of editStack.future) {
-				if (futureElement.type === UndoRedoElementType.Workspace) {
-					futureElement.removeResource(resource, strResource, RemovedResourceReason.NoParallelUniverses);
-				}
-			}
-			editStack.future = [];
-			if (editStack.past.length > 0) {
-				const lastElement = editStack.past[editStack.past.length - 1];
-				if (lastElement.type === UndoRedoElementType.Resource && !lastElement.isValid) {
-					// clear undo stack
-					editStack.past = [];
-				}
-			}
-			editStack.past.push(element);
+			editStack.pushElement(element);
 		}
 	}
 
@@ -213,13 +330,11 @@ export class UndoRedoService implements IUndoRedoService {
 		const strResource = uriGetComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			if (editStack.future.length > 0) {
+			if (editStack.hasFutureElements()) {
 				return null;
 			}
-			if (editStack.past.length === 0) {
-				return null;
-			}
-			return editStack.past[editStack.past.length - 1].actual;
+			const closestPastElement = editStack.getClosestPastElement();
+			return closestPastElement ? closestPastElement.actual : null;
 		}
 		return null;
 	}
@@ -237,18 +352,7 @@ export class UndoRedoService implements IUndoRedoService {
 				continue;
 			}
 			const editStack = this._editStacks.get(strResource)!;
-			for (let j = editStack.past.length - 1; j >= 0; j--) {
-				if (editStack.past[j] === toRemove) {
-					if (individualMap.has(strResource)) {
-						// gets replaced
-						editStack.past[j] = individualMap.get(strResource)!;
-					} else {
-						// gets deleted
-						editStack.past.splice(j, 1);
-					}
-					break;
-				}
-			}
+			editStack.splitPastWorkspaceElement(toRemove, individualMap);
 		}
 	}
 
@@ -265,18 +369,7 @@ export class UndoRedoService implements IUndoRedoService {
 				continue;
 			}
 			const editStack = this._editStacks.get(strResource)!;
-			for (let j = editStack.future.length - 1; j >= 0; j--) {
-				if (editStack.future[j] === toRemove) {
-					if (individualMap.has(strResource)) {
-						// gets replaced
-						editStack.future[j] = individualMap.get(strResource)!;
-					} else {
-						// gets deleted
-						editStack.future.splice(j, 1);
-					}
-					break;
-				}
-			}
+			editStack.splitFutureWorkspaceElement(toRemove, individualMap);
 		}
 	}
 
@@ -284,16 +377,7 @@ export class UndoRedoService implements IUndoRedoService {
 		const strResource = uriGetComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			for (const element of editStack.past) {
-				if (element.type === UndoRedoElementType.Workspace) {
-					element.removeResource(resource, strResource, RemovedResourceReason.ExternalRemoval);
-				}
-			}
-			for (const element of editStack.future) {
-				if (element.type === UndoRedoElementType.Workspace) {
-					element.removeResource(resource, strResource, RemovedResourceReason.ExternalRemoval);
-				}
-			}
+			editStack.dispose();
 			this._editStacks.delete(strResource);
 		}
 	}
@@ -302,20 +386,7 @@ export class UndoRedoService implements IUndoRedoService {
 		const strResource = uriGetComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			for (const element of editStack.past) {
-				if (element.type === UndoRedoElementType.Workspace) {
-					element.setValid(resource, strResource, isValid);
-				} else {
-					element.setValid(isValid);
-				}
-			}
-			for (const element of editStack.future) {
-				if (element.type === UndoRedoElementType.Workspace) {
-					element.setValid(resource, strResource, isValid);
-				} else {
-					element.setValid(isValid);
-				}
-			}
+			editStack.setElementsIsValid(isValid);
 		}
 	}
 
@@ -325,34 +396,25 @@ export class UndoRedoService implements IUndoRedoService {
 		const strResource = uriGetComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			return (editStack.past.length > 0 || editStack.future.length > 0);
+			return (editStack.hasPastElements() || editStack.hasFutureElements());
 		}
 		return false;
 	}
 
 	public getElements(resource: URI): IPastFutureElements {
-		const past: IUndoRedoElement[] = [];
-		const future: IUndoRedoElement[] = [];
-
 		const strResource = uriGetComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			for (const element of editStack.past) {
-				past.push(element.actual);
-			}
-			for (const element of editStack.future) {
-				future.push(element.actual);
-			}
+			return editStack.getElements();
 		}
-
-		return { past, future };
+		return { past: [], future: [] };
 	}
 
 	public canUndo(resource: URI): boolean {
 		const strResource = uriGetComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			return (editStack.past.length > 0);
+			return editStack.hasPastElements();
 		}
 		return false;
 	}
@@ -455,7 +517,7 @@ export class UndoRedoService implements IUndoRedoService {
 		// this must be the last past element in all the impacted resources!
 		const cannotUndoDueToResources: URI[] = [];
 		for (const editStack of affectedEditStacks) {
-			if (editStack.past.length === 0 || editStack.past[editStack.past.length - 1] !== element) {
+			if (editStack.getClosestPastElement() !== element) {
 				cannotUndoDueToResources.push(editStack.resource);
 			}
 		}
@@ -542,8 +604,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		for (const editStack of affectedEditStacks) {
-			editStack.past.pop();
-			editStack.future.push(element);
+			editStack.moveBackward(element);
 		}
 		return this._safeInvokeWithLocks(element, () => element.actual.undo(), affectedEditStacks, cleanup);
 	}
@@ -551,8 +612,7 @@ export class UndoRedoService implements IUndoRedoService {
 	private _resourceUndo(editStack: ResourceEditStack, element: ResourceStackElement): Promise<void> | void {
 		if (!element.isValid) {
 			// invalid element => immediately flush edit stack!
-			editStack.past = [];
-			editStack.future = [];
+			editStack.flushAllElements();
 			return;
 		}
 		if (editStack.locked) {
@@ -560,8 +620,7 @@ export class UndoRedoService implements IUndoRedoService {
 			this._notificationService.info(message);
 			return;
 		}
-		editStack.past.pop();
-		editStack.future.push(element);
+		editStack.moveBackward(element);
 		return this._safeInvokeWithLocks(element, () => element.actual.undo(), [editStack]);
 	}
 
@@ -572,11 +631,11 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		const editStack = this._editStacks.get(strResource)!;
-		if (editStack.past.length === 0) {
+		const element = editStack.getClosestPastElement();
+		if (!element) {
 			return;
 		}
 
-		const element = editStack.past[editStack.past.length - 1];
 		if (element.type === UndoRedoElementType.Workspace) {
 			return this._workspaceUndo(resource, element);
 		} else {
@@ -588,7 +647,7 @@ export class UndoRedoService implements IUndoRedoService {
 		const strResource = uriGetComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			return (editStack.future.length > 0);
+			return editStack.hasFutureElements();
 		}
 		return false;
 	}
@@ -610,7 +669,7 @@ export class UndoRedoService implements IUndoRedoService {
 		// this must be the last future element in all the impacted resources!
 		const cannotRedoDueToResources: URI[] = [];
 		for (const editStack of affectedEditStacks) {
-			if (editStack.future.length === 0 || editStack.future[editStack.future.length - 1] !== element) {
+			if (editStack.getClosestFutureElement() !== element) {
 				cannotRedoDueToResources.push(editStack.resource);
 			}
 		}
@@ -665,8 +724,7 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		for (const editStack of affectedEditStacks) {
-			editStack.future.pop();
-			editStack.past.push(element);
+			editStack.moveForward(element);
 		}
 		return this._safeInvokeWithLocks(element, () => element.actual.redo(), affectedEditStacks, cleanup);
 	}
@@ -674,8 +732,7 @@ export class UndoRedoService implements IUndoRedoService {
 	private _resourceRedo(editStack: ResourceEditStack, element: ResourceStackElement): Promise<void> | void {
 		if (!element.isValid) {
 			// invalid element => immediately flush edit stack!
-			editStack.past = [];
-			editStack.future = [];
+			editStack.flushAllElements();
 			return;
 		}
 		if (editStack.locked) {
@@ -683,8 +740,7 @@ export class UndoRedoService implements IUndoRedoService {
 			this._notificationService.info(message);
 			return;
 		}
-		editStack.future.pop();
-		editStack.past.push(element);
+		editStack.moveForward(element);
 		return this._safeInvokeWithLocks(element, () => element.actual.redo(), [editStack]);
 	}
 
@@ -695,11 +751,11 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 
 		const editStack = this._editStacks.get(strResource)!;
-		if (editStack.future.length === 0) {
+		const element = editStack.getClosestFutureElement();
+		if (!element) {
 			return;
 		}
 
-		const element = editStack.future[editStack.future.length - 1];
 		if (element.type === UndoRedoElementType.Workspace) {
 			return this._workspaceRedo(resource, element);
 		} else {
