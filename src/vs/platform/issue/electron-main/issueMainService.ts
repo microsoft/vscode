@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
@@ -19,10 +19,15 @@ import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
-export class IssueMainService implements IIssueService {
+export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
+
+export interface IIssueMainService extends ICommonIssueService { }
+
+export class IssueMainService implements ICommonIssueService {
 	_serviceBrand: undefined;
 	_issueWindow: BrowserWindow | null = null;
 	_issueParentWindow: BrowserWindow | null = null;
