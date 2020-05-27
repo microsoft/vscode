@@ -33,8 +33,7 @@
     "strict-function-types-watch": "tsc --watch -p src/tsconfig.json --noEmit --strictFunctionTypes",
     "update-distro": "node build/npm/update-distro.js",
     "web": "node scripts/code-web.js",
-    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions",
-    "generate-github-config": "node extensions/github-authentication/build/generateconfig.js"
+    "eslint": "eslint -c .eslintrc.json --rulesdir ./build/lib/eslint --ext .ts --ext .js ./src/vs ./extensions"
   },
   "dependencies": {
     "applicationinsights": "1.0.8",
