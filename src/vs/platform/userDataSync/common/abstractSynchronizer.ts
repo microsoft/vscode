@@ -238,7 +238,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
 			// current version is not compatible with cloud version
 			this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/incompatible', { source: this.resource });
-			throw new UserDataSyncError(localize('incompatible', "Cannot sync {0} as its version {1} is not compatible with cloud {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.Incompatible, this.resource);
+			throw new UserDataSyncError(localize({ key: 'incompatible', comment: ['This is an error while syncing a resource that its local version is not compatible with its remote version.'] }, "Cannot sync {0} as its local version {1} is not compatible with its remote version {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.Incompatible, this.resource);
 		}
 		try {
 			const status = await this.performSync(remoteUserData, lastSyncUserData);

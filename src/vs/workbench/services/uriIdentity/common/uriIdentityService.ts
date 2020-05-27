@@ -7,8 +7,18 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
-import { binarySearch } from 'vs/base/common/arrays';
 import { ExtUri, IExtUri, normalizePath } from 'vs/base/common/resources';
+import { SkipList } from 'vs/base/common/skipList';
+
+class Entry {
+	static _clock = 0;
+	time: number = Entry._clock++;
+	constructor(readonly uri: URI) { }
+	touch() {
+		this.time = Entry._clock++;
+		return this;
+	}
+}
 
 export class UriIdentityService implements IUriIdentityService {
 
@@ -16,19 +26,17 @@ export class UriIdentityService implements IUriIdentityService {
 
 	readonly extUri: IExtUri;
 
-	private _canonicalUris: URI[] = []; // use SkipList or BinaryTree instead of array...
-	private readonly _limit = 10_000;
+	private readonly _canonicalUris: SkipList<URI, Entry>;
+	private readonly _limit = 2 ** 16;
 
 	constructor(@IFileService private readonly _fileService: IFileService) {
 
 		// assume path casing matters unless the file system provider spec'ed the opposite
 		const ignorePathCasing = (uri: URI): boolean => {
-
 			// perf@jrieken cache this information
 			if (this._fileService.canHandleResource(uri)) {
 				return !this._fileService.hasCapability(uri, FileSystemProviderCapabilities.PathCaseSensitive);
 			}
-
 			// this defaults to false which is a good default for
 			// * virtual documents
 			// * in-memory uris
@@ -36,6 +44,7 @@ export class UriIdentityService implements IUriIdentityService {
 			return false;
 		};
 		this.extUri = new ExtUri(ignorePathCasing);
+		this._canonicalUris = new SkipList((a, b) => this.extUri.compare(a, b, true), this._limit);
 	}
 
 	asCanonicalUri(uri: URI): URI {
@@ -53,18 +62,42 @@ export class UriIdentityService implements IUriIdentityService {
 		}
 
 		// (2) find the uri in its canonical form or use this uri to define it
-		const idx = binarySearch(this._canonicalUris, uri, (a, b) => this.extUri.compare(a, b, true));
-		if (idx >= 0) {
-			return this._canonicalUris[idx].with({ fragment: uri.fragment });
+		let item = this._canonicalUris.get(uri);
+		if (item) {
+			return item.touch().uri.with({ fragment: uri.fragment });
 		}
 
-		// using slice/concat is faster than splice
-		// total len should be being _limit and 2*_limit
-		const insertIdx = ~idx;
-		const before = this._canonicalUris.slice(Math.max(0, insertIdx - this._limit), insertIdx);
-		const after = this._canonicalUris.slice(insertIdx, insertIdx + this._limit);
-		this._canonicalUris = before.concat(uri.with({ fragment: null }), after);
+		// this uri is first and defines the canonical form
+		this._canonicalUris.set(uri, new Entry(uri));
+		this._checkTrim();
+
 		return uri;
+	}
+
+	private _checkTrim(): void {
+		if (this._canonicalUris.size < this._limit) {
+			return;
+		}
+
+		// get all entries, sort by touch (MRU) and re-initalize
+		// the uri cache and the entry clock. this is an expensive
+		// operation and should happen rarely
+		const entries = [...this._canonicalUris.entries()].sort((a, b) => {
+			if (a[1].touch < b[1].touch) {
+				return 1;
+			} else if (a[1].touch > b[1].touch) {
+				return -1;
+			} else {
+				return 0;
+			}
+		});
+
+		Entry._clock = 0;
+		this._canonicalUris.clear();
+		const newSize = this._limit * 0.5;
+		for (let i = 0; i < newSize; i++) {
+			this._canonicalUris.set(entries[i][0], entries[i][1].touch());
+		}
 	}
 }
 

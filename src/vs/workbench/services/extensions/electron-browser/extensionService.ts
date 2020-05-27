@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer as ipc } from 'electron';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ExtensionHostProcessWorker } from 'vs/workbench/services/extensions/electron-browser/extensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -34,7 +34,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { flatten } from 'vs/base/common/arrays';
 import { IStaticExtensionsService } from 'vs/workbench/services/extensions/common/staticExtensions';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { Action } from 'vs/base/common/actions';
@@ -573,7 +573,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	public _onExtensionHostExit(code: number): void {
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
-			ipc.send('vscode:exit', code);
+			ipcRenderer.send('vscode:exit', code);
 		} else {
 			// Expected development extension termination: When the extension host goes down we also shutdown the window
 			this._electronService.closeWindow();

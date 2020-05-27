@@ -30,7 +30,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { TestSharedProcessService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
-import { URLService } from 'vs/platform/url/node/urlService';
+import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { URI } from 'vs/base/common/uri';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -105,7 +105,7 @@ async function setupTest() {
 	instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
 	instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 	instantiationService.stub(IExtensionRecommendationsService, {});
-	instantiationService.stub(IURLService, URLService);
+	instantiationService.stub(IURLService, NativeURLService);
 
 	instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 	instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
