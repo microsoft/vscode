@@ -9,10 +9,10 @@ import { MainContext, ExtHostDecorationsShape, MainThreadDecorationsShape, Decor
 import { Disposable, Decoration } from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { asArray } from 'vs/base/common/arrays';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { asArray } from 'vs/base/common/arrays';
 
 interface ProviderData {
 	provider: vscode.DecorationProvider;
@@ -40,7 +40,9 @@ export class ExtHostDecorations implements IExtHostDecorations {
 		this._proxy.$registerDecorationProvider(handle, extensionId.value);
 
 		const listener = provider.onDidChangeDecorations(e => {
-			this._proxy.$onDidChange(handle, !e ? null : asArray(e));
+			this._proxy.$onDidChange(handle, !e || (Array.isArray(e) && e.length > 250)
+				? null
+				: asArray(e));
 		});
 
 		return new Disposable(() => {

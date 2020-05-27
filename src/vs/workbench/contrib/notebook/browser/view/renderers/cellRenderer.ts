@@ -359,11 +359,10 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	renderTemplate(container: HTMLElement): MarkdownCellRenderTemplate {
-		const contextKeyService = this.contextKeyServiceProvider(container);
-
 		container.tabIndex = -1;
 		container.classList.add('markdown-cell-row');
 		const disposables = new DisposableStore();
+		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 		const toolbar = disposables.add(this.createToolbar(container));
 		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 		focusIndicator.setAttribute('draggable', 'true');
@@ -897,11 +896,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	renderTemplate(container: HTMLElement): CodeCellRenderTemplate {
-		const contextKeyService = this.contextKeyServiceProvider(container);
-
 		container.classList.add('code-cell-row');
 		container.tabIndex = -1;
 		const disposables = new DisposableStore();
+		const contextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 		const toolbar = disposables.add(this.createToolbar(container));
 		const focusIndicator = DOM.append(container, DOM.$('.notebook-cell-focus-indicator'));
 		focusIndicator.setAttribute('draggable', 'true');
@@ -914,7 +912,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const executionOrderLabel = DOM.append(runButtonContainer, $('div.execution-count-label'));
 
 		// create a special context key service that set the inCompositeEditor-contextkey
-		const editorContextKeyService = this.contextKeyServiceProvider(container);
+		const editorContextKeyService = disposables.add(this.contextKeyServiceProvider(container));
 		const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
 		EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 

@@ -9,8 +9,8 @@ import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/brow
 import * as DOM from 'vs/base/browser/dom';
 import { Event, Emitter } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
-import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
-import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions } from 'vs/base/common/scrollable';
+import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
+import { ScrollEvent, ScrollbarVisibility, INewScrollDimensions, Scrollable } from 'vs/base/common/scrollable';
 import { RangeMap, shift } from './rangeMap';
 import { IListVirtualDelegate, IListRenderer, IListMouseEvent, IListTouchEvent, IListGestureEvent, IListDragEvent, IListDragAndDrop, ListDragOverEffect } from './list';
 import { RowCache, IRow } from './rowCache';
@@ -48,7 +48,12 @@ export interface IListViewAccessibilityProvider<T> {
 	isChecked?(element: T): boolean | undefined;
 }
 
-export interface IListViewOptions<T> {
+export interface IListViewOptionsUpdate {
+	readonly additionalScrollHeight?: number;
+	readonly smoothScrolling?: boolean;
+}
+
+export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly dnd?: IListViewDragAndDrop<T>;
 	readonly useShadows?: boolean;
 	readonly verticalScrollMode?: ScrollbarVisibility;
@@ -58,7 +63,6 @@ export interface IListViewOptions<T> {
 	readonly mouseSupport?: boolean;
 	readonly horizontalScrolling?: boolean;
 	readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
-	readonly additionalScrollHeight?: number;
 	readonly transformOptimization?: boolean;
 }
 
@@ -204,7 +208,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	private lastRenderHeight: number;
 	private renderWidth = 0;
 	private rowsContainer: HTMLElement;
-	private scrollableElement: ScrollableElement;
+	private scrollable: Scrollable;
+	private scrollableElement: SmoothScrollableElement;
 	private _scrollHeight: number = 0;
 	private scrollableElementUpdateDisposable: IDisposable | null = null;
 	private scrollableElementWidthDelayer = new Delayer<void>(50);
@@ -285,12 +290,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
 
-		this.scrollableElement = this.disposables.add(new ScrollableElement(this.rowsContainer, {
+		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => DOM.scheduleAtNextAnimationFrame(cb));
+		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: true,
 			horizontal: this.horizontalScrolling ? ScrollbarVisibility.Auto : ScrollbarVisibility.Hidden,
 			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
-			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows)
-		}));
+			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
+		}, this.scrollable));
 
 		this.domNode.appendChild(this.scrollableElement.getDomNode());
 		container.appendChild(this.domNode);
@@ -319,6 +325,10 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	updateOptions(options: IListViewOptions<T>) {
 		if (options.additionalScrollHeight !== undefined) {
 			this.additionalScrollHeight = options.additionalScrollHeight;
+		}
+
+		if (options.smoothScrolling !== undefined) {
+			this.scrollable.setSmoothScrollDuration(options.smoothScrolling ? 125 : 0);
 		}
 	}
 

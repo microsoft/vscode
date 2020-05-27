@@ -824,7 +824,6 @@ export function etag(stat: { mtime: number | undefined, size: number | undefined
 	return stat.mtime.toString(29) + stat.size.toString(31);
 }
 
-
 export function whenProviderRegistered(file: URI, fileService: IFileService): Promise<void> {
 	if (fileService.canHandleResource(URI.from({ scheme: file.scheme }))) {
 		return Promise.resolve();
@@ -838,3 +837,9 @@ export function whenProviderRegistered(file: URI, fileService: IFileService): Pr
 		});
 	});
 }
+
+/**
+ * Desktop only: limits for memory sizes
+ */
+export const MIN_MAX_MEMORY_SIZE_MB = 2048;
+export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;

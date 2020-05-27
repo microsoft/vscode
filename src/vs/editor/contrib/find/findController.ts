@@ -359,7 +359,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
-			return this._clipboardService.readFindText();
+			return this._clipboardService.readFindTextSync();
 		}
 		return '';
 	}
@@ -370,7 +370,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 			&& this._editor.hasModel()
 			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
-			this._clipboardService.writeFindText(text);
+			this._clipboardService.writeFindTextSync(text);
 		}
 	}
 }

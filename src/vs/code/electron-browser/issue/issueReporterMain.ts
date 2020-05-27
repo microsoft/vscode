@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { clipboard, ipcRenderer, shell, webFrame } from 'electron';
+import 'vs/css!./media/issueReporter';
+import { ElectronService, IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import * as os from 'os';
 import * as browser from 'vs/base/browser/browser';
-import { $ } from 'vs/base/browser/dom';
+import { $, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
@@ -15,21 +17,19 @@ import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createChannelSender } from 'vs/base/parts/ipc/node/ipc';
+import { getDelayedChannel, createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { IssueReporterData as IssueReporterModelData, IssueReporterModel } from 'vs/code/electron-browser/issue/issueReporterModel';
 import BaseHtml from 'vs/code/electron-browser/issue/issueReporterPage';
-import 'vs/css!./media/issueReporter';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { EnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService, MainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/node/issue';
+import { ISettingsSearchIssueReporterData, IssueReporterData, IssueReporterExtensionData, IssueReporterFeatures, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { getLogLevel, ILogService } from 'vs/platform/log/common/log';
 import { FollowerLogService, LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { SpdLogService } from 'vs/platform/log/node/spdlogService';
@@ -64,6 +64,7 @@ export function startup(configuration: IssueReporterConfiguration) {
 
 export class IssueReporter extends Disposable {
 	private environmentService!: INativeEnvironmentService;
+	private electronService!: IElectronService;
 	private telemetryService!: ITelemetryService;
 	private logService!: ILogService;
 	private readonly issueReporterModel: IssueReporterModel;
@@ -324,6 +325,9 @@ export class IssueReporter extends Disposable {
 		const mainProcessService = new MainProcessService(configuration.windowId);
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
+		this.electronService = new ElectronService(configuration.windowId, mainProcessService) as IElectronService;
+		serviceCollection.set(IElectronService, this.electronService);
+
 		this.environmentService = new EnvironmentService(configuration, configuration.execPath);
 
 		const logService = new SpdLogService(`issuereporter${configuration.windowId}`, this.environmentService.logsPath, getLogLevel(this.environmentService));
@@ -462,7 +466,7 @@ export class IssueReporter extends Disposable {
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
 			const url = (<HTMLElement>e.target).innerText;
-			shell.openExternal(url);
+			windowOpenNoOpener(url);
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
@@ -941,9 +945,9 @@ export class IssueReporter extends Disposable {
 
 	private async writeToClipboard(baseUrl: string, issueBody: string): Promise<string> {
 		return new Promise((resolve, reject) => {
-			ipcRenderer.once('vscode:issueReporterClipboardResponse', (_: unknown, shouldWrite: boolean) => {
+			ipcRenderer.once('vscode:issueReporterClipboardResponse', async (event: unknown, shouldWrite: boolean) => {
 				if (shouldWrite) {
-					clipboard.writeText(issueBody);
+					await this.electronService.writeClipboardText(issueBody);
 					resolve(baseUrl + `&body=${encodeURIComponent(localize('pasteData', "We have written the needed data into your clipboard because it was too large to send. Please paste."))}`);
 				} else {
 					reject();
@@ -1194,7 +1198,7 @@ export class IssueReporter extends Disposable {
 		event.stopPropagation();
 		// Exclude right click
 		if (event.which < 3) {
-			shell.openExternal((<HTMLAnchorElement>event.target).href);
+			windowOpenNoOpener((<HTMLAnchorElement>event.target).href);
 			this.telemetryService.publicLog2('issueReporterViewSimilarIssue');
 		}
 	}

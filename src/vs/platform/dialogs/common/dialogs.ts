@@ -272,3 +272,12 @@ export function getFileNamesMessage(fileNamesOrResources: readonly (string | URI
 	message.push('');
 	return message.join('\n');
 }
+
+export interface INativeOpenDialogOptions {
+	forceNewWindow?: boolean;
+
+	defaultPath?: string;
+
+	telemetryEventName?: string;
+	telemetryExtraData?: ITelemetryData;
+}
