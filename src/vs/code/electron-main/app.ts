@@ -80,6 +80,9 @@ import { INativeEnvironmentService } from 'vs/platform/environment/node/environm
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { IFileService } from 'vs/platform/files/common/files';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
+import { WebviewChannel } from 'vs/platform/webview/electron-main/webviewIpcs';
+import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
+import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -471,6 +474,7 @@ export class CodeApplication extends Disposable {
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
+		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
@@ -577,6 +581,10 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
+
+		const webviewManagerService = accessor.get(IWebviewManagerService);
+		const webviewChannel = new WebviewChannel(webviewManagerService);
+		electronIpcServer.registerChannel('webview', webviewChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));

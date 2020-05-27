@@ -6,6 +6,7 @@
 import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag } from 'electron';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { equals } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
@@ -26,8 +27,9 @@ import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/p
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { equals } from 'vs/base/common/arrays';
-
+import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 
 class WebviewTagHandle extends Disposable {
 
@@ -185,26 +187,30 @@ class WebviewPortMappingProvider extends Disposable {
 
 class WebviewKeyboardHandler {
 
-	private readonly _webviews = new Set<WebviewTagHandle>();
+	private readonly _webviews = new Set<WebviewTag>();
 	private readonly _isUsingNativeTitleBars: boolean;
 
-	constructor(configurationService: IConfigurationService) {
+	private readonly webviewMainService: IWebviewManagerService;
+
+	constructor(
+		configurationService: IConfigurationService,
+		mainProcessService: IMainProcessService,
+	) {
 		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
+
+		this.webviewMainService = createChannelSender<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 	}
 
-	public add(
-		webviewHandle: WebviewTagHandle,
-	): IDisposable {
-		this._webviews.add(webviewHandle);
+	public add(webview: WebviewTag): IDisposable {
+		this._webviews.add(webview);
 
 		const disposables = new DisposableStore();
+
 		if (this.shouldToggleMenuShortcutsEnablement) {
-			disposables.add(webviewHandle.onFirstLoad(() => {
-				this.setIgnoreMenuShortcutsForWebview(webviewHandle, true);
-			}));
+			this.setIgnoreMenuShortcutsForWebview(webview, true);
 		}
 
-		disposables.add(addDisposableListener(webviewHandle.webview, 'ipc-message', (event) => {
+		disposables.add(addDisposableListener(webview, 'ipc-message', (event) => {
 			switch (event.channel) {
 				case 'did-focus':
 					this.setIgnoreMenuShortcuts(true);
@@ -218,7 +224,7 @@ class WebviewKeyboardHandler {
 
 		return toDisposable(() => {
 			disposables.dispose();
-			this._webviews.delete(webviewHandle);
+			this._webviews.delete(webview);
 		});
 	}
 
@@ -232,12 +238,9 @@ class WebviewKeyboardHandler {
 		}
 	}
 
-	private setIgnoreMenuShortcutsForWebview(webview: WebviewTagHandle, value: boolean) {
+	private setIgnoreMenuShortcutsForWebview(webview: WebviewTag, value: boolean) {
 		if (this.shouldToggleMenuShortcutsEnablement) {
-			const contents = webview.webContents;
-			if (!contents?.isDestroyed()) {
-				contents?.setIgnoreMenuShortcuts(value);
-			}
+			this.webviewMainService.setIgnoreMenuShortcuts(webview.getWebContentsId(), value);
 		}
 	}
 }
@@ -246,9 +249,12 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 	private static _webviewKeyboardHandler: WebviewKeyboardHandler | undefined;
 
-	private static getWebviewKeyboardHandler(configService: IConfigurationService) {
+	private static getWebviewKeyboardHandler(
+		configService: IConfigurationService,
+		mainProcessService: IMainProcessService,
+	) {
 		if (!this._webviewKeyboardHandler) {
-			this._webviewKeyboardHandler = new WebviewKeyboardHandler(configService);
+			this._webviewKeyboardHandler = new WebviewKeyboardHandler(configService, mainProcessService);
 		}
 		return this._webviewKeyboardHandler;
 	}
@@ -276,6 +282,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		@IEnvironmentService environementService: IEnvironmentService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
 		super(id, options, contentOptions, extension, _webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
 
@@ -291,7 +298,9 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 			tunnelService,
 		));
 
-		this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService).add(webviewAndContents));
+		this._register(addDisposableListener(this.element!, 'did-start-loading', once(() => {
+			this._register(ElectronWebviewBasedWebview.getWebviewKeyboardHandler(configurationService, mainProcessService).add(this.element!));
+		})));
 
 		this._domReady = new Promise(resolve => {
 			const subscription = this._register(this.on(WebviewMessageChannels.webviewReady, () => {
