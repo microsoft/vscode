@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcRenderer as ipc } from 'electron';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IOpenFileRequest } from 'vs/platform/windows/common/windows';
 import { ITerminalNativeService, LinuxDistro } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
@@ -31,8 +31,8 @@ export class TerminalNativeService implements ITerminalNativeService {
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
-		ipc.on('vscode:openFiles', (_event: any, request: IOpenFileRequest) => this._onOpenFileRequest.fire(request));
-		ipc.on('vscode:osResume', () => this._onOsResume.fire());
+		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => this._onOpenFileRequest.fire(request));
+		ipcRenderer.on('vscode:osResume', () => this._onOsResume.fire());
 
 		const connection = remoteAgentService.getConnection();
 		if (connection && connection.remoteAuthority) {

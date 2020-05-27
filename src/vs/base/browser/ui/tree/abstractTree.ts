@@ -962,6 +962,7 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
 	readonly openOnSingleClick?: boolean;
+	readonly smoothScrolling?: boolean;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -1360,7 +1361,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this.view.updateOptions({
 			enableKeyboardNavigation: this._options.simpleKeyboardNavigation,
-			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation
+			automaticKeyboardNavigation: this._options.automaticKeyboardNavigation,
+			smoothScrolling: this._options.smoothScrolling
 		});
 
 		if (this.typeFilterController) {

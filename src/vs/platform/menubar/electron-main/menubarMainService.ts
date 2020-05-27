@@ -3,13 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMenubarService, IMenubarData } from 'vs/platform/menubar/node/menubar';
+import { ICommonMenubarService, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { Menubar } from 'vs/platform/menubar/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 
-export class MenubarMainService implements IMenubarService {
+export const IMenubarMainService = createDecorator<IMenubarMainService>('menubarMainService');
+
+export interface IMenubarMainService extends ICommonMenubarService {
+	_serviceBrand: undefined;
+}
+
+export class MenubarMainService implements IMenubarMainService {
 
 	_serviceBrand: undefined;
 

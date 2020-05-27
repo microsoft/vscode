@@ -41,6 +41,7 @@ export interface IMenuOptions {
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
 	expandDirection?: Direction;
+	useEventAsContext?: boolean;
 }
 
 export interface IMenuStyles {
@@ -316,7 +317,7 @@ export class Menu extends ActionBar {
 
 			return menuActionViewItem;
 		} else {
-			const menuItemOptions: IMenuItemOptions = { enableMnemonics: options.enableMnemonics };
+			const menuItemOptions: IMenuItemOptions = { enableMnemonics: options.enableMnemonics, useEventAsContext: options.useEventAsContext };
 			if (options.getKeyBinding) {
 				const keybinding = options.getKeyBinding(action);
 				if (keybinding) {

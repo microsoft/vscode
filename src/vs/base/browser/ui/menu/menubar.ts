@@ -945,7 +945,8 @@ export class MenuBar extends Disposable {
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
 			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
-			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right
+			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right,
+			useEventAsContext: true
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));

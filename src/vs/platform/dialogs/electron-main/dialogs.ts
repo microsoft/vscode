@@ -11,7 +11,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/path';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { exists } from 'vs/base/node/pfs';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';

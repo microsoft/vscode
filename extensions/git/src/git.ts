@@ -1223,15 +1223,13 @@ export class Repository {
 			args.push('-A');
 		}
 
-		args.push('--');
-
 		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
+			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+				await this.run([...args, '--', ...chunk]);
+			}
 		} else {
-			args.push('.');
+			await this.run([...args, '--', '.']);
 		}
-
-		await this.run(args);
 	}
 
 	async rm(paths: string[]): Promise<void> {
@@ -1440,10 +1438,11 @@ export class Repository {
 
 		const limiter = new Limiter(5);
 		const promises: Promise<any>[] = [];
+		const args = ['clean', '-f', '-q'];
 
 		for (const paths of groups) {
 			for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
-				promises.push(limiter.queue(() => this.run(['clean', '-f', '-q', '--', ...chunk])));
+				promises.push(limiter.queue(() => this.run([...args, '--', ...chunk])));
 			}
 		}
 
@@ -1475,19 +1474,19 @@ export class Repository {
 
 		// In case there are no branches, we must use rm --cached
 		if (!result.stdout) {
-			args = ['rm', '--cached', '-r', '--'];
+			args = ['rm', '--cached', '-r'];
 		} else {
-			args = ['reset', '-q', treeish, '--'];
-		}
-
-		if (paths && paths.length) {
-			args.push.apply(args, paths.map(sanitizePath));
-		} else {
-			args.push('.');
+			args = ['reset', '-q', treeish];
 		}
 
 		try {
-			await this.run(args);
+			if (paths && paths.length > 0) {
+				for (const chunk of splitInChunks(paths, MAX_CLI_LENGTH)) {
+					await this.run([...args, '--', ...chunk]);
+				}
+			} else {
+				await this.run([...args, '--', '.']);
+			}
 		} catch (err) {
 			// In case there are merge conflicts to be resolved, git reset will output
 			// some "needs merge" data. We try to get around that.
@@ -1975,10 +1974,10 @@ export class Repository {
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {
-		const args = ['submodule', 'update', '--'];
+		const args = ['submodule', 'update'];
 
 		for (const chunk of splitInChunks(paths.map(sanitizePath), MAX_CLI_LENGTH)) {
-			await this.run([...args, ...chunk]);
+			await this.run([...args, '--', ...chunk]);
 		}
 	}
 

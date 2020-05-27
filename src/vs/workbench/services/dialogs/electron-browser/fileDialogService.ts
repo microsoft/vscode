@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SaveDialogOptions, OpenDialogOptions } from 'electron';
-import { INativeOpenDialogOptions } from 'vs/platform/dialogs/node/dialogs';
+import { SaveDialogOptions, OpenDialogOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IPickAndOpenOptions, ISaveDialogOptions, IOpenDialogOptions, IFileDialogService, IDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -16,7 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { AbstractFileDialogService } from 'vs/workbench/services/dialogs/browser/abstractFileDialogService';
 import { Schemas } from 'vs/base/common/network';
 import { IModeService } from 'vs/editor/common/services/modeService';

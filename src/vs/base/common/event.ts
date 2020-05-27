@@ -328,8 +328,8 @@ export namespace Event {
 	}
 
 	export interface NodeEventEmitter {
-		on(event: string | symbol, listener: Function): this;
-		removeListener(event: string | symbol, listener: Function): this;
+		on(event: string | symbol, listener: Function): unknown;
+		removeListener(event: string | symbol, listener: Function): unknown;
 	}
 
 	export function fromNodeEventEmitter<T>(emitter: NodeEventEmitter, eventName: string, map: (...args: any[]) => T = id => id): Event<T> {

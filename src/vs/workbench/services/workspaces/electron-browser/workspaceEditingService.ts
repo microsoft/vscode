@@ -27,7 +27,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { isMacintosh } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';

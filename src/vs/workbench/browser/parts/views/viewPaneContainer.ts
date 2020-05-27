@@ -49,7 +49,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
-import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
+import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 export interface IPaneColors extends IColorMapping {
@@ -1580,8 +1580,8 @@ registerAction2(
 				id: 'views.moveViewUp',
 				title: nls.localize('viewMoveUp', "Move View Up"),
 				keybinding: {
-					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.UpArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.UpArrow),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, -1);
@@ -1596,8 +1596,8 @@ registerAction2(
 				id: 'views.moveViewLeft',
 				title: nls.localize('viewMoveLeft', "Move View Left"),
 				keybinding: {
-					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.LeftArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.LeftArrow),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, -1);
@@ -1612,8 +1612,8 @@ registerAction2(
 				id: 'views.moveViewDown',
 				title: nls.localize('viewMoveDown', "Move View Down"),
 				keybinding: {
-					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.DownArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.DownArrow),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, 1);
@@ -1628,8 +1628,8 @@ registerAction2(
 				id: 'views.moveViewRight',
 				title: nls.localize('viewMoveRight', "Move View Right"),
 				keybinding: {
-					primary: KeyMod.Shift + KeyMod.Alt + KeyCode.RightArrow,
-					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd + KeyCode.KEY_K, KeyCode.RightArrow),
+					weight: KeybindingWeight.WorkbenchContrib + 1,
 					when: FocusedViewContext.notEqualsTo('')
 				}
 			}, 1);
