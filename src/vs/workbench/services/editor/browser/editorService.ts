@@ -63,6 +63,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
+
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IUntitledTextEditorService private readonly untitledTextEditorService: IUntitledTextEditorService,
@@ -295,7 +297,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private closeOnFileDelete: boolean = false;
-	private fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
+
 	private onConfigurationUpdated(configuration: IWorkbenchEditorConfiguration): void {
 		if (typeof configuration.workbench?.editor?.closeOnFileDelete === 'boolean') {
 			this.closeOnFileDelete = configuration.workbench.editor.closeOnFileDelete;

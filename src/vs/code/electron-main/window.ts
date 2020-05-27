@@ -163,6 +163,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				show: !isFullscreenOrMaximized,
 				title: product.nameLong,
 				webPreferences: {
+					preload: URI.parse(this.doGetPreloadUrl()).fsPath,
 					nodeIntegration: true,
 					nodeIntegrationInWorker: RUN_TEXTMATE_IN_WORKER,
 					webviewTag: true,
@@ -600,9 +601,12 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 		// Do not set to empty configuration at startup if setting is empty to not override configuration through CLI options:
 		const env = process.env;
-		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+		let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
 			|| (env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY || '').trim() // Not standardized.
 			|| undefined;
+		if (newHttpProxy?.endsWith('/')) {
+			newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
+		}
 		const newNoProxy = (env.no_proxy || env.NO_PROXY || '').trim() || undefined; // Not standardized.
 		if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 			this.currentHttpProxy = newHttpProxy;
@@ -775,6 +779,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private doGetUrl(config: object): string {
 		return `${require.toUrl('vs/code/electron-browser/workbench/workbench.html')}?config=${encodeURIComponent(JSON.stringify(config))}`;
+	}
+
+	private doGetPreloadUrl(): string {
+		return require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js');
 	}
 
 	serializeWindowState(): IWindowState {

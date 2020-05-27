@@ -831,6 +831,10 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			markdownDescription: nls.localize('search.searchEditor.reusePriorSearchConfiguration', "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
 		},
+		'search.searchEditor.defaultShowContextValue': {
+			type: ['number', 'null'],
+			default: null,
+		},
 		'search.sortOrder': {
 			'type': 'string',
 			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
