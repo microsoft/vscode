@@ -1167,7 +1167,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const options = getActiveTextEditorOptions(this, editor, EditorOptions.create({
 			...moveOptions,
 			pinned: true, 							// always pin moved editor
-			sticky: this._group.isSticky(editor),	// preserve sticky state,
+			sticky: this._group.isSticky(editor)	// preserve sticky state
 		}));
 
 		// A move to another group is an open first...

@@ -89,6 +89,9 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	 */
 	options?: IEditorOptions;
 
+	/**
+	 * Context indicates how the editor open event is initialized.
+	 */
 	context?: OpenEditorInGroupContext;
 
 	/**
