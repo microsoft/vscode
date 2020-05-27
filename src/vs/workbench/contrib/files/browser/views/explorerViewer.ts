@@ -1028,6 +1028,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Handle folder upload
 		else {
+
+			// Create target folder
 			await this.fileService.createFolder(resource);
 
 			// Recursive upload files in this directory

@@ -1000,37 +1000,14 @@ export class CommandCenter {
 
 	@command('git.stageAll', { repository: true })
 	async stageAll(repository: Repository): Promise<void> {
-		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
-		const { merge, unresolved, deletionConflicts } = await categorizeResourceByResolution(resources);
+		const resources = [...repository.workingTreeGroup.resourceStates, ...repository.untrackedGroup.resourceStates];
+		const uris = resources.map(r => r.resourceUri);
 
-		try {
-			for (const deletionConflict of deletionConflicts) {
-				await this._stageDeletionConflict(repository, deletionConflict.resourceUri);
-			}
-		} catch (err) {
-			if (/Cancelled/.test(err.message)) {
-				return;
-			}
-
-			throw err;
+		if (uris.length > 0) {
+			const config = workspace.getConfiguration('git', Uri.file(repository.root));
+			const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
+			await repository.add(uris, untrackedChanges === 'mixed' ? undefined : { update: true });
 		}
-
-		if (unresolved.length > 0) {
-			const message = unresolved.length > 1
-				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", merge.length)
-				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(merge[0].resourceUri.fsPath));
-
-			const yes = localize('yes', "Yes");
-			const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-			if (pick !== yes) {
-				return;
-			}
-		}
-
-		const config = workspace.getConfiguration('git', Uri.file(repository.root));
-		const untrackedChanges = config.get<'mixed' | 'separate' | 'hidden'>('untrackedChanges');
-		await repository.add([], untrackedChanges === 'mixed' ? undefined : { update: true });
 	}
 
 	private async _stageDeletionConflict(repository: Repository, uri: Uri): Promise<void> {
@@ -1084,6 +1061,43 @@ export class CommandCenter {
 		const uris = resources.map(r => r.resourceUri);
 
 		await repository.add(uris);
+	}
+
+	@command('git.stageAllMerge', { repository: true })
+	async stageAllMerge(repository: Repository): Promise<void> {
+		const resources = repository.mergeGroup.resourceStates.filter(s => s instanceof Resource) as Resource[];
+		const { merge, unresolved, deletionConflicts } = await categorizeResourceByResolution(resources);
+
+		try {
+			for (const deletionConflict of deletionConflicts) {
+				await this._stageDeletionConflict(repository, deletionConflict.resourceUri);
+			}
+		} catch (err) {
+			if (/Cancelled/.test(err.message)) {
+				return;
+			}
+
+			throw err;
+		}
+
+		if (unresolved.length > 0) {
+			const message = unresolved.length > 1
+				? localize('confirm stage files with merge conflicts', "Are you sure you want to stage {0} files with merge conflicts?", merge.length)
+				: localize('confirm stage file with merge conflicts', "Are you sure you want to stage {0} with merge conflicts?", path.basename(merge[0].resourceUri.fsPath));
+
+			const yes = localize('yes', "Yes");
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+			if (pick !== yes) {
+				return;
+			}
+		}
+
+		const uris = resources.map(r => r.resourceUri);
+
+		if (uris.length > 0) {
+			await repository.add(uris);
+		}
 	}
 
 	@command('git.stageChange')

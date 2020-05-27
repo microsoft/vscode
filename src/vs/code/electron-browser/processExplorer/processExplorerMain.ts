@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/processExplorer';
-import { webFrame, ipcRenderer, clipboard } from 'electron';
+import { clipboard } from 'electron';
+import { webFrame, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { repeat } from 'vs/base/common/strings';
 import { totalmem } from 'os';
 import product from 'vs/platform/product/common/product';
 import { localize } from 'vs/nls';
-import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/node/issue';
+import { ProcessExplorerStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
 import { IContextMenuItem } from 'vs/base/parts/contextmenu/common/contextmenu';
-import { popup } from 'vs/base/parts/contextmenu/electron-browser/contextmenu';
+import { popup } from 'vs/base/parts/contextmenu/electron-sandbox/contextmenu';
 import { ProcessItem } from 'vs/base/common/processes';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -369,7 +370,7 @@ function requestProcessList(totalWaitTime: number): void {
 
 		// Wait at least a second between requests.
 		if (waited > 1000) {
-			ipcRenderer.send('windowsInfoRequest');
+			ipcRenderer.send('vscode:windowsInfoRequest');
 			ipcRenderer.send('vscode:listProcesses');
 		} else {
 			requestProcessList(waited);
@@ -393,18 +394,18 @@ export function startup(data: ProcessExplorerData): void {
 	createCloseListener();
 
 	// Map window process pids to titles, annotate process names with this when rendering to distinguish between them
-	ipcRenderer.on('vscode:windowsInfoResponse', (_event: unknown, windows: any[]) => {
+	ipcRenderer.on('vscode:windowsInfoResponse', (event: unknown, windows: any[]) => {
 		mapPidToWindowTitle = new Map<number, string>();
 		windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
 	});
 
-	ipcRenderer.on('vscode:listProcessesResponse', (_event: Event, processRoots: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]) => {
+	ipcRenderer.on('vscode:listProcessesResponse', (event: unknown, processRoots: [{ name: string, rootProcess: ProcessItem | IRemoteDiagnosticError }]) => {
 		updateProcessInfo(processRoots);
 		requestProcessList(0);
 	});
 
 	lastRequestTime = Date.now();
-	ipcRenderer.send('windowsInfoRequest');
+	ipcRenderer.send('vscode:windowsInfoRequest');
 	ipcRenderer.send('vscode:listProcesses');
 
 	document.onkeydown = (e: KeyboardEvent) => {

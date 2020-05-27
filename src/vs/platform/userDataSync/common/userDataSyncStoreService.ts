@@ -19,7 +19,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWeb } from 'vs/base/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const USER_SESSION_ID_KEY = 'sync.user-session-id';
 const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
@@ -43,7 +42,6 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
@@ -314,7 +312,6 @@ export class RequestsSession {
 		}
 
 		if (this.count >= this.limit) {
-
 			throw new UserDataSyncStoreError(`Too many requests. Allowed only ${this.limit} requests in ${this.interval / (1000 * 60)} minutes.`, UserDataSyncErrorCode.LocalTooManyRequests);
 		}
 
