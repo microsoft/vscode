@@ -1010,8 +1010,8 @@ begin
     end;
   #endif
 
-  #if "user" == InstallTarget && "arm64" != Arch
-    #if "ia32" == Arch
+  #if "user" == InstallTarget
+    #if "ia32" == Arch || "arm64" == Arch
       #define IncompatibleArchRootKey "HKLM32"
     #else
       #define IncompatibleArchRootKey "HKLM64"
