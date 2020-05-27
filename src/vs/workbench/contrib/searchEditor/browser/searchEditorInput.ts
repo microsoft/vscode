@@ -314,7 +314,7 @@ export const getOrMakeSearchEditorInput = (
 
 	let config = { ...defaultConfig, ...priorConfig, ...existingData.config };
 
-	if (defaultShowContextValue) {
+	if (defaultShowContextValue !== null && defaultShowContextValue !== undefined) {
 		config.contextLines = defaultShowContextValue;
 	}
 
