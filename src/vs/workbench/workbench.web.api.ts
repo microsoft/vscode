@@ -208,7 +208,10 @@ interface IWorkbenchConstructionOptions {
 	 */
 	readonly resolveExternalUri?: IExternalUriResolver;
 
-
+	/**
+	 * A provider for supplying tunneling functionality,
+	 * such as creating tunnels and showing candidate ports to forward.
+	 */
 	readonly tunnelProvider?: ITunnelProvider;
 
 	//#endregion
@@ -414,6 +417,7 @@ export {
 	IExternalUriResolver,
 
 	// Tunnel
+	ITunnelProvider,
 	ITunnelFactory,
 	ITunnel,
 	ITunnelOptions,
