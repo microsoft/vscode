@@ -7,10 +7,9 @@ import { generateRandomPipeName } from 'vs/base/parts/ipc/node/ipc.net';
 import * as http from 'http';
 import * as fs from 'fs';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { IWindowOpenable, INativeOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { INativeOpenWindowOptions } from 'vs/platform/windows/node/window';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export interface OpenCommandPipeArgs {

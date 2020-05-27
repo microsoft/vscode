@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, toDisposable, IReference, ReferenceCollection } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { ITextFileService, TextFileLoadReason } from 'vs/workbench/services/textfile/common/textfiles';
@@ -16,6 +16,8 @@ import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textF
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
@@ -159,7 +161,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 	}
 }
 
-export class TextModelResolverService implements ITextModelService {
+export class TextModelResolverService extends Disposable implements ITextModelService {
 
 	_serviceBrand: undefined;
 
@@ -167,8 +169,12 @@ export class TextModelResolverService implements ITextModelService {
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IFileService private readonly fileService: IFileService
+		@IFileService private readonly fileService: IFileService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
+		@IModelService private readonly modelService: IModelService
 	) {
+		super();
+		this._register(new ModelUndoRedoParticipant(this.modelService, this, this.undoRedoService));
 	}
 
 	async createModelReference(resource: URI): Promise<IReference<IResolvedTextEditorModel>> {

@@ -5,28 +5,10 @@
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import { IElectronService } from 'vs/platform/electron/node/electron';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-
-export class ToggleDevToolsAction extends Action {
-
-	static readonly ID = 'workbench.action.toggleDevTools';
-	static readonly LABEL = nls.localize('toggleDevTools', "Toggle Developer Tools");
-
-	constructor(
-		id: string,
-		label: string,
-		@IElectronService private readonly electronService: IElectronService
-	) {
-		super(id, label);
-	}
-
-	run(): Promise<void> {
-		return this.electronService.toggleDevTools();
-	}
-}
+import { Registry } from 'vs/platform/registry/common/platform';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 
 export class ToggleSharedProcessAction extends Action {
 
@@ -46,21 +28,7 @@ export class ToggleSharedProcessAction extends Action {
 	}
 }
 
-export class ConfigureRuntimeArgumentsAction extends Action {
+const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 
-	static readonly ID = 'workbench.action.configureRuntimeArguments';
-	static readonly LABEL = nls.localize('configureRuntimeArguments', "Configure Runtime Arguments");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@IEditorService private readonly editorService: IEditorService
-	) {
-		super(id, label);
-	}
-
-	async run(): Promise<void> {
-		await this.editorService.openEditor({ resource: this.environmentService.argvResource });
-	}
-}
+const developerCategory = nls.localize('developer', "Developer");
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleSharedProcessAction), 'Developer: Toggle Shared Process', developerCategory);

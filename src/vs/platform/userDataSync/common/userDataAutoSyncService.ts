@@ -53,7 +53,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			}
 		} else {
 			if (this.autoSync.value !== undefined) {
-				this.logService.trace('Auto Sync: Disabled because', reason);
+				this.logService.info('Auto Sync: Disabled because', reason);
 				this.autoSync.clear();
 			}
 		}
@@ -173,6 +173,7 @@ class AutoSync extends Disposable {
 		try {
 			await this.userDataSyncService.sync();
 		} catch (e) {
+			this.logService.error(e);
 			error = e;
 		}
 		this._onDidFinishSync.fire(error);
