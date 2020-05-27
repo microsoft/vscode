@@ -295,7 +295,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		return this.viewContainersRegistry.getDefaultViewContainer(location);
 	}
 
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void {
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, order?: number): void {
 		const from = this.getViewContainerLocation(viewContainer);
 		const to = location;
 		if (from !== to) {
@@ -303,6 +303,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			const defaultLocation = this.isGeneratedContainerId(viewContainer.id) ? true : this.getViewContainerLocation(viewContainer) === this.getDefaultViewContainerLocation(viewContainer);
 			this.getOrCreateDefaultViewContainerLocationContextKey(viewContainer).set(defaultLocation);
+
+			if (order !== undefined) {
+				viewContainer.order = order;
+			}
 
 			this._onDidChangeContainerLocation.fire({ viewContainer, from, to });
 
@@ -333,7 +337,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 	private moveViews(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer, skipCacheUpdate?: boolean): void {
 		this.removeViews(from, views);
-		this.addViews(to, views);
+		this.addViews(to, views, true);
 
 		const oldLocation = this.getViewContainerLocation(from);
 		const newLocation = this.getViewContainerLocation(to);
@@ -672,14 +676,14 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		});
 	}
 
-	private addViews(container: ViewContainer, views: IViewDescriptor[]): void {
+	private addViews(container: ViewContainer, views: IViewDescriptor[], expandViews?: boolean): void {
 		// Update in memory cache
 		views.forEach(view => {
 			this.cachedViewInfo.set(view.id, { containerId: container.id });
 			this.getOrCreateDefaultViewLocationContextKey(view).set(this.getDefaultContainerById(view.id) === container);
 		});
 
-		this.getViewContainerModel(container).add(views);
+		this.getViewContainerModel(container).add(views.map(view => { return { viewDescriptor: view, collapsed: expandViews ? false : undefined }; }));
 	}
 
 	private removeViews(container: ViewContainer, views: IViewDescriptor[]): void {

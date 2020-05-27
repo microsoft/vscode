@@ -193,6 +193,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			get onDidChangeAuthenticationProviders(): Event<vscode.AuthenticationProvidersChangeEvent> {
 				return extHostAuthentication.onDidChangeAuthenticationProviders;
 			},
+			getProviderIds(): Thenable<ReadonlyArray<string>> {
+				return extHostAuthentication.getProviderIds();
+			},
 			get providerIds(): string[] {
 				return extHostAuthentication.providerIds;
 			},
@@ -948,13 +951,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.activeNotebookEditor;
 			},
+			onDidChangeActiveNotebookEditor(listener, thisArgs?, disposables?) {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.onDidChangeActiveNotebookEditor(listener, thisArgs, disposables);
+			},
 			onDidChangeNotebookCells(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
 				return extHostNotebook.onDidChangeNotebookCells(listener, thisArgs, disposables);
-			},
-			onDidMoveNotebookCell(listener, thisArgs?, disposables?) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidMoveNotebookCell(listener, thisArgs, disposables);
 			},
 			onDidChangeCellOutputs(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);

@@ -10,7 +10,7 @@ import { Position } from 'vs/workbench/api/common/extHostTypes';
 import { Range } from 'vs/editor/common/core/range';
 import { MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { mock } from 'vs/base/test/common/mock';
 
 
 suite('ExtHostDocumentData', () => {

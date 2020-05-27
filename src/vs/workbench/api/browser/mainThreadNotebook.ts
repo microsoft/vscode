@@ -35,6 +35,7 @@ export class MainThreadNotebookDocument extends Disposable {
 		this._textModel = new NotebookTextModel(handle, viewType, uri);
 		this._register(this._textModel.onDidModelChange(e => {
 			this._proxy.$acceptModelChanged(this.uri, e);
+			this._proxy.$acceptEditorPropertiesChanged(uri, { selections: { selections: this._textModel.selections }, metadata: null });
 		}));
 		this._register(this._textModel.onDidSelectionChange(e => {
 			const selectionsChange = e ? { selections: e } : null;
@@ -159,6 +160,12 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		this._register(this._notebookService.onDidChangeActiveEditor(e => {
 			this._proxy.$acceptDocumentAndEditorsDelta({
 				newActiveEditor: e
+			});
+		}));
+
+		this._register(this._notebookService.onDidChangeVisibleEditors(e => {
+			this._proxy.$acceptDocumentAndEditorsDelta({
+				visibleEditors: e
 			});
 		}));
 
@@ -371,6 +378,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 					{ editType: CellEditType.Delete, count: mainthreadNotebook.textModel.cells.length, index: 0 },
 					{ editType: CellEditType.Insert, index: 0, cells: data.cells }
 				]);
+				mainthreadNotebook.textModel.updateRenderers(data.renderers);
 			}
 			return mainthreadNotebook.textModel;
 		}
@@ -390,6 +398,8 @@ export class MainThreadNotebookController implements IMainNotebookController {
 					cells: backup.cells || []
 				}
 			]);
+
+			// TODO@rebornix load renderers after reloading
 
 			this._mainThreadNotebook.addNotebookDocument({
 				viewType: document.viewType,
@@ -423,6 +433,7 @@ export class MainThreadNotebookController implements IMainNotebookController {
 
 		document.textModel.languages = data.languages;
 		document.textModel.metadata = data.metadata;
+		document.textModel.updateRenderers(data.renderers);
 
 		if (data.cells.length) {
 			document.textModel.initialize(data!.cells);

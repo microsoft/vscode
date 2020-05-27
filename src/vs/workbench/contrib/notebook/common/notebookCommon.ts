@@ -55,7 +55,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	runnable: true,
 	cellEditable: true,
 	cellRunnable: true,
-	hasExecutionOrder: true,
+	cellHasExecutionOrder: true,
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {}
 };
@@ -65,7 +65,7 @@ export interface NotebookDocumentMetadata {
 	runnable: boolean;
 	cellEditable: boolean;
 	cellRunnable: boolean;
-	hasExecutionOrder: boolean;
+	cellHasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
 	custom?: { [key: string]: any };
 }
@@ -81,6 +81,7 @@ export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
 	breakpointMargin?: boolean;
+	hasExecutionOrder?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
@@ -262,7 +263,7 @@ export enum NotebookCellsChangeType {
 
 export interface NotebookCellsModelChangedEvent {
 	readonly kind: NotebookCellsChangeType.ModelChange;
-	readonly changes: NotebookCellsSplice2[];
+	readonly change: NotebookCellsSplice2;
 	readonly versionId: number;
 }
 
@@ -329,6 +330,7 @@ export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
 	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
+	readonly renderers: number[];
 }
 
 

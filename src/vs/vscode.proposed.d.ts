@@ -78,7 +78,6 @@ declare module 'vscode' {
 		readonly removed: string[];
 	}
 
-
 	/**
 	 * Options to be used when getting a session from an [AuthenticationProvider](#AuthenticationProvider).
 	 */
@@ -177,6 +176,12 @@ declare module 'vscode' {
 		 * Fires with the provider id that was registered or unregistered.
 		 */
 		export const onDidChangeAuthenticationProviders: Event<AuthenticationProvidersChangeEvent>;
+
+		/**
+		 * The ids of the currently registered authentication providers.
+		 * @returns An array of the ids of authentication providers that are currently registered.
+		 */
+		export function getProviderIds(): Thenable<ReadonlyArray<string>>;
 
 		/**
 		 * An array of the ids of authentication providers that are currently registered.
@@ -1012,8 +1017,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
 	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
 
 	export namespace window {
@@ -1528,7 +1531,6 @@ declare module 'vscode' {
 
 	export interface CustomTextEditorProvider {
 
-
 		/**
 		 * Handle when the underlying resource for a custom editor is renamed.
 		 *
@@ -1545,7 +1547,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
 
@@ -1654,6 +1655,12 @@ declare module 'vscode' {
 		breakpointMargin?: boolean;
 
 		/**
+		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Defaults to true.
+		 */
+		hasExecutionOrder?: boolean;
+
+		/**
 		 * The order in which this cell was executed.
 		 */
 		executionOrder?: number;
@@ -1721,10 +1728,10 @@ declare module 'vscode' {
 		cellRunnable?: boolean;
 
 		/**
-		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Default value for [cell hasExecutionOrder metadata](#NotebookCellMetadata.hasExecutionOrder).
 		 * Defaults to true.
 		 */
-		hasExecutionOrder?: boolean;
+		cellHasExecutionOrder?: boolean;
 
 		displayOrder?: GlobPattern[];
 
@@ -1789,6 +1796,11 @@ declare module 'vscode' {
 		readonly visible: boolean;
 
 		/**
+		 * Fired when the panel is disposed.
+		 */
+		readonly onDidDispose: Event<void>;
+
+		/**
 		 * Fired when the output hosting webview posts a message.
 		 */
 		readonly onDidReceiveMessage: Event<any>;
@@ -1823,7 +1835,6 @@ declare module 'vscode' {
 		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
 		preloads?: Uri[];
 	}
-
 
 	export interface NotebookCellsChangeData {
 		readonly start: number;
@@ -1901,11 +1912,6 @@ declare module 'vscode' {
 		// backup?(document: NotebookDocument, cancellation: CancellationToken): Thenable<CustomDocumentBackup>;
 
 		kernel?: NotebookKernel;
-
-		/**
-		 * Responsible for filling in outputs for the cell
-		 */
-		executeCell(document: NotebookDocument, cell: NotebookCell | undefined, token: CancellationToken): Promise<void>;
 	}
 
 	export interface NotebookKernel {
@@ -1942,9 +1948,8 @@ declare module 'vscode' {
 		export let activeNotebookDocument: NotebookDocument | undefined;
 
 		export let activeNotebookEditor: NotebookEditor | undefined;
-
+		export const onDidChangeActiveNotebookEditor: Event<NotebookEditor | undefined>;
 		export const onDidChangeNotebookCells: Event<NotebookCellsChangeEvent>;
-		export const onDidMoveNotebookCell: Event<NotebookCellMoveEvent>;
 		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
 		export const onDidChangeCellLanguage: Event<NotebookCellLanguageChangeEvent>;
 		/**
@@ -2028,7 +2033,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region @eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
 
@@ -2261,7 +2265,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region https://github.com/microsoft/vscode/issues/91555
 

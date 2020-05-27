@@ -27,6 +27,12 @@
     "mocha": "^2.3.3"
   },
   "contributes": {
+    "commands": [
+      {
+        "command": "vscode-notebook-tests.createNewNotebook",
+        "title": "Create New Notebook"
+      }
+    ],
     "notebookProvider": [
       {
         "viewType": "notebookCoreTest",
@@ -36,6 +42,25 @@
             "filenamePattern": "*.vsctestnb",
             "excludeFileNamePattern": ""
           }
+        ]
+      },
+      {
+        "viewType": "notebookSmokeTest",
+        "displayName": "Notebook Smoke Test",
+        "selector": [
+          {
+            "filenamePattern": "*.smoke-nb",
+            "excludeFileNamePattern": ""
+          }
+        ]
+      }
+    ],
+    "notebookOutputRenderer": [
+      {
+        "viewType": "notebookCoreTestRenderer",
+        "displayName": "Notebook Core Test Renderer",
+        "mimeTypes": [
+          "text/custom"
         ]
       }
     ]

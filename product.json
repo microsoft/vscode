@@ -11,8 +11,10 @@
 	"win32RegValueName": "CodeOSS",
 	"win32AppId": "{{E34003BB-9E10-4501-8C11-BE3FAA83F23F}",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
+	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
 	"win32UserAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
 	"win32x64UserAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
+	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
 	"win32AppUserModelId": "Microsoft.CodeOSS",
 	"win32ShellNameShort": "C&ode - OSS",
 	"darwinBundleIdentifier": "com.visualstudio.code.oss",
@@ -42,7 +44,7 @@
 		},
 		{
 			"name": "ms-vscode.node-debug2",
-			"version": "1.42.3",
+			"version": "1.42.4",
 			"repo": "https://github.com/Microsoft/vscode-node-debug2",
 			"metadata": {
 				"id": "36d19e17-7569-4841-a001-947eb18602b2",
@@ -87,7 +89,7 @@
 		},
 		{
 			"name": "ms-vscode.js-debug-nightly",
-			"version": "2020.5.417",
+			"version": "2020.5.1917",
 			"repo": "https://github.com/Microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "7acbb4ce-c85a-49d4-8d95-a8054406ae97",

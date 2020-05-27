@@ -10,7 +10,7 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDat
 import { IUserDataSyncService, SyncResource, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 
 class TestUserDataAutoSyncService extends UserDataAutoSyncService {
-	protected getDefaultEnablementValue(): boolean { return true; }
+	protected startAutoSync(): boolean { return false; }
 }
 
 suite('UserDataAutoSyncService', () => {

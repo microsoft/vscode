@@ -14,8 +14,11 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { isLinux, isMacintosh } from 'vs/base/common/platform';
 import { InMemoryStorageService, IWillSaveStateEvent } from 'vs/platform/storage/common/storage';
-import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { WorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkingCopyFileService, IWorkingCopyFileOperationParticipant, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -120,6 +123,29 @@ export class TestStorageService extends InMemoryStorageService {
 }
 
 export class TestWorkingCopyService extends WorkingCopyService { }
+
+export class TestWorkingCopyFileService implements IWorkingCopyFileService {
+
+	_serviceBrand: undefined;
+
+	onWillRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	onDidFailWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+	onDidRunWorkingCopyFileOperation: Event<WorkingCopyFileEvent> = Event.None;
+
+	addFileOperationParticipant(participant: IWorkingCopyFileOperationParticipant): IDisposable { return Disposable.None; }
+
+	async runFileOperationParticipants(target: URI, source: URI | undefined, operation: FileOperation): Promise<void> { }
+
+	async delete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<void> { }
+
+	registerWorkingCopyProvider(provider: (resourceOrFolder: URI) => IWorkingCopy[]): IDisposable { return Disposable.None; }
+
+	getDirty(resource: URI): IWorkingCopy[] { return []; }
+
+	move(source: URI, target: URI, overwrite?: boolean | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+
+	copy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+}
 
 export function mock<T>(): Ctor<T> {
 	return function () { } as any;

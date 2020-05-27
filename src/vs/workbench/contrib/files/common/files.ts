@@ -51,7 +51,7 @@ export interface IExplorerService {
 	isEditable(stat: ExplorerItem | undefined): boolean;
 	findClosest(resource: URI): ExplorerItem | null;
 	refresh(): Promise<void>;
-	setToCopy(stats: ExplorerItem[], cut: boolean): void;
+	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
 	isCut(stat: ExplorerItem): boolean;
 
 	/**
