@@ -280,7 +280,7 @@ class SwitchOutputActionViewItem extends SelectActionViewItem {
 		@IThemeService private readonly themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.') });
+		super(null, action, [], 0, contextViewService, { ariaLabel: nls.localize('outputChannels', 'Output Channels.'), optionsAsChildren: true });
 
 		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
 		this._register(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions()));
