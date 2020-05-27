@@ -350,6 +350,7 @@ export interface ISearchConfigurationProperties {
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide',
 		reusePriorSearchConfiguration: boolean,
+		defaultShowContextValue: number | null,
 		experimental: {}
 	};
 	sortOrder: SearchSortOrder;
