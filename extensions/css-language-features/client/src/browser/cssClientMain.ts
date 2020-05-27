@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, window } from 'vscode';
+import { ExtensionContext } from 'vscode';
 import { CommonLanguageClient, LanguageClientOptions, MessageTransports } from 'vscode-languageclient';
 import { startClient, LanguageClientConstructor } from '../cssClient';
 import { BrowserMessageReader, BrowserMessageWriter } from 'vscode-jsonrpc/lib/browser/main';
