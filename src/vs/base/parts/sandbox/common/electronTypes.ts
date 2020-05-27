@@ -7,7 +7,7 @@
 // #######################################################################
 // ###                                                                 ###
 // ###      electron.d.ts types we need in a common layer for reuse    ###
-// ###                    (copied from Electron 8.3.0)                 ###
+// ###                      (copied from Electron 7.x)                 ###
 // ###                                                                 ###
 // #######################################################################
 
@@ -132,7 +132,6 @@ export interface SaveDialogOptions {
 	 * @platform darwin
 	 */
 	showsTagField?: boolean;
-	properties?: Array<'showHiddenFiles' | 'createDirectory' | 'treatPackageAsDirectory' | 'showOverwriteConfirmation' | 'dontAddToRecent'>;
 	/**
 	 * Create a security scoped bookmark when packaged for the Mac App Store. If this
 	 * option is enabled and the file doesn't already exist a blank file will be
@@ -156,7 +155,7 @@ export interface OpenDialogOptions {
 	 * Contains which features the dialog should use. The following values are
 	 * supported:
 	 */
-	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory' | 'dontAddToRecent'>;
+	properties?: Array<'openFile' | 'openDirectory' | 'multiSelections' | 'showHiddenFiles' | 'createDirectory' | 'promptToCreate' | 'noResolveAliases' | 'treatPackageAsDirectory'>;
 	/**
 	 * Message to display above input boxes.
 	 *
