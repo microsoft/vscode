@@ -23,7 +23,7 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { CellLanguageStatusBarItem, TimerRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, IOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, IRenderOutput, NotebookCellMetadata, NotebookDocumentMetadata, INotebookKernelInfo, IEditor } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 
@@ -270,12 +270,12 @@ export interface INotebookEditor extends IEditor {
 	/**
 	 * Render the output in webview layer
 	 */
-	createInset(cell: ICellViewModel, output: IOutput, shadowContent: string, offset: number): void;
+	createInset(cell: ICellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): void;
 
 	/**
 	 * Remove the output from the webview layer
 	 */
-	removeInset(output: IOutput): void;
+	removeInset(output: IProcessedOutput): void;
 
 	/**
 	 * Send message to the webview for outputs.
@@ -377,8 +377,8 @@ export interface INotebookCellList {
 	scrollLeft: number;
 	length: number;
 	rowsContainer: HTMLElement;
-	readonly onDidRemoveOutput: Event<IOutput>;
-	readonly onDidHideOutput: Event<IOutput>;
+	readonly onDidRemoveOutput: Event<IProcessedOutput>;
+	readonly onDidHideOutput: Event<IProcessedOutput>;
 	readonly onMouseUp: Event<IListMouseEvent<CellViewModel>>;
 	readonly onMouseDown: Event<IListMouseEvent<CellViewModel>>;
 	detachViewModel(): void;
@@ -456,7 +456,7 @@ export interface IOutputTransformContribution {
 	 */
 	dispose(): void;
 
-	render(output: IOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
+	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined): IRenderOutput;
 }
 
 export interface CellFindMatch {
