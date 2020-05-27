@@ -113,12 +113,12 @@ interface IRawConfig {
 
 const DEFAULT_EOL = (platform.isLinux || platform.isMacintosh) ? DefaultEndOfLine.LF : DefaultEndOfLine.CRLF;
 
-interface EditStackPastFutureElements {
+export interface EditStackPastFutureElements {
 	past: EditStackElement[];
 	future: EditStackElement[];
 }
 
-function isEditStackPastFutureElements(undoElements: IPastFutureElements): undoElements is EditStackPastFutureElements {
+export function isEditStackPastFutureElements(undoElements: IPastFutureElements): undoElements is EditStackPastFutureElements {
 	return (isEditStackElements(undoElements.past) && isEditStackElements(undoElements.future));
 }
 

@@ -727,7 +727,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			mouseSupport: false,
 			accessibilityProvider: {
 				getAriaLabel: (element) => element.text,
-				getWidgetAriaLabel: () => localize('selectBox', "Select Box"),
+				getWidgetAriaLabel: () => localize({ key: 'selectBox', comment: ['Behave like native select dropdown element.'] }, "Select Box"),
 				getRole: () => 'option',
 				getWidgetRole: () => 'listbox'
 			}

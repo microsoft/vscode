@@ -329,12 +329,12 @@ export class SearchWidget extends Widget {
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
-		this._register(this.searchInputFocusTracker.onDidFocus(() => {
+		this._register(this.searchInputFocusTracker.onDidFocus(async () => {
 			this.searchInputBoxFocused.set(true);
 
 			const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
-				const globalBufferText = this.clipboardServce.readFindText();
+				const globalBufferText = await this.clipboardServce.readFindText();
 				if (this.previousGlobalFindBufferValue !== globalBufferText) {
 					this.searchInput.inputBox.addToHistory();
 					this.searchInput.setValue(globalBufferText);
@@ -614,7 +614,7 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	private submitSearch(triggeredOnType = false, delay: number = 0): void {
+	private async submitSearch(triggeredOnType = false, delay: number = 0): Promise<void> {
 		this.searchInput.validate();
 		if (!this.searchInput.inputBox.isInputValid()) {
 			return;
@@ -623,7 +623,7 @@ export class SearchWidget extends Widget {
 		const value = this.searchInput.getValue();
 		const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
 		if (value && useGlobalFindBuffer) {
-			this.clipboardServce.writeFindText(value);
+			await this.clipboardServce.writeFindText(value);
 		}
 		this._onSearchSubmit.fire({ triggeredOnType, delay });
 	}

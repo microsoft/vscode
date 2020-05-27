@@ -5,7 +5,7 @@
 
 import { IUserDataSyncService, IUserDataSyncLogService, IUserDataSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { UserDataAutoSyncService as BaseUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

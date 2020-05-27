@@ -9,7 +9,6 @@ import { ExtensionRecommendations, ExtensionRecommendation } from 'vs/workbench/
 import { timeout } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { basename } from 'vs/base/common/path';
@@ -61,7 +60,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 			importantExeBasedRecommendations[tip.extensionId.toLowerCase()] = tip;
 		});
 
-		const local = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const local = await this.extensionManagementService.getInstalled();
 		const { installed, uninstalled } = this.groupByInstalled(Object.keys(importantExeBasedRecommendations), local);
 
 		/* Log installed and uninstalled exe based recommendations */

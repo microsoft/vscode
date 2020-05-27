@@ -19,7 +19,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { isWeb } from 'vs/base/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const USER_SESSION_ID_KEY = 'sync.user-session-id';
 const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
@@ -43,7 +42,6 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IFileService fileService: IFileService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this.userDataSyncStore = getUserDataSyncStore(productService, configurationService);
@@ -262,16 +260,16 @@ export class UserDataSyncStoreService extends Disposable implements IUserDataSyn
 			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' failed because of Unauthorized (401).`, UserDataSyncErrorCode.Unauthorized);
 		}
 
-		if (context.res.statusCode === 403) {
-			throw new UserDataSyncStoreError(`Request '${options.url?.toString()}' is Forbidden (403).`, UserDataSyncErrorCode.Forbidden);
-		}
-
 		if (context.res.statusCode === 412) {
-			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Precondition Failed (412). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.RemotePreconditionFailed);
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of Precondition Failed (412). There is new data exists for this resource. Make the request again with latest data.`, UserDataSyncErrorCode.PreconditionFailed);
 		}
 
 		if (context.res.statusCode === 413) {
 			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed because of too large payload (413).`, UserDataSyncErrorCode.TooLarge);
+		}
+
+		if (context.res.statusCode === 426) {
+			throw new UserDataSyncStoreError(`${options.type} request '${options.url?.toString()}' failed with status Upgrade Required (426). Please upgrade the client and try again.`, UserDataSyncErrorCode.UpgradeRequired);
 		}
 
 		if (context.res.statusCode === 429) {
@@ -314,7 +312,6 @@ export class RequestsSession {
 		}
 
 		if (this.count >= this.limit) {
-
 			throw new UserDataSyncStoreError(`Too many requests. Allowed only ${this.limit} requests in ${this.interval / (1000 * 60)} minutes.`, UserDataSyncErrorCode.LocalTooManyRequests);
 		}
 

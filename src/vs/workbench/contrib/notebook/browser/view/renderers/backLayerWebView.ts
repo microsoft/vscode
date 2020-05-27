@@ -24,6 +24,11 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { dirname } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
+export interface WebviewIntialized {
+	__vscode_notebook_message: boolean;
+	type: 'initialized'
+}
+
 export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
 	type: 'dimension';
@@ -107,6 +112,7 @@ export interface IScrollRequestMessage {
 export interface IUpdatePreloadResourceMessage {
 	type: 'preload';
 	resources: string[];
+	source: string;
 }
 
 interface ICachedInset {
@@ -124,7 +130,7 @@ function html(strings: TemplateStringsArray, ...values: any[]): string {
 	return str;
 }
 
-type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage;
+type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage | WebviewIntialized;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
@@ -134,12 +140,12 @@ export class BackLayerWebView extends Disposable {
 	hiddenInsetMapping: Set<IOutput> = new Set();
 	reversedInsetMapping: Map<string, IOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
-	kernelPreloadsCache: Map<string, boolean> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
 	kernelRootsCache: URI[] = [];
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
+	private _loaded!: Promise<void>;
 	private _initalized: Promise<void>;
 	private _disposed = false;
 
@@ -473,6 +479,11 @@ ${loaderJs}
 				}
 		}
 	});
+
+	vscode.postMessage({
+		__vscode_notebook_message: true,
+		type: 'initialized'
+	});
 }());
 
 </script>
@@ -584,6 +595,19 @@ ${loaderJs}
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache
 		}, undefined);
+
+		let resolveFunc: () => void;
+		this._loaded = new Promise<void>((resolve, reject) => {
+			resolveFunc = resolve;
+		});
+
+		let dispose = webview.onMessage((data: IMessage) => {
+			if (data.__vscode_notebook_message && data.type === 'initialized') {
+				resolveFunc();
+				dispose.dispose();
+			}
+		});
+
 		webview.html = content;
 		return webview;
 	}
@@ -744,10 +768,12 @@ ${loaderJs}
 		}, 50);
 	}
 
-	updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
+	async updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
 		if (this._disposed) {
 			return;
 		}
+
+		await this._loaded;
 
 		let resources: string[] = [];
 		preloads = preloads.map(preload => {
@@ -758,9 +784,9 @@ ${loaderJs}
 		});
 
 		preloads.forEach(e => {
-			if (!this.kernelPreloadsCache.has(e.toString())) {
+			if (!this.preloadsCache.has(e.toString())) {
 				resources.push(e.toString());
-				this.kernelPreloadsCache.set(e.toString(), true);
+				this.preloadsCache.set(e.toString(), true);
 			}
 		});
 
@@ -769,13 +795,15 @@ ${loaderJs}
 		}
 
 		this.kernelRootsCache = [...extensionLocations, ...this.kernelRootsCache];
-		this._updatePreloads(resources);
+		this._updatePreloads(resources, 'kernel');
 	}
 
-	updateRendererPreloads(preloads: ReadonlySet<number>) {
+	async updateRendererPreloads(preloads: ReadonlySet<number>) {
 		if (this._disposed) {
 			return;
 		}
+
+		await this._loaded;
 
 		let resources: string[] = [];
 		let extensionLocations: URI[] = [];
@@ -799,23 +827,23 @@ ${loaderJs}
 			}
 		});
 
+		if (!resources.length) {
+			return;
+		}
+
 		this.rendererRootsCache = extensionLocations;
-		this._updatePreloads(resources);
+		this._updatePreloads(resources, 'renderer');
 	}
 
-	private _updatePreloads(resources: string[]) {
+	private _updatePreloads(resources: string[], source: string) {
 		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
 
-		this.webview.contentOptions = {
-			allowMultipleAPIAcquire: true,
-			allowScripts: true,
-			enableCommandUris: true,
-			localResourceRoots: mixedResourceRoots
-		};
+		this.webview.localResourcesRoot = mixedResourceRoots;
 
 		let message: IUpdatePreloadResourceMessage = {
 			type: 'preload',
-			resources: resources
+			resources: resources,
+			source: source
 		};
 
 		this.webview.sendMessage(message);

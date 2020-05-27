@@ -16,7 +16,6 @@ import { INativeEnvironmentService } from 'vs/platform/environment/node/environm
 import { IStateService } from 'vs/platform/state/node/state';
 import { CodeWindow, defaultWindowState } from 'vs/code/electron-main/window';
 import { ipcMain as ipc, screen, BrowserWindow, MessageBoxOptions, Display, app, nativeTheme } from 'electron';
-import { parseLineAndColumnAware } from 'vs/code/node/paths';
 import { ILifecycleMainService, UnloadReason, LifecycleMainService, LifecycleMainPhase } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -39,7 +38,7 @@ import { once } from 'vs/base/common/functional';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { isWindowsDriveLetter, toSlashes } from 'vs/base/common/extpath';
+import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
 
 export interface IWindowState {
