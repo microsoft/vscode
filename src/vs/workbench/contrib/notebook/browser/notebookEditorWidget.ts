@@ -39,7 +39,7 @@ import { CellDragAndDropController, CodeCellRenderer, MarkdownCellRenderer, Note
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IOutput, INotebookKernelInfo, INotebookKernelInfoDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -512,8 +512,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.webview!.element.style.height = `${scrollHeight}px`;
 
 				if (this.webview?.insetMapping) {
-					let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
-					let removedItems: IOutput[] = [];
+					let updateItems: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[] = [];
+					let removedItems: IProcessedOutput[] = [];
 					this.webview?.insetMapping.forEach((value, key) => {
 						const cell = value.cell;
 						const viewIndex = this.list?.getViewIndex(cell);
@@ -1224,7 +1224,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cell: CodeCellViewModel, output: IOutput, shadowContent: string, offset: number) {
+	createInset(cell: CodeCellViewModel, output: IProcessedOutput, shadowContent: string, offset: number) {
 		if (!this.webview) {
 			return;
 		}
@@ -1242,7 +1242,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	removeInset(output: IOutput) {
+	removeInset(output: IProcessedOutput) {
 		if (!this.webview) {
 			return;
 		}
@@ -1250,7 +1250,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.webview!.removeInset(output);
 	}
 
-	hideInset(output: IOutput) {
+	hideInset(output: IProcessedOutput) {
 		if (!this.webview) {
 			return;
 		}

@@ -7,7 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType, ICellDto2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType, ICellDto2 } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextSnapshot } from 'vs/editor/common/model';
 
 function compareRangesUsingEnds(a: [number, number], b: [number, number]): number {
@@ -82,7 +82,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	cells: NotebookCellTextModel[];
 	languages: string[] = [];
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
-	renderers = new Set<number>();
+	renderers = new Set<string>();
 	private _isUntitled: boolean | undefined = undefined;
 	private _versionId = 0;
 
@@ -114,7 +114,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		source: string | string[],
 		language: string,
 		cellKind: CellKind,
-		outputs: IOutput[],
+		outputs: IProcessedOutput[],
 		metadata: NotebookCellMetadata | undefined
 	) {
 		const cellHandle = this._cellhandlePool++;
@@ -134,7 +134,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.insertNewCell(0, mainCells);
 	}
 
-	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[]): boolean {
+	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[]): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
@@ -195,6 +195,11 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return [diff.start, diff.deleteCount, diff.toInsert] as [number, number, NotebookCellTextModel[]];
 		});
 
+		// this._onDidModelChangeProxy.fire({kind: NotebookCellsChangeType.ModelChange,
+		// 	versionId: this._versionId, change: diffs
+		// }
+		// );
+
 		this._onDidChangeCells.fire(diffs);
 		return true;
 	}
@@ -229,7 +234,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	updateRenderers(renderers: number[]) {
+	updateRenderers(renderers: string[]) {
 		renderers.forEach(render => {
 			this.renderers.add(render);
 		});

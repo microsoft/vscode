@@ -10,10 +10,10 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { CellKind, CellOutputKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, MainThreadDocumentsShape, INotebookEditorPropertiesChangeData, INotebookDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
+import { CellKind, ExtHostNotebookShape, IMainContext, MainContext, MainThreadNotebookShape, NotebookCellOutputsSplice, MainThreadDocumentsShape, INotebookEditorPropertiesChangeData, INotebookDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
-import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, IErrorOutput, INotebookDisplayOrder, INotebookEditData, IOrderedMimeType, IStreamOutput, ITransformedDisplayOutputDto, mimeTypeSupportedByCore, NotebookCellsChangedEvent, NotebookCellsSplice2, sortMimeTypes, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellUri, diff, ICellEditOperation, ICellInsertEdit, INotebookDisplayOrder, INotebookEditData, NotebookCellsChangedEvent, NotebookCellsSplice2, ICellDeleteEdit, notebookDocumentMetadataDefaults, NotebookCellsChangeType, NotebookDataDto, IOutputRenderRequest, IOutputRenderResponse, IOutputRenderResponseOutputInfo, IOutputRenderResponseCellInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
@@ -372,21 +372,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		let renderers = new Set<number>();
 		let outputDtos: NotebookCellOutputsSplice[] = diffs.map(diff => {
 			let outputs = diff.toInsert;
-
-			let transformedOutputs = outputs.map(output => {
-				if (output.outputKind === CellOutputKind.Rich) {
-					const ret = this.transformMimeTypes(output);
-
-					if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
-						renderers.add(ret.orderedMimeTypes[ret.pickedMimeTypeIndex].rendererId!);
-					}
-					return ret;
-				} else {
-					return output as IStreamOutput | IErrorOutput;
-				}
-			});
-
-			return [diff.start, diff.deleteCount, transformedOutputs];
+			return [diff.start, diff.deleteCount, outputs];
 		});
 
 		await this._proxy.$spliceNotebookCellOutputs(this.viewType, this.uri, cell.handle, outputDtos, Array.from(renderers));
@@ -396,59 +382,12 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		});
 	}
 
-	transformMimeTypes(output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
-		let mimeTypes = Object.keys(output.data);
-		let coreDisplayOrder = this.renderingHandler.outputDisplayOrder;
-		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], this._displayOrder, coreDisplayOrder?.defaultOrder || []);
-
-		let orderMimeTypes: IOrderedMimeType[] = [];
-
-		sorted.forEach(mimeType => {
-			let handlers = this.renderingHandler.findBestMatchedRenderer(mimeType);
-
-			if (handlers.length) {
-				let renderedOutput = handlers[0].render(this, output, mimeType);
-
-				orderMimeTypes.push({
-					mimeType: mimeType,
-					isResolved: true,
-					rendererId: handlers[0].handle,
-					output: renderedOutput
-				});
-
-				for (let i = 1; i < handlers.length; i++) {
-					orderMimeTypes.push({
-						mimeType: mimeType,
-						isResolved: false,
-						rendererId: handlers[i].handle
-					});
-				}
-
-				if (mimeTypeSupportedByCore(mimeType)) {
-					orderMimeTypes.push({
-						mimeType: mimeType,
-						isResolved: false,
-						rendererId: -1
-					});
-				}
-			} else {
-				orderMimeTypes.push({
-					mimeType: mimeType,
-					isResolved: false
-				});
-			}
-		});
-
-		return {
-			outputKind: output.outputKind,
-			data: output.data,
-			orderedMimeTypes: orderMimeTypes,
-			pickedMimeTypeIndex: 0
-		};
-	}
-
 	getCell(cellHandle: number) {
 		return this.cells.find(cell => cell.handle === cellHandle);
+	}
+
+	getCell2(cellUri: UriComponents) {
+		return this.cells.find(cell => cell.uri.fragment === cellUri.fragment);
 	}
 
 	attachCellTextDocument(textDocument: ExtHostDocumentData) {
@@ -501,24 +440,9 @@ export class NotebookEditorCellEditBuilder implements vscode.NotebookEditorCellE
 			source: sourceArr,
 			language,
 			cellKind: type,
-			outputs: (outputs as any[]), // TODO@rebornix
+			outputs: outputs,
 			metadata
 		};
-
-		const transformedOutputs = outputs.map(output => {
-			if (output.outputKind === CellOutputKind.Rich) {
-				const ret = this.editor.document.transformMimeTypes(output);
-
-				if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
-					this._renderers.add(ret.orderedMimeTypes[ret.pickedMimeTypeIndex].rendererId!);
-				}
-				return ret;
-			} else {
-				return output as IStreamOutput | IErrorOutput;
-			}
-		});
-
-		cell.outputs = transformedOutputs;
 
 		this._collectedEdits.push({
 			editType: CellEditType.Insert,
@@ -716,7 +640,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 	private readonly _documents = new Map<string, ExtHostNotebookDocument>();
 	private readonly _unInitializedDocuments = new Map<string, ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, { editor: ExtHostNotebookEditor, onDidReceiveMessage: Emitter<any>; }>();
-	private readonly _notebookOutputRenderers = new Map<number, ExtHostNotebookOutputRenderer>();
+	private readonly _notebookOutputRenderers = new Map<string, ExtHostNotebookOutputRenderer>();
 	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
 	readonly onDidChangeNotebookCells = this._onDidChangeNotebookCells.event;
 	private readonly _onDidChangeCellOutputs = new Emitter<vscode.NotebookCellOutputsChangeEvent>();
@@ -781,13 +705,83 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		filter: vscode.NotebookOutputSelector,
 		renderer: vscode.NotebookOutputRenderer
 	): vscode.Disposable {
+		if (this._notebookKernels.has(type)) {
+			throw new Error(`Notebook renderer for '${type}' already registered`);
+		}
+
 		let extHostRenderer = new ExtHostNotebookOutputRenderer(type, filter, renderer);
-		this._notebookOutputRenderers.set(extHostRenderer.handle, extHostRenderer);
-		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, type, filter, extHostRenderer.handle, renderer.preloads || []);
+		this._notebookOutputRenderers.set(extHostRenderer.type, extHostRenderer);
+		this._proxy.$registerNotebookRenderer({ id: extension.identifier, location: extension.extensionLocation }, type, filter, renderer.preloads || []);
 		return new extHostTypes.Disposable(() => {
-			this._notebookOutputRenderers.delete(extHostRenderer.handle);
-			this._proxy.$unregisterNotebookRenderer(extHostRenderer.handle);
+			this._notebookOutputRenderers.delete(extHostRenderer.type);
+			this._proxy.$unregisterNotebookRenderer(extHostRenderer.type);
 		});
+	}
+
+	async $renderOutputs(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined> {
+		if (!this._notebookOutputRenderers.has(id)) {
+			throw new Error(`Notebook renderer for '${id}' is not registered`);
+		}
+
+		const document = this._documents.get(URI.revive(uriComponents).toString());
+
+		if (!document) {
+			return;
+		}
+
+		const renderer = this._notebookOutputRenderers.get(id)!;
+		const cellsResponse: IOutputRenderResponseCellInfo<UriComponents>[] = request.items.map(cellInfo => {
+			const cell = document.getCell2(cellInfo.key);
+			const outputResponse: IOutputRenderResponseOutputInfo[] = cellInfo.outputs.map(output => {
+				return {
+					index: output.index,
+					mimeType: output.mimeType,
+					handlerId: id,
+					transformedOutput: renderer.render(document, cell!.outputs[output.index] as vscode.CellDisplayOutput, output.mimeType)
+				};
+			});
+
+			return {
+				key: cellInfo.key,
+				outputs: outputResponse
+			};
+		});
+
+		return { items: cellsResponse };
+	}
+
+	/**
+	 * The request carry the raw data for outputs so we don't look up in the existing document
+	 */
+	async $renderOutputs2<T>(uriComponents: UriComponents, id: string, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined> {
+		if (!this._notebookOutputRenderers.has(id)) {
+			throw new Error(`Notebook renderer for '${id}' is not registered`);
+		}
+
+		const document = this._documents.get(URI.revive(uriComponents).toString());
+
+		if (!document) {
+			return;
+		}
+
+		const renderer = this._notebookOutputRenderers.get(id)!;
+		const cellsResponse: IOutputRenderResponseCellInfo<T>[] = request.items.map(cellInfo => {
+			const outputResponse: IOutputRenderResponseOutputInfo[] = cellInfo.outputs.map(output => {
+				return {
+					index: output.index,
+					mimeType: output.mimeType,
+					handlerId: id,
+					transformedOutput: renderer.render(document, output.output! as vscode.CellDisplayOutput, output.mimeType)
+				};
+			});
+
+			return {
+				key: cellInfo.key,
+				outputs: outputResponse
+			};
+		});
+
+		return { items: cellsResponse };
 	}
 
 	findBestMatchedRenderer(mimeType: string): ExtHostNotebookOutputRenderer[] {
@@ -862,95 +856,19 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 			}
 
 			const rawCells = await provider.provider.openNotebook(URI.revive(uri));
-			const renderers = new Set<number>();
 			const dto = {
 				metadata: {
 					...notebookDocumentMetadataDefaults,
 					...rawCells.metadata
 				},
 				languages: rawCells.languages,
-				cells: rawCells.cells.map(cell => {
-					let transformedOutputs = cell.outputs.map(output => {
-						if (output.outputKind === CellOutputKind.Rich) {
-							// TODO display string[]
-							const ret = this._transformMimeTypes(document!, (rawCells.metadata.displayOrder as string[]) || [], output);
-
-							if (ret.orderedMimeTypes[ret.pickedMimeTypeIndex].isResolved) {
-								renderers.add(ret.orderedMimeTypes[ret.pickedMimeTypeIndex].rendererId!);
-							}
-							return ret;
-						} else {
-							return output as IStreamOutput | IErrorOutput;
-						}
-					});
-
-					return {
-						language: cell.language,
-						cellKind: cell.cellKind,
-						metadata: cell.metadata,
-						source: cell.source,
-						outputs: transformedOutputs
-					};
-				}),
-				renderers: [] as number[]
+				cells: rawCells.cells,
 			};
 
-			dto.renderers = [...renderers];
 			return dto;
 		}
 
 		return;
-	}
-
-	private _transformMimeTypes(document: ExtHostNotebookDocument, displayOrder: string[], output: vscode.CellDisplayOutput): ITransformedDisplayOutputDto {
-		let mimeTypes = Object.keys(output.data);
-		let coreDisplayOrder = this.outputDisplayOrder;
-		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], displayOrder, coreDisplayOrder?.defaultOrder || []);
-
-		let orderMimeTypes: IOrderedMimeType[] = [];
-
-		sorted.forEach(mimeType => {
-			let handlers = this.findBestMatchedRenderer(mimeType);
-
-			if (handlers.length) {
-				let renderedOutput = handlers[0].render(document, output, mimeType);
-
-				orderMimeTypes.push({
-					mimeType: mimeType,
-					isResolved: true,
-					rendererId: handlers[0].handle,
-					output: renderedOutput
-				});
-
-				for (let i = 1; i < handlers.length; i++) {
-					orderMimeTypes.push({
-						mimeType: mimeType,
-						isResolved: false,
-						rendererId: handlers[i].handle
-					});
-				}
-
-				if (mimeTypeSupportedByCore(mimeType)) {
-					orderMimeTypes.push({
-						mimeType: mimeType,
-						isResolved: false,
-						rendererId: -1
-					});
-				}
-			} else {
-				orderMimeTypes.push({
-					mimeType: mimeType,
-					isResolved: false
-				});
-			}
-		});
-
-		return {
-			outputKind: output.outputKind,
-			data: output.data,
-			orderedMimeTypes: orderMimeTypes,
-			pickedMimeTypeIndex: 0
-		};
 	}
 
 	async $executeNotebook(viewType: string, uri: UriComponents, cellHandle: number | undefined, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {

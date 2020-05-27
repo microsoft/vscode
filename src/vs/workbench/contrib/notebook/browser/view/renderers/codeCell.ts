@@ -15,7 +15,7 @@ import { CellFocusMode, CodeCellRenderTemplate, INotebookEditor } from 'vs/workb
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { CellOutputKind, IOutput, IRenderOutput, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IProcessedOutput, IRenderOutput, ITransformedDisplayOutputDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDimension } from 'vs/editor/common/editorCommon';
@@ -25,8 +25,8 @@ interface IMimeTypeRenderer extends IQuickPickItem {
 }
 
 export class CodeCell extends Disposable {
-	private outputResizeListeners = new Map<IOutput, DisposableStore>();
-	private outputElements = new Map<IOutput, HTMLElement>();
+	private outputResizeListeners = new Map<IProcessedOutput, DisposableStore>();
+	private outputElements = new Map<IProcessedOutput, HTMLElement>();
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
@@ -155,7 +155,7 @@ export class CodeCell extends Disposable {
 				viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
 			});
 
-			let removedKeys: IOutput[] = [];
+			let removedKeys: IProcessedOutput[] = [];
 
 			this.outputElements.forEach((value, key) => {
 				if (viewCell.outputs.indexOf(key) < 0) {
@@ -273,7 +273,7 @@ export class CodeCell extends Disposable {
 		this.relayoutCell();
 	}
 
-	renderOutput(currOutput: IOutput, index: number, beforeElement?: HTMLElement) {
+	renderOutput(currOutput: IProcessedOutput, index: number, beforeElement?: HTMLElement) {
 		if (!this.outputResizeListeners.has(currOutput)) {
 			this.outputResizeListeners.set(currOutput, new DisposableStore());
 		}
@@ -284,12 +284,12 @@ export class CodeCell extends Disposable {
 		if (currOutput.outputKind === CellOutputKind.Rich) {
 			let transformedDisplayOutput = currOutput as ITransformedDisplayOutputDto;
 
-			if (transformedDisplayOutput.orderedMimeTypes.length > 1) {
+			if (transformedDisplayOutput.orderedMimeTypes!.length > 1) {
 				outputItemDiv.style.position = 'relative';
 				const mimeTypePicker = DOM.$('.multi-mimetype-output');
 				DOM.addClasses(mimeTypePicker, 'codicon', 'codicon-code');
 				mimeTypePicker.tabIndex = 0;
-				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", transformedDisplayOutput.orderedMimeTypes.map(mimeType => mimeType.mimeType).join(', '));
+				mimeTypePicker.title = nls.localize('mimeTypePicker', "Choose a different output mimetype, available mimetypes: {0}", transformedDisplayOutput.orderedMimeTypes!.map(mimeType => mimeType.mimeType).join(', '));
 				outputItemDiv.appendChild(mimeTypePicker);
 				this.outputResizeListeners.get(currOutput)!.add(DOM.addStandardDisposableListener(mimeTypePicker, 'mousedown', async e => {
 					if (e.leftButton) {
@@ -309,7 +309,7 @@ export class CodeCell extends Disposable {
 				})));
 
 			}
-			let pickedMimeTypeRenderer = currOutput.orderedMimeTypes[currOutput.pickedMimeTypeIndex];
+			let pickedMimeTypeRenderer = currOutput.orderedMimeTypes![currOutput.pickedMimeTypeIndex!];
 
 			if (pickedMimeTypeRenderer.isResolved) {
 				// html
@@ -386,15 +386,15 @@ export class CodeCell extends Disposable {
 		}
 	}
 
-	generateRendererInfo(renderId: number | undefined): string {
-		if (renderId === undefined || renderId === -1) {
+	generateRendererInfo(renderId: string | undefined): string {
+		if (renderId === undefined || renderId === '_builtin') {
 			return nls.localize('builtinRenderInfo', "built-in");
 		}
 
 		let renderInfo = this.notebookService.getRendererInfo(renderId);
 
 		if (renderInfo) {
-			return renderInfo.id.value;
+			return renderInfo.extensionId.value;
 		}
 
 		return nls.localize('builtinRenderInfo', "built-in");
@@ -402,7 +402,7 @@ export class CodeCell extends Disposable {
 
 	async pickActiveMimeTypeRenderer(output: ITransformedDisplayOutputDto) {
 		let currIndex = output.pickedMimeTypeIndex;
-		const items = output.orderedMimeTypes.map((mimeType, index): IMimeTypeRenderer => ({
+		const items = output.orderedMimeTypes!.map((mimeType, index): IMimeTypeRenderer => ({
 			label: mimeType.mimeType,
 			id: mimeType.mimeType,
 			index: index,
