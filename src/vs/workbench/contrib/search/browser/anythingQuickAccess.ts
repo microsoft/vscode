@@ -869,7 +869,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				// Open to side / below
 				buttons.push({
 					iconClass: openSideBySideDirection === 'right' ? Codicon.splitHorizontal.classNames : Codicon.splitVertical.classNames,
-					tooltip: openSideBySideDirection === 'right' ? localize('openToSide', "Open to the Side") : localize('openToBottom', "Open to the Bottom")
+					tooltip: openSideBySideDirection === 'right' ?
+						localize({ key: 'openToSide', comment: ['Open this file in a split editor on the left/right side'] }, "Open to the Side") :
+						localize({ key: 'openToBottom', comment: ['Open this file in a split editor on the bottom'] }, "Open to the Bottom")
 				});
 
 				// Remove from History

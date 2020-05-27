@@ -10,17 +10,18 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource } from 'vs/base/common/resources';
+import { toLocalResource, isEqualOrParent } from 'vs/base/common/resources';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 export class BoundModelReferenceCollection {
 
-	private _data = new Array<{ length: number, dispose(): void }>();
+	private _data = new Array<{ uri: URI, length: number, dispose(): void }>();
 	private _length = 0;
 
 	constructor(
@@ -34,10 +35,18 @@ export class BoundModelReferenceCollection {
 		this._data = dispose(this._data);
 	}
 
-	add(ref: IReference<ITextEditorModel>): void {
+	remove(uri: URI): void {
+		for (const entry of [...this._data] /* copy array because dispose will modify it */) {
+			if (isEqualOrParent(entry.uri, uri)) {
+				entry.dispose();
+			}
+		}
+	}
+
+	add(uri: URI, ref: IReference<ITextEditorModel>): void {
 		const length = ref.object.textEditorModel.getValueLength();
 		let handle: any;
-		let entry: { length: number, dispose(): void };
+		let entry: { uri: URI, length: number, dispose(): void };
 		const dispose = () => {
 			const idx = this._data.indexOf(entry);
 			if (idx >= 0) {
@@ -48,7 +57,7 @@ export class BoundModelReferenceCollection {
 			}
 		};
 		handle = setTimeout(dispose, this._maxAge);
-		entry = { length, dispose };
+		entry = { uri, length, dispose };
 
 		this._data.push(entry);
 		this._length += length;
@@ -74,7 +83,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private readonly _proxy: ExtHostDocumentsShape;
 	private readonly _modelIsSynced = new Set<string>();
-	private _modelReferenceCollection = new BoundModelReferenceCollection();
+	private readonly _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
@@ -83,7 +92,8 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@ITextFileService textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
@@ -106,6 +116,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.add(textFileService.files.onDidChangeDirty(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
+			}
+		}));
+
+		this._toDispose.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			if (e.source && (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE)) {
+				this._modelReferenceCollection.remove(e.source);
 			}
 		}));
 
@@ -199,7 +215,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 
 	private _handleAsResourceInput(uri: URI): Promise<boolean> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
-			this._modelReferenceCollection.add(ref);
+			this._modelReferenceCollection.add(uri, ref);
 			const result = !!ref.object;
 			return result;
 		});

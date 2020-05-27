@@ -8,6 +8,7 @@ import { clipboard } from 'electron';
 import { URI } from 'vs/base/common/uri';
 import { isMacintosh } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 export class NativeClipboardService implements IClipboardService {
 
@@ -15,51 +16,52 @@ export class NativeClipboardService implements IClipboardService {
 
 	_serviceBrand: undefined;
 
+	constructor(
+		@IElectronService private readonly electronService: IElectronService
+	) { }
+
 	async writeText(text: string, type?: 'selection' | 'clipboard'): Promise<void> {
-		clipboard.writeText(text, type);
+		return this.electronService.writeClipboardText(text, type);
 	}
 
 	async readText(type?: 'selection' | 'clipboard'): Promise<string> {
-		return clipboard.readText(type);
+		return this.electronService.readClipboardText(type);
 	}
 
-	readTextSync(): string {
-		return clipboard.readText();
-	}
-
-	readFindText(): string {
+	async readFindText(): Promise<string> {
 		if (isMacintosh) {
-			return clipboard.readFindText();
+			return this.electronService.readClipboardFindText();
 		}
 
 		return '';
 	}
 
-	writeFindText(text: string): void {
+	async writeFindText(text: string): Promise<void> {
 		if (isMacintosh) {
-			clipboard.writeFindText(text);
+			return this.electronService.writeClipboardFindText(text);
 		}
 	}
 
-	writeResources(resources: URI[]): void {
+	async writeResources(resources: URI[]): Promise<void> {
 		if (resources.length) {
-			clipboard.writeBuffer(NativeClipboardService.FILE_FORMAT, this.resourcesToBuffer(resources));
+			return this.electronService.writeClipboardBuffer(NativeClipboardService.FILE_FORMAT, this.resourcesToBuffer(resources));
 		}
 	}
 
-	readResources(): URI[] {
-		return this.bufferToResources(clipboard.readBuffer(NativeClipboardService.FILE_FORMAT));
+	async readResources(): Promise<URI[]> {
+		return this.bufferToResources(await this.electronService.readClipboardBuffer(NativeClipboardService.FILE_FORMAT));
 	}
 
-	hasResources(): boolean {
-		return clipboard.has(NativeClipboardService.FILE_FORMAT);
+
+	async hasResources(): Promise<boolean> {
+		return this.electronService.hasClipboard(NativeClipboardService.FILE_FORMAT);
 	}
 
 	private resourcesToBuffer(resources: URI[]): Buffer {
 		return Buffer.from(resources.map(r => r.toString()).join('\n'));
 	}
 
-	private bufferToResources(buffer: Buffer): URI[] {
+	private bufferToResources(buffer: Uint8Array): URI[] {
 		if (!buffer) {
 			return [];
 		}
@@ -73,6 +75,27 @@ export class NativeClipboardService implements IClipboardService {
 			return bufferValue.split('\n').map(f => URI.parse(f));
 		} catch (error) {
 			return []; // do not trust clipboard data
+		}
+	}
+
+	/** @deprecated */
+	readTextSync(): string {
+		return clipboard.readText();
+	}
+
+	/** @deprecated */
+	readFindTextSync(): string {
+		if (isMacintosh) {
+			return clipboard.readFindText();
+		}
+
+		return '';
+	}
+
+	/** @deprecated */
+	writeFindTextSync(text: string): void {
+		if (isMacintosh) {
+			clipboard.writeFindText(text);
 		}
 	}
 }

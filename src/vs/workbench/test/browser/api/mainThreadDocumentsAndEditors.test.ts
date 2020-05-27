@@ -25,7 +25,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -88,7 +88,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 					return undefined;
 				}
 			},
-			TestEnvironmentService
+			TestEnvironmentService,
+			new TestWorkingCopyFileService()
 		);
 	});
 
