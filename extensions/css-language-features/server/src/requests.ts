@@ -5,7 +5,7 @@
 
 import { URI } from 'vscode-uri';
 import { endsWith, startsWith } from './utils/strings';
-import { RequestType, IConnection } from 'vscode-languageserver';
+import { RequestType, Connection } from 'vscode-languageserver';
 import { RuntimeEnvironment } from './cssServer';
 
 export namespace FsContentRequest {
@@ -65,7 +65,7 @@ export interface RequestService {
 }
 
 
-export function getRequestService(handledSchemas: string[], connection: IConnection, runtime: RuntimeEnvironment): RequestService {
+export function getRequestService(handledSchemas: string[], connection: Connection, runtime: RuntimeEnvironment): RequestService {
 	const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
 	for (let protocol of handledSchemas) {
 		if (protocol === 'file') {

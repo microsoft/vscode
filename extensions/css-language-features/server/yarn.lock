@@ -701,13 +701,13 @@ to-regex-range@^5.0.1:
   dependencies:
     is-number "^7.0.0"
 
-vscode-css-languageservice@4.3.0-next.0:
-  version "4.3.0-next.0"
-  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.3.0-next.0.tgz#70ca6e192e1d7fb904867e696851b14401da9573"
-  integrity sha512-OwYavU+gqocK3YQi484CrGkGMMRRmzJdeNMfgAr/SssKJVJuvkLec7NbAopM42KTE6OPaqU3AFgI5AMERmIJ4A==
+vscode-css-languageservice@4.3.0-next.1:
+  version "4.3.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-css-languageservice/-/vscode-css-languageservice-4.3.0-next.1.tgz#6e1ddf5c469468585bdb91b554ffdf961915cd10"
+  integrity sha512-Ks/MbHDyUFMMF5DQ3hqh6xjT+EoEjWsdeOwgWTCg+caConhweO2Y8VpZO3qDpbBO5dTnGlcxVG07sxOZyxF77Q==
   dependencies:
     vscode-languageserver-textdocument "^1.0.1"
-    vscode-languageserver-types "^3.15.1"
+    vscode-languageserver-types "3.16.0-next.1"
     vscode-nls "^4.1.2"
     vscode-uri "^2.1.1"
 
@@ -729,10 +729,15 @@ vscode-languageserver-textdocument@^1.0.1:
   resolved "https://registry.yarnpkg.com/vscode-languageserver-textdocument/-/vscode-languageserver-textdocument-1.0.1.tgz#178168e87efad6171b372add1dea34f53e5d330f"
   integrity sha512-UIcJDjX7IFkck7cSkNNyzIz5FyvpQfY7sdzVy+wkKN/BLaD4DQ0ppXQrKePomCxTS7RrolK1I0pey0bG9eh8dA==
 
-vscode-languageserver-types@3.15.1, vscode-languageserver-types@^3.15.1:
+vscode-languageserver-types@3.15.1:
   version "3.15.1"
   resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.15.1.tgz#17be71d78d2f6236d414f0001ce1ef4d23e6b6de"
   integrity sha512-+a9MPUQrNGRrGU630OGbYVQ+11iOIovjCkqxajPa9w57Sd5ruK8WQNsslzpa0x/QJqC8kRc2DUxWjIFwoNm4ZQ==
+
+vscode-languageserver-types@3.16.0-next.1:
+  version "3.16.0-next.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.16.0-next.1.tgz#97e9803c4a999e81e3ff000a91b630173eaaf28c"
+  integrity sha512-tZFUSbyjUcrh+qQf13ALX4QDdOfDX0cVaBFgy7ktJ0VwS7AW/yRKgGPSxVqqP9OCMNPdqP57O5q47w2pEwfaUg==
 
 vscode-languageserver@^6.1.1:
   version "6.1.1"

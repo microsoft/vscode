@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
-	IConnection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType
+	Connection, TextDocuments, InitializeParams, InitializeResult, ServerCapabilities, ConfigurationRequest, WorkspaceFolder, TextDocumentSyncKind, NotificationType
 } from 'vscode-languageserver';
 import { URI } from 'vscode-uri';
 import { getCSSLanguageService, getSCSSLanguageService, getLESSLanguageService, LanguageSettings, LanguageService, Stylesheet, TextDocument, Position } from 'vscode-css-languageservice';
@@ -29,7 +29,7 @@ export interface RuntimeEnvironment {
 	http?: RequestService
 }
 
-export function startServer(connection: IConnection, runtime: RuntimeEnvironment) {
+export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
 
 	// Create a text document manager.
 	const documents = new TextDocuments(TextDocument);

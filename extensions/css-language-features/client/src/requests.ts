@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Uri, workspace } from 'vscode';
-import { RequestType, LanguageClient } from 'vscode-languageclient';
+import { RequestType, CommonLanguageClient } from 'vscode-languageclient';
 import { TextDecoder } from 'util';
 
 export namespace FsContentRequest {
@@ -18,7 +18,7 @@ export namespace FsReadDirRequest {
 	export const type: RequestType<string, [string, FileType][], any, any> = new RequestType('fs/readDir');
 }
 
-export function serveFileSystemRequests(client: LanguageClient, runtime: { fs?: RequestService; }) {
+export function serveFileSystemRequests(client: CommonLanguageClient, runtime: { fs?: RequestService; }) {
 	client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
 		const uri = Uri.parse(param.uri);
 		if (uri.scheme === 'file' && runtime.fs) {
@@ -113,6 +113,16 @@ export function resolvePath(uri: Uri, path: string): Uri {
 	if (isAbsolutePath(path)) {
 		return uri.with({ path: path });
 	}
-	return Uri.joinPath(uri, path);
+	return joinPath(uri, path);
 }
 
+export function joinPath(uri: Uri, ...paths: string[]): Uri {
+	let uriPath = uri.path;
+	for (let path of paths) {
+		if (path.charCodeAt(path.length - 1) !== Slash && path.charCodeAt(0) !== Slash) {
+			uriPath += '/';
+		}
+		uriPath += path;
+	}
+	return uri.with({ path: uriPath });
+}

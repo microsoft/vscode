@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { workspace, extensions, Uri, EventEmitter, Disposable } from 'vscode';
-import { resolvePath } from './requests';
+import { resolvePath, joinPath } from './requests';
 
 export function getCustomDataSource(toDispose: Disposable[]) {
 	let pathsInWorkspace = getCustomDataPathsInAllWorkspaces();
@@ -83,7 +83,7 @@ function getCustomDataPathsFromAllExtensions(): string[] {
 		if (contributes && contributes.css && contributes.css.customData && Array.isArray(contributes.css.customData)) {
 			const relativePaths: string[] = contributes.css.customData;
 			relativePaths.forEach(rp => {
-				dataPaths.push(Uri.joinPath(extension.extensionUri, rp).toString());
+				dataPaths.push(joinPath(extension.extensionUri, rp).toString());
 			});
 		}
 	}

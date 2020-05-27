@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList, extensions } from 'vscode';
-import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, ProvideCompletionItemsSignature, NotificationType } from 'vscode-languageclient';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
+import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, CommonLanguageClient } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
 import { getCustomDataSource } from './customData';
 import { RequestService, serveFileSystemRequests } from './requests';
@@ -15,27 +15,11 @@ namespace CustomDataChangedNotification {
 
 const localize = nls.loadMessageBundle();
 
-export function startClient(context: ExtensionContext, runtime: { fs?: RequestService }) {
+export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
-	const clientMain = extensions.getExtension('vscode.css-language-features')?.packageJSON?.main;
-	const serverMain = clientMain?.replace('client', 'server').replace('cssClientMain', 'cssServerMain');
-	if (!serverMain) {
-		throw new Error('Unable to compute CSS server module path. Client: ' + clientMain);
-	}
-
-	const serverModule = context.asAbsolutePath(serverMain);
+export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: { fs?: RequestService }) {
 
 	const customDataSource = getCustomDataSource(context.subscriptions);
-
-	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6044'] };
-
-	// If the extension is launch in debug mode the debug server options are use
-	// Otherwise the run options are used
-	let serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.ipc },
-		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-	};
 
 	let documentSelector = ['css', 'scss', 'less'];
 
@@ -86,7 +70,7 @@ export function startClient(context: ExtensionContext, runtime: { fs?: RequestSe
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('css', localize('cssserver.name', 'CSS Language Server'), serverOptions, clientOptions);
+	let client = newLanguageClient('css', localize('cssserver.name', 'CSS Language Server'), clientOptions);
 	client.registerProposedFeatures();
 	client.onReady().then(() => {
 
@@ -131,7 +115,7 @@ export function startClient(context: ExtensionContext, runtime: { fs?: RequestSe
 		const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
 
 		return languages.registerCompletionItemProvider(documentSelector, {
-			provideCompletionItems(doc, pos) {
+			provideCompletionItems(doc: TextDocument, pos: Position) {
 				let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
 				let match = lineUntilPos.match(regionCompletionRegExpr);
 				if (match) {
