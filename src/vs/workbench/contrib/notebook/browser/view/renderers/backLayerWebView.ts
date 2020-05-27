@@ -407,8 +407,8 @@ ${loaderJs}
 	}
 
 	const namespacedElements = new WeakMap/*<HTMLElement, namespace>*/();
-	const onWillUnmountCell = createEmitter/*<[namespace | undefined, cellUri | undefined]>*/();
-	const onDidMountCell = createEmitter/*<[namespace | undefined, HTMLElement]>*/();
+	const onWillDestroyCell = createEmitter/*<[namespace | undefined, cellUri | undefined]>*/();
+	const onDidCreateCell = createEmitter/*<[namespace | undefined, HTMLElement]>*/();
 
 	function resolveApiNamespace(preferred, currentElement = document.currentScript) {
 		if (preferred) {
@@ -437,9 +437,9 @@ ${loaderJs}
 				const state = vscode.getState();
 				return typeof state === 'object' && state ? state[stateKey] : undefined;
 			},
-			onWillUnmountCell: mapEmitter(onWillUnmountCell, ([ns, cellUri]) =>
-				ns === undefined || ns === namespace ? cellUri : dontEmit),
-			onDidMountCell: mapEmitter(onDidMountCell, ([ns, element]) => ns === namespace ? element : dontEmit),
+			onWillDestroyCell: mapEmitter(onWillDestroyCell, ([ns, cellUri]) =>
+				cellUri === undefined || ns === namespace ? cellUri : dontEmit),
+			onDidCreateCell: mapEmitter(onDidCreateCell, ([ns, element]) => ns === namespace ? element : dontEmit),
 		};
 	};
 
@@ -502,7 +502,7 @@ ${loaderJs}
 					// eval
 					domEval(outputNode);
 					resizeObserve(outputNode, outputId);
-					onDidMountCell.fire([event.data.apiNamespace, outputNode]);
+					onDidCreateCell.fire([event.data.apiNamespace, outputNode]);
 
 					vscode.postMessage({
 						__vscode_notebook_message: true,
@@ -530,7 +530,7 @@ ${loaderJs}
 					break;
 				}
 			case 'clear':
-				onWillUnmountCell.fire([]);
+				onWillDestroyCell.fire([]);
 				document.getElementById('container').innerHTML = '';
 				for (let i = 0; i < observers.length; i++) {
 					observers[i].disconnect();
@@ -540,7 +540,7 @@ ${loaderJs}
 				break;
 			case 'clearOutput':
 				{
-					onWillUnmountCell.fire([event.data.apiNamespace, event.data.cellUri]);
+					onWillDestroyCell.fire([event.data.apiNamespace, event.data.cellUri]);
 					let output = document.getElementById(id);
 					if (output && output.parentNode) {
 						document.getElementById(id).parentNode.removeChild(output);
