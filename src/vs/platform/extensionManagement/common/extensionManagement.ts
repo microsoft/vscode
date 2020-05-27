@@ -92,6 +92,7 @@ export interface IGalleryMetadata {
 
 export interface ILocalExtension extends IExtension {
 	readonly manifest: IExtensionManifest;
+	isDefault: boolean;
 	publisherId: string | null;
 	publisherDisplayName: string | null;
 	readmeUrl: URI | null;
@@ -205,8 +206,8 @@ export interface IExtensionManagementService {
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
-	install(vsix: URI): Promise<ILocalExtension>;
-	installFromGallery(extension: IGalleryExtension): Promise<ILocalExtension>;
+	install(vsix: URI, isDefault?: boolean): Promise<ILocalExtension>;
+	installFromGallery(extension: IGalleryExtension, isDefault?: boolean): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, force?: boolean): Promise<void>;
 	reinstallFromGallery(extension: ILocalExtension): Promise<void>;
 	getInstalled(type?: ExtensionType): Promise<ILocalExtension[]>;
