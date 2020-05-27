@@ -110,9 +110,10 @@ export class TypeScriptServerSpawner {
 
 	private getForkOptions(kind: ServerKind, configuration: TypeScriptServiceConfiguration) {
 		const debugPort = TypeScriptServerSpawner.getDebugPort(kind);
+		const inspectFlag = process.env['TSS_DEBUG_BRK'] ? '--inspect-brk' : '--inspect';
 		const tsServerForkOptions: electron.ForkOptions = {
 			execArgv: [
-				...(debugPort ? [`--inspect=${debugPort}`] : []),
+				...(debugPort ? [`${inspectFlag}=${debugPort}`] : []),
 				...(configuration.maxTsServerMemory ? [`--max-old-space-size=${configuration.maxTsServerMemory}`] : [])
 			]
 		};
@@ -200,7 +201,7 @@ export class TypeScriptServerSpawner {
 			// We typically only want to debug the main semantic server
 			return undefined;
 		}
-		const value = process.env['TSS_DEBUG'];
+		const value = process.env['TSS_DEBUG_BRK'] || process.env['TSS_DEBUG'];
 		if (value) {
 			const port = parseInt(value);
 			if (!isNaN(port)) {

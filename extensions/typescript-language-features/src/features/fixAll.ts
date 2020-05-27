@@ -170,7 +170,7 @@ class SourceAddMissingImports extends SourceAction {
 	static readonly kind = vscode.CodeActionKind.Source.append('addMissingImports').append('ts');
 
 	constructor() {
-		super(localize('autoFix.missingImports.label', 'Add all missing imports'), SourceRemoveUnused.kind);
+		super(localize('autoFix.missingImports.label', 'Add all missing imports'), SourceAddMissingImports.kind);
 	}
 
 	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {

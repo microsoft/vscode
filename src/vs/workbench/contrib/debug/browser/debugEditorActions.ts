@@ -9,7 +9,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE, State, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint, BREAKPOINT_EDITOR_CONTRIBUTION_ID, IBreakpointEditorContribution, REPL_VIEW_ID, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -17,6 +17,9 @@ import { openBreakpointSource } from 'vs/workbench/contrib/debug/browser/breakpo
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { PanelFocusContext } from 'vs/workbench/common/panel';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Action } from 'vs/base/common/actions';
+import { getDomNodePagePosition } from 'vs/base/browser/dom';
 
 export const TOGGLE_BREAKPOINT_ID = 'editor.debug.action.toggleBreakpoint';
 class ToggleBreakpointAction extends EditorAction {
@@ -78,12 +81,12 @@ class ConditionalBreakpointAction extends EditorAction {
 	}
 }
 
-export const TOGGLE_LOG_POINT_ID = 'editor.debug.action.toggleLogPoint';
+export const ADD_LOG_POINT_ID = 'editor.debug.action.addLogPoint';
 class LogPointAction extends EditorAction {
 
 	constructor() {
 		super({
-			id: TOGGLE_LOG_POINT_ID,
+			id: ADD_LOG_POINT_ID,
 			label: nls.localize('logPointEditorAction', "Debug: Add Logpoint..."),
 			alias: 'Debug: Add Logpoint...',
 			precondition: undefined
@@ -241,6 +244,48 @@ class ShowDebugHoverAction extends EditorAction {
 	}
 }
 
+class StepIntoTargetsAction extends EditorAction {
+
+	public static readonly ID = 'editor.debug.action.stepIntoTargets';
+	public static readonly LABEL = nls.localize('stepIntoTargets', "Step Into Targets...");
+
+	constructor() {
+		super({
+			id: StepIntoTargetsAction.ID,
+			label: StepIntoTargetsAction.LABEL,
+			alias: 'Debug: Step Into Targets...',
+			precondition: ContextKeyExpr.and(CONTEXT_STEP_INTO_TARGETS_SUPPORTED, CONTEXT_IN_DEBUG_MODE, CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			contextMenuOpts: {
+				group: 'debug',
+				order: 1.5
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor): Promise<void> {
+		const debugService = accessor.get(IDebugService);
+		const contextMenuService = accessor.get(IContextMenuService);
+		const session = debugService.getViewModel().focusedSession;
+		const frame = debugService.getViewModel().focusedStackFrame;
+
+		if (session && frame && editor.hasModel()) {
+			const targets = await session.stepInTargets(frame.frameId);
+			const position = editor.getPosition();
+			const cursorCoords = editor.getScrolledVisiblePosition(position);
+			const editorCoords = getDomNodePagePosition(editor.getDomNode());
+			const x = editorCoords.left + cursorCoords.left;
+			const y = editorCoords.top + cursorCoords.top + cursorCoords.height;
+
+			contextMenuService.showContextMenu({
+				getAnchor: () => ({ x, y }),
+				getActions: () => {
+					return targets.map(t => new Action(`stepIntoTarget:${t.id}`, t.label, undefined, true, () => session.stepIn(frame.thread.threadId, t.id)));
+				}
+			});
+		}
+	}
+}
+
 class GoToBreakpointAction extends EditorAction {
 	constructor(private isNext: boolean, opts: IActionOptions) {
 		super(opts);
@@ -307,6 +352,7 @@ registerEditorAction(ToggleBreakpointAction);
 registerEditorAction(ConditionalBreakpointAction);
 registerEditorAction(LogPointAction);
 registerEditorAction(RunToCursorAction);
+registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);
 registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, normalizePath, isAbsolutePath, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath, addTrailingPathSeparator, getComparisonKey } from 'vs/base/common/resources';
+import { dirname, basename, distinctParents, joinPath, isEqual, isEqualOrParent, normalizePath, isAbsolutePath, relativePath, removeTrailingPathSeparator, hasTrailingPathSeparator, resolvePath, addTrailingPathSeparator, getComparisonKey, exturi } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { isWindows } from 'vs/base/common/platform';
 import { toSlashes } from 'vs/base/common/extpath';
@@ -254,14 +254,14 @@ suite('Resources', () => {
 		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/bar/goo'), 'bar/goo');
 		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a/foo/bar/goo'), 'foo/bar/goo');
 		assertRelativePath(URI.parse('foo://a/foo/xoo'), URI.parse('foo://a/foo/bar'), '../bar');
-		assertRelativePath(URI.parse('foo://a/foo/xoo/yoo'), URI.parse('foo://a'), '../../..');
+		assertRelativePath(URI.parse('foo://a/foo/xoo/yoo'), URI.parse('foo://a'), '../../..', true);
 		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo/'), '');
 		assertRelativePath(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo'), '');
 		assertRelativePath(URI.parse('foo://a/foo/'), URI.parse('foo://a/foo/'), '');
 		assertRelativePath(URI.parse('foo://a/foo'), URI.parse('foo://a/foo'), '');
-		assertRelativePath(URI.parse('foo://a'), URI.parse('foo://a'), '');
+		assertRelativePath(URI.parse('foo://a'), URI.parse('foo://a'), '', true);
 		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a/'), '');
-		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a'), '');
+		assertRelativePath(URI.parse('foo://a/'), URI.parse('foo://a'), '', true);
 		assertRelativePath(URI.parse('foo://a/foo?q'), URI.parse('foo://a/foo/bar#h'), 'bar', true);
 		assertRelativePath(URI.parse('foo://'), URI.parse('foo://a/b'), undefined);
 		assertRelativePath(URI.parse('foo://a2/b'), URI.parse('foo://a/b'), undefined);
@@ -348,6 +348,10 @@ suite('Resources', () => {
 
 	function assertIsEqual(u1: URI, u2: URI, ignoreCase: boolean | undefined, expected: boolean) {
 		assert.equal(isEqual(u1, u2, ignoreCase), expected, `${u1.toString()}${expected ? '===' : '!=='}${u2.toString()}`);
+		if (!ignoreCase) {
+			assert.equal(exturi.compare(u1, u2) === 0, expected);
+			assert.equal(u1.toString() === u2.toString(), expected);
+		}
 		assert.equal(getComparisonKey(u1, ignoreCase) === getComparisonKey(u2, ignoreCase), expected, `comparison keys ${u1.toString()}, ${u2.toString()}`);
 		assert.equal(isEqualOrParent(u1, u2, ignoreCase), expected, `isEqualOrParent ${u1.toString()}, ${u2.toString()}`);
 	}
@@ -372,7 +376,9 @@ suite('Resources', () => {
 
 		assertIsEqual(fileURI, fileURI3, true, false);
 
-		assertIsEqual(URI.parse('foo://server'), URI.parse('foo://server/'), true, true);
+		assertIsEqual(URI.parse('file://server'), URI.parse('file://server/'), true, true);
+		assertIsEqual(URI.parse('http://server'), URI.parse('http://server/'), true, true);
+		assertIsEqual(URI.parse('foo://server'), URI.parse('foo://server/'), true, false); // only selected scheme have / as the default path
 		assertIsEqual(URI.parse('foo://server/foo'), URI.parse('foo://server/foo/'), true, false);
 		assertIsEqual(URI.parse('foo://server/foo'), URI.parse('foo://server/foo?'), true, true);
 
@@ -383,7 +389,7 @@ suite('Resources', () => {
 		assertIsEqual(fileURI5, fileURI3, true, false);
 		assertIsEqual(fileURI6, fileURI6, true, true);
 		assertIsEqual(fileURI6, fileURI5, true, false);
-		assertIsEqual(fileURI6, fileURI3, true, true);
+		assertIsEqual(fileURI6, fileURI3, true, false);
 	});
 
 	test('isEqualOrParent', () => {

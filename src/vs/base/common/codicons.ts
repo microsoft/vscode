@@ -467,6 +467,8 @@ export namespace Codicon {
 	export const githubInverted = new Codicon('github-inverted', { character: '\\eba1' });
 	export const debugAlt2 = new Codicon('debug-alt-2', { character: '\\f101' });
 	export const debugAlt = new Codicon('debug-alt', { character: '\\f102' });
+	export const serverProcess = new Codicon('server-process', { character: '\\eba2' });
+	export const serverEnvironment = new Codicon('server-environment', { character: '\\eba3' });
 }
 
 

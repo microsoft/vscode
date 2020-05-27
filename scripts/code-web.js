@@ -148,11 +148,6 @@ async function handleRoot(req, res) {
 			if (packageJSON.main && packageJSON.name !== 'vscode-web-playground') {
 				return; // unsupported
 			}
-
-			if (packageJSON.name === 'scss') {
-				return; // seems to fail to JSON.parse()?!
-			}
-
 			packageJSON.extensionKind = ['web']; // enable for Web
 
 			mapExtensionFolderToExtensionPackageJSON.set(extensionFolder, packageJSON);
@@ -171,11 +166,10 @@ async function handleRoot(req, res) {
 		});
 	});
 
+	const webConfiguration = escapeAttribute(JSON.stringify({ staticExtensions, folderUri: { scheme: 'memfs', path: `/sample-folder` }}));
+
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
-		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', escapeAttribute(JSON.stringify({
-			staticExtensions,
-			folderUri: { scheme: 'memfs', path: `/sample-folder` }
-		})))
+		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => webConfiguration) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
 		.replace('{{WEBVIEW_ENDPOINT}}', '')
 		.replace('{{REMOTE_USER_DATA_URI}}', '');
 

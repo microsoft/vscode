@@ -675,6 +675,11 @@ export class CompositeDragAndDropObserver extends Disposable {
 		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
 			const { id, type } = draggedItemProvider();
 			this.writeDragData(id, type);
+
+			if (e.dataTransfer) {
+				e.dataTransfer.setDragImage(element, 0, 0);
+			}
+
 			this._onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
 		}));
 		disposableStore.add(new DragAndDropObserver(element, {

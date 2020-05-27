@@ -452,8 +452,8 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 				}
 			},
 			onDragOver: (e: DragEvent) => {
-				if (e.dataTransfer) {
-					e.dataTransfer.dropEffect = this.isSupportedDragElement(e) ? 'copy' : 'none';
+				if (this.isSupportedDragElement(e)) {
+					e.dataTransfer!.dropEffect = 'copy';
 				}
 			},
 			onDrop: async (e: DragEvent) => {
@@ -478,7 +478,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 						}
 					}
 				}
-			},
+			}
 		}));
 
 		super.create(append(this.root, $('.extensions')));

@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ClosePanelAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
+import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
@@ -35,7 +35,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { ViewMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
+import { ViewMenuActions, ViewContainerMenuActions } from 'vs/workbench/browser/parts/views/viewMenuActions';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop } from 'vs/workbench/browser/dnd';
@@ -144,7 +144,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Panel,
 			(id: string, focus?: boolean) => (this.openPanel(id, focus) as Promise<IPaneComposite | undefined>).then(panel => panel || null),
-			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore)
+			(from: string, to: string, before?: Before2D) => this.compositeBar.move(from, to, before?.horizontallyBefore),
+			() => this.compositeBar.getCompositeBarItems()
 		);
 
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
@@ -175,7 +176,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
 				badgeBackground: theme.getColor(badgeBackground),
 				badgeForeground: theme.getColor(badgeForeground),
-				dragAndDropBackground: theme.getColor(PANEL_DRAG_AND_DROP_BACKGROUND)
+				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			})
 		}));
 
@@ -196,6 +197,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				result.push(...viewMenuActions.getContextMenuActions());
 				viewMenuActions.dispose();
 			}
+
+			const viewContainerMenuActions = this.instantiationService.createInstance(ViewContainerMenuActions, container.id, MenuId.ViewContainerTitleContext);
+			result.push(...viewContainerMenuActions.getContextMenuActions());
+			viewContainerMenuActions.dispose();
 		}
 		return result;
 	}
@@ -207,7 +212,15 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const isActive = activePanel?.getId() === panel.id || (!activePanel && this.getLastActivePanelId() === panel.id);
 
 			if (isActive || !this.shouldBeHidden(panel.id, cachedPanel)) {
-				this.compositeBar.addComposite(panel);
+
+				// Override order
+				const newPanel = {
+					id: panel.id,
+					name: panel.name,
+					order: cachedPanel?.order === undefined ? panel.order : cachedPanel.order
+				};
+
+				this.compositeBar.addComposite(newPanel);
 
 				// Pin it by default if it is new
 				if (!cachedPanel) {
@@ -215,6 +228,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 				}
 
 				if (isActive) {
+					// Only try to open the panel if it has been created and visible
+					if (!activePanel && this.element && this.layoutService.isVisible(Parts.PANEL_PART)) {
+						this.doOpenPanel(panel.id);
+					}
+
 					this.compositeBar.activateComposite(panel.id);
 				}
 			}
@@ -258,7 +276,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private updateActivity(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
-		const cachedTitle = this.getCachedPanels().filter(panel => panel.id === viewContainer.id)[0]?.name;
+		const cachedTitle = this.getPlaceholderViewContainers().filter(panel => panel.id === viewContainer.id)[0]?.name;
 
 		const activity: IActivity = {
 			id: viewContainer.id,
@@ -283,14 +301,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (viewContainerModel.activeViewDescriptors.length) {
 			this.compositeBar.addComposite(viewContainer);
 		} else if (viewContainer.hideIfEmpty) {
-			if (this.extensionsRegistered) {
-				this.hideComposite(viewContainer.id);
-			} else {
-				const cachedPanels = this.getCachedPanels().filter(p => p.id === viewContainer.id)[0];
-				if (this.shouldBeHidden(viewContainer.id, cachedPanels)) {
-					this.hideComposite(viewContainer.id);
-				}
-			}
+			this.hideComposite(viewContainer.id);
 		}
 	}
 
@@ -369,13 +380,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (panelDescriptor) {
 			const viewContainer = this.getViewContainer(panelDescriptor.id);
 			if (viewContainer?.hideIfEmpty) {
-				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-					const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-
-					if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
-						this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
-					}
-				});
+				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+				if (viewContainerModel.activeViewDescriptors.length === 0 && this.compositeBar.getPinnedComposites().length > 1) {
+					this.hideComposite(panelDescriptor.id); // Update the composite bar by hiding
+				}
 			}
 		}
 
@@ -413,7 +421,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		const messageElement = document.createElement('div');
 		addClass(messageElement, 'empty-panel-message');
-		messageElement.innerText = localize('panel.emptyMessage', "No panels to display. Drag a view into the panel.");
+		messageElement.innerText = localize('panel.emptyMessage', "Drag a view into the panel to display.");
 
 		this.emptyPanelMessageElement.appendChild(messageElement);
 		contentArea.appendChild(this.emptyPanelMessageElement);
@@ -475,7 +483,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		}
 
-		return this.openComposite(id, focus);
+		return this.openComposite(id, focus) as Panel;
 	}
 
 	async openPanel(id?: string, focus?: boolean): Promise<Panel | undefined> {
@@ -553,7 +561,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return {
 			updateTitle: (id, title, keybinding) => {
 				const action = this.compositeBar.getAction(id);
-				if (this.extensionsRegistered && action) {
+				if (action) {
 					action.label = title;
 				}
 			},
@@ -614,8 +622,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 			if (panel) {
 				compositeActions = {
-					activityAction: new PanelActivityAction(assertIsDefined(panel), this),
-					pinnedAction: new ToggleCompositePinnedAction(panel, this.compositeBar)
+					activityAction: new PanelActivityAction(assertIsDefined(this.getPanel(compositeId)), this),
+					pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
 				};
 			} else {
 				compositeActions = {
@@ -697,13 +705,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
-
-				const views: { when: string | undefined }[] = [];
-				for (const { when } of viewContainerModel.allViewDescriptors) {
-					views.push({ when: when ? when.serialize() : undefined });
-				}
-
-				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible, views });
+				state.push({ id: compositeItem.id, name: viewContainerModel.title, pinned: compositeItem.pinned, order: compositeItem.order, visible: compositeItem.visible });
 				placeholders.push({ id: compositeItem.id, name: this.getCompositeActions(compositeItem.id).activityAction.label });
 			}
 		}

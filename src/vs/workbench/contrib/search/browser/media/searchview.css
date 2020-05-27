@@ -302,11 +302,6 @@
 	background-color: rgba(255, 255, 255, 0.1) !important;
 }
 
-.monaco-workbench.vs-dark .search-view .foldermatch,
-.monaco-workbench.vs-dark .search-view .filematch {
-	padding: 0;
-}
-
 /* High Contrast Theming */
 
 .monaco-workbench.hc-black .search-view .foldermatch,

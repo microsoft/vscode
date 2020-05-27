@@ -5,19 +5,19 @@
 
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { Webview, WebviewContentOptions, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
+import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
-import { loadLocalResource, WebviewResourceResponse } from 'vs/workbench/contrib/webview/common/resourceLoader';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { isWeb } from 'vs/base/common/platform';
 
 export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Webview {
 	private readonly _portMappingManager: WebviewPortMappingManager;
@@ -26,6 +26,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 		webviewThemeDataProvider: WebviewThemeDataProvider,
 		@ITunnelService tunnelService: ITunnelService,
 		@IFileService private readonly fileService: IFileService,
@@ -34,7 +35,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		@IEnvironmentService environementService: IEnvironmentService,
 		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
-		super(id, options, contentOptions, webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
+		super(id, options, contentOptions, extension, webviewThemeDataProvider, telemetryService, environementService, workbenchEnvironmentService);
 
 		if (!this.useExternalEndpoint && (!workbenchEnvironmentService.options || typeof workbenchEnvironmentService.webviewExternalEndpoint !== 'string')) {
 			throw new Error('To use iframe based webviews, you must configure `environmentService.webviewExternalEndpoint`');
@@ -58,7 +59,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 		}));
 	}
 
-	protected createElement(options: WebviewOptions) {
+	protected createElement(options: WebviewOptions, contentOptions: WebviewContentOptions) {
 		const element = document.createElement('iframe');
 		element.className = `webview ${options.customClasses || ''}`;
 		element.sandbox.add('allow-scripts', 'allow-same-origin', 'allow-forms');
@@ -93,7 +94,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 
 	private preprocessHtml(value: string): string {
 		return value
-			.replace(/(["'])vscode-resource:(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
+			.replace(/(["'])(?:vscode-resource|vscode-webview-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
 				if (scheme) {
 					return `${startQuote}${this.externalEndpoint}/vscode-resource/${scheme}${path}${endQuote}`;
 				}
@@ -128,14 +129,14 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	private async loadResource(requestPath: string, uri: URI) {
 		try {
 			const result = await loadLocalResource(uri, this.fileService, this.extension ? this.extension.location : undefined,
-				() => (this.content.options.localResourceRoots || []));
+				this.content.options.localResourceRoots || []);
 
 			if (result.type === WebviewResourceResponse.Type.Success) {
 				return this._send('did-load-resource', {
 					status: 200,
 					path: requestPath,
 					mime: result.mimeType,
-					data: result.data.buffer
+					data: result.buffer.buffer,
 				});
 			}
 		} catch  {

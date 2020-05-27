@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, GitExtension, RefType, RemoteSourceProvider, CredentialsProvider } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, GitExtension, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
 import { mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -157,6 +157,10 @@ export class ApiRepository implements Repository {
 
 	getBranch(name: string): Promise<Branch> {
 		return this._repository.getBranch(name);
+	}
+
+	getBranches(query: BranchQuery): Promise<Ref[]> {
+		return this._repository.getBranches(query);
 	}
 
 	setBranchUpstream(name: string, upstream: string): Promise<void> {

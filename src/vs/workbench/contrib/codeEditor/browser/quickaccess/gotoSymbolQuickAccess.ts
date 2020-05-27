@@ -12,9 +12,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IQuickAccessRegistry, Extensions as QuickaccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/gotoSymbolQuickAccess';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration, IEditorPane, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorPane } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -41,6 +41,13 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	}
 
 	//#region DocumentSymbols (text editor required)
+
+	protected provideWithTextEditor(editor: IEditor, picker: IQuickPick<IGotoSymbolQuickPickItem>, token: CancellationToken): IDisposable {
+		if (this.canPickFromTableOfContents()) {
+			return this.doGetTableOfContentsPicks(picker);
+		}
+		return super.provideWithTextEditor(editor, picker, token);
+	}
 
 	private get configuration() {
 		const editorConfig = this.configurationService.getValue<IWorkbenchEditorConfiguration>().workbench.editor;
@@ -107,14 +114,21 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 	//#endregion
 
 	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
-		const pane = this.editorService.activeEditorPane;
-		if (pane && TableOfContentsProviderRegistry.has(pane.getId())) {
-			return this.doGetTableOfContentsPicks(picker, pane);
+		if (this.canPickFromTableOfContents()) {
+			return this.doGetTableOfContentsPicks(picker);
 		}
 		return super.provideWithoutTextEditor(picker);
 	}
 
-	private doGetTableOfContentsPicks(picker: IQuickPick<IGotoSymbolQuickPickItem>, pane: IVisibleEditorPane): IDisposable {
+	private canPickFromTableOfContents(): boolean {
+		return this.editorService.activeEditorPane ? TableOfContentsProviderRegistry.has(this.editorService.activeEditorPane.getId()) : false;
+	}
+
+	private doGetTableOfContentsPicks(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+		const pane = this.editorService.activeEditorPane;
+		if (!pane) {
+			return Disposable.None;
+		}
 		const provider = TableOfContentsProviderRegistry.get(pane.getId())!;
 		const cts = new CancellationTokenSource();
 

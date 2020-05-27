@@ -284,7 +284,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		// filters though so that it can be picked
 		// (https://github.com/microsoft/vscode/issues/96283)
 		if (!matchingFilter && ext) {
-			matchingFilter = { name: nls.localize('fileExt', "{0} File", ext), extensions: [trim(ext, '.')] };
+			matchingFilter = { name: trim(ext, '.').toUpperCase(), extensions: [trim(ext, '.')] };
 		}
 
 		// Order of filters is

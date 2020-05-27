@@ -15,6 +15,8 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { GlobPattern } from 'vs/workbench/api/common/extHost.protocol';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Schemas } from 'vs/base/common/network';
 
 export enum CellKind {
 	Markdown = 1,
@@ -53,8 +55,9 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 	runnable: true,
 	cellEditable: true,
 	cellRunnable: true,
-	hasExecutionOrder: true,
-	displayOrder: NOTEBOOK_DISPLAY_ORDER
+	cellHasExecutionOrder: true,
+	displayOrder: NOTEBOOK_DISPLAY_ORDER,
+	custom: {}
 };
 
 export interface NotebookDocumentMetadata {
@@ -62,8 +65,9 @@ export interface NotebookDocumentMetadata {
 	runnable: boolean;
 	cellEditable: boolean;
 	cellRunnable: boolean;
-	hasExecutionOrder: boolean;
+	cellHasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
+	custom?: { [key: string]: any };
 }
 
 export enum NotebookCellRunState {
@@ -76,9 +80,14 @@ export enum NotebookCellRunState {
 export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
+	breakpointMargin?: boolean;
+	hasExecutionOrder?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
+	runStartTime?: number;
+	lastRunDuration?: number;
+	custom?: { [key: string]: any };
 }
 
 export interface INotebookDisplayOrder {
@@ -95,6 +104,23 @@ export interface INotebookRendererInfo {
 	id: ExtensionIdentifier;
 	extensionLocation: URI,
 	preloads: URI[]
+}
+
+export interface INotebookKernelInfo {
+	id: string;
+	label: string,
+	selectors: (string | glob.IRelativePattern)[],
+	extension: ExtensionIdentifier;
+	extensionLocation: URI,
+	preloads: URI[];
+	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+}
+
+export interface INotebookKernelInfoDto {
+	id: string;
+	label: string,
+	extensionLocation: URI;
+	preloads?: UriComponents[];
 }
 
 export interface INotebookSelectors {
@@ -237,7 +263,7 @@ export enum NotebookCellsChangeType {
 
 export interface NotebookCellsModelChangedEvent {
 	readonly kind: NotebookCellsChangeType.ModelChange;
-	readonly changes: NotebookCellsSplice2[];
+	readonly change: NotebookCellsSplice2;
 	readonly versionId: number;
 }
 
@@ -304,18 +330,18 @@ export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
 	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
+	readonly renderers: number[];
 }
 
 
 export namespace CellUri {
 
-	export const scheme = 'vscode-notebook';
+	export const scheme = 'vscode-notebook-cell';
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
-			path: `${notebook.path}, cell ${handle + 1}`,
-			query: JSON.stringify({ cell: handle, notebook: notebook.toString() }),
 			scheme,
+			fragment: `${handle}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
@@ -323,19 +349,17 @@ export namespace CellUri {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		try {
-			const data = <{ cell: number, notebook: string }>JSON.parse(cell.query);
-			return {
-				handle: data.cell,
-				notebook: URI.parse(data.notebook)
-			};
-		} catch {
+		const handle = parseInt(cell.fragment);
+		if (isNaN(handle)) {
 			return undefined;
 		}
-	}
-
-	export function equal(a: URI, b: URI): boolean {
-		return a.path === b.path && a.query === b.query && a.scheme === b.scheme;
+		return {
+			handle,
+			notebook: cell.with({
+				scheme: cell.fragment.substr(handle.toString().length) || Schemas.file,
+				fragment: null
+			})
+		};
 	}
 }
 
@@ -478,4 +502,21 @@ export interface INotebookEditorModel extends IEditorModel {
 	notebook: NotebookTextModel;
 	isDirty(): boolean;
 	save(): Promise<boolean>;
+}
+
+export interface INotebookTextModelBackup {
+	metadata: NotebookDocumentMetadata;
+	languages: string[];
+	cells: ICellDto2[]
+}
+
+export interface IEditor extends editorCommon.ICompositeCodeEditor {
+	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
+	readonly onDidFocusEditorWidget: Event<void>;
+	isNotebookEditor: boolean;
+	uri?: URI;
+	textModel?: NotebookTextModel;
+	getId(): string;
+	hasFocus(): boolean;
+	hasModel(): boolean;
 }

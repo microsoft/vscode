@@ -206,7 +206,7 @@ export class UriIterator implements IKeyIterator<URI> {
 
 	cmp(a: string): number {
 		if (this._states[this._stateIdx] === UriIteratorState.Scheme) {
-			return compareSubstringIgnoreCase(a, this._value.scheme);
+			return compare(a, this._value.scheme);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Authority) {
 			return compareSubstringIgnoreCase(a, this._value.authority);
 		} else if (this._states[this._stateIdx] === UriIteratorState.Path) {
@@ -486,11 +486,9 @@ export class ResourceMap<T> implements Map<URI, T> {
 	readonly [Symbol.toStringTag] = 'ResourceMap';
 
 	protected readonly map: Map<string, T>;
-	protected readonly ignoreCase?: boolean;
 
-	constructor() {
-		this.map = new Map<string, T>();
-		this.ignoreCase = false; // in the future this should be an uri-comparator
+	constructor(other?: ResourceMap<T>) {
+		this.map = other ? new Map(other.map) : new Map();
 	}
 
 	set(resource: URI, value: T): this {
@@ -550,20 +548,7 @@ export class ResourceMap<T> implements Map<URI, T> {
 	}
 
 	private toKey(resource: URI): string {
-		let key = resource.toString();
-		if (this.ignoreCase) {
-			key = key.toLowerCase();
-		}
-
-		return key;
-	}
-
-	clone(): ResourceMap<T> {
-		const resourceMap = new ResourceMap<T>();
-
-		this.map.forEach((value, key) => resourceMap.map.set(key, value));
-
-		return resourceMap;
+		return resource.toString();
 	}
 }
 

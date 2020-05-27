@@ -2645,7 +2645,6 @@ declare module 'vscode' {
 		TypeParameter = 25
 	}
 
-
 	/**
 	 * Symbol tags are extra annotations that tweak the rendering of a symbol.
 	 */
@@ -3054,7 +3053,6 @@ declare module 'vscode' {
 		 * @param metadata Optional metadata for the entry.
 		 */
 		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }, metadata?: WorkspaceEditEntryMetadata): void;
-
 
 		/**
 		 * Get all text edits grouped by resource.
@@ -3963,7 +3961,6 @@ declare module 'vscode' {
 		 */
 		resolveCompletionItem?(item: T, token: CancellationToken): ProviderResult<T>;
 	}
-
 
 	/**
 	 * A document link is a range in a text document that links to an internal or external resource, like another
@@ -5657,7 +5654,6 @@ declare module 'vscode' {
 		private constructor(id: string, label: string);
 	}
 
-
 	/**
 	 * A structure that defines a task kind in the system.
 	 * The value must be JSON-stringifyable.
@@ -6610,7 +6606,7 @@ declare module 'vscode' {
 		readonly enableCommandUris?: boolean;
 
 		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
+		 * Root paths from which the webview can load local (filesystem) resources using uris from `asWebviewUri`
 		 *
 		 * Default to the root folders of the current workspace plus the extension's install directory.
 		 *
@@ -7889,7 +7885,7 @@ declare module 'vscode' {
 		 * In order to expand the revealed element, set the option `expand` to `true`. To expand recursively set `expand` to the number of levels to expand.
 		 * **NOTE:** You can expand only to 3 levels maximum.
 		 *
-		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
+		 * **NOTE:** The [TreeDataProvider](#TreeDataProvider) that the `TreeView` [is registered with](#window.createTreeView) with must implement [getParent](#TreeDataProvider.getParent) method to access this API.
 		 */
 		reveal(element: T, options?: { select?: boolean, focus?: boolean, expand?: boolean | number }): Thenable<void>;
 	}
@@ -8957,7 +8953,6 @@ declare module 'vscode' {
 		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
 	}
 
-
 	/**
 	 * An event describing a change to the set of [workspace folders](#workspace.workspaceFolders).
 	 */
@@ -9745,8 +9740,8 @@ declare module 'vscode' {
 		 * Register a rename provider.
 		 *
 		 * Multiple providers can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * by their [score](#languages.match) and asked in sequence. The first provider producing a result
+		 * defines the result of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A rename provider.
@@ -10640,7 +10635,6 @@ declare module 'vscode' {
 		 * List of breakpoints.
 		 */
 		export let breakpoints: Breakpoint[];
-
 
 		/**
 		 * An [event](#Event) which fires when the [active debug session](#debug.activeDebugSession)

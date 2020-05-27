@@ -22,30 +22,38 @@ export interface IClipboardService {
 	 */
 	readText(type?: string): Promise<string>;
 
-	readTextSync(): string | undefined;
-
 	/**
 	 * Reads text from the system find pasteboard.
 	 */
-	readFindText(): string;
+	readFindText(): Promise<string>;
 
 	/**
 	 * Writes text to the system find pasteboard.
 	 */
-	writeFindText(text: string): void;
+	writeFindText(text: string): Promise<void>;
 
 	/**
 	 * Writes resources to the system clipboard.
 	 */
-	writeResources(resources: URI[]): void;
+	writeResources(resources: URI[]): Promise<void>;
 
 	/**
 	 * Reads resources from the system clipboard.
 	 */
-	readResources(): URI[];
+	readResources(): Promise<URI[]>;
 
 	/**
 	 * Find out if resources are copied to the clipboard.
 	 */
-	hasResources(): boolean;
+	hasResources(): Promise<boolean>;
+
+
+	/** @deprecated */
+	readTextSync(): string | undefined;
+
+	/** @deprecated */
+	readFindTextSync(): string;
+
+	/** @deprecated */
+	writeFindTextSync(text: string): void;
 }

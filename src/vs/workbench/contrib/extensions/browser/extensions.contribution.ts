@@ -46,10 +46,10 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { CONTEXT_SYNC_ENABLEMENT } from 'vs/platform/userDataSync/common/userDataSync';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
+import { CONTEXT_SYNC_ENABLEMENT } from 'vs/workbench/services/userDataSync/common/userDataSync';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
