@@ -30,7 +30,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, OpenEditorInGroupContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
@@ -142,7 +142,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					};
 				});
 			},
-			open: (editor, options, group, id) => this.onEditorOpening(editor, options, group, id)
+			open: (editor, options, group, context, id) => this.onEditorOpening(editor, options, group, context, id)
 		}));
 
 		this._register(this.editorService.onDidVisibleEditorsChange(() => {
@@ -200,7 +200,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		return this.notebookService.getContributedNotebookProviders(resource);
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id: string | undefined): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorInGroupContext, id: string | undefined): IOpenEditorOverride | undefined {
 		if (originalInput instanceof NotebookEditorInput) {
 			if ((originalInput.group === group.id || originalInput.group === undefined) && (originalInput.viewType === id || typeof id !== 'string')) {
 				// No need to do anything
@@ -215,7 +215,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				const copiedInput = this.instantiationService.createInstance(NotebookEditorInput, originalInput.resource, originalInput.name, originalInput.viewType);
 				copiedInput.updateGroup(group.id);
 
-				if (!options?.shouldCreateNewWhenOverride) {
+				if (context === OpenEditorInGroupContext.MOVE_EDITOR) {
 					// transfer ownership of editor widget
 					const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
 					if (widgetRef) {

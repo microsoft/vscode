@@ -369,6 +369,12 @@ export interface IGroupChangeEvent {
 	editorIndex?: number;
 }
 
+export const enum OpenEditorInGroupContext {
+	NEW_EDITOR,
+	MOVE_EDITOR,
+	COPY_EDITOR
+}
+
 export interface IEditorGroup {
 
 	/**
@@ -463,7 +469,7 @@ export interface IEditorGroup {
 	 * @returns a promise that resolves around an IEditor instance unless
 	 * the call failed, or the editor was not opened as active editor.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): Promise<IEditorPane | null>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, context?: OpenEditorInGroupContext): Promise<IEditorPane | null>;
 
 	/**
 	 * Opens editors in this group.

@@ -1088,12 +1088,6 @@ export class EditorOptions implements IEditorOptions {
 	ignoreOverrides: boolean | undefined;
 
 	/**
-	 * When editor overrides are used while opening the editor, the original editor input
-	 * will be closed after the new editor is opened, if `shouldCreateNewWhenOverride` is true.
-	 */
-	shouldCreateNewWhenOverride: boolean | undefined;
-
-	/**
 	 * A optional hint to signal in which context the editor opens.
 	 *
 	 * If configured to be `EditorOpenContext.USER`, this hint can be
@@ -1143,10 +1137,6 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.ignoreError === 'boolean') {
 			this.ignoreError = options.ignoreError;
-		}
-
-		if (typeof options.shouldCreateNewWhenOverride === 'boolean') {
-			this.shouldCreateNewWhenOverride = options.shouldCreateNewWhenOverride;
 		}
 
 		if (typeof options.index === 'number') {
