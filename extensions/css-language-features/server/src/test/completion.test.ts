@@ -6,7 +6,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { TextDocument, CompletionList } from 'vscode-languageserver-types';
+import { TextDocument, CompletionList, TextEdit } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol';
 import { getCSSLanguageService, LanguageServiceOptions, getSCSSLanguageService } from 'vscode-css-languageservice';
 import { getNodeFSRequestService } from '../node/nodeFs';
@@ -26,7 +26,7 @@ suite('Completions', () => {
 
 		assert.equal(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
 		let match = matches[0];
-		if (expected.resultText && match.textEdit) {
+		if (expected.resultText && TextEdit.is(match.textEdit)) {
 			assert.equal(TextDocument.applyEdits(document, [match.textEdit]), expected.resultText);
 		}
 	};

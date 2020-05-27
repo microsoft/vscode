@@ -8,6 +8,7 @@
     "node": "*"
   },
   "main": "./out/node/cssServerMain",
+  "browser": "./dist/browser/cssServerMain",
   "dependencies": {
     "vscode-css-languageservice": "4.3.0-next.1",
     "vscode-languageserver": "^6.1.1",

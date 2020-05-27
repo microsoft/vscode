@@ -14,8 +14,7 @@ const path = require('path');
 const util = require('util');
 const opn = require('opn');
 const minimist = require('minimist');
-
-const webpack = require("webpack");
+const webpack = require('webpack');
 
 const APP_ROOT = path.dirname(__dirname);
 const EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
@@ -23,6 +22,7 @@ const WEB_MAIN = path.join(APP_ROOT, 'src', 'vs', 'code', 'browser', 'workbench'
 
 const args = minimist(process.argv, {
 	boolean: [
+		'watch',
 		'no-launch',
 		'help'
 	],
@@ -37,6 +37,7 @@ const args = minimist(process.argv, {
 if (args.help) {
 	console.log(
 		'yarn web [options]\n' +
+		' --watch       Watch extensions that require browser specific builds\n' +
 		' --no-launch   Do not open VSCode web in the browser\n' +
 		' --scheme      Protocol (https or http)\n' +
 		' --host        Remote host\n' +
@@ -54,6 +55,83 @@ const LOCAL_PORT = args.local_port || process.env.LOCAL_PORT || PORT;
 const SCHEME = args.scheme || process.env.VSCODE_SCHEME || 'http';
 const HOST = args.host || 'localhost';
 const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
+
+const exists = (path) => util.promisify(fs.exists)(path);
+const readFile = (path) => util.promisify(fs.readFile)(path);
+
+async function initialize() {
+	const extensionFolders = await util.promisify(fs.readdir)(EXTENSIONS_ROOT);
+
+	const staticExtensions = [];
+
+	const webpackConfigs = [];
+
+	await Promise.all(extensionFolders.map(async extensionFolder => {
+		const packageJSONPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'package.json');
+		if (await exists(packageJSONPath)) {
+			try {
+				const packageJSON = JSON.parse((await readFile(packageJSONPath)).toString());
+				if (packageJSON.main && !packageJSON.browser) {
+					return; // unsupported
+				}
+
+				if (packageJSON.browser) {
+					packageJSON.main = packageJSON.browser;
+					const webpackConfigPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'extension-browser.webpack.config.js');
+					if ((await exists(webpackConfigPath))) {
+						const configOrFnOrArray = require(webpackConfigPath);
+						function addConfig(configOrFn) {
+							if (typeof configOrFn === 'function') {
+								webpackConfigs.push(configOrFn({}, {}));
+							} else {
+								webpackConfigs.push(configOrFn);
+							}
+						}
+						if (Array.isArray(configOrFnOrArray)) {
+							configOrFnOrArray.forEach(addConfig);
+						} else {
+							addConfig(configOrFnOrArray);
+						}
+					}
+				}
+
+				packageJSON.extensionKind = ['web']; // enable for Web
+				staticExtensions.push({
+					packageJSON,
+					extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` }
+				});
+			} catch (e) {
+				console.log(e);
+			}
+		}
+	}));
+
+	return new Promise((resolve, reject) => {
+		if (args.watch) {
+			webpack(webpackConfigs).watch({}, (err, stats) => {
+				if (err) {
+					console.log(err);
+					reject();
+				} else {
+					console.log(stats.toString());
+					resolve(staticExtensions);
+				}
+			});
+		} else {
+			webpack(webpackConfigs).run((err, stats) => {
+				if (err) {
+					console.log(err);
+					reject();
+				} else {
+					console.log(stats.toString());
+					resolve(staticExtensions);
+				}
+			});
+		}
+	});
+}
+
+const staticExtensionsPromise = initialize();
 
 const server = http.createServer((req, res) => {
 	const parsedUrl = url.parse(req.url, true);
@@ -141,46 +219,22 @@ function handleStaticExtension(req, res, parsedUrl) {
  * @param {import('http').ServerResponse} res
  */
 async function handleRoot(req, res) {
-	const extensionFolders = await util.promisify(fs.readdir)(EXTENSIONS_ROOT);
-
-	const staticExtensions = [];
-
-	const webpackConfigs = [];
-
-	await Promise.all(extensionFolders.map(async extensionFolder => {
-		try {
-			const packageJSON = JSON.parse((await util.promisify(fs.readFile)(path.join(EXTENSIONS_ROOT, extensionFolder, 'package.json'))).toString());
-			if (packageJSON.main && !packageJSON.browser) {
-				return; // unsupported
-			}
-			if (packageJSON.browser) {
-				packageJSON.main = packageJSON.browser;
-				const webpackConfigPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'extension-browser.webpack.config.js');
-				if ((await util.promisify(fs.exists)(webpackConfigPath))) {
-					webpackConfigs.push(require(webpackConfigPath));
-					packageJSON.main.replace('/out/', '/dist/');
-				}
-			}
-
-			packageJSON.extensionKind = ['web']; // enable for Web
-			staticExtensions.push({
-				packageJSON,
-				extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/static-extension/${extensionFolder}` }
-			});
-		} catch (error) {
-			return null;
+	const match = req.url && req.url.match(/\?([^#]+)/);
+	let ghPath;
+	if (match) {
+		const qs = new URLSearchParams(match[1]);
+		ghPath = qs.get('gh');
+		if (ghPath && !ghPath.startsWith('/')) {
+			ghPath = '/' + ghPath;
 		}
+	}
+
+	const staticExtensions = await staticExtensionsPromise;
+	const webConfiguration = escapeAttribute(JSON.stringify({
+		staticExtensions, folderUri: ghPath
+			? { scheme: 'github', authority: 'github.com', path: ghPath }
+			: { scheme: 'memfs', path: `/sample-folder` }
 	}));
-
-	webpack(webpackConfigs).watch({}, (err, stats) => {
-		if (err) {
-			console.log(err);
-		} else {
-			console.log(stats.toString());
-		}
-	});
-
-	const webConfiguration = escapeAttribute(JSON.stringify({ staticExtensions, folderUri: { scheme: 'memfs', path: `/sample-folder` }}));
 
 	const data = (await util.promisify(fs.readFile)(WEB_MAIN)).toString()
 		.replace('{{WORKBENCH_WEB_CONFIGURATION}}', () => webConfiguration) // use a replace function to avoid that regexp replace patterns ($&, $0, ...) are applied
