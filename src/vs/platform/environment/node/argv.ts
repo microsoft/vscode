@@ -72,7 +72,6 @@ export interface ParsedArgs {
 	remote?: string;
 	'disable-user-env-probe'?: boolean;
 	'force'?: boolean;
-	'default'?: boolean;
 	'force-user-env'?: boolean;
 	'sync'?: 'on' | 'off';
 
@@ -188,7 +187,6 @@ export const OPTIONS: OptionDescriptions<Required<ParsedArgs>> = {
 	'file-chmod': { type: 'boolean' },
 	'driver-verbose': { type: 'boolean' },
 	'force': { type: 'boolean' },
-	'default': { type: 'boolean' },
 	'trace': { type: 'boolean' },
 	'trace-category-filter': { type: 'string' },
 	'trace-options': { type: 'string' },
