@@ -480,7 +480,7 @@ suite('notebook dirty state', () => {
 });
 
 suite('notebook undo redo', () => {
-	test('notebook open', async function () {
+	test.skip('notebook open', async function () {
 		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
