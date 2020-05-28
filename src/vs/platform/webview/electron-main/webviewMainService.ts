@@ -36,7 +36,7 @@ export class WebviewMainService implements IWebviewManagerService {
 		this.protocolProvider.updateLocalResourceRoots(id, roots.map((x: UriComponents) => URI.from(x)));
 	}
 
-	public setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): void {
+	public async setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<void> {
 		const contents = webContents.fromId(webContentsId);
 		if (!contents) {
 			throw new Error(`Invalid webContentsId: ${webContentsId}`);

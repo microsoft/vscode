@@ -78,8 +78,6 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
-import { IFileService } from 'vs/platform/files/common/files';
-import { WebviewChannel } from 'vs/platform/webview/electron-main/webviewIpcs';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 
@@ -90,7 +88,6 @@ export class CodeApplication extends Disposable {
 	constructor(
 		private readonly mainIpcServer: Server,
 		private readonly userEnv: IProcessEnvironment,
-		@IFileService fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -580,7 +577,7 @@ export class CodeApplication extends Disposable {
 		electronIpcServer.registerChannel('url', urlChannel);
 
 		const webviewManagerService = accessor.get(IWebviewManagerService);
-		const webviewChannel = new WebviewChannel(webviewManagerService);
+		const webviewChannel = createChannelReceiver(webviewManagerService);
 		electronIpcServer.registerChannel('webview', webviewChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);

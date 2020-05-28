@@ -15,7 +15,7 @@ export interface IWebviewManagerService {
 	unregisterWebview(id: string): Promise<void>;
 	updateLocalResourceRoots(id: string, roots: UriComponents[]): Promise<void>;
 
-	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): void;
+	setIgnoreMenuShortcuts(webContentsId: number, enabled: boolean): Promise<void>;
 }
 
 export interface RegisterWebviewMetadata {
