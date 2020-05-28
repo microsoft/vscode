@@ -12,17 +12,18 @@ import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -118,7 +119,7 @@ export interface IUpdatePreloadResourceMessage {
 interface ICachedInset {
 	outputId: string;
 	cell: CodeCellViewModel;
-	preloads: ReadonlySet<number>;
+	preloads: ReadonlySet<string>;
 	cachedCreation: ICreationRequestMessage;
 }
 
@@ -136,9 +137,9 @@ let version = 0;
 export class BackLayerWebView extends Disposable {
 	element: HTMLElement;
 	webview!: WebviewElement;
-	insetMapping: Map<IOutput, ICachedInset> = new Map();
-	hiddenInsetMapping: Set<IOutput> = new Set();
-	reversedInsetMapping: Map<string, IOutput> = new Map();
+	insetMapping: Map<IProcessedOutput, ICachedInset> = new Map();
+	hiddenInsetMapping: Set<IProcessedOutput> = new Set();
+	reversedInsetMapping: Map<string, IProcessedOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
@@ -491,7 +492,7 @@ ${loaderJs}
 `;
 	}
 
-	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IOutput } | undefined {
+	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IProcessedOutput } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
@@ -505,7 +506,14 @@ ${loaderJs}
 		this.webview.mountTo(this.element);
 
 		this._register(this.webview.onDidClickLink(link => {
-			this.openerService.open(link, { fromUserGesture: true });
+			if (!link) {
+				return;
+			}
+
+			if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
+				|| matchesScheme(link, Schemas.command)) {
+				this.openerService.open(link, { fromUserGesture: true });
+			}
 		}));
 
 		this._register(this.webview.onDidReload(() => {
@@ -612,7 +620,7 @@ ${loaderJs}
 		return webview;
 	}
 
-	shouldUpdateInset(cell: CodeCellViewModel, output: IOutput, cellTop: number) {
+	shouldUpdateInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -632,7 +640,7 @@ ${loaderJs}
 		return true;
 	}
 
-	updateViewScrollTop(top: number, items: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[]) {
+	updateViewScrollTop(top: number, items: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -663,7 +671,7 @@ ${loaderJs}
 		this.webview.sendMessage(message);
 	}
 
-	createInset(cell: CodeCellViewModel, output: IOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<number>) {
+	createInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<string>) {
 		if (this._disposed) {
 			return;
 		}
@@ -702,7 +710,7 @@ ${loaderJs}
 		this.reversedInsetMapping.set(outputId, output);
 	}
 
-	removeInset(output: IOutput) {
+	removeInset(output: IProcessedOutput) {
 		if (this._disposed) {
 			return;
 		}
@@ -722,7 +730,7 @@ ${loaderJs}
 		this.reversedInsetMapping.delete(id);
 	}
 
-	hideInset(output: IOutput) {
+	hideInset(output: IProcessedOutput) {
 		if (this._disposed) {
 			return;
 		}
@@ -798,7 +806,7 @@ ${loaderJs}
 		this._updatePreloads(resources, 'kernel');
 	}
 
-	async updateRendererPreloads(preloads: ReadonlySet<number>) {
+	async updateRendererPreloads(preloads: ReadonlySet<string>) {
 		if (this._disposed) {
 			return;
 		}

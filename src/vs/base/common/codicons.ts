@@ -464,7 +464,7 @@ export namespace Codicon {
 	export const syncIgnored = new Codicon('sync-ignored', { character: '\\eb9f' });
 	export const pinned = new Codicon('pinned', { character: '\\eba0' });
 	export const githubInverted = new Codicon('github-inverted', { character: '\\eba1' });
-	export const debugAlt = new Codicon('debug-alt', { character: '\\f102' });
+	export const debugAlt = new Codicon('debug-alt', { character: '\\eb91' });
 	export const serverProcess = new Codicon('server-process', { character: '\\eba2' });
 	export const serverEnvironment = new Codicon('server-environment', { character: '\\eba3' });
 	export const pass = new Codicon('pass', { character: '\\eba4' });

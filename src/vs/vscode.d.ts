@@ -2216,7 +2216,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers.
+	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) provides.
 	 */
 	export interface CodeActionProviderMetadata {
 		/**
@@ -9593,7 +9593,7 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A code action provider.
-		 * @param metadata Metadata about the kind of code actions the provider providers.
+		 * @param metadata Metadata about the kind of code actions the provider provides.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerCodeActionsProvider(selector: DocumentSelector, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): Disposable;
