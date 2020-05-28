@@ -11,6 +11,9 @@ import { LanguageClient } from 'vscode-languageclient/browser';
 declare const Worker: {
 	new(stringUrl: string): any;
 };
+declare const TextDecoder: {
+	new(encoding?: string): { decode(buffer: ArrayBuffer): string; };
+};
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -21,7 +24,7 @@ export function activate(context: ExtensionContext) {
 			return new LanguageClient(id, name, clientOptions, worker);
 		};
 
-		startClient(context, newLanguageClient, {});
+		startClient(context, newLanguageClient, { TextDecoder });
 
 	} catch (e) {
 		console.log(e);

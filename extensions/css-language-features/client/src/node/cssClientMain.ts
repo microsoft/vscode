@@ -6,8 +6,8 @@
 import { getNodeFSRequestService } from './nodeFs';
 import { ExtensionContext, extensions } from 'vscode';
 import { startClient, LanguageClientConstructor } from '../cssClient';
-
 import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
+import { TextDecoder } from 'util';
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -34,5 +34,5 @@ export function activate(context: ExtensionContext) {
 		return new LanguageClient(id, name, serverOptions, clientOptions);
 	};
 
-	startClient(context, newLanguageClient, { fs: getNodeFSRequestService() });
+	startClient(context, newLanguageClient, { fs: getNodeFSRequestService(), TextDecoder });
 }

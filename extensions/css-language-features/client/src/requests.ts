@@ -5,7 +5,7 @@
 
 import { Uri, workspace } from 'vscode';
 import { RequestType, CommonLanguageClient } from 'vscode-languageclient';
-import { TextDecoder } from 'util';
+import { Runtime } from './cssClient';
 
 export namespace FsContentRequest {
 	export const type: RequestType<{ uri: string; encoding?: string; }, string, any, any> = new RequestType('fs/content');
@@ -18,14 +18,14 @@ export namespace FsReadDirRequest {
 	export const type: RequestType<string, [string, FileType][], any, any> = new RequestType('fs/readDir');
 }
 
-export function serveFileSystemRequests(client: CommonLanguageClient, runtime: { fs?: RequestService; }) {
+export function serveFileSystemRequests(client: CommonLanguageClient, runtime: Runtime) {
 	client.onRequest(FsContentRequest.type, (param: { uri: string; encoding?: string; }) => {
 		const uri = Uri.parse(param.uri);
 		if (uri.scheme === 'file' && runtime.fs) {
 			return runtime.fs.getContent(param.uri);
 		}
 		return workspace.fs.readFile(uri).then(buffer => {
-			return new TextDecoder(param.encoding).decode(buffer);
+			return new runtime.TextDecoder(param.encoding).decode(buffer);
 		});
 	});
 	client.onRequest(FsReadDirRequest.type, (uriString: string) => {

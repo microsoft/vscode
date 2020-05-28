@@ -17,7 +17,12 @@ const localize = nls.loadMessageBundle();
 
 export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
-export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: { fs?: RequestService }) {
+export interface Runtime {
+	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
+	fs?: RequestService;
+}
+
+export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 
 	const customDataSource = getCustomDataSource(context.subscriptions);
 
