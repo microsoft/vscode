@@ -53,7 +53,8 @@ export async function loadLocalResource(
 
 	try {
 		const data = await fileService.readFile(resourceToLoad);
-		return new WebviewResourceResponse.BufferSuccess(data.value, getWebviewContentMimeType(resourceToLoad));
+		const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
+		return new WebviewResourceResponse.BufferSuccess(data.value, mime);
 	} catch (err) {
 		console.log(err);
 		return WebviewResourceResponse.Failed;
@@ -73,7 +74,8 @@ export async function loadLocalResourceStream(
 
 	try {
 		const contents = await fileService.readFileStream(resourceToLoad);
-		return new WebviewResourceResponse.StreamSuccess(contents.value, getWebviewContentMimeType(requestUri));
+		const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
+		return new WebviewResourceResponse.StreamSuccess(contents.value, mime);
 	} catch (err) {
 		console.log(err);
 		return WebviewResourceResponse.Failed;
