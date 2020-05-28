@@ -140,6 +140,24 @@ export abstract class Command {
 
 //#endregion Command
 
+/**
+ * A command that delegates to another command's implementation.
+ *
+ * This let's different commands be registered but share the same implementation
+ */
+export class ProxyCommand extends Command {
+	constructor(
+		private readonly command: Command,
+		opts: ICommandOptions
+	) {
+		super(opts);
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
+		return this.command.runCommand(accessor, args);
+	}
+}
+
 //#region CommandOverrides
 
 /**

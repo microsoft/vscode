@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorCommand, ICommandOptions, registerEditorCommand, CommandOverrides } from 'vs/editor/browser/editorExtensions';
+import { Command, EditorCommand, ICommandOptions, registerEditorCommand, CommandOverrides, ProxyCommand } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
@@ -1927,7 +1927,7 @@ export namespace CoreEditingCommands {
 		}]
 	}));
 
-	export const DefaultUndo: UndoCommand = registerCommand(new UndoCommand({ id: 'default:undo', precondition: EditorContextKeys.writable }));
+	registerCommand(new ProxyCommand(Undo, { id: 'default:undo', precondition: EditorContextKeys.writable }));
 
 	export const Redo: RedoCommand = registerCommand(new RedoCommand({
 		id: 'redo',
@@ -1951,7 +1951,7 @@ export namespace CoreEditingCommands {
 		}]
 	}));
 
-	export const DefaultRedo: RedoCommand = registerCommand(new RedoCommand({ id: 'default:redo', precondition: EditorContextKeys.writable }));
+	registerCommand(new ProxyCommand(Redo, { id: 'default:redo', precondition: EditorContextKeys.writable }));
 }
 
 /**
