@@ -6,12 +6,12 @@
 import * as nls from 'vs/nls';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookTextModel, INotebookMimeTypeSelector, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { Iterable } from 'vs/base/common/iterator';
@@ -24,6 +24,8 @@ import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/
 import * as glob from 'vs/base/common/glob';
 import { basename } from 'vs/base/common/resources';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -97,7 +99,7 @@ class ModelData implements IDisposable {
 export class NotebookService extends Disposable implements INotebookService, ICustomEditorViewTypesHandler {
 	_serviceBrand: undefined;
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
-	private readonly _notebookRenderers = new Map<number, { extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[] }>();
+	private readonly _notebookRenderers = new Map<string, INotebookRendererInfo>();
 	private readonly _notebookKernels = new Map<string, INotebookKernelInfo>();
 	notebookProviderInfoStore: NotebookProviderInfoStore = new NotebookProviderInfoStore();
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
@@ -120,10 +122,13 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private cutItems: NotebookCellTextModel[] | undefined;
 
 	modelManager: NotebookEditorModelManager;
+	private _displayOrder: { userOrder: string[], defaultOrder: string[] } = Object.create(null);
 
 	constructor(
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -166,6 +171,26 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		});
 
 		this.editorService.registerCustomEditorViewTypesHandler('Notebook', this);
+
+		const updateOrder = () => {
+			let userOrder = this.configurationService.getValue<string[]>('notebook.displayOrder');
+			this._displayOrder = {
+				defaultOrder: this.accessibilityService.isScreenReaderOptimized() ? ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER : NOTEBOOK_DISPLAY_ORDER,
+				userOrder: userOrder
+			};
+		};
+
+		updateOrder();
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectedKeys.indexOf('notebook.displayOrder') >= 0) {
+				updateOrder();
+			}
+		}));
+
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			updateOrder();
+		}));
 	}
 
 	getViewTypes(): ICustomEditorInfo[] {
@@ -195,12 +220,12 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		this._onDidChangeViewTypes.fire();
 	}
 
-	registerNotebookRenderer(handle: number, extensionData: NotebookExtensionDescription, type: string, selectors: INotebookMimeTypeSelector, preloads: URI[]) {
-		this._notebookRenderers.set(handle, { extensionData, type, selectors, preloads });
+	registerNotebookRenderer(id: string, renderer: INotebookRendererInfo) {
+		this._notebookRenderers.set(id, renderer);
 	}
 
-	unregisterNotebookRenderer(handle: number) {
-		this._notebookRenderers.delete(handle);
+	unregisterNotebookRenderer(id: string) {
+		this._notebookRenderers.delete(id);
 	}
 
 	registerNotebookKernel(notebook: INotebookKernelInfo): void {
@@ -253,18 +278,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		return false;
 	}
 
-	getRendererInfo(handle: number): INotebookRendererInfo | undefined {
-		const renderer = this._notebookRenderers.get(handle);
+	getRendererInfo(id: string): INotebookRendererInfo | undefined {
+		const renderer = this._notebookRenderers.get(id);
 
-		if (renderer) {
-			return {
-				id: renderer.extensionData.id,
-				extensionLocation: URI.revive(renderer.extensionData.location),
-				preloads: renderer.preloads
-			};
-		}
-
-		return;
+		return renderer;
 	}
 
 	async createNotebookFromBackup(viewType: string, uri: URI, metadata: NotebookDocumentMetadata, languages: string[], cells: ICellDto2[], editorId?: string): Promise<NotebookTextModel | undefined> {
@@ -274,6 +291,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false, editorId);
+		await this.transformTextModelOutputs(notebookModel!);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -294,9 +312,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return undefined;
 		}
 
-		let notebookModel: NotebookTextModel | undefined;
-
-		notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId);
+		const notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId);
+		await this.transformTextModelOutputs(notebookModel!);
 
 		// new notebook model created
 		const modelId = MODEL_ID(uri);
@@ -307,6 +324,237 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		this._models[modelId] = modelData;
 		return modelData.model;
+	}
+
+	private async _fillInTransformedOutputs<T>(
+		renderers: Set<string>,
+		requestItems: IOutputRenderRequestCellInfo<T>[],
+		renderFunc: (rendererId: string, items: IOutputRenderRequestCellInfo<T>[]) => Promise<IOutputRenderResponse<T> | undefined>,
+		lookUp: (key: T) => { outputs: IProcessedOutput[] }
+	) {
+		for (let id of renderers) {
+			const requestsPerRenderer: IOutputRenderRequestCellInfo<T>[] = requestItems.map(req => {
+				return {
+					key: req.key,
+					outputs: req.outputs.filter(output => output.handlerId === id)
+				};
+			});
+
+			const response = await renderFunc(id, requestsPerRenderer);
+
+			// mix the response with existing outputs, which will replace the picked transformed mimetype with resolved result
+			if (response) {
+				response.items.forEach(cellInfo => {
+					const cell = lookUp(cellInfo.key)!;
+					cellInfo.outputs.forEach(outputInfo => {
+						const output = cell.outputs[outputInfo.index];
+						if (output.outputKind === CellOutputKind.Rich && output.orderedMimeTypes && output.orderedMimeTypes.length) {
+							output.orderedMimeTypes[0] = {
+								mimeType: outputInfo.mimeType,
+								isResolved: true,
+								rendererId: outputInfo.handlerId,
+								output: outputInfo.transformedOutput
+							};
+						}
+					});
+				});
+			}
+		}
+	}
+
+	async transformTextModelOutputs(textModel: NotebookTextModel) {
+		const renderers = new Set<string>();
+
+		const cellMapping: Map<string, NotebookCellTextModel> = new Map();
+
+		const requestItems: IOutputRenderRequestCellInfo<UriComponents>[] = [];
+		for (let i = 0; i < textModel.cells.length; i++) {
+			const cell = textModel.cells[i];
+			cellMapping.set(cell.uri.fragment, cell);
+			const outputs = cell.outputs;
+			const outputRequest: IOutputRenderRequestOutputInfo[] = [];
+
+			outputs.forEach((output, index) => {
+				if (output.outputKind === CellOutputKind.Rich) {
+					// TODO no string[] casting
+					const ret = this._transformMimeTypes(output, textModel.metadata.displayOrder as string[] || []);
+					const orderedMimeTypes = ret.orderedMimeTypes!;
+					const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
+					output.pickedMimeTypeIndex = pickedMimeTypeIndex;
+					output.orderedMimeTypes = orderedMimeTypes;
+
+					if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
+						outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType });
+						renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
+					}
+				}
+			});
+
+			requestItems.push({ key: cell.uri, outputs: outputRequest });
+		}
+
+		await this._fillInTransformedOutputs<UriComponents>(renderers, requestItems, async (rendererId, items) => {
+			return await this._notebookRenderers.get(rendererId)?.render(textModel.uri, { items: items });
+		}, (key: UriComponents) => { return cellMapping.get(URI.revive(key).fragment)!; });
+
+		textModel.updateRenderers([...renderers]);
+	}
+
+	async transformEditsOutputs(textModel: NotebookTextModel, edits: ICellEditOperation[]) {
+		const renderers = new Set<string>();
+		const requestItems: IOutputRenderRequestCellInfo<[number, number]>[] = [];
+
+		edits.forEach((edit, editIndex) => {
+			if (edit.editType === CellEditType.Insert) {
+				edit.cells.forEach((cell, cellIndex) => {
+					const outputs = cell.outputs;
+					const outputRequest: IOutputRenderRequestOutputInfo[] = [];
+					outputs.map((output, index) => {
+						if (output.outputKind === CellOutputKind.Rich) {
+							const ret = this._transformMimeTypes(output, textModel.metadata.displayOrder as string[] || []);
+							const orderedMimeTypes = ret.orderedMimeTypes!;
+							const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
+							output.pickedMimeTypeIndex = pickedMimeTypeIndex;
+							output.orderedMimeTypes = orderedMimeTypes;
+
+							if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
+								outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, output: output });
+								renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
+							}
+						}
+					});
+
+					requestItems.push({ key: [editIndex, cellIndex], outputs: outputRequest });
+				});
+			}
+		});
+
+		await this._fillInTransformedOutputs<[number, number]>(renderers, requestItems, async (rendererId, items) => {
+			return await this._notebookRenderers.get(rendererId)?.render2<[number, number]>(textModel.uri, { items: items });
+		}, (key: [number, number]) => {
+			return (edits[key[0]] as ICellInsertEdit).cells[key[1]];
+		});
+
+		textModel.updateRenderers([...renderers]);
+	}
+
+	async transformSpliceOutputs(textModel: NotebookTextModel, splices: NotebookCellOutputsSplice[]) {
+		const renderers = new Set<string>();
+		const requestItems: IOutputRenderRequestCellInfo<number>[] = [];
+
+		splices.forEach((splice, spliceIndex) => {
+			const outputs = splice[2];
+			const outputRequest: IOutputRenderRequestOutputInfo[] = [];
+			outputs.map((output, index) => {
+				if (output.outputKind === CellOutputKind.Rich) {
+					const ret = this._transformMimeTypes(output, textModel.metadata.displayOrder as string[] || []);
+					const orderedMimeTypes = ret.orderedMimeTypes!;
+					const pickedMimeTypeIndex = ret.pickedMimeTypeIndex!;
+					output.pickedMimeTypeIndex = pickedMimeTypeIndex;
+					output.orderedMimeTypes = orderedMimeTypes;
+
+					if (orderedMimeTypes[pickedMimeTypeIndex!].rendererId && orderedMimeTypes[pickedMimeTypeIndex].rendererId !== BUILTIN_RENDERER_ID) {
+						outputRequest.push({ index, handlerId: orderedMimeTypes[pickedMimeTypeIndex].rendererId!, mimeType: orderedMimeTypes[pickedMimeTypeIndex].mimeType, output: output });
+						renderers.add(orderedMimeTypes[pickedMimeTypeIndex].rendererId!);
+					}
+				}
+			});
+			requestItems.push({ key: spliceIndex, outputs: outputRequest });
+		});
+
+		await this._fillInTransformedOutputs<number>(renderers, requestItems, async (rendererId, items) => {
+			return await this._notebookRenderers.get(rendererId)?.render2<number>(textModel.uri, { items: items });
+		}, (key: number) => {
+			return { outputs: splices[key][2] };
+		});
+
+		textModel.updateRenderers([...renderers]);
+	}
+
+	async transformSingleOutput(textModel: NotebookTextModel, output: IProcessedOutput, rendererId: string, mimeType: string): Promise<IOrderedMimeType | undefined> {
+		const items = [
+			{
+				key: 0,
+				outputs: [
+					{
+						index: 0,
+						handlerId: rendererId,
+						mimeType: mimeType,
+						output: output
+					}
+				]
+			}
+		];
+		const response = await this._notebookRenderers.get(rendererId)?.render2<number>(textModel.uri, { items: items });
+
+		if (response) {
+			textModel.updateRenderers([rendererId]);
+			const outputInfo = response.items[0].outputs[0];
+
+			return {
+				mimeType: outputInfo.mimeType,
+				isResolved: true,
+				rendererId: outputInfo.handlerId,
+				output: outputInfo.transformedOutput
+			};
+		}
+
+		return;
+	}
+
+	private _transformMimeTypes(output: IDisplayOutput, documentDisplayOrder: string[]): ITransformedDisplayOutputDto {
+		let mimeTypes = Object.keys(output.data);
+		let coreDisplayOrder = this._displayOrder;
+		const sorted = sortMimeTypes(mimeTypes, coreDisplayOrder?.userOrder || [], documentDisplayOrder, coreDisplayOrder?.defaultOrder || []);
+
+		let orderMimeTypes: IOrderedMimeType[] = [];
+
+		sorted.forEach(mimeType => {
+			let handlers = this.findBestMatchedRenderer(mimeType);
+
+			if (handlers.length) {
+				const handler = handlers[0];
+
+				orderMimeTypes.push({
+					mimeType: mimeType,
+					isResolved: false,
+					rendererId: handler.id,
+				});
+
+				for (let i = 1; i < handlers.length; i++) {
+					orderMimeTypes.push({
+						mimeType: mimeType,
+						isResolved: false,
+						rendererId: handlers[i].id
+					});
+				}
+
+				if (mimeTypeSupportedByCore(mimeType)) {
+					orderMimeTypes.push({
+						mimeType: mimeType,
+						isResolved: false,
+						rendererId: BUILTIN_RENDERER_ID
+					});
+				}
+			} else {
+				orderMimeTypes.push({
+					mimeType: mimeType,
+					isResolved: false,
+					rendererId: BUILTIN_RENDERER_ID
+				});
+			}
+		});
+
+		return {
+			outputKind: output.outputKind,
+			data: output.data,
+			orderedMimeTypes: orderMimeTypes,
+			pickedMimeTypeIndex: 0
+		};
+	}
+
+	findBestMatchedRenderer(mimeType: string): readonly NotebookOutputRendererInfo[] {
+		return this.notebookRenderersInfoStore.getContributedRenderer(mimeType);
 	}
 
 	async executeNotebook(viewType: string, uri: URI, useAttachedKernel: boolean, token: CancellationToken): Promise<void> {

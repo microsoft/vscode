@@ -78,8 +78,8 @@ import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common
 import { StorageKeysSyncRegistryChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
-import { IFileService } from 'vs/platform/files/common/files';
-import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
+import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
+import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 
 export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
@@ -88,7 +88,6 @@ export class CodeApplication extends Disposable {
 	constructor(
 		private readonly mainIpcServer: Server,
 		private readonly userEnv: IProcessEnvironment,
-		@IFileService fileService: IFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
@@ -99,8 +98,6 @@ export class CodeApplication extends Disposable {
 		super();
 
 		this.registerListeners();
-
-		this._register(new WebviewProtocolProvider(fileService));
 	}
 
 	private registerListeners(): void {
@@ -471,6 +468,7 @@ export class CodeApplication extends Disposable {
 
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [machineId, this.userEnv]));
 		services.set(IElectronMainService, new SyncDescriptor(ElectronMainService));
+		services.set(IWebviewManagerService, new SyncDescriptor(WebviewMainService));
 		services.set(IWorkspacesService, new SyncDescriptor(WorkspacesService));
 		services.set(IMenubarMainService, new SyncDescriptor(MenubarMainService));
 
@@ -577,6 +575,10 @@ export class CodeApplication extends Disposable {
 		const urlService = accessor.get(IURLService);
 		const urlChannel = createChannelReceiver(urlService);
 		electronIpcServer.registerChannel('url', urlChannel);
+
+		const webviewManagerService = accessor.get(IWebviewManagerService);
+		const webviewChannel = createChannelReceiver(webviewManagerService);
+		electronIpcServer.registerChannel('webview', webviewChannel);
 
 		const storageMainService = accessor.get(IStorageMainService);
 		const storageChannel = this._register(new GlobalStorageDatabaseChannel(this.logService, storageMainService));

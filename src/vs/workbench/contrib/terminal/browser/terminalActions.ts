@@ -343,7 +343,7 @@ export class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeTabIndex, contextViewService, { ariaLabel: localize('terminals', 'Open Terminals.') });
+		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeTabIndex, contextViewService, { ariaLabel: localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 
 		this._register(_terminalService.onInstancesChanged(this._updateItems, this));
 		this._register(_terminalService.onActiveTabChanged(this._updateItems, this));

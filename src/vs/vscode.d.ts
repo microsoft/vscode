@@ -2216,7 +2216,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) providers.
+	 * Metadata about the type of code actions that a [CodeActionProvider](#CodeActionProvider) provides.
 	 */
 	export interface CodeActionProviderMetadata {
 		/**
@@ -3950,9 +3950,13 @@ declare module 'vscode' {
 		 *
 		 * The editor will only resolve a completion item once.
 		 *
-		 * *Note* that accepting a completion item will not wait for it to be resolved. Because of that [`insertText`](#CompletionItem.insertText),
-		 * [`additionalTextEdits`](#CompletionItem.additionalTextEdits), and [`command`](#CompletionItem.command) should not
-		 * be changed when resolving an item.
+		 * *Note* that this function is called when completion items are already showing in the UI or when an item has been
+		 * selected for insertion. Because of that, no property that changes the presentation (label, sorting, filtering etc)
+		 * or the (primary) insert behaviour ([insertText](#CompletionItem.insertText)) can be changed.
+		 *
+		 * This function may fill in [additionalTextEdits](#CompletionItem.additionalTextEdits). However, that means an item might be
+		 * inserted *before* resolving is done and in that case the editor will do a best effort to still apply those additional
+		 * text edits.
 		 *
 		 * @param item A completion item currently active in the UI.
 		 * @param token A cancellation token.
@@ -9589,7 +9593,7 @@ declare module 'vscode' {
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A code action provider.
-		 * @param metadata Metadata about the kind of code actions the provider providers.
+		 * @param metadata Metadata about the kind of code actions the provider provides.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
 		export function registerCodeActionsProvider(selector: DocumentSelector, provider: CodeActionProvider, metadata?: CodeActionProviderMetadata): Disposable;

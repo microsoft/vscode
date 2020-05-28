@@ -11,11 +11,10 @@ import * as ExtensionsActions from 'vs/workbench/contrib/extensions/browser/exte
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, IGalleryMetadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IExtensionRecommendationsService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
 import { IURLService } from 'vs/platform/url/common/url';
@@ -82,11 +81,21 @@ async function setupTest() {
 	instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 	instantiationService.stub(ISharedProcessService, TestSharedProcessService);
 
-	instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
-	instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
-	instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
-	instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
-	instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+	instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
+		onInstallExtension: installEvent.event,
+		onDidInstallExtension: didInstallEvent.event,
+		onUninstallExtension: uninstallEvent.event,
+		onDidUninstallExtension: didUninstallEvent.event,
+		async getInstalled() { return []; },
+		async getExtensionsReport() { return []; },
+		async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata) {
+			local.identifier.uuid = metadata.id;
+			local.publisherDisplayName = metadata.publisherDisplayName;
+			local.publisherId = metadata.publisherId;
+			return local;
+		}
+	});
+
 	instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
 	instantiationService.stub(IExtensionManagementServerService, new class extends ExtensionManagementServerService {
@@ -2491,8 +2500,7 @@ function aLocalExtension(name: string = 'someext', manifest: any = {}, propertie
 	properties = assign({
 		type: ExtensionType.User,
 		location: URI.file(`pub.${name}`),
-		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name), uuid: undefined },
-		metadata: { id: getGalleryExtensionId(manifest.publisher, manifest.name), publisherId: manifest.publisher, publisherDisplayName: 'somename' }
+		identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) }
 	}, properties);
 	return <ILocalExtension>Object.create({ manifest, ...properties });
 }

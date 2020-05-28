@@ -21,7 +21,7 @@ import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, ICellRange, ICellViewModel, INotebookCellList, reduceCellRanges, CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { diff, IOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
@@ -35,10 +35,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
 
-	private readonly _onDidRemoveOutput = new Emitter<IOutput>();
-	readonly onDidRemoveOutput: Event<IOutput> = this._onDidRemoveOutput.event;
-	private readonly _onDidHideOutput = new Emitter<IOutput>();
-	readonly onDidHideOutput: Event<IOutput> = this._onDidHideOutput.event;
+	private readonly _onDidRemoveOutput = new Emitter<IProcessedOutput>();
+	readonly onDidRemoveOutput: Event<IProcessedOutput> = this._onDidRemoveOutput.event;
+	private readonly _onDidHideOutput = new Emitter<IProcessedOutput>();
+	readonly onDidHideOutput: Event<IProcessedOutput> = this._onDidHideOutput.event;
 
 	private _viewModel: NotebookViewModel | null = null;
 	private _hiddenRangeIds: string[] = [];
@@ -185,8 +185,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			if (e.synchronous) {
 				viewDiffs.reverse().forEach((diff) => {
 					// remove output in the webview
-					const hideOutputs: IOutput[] = [];
-					const deletedOutputs: IOutput[] = [];
+					const hideOutputs: IProcessedOutput[] = [];
+					const deletedOutputs: IProcessedOutput[] = [];
 
 					for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 						const cell = this.element(i);
@@ -205,8 +205,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			} else {
 				DOM.scheduleAtNextAnimationFrame(() => {
 					viewDiffs.reverse().forEach((diff) => {
-						const hideOutputs: IOutput[] = [];
-						const deletedOutputs: IOutput[] = [];
+						const hideOutputs: IProcessedOutput[] = [];
+						const deletedOutputs: IProcessedOutput[] = [];
 
 						for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 							const cell = this.element(i);
@@ -327,8 +327,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		viewDiffs.reverse().forEach((diff) => {
 			// remove output in the webview
-			const hideOutputs: IOutput[] = [];
-			const deletedOutputs: IOutput[] = [];
+			const hideOutputs: IProcessedOutput[] = [];
+			const deletedOutputs: IProcessedOutput[] = [];
 
 			for (let i = diff.start; i < diff.start + diff.deleteCount; i++) {
 				const cell = this.element(i);
