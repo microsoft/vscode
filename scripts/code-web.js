@@ -58,6 +58,7 @@ const AUTHORITY = process.env.VSCODE_AUTHORITY || `${HOST}:${PORT}`;
 
 const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
+const CharCode_PC = '%'.charCodeAt(0);
 
 async function initialize() {
 	const extensionFolders = await util.promisify(fs.readdir)(EXTENSIONS_ROOT);
@@ -95,6 +96,26 @@ async function initialize() {
 					}
 				}
 
+				const packageNlsPath = path.join(EXTENSIONS_ROOT, extensionFolder, 'package.nls.json');
+				if (await exists(packageNlsPath)) {
+					const packageNls = JSON.parse((await readFile(packageNlsPath)).toString());
+					const translate = (obj) => {
+						for (let key in obj) {
+							const val = obj[key];
+							if (Array.isArray(val)) {
+								val.forEach(translate);
+							} else if (val && typeof val === 'object') {
+								translate(val);
+							} else if (typeof val === 'string' && val.charCodeAt(0) === CharCode_PC && val.charCodeAt(val.length - 1) === CharCode_PC) {
+								const translated = packageNls[val.substr(1, val.length - 2)];
+								if (translated) {
+									obj[key] = translated;
+								}
+							}
+						}
+					};
+					translate(packageJSON);
+				}
 				packageJSON.extensionKind = ['web']; // enable for Web
 				staticExtensions.push({
 					packageJSON,
