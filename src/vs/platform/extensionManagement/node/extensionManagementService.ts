@@ -152,7 +152,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	}
 
-	install(vsix: URI, isDefault: boolean = false): Promise<ILocalExtension> {
+	install(vsix: URI, isDefault?: boolean): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
 		return createCancelablePromise(token => {
 			return this.downloadVsix(vsix).then(downloadLocation => {
@@ -195,7 +195,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								return this.getGalleryMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
 									.then(
 										metadata => this.installFromZipPath(identifierWithVersion, zipPath, { ...metadata, isDefault }, operation, token),
-										() => this.installFromZipPath(identifierWithVersion, zipPath, { isDefault }, operation, token))
+										() => this.installFromZipPath(identifierWithVersion, zipPath, isDefault ? { isDefault } : undefined, operation, token))
 									.then(
 										local => { this.logService.info('Successfully installed the extension:', identifier.id); return local; },
 										e => {
@@ -219,7 +219,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return this.downloadService.download(vsix, URI.file(downloadedLocation)).then(() => URI.file(downloadedLocation));
 	}
 
-	private installFromZipPath(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IMetadata, operation: InstallOperation, token: CancellationToken): Promise<ILocalExtension> {
+	private installFromZipPath(identifierWithVersion: ExtensionIdentifierWithVersion, zipPath: string, metadata: IMetadata | undefined, operation: InstallOperation, token: CancellationToken): Promise<ILocalExtension> {
 		return this.toNonCancellablePromise(this.installExtension({ zipPath, identifierWithVersion, metadata }, token)
 			.then(local => this.installDependenciesAndPackExtensions(local, undefined)
 				.then(
@@ -288,7 +288,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 				this.downloadInstallableExtension(extension, operation)
 					.then(installableExtension => {
-						installableExtension.metadata.isDefault = isDefault !== undefined ? isDefault : !!existingExtension?.isDefault;
+						installableExtension.metadata.isDefault = isDefault !== undefined ? isDefault : existingExtension?.isDefault;
 						return this.installExtension(installableExtension, cancellationToken)
 							.then(local => this.extensionsDownloader.delete(URI.file(installableExtension.zipPath)).finally(() => { }).then(() => local));
 					})

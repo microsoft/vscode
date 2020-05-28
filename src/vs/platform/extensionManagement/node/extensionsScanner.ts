@@ -32,7 +32,7 @@ const INSTALL_ERROR_EXTRACTING = 'extracting';
 const INSTALL_ERROR_DELETING = 'deleting';
 const INSTALL_ERROR_RENAMING = 'renaming';
 
-export type IMetadata = Partial<IGalleryMetadata> & { isDefault: boolean; };
+export type IMetadata = Partial<IGalleryMetadata & { isDefault: boolean; }>;
 
 export class ExtensionsScanner extends Disposable {
 
@@ -229,7 +229,7 @@ export class ExtensionsScanner extends Disposable {
 			const changelog = children.filter(child => /^changelog(\.txt|\.md|)$/i.test(child))[0];
 			const changelogUrl = changelog ? URI.file(path.join(extensionPath, changelog)) : null;
 			const identifier = { id: getGalleryExtensionId(manifest.publisher, manifest.name) };
-			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isDefault: false };
+			const local = <ILocalExtension>{ type, identifier, manifest, location: URI.file(extensionPath), readmeUrl, changelogUrl, publisherDisplayName: null, publisherId: null, isDefault: undefined };
 			if (metadata) {
 				this.setMetadata(local, metadata);
 			}
