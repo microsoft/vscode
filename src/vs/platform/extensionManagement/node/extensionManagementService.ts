@@ -419,7 +419,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		let local = await this.extensionsScanner.extractUserExtension(identifierWithVersion, zipPath, token);
 		this.logService.info('Installation completed.', identifier.id);
 		if (metadata) {
-			local = await this.extensionsScanner.saveMetadataForLocalExtension(local, metadata);
+			this.setMetadata(local, metadata);
+			local = await this.extensionsScanner.saveMetadataForLocalExtension(local);
 		}
 		return local;
 	}
@@ -480,7 +481,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, metadata);
+		local.metadata = metadata;
+		local = await this.extensionsScanner.saveMetadataForLocalExtension(local);
 		this.manifestCache.invalidate();
 		return local;
 	}
@@ -625,6 +627,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	getInstalled(type: ExtensionType | null = null): Promise<ILocalExtension[]> {
 		return this.extensionsScanner.scanExtensions(type);
+	}
+
+	private setMetadata(local: ILocalExtension, metadata: IGalleryMetadata): void {
+		local.metadata = metadata;
+		local.identifier.uuid = metadata.id;
 	}
 
 	removeDeprecatedExtensions(): Promise<void> {

@@ -69,9 +69,9 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		id: extension.identifier.id,
 		name: extension.manifest.name,
 		galleryId: null,
-		publisherId: extension.publisherId,
+		publisherId: extension.metadata ? extension.metadata.publisherId : null,
 		publisherName: extension.manifest.publisher,
-		publisherDisplayName: extension.publisherDisplayName,
+		publisherDisplayName: extension.metadata ? extension.metadata.publisherDisplayName : null,
 		dependencies: extension.manifest.extensionDependencies && extension.manifest.extensionDependencies.length > 0
 	};
 }
