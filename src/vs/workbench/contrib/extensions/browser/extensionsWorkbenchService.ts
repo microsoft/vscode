@@ -94,8 +94,8 @@ class Extension implements IExtension {
 			return this.gallery.publisherDisplayName || this.gallery.publisher;
 		}
 
-		if (this.local!.metadata && this.local!.metadata.publisherDisplayName) {
-			return this.local!.metadata.publisherDisplayName;
+		if (this.local?.publisherDisplayName) {
+			return this.local.publisherDisplayName;
 		}
 
 		return this.local!.manifest.publisher;
@@ -367,7 +367,7 @@ class Extensions extends Disposable {
 		}
 		// Sync the local extension with gallery extension if local extension doesnot has metadata
 		if (extension.local) {
-			const local = extension.local.metadata ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
+			const local = extension.local.identifier.uuid ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
 			extension.local = local;
 			extension.gallery = compatible;
 			this._onChange.fire({ extension });
