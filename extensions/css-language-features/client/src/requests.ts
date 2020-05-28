@@ -104,6 +104,7 @@ export function basename(uri: string) {
 }
 
 const Slash = '/'.charCodeAt(0);
+const Dot = '.'.charCodeAt(0);
 
 export function isAbsolutePath(path: string) {
 	return path.charCodeAt(0) === Slash;
@@ -111,18 +112,37 @@ export function isAbsolutePath(path: string) {
 
 export function resolvePath(uri: Uri, path: string): Uri {
 	if (isAbsolutePath(path)) {
-		return uri.with({ path: path });
+		return uri.with({ path: normalizePath(path.split('/')) });
 	}
 	return joinPath(uri, path);
 }
 
-export function joinPath(uri: Uri, ...paths: string[]): Uri {
-	let uriPath = uri.path;
-	for (let path of paths) {
-		if (path.charCodeAt(path.length - 1) !== Slash && path.charCodeAt(0) !== Slash) {
-			uriPath += '/';
+export function normalizePath(parts: string[]): string {
+	const newParts: string[] = [];
+	for (const part of parts) {
+		if (part.length === 0 || part.length === 1 && part.charCodeAt(0) === Dot) {
+			// ignore
+		} else if (part.length === 2 && part.charCodeAt(0) === Dot && part.charCodeAt(1) === Dot) {
+			newParts.pop();
+		} else {
+			newParts.push(part);
 		}
-		uriPath += path;
 	}
-	return uri.with({ path: uriPath });
+	if (parts.length > 1 && parts[parts.length - 1].length === 0) {
+		newParts.push('');
+	}
+	let res = newParts.join('/');
+	if (parts[0].length === 0) {
+		res = '/' + res;
+	}
+	return res;
+}
+
+
+export function joinPath(uri: Uri, ...paths: string[]): Uri {
+	const parts = uri.path.split('/');
+	for (let path of paths) {
+		parts.push(...path.split('/'));
+	}
+	return uri.with({ path: normalizePath(parts) });
 }
