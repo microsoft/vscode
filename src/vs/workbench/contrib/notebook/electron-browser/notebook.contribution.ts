@@ -4,40 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh } from 'vs/base/common/platform';
-import { registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import * as webviewCommands from 'vs/workbench/contrib/webview/electron-browser/webviewCommands';
-import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/clipboard';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { getActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 
-function getActiveElectronBasedWebviewDelegate(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
-
+function getFocusedElectronBasedWebviewDelegate(accessor: ServicesAccessor): ElectronWebviewBasedWebview | undefined {
 	const editorService = accessor.get(IEditorService);
 	const editor = getActiveNotebookEditor(editorService);
+	if (!editor?.hasFocus()) {
+		return;
+	}
 
 	const webview = editor?.getInnerWebview();
-
 	if (webview && webview instanceof ElectronWebviewBasedWebview) {
 		return webview;
 	}
-
 	return;
 }
 
-function registerNotebookCommands(editorId: string): void {
-	const contextKeyExpr = ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', editorId), ContextKeyExpr.not('editorFocus') /* https://github.com/Microsoft/vscode/issues/58668 */)!;
-
-	// These commands are only needed on MacOS where we have to disable the menu bar commands
-	if (isMacintosh) {
-		registerAction2(class extends webviewCommands.CopyWebviewEditorCommand { constructor() { super(contextKeyExpr, getActiveElectronBasedWebviewDelegate); } });
-		registerAction2(class extends webviewCommands.PasteWebviewEditorCommand { constructor() { super(contextKeyExpr, getActiveElectronBasedWebviewDelegate); } });
-		registerAction2(class extends webviewCommands.CutWebviewEditorCommand { constructor() { super(contextKeyExpr, getActiveElectronBasedWebviewDelegate); } });
-		registerAction2(class extends webviewCommands.UndoWebviewEditorCommand { constructor() { super(contextKeyExpr, getActiveElectronBasedWebviewDelegate); } });
-		registerAction2(class extends webviewCommands.RedoWebviewEditorCommand { constructor() { super(contextKeyExpr, getActiveElectronBasedWebviewDelegate); } });
+if (isMacintosh) {
+	function withWebview(accessor: ServicesAccessor, f: (webviewe: ElectronWebviewBasedWebview) => void) {
+		const webview = getFocusedElectronBasedWebviewDelegate(accessor);
+		if (webview) {
+			f(webview);
+			return true;
+		}
+		return false;
 	}
-}
 
-registerNotebookCommands(NotebookEditor.ID);
+	CoreEditingCommands.Undo.overrides.register(accessor => {
+		return withWebview(accessor, webview => webview.undo());
+	});
+
+	CoreEditingCommands.Redo.overrides.register(accessor => {
+		return withWebview(accessor, webview => webview.redo());
+	});
+
+	CopyAction?.overrides.register(accessor => {
+		return withWebview(accessor, webview => webview.copy());
+	});
+
+	PasteAction?.overrides.register(accessor => {
+		return withWebview(accessor, webview => webview.paste());
+	});
+
+	CutAction?.overrides.register(accessor => {
+		return withWebview(accessor, webview => webview.cut());
+	});
+}

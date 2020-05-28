@@ -22,6 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { withNullAsUndefined, assertType } from 'vs/base/common/types';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 
 
 export type ServicesAccessor = InstantiationServicesAccessor;
@@ -138,6 +139,42 @@ export abstract class Command {
 }
 
 //#endregion Command
+
+//#region CommandOverrides
+
+/**
+ * Potential override for a command.
+ *
+ * @return `true` if the command was successfully run. This stops other overrides from being executed.
+ */
+export type CommandOverride = (accessor: ServicesAccessor, args: unknown) => boolean;
+
+export class CommandOverrides {
+
+	private readonly _overrides: CommandOverride[] = [];
+
+	public register(implementation: CommandOverride): IDisposable {
+		this._overrides.unshift(implementation);
+
+		return toDisposable(() => {
+			const index = this._overrides.indexOf(implementation);
+			if (index >= 0) {
+				this._overrides.splice(index, 1);
+			}
+		});
+	}
+
+	public runCommand(accessor: ServicesAccessor, args: any): boolean {
+		for (const override of this._overrides) {
+			if (override(accessor, args)) {
+				return true;
+			}
+		}
+		return false;
+	}
+}
+
+//#endregion CommandOverrides
 
 //#region EditorCommand
 
@@ -379,8 +416,10 @@ export function registerEditorCommand<T extends EditorCommand>(editorCommand: T)
 	return editorCommand;
 }
 
-export function registerEditorAction(ctor: { new(): EditorAction; }): void {
-	EditorContributionRegistry.INSTANCE.registerEditorAction(new ctor());
+export function registerEditorAction<T extends EditorAction>(ctor: { new(): T; }): T {
+	const action = new ctor();
+	EditorContributionRegistry.INSTANCE.registerEditorAction(action);
+	return action;
 }
 
 export function registerInstantiatedEditorAction(editorAction: EditorAction): void {

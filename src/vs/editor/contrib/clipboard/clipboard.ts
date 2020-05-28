@@ -9,7 +9,7 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { CopyOptions } from 'vs/editor/browser/controller/textAreaInput';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, ICommandKeybindingsOptions, registerEditorAction } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, ICommandKeybindingsOptions, registerEditorAction, CommandOverrides } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MenuId } from 'vs/platform/actions/common/actions';
@@ -34,6 +34,8 @@ abstract class ExecCommandAction extends EditorAction {
 
 	private readonly browserCommand: ExecCommand;
 
+	public readonly overrides = new CommandOverrides();
+
 	constructor(browserCommand: ExecCommand, opts: IActionOptions) {
 		super(opts);
 		this.browserCommand = browserCommand;
@@ -51,6 +53,9 @@ abstract class ExecCommandAction extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		if (this.overrides.runCommand(accessor, editor)) {
+			return;
+		}
 		editor.focus();
 		document.execCommand(this.browserCommand);
 	}
@@ -222,15 +227,11 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 	}
 }
 
-if (supportsCut) {
-	registerEditorAction(ExecCommandCutAction);
-}
-if (supportsCopy) {
-	registerEditorAction(ExecCommandCopyAction);
-}
-if (supportsPaste) {
-	registerEditorAction(ExecCommandPasteAction);
-}
+
+export const CutAction = supportsCut ? registerEditorAction(ExecCommandCutAction) : undefined;
+export const CopyAction = supportsCopy ? registerEditorAction(ExecCommandCopyAction) : undefined;
+export const PasteAction = supportsPaste ? registerEditorAction(ExecCommandPasteAction) : undefined;
+
 if (supportsCopyWithSyntaxHighlighting) {
 	registerEditorAction(ExecCommandCopyWithSyntaxHighlightingAction);
 }

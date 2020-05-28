@@ -17,6 +17,9 @@ import { WebviewEditor } from 'vs/workbench/contrib/webview/browser/webviewEdito
 import './commands';
 import { CustomEditorInput } from './customEditorInput';
 import { CustomEditorContribution, CustomEditorService } from './customEditors';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 registerSingleton(ICustomEditorService, CustomEditorService);
 
@@ -39,4 +42,4 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 		CustomEditorInputFactory);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
-	.registerCustomEditorInputFactory(Schemas.vscodeCustomEditor, CustomEditorInputFactory);
+	.registerCustomEditorInputFactory(CustomEditorInputFactory);

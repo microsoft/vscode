@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as types from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { Command, EditorCommand, ICommandOptions, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { Command, EditorCommand, ICommandOptions, registerEditorCommand, CommandOverrides } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ColumnSelection, IColumnSelectResult } from 'vs/editor/common/controller/cursorColumnSelection';
 import { CursorState, EditOperationType, IColumnSelectData, PartialCursorState } from 'vs/editor/common/controller/cursorCommon';
@@ -27,7 +27,6 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
-import { ICoreCommandsService, CoreCommand } from 'vs/editor/browser/services/coreCommandsService';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -1603,6 +1602,14 @@ export namespace CoreNavigationCommands {
 			});
 		}
 
+		public readonly overrides = new CommandOverrides();
+
+		public runCommand(accessor: ServicesAccessor, args: any) {
+			if (!this.overrides.runCommand(accessor, args)) {
+				super.runCommand(accessor, args);
+			}
+		}
+
 		public runCoreEditorCommand(viewModel: IViewModel, args: any): void {
 			viewModel.model.pushStackElement();
 			viewModel.setCursorStates(
@@ -1724,10 +1731,10 @@ class SelectAllCommand extends EditorOrNativeTextInputCommand {
 }
 
 class UndoCommand extends EditorOrNativeTextInputCommand {
+	public readonly overrides = new CommandOverrides();
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const coreCommandService = accessor.get(ICoreCommandsService);
-		if (!coreCommandService.tryRun(CoreCommand.Undo, accessor, args)) {
+	public runCommand(accessor: ServicesAccessor, args: any) {
+		if (!this.overrides.runCommand(accessor, args)) {
 			super.runCommand(accessor, args);
 		}
 	}
@@ -1735,6 +1742,7 @@ class UndoCommand extends EditorOrNativeTextInputCommand {
 	public runDOMCommand(): void {
 		document.execCommand('undo');
 	}
+
 	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 		if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 			return;
@@ -1744,10 +1752,10 @@ class UndoCommand extends EditorOrNativeTextInputCommand {
 }
 
 class RedoCommand extends EditorOrNativeTextInputCommand {
+	public readonly overrides = new CommandOverrides();
 
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const coreCommandService = accessor.get(ICoreCommandsService);
-		if (!coreCommandService.tryRun(CoreCommand.Redo, accessor, args)) {
+	public runCommand(accessor: ServicesAccessor, args: any) {
+		if (!this.overrides.runCommand(accessor, args)) {
 			super.runCommand(accessor, args);
 		}
 	}
@@ -1755,6 +1763,7 @@ class RedoCommand extends EditorOrNativeTextInputCommand {
 	public runDOMCommand(): void {
 		document.execCommand('redo');
 	}
+
 	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 		if (!editor.hasModel() || editor.getOption(EditorOption.readOnly) === true) {
 			return;
