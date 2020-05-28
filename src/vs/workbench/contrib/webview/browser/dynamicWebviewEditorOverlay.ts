@@ -11,7 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, Webview, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay, IDataLinkClickEvent } from 'vs/workbench/contrib/webview/browser/webview';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 /**
@@ -187,6 +187,9 @@ export class DynamicWebviewEditorOverlay extends Disposable implements WebviewOv
 
 	private readonly _onDidClickLink = this._register(new Emitter<string>());
 	public readonly onDidClickLink: Event<string> = this._onDidClickLink.event;
+
+	private readonly _onDidClickDataLink = this._register(new Emitter<IDataLinkClickEvent>());
+	public readonly onDidClickDataLink: Event<IDataLinkClickEvent> = this._onDidClickDataLink.event;
 
 	private readonly _onDidReload = this._register(new Emitter<void>());
 	public readonly onDidReload = this._onDidReload.event;
