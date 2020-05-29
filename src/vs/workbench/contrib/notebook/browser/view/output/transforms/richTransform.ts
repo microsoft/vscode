@@ -212,7 +212,7 @@ class RichRenderer implements IOutputTransformContribution {
 	renderPlainText(output: any, container: HTMLElement) {
 		let data = output.data['text/plain'];
 		let str = isArray(data) ? data.join('') : data;
-		const contentNode = document.createElement('div');
+		const contentNode = DOM.$('.output-plaintext');
 		contentNode.appendChild(handleANSIOutput(str, this.themeService));
 		container.appendChild(contentNode);
 
