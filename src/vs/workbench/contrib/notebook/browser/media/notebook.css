@@ -385,8 +385,15 @@
 	top: 22px;
 	bottom: 36px;
 	visibility: hidden;
-	cursor: pointer;
 	opacity: 0.6;
+}
+
+.notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator:hover {
+	cursor: grab;
+}
+
+.notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator .codicon:hover {
+	cursor: pointer;
 }
 
 .notebookOverlay .monaco-list .monaco-list-row:hover .notebook-cell-focus-indicator,
@@ -629,7 +636,6 @@
 	position: absolute;
 	top: 8px;
 	left: 6px;
-	cursor: pointer;
 }
 
 .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
