@@ -30,7 +30,7 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensionsNumeric, compareFileNamesNumeric } from 'vs/base/common/comparers';
-import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
+import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType, extractRemoteResources } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
@@ -917,9 +917,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			// The only custom data transfer we set from the explorer is a file transfer
 			// to be able to DND between multiple code file explorers across windows
-			const fileResources = items.filter(s => !s.isDirectory && s.resource.scheme === Schemas.file).map(r => r.resource.fsPath);
+			const fileResources = items.filter(s => !s.isDirectory && (s.resource.scheme === Schemas.file)).map(r => r.resource.fsPath);
 			if (fileResources.length) {
 				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
+			}
+			const remoteResources = items.filter(s => !s.isDirectory && (s.resource.scheme === Schemas.vscodeRemote)).map(r => r.resource.toString());
+			if (remoteResources.length) {
+				originalEvent.dataTransfer.setData(CodeDataTransfers.REMOTE_FILES, JSON.stringify(remoteResources));
 			}
 		}
 	}
@@ -1119,6 +1123,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Check for dropped external files to be folders
 		const droppedResources = extractResources(originalEvent, true);
+		const droppedRemoteResources = extractRemoteResources(originalEvent);
+		droppedResources.push(...droppedRemoteResources);
 		const result = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
 
 		// Pass focus to window
