@@ -19,20 +19,46 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { ITextFileService, ITextFileSaveEvent, ITextFileLoadEvent } from 'vs/workbench/services/textfile/common/textfiles';
+import { extname, basename, isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { Schemas } from 'vs/base/common/network';
+import { guessMimeTypes } from 'vs/base/common/mime';
+import { hash } from 'vs/base/common/hash';
+
+type TelemetryData = {
+	mimeType: string;
+	ext: string;
+	path: number;
+	reason?: number;
+	whitelistedjson?: string;
+};
+
+type FileTelemetryDataFragment = {
+	mimeType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	ext: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	path: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	reason?: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
+	whitelistedjson?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+};
 
 export class TelemetryContribution extends Disposable implements IWorkbenchContribution {
 
+	private static WHITELIST_JSON = ['package.json', 'package-lock.json', 'tsconfig.json', 'jsconfig.json', 'bower.json', '.eslintrc.json', 'tslint.json', 'composer.json'];
+	private static WHITELIST_WORKSPACE_JSON = ['settings.json', 'extensions.json', 'tasks.json', 'launch.json'];
+
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IActivityBarService activityBarService: IActivityBarService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IEditorService editorService: IEditorService,
 		@IKeybindingService keybindingsService: IKeybindingService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IViewletService viewletService: IViewletService
+		@IViewletService viewletService: IViewletService,
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super();
 
@@ -45,6 +71,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			outerHeight: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 			outerWidth: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 		};
+
 		type WorkspaceLoadClassification = {
 			userAgent: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 			emptyWorkbench: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -59,6 +86,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			restoredEditors: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 			startupKind: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 		};
+
 		type WorkspaceLoadEvent = {
 			userAgent: string;
 			windowSize: { innerHeight: number, innerWidth: number, outerHeight: number, outerWidth: number };
@@ -73,6 +101,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			restoredEditors: number;
 			startupKind: StartupKind;
 		};
+
 		telemetryService.publicLog2<WorkspaceLoadEvent, WorkspaceLoadClassification>('workspaceLoad', {
 			userAgent: navigator.userAgent,
 			windowSize: { innerHeight: window.innerHeight, innerWidth: window.innerWidth, outerHeight: window.outerHeight, outerWidth: window.outerWidth },
@@ -82,7 +111,7 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 			customKeybindingsCount: keybindingsService.customKeybindingsCount(),
 			theme: themeService.getColorTheme().id,
 			language,
-			pinnedViewlets: activityBarService.getPinnedViewletIds(),
+			pinnedViewlets: activityBarService.getPinnedViewContainerIds(),
 			restoredViewlet: activeViewlet ? activeViewlet.getId() : undefined,
 			restoredEditors: editorService.visibleEditors.length,
 			startupKind: lifecycleService.startupKind
@@ -94,8 +123,93 @@ export class TelemetryContribution extends Disposable implements IWorkbenchContr
 		// Configuration Telemetry
 		this._register(configurationTelemetry(telemetryService, configurationService));
 
+		//  Files Telemetry
+		this._register(textFileService.files.onDidLoad(e => this.onTextFileModelLoaded(e)));
+		this._register(textFileService.files.onDidSave(e => this.onTextFileModelSaved(e)));
+
 		// Lifecycle
 		this._register(lifecycleService.onShutdown(() => this.dispose()));
+	}
+
+	private onTextFileModelLoaded(e: ITextFileLoadEvent): void {
+		const settingsType = this.getTypeIfSettings(e.model.resource);
+		if (settingsType) {
+			type SettingsReadClassification = {
+				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+
+			this.telemetryService.publicLog2<{ settingsType: string }, SettingsReadClassification>('settingsRead', { settingsType }); // Do not log read to user settings.json and .vscode folder as a fileGet event as it ruins our JSON usage data
+		} else {
+			type FileGetClassification = {} & FileTelemetryDataFragment;
+
+			this.telemetryService.publicLog2<TelemetryData, FileGetClassification>('fileGet', this.getTelemetryData(e.model.resource, e.reason));
+		}
+	}
+
+	private onTextFileModelSaved(e: ITextFileSaveEvent): void {
+		const settingsType = this.getTypeIfSettings(e.model.resource);
+		if (settingsType) {
+			type SettingsWrittenClassification = {
+				settingsType: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+			this.telemetryService.publicLog2<{ settingsType: string }, SettingsWrittenClassification>('settingsWritten', { settingsType }); // Do not log write to user settings.json and .vscode folder as a filePUT event as it ruins our JSON usage data
+		} else {
+			type FilePutClassfication = {} & FileTelemetryDataFragment;
+			this.telemetryService.publicLog2<TelemetryData, FilePutClassfication>('filePUT', this.getTelemetryData(e.model.resource, e.reason));
+		}
+	}
+
+	private getTypeIfSettings(resource: URI): string {
+		if (extname(resource) !== '.json') {
+			return '';
+		}
+
+		// Check for global settings file
+		if (isEqual(resource, this.environmentService.settingsResource)) {
+			return 'global-settings';
+		}
+
+		// Check for keybindings file
+		if (isEqual(resource, this.environmentService.keybindingsResource)) {
+			return 'keybindings';
+		}
+
+		// Check for snippets
+		if (isEqualOrParent(resource, this.environmentService.snippetsHome)) {
+			return 'snippets';
+		}
+
+		// Check for workspace settings file
+		const folders = this.contextService.getWorkspace().folders;
+		for (const folder of folders) {
+			if (isEqualOrParent(resource, folder.toResource('.vscode'))) {
+				const filename = basename(resource);
+				if (TelemetryContribution.WHITELIST_WORKSPACE_JSON.indexOf(filename) > -1) {
+					return `.vscode/${filename}`;
+				}
+			}
+		}
+
+		return '';
+	}
+
+	private getTelemetryData(resource: URI, reason?: number): TelemetryData {
+		const ext = extname(resource);
+		const fileName = basename(resource);
+		const path = resource.scheme === Schemas.file ? resource.fsPath : resource.path;
+		const telemetryData = {
+			mimeType: guessMimeTypes(resource).join(', '),
+			ext,
+			path: hash(path),
+			reason,
+			whitelistedjson: undefined as string | undefined
+		};
+
+		if (ext === '.json' && TelemetryContribution.WHITELIST_JSON.indexOf(fileName) > -1) {
+			telemetryData['whitelistedjson'] = fileName;
+		}
+
+		return telemetryData;
 	}
 }
 

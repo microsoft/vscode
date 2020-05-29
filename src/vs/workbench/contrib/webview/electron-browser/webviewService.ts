@@ -6,36 +6,50 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/dynamicWebviewEditorOverlay';
+import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { IWebviewService, WebviewContentOptions, WebviewEditorOverlay, WebviewElement, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { WebviewIconManager } from 'vs/workbench/contrib/webview/browser/webviewIconManager';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
 
 export class ElectronWebviewService implements IWebviewService {
 	_serviceBrand: undefined;
 
+	private readonly _webviewThemeDataProvider: WebviewThemeDataProvider;
+	private readonly _iconManager: WebviewIconManager;
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-	) { }
-
-	createWebview(
-		id: string,
-		options: WebviewOptions,
-		contentOptions: WebviewContentOptions
-	): WebviewElement {
-		const useExternalEndpoint = this._configService.getValue<string>('webview.experimental.useExternalEndpoint');
-		if (useExternalEndpoint) {
-			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions);
-		} else {
-			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, options, contentOptions);
-		}
+	) {
+		this._webviewThemeDataProvider = this._instantiationService.createInstance(WebviewThemeDataProvider);
+		this._iconManager = this._instantiationService.createInstance(WebviewIconManager);
 	}
 
-	createWebviewEditorOverlay(
+	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
-	): WebviewEditorOverlay {
-		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions);
+		extension: WebviewExtensionDescription | undefined,
+	): WebviewElement {
+		const useExternalEndpoint = this._configService.getValue<string>('webview.experimental.useExternalEndpoint');
+		if (useExternalEndpoint) {
+			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
+		} else {
+			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
+		}
+	}
+
+	createWebviewOverlay(
+		id: string,
+		options: WebviewOptions,
+		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
+	): WebviewOverlay {
+		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions, extension);
+	}
+
+	setIcons(id: string, iconPath: WebviewIcons | undefined): void {
+		this._iconManager.setIcons(id, iconPath);
 	}
 }

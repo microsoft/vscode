@@ -13,7 +13,6 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/electron-browser/timerService';
-import { repeat } from 'vs/base/common/strings';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import * as perf from 'vs/base/common/performance';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -21,6 +20,12 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { mergeSort } from 'vs/base/common/arrays';
 import product from 'vs/platform/product/common/product';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IFileService } from 'vs/platform/files/common/files';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class PerfviewContrib {
 
@@ -44,14 +49,26 @@ export class PerfviewInput extends ResourceEditorInput {
 	static readonly Uri = URI.from({ scheme: 'perf', path: 'Startup Performance' });
 
 	constructor(
-		@ITextModelService textModelResolverService: ITextModelService
+		@ITextModelService textModelResolverService: ITextModelService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IFileService fileService: IFileService,
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
 		super(
 			localize('name', "Startup Performance"),
 			undefined,
 			PerfviewInput.Uri,
 			undefined,
-			textModelResolverService
+			textModelResolverService,
+			textFileService,
+			editorService,
+			editorGroupService,
+			fileService,
+			labelService,
+			filesConfigurationService
 		);
 	}
 
@@ -359,7 +376,7 @@ class MarkdownBuilder {
 	value: string = '';
 
 	heading(level: number, value: string): this {
-		this.value += `${repeat('#', level)} ${value}\n\n`;
+		this.value += `${'#'.repeat(level)} ${value}\n\n`;
 		return this;
 	}
 
@@ -389,16 +406,16 @@ class MarkdownBuilder {
 		});
 
 		// header
-		header.forEach((cell, ci) => { this.value += `| ${cell + repeat(' ', lengths[ci] - cell.toString().length)} `; });
+		header.forEach((cell, ci) => { this.value += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `; });
 		this.value += '|\n';
-		header.forEach((_cell, ci) => { this.value += `| ${repeat('-', lengths[ci])} `; });
+		header.forEach((_cell, ci) => { this.value += `| ${'-'.repeat(lengths[ci])} `; });
 		this.value += '|\n';
 
 		// cells
 		rows.forEach(row => {
 			row.forEach((cell, ci) => {
 				if (typeof cell !== 'undefined') {
-					this.value += `| ${cell + repeat(' ', lengths[ci] - cell.toString().length)} `;
+					this.value += `| ${cell + ' '.repeat(lengths[ci] - cell.toString().length)} `;
 				}
 			});
 			this.value += '|\n';

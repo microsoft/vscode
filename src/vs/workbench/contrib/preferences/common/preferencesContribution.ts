@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { dispose, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { endsWith } from 'vs/base/common/strings';
@@ -22,6 +23,7 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
+import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -56,12 +58,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
-			this.editorOpeningListener = this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
+			this.editorOpeningListener = this.editorService.overrideOpenEditor({
+				open: (editor, options, group) => this.onEditorOpening(editor, options, group)
+			});
 		}
 	}
 
 	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
-		const resource = editor.getResource();
+		const resource = editor.resource;
 		if (
 			!resource ||
 			!endsWith(resource.path, 'settings.json') ||								// resource must end in settings.json
@@ -147,3 +151,27 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		dispose(this.settingsListener);
 	}
 }
+
+const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+registry.registerConfiguration({
+	'properties': {
+		'workbench.settings.enableNaturalLanguageSearch': {
+			'type': 'boolean',
+			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings. The natural language search is provided by a Microsoft online service."),
+			'default': true,
+			'scope': ConfigurationScope.WINDOW,
+			'tags': ['usesOnlineServices']
+		},
+		'workbench.settings.settingsSearchTocBehavior': {
+			'type': 'string',
+			'enum': ['hide', 'filter'],
+			'enumDescriptions': [
+				nls.localize('settingsSearchTocBehavior.hide', "Hide the Table of Contents while searching."),
+				nls.localize('settingsSearchTocBehavior.filter', "Filter the Table of Contents to just categories that have matching settings. Clicking a category will filter the results to that category."),
+			],
+			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
+			'default': 'filter',
+			'scope': ConfigurationScope.WINDOW
+		},
+	}
+});

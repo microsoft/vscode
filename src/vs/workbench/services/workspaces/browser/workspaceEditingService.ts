@@ -7,9 +7,6 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -21,6 +18,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { URI } from 'vs/base/common/uri';
 
 export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -30,9 +28,6 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService contextService: WorkspaceService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
-		@IExtensionService extensionService: IExtensionService,
-		@IBackupFileService backupFileService: IBackupFileService,
 		@INotificationService notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
 		@IFileService fileService: IFileService,
@@ -43,9 +38,17 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		@IDialogService dialogService: IDialogService,
 		@IHostService hostService: IHostService
 	) {
-		super(jsonEditingService, contextService, configurationService, storageService, extensionService, backupFileService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService);
+	}
+
+	async enterWorkspace(path: URI): Promise<void> {
+		const result = await this.doEnterWorkspace(path);
+		if (result) {
+
+			// Open workspace in same window
+			await this.hostService.openWindow([{ workspaceUri: path }], { forceReuseWindow: true });
+		}
 	}
 }
 
 registerSingleton(IWorkspaceEditingService, BrowserWorkspaceEditingService, true);
-

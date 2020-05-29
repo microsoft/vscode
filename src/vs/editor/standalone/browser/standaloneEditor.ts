@@ -9,11 +9,11 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import { ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
+import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
+import { EditorOptions, ConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Token } from 'vs/editor/common/core/token';
-import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IEditor, EditorType } from 'vs/editor/common/editorCommon';
 import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { NULL_STATE, nullTokenize } from 'vs/editor/common/modes/nullMode';
@@ -38,15 +38,18 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { clearAllFontInfos } from 'vs/editor/browser/config/configuration';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
-function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
+function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
 
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService | null = null;
 	if (!services.has(ITextModelService)) {
-		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
+		simpleEditorModelResolverService = new SimpleEditorModelResolverService(StaticServices.modelService.get());
 		services.set(ITextModelService, simpleEditorModelResolverService);
 	}
 
@@ -120,16 +123,10 @@ export function createDiffEditor(domElement: HTMLElement, options?: IDiffEditorC
 			services.get(INotificationService),
 			services.get(IConfigurationService),
 			services.get(IContextMenuService),
-			null
+			services.get(IEditorProgressService),
+			services.get(IClipboardService)
 		);
 	});
-}
-
-export interface IDiffNavigator {
-	canNavigate(): boolean;
-	next(): void;
-	previous(): void;
-	dispose(): void;
 }
 
 export interface IDiffNavigatorOptions {
@@ -245,13 +242,17 @@ export function createWebWorker<T>(opts: IWebWorkerOptions): MonacoWebWorker<T> 
  * Colorize the contents of `domNode` using attribute `data-lang`.
  */
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
-	return Colorizer.colorizeElement(StaticServices.standaloneThemeService.get(), StaticServices.modeService.get(), domNode, options);
+	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
+	themeService.registerEditorContainer(domNode);
+	return Colorizer.colorizeElement(themeService, StaticServices.modeService.get(), domNode, options);
 }
 
 /**
  * Colorize `text` using language `languageId`.
  */
 export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
+	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
+	themeService.registerEditorContainer(document.body);
 	return Colorizer.colorize(StaticServices.modeService.get(), text, languageId, options);
 }
 
@@ -259,6 +260,8 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
  * Colorize a line in a model.
  */
 export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
+	const themeService = <StandaloneThemeServiceImpl>StaticServices.standaloneThemeService.get();
+	themeService.registerEditorContainer(document.body);
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 
@@ -352,23 +355,25 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// enums
 		AccessibilitySupport: standaloneEnums.AccessibilitySupport,
-		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
-		WrappingIndent: standaloneEnums.WrappingIndent,
-		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
-		MinimapPosition: standaloneEnums.MinimapPosition,
-		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
-		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
-		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
-		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
-		CursorChangeReason: standaloneEnums.CursorChangeReason,
-		MouseTargetType: standaloneEnums.MouseTargetType,
-		TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
-		TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
 		ContentWidgetPositionPreference: standaloneEnums.ContentWidgetPositionPreference,
+		CursorChangeReason: standaloneEnums.CursorChangeReason,
+		DefaultEndOfLine: standaloneEnums.DefaultEndOfLine,
+		EditorAutoIndentStrategy: standaloneEnums.EditorAutoIndentStrategy,
+		EditorOption: standaloneEnums.EditorOption,
+		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
+		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
+		MinimapPosition: standaloneEnums.MinimapPosition,
+		MouseTargetType: standaloneEnums.MouseTargetType,
 		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
-		RenderMinimap: standaloneEnums.RenderMinimap,
-		ScrollType: standaloneEnums.ScrollType,
+		OverviewRulerLane: standaloneEnums.OverviewRulerLane,
 		RenderLineNumbersType: standaloneEnums.RenderLineNumbersType,
+		RenderMinimap: standaloneEnums.RenderMinimap,
+		ScrollbarVisibility: standaloneEnums.ScrollbarVisibility,
+		ScrollType: standaloneEnums.ScrollType,
+		TextEditorCursorBlinkingStyle: standaloneEnums.TextEditorCursorBlinkingStyle,
+		TextEditorCursorStyle: standaloneEnums.TextEditorCursorStyle,
+		TrackedRangeStickiness: standaloneEnums.TrackedRangeStickiness,
+		WrappingIndent: standaloneEnums.WrappingIndent,
 
 		// classes
 		ConfigurationChangedEvent: <any>ConfigurationChangedEvent,
@@ -378,7 +383,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 
 		// vars
-		EditorType: editorCommon.EditorType,
+		EditorType: EditorType,
+		EditorOptions: <any>EditorOptions
 
 	};
 }

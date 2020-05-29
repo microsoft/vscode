@@ -543,7 +543,7 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 	const patternLen = pattern.length > _maxLen ? _maxLen : pattern.length;
 	const wordLen = word.length > _maxLen ? _maxLen : word.length;
 
-	if (patternStart >= patternLen || wordStart >= wordLen || patternLen > wordLen) {
+	if (patternStart >= patternLen || wordStart >= wordLen || (patternLen - patternStart) > (wordLen - wordStart)) {
 		return undefined;
 	}
 
@@ -559,12 +559,18 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 	let patternPos = patternStart;
 	let wordPos = wordStart;
 
-	// There will be a match, fill in tables
-	for (row = 1, patternPos = patternStart; patternPos < patternLen; row++ , patternPos++) {
+	let hasStrongFirstMatch = false;
 
-		for (column = 1, wordPos = wordStart; wordPos < wordLen; column++ , wordPos++) {
+	// There will be a match, fill in tables
+	for (row = 1, patternPos = patternStart; patternPos < patternLen; row++, patternPos++) {
+
+		for (column = 1, wordPos = wordStart; wordPos < wordLen; column++, wordPos++) {
 
 			const score = _doScore(pattern, patternLow, patternPos, patternStart, word, wordLow, wordPos);
+
+			if (patternPos === patternStart && score > 1) {
+				hasStrongFirstMatch = true;
+			}
 
 			_scores[row][column] = score;
 
@@ -602,6 +608,10 @@ export function fuzzyScore(pattern: string, patternLow: string, patternStart: nu
 
 	if (_debug) {
 		printTables(pattern, patternStart, word, wordStart);
+	}
+
+	if (!hasStrongFirstMatch && !firstMatchCanBeWeak) {
+		return undefined;
 	}
 
 	_matchesCount = 0;

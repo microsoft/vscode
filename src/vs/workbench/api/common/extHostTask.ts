@@ -12,7 +12,7 @@ import { MainContext, MainThreadTaskShape, ExtHostTaskShape } from 'vs/workbench
 
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspaceProvider, IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import * as tasks from '../common/shared/tasks';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
@@ -24,6 +24,9 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import * as Platform from 'vs/base/common/platform';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostApiDeprecationService';
+import { USER_TASKS_GROUP_KEY } from 'vs/workbench/contrib/tasks/common/taskService';
 
 export interface IExtHostTask extends ExtHostTaskShape {
 
@@ -88,7 +91,7 @@ export namespace ProcessExecutionOptionsDTO {
 }
 
 export namespace ProcessExecutionDTO {
-	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecution2DTO | undefined): value is tasks.ProcessExecutionDTO {
+	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecutionDTO | undefined): value is tasks.ProcessExecutionDTO {
 		if (value) {
 			const candidate = value as tasks.ProcessExecutionDTO;
 			return candidate && !!candidate.process;
@@ -133,7 +136,7 @@ export namespace ShellExecutionOptionsDTO {
 }
 
 export namespace ShellExecutionDTO {
-	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecution2DTO | undefined): value is tasks.ShellExecutionDTO {
+	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecutionDTO | undefined): value is tasks.ShellExecutionDTO {
 		if (value) {
 			const candidate = value as tasks.ShellExecutionDTO;
 			return candidate && (!!candidate.commandLine || !!candidate.command);
@@ -170,19 +173,19 @@ export namespace ShellExecutionDTO {
 	}
 }
 
-export namespace CustomExecution2DTO {
-	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecution2DTO | undefined): value is tasks.CustomExecution2DTO {
+export namespace CustomExecutionDTO {
+	export function is(value: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecutionDTO | undefined): value is tasks.CustomExecutionDTO {
 		if (value) {
-			let candidate = value as tasks.CustomExecution2DTO;
-			return candidate && candidate.customExecution === 'customExecution2';
+			let candidate = value as tasks.CustomExecutionDTO;
+			return candidate && candidate.customExecution === 'customExecution';
 		} else {
 			return false;
 		}
 	}
 
-	export function from(value: vscode.CustomExecution2): tasks.CustomExecution2DTO {
+	export function from(value: vscode.CustomExecution): tasks.CustomExecutionDTO {
 		return {
-			customExecution: 'customExecution2'
+			customExecution: 'customExecution'
 		};
 	}
 }
@@ -190,9 +193,11 @@ export namespace CustomExecution2DTO {
 
 export namespace TaskHandleDTO {
 	export function from(value: types.Task): tasks.TaskHandleDTO {
-		let folder: UriComponents | undefined;
+		let folder: UriComponents | string;
 		if (value.scope !== undefined && typeof value.scope !== 'number') {
 			folder = value.scope.uri;
+		} else if (value.scope !== undefined && typeof value.scope === 'number') {
+			folder = USER_TASKS_GROUP_KEY;
 		}
 		return {
 			id: value._id!,
@@ -220,13 +225,13 @@ export namespace TaskDTO {
 		if (value === undefined || value === null) {
 			return undefined;
 		}
-		let execution: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecution2DTO | undefined;
+		let execution: tasks.ShellExecutionDTO | tasks.ProcessExecutionDTO | tasks.CustomExecutionDTO | undefined;
 		if (value.execution instanceof types.ProcessExecution) {
 			execution = ProcessExecutionDTO.from(value.execution);
 		} else if (value.execution instanceof types.ShellExecution) {
 			execution = ShellExecutionDTO.from(value.execution);
-		} else if ((<vscode.Task2>value).execution2 && (<vscode.Task2>value).execution2 instanceof types.CustomExecution2) {
-			execution = CustomExecution2DTO.from(<types.CustomExecution2>(<vscode.Task2>value).execution2);
+		} else if (value.execution && value.execution instanceof types.CustomExecution) {
+			execution = CustomExecutionDTO.from(<types.CustomExecution>value.execution);
 		}
 
 		const definition: tasks.TaskDefinitionDTO | undefined = TaskDefinitionDTO.from(value.definition);
@@ -261,6 +266,7 @@ export namespace TaskDTO {
 			problemMatchers: value.problemMatchers,
 			hasDefinedMatchers: (value as types.Task).hasDefinedMatchers,
 			runOptions: (<vscode.Task>value).runOptions ? (<vscode.Task>value).runOptions : { reevaluateOnRerun: true },
+			detail: (<vscode.Task2>value).detail
 		};
 		return result;
 	}
@@ -302,6 +308,9 @@ export namespace TaskDTO {
 		}
 		if (value._id) {
 			result._id = value._id;
+		}
+		if (value.detail) {
+			result.detail = value.detail;
 		}
 		return result;
 	}
@@ -370,12 +379,15 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 	protected readonly _editorService: IExtHostDocumentsAndEditors;
 	protected readonly _configurationService: IExtHostConfiguration;
 	protected readonly _terminalService: IExtHostTerminalService;
+	protected readonly _logService: ILogService;
+	protected readonly _deprecationService: IExtHostApiDeprecationService;
 	protected _handleCounter: number;
 	protected _handlers: Map<number, HandlerData>;
 	protected _taskExecutions: Map<string, TaskExecutionImpl>;
-	protected _providedCustomExecutions2: Map<string, types.CustomExecution2>;
+	protected _taskExecutionPromises: Map<string, Promise<TaskExecutionImpl>>;
+	protected _providedCustomExecutions2: Map<string, types.CustomExecution>;
 	private _notProvidedCustomExecutions: Set<string>; // Used for custom executions tasks that are created and run through executeTask.
-	protected _activeCustomExecutions2: Map<string, types.CustomExecution2>;
+	protected _activeCustomExecutions2: Map<string, types.CustomExecution>;
 	private _lastStartedTask: string | undefined;
 	protected readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	protected readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
@@ -389,7 +401,9 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
 		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
+		@ILogService logService: ILogService,
+		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTask);
 		this._workspaceProvider = workspaceService;
@@ -399,9 +413,12 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
-		this._providedCustomExecutions2 = new Map<string, types.CustomExecution2>();
+		this._taskExecutionPromises = new Map<string, Promise<TaskExecutionImpl>>();
+		this._providedCustomExecutions2 = new Map<string, types.CustomExecution>();
 		this._notProvidedCustomExecutions = new Set<string>();
-		this._activeCustomExecutions2 = new Map<string, types.CustomExecution2>();
+		this._activeCustomExecutions2 = new Map<string, types.CustomExecution>();
+		this._logService = logService;
+		this._deprecationService = deprecationService;
 	}
 
 	public registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable {
@@ -453,16 +470,20 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		return this._onDidExecuteTask.event;
 	}
 
+	protected async resolveDefinition(uri: number | UriComponents | undefined, definition: vscode.TaskDefinition | undefined): Promise<vscode.TaskDefinition | undefined> {
+		return definition;
+	}
+
 	public async $onDidStartTask(execution: tasks.TaskExecutionDTO, terminalId: number): Promise<void> {
-		const execution2: types.CustomExecution2 | undefined = this._providedCustomExecutions2.get(execution.id);
-		if (execution2) {
+		const customExecution: types.CustomExecution | undefined = this._providedCustomExecutions2.get(execution.id);
+		if (customExecution) {
 			if (this._activeCustomExecutions2.get(execution.id) !== undefined) {
 				throw new Error('We should not be trying to start the same custom task executions twice.');
 			}
 
 			// Clone the custom execution to keep the original untouched. This is important for multiple runs of the same task.
-			this._activeCustomExecutions2.set(execution.id, execution2);
-			this._terminalService.attachPtyToTerminal(terminalId, await execution2.callback());
+			this._activeCustomExecutions2.set(execution.id, customExecution);
+			this._terminalService.attachPtyToTerminal(terminalId, await customExecution.callback(await this.resolveDefinition(execution.task?.source.scope, execution.task?.definition)));
 		}
 		this._lastStartedTask = execution.id;
 
@@ -477,6 +498,7 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 
 	public async $OnDidEndTask(execution: tasks.TaskExecutionDTO): Promise<void> {
 		const _execution = await this.getTaskExecution(execution);
+		this._taskExecutionPromises.delete(execution.id);
 		this._taskExecutions.delete(execution.id);
 		this.customExecutionComplete(execution);
 		this._onDidTerminateTask.fire({
@@ -564,6 +586,8 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 			return;
 		}
 
+		this.checkDeprecation(resolvedTask, handler);
+
 		const resolvedTaskDTO: tasks.TaskDTO | undefined = TaskDTO.from(resolvedTask, handler.extension);
 		if (!resolvedTaskDTO) {
 			throw new Error('Unexpected: Task cannot be resolved.');
@@ -573,8 +597,8 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 			throw new Error('Unexpected: The resolved task definition must be the same object as the original task definition. The task definition cannot be changed.');
 		}
 
-		if (CustomExecution2DTO.is(resolvedTaskDTO.execution)) {
-			await this.addCustomExecution2(resolvedTaskDTO, <vscode.Task2>resolvedTask, true);
+		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
+			await this.addCustomExecution(resolvedTaskDTO, resolvedTask, true);
 		}
 
 		return await this.resolveTaskInternal(resolvedTaskDTO);
@@ -588,12 +612,12 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 		return this._handleCounter++;
 	}
 
-	protected async addCustomExecution2(taskDTO: tasks.TaskDTO, task: vscode.Task2, isProvided: boolean): Promise<void> {
+	protected async addCustomExecution(taskDTO: tasks.TaskDTO, task: vscode.Task, isProvided: boolean): Promise<void> {
 		const taskId = await this._proxy.$createTaskId(taskDTO);
 		if (!isProvided && !this._providedCustomExecutions2.has(taskId)) {
 			this._notProvidedCustomExecutions.add(taskId);
 		}
-		this._providedCustomExecutions2.set(taskId, <types.CustomExecution2>(<vscode.Task2>task).execution2);
+		this._providedCustomExecutions2.set(taskId, <types.CustomExecution>task.execution);
 	}
 
 	protected async getTaskExecution(execution: tasks.TaskExecutionDTO | string, task?: vscode.Task): Promise<TaskExecutionImpl> {
@@ -605,21 +629,35 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape {
 			return taskExecution;
 		}
 
-		let result: TaskExecutionImpl | undefined = this._taskExecutions.get(execution.id);
+		let result: Promise<TaskExecutionImpl> | undefined = this._taskExecutionPromises.get(execution.id);
 		if (result) {
 			return result;
 		}
-		const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider);
-		if (!taskToCreate) {
-			throw new Error('Unexpected: Task does not exist.');
+		const createdResult: Promise<TaskExecutionImpl> = new Promise(async (resolve, reject) => {
+			const taskToCreate = task ? task : await TaskDTO.to(execution.task, this._workspaceProvider);
+			if (!taskToCreate) {
+				reject('Unexpected: Task does not exist.');
+			} else {
+				resolve(new TaskExecutionImpl(this, execution.id, taskToCreate));
+			}
+		});
+
+		this._taskExecutionPromises.set(execution.id, createdResult);
+		return createdResult.then(result => {
+			this._taskExecutions.set(execution.id, result);
+			return result;
+		});
+	}
+
+	protected checkDeprecation(task: vscode.Task, handler: HandlerData) {
+		const tTask = (task as types.Task);
+		if (tTask._deprecated) {
+			this._deprecationService.report('Task.constructor', handler.extension, 'Use the Task constructor that takes a `scope` instead.');
 		}
-		const createdResult: TaskExecutionImpl = new TaskExecutionImpl(this, execution.id, taskToCreate);
-		this._taskExecutions.set(execution.id, createdResult);
-		return createdResult;
 	}
 
 	private customExecutionComplete(execution: tasks.TaskExecutionDTO): void {
-		const extensionCallback2: vscode.CustomExecution2 | undefined = this._activeCustomExecutions2.get(execution.id);
+		const extensionCallback2: vscode.CustomExecution | undefined = this._activeCustomExecutions2.get(execution.id);
 		if (extensionCallback2) {
 			this._activeCustomExecutions2.delete(execution.id);
 		}
@@ -653,9 +691,11 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		@IExtHostWorkspace workspaceService: IExtHostWorkspace,
 		@IExtHostDocumentsAndEditors editorService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService
+		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
+		@ILogService logService: ILogService,
+		@IExtHostApiDeprecationService deprecationService: IExtHostApiDeprecationService
 	) {
-		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService);
+		super(extHostRpc, initData, workspaceService, editorService, configurationService, extHostTerminalService, logService, deprecationService);
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this.registerTaskSystem(Schemas.vscodeRemote, {
 				scheme: Schemas.vscodeRemote,
@@ -674,8 +714,8 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		// If this task is a custom execution, then we need to save it away
 		// in the provided custom execution map that is cleaned up after the
 		// task is executed.
-		if (CustomExecution2DTO.is(dto.execution)) {
-			await this.addCustomExecution2(dto, <vscode.Task2>task, false);
+		if (CustomExecutionDTO.is(dto.execution)) {
+			await this.addCustomExecution(dto, task, false);
 		} else {
 			throw new Error('Not implemented');
 		}
@@ -687,19 +727,20 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 		const taskDTOs: tasks.TaskDTO[] = [];
 		if (value) {
 			for (let task of value) {
+				this.checkDeprecation(task, handler);
 				if (!task.definition || !validTypes[task.definition.type]) {
-					console.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+					this._logService.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
 
 				const taskDTO: tasks.TaskDTO | undefined = TaskDTO.from(task, handler.extension);
-				if (taskDTO && CustomExecution2DTO.is(taskDTO.execution)) {
+				if (taskDTO && CustomExecutionDTO.is(taskDTO.execution)) {
 					taskDTOs.push(taskDTO);
 					// The ID is calculated on the main thread task side, so, let's call into it here.
 					// We need the task id's pre-computed for custom task executions because when OnDidStartTask
 					// is invoked, we have to be able to map it back to our data.
-					taskIdPromises.push(this.addCustomExecution2(taskDTO, <vscode.Task2>task, true));
+					taskIdPromises.push(this.addCustomExecution(taskDTO, task, true));
 				} else {
-					console.warn('Only custom execution tasks supported.');
+					this._logService.warn('Only custom execution tasks supported.');
 				}
 			}
 		}
@@ -710,10 +751,10 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 	}
 
 	protected async resolveTaskInternal(resolvedTaskDTO: tasks.TaskDTO): Promise<tasks.TaskDTO | undefined> {
-		if (CustomExecution2DTO.is(resolvedTaskDTO.execution)) {
+		if (CustomExecutionDTO.is(resolvedTaskDTO.execution)) {
 			return resolvedTaskDTO;
 		} else {
-			console.warn('Only custom execution tasks supported.');
+			this._logService.warn('Only custom execution tasks supported.');
 		}
 		return undefined;
 	}

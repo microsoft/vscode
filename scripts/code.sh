@@ -27,7 +27,7 @@ function code() {
 	test -d node_modules || yarn
 
 	# Get electron
-	node build/lib/electron.js || ./node_modules/.bin/gulp electron
+	yarn electron
 
 	# Manage built-in extensions
 	if [[ "$1" == "--builtin" ]]; then
@@ -39,7 +39,7 @@ function code() {
 	node build/lib/builtInExtensions.js
 
 	# Build
-	test -d out || ./node_modules/.bin/gulp compile
+	test -d out || yarn compile
 
 	# Configuration
 	export NODE_ENV=development
@@ -50,11 +50,14 @@ function code() {
 	export VSCODE_LOGS=
 
 	# Launch Code
-	exec "$CODE" . "$@"
+	exec "$CODE" . --no-sandbox "$@"
 }
 
 function code-wsl()
 {
+	HOST_IP=$(powershell.exe –noprofile -Command "& {(Get-NetIPAddress | Where-Object {\$_.InterfaceAlias -like '*WSL*' -and \$_.AddressFamily -eq 'IPv4'}).IPAddress | Write-Host -NoNewline}")
+	export DISPLAY="$HOST_IP:0"
+
 	# in a wsl shell
 	ELECTRON="$ROOT/.build/electron/Code - OSS.exe"
 	if [ -f "$ELECTRON"  ]; then

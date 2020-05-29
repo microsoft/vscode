@@ -12,9 +12,12 @@ import { mixin } from 'vs/base/common/objects';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Gesture, EventType } from 'vs/base/browser/touch';
+import { renderCodicons } from 'vs/base/common/codicons';
+import { escape } from 'vs/base/common/strings';
 
 export interface IButtonOptions extends IButtonStyles {
-	title?: boolean;
+	readonly title?: boolean | string;
+	readonly supportCodicons?: boolean;
 }
 
 export interface IButtonStyles {
@@ -79,7 +82,7 @@ export class Button extends Disposable {
 		this._register(DOM.addDisposableListener(this._element, DOM.EventType.KEY_DOWN, e => {
 			const event = new StandardKeyboardEvent(e);
 			let eventHandled = false;
-			if (this.enabled && event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+			if (this.enabled && (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space))) {
 				this._onDidClick.fire(e);
 				eventHandled = true;
 			} else if (event.equals(KeyCode.Escape)) {
@@ -128,15 +131,15 @@ export class Button extends Disposable {
 
 	private applyStyles(): void {
 		if (this._element) {
-			const background = this.buttonBackground ? this.buttonBackground.toString() : null;
-			const foreground = this.buttonForeground ? this.buttonForeground.toString() : null;
-			const border = this.buttonBorder ? this.buttonBorder.toString() : null;
+			const background = this.buttonBackground ? this.buttonBackground.toString() : '';
+			const foreground = this.buttonForeground ? this.buttonForeground.toString() : '';
+			const border = this.buttonBorder ? this.buttonBorder.toString() : '';
 
 			this._element.style.color = foreground;
 			this._element.style.backgroundColor = background;
 
-			this._element.style.borderWidth = border ? '1px' : null;
-			this._element.style.borderStyle = border ? 'solid' : null;
+			this._element.style.borderWidth = border ? '1px' : '';
+			this._element.style.borderStyle = border ? 'solid' : '';
 			this._element.style.borderColor = border;
 		}
 	}
@@ -149,8 +152,14 @@ export class Button extends Disposable {
 		if (!DOM.hasClass(this._element, 'monaco-text-button')) {
 			DOM.addClass(this._element, 'monaco-text-button');
 		}
-		this._element.textContent = value;
-		if (this.options.title) {
+		if (this.options.supportCodicons) {
+			this._element.innerHTML = renderCodicons(escape(value));
+		} else {
+			this._element.textContent = value;
+		}
+		if (typeof this.options.title === 'string') {
+			this._element.title = this.options.title;
+		} else if (this.options.title) {
 			this._element.title = value;
 		}
 	}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_EXPRESSION_SELECTED, IViewModel, IStackFrame, IDebugSession, IThread, IExpression, IFunctionBreakpoint, CONTEXT_BREAKPOINT_SELECTED, CONTEXT_LOADED_SCRIPTS_SUPPORTED, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_RESTART_FRAME_SUPPORTED, CONTEXT_JUMP_TO_CURSOR_SUPPORTED, CONTEXT_STEP_INTO_TARGETS_SUPPORTED } from 'vs/workbench/contrib/debug/common/debug';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 
@@ -17,9 +17,9 @@ export class ViewModel implements IViewModel {
 	private _focusedThread: IThread | undefined;
 	private selectedExpression: IExpression | undefined;
 	private selectedFunctionBreakpoint: IFunctionBreakpoint | undefined;
-	private readonly _onDidFocusSession: Emitter<IDebugSession | undefined>;
-	private readonly _onDidFocusStackFrame: Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>;
-	private readonly _onDidSelectExpression: Emitter<IExpression | undefined>;
+	private readonly _onDidFocusSession = new Emitter<IDebugSession | undefined>();
+	private readonly _onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame | undefined, explicit: boolean }>();
+	private readonly _onDidSelectExpression = new Emitter<IExpression | undefined>();
 	private multiSessionView: boolean;
 	private expressionSelectedContextKey: IContextKey<boolean>;
 	private breakpointSelectedContextKey: IContextKey<boolean>;
@@ -27,12 +27,10 @@ export class ViewModel implements IViewModel {
 	private stepBackSupportedContextKey: IContextKey<boolean>;
 	private focusedSessionIsAttach: IContextKey<boolean>;
 	private restartFrameSupportedContextKey: IContextKey<boolean>;
+	private stepIntoTargetsSupported: IContextKey<boolean>;
 	private jumpToCursorSupported: IContextKey<boolean>;
 
 	constructor(contextKeyService: IContextKeyService) {
-		this._onDidFocusSession = new Emitter<IDebugSession | undefined>();
-		this._onDidFocusStackFrame = new Emitter<{ stackFrame: IStackFrame, explicit: boolean }>();
-		this._onDidSelectExpression = new Emitter<IExpression>();
 		this.multiSessionView = false;
 		this.expressionSelectedContextKey = CONTEXT_EXPRESSION_SELECTED.bindTo(contextKeyService);
 		this.breakpointSelectedContextKey = CONTEXT_BREAKPOINT_SELECTED.bindTo(contextKeyService);
@@ -40,6 +38,7 @@ export class ViewModel implements IViewModel {
 		this.stepBackSupportedContextKey = CONTEXT_STEP_BACK_SUPPORTED.bindTo(contextKeyService);
 		this.focusedSessionIsAttach = CONTEXT_FOCUSED_SESSION_IS_ATTACH.bindTo(contextKeyService);
 		this.restartFrameSupportedContextKey = CONTEXT_RESTART_FRAME_SUPPORTED.bindTo(contextKeyService);
+		this.stepIntoTargetsSupported = CONTEXT_STEP_INTO_TARGETS_SUPPORTED.bindTo(contextKeyService);
 		this.jumpToCursorSupported = CONTEXT_JUMP_TO_CURSOR_SUPPORTED.bindTo(contextKeyService);
 	}
 
@@ -70,6 +69,7 @@ export class ViewModel implements IViewModel {
 		this.loadedScriptsSupportedContextKey.set(session ? !!session.capabilities.supportsLoadedSourcesRequest : false);
 		this.stepBackSupportedContextKey.set(session ? !!session.capabilities.supportsStepBack : false);
 		this.restartFrameSupportedContextKey.set(session ? !!session.capabilities.supportsRestartFrame : false);
+		this.stepIntoTargetsSupported.set(session ? !!session.capabilities.supportsStepInTargetsRequest : false);
 		this.jumpToCursorSupported.set(session ? !!session.capabilities.supportsGotoTargetsRequest : false);
 		const attach = !!session && isSessionAttach(session);
 		this.focusedSessionIsAttach.set(attach);

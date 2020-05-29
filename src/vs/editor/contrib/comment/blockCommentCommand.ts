@@ -8,17 +8,19 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
+import { ICommand, IEditOperationBuilder, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
+import { ITextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 
-export class BlockCommentCommand implements editorCommon.ICommand {
+export class BlockCommentCommand implements ICommand {
 
 	private readonly _selection: Selection;
+	private readonly _insertSpace: boolean;
 	private _usedEndToken: string | null;
 
-	constructor(selection: Selection) {
+	constructor(selection: Selection, insertSpace: boolean) {
 		this._selection = selection;
+		this._insertSpace = insertSpace;
 		this._usedEndToken = null;
 	}
 
@@ -53,7 +55,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return true;
 	}
 
-	private _createOperationsForBlockComment(selection: Range, startToken: string, endToken: string, model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	private _createOperationsForBlockComment(selection: Range, startToken: string, endToken: string, insertSpace: boolean, model: ITextModel, builder: IEditOperationBuilder): void {
 		const startLineNumber = selection.startLineNumber;
 		const startColumn = selection.startColumn;
 		const endLineNumber = selection.endLineNumber;
@@ -91,25 +93,21 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 
 		if (startTokenIndex !== -1 && endTokenIndex !== -1) {
 			// Consider spaces as part of the comment tokens
-			if (startTokenIndex + startToken.length < startLineText.length) {
-				if (startLineText.charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
-					// Pretend the start token contains a trailing space
-					startToken = startToken + ' ';
-				}
+			if (insertSpace && startTokenIndex + startToken.length < startLineText.length && startLineText.charCodeAt(startTokenIndex + startToken.length) === CharCode.Space) {
+				// Pretend the start token contains a trailing space
+				startToken = startToken + ' ';
 			}
 
-			if (endTokenIndex > 0) {
-				if (endLineText.charCodeAt(endTokenIndex - 1) === CharCode.Space) {
-					// Pretend the end token contains a leading space
-					endToken = ' ' + endToken;
-					endTokenIndex -= 1;
-				}
+			if (insertSpace && endTokenIndex > 0 && endLineText.charCodeAt(endTokenIndex - 1) === CharCode.Space) {
+				// Pretend the end token contains a leading space
+				endToken = ' ' + endToken;
+				endTokenIndex -= 1;
 			}
 			ops = BlockCommentCommand._createRemoveBlockCommentOperations(
 				new Range(startLineNumber, startTokenIndex + startToken.length + 1, endLineNumber, endTokenIndex + 1), startToken, endToken
 			);
 		} else {
-			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken);
+			ops = BlockCommentCommand._createAddBlockCommentOperations(selection, startToken, endToken, this._insertSpace);
 			this._usedEndToken = ops.length === 1 ? endToken : null;
 		}
 
@@ -144,15 +142,15 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string): IIdentifiedSingleEditOperation[] {
+	public static _createAddBlockCommentOperations(r: Range, startToken: string, endToken: string, insertSpace: boolean): IIdentifiedSingleEditOperation[] {
 		let res: IIdentifiedSingleEditOperation[] = [];
 
 		if (!Range.isEmpty(r)) {
 			// Insert block comment start
-			res.push(EditOperation.insert(new Position(r.startLineNumber, r.startColumn), startToken + ' '));
+			res.push(EditOperation.insert(new Position(r.startLineNumber, r.startColumn), startToken + (insertSpace ? ' ' : '')));
 
 			// Insert block comment end
-			res.push(EditOperation.insert(new Position(r.endLineNumber, r.endColumn), ' ' + endToken));
+			res.push(EditOperation.insert(new Position(r.endLineNumber, r.endColumn), (insertSpace ? ' ' : '') + endToken));
 		} else {
 			// Insert both continuously
 			res.push(EditOperation.replace(new Range(
@@ -164,7 +162,7 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 		return res;
 	}
 
-	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
+	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 		const startLineNumber = this._selection.startLineNumber;
 		const startColumn = this._selection.startColumn;
 
@@ -176,10 +174,10 @@ export class BlockCommentCommand implements editorCommon.ICommand {
 			return;
 		}
 
-		this._createOperationsForBlockComment(this._selection, config.blockCommentStartToken, config.blockCommentEndToken, model, builder);
+		this._createOperationsForBlockComment(this._selection, config.blockCommentStartToken, config.blockCommentEndToken, this._insertSpace, model, builder);
 	}
 
-	public computeCursorState(model: ITextModel, helper: editorCommon.ICursorStateComputerData): Selection {
+	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		const inverseEditOperations = helper.getInverseEditOperations();
 		if (inverseEditOperations.length === 2) {
 			const startTokenEditOperation = inverseEditOperations[0];

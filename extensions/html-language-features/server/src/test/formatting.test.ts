@@ -7,11 +7,9 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import * as assert from 'assert';
-import { getLanguageModes } from '../modes/languageModes';
-import { TextDocument, Range, FormattingOptions } from 'vscode-languageserver-types';
+import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes';
 
 import { format } from '../modes/formatting';
-import { ClientCapabilities } from 'vscode-html-languageservice';
 
 suite('HTML Embedded Formatting', () => {
 
@@ -20,7 +18,7 @@ suite('HTML Embedded Formatting', () => {
 			settings: options,
 			folders: [{ name: 'foo', uri: 'test://foo' }]
 		};
-		var languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
+		let languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST);
 
 		let rangeStartOffset = value.indexOf('|');
 		let rangeEndOffset;
@@ -169,7 +167,7 @@ suite('HTML Embedded Formatting', () => {
 			}
 		};
 
-		var content = [
+		const content = [
 			'<html>',
 			'',
 			'<body>',
@@ -180,7 +178,7 @@ suite('HTML Embedded Formatting', () => {
 			'</html>',
 		].join('\n');
 
-		var expected = [
+		const expected = [
 			'<html>',
 			'',
 			'<body>',

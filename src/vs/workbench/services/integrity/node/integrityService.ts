@@ -82,7 +82,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 
 	private _prompt(): void {
 		const storedData = this._storage.get();
-		if (storedData && storedData.dontShowPrompt && storedData.commit === product.commit) {
+		if (storedData?.dontShowPrompt && storedData.commit === product.commit) {
 			return; // Do not prompt
 		}
 
@@ -144,7 +144,7 @@ export class IntegrityServiceImpl implements IIntegrityService {
 		return new Promise<ChecksumPair>((resolve, reject) => {
 			fs.readFile(fileUri.fsPath, (err, buff) => {
 				if (err) {
-					return reject(err);
+					return resolve(IntegrityServiceImpl._createChecksumPair(fileUri, '', expected));
 				}
 				resolve(IntegrityServiceImpl._createChecksumPair(fileUri, this._computeChecksum(buff), expected));
 			});

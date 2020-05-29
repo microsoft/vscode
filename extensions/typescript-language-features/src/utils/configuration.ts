@@ -2,10 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as vscode from 'vscode';
-import * as arrays from './arrays';
+
 import * as os from 'os';
 import * as path from 'path';
+import * as vscode from 'vscode';
+import * as objects from '../utils/objects';
+import * as arrays from './arrays';
 
 export enum TsServerLogLevel {
 	Off,
@@ -50,11 +52,15 @@ export class TypeScriptServiceConfiguration {
 	public readonly localTsdk: string | null;
 	public readonly npmLocation: string | null;
 	public readonly tsServerLogLevel: TsServerLogLevel = TsServerLogLevel.Off;
-	public readonly tsServerPluginPaths: string[];
+	public readonly tsServerPluginPaths: readonly string[];
 	public readonly checkJs: boolean;
 	public readonly experimentalDecorators: boolean;
 	public readonly disableAutomaticTypeAcquisition: boolean;
 	public readonly useSeparateSyntaxServer: boolean;
+	public readonly enableProjectDiagnostics: boolean;
+	public readonly maxTsServerMemory: number;
+	public readonly enablePromptUseWorkspaceTsdk: boolean;
+	public readonly watchOptions: protocol.WatchOptions | undefined;
 
 	public static loadFromWorkspace(): TypeScriptServiceConfiguration {
 		return new TypeScriptServiceConfiguration();
@@ -73,6 +79,10 @@ export class TypeScriptServiceConfiguration {
 		this.experimentalDecorators = TypeScriptServiceConfiguration.readExperimentalDecorators(configuration);
 		this.disableAutomaticTypeAcquisition = TypeScriptServiceConfiguration.readDisableAutomaticTypeAcquisition(configuration);
 		this.useSeparateSyntaxServer = TypeScriptServiceConfiguration.readUseSeparateSyntaxServer(configuration);
+		this.enableProjectDiagnostics = TypeScriptServiceConfiguration.readEnableProjectDiagnostics(configuration);
+		this.maxTsServerMemory = TypeScriptServiceConfiguration.readMaxTsServerMemory(configuration);
+		this.enablePromptUseWorkspaceTsdk = TypeScriptServiceConfiguration.readEnablePromptUseWorkspaceTsdk(configuration);
+		this.watchOptions = TypeScriptServiceConfiguration.readWatchOptions(configuration);
 	}
 
 	public isEqualTo(other: TypeScriptServiceConfiguration): boolean {
@@ -85,7 +95,11 @@ export class TypeScriptServiceConfiguration {
 			&& this.experimentalDecorators === other.experimentalDecorators
 			&& this.disableAutomaticTypeAcquisition === other.disableAutomaticTypeAcquisition
 			&& arrays.equals(this.tsServerPluginPaths, other.tsServerPluginPaths)
-			&& this.useSeparateSyntaxServer === other.useSeparateSyntaxServer;
+			&& this.useSeparateSyntaxServer === other.useSeparateSyntaxServer
+			&& this.enableProjectDiagnostics === other.enableProjectDiagnostics
+			&& this.maxTsServerMemory === other.maxTsServerMemory
+			&& objects.equals(this.watchOptions, other.watchOptions)
+			&& this.enablePromptUseWorkspaceTsdk === other.enablePromptUseWorkspaceTsdk;
 	}
 
 	private static fixPathPrefixes(inspectValue: string): string {
@@ -145,5 +159,27 @@ export class TypeScriptServiceConfiguration {
 
 	private static readUseSeparateSyntaxServer(configuration: vscode.WorkspaceConfiguration): boolean {
 		return configuration.get<boolean>('typescript.tsserver.useSeparateSyntaxServer', true);
+	}
+
+	private static readEnableProjectDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.experimental.enableProjectDiagnostics', false);
+	}
+
+	private static readWatchOptions(configuration: vscode.WorkspaceConfiguration): protocol.WatchOptions | undefined {
+		return configuration.get<protocol.WatchOptions>('typescript.tsserver.watchOptions');
+	}
+
+	private static readMaxTsServerMemory(configuration: vscode.WorkspaceConfiguration): number {
+		const defaultMaxMemory = 3072;
+		const minimumMaxMemory = 128;
+		const memoryInMB = configuration.get<number>('typescript.tsserver.maxTsServerMemory', defaultMaxMemory);
+		if (!Number.isSafeInteger(memoryInMB)) {
+			return defaultMaxMemory;
+		}
+		return Math.max(memoryInMB, minimumMaxMemory);
+	}
+
+	private static readEnablePromptUseWorkspaceTsdk(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.enablePromptUseWorkspaceTsdk', false);
 	}
 }

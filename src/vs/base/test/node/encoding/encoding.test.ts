@@ -6,10 +6,12 @@
 import * as assert from 'assert';
 import * as fs from 'fs';
 import * as encoding from 'vs/base/node/encoding';
+import * as terminalEncoding from 'vs/base/node/terminalEncoding';
 import { Readable } from 'stream';
+import * as iconv from 'iconv-lite';
 import { getPathFromAmdModule } from 'vs/base/common/amd';
 
-export async function detectEncodingByBOM(file: string): Promise<string | null> {
+export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
 		const { buffer, bytesRead } = await readExactlyByFile(file, 3);
 
@@ -86,7 +88,7 @@ suite('Encoding', () => {
 		const file = getPathFromAmdModule(require, './fixtures/some_utf8.css');
 
 		const detectedEncoding = await detectEncodingByBOM(file);
-		assert.equal(detectedEncoding, 'utf8');
+		assert.equal(detectedEncoding, 'utf8bom');
 	});
 
 	test('detectBOM UTF-16 LE', async () => {
@@ -118,14 +120,14 @@ suite('Encoding', () => {
 	});
 
 	test('resolve terminal encoding (detect)', async function () {
-		const enc = await encoding.resolveTerminalEncoding();
-		assert.ok(encoding.encodingExists(enc));
+		const enc = await terminalEncoding.resolveTerminalEncoding();
+		assert.ok(enc.length > 0);
 	});
 
 	test('resolve terminal encoding (environment)', async function () {
 		process.env['VSCODE_CLI_ENCODING'] = 'utf16le';
 
-		const enc = await encoding.resolveTerminalEncoding();
+		const enc = await terminalEncoding.resolveTerminalEncoding();
 		assert.ok(encoding.encodingExists(enc));
 		assert.equal(enc, 'utf16le');
 	});
@@ -189,6 +191,20 @@ suite('Encoding', () => {
 		assert.equal(mimes.seemsBinary, false);
 	});
 
+	test('autoGuessEncoding (UTF8)', async function () {
+		const file = getPathFromAmdModule(require, './fixtures/some_file.css');
+		const buffer = await readExactlyByFile(file, 512 * 8);
+		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
+		assert.equal(mimes.encoding, 'utf8');
+	});
+
+	test('autoGuessEncoding (ASCII)', async function () {
+		const file = getPathFromAmdModule(require, './fixtures/some_ansi.css');
+		const buffer = await readExactlyByFile(file, 512 * 8);
+		const mimes = await encoding.detectEncodingFromBuffer(buffer, true);
+		assert.equal(mimes.encoding, null);
+	});
+
 	test('autoGuessEncoding (ShiftJIS)', async function () {
 		const file = getPathFromAmdModule(require, './fixtures/some.shiftjis.txt');
 		const buffer = await readExactlyByFile(file, 512 * 8);
@@ -209,7 +225,7 @@ suite('Encoding', () => {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(encoding.decode(data, fileEncoding!));
+					resolve(iconv.decode(data, encoding.toNodeEncoding(fileEncoding!)));
 				}
 			});
 		});

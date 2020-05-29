@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { isWindows } from 'vs/base/common/platform';
 import { WorkspaceFolder } from 'vs/platform/workspace/common/workspace';

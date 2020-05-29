@@ -5,11 +5,13 @@
 
 import { Client } from 'vs/base/parts/ipc/common/ipc.net';
 import { connect } from 'vs/base/parts/ipc/node/ipc.net';
-import { IElectronEnvironmentService } from 'vs/workbench/services/electron/electron-browser/electronEnvironmentService';
 import { IChannel, IServerChannel, getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-browser/sharedProcessService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 export class SharedProcessService implements ISharedProcessService {
 
@@ -20,12 +22,13 @@ export class SharedProcessService implements ISharedProcessService {
 
 	constructor(
 		@IMainProcessService mainProcessService: IMainProcessService,
-		@IElectronEnvironmentService environmentService: IElectronEnvironmentService
+		@IElectronService electronService: IElectronService,
+		@IWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService
 	) {
 		this.sharedProcessMainChannel = mainProcessService.getChannel('sharedProcess');
 
 		this.withSharedProcessConnection = this.whenSharedProcessReady()
-			.then(() => connect(environmentService.sharedIPCHandle, `window:${environmentService.windowId}`));
+			.then(() => connect(environmentService.sharedIPCHandle, `window:${electronService.windowId}`));
 	}
 
 	whenSharedProcessReady(): Promise<void> {

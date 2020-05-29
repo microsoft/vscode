@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./accessibilityHelp';
-import * as browser from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
@@ -37,7 +36,7 @@ const CONTEXT_ACCESSIBILITY_WIDGET_VISIBLE = new RawContextKey<boolean>('accessi
 
 class AccessibilityHelpController extends Disposable
 	implements IEditorContribution {
-	private static readonly ID = 'editor.contrib.accessibilityHelpController';
+	public static readonly ID = 'editor.contrib.accessibilityHelpController';
 
 	public static get(editor: ICodeEditor): AccessibilityHelpController {
 		return editor.getContribution<AccessibilityHelpController>(
@@ -58,10 +57,6 @@ class AccessibilityHelpController extends Disposable
 		this._widget = this._register(
 			instantiationService.createInstance(AccessibilityHelpWidget, this._editor)
 		);
-	}
-
-	public getId(): string {
-		return AccessibilityHelpController.ID;
 	}
 
 	public show(): void {
@@ -334,8 +329,12 @@ class ShowAccessibilityHelpAction extends EditorAction {
 			precondition: undefined,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
-				primary: (browser.isIE ? KeyMod.CtrlCmd | KeyCode.F1 : KeyMod.Alt | KeyCode.F1),
-				weight: KeybindingWeight.EditorContrib
+				primary: KeyMod.Alt | KeyCode.F1,
+				weight: KeybindingWeight.EditorContrib,
+				linux: {
+					primary: KeyMod.Alt | KeyMod.Shift | KeyCode.F1,
+					secondary: [KeyMod.Alt | KeyCode.F1]
+				}
 			}
 		});
 	}
@@ -348,7 +347,7 @@ class ShowAccessibilityHelpAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(AccessibilityHelpController);
+registerEditorContribution(AccessibilityHelpController.ID, AccessibilityHelpController);
 registerEditorAction(ShowAccessibilityHelpAction);
 
 const AccessibilityHelpCommand = EditorCommand.bindToContribution<AccessibilityHelpController>(AccessibilityHelpController.get);

@@ -8,17 +8,13 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService, JSONEditingError, JSONEditingErrorCode } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceIdentifier, IWorkspaceFolderCreationData, IWorkspacesService, rewriteWorkspaceFileForNewLocation, WORKSPACE_FILTER, IEnterWorkspaceResult, hasWorkspaceFileExtension, WORKSPACE_EXTENSION, isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ConfigurationScope, IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IBackupFileService, toBackupWorkspaceResource } from 'vs/workbench/services/backup/common/backup';
-import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { distinct } from 'vs/base/common/arrays';
-import { isEqual, getComparisonKey } from 'vs/base/common/resources';
+import { isEqual, getComparisonKey, isEqualAuthority } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -27,6 +23,7 @@ import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { Schemas } from 'vs/base/common/network';
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
@@ -36,9 +33,6 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@IWorkspaceContextService private readonly contextService: WorkspaceService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@IBackupFileService private readonly backupFileService: IBackupFileService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IFileService private readonly fileService: IFileService,
@@ -50,13 +44,25 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		@IHostService protected readonly hostService: IHostService
 	) { }
 
-	pickNewWorkspacePath(): Promise<URI | undefined> {
-		return this.fileDialogService.showSaveDialog({
+	async pickNewWorkspacePath(): Promise<URI | undefined> {
+		let workspacePath = await this.fileDialogService.showSaveDialog({
 			saveLabel: mnemonicButtonLabel(nls.localize('save', "Save")),
 			title: nls.localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultUri: this.fileDialogService.defaultWorkspacePath()
 		});
+
+		if (!workspacePath) {
+			return; // canceled
+		}
+
+		if (!hasWorkspaceFileExtension(workspacePath)) {
+			// Always ensure we have workspace file extension
+			// (see https://github.com/microsoft/vscode/issues/84818)
+			workspacePath = workspacePath.with({ path: `${workspacePath.path}.${WORKSPACE_EXTENSION}` });
+		}
+
+		return workspacePath;
 	}
 
 	updateFolders(index: number, deleteCount?: number, foldersToAdd?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {
@@ -122,13 +128,10 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	private async doAddFolders(foldersToAdd: IWorkspaceFolderCreationData[], index?: number, donotNotifyError: boolean = false): Promise<void> {
 		const state = this.contextService.getWorkbenchState();
-		if (this.environmentService.configuration.remoteAuthority) {
-
-			// Do not allow workspace folders with scheme different than the current remote scheme
-			const schemas = this.contextService.getWorkspace().folders.map(f => f.uri.scheme);
-			if (schemas.length && foldersToAdd.some(f => schemas.indexOf(f.uri.scheme) === -1)) {
-				return Promise.reject(new Error(nls.localize('differentSchemeRoots', "Workspace folders from different providers are not allowed in the same workspace.")));
-			}
+		const remoteAuthority = this.environmentService.configuration.remoteAuthority;
+		if (remoteAuthority) {
+			// https://github.com/microsoft/vscode/issues/94191
+			foldersToAdd = foldersToAdd.filter(f => f.uri.scheme !== Schemas.file && (f.uri.scheme !== Schemas.vscodeRemote || isEqualAuthority(f.uri.authority, remoteAuthority)));
 		}
 
 		// If we are in no-workspace or single-folder workspace, adding folders has to
@@ -229,9 +232,11 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			return;
 		}
 
+		const isFromUntitledWorkspace = isUntitledWorkspace(configPathURI, this.environmentService);
+
 		// Read the contents of the workspace file, update it to new location and save it.
 		const raw = await this.fileService.readFile(configPathURI);
-		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, targetConfigPathURI);
+		const newRawWorkspaceContents = rewriteWorkspaceFileForNewLocation(raw.value.toString(), configPathURI, isFromUntitledWorkspace, targetConfigPathURI);
 		await this.textFileService.create(targetConfigPathURI, newRawWorkspaceContents, { overwrite: true });
 	}
 
@@ -267,7 +272,9 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		);
 	}
 
-	async enterWorkspace(path: URI): Promise<void> {
+	abstract async enterWorkspace(path: URI): Promise<void>;
+
+	protected async doEnterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null> {
 		if (!!this.environmentService.extensionTestsLocationURI) {
 			throw new Error('Entering a new workspace is not possible in tests.');
 		}
@@ -282,34 +289,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 		const workspaceImpl = this.contextService as WorkspaceService;
 		await workspaceImpl.initialize(workspace);
 
-		const result = await this.workspacesService.enterWorkspace(path);
-		if (result) {
-
-			// Migrate storage to new workspace
-			await this.migrateStorage(result.workspace);
-
-			// Reinitialize backup service
-			this.environmentService.configuration.backupPath = result.backupPath;
-			this.environmentService.configuration.backupWorkspaceResource = result.backupPath ? toBackupWorkspaceResource(result.backupPath, this.environmentService) : undefined;
-			if (this.backupFileService instanceof BackupFileService) {
-				this.backupFileService.reinitialize();
-			}
-		}
-
-		// TODO@aeschli: workaround until restarting works
-		if (this.environmentService.configuration.remoteAuthority) {
-			this.hostService.reload();
-		}
-
-		// Restart the extension host: entering a workspace means a new location for
-		// storage and potentially a change in the workspace.rootPath property.
-		else {
-			this.extensionService.restartExtensionHost();
-		}
-	}
-
-	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
-		return this.storageService.migrate(toWorkspace);
+		return this.workspacesService.enterWorkspace(path);
 	}
 
 	private migrateWorkspaceSettings(toWorkspace: IWorkspaceIdentifier): Promise<void> {
@@ -329,7 +309,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 					continue;
 				}
 
-				targetWorkspaceConfiguration[key] = this.configurationService.inspect(key).workspace;
+				targetWorkspaceConfiguration[key] = this.configurationService.inspect(key).workspaceValue;
 			}
 		}
 
@@ -338,7 +318,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 
 	protected getCurrentWorkspaceIdentifier(): IWorkspaceIdentifier | undefined {
 		const workspace = this.contextService.getWorkspace();
-		if (workspace && workspace.configuration) {
+		if (workspace?.configuration) {
 			return { id: workspace.id, configPath: workspace.configuration };
 		}
 

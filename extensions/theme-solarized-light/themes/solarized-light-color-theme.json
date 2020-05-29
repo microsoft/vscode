@@ -3,14 +3,12 @@
 	"tokenColors": [
 		{
 			"settings": {
-				"background": "#FDF6E3",
 				"foreground": "#657B83"
 			}
 		},
 		{
 			"scope": ["meta.embedded", "source.groovy.embedded"],
 			"settings": {
-				"background": "#FDF6E3",
 				"foreground": "#657B83"
 			}
 		},
@@ -184,7 +182,10 @@
 		},
 		{
 			"name": "Library constant",
-			"scope": "support.constant",
+			"scope": [
+				"support.constant",
+				"support.variable"
+			],
 			"settings": {}
 		},
 		{
@@ -486,5 +487,6 @@
 
 		// Interactive Playground
 		"walkThrough.embeddedEditorBackground": "#00000014"
-	}
+	},
+	"semanticHighlighting": true
 }

@@ -6,8 +6,9 @@
 import * as nls from 'vs/nls';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { app, shell, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, Event, Event as KeyboardEvent } from 'electron';
-import { OpenContext, IRunActionInWindowRequest, getTitleBarStyle, IRunKeybindingInWindowRequest, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { app, shell, Menu, MenuItem, BrowserWindow, MenuItemConstructorOptions, WebContents, Event, KeyboardEvent } from 'electron';
+import { getTitleBarStyle, IWindowOpenable } from 'vs/platform/windows/common/windows';
+import { OpenContext, IRunActionInWindowRequest, IRunKeybindingInWindowRequest } from 'vs/platform/windows/node/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdateService, StateType } from 'vs/platform/update/common/update';
@@ -17,11 +18,13 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { mnemonicMenuLabel as baseMnemonicLabel } from 'vs/base/common/labels';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
-import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/node/menubar';
+import { IMenubarData, IMenubarKeybinding, MenubarMenuItem, isMenubarMenuItemSeparator, isMenubarMenuItemSubmenu, isMenubarMenuItemAction, IMenubarMenu, isMenubarMenuItemUriAction } from 'vs/platform/menubar/common/menubar';
 import { URI } from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
+import { IElectronMainService } from 'vs/platform/electron/electron-main/electronMainService';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 
 const telemetryFrom = 'menu';
 
@@ -43,8 +46,8 @@ export class Menubar {
 
 	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubarData';
 
-	private willShutdown: boolean;
-	private appMenuInstalled: boolean;
+	private willShutdown: boolean | undefined;
+	private appMenuInstalled: boolean | undefined;
 	private closedLastWindow: boolean;
 
 	private menuUpdater: RunOnceScheduler;
@@ -58,18 +61,19 @@ export class Menubar {
 
 	private keybindings: { [commandId: string]: IMenubarKeybinding };
 
-	private fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event) => void } = {};
+	private readonly fallbackMenuHandlers: { [id: string]: (menuItem: MenuItem, browserWindow: BrowserWindow, event: Event) => void } = Object.create(null);
 
 	constructor(
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspacesHistoryMainService private readonly workspacesHistoryMainService: IWorkspacesHistoryMainService,
 		@IStateService private readonly stateService: IStateService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IElectronMainService private readonly electronMainService: IElectronMainService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -109,10 +113,10 @@ export class Menubar {
 	private addFallbackHandlers(): void {
 
 		// File Menu Items
-		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = () => this.windowsMainService.openEmptyWindow(OpenContext.MENU);
-		this.fallbackMenuHandlers['workbench.action.newWindow'] = () => this.windowsMainService.openEmptyWindow(OpenContext.MENU);
-		this.fallbackMenuHandlers['workbench.action.files.openFileFolder'] = (menuItem, win, event) => this.windowsMainService.pickFileFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
-		this.fallbackMenuHandlers['workbench.action.openWorkspace'] = (menuItem, win, event) => this.windowsMainService.pickWorkspaceAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
+		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win.id });
+		this.fallbackMenuHandlers['workbench.action.newWindow'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win.id });
+		this.fallbackMenuHandlers['workbench.action.files.openFileFolder'] = (menuItem, win, event) => this.electronMainService.pickFileFolderAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
+		this.fallbackMenuHandlers['workbench.action.openWorkspace'] = (menuItem, win, event) => this.electronMainService.pickWorkspaceAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 
 		// Recent Menu Items
 		this.fallbackMenuHandlers['workbench.action.clearRecentFiles'] = () => this.workspacesHistoryMainService.clearRecentlyOpened();
@@ -262,7 +266,7 @@ export class Menubar {
 			this.appMenuInstalled = true;
 
 			const dockMenu = new Menu();
-			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openEmptyWindow(OpenContext.DOCK) }));
+			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openEmptyWindow({ context: OpenContext.DOCK }) }));
 
 			app.dock.setMenu(dockMenu);
 		}
@@ -304,9 +308,9 @@ export class Menubar {
 
 		// Debug
 		const debugMenu = new Menu();
-		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
+		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")), submenu: debugMenu });
 
-		this.setMenuById(debugMenu, 'Debug');
+		this.setMenuById(debugMenu, 'Run');
 		menubar.append(debugMenuItem);
 
 		// Terminal
@@ -359,16 +363,17 @@ export class Menubar {
 		const servicesMenu = new Menu();
 		const services = new MenuItem({ label: nls.localize('mServices', "Services"), role: 'services', submenu: servicesMenu });
 		const hide = new MenuItem({ label: nls.localize('mHide', "Hide {0}", product.nameLong), role: 'hide', accelerator: 'Command+H' });
-		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideothers', accelerator: 'Command+Alt+H' });
+		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideOthers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
 			label: nls.localize('miQuit', "Quit {0}", product.nameLong), click: () => {
+				const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 				if (
-					this.windowsMainService.getWindowCount() === 0 || 				// allow to quit when no more windows are open
-					!!BrowserWindow.getFocusedWindow() ||							// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
-					this.windowsMainService.getLastActiveWindow()!.isMinimized()	// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
+					this.windowsMainService.getWindowCount() === 0 || 	// allow to quit when no more windows are open
+					!!BrowserWindow.getFocusedWindow() ||				// allow to quit when window has focus (fix for https://github.com/Microsoft/vscode/issues/39191)
+					lastActiveWindow?.isMinimized()						// allow to quit when window has no focus but is minimized (https://github.com/Microsoft/vscode/issues/63000)
 				) {
-					this.windowsMainService.quit();
+					this.electronMainService.quit(undefined);
 				}
 			}
 		}));
@@ -488,7 +493,7 @@ export class Menubar {
 				}).length > 0;
 
 				if (!success) {
-					this.workspacesHistoryMainService.removeFromRecentlyOpened([revivedUri]);
+					this.workspacesHistoryMainService.removeRecentlyOpened([revivedUri]);
 				}
 			}
 		}, false));
@@ -529,6 +534,7 @@ export class Menubar {
 		[
 			minimize,
 			zoom,
+			__separator__(),
 			switchWindow,
 			...nativeTabMenuItems,
 			__separator__(),
@@ -548,8 +554,8 @@ export class Menubar {
 					label: this.mnemonicLabel(nls.localize('miCheckForUpdates', "Check for &&Updates...")), click: () => setTimeout(() => {
 						this.reportMenuActionTelemetry('CheckForUpdate');
 
-						const focusedWindow = BrowserWindow.getFocusedWindow();
-						const context = focusedWindow ? { windowId: focusedWindow.id } : null;
+						const window = this.windowsMainService.getLastActiveWindow();
+						const context = window && `window:${window.id}`; // sessionId
 						this.updateService.checkForUpdates(context);
 					}, 0)
 				})];
@@ -696,7 +702,8 @@ export class Menubar {
 			}
 
 			// DevTools focused
-			if (activeWindow.webContents.isDevToolsFocused()) {
+			if (activeWindow.webContents.isDevToolsFocused() &&
+				activeWindow.webContents.devToolsWebContents) {
 				return contextSpecificHandlers.inDevTools(activeWindow.webContents.devToolsWebContents);
 			}
 
@@ -714,7 +721,7 @@ export class Menubar {
 		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
 		if (!activeBrowserWindow) {
 			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
-			if (lastActiveWindow && lastActiveWindow.isMinimized()) {
+			if (lastActiveWindow?.isMinimized()) {
 				activeBrowserWindow = lastActiveWindow.win;
 			}
 		}
@@ -746,7 +753,7 @@ export class Menubar {
 		const binding = typeof commandId === 'string' ? this.keybindings[commandId] : undefined;
 
 		// Apply binding if there is one
-		if (binding && binding.label) {
+		if (binding?.label) {
 
 			// if the binding is native, we can just apply it
 			if (binding.isNative !== false) {

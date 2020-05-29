@@ -18,8 +18,7 @@ import { lazy, Lazy } from './utils/lazy';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import ManagedFileContextManager from './utils/managedFileContext';
 import { PluginManager } from './utils/plugins';
-import * as ProjectStatus from './utils/projectStatus';
-import { Surveyor } from './utils/surveyor';
+import * as ProjectStatus from './utils/largeProjectStatus';
 import TscTaskProvider from './features/task';
 
 export function activate(
@@ -39,7 +38,7 @@ export function activate(
 	});
 
 	registerCommands(commandManager, lazyClientHost, pluginManager);
-	context.subscriptions.push(vscode.workspace.registerTaskProvider('typescript', new TscTaskProvider(lazyClientHost.map(x => x.serviceClient))));
+	context.subscriptions.push(vscode.tasks.registerTaskProvider('typescript', new TscTaskProvider(lazyClientHost.map(x => x.serviceClient))));
 	context.subscriptions.push(new LanguageConfigurationManager());
 
 	import('./features/tsconfig').then(module => {
@@ -70,8 +69,6 @@ function createLazyClientHost(
 
 		context.subscriptions.push(clientHost);
 
-		context.subscriptions.push(new Surveyor(context.globalState, clientHost.serviceClient));
-
 		clientHost.serviceClient.onReady(() => {
 			context.subscriptions.push(
 				ProjectStatus.create(
@@ -99,7 +96,6 @@ function lazilyActivateClient(
 		if (!hasActivated && isSupportedDocument(supportedLanguage, textDocument)) {
 			hasActivated = true;
 			// Force activation
-			// tslint:disable-next-line:no-unused-expression
 			void lazyClientHost.value;
 
 			disposables.push(new ManagedFileContextManager(resource => {

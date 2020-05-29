@@ -5,18 +5,36 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import * as Proto from '../protocol';
+import { LearnMoreAboutRefactoringsCommand } from '../commands/learnMoreAboutRefactorings';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { nulToken } from '../utils/cancellation';
 import { Command, CommandManager } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import TelemetryReporter from '../utils/telemetry';
+import * as fileSchemes from '../utils/fileSchemes';
+import { TelemetryReporter } from '../utils/telemetry';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
-import * as fileSchemes from '../utils/fileSchemes';
 
 const localize = nls.loadMessageBundle();
+
+
+namespace Experimental {
+	export interface RefactorActionInfo extends Proto.RefactorActionInfo {
+		readonly error?: string
+	}
+
+	export type RefactorTriggerReason = RefactorInvokedReason;
+
+	export interface RefactorInvokedReason {
+		readonly kind: 'invoked';
+	}
+
+	export interface GetApplicableRefactorsRequestArgs extends Proto.FileRangeRequestArgs {
+		readonly triggerReason?: RefactorTriggerReason;
+	}
+}
 
 
 class ApplyRefactoringCommand implements Command {
@@ -123,13 +141,76 @@ class SelectRefactorCommand implements Command {
 	}
 }
 
+interface CodeActionKind {
+	readonly kind: vscode.CodeActionKind;
+	matches(refactor: Proto.RefactorActionInfo): boolean;
+}
+
+const Extract_Function = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorExtract.append('function'),
+	matches: refactor => refactor.name.startsWith('function_')
+});
+
+const Extract_Constant = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorExtract.append('constant'),
+	matches: refactor => refactor.name.startsWith('constant_')
+});
+
+const Extract_Type = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorExtract.append('type'),
+	matches: refactor => refactor.name.startsWith('Extract to type alias')
+});
+
+const Extract_Interface = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorExtract.append('interface'),
+	matches: refactor => refactor.name.startsWith('Extract to interface')
+});
+
+const Move_NewFile = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.Refactor.append('move').append('newFile'),
+	matches: refactor => refactor.name.startsWith('Move to a new file')
+});
+
+const Rewrite_Import = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('import'),
+	matches: refactor => refactor.name.startsWith('Convert namespace import') || refactor.name.startsWith('Convert named imports')
+});
+
+const Rewrite_Export = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('export'),
+	matches: refactor => refactor.name.startsWith('Convert default export') || refactor.name.startsWith('Convert named export')
+});
+
+const Rewrite_Arrow_Braces = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('arrow').append('braces'),
+	matches: refactor => refactor.name.startsWith('Convert default export') || refactor.name.startsWith('Convert named export')
+});
+
+const Rewrite_Parameters_ToDestructured = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('parameters').append('toDestructured'),
+	matches: refactor => refactor.name.startsWith('Convert parameters to destructured object')
+});
+
+const Rewrite_Property_GenerateAccessors = Object.freeze<CodeActionKind>({
+	kind: vscode.CodeActionKind.RefactorRewrite.append('property').append('generateAccessors'),
+	matches: refactor => refactor.name.startsWith('Generate \'get\' and \'set\' accessors')
+});
+
+const allKnownCodeActionKinds = [
+	Extract_Function,
+	Extract_Constant,
+	Extract_Type,
+	Extract_Interface,
+	Move_NewFile,
+	Rewrite_Import,
+	Rewrite_Export,
+	Rewrite_Arrow_Braces,
+	Rewrite_Parameters_ToDestructured,
+	Rewrite_Property_GenerateAccessors
+];
+
 class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	public static readonly minVersion = API.v240;
-
-	private static readonly extractFunctionKind = vscode.CodeActionKind.RefactorExtract.append('function');
-	private static readonly extractConstantKind = vscode.CodeActionKind.RefactorExtract.append('constant');
-	private static readonly extractTypeKind = vscode.CodeActionKind.RefactorExtract.append('type');
-	private static readonly moveKind = vscode.CodeActionKind.Refactor.append('move');
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -142,7 +223,19 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	public static readonly metadata: vscode.CodeActionProviderMetadata = {
-		providedCodeActionKinds: [vscode.CodeActionKind.Refactor],
+		providedCodeActionKinds: [
+			vscode.CodeActionKind.Refactor,
+			...allKnownCodeActionKinds.map(x => x.kind),
+		],
+		documentation: [
+			{
+				kind: vscode.CodeActionKind.Refactor,
+				command: {
+					command: LearnMoreAboutRefactoringsCommand.id,
+					title: localize('refactor.documentation.title', "Learn more about JS/TS refactorings")
+				}
+			}
+		]
 	};
 
 	public async provideCodeActions(
@@ -165,14 +258,28 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 			}
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
-			const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
+			const args: Experimental.GetApplicableRefactorsRequestArgs = {
+				...typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection),
+				triggerReason: this.toTsTriggerReason(context),
+			};
 			return this.client.execute('getApplicableRefactors', args, token);
 		});
-		if (!response || response.type !== 'response' || !response.body) {
+		if (response?.type !== 'response' || !response.body) {
 			return undefined;
 		}
 
-		return this.convertApplicableRefactors(response.body, document, rangeOrSelection);
+		const actions = this.convertApplicableRefactors(response.body, document, rangeOrSelection);
+		if (!context.only) {
+			return actions;
+		}
+		return this.appendInvalidActions(actions);
+	}
+
+	private toTsTriggerReason(context: vscode.CodeActionContext): Experimental.RefactorInvokedReason | undefined {
+		if (!context.only) {
+			return;
+		}
+		return { kind: 'invoked' };
 	}
 
 	private convertApplicableRefactors(
@@ -192,7 +299,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 				actions.push(codeAction);
 			} else {
 				for (const action of info.actions) {
-					actions.push(this.refactorActionToCodeAction(action, document, info, rangeOrSelection));
+					actions.push(this.refactorActionToCodeAction(action, document, info, rangeOrSelection, info.actions));
 				}
 			}
 		}
@@ -200,18 +307,26 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private refactorActionToCodeAction(
-		action: Proto.RefactorActionInfo,
+		action: Experimental.RefactorActionInfo,
 		document: vscode.TextDocument,
 		info: Proto.ApplicableRefactorInfo,
-		rangeOrSelection: vscode.Range | vscode.Selection
+		rangeOrSelection: vscode.Range | vscode.Selection,
+		allActions: readonly Proto.RefactorActionInfo[],
 	) {
 		const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
+
+		// https://github.com/microsoft/TypeScript/pull/37871
+		if (action.error) {
+			codeAction.disabled = { reason: action.error };
+			return codeAction;
+		}
+
 		codeAction.command = {
 			title: action.description,
 			command: ApplyRefactoringCommand.ID,
 			arguments: [document, info.name, action.name, rangeOrSelection],
 		};
-		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action);
+		codeAction.isPreferred = TypeScriptRefactorProvider.isPreferred(action, allActions);
 		return codeAction;
 	}
 
@@ -224,28 +339,63 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {
-		if (refactor.name.startsWith('function_')) {
-			return TypeScriptRefactorProvider.extractFunctionKind;
-		} else if (refactor.name.startsWith('constant_')) {
-			return TypeScriptRefactorProvider.extractConstantKind;
-		} else if (refactor.name.startsWith('Move')) {
-			return TypeScriptRefactorProvider.moveKind;
-		} else if (refactor.name.includes('Extract to type alias')) {
-			return TypeScriptRefactorProvider.extractTypeKind;
-		}
-		return vscode.CodeActionKind.Refactor;
+		const match = allKnownCodeActionKinds.find(kind => kind.matches(refactor));
+		return match ? match.kind : vscode.CodeActionKind.Refactor;
 	}
 
 	private static isPreferred(
-		action: Proto.RefactorActionInfo
+		action: Proto.RefactorActionInfo,
+		allActions: readonly Proto.RefactorActionInfo[],
 	): boolean {
-		if (action.name.startsWith('constant_')) {
-			return action.name.endsWith('scope_0');
+		if (Extract_Constant.matches(action)) {
+			// Only mark the action with the lowest scope as preferred
+			const getScope = (name: string) => {
+				const scope = name.match(/scope_(\d)/)?.[1];
+				return scope ? +scope : undefined;
+			};
+			const scope = getScope(action.name);
+			if (typeof scope !== 'number') {
+				return false;
+			}
+
+			return allActions
+				.filter(otherAtion => otherAtion !== action && Extract_Constant.matches(otherAtion))
+				.every(otherAction => {
+					const otherScope = getScope(otherAction.name);
+					return typeof otherScope === 'number' ? scope < otherScope : true;
+				});
 		}
-		if (action.name.includes('Extract to type alias')) {
+		if (Extract_Type.matches(action) || Extract_Interface.matches(action)) {
 			return true;
 		}
 		return false;
+	}
+
+	private appendInvalidActions(actions: vscode.CodeAction[]): vscode.CodeAction[] {
+		if (!actions.some(action => action.kind && Extract_Constant.kind.contains(action.kind))) {
+			const disabledAction = new vscode.CodeAction(
+				localize('extractConstant.disabled.title', "Extract to constant"),
+				Extract_Constant.kind);
+
+			disabledAction.disabled = {
+				reason: localize('extractConstant.disabled.reason', "The current selection cannot be extracted"),
+			};
+			disabledAction.isPreferred = true;
+
+			actions.push(disabledAction);
+		}
+
+		if (!actions.some(action => action.kind && Extract_Function.kind.contains(action.kind))) {
+			const disabledAction = new vscode.CodeAction(
+				localize('extractFunction.disabled.title', "Extract to function"),
+				Extract_Function.kind);
+
+			disabledAction.disabled = {
+				reason: localize('extractFunction.disabled.reason', "The current selection cannot be extracted"),
+			};
+			actions.push(disabledAction);
+		}
+		return actions;
 	}
 }
 

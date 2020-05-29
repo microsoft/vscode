@@ -12,6 +12,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { Workspace, toWorkspaceFolders, IWorkspace, IWorkspaceContextService, toWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { mock } from 'vs/editor/contrib/suggest/test/suggestModel.test';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Snippet Variables Resolver', function () {
 
@@ -25,7 +26,7 @@ suite('Snippet Variables Resolver', function () {
 	let resolver: VariableResolver;
 
 	setup(function () {
-		model = TextModel.createFromString([
+		model = createTextModel([
 			'this is line one',
 			'this is line two',
 			'    this is line three'
@@ -67,7 +68,7 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
+			createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME', 'ghi');
 		if (!isWindows) {
@@ -77,7 +78,7 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('mem:fff.ts'))
+			createTextModel('', undefined, undefined, URI.parse('mem:fff.ts'))
 		);
 		assertVariableResolve(resolver, 'TM_DIRECTORY', '');
 		assertVariableResolve(resolver, 'TM_FILEPATH', 'fff.ts');
@@ -92,7 +93,7 @@ suite('Snippet Variables Resolver', function () {
 			}
 		};
 
-		const model = TextModel.createFromString([].join('\n'), undefined, undefined, URI.parse('foo:///foo/files/text.txt'));
+		const model = createTextModel([].join('\n'), undefined, undefined, URI.parse('foo:///foo/files/text.txt'));
 
 		const resolver = new CompositeSnippetVariableResolver([new ModelBasedVariableResolver(labelService, model)]);
 
@@ -144,19 +145,19 @@ suite('Snippet Variables Resolver', function () {
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
+			createTextModel('', undefined, undefined, URI.parse('http://www.pb.o/abc/def/ghi'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'ghi');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('mem:.git'))
+			createTextModel('', undefined, undefined, URI.parse('mem:.git'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', '.git');
 
 		resolver = new ModelBasedVariableResolver(
 			labelService,
-			TextModel.createFromString('', undefined, undefined, URI.parse('mem:foo.'))
+			createTextModel('', undefined, undefined, URI.parse('mem:foo.'))
 		);
 		assertVariableResolve(resolver, 'TM_FILENAME_BASE', 'foo');
 	});
@@ -236,28 +237,28 @@ suite('Snippet Variables Resolver', function () {
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		assertVariableResolve(new ClipboardBasedVariableResolver(undefined, 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => undefined, 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver(null!, 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => null!, 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('', 1, 0, true), 'CLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => '', 1, 0, true), 'CLIPBOARD', undefined);
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'CLIPBOARD', 'foo');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'CLIPBOARD', 'foo');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'foo', undefined);
-		assertVariableResolve(new ClipboardBasedVariableResolver('foo', 1, 0, true), 'cLIPBOARD', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'foo', undefined);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'cLIPBOARD', undefined);
 	});
 
 	test('Add variable to insert value from clipboard to a snippet #40153', function () {
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1', 1, 2, true), 'CLIPBOARD', 'line1');
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1', 1, 2, true), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 1, 2, true), 'CLIPBOARD', 'line2');
-		resolver = new ClipboardBasedVariableResolver('line1\nline2', 0, 2, true);
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2, true), 'CLIPBOARD', 'line1');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 1, 2, true), 'CLIPBOARD', 'line2');
+		resolver = new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, true);
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, true), 'CLIPBOARD', 'line1');
 
-		assertVariableResolve(new ClipboardBasedVariableResolver('line1\nline2', 0, 2, false), 'CLIPBOARD', 'line1\nline2');
+		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2', 0, 2, false), 'CLIPBOARD', 'line1\nline2');
 	});
 
 
@@ -296,7 +297,7 @@ suite('Snippet Variables Resolver', function () {
 		assert.equal(snippet.toString(), 'It is not line 10');
 	});
 
-	test('Add workspace name variable for snippets #68261', function () {
+	test('Add workspace name and folder variables for snippets #68261', function () {
 
 		let workspace: IWorkspace;
 		let resolver: VariableResolver;
@@ -319,14 +320,21 @@ suite('Snippet Variables Resolver', function () {
 		// empty workspace
 		workspace = new Workspace('');
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', undefined);
+		assertVariableResolve(resolver, 'WORKSPACE_FOLDER', undefined);
 
 		// single folder workspace without config
 		workspace = new Workspace('', [toWorkspaceFolder(URI.file('/folderName'))]);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'folderName');
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/folderName');
+		}
 
 		// workspace with config
 		const workspaceConfigPath = URI.file('testWorkspace.code-workspace');
 		workspace = new Workspace('', toWorkspaceFolders([{ path: 'folderName' }], workspaceConfigPath), workspaceConfigPath);
 		assertVariableResolve(resolver, 'WORKSPACE_NAME', 'testWorkspace');
+		if (!isWindows) {
+			assertVariableResolve(resolver, 'WORKSPACE_FOLDER', '/');
+		}
 	});
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { hash } from 'vs/base/common/hash';
+import { hash, StringSHA1 } from 'vs/base/common/hash';
 
 suite('Hash', () => {
 	test('string', () => {
@@ -42,5 +42,39 @@ suite('Hash', () => {
 		assert.equal(hash({ 'foo': 'bar', 'foo2': undefined }), hash({ 'foo2': undefined, 'foo': 'bar' }));
 		assert.notEqual(hash({ 'foo': 'bar' }), hash({ 'foo': 'bar2' }));
 		assert.notEqual(hash({}), hash([]));
+	});
+
+	test('array - unexpected collision', function () {
+		this.skip();
+		const a = hash([undefined, undefined, undefined, undefined, undefined]);
+		const b = hash([undefined, undefined, 'HHHHHH', [{ line: 0, character: 0 }, { line: 0, character: 0 }], undefined]);
+		// console.log(a);
+		// console.log(b);
+		assert.notEqual(a, b);
+	});
+
+	function checkSHA1(strings: string[], expected: string) {
+		const hash = new StringSHA1();
+		for (const str of strings) {
+			hash.update(str);
+		}
+		const actual = hash.digest();
+		assert.equal(actual, expected);
+	}
+
+	test('sha1-1', () => {
+		checkSHA1(['\udd56'], '9bdb77276c1852e1fb067820472812fcf6084024');
+	});
+
+	test('sha1-2', () => {
+		checkSHA1(['\udb52'], '9bdb77276c1852e1fb067820472812fcf6084024');
+	});
+
+	test('sha1-3', () => {
+		checkSHA1(['\uda02ꑍ'], '9b483a471f22fe7e09d83f221871a987244bbd3f');
+	});
+
+	test('sha1-4', () => {
+		checkSHA1(['hello'], 'aaf4c61ddcc5e8a2dabede0f3b482cd9aea9434d');
 	});
 });

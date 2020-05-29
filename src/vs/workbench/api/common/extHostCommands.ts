@@ -11,7 +11,7 @@ import { cloneAndChange } from 'vs/base/common/objects';
 import { MainContext, MainThreadCommandsShape, ExtHostCommandsShape, ObjectIdentifier, ICommandDto } from './extHost.protocol';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import * as modes from 'vs/editor/common/modes';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { revive } from 'vs/base/common/marshalling';
 import { Range } from 'vs/editor/common/core/range';
@@ -47,7 +47,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	) {
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadCommands);
 		this._logService = logService;
-		this._converter = new CommandsConverter(this);
+		this._converter = new CommandsConverter(this, logService);
 		this._argumentProcessors = [
 			{
 				processArgument(a) {
@@ -218,17 +218,20 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 export class CommandsConverter {
 
 	private readonly _delegatingCommandId: string;
-	private readonly _commands: ExtHostCommands;
 	private readonly _cache = new Map<number, vscode.Command>();
 	private _cachIdPool = 0;
 
 	// --- conversion between internal and api commands
-	constructor(commands: ExtHostCommands) {
+	constructor(
+		private readonly _commands: ExtHostCommands,
+		private readonly _logService: ILogService
+	) {
 		this._delegatingCommandId = `_vscode_delegate_cmd_${Date.now().toString(36)}`;
-		this._commands = commands;
 		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
+	toInternal(command: vscode.Command, disposables: DisposableStore): ICommandDto;
+	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined;
 	toInternal(command: vscode.Command | undefined, disposables: DisposableStore): ICommandDto | undefined {
 
 		if (!command) {
@@ -248,12 +251,16 @@ export class CommandsConverter {
 
 			const id = ++this._cachIdPool;
 			this._cache.set(id, command);
-			disposables.add(toDisposable(() => this._cache.delete(id)));
+			disposables.add(toDisposable(() => {
+				this._cache.delete(id);
+				this._logService.trace('CommandsConverter#DISPOSE', id);
+			}));
 			result.$ident = id;
 
 			result.id = this._delegatingCommandId;
 			result.arguments = [id];
 
+			this._logService.trace('CommandsConverter#CREATE', command.command, id);
 		}
 
 		return result;
@@ -276,6 +283,8 @@ export class CommandsConverter {
 
 	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
 		const actualCmd = this._cache.get(args[0]);
+		this._logService.trace('CommandsConverter#EXECUTE', args[0], actualCmd ? actualCmd.command : 'MISSING');
+
 		if (!actualCmd) {
 			return Promise.reject('actual command NOT FOUND');
 		}

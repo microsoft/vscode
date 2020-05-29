@@ -11,48 +11,63 @@ import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch
 import { Action, IAction } from 'vs/base/common/actions';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { SyncActionDescriptor, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
-import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { Extensions as ActionExtensions, IWorkbenchActionRegistry } from 'vs/workbench/common/actions';
 import { IActivity } from 'vs/workbench/common/activity';
-import { ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_ACTIVE_BORDER, ACTIVITY_BAR_ACTIVE_FOCUS_BORDER, ACTIVITY_BAR_ACTIVE_BACKGROUND, ACTIVITY_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IActivityBarService } from 'vs/workbench/services/activityBar/browser/activityBarService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { Codicon } from 'vs/base/common/codicons';
+import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { isMacintosh } from 'vs/base/common/platform';
 
-export class ViewletActivityAction extends ActivityAction {
+export class ViewContainerActivityAction extends ActivityAction {
 
 	private static readonly preventDoubleClickDelay = 300;
 
-	private lastRun: number = 0;
+	private readonly viewletService: IViewletService;
+	private readonly layoutService: IWorkbenchLayoutService;
+	private readonly telemetryService: ITelemetryService;
+
+	private lastRun: number;
 
 	constructor(
 		activity: IActivity,
-		@IViewletService private readonly viewletService: IViewletService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IViewletService viewletService: IViewletService,
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@ITelemetryService telemetryService: ITelemetryService
 	) {
 		super(activity);
+
+		this.lastRun = 0;
+		this.viewletService = viewletService;
+		this.layoutService = layoutService;
+		this.telemetryService = telemetryService;
 	}
 
-	async run(event: any): Promise<any> {
+	updateActivity(activity: IActivity): void {
+		this.activity = activity;
+	}
+
+	async run(event: unknown): Promise<void> {
 		if (event instanceof MouseEvent && event.button === 2) {
-			return false; // do not run on right click
+			return; // do not run on right click
 		}
 
 		// prevent accident trigger on a doubleclick (to help nervous people)
 		const now = Date.now();
-		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewletActivityAction.preventDoubleClickDelay) {
-			return true;
+		if (now > this.lastRun /* https://github.com/Microsoft/vscode/issues/25830 */ && now - this.lastRun < ViewContainerActivityAction.preventDoubleClickDelay) {
+			return;
 		}
 		this.lastRun = now;
 
@@ -60,10 +75,10 @@ export class ViewletActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 
 		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this.activity.id) {
+		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			this.logAction('hide');
 			this.layoutService.setSideBarHidden(true);
-			return true;
+			return;
 		}
 
 		this.logAction('show');
@@ -80,27 +95,58 @@ export class ViewletActivityAction extends ActivityAction {
 	}
 }
 
-export class ToggleViewletAction extends Action {
-
+export class AccountsActionViewItem extends ActivityActionViewItem {
 	constructor(
-		private _viewlet: ViewletDescriptor,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IViewletService private readonly viewletService: IViewletService
+		action: ActivityAction,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IMenuService protected menuService: IMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
-		super(_viewlet.id, _viewlet.name);
+		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
 
-	run(): Promise<any> {
-		const sideBarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-		const activeViewlet = this.viewletService.getActiveViewlet();
+	render(container: HTMLElement): void {
+		super.render(container);
 
-		// Hide sidebar if selected viewlet already visible
-		if (sideBarVisible && activeViewlet && activeViewlet.getId() === this._viewlet.id) {
-			this.layoutService.setSideBarHidden(true);
-			return Promise.resolve();
-		}
+		// Context menus are triggered on mouse down so that an item can be picked
+		// and executed with releasing the mouse over it
 
-		return this.viewletService.openViewlet(this._viewlet.id, true);
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			DOM.EventHelper.stop(e, true);
+			this.showContextMenu();
+		}));
+
+		this._register(DOM.addDisposableListener(this.container, DOM.EventType.KEY_UP, (e: KeyboardEvent) => {
+			let event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+				DOM.EventHelper.stop(e, true);
+				this.showContextMenu();
+			}
+		}));
+
+		this._register(DOM.addDisposableListener(this.container, TouchEventType.Tap, (e: GestureEvent) => {
+			DOM.EventHelper.stop(e, true);
+			this.showContextMenu();
+		}));
+	}
+
+	private showContextMenu(): void {
+		const accountsActions: IAction[] = [];
+		const accountsMenu = this.menuService.createMenu(MenuId.AccountsContext, this.contextKeyService);
+		const actionsDisposable = createAndFillInActionBarActions(accountsMenu, undefined, { primary: [], secondary: accountsActions });
+
+		const containerPosition = DOM.getDomNodePagePosition(this.container);
+		const location = { x: containerPosition.left + containerPosition.width / 2, y: containerPosition.top };
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => location,
+			getActions: () => accountsActions,
+			onHide: () => {
+				accountsMenu.dispose();
+				dispose(actionsDisposable);
+			}
+		});
 	}
 }
 
@@ -108,11 +154,11 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 
 	constructor(
 		action: ActivityAction,
-		colors: (theme: ITheme) => ICompositeBarColors,
+		colors: (theme: IColorTheme) => ICompositeBarColors,
 		@IThemeService themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(action, { draggable: false, colors, icon: true }, themeService);
 	}
@@ -160,24 +206,7 @@ export class GlobalActivityActionViewItem extends ActivityActionViewItem {
 	}
 }
 
-export class PlaceHolderViewletActivityAction extends ViewletActivityAction {
-
-	constructor(
-		id: string, name: string, iconUrl: URI,
-		@IViewletService viewletService: IViewletService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@ITelemetryService telemetryService: ITelemetryService
-	) {
-		super({ id, name: id, cssClass: `extensionViewlet-placeholder-${id.replace(/\./g, '-')}` }, viewletService, layoutService, telemetryService);
-
-		const iconClass = `.monaco-workbench .activitybar .monaco-action-bar .action-label.${this.class}`; // Generate Placeholder CSS to show the icon in the activity bar
-		DOM.createCSSRule(iconClass, `-webkit-mask: ${DOM.asCSSUrl(iconUrl)} no-repeat 50% 50%; -webkit-mask-size: 24px;`);
-	}
-
-	setActivity(activity: IActivity): void {
-		this.activity = activity;
-	}
-}
+export class PlaceHolderViewContainerActivityAction extends ViewContainerActivityAction { }
 
 export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
 
@@ -201,28 +230,29 @@ class SwitchSideBarViewAction extends Action {
 		super(id, name);
 	}
 
-	run(offset: number): Promise<any> {
-		const pinnedViewletIds = this.activityBarService.getPinnedViewletIds();
+	async run(offset: number): Promise<void> {
+		const visibleViewletIds = this.activityBarService.getVisibleViewContainerIds();
 
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		if (!activeViewlet) {
-			return Promise.resolve();
+			return;
 		}
 		let targetViewletId: string | undefined;
-		for (let i = 0; i < pinnedViewletIds.length; i++) {
-			if (pinnedViewletIds[i] === activeViewlet.getId()) {
-				targetViewletId = pinnedViewletIds[(i + pinnedViewletIds.length + offset) % pinnedViewletIds.length];
+		for (let i = 0; i < visibleViewletIds.length; i++) {
+			if (visibleViewletIds[i] === activeViewlet.getId()) {
+				targetViewletId = visibleViewletIds[(i + visibleViewletIds.length + offset) % visibleViewletIds.length];
 				break;
 			}
 		}
-		return this.viewletService.openViewlet(targetViewletId, true);
+
+		await this.viewletService.openViewlet(targetViewletId, true);
 	}
 }
 
 export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.previousSideBarView';
-	static LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
+	static readonly LABEL = nls.localize('previousSideBarView', 'Previous Side Bar View');
 
 	constructor(
 		id: string,
@@ -233,7 +263,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 		super(id, name, viewletService, activityBarService);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return super.run(-1);
 	}
 }
@@ -241,7 +271,7 @@ export class PreviousSideBarViewAction extends SwitchSideBarViewAction {
 export class NextSideBarViewAction extends SwitchSideBarViewAction {
 
 	static readonly ID = 'workbench.action.nextSideBarView';
-	static LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
+	static readonly LABEL = nls.localize('nextSideBarView', 'Next Side Bar View');
 
 	constructor(
 		id: string,
@@ -252,24 +282,119 @@ export class NextSideBarViewAction extends SwitchSideBarViewAction {
 		super(id, name, viewletService, activityBarService);
 	}
 
-	run(): Promise<any> {
+	run(): Promise<void> {
 		return super.run(1);
 	}
 }
 
-const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(PreviousSideBarViewAction, PreviousSideBarViewAction.ID, PreviousSideBarViewAction.LABEL), 'View: Previous Side Bar View', nls.localize('view', "View"));
-registry.registerWorkbenchAction(new SyncActionDescriptor(NextSideBarViewAction, NextSideBarViewAction.ID, NextSideBarViewAction.LABEL), 'View: Next Side Bar View', nls.localize('view', "View"));
+export class HomeAction extends Action {
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	constructor(
+		private readonly href: string,
+		name: string,
+		icon: Codicon
+	) {
+		super('workbench.action.home', name, icon.classNames);
+	}
 
-	const activeForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
-	if (activeForegroundColor) {
+	async run(event: MouseEvent): Promise<void> {
+		let openInNewWindow = false;
+		if (isMacintosh) {
+			openInNewWindow = event.metaKey;
+		} else {
+			openInNewWindow = event.ctrlKey;
+		}
+
+		if (openInNewWindow) {
+			DOM.windowOpenNoOpener(this.href);
+		} else {
+			window.location.href = this.href;
+		}
+	}
+}
+
+export class HomeActionViewItem extends ActionViewItem {
+
+	constructor(action: IAction) {
+		super(undefined, action, { icon: true, label: false, useEventAsContext: true });
+	}
+}
+
+/**
+ * @deprecated TODO@ben remove me eventually
+ */
+export class DeprecatedHomeAction extends Action {
+
+	constructor(
+		private readonly command: string,
+		name: string,
+		icon: Codicon,
+		@ICommandService private readonly commandService: ICommandService
+	) {
+		super('workbench.action.home', name, icon.classNames);
+	}
+
+	async run(): Promise<void> {
+		this.commandService.executeCommand(this.command);
+	}
+}
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+	const activityBarBackgroundColor = theme.getColor(ACTIVITY_BAR_BACKGROUND);
+	if (activityBarBackgroundColor) {
 		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label,
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label {
-				background-color: ${activeForegroundColor} !important;
+			.monaco-workbench .activitybar > .content > .home-bar > .home-bar-icon-badge {
+				background-color: ${activityBarBackgroundColor};
+			}
+		`);
+	}
+
+	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+	if (activityBarForegroundColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label:not(.codicon),
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label:not(.codicon),
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label:not(.codicon) {
+				background-color: ${activityBarForegroundColor} !important;
+			}
+			.monaco-workbench .activitybar > .content .home-bar > .monaco-action-bar .action-item .action-label.codicon,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .action-label.codicon,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .action-label.codicon,
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .action-label.codicon {
+				color: ${activityBarForegroundColor} !important;
+			}
+		`);
+	}
+
+	const activityBarActiveBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BORDER);
+	if (activityBarActiveBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {
+				border-left-color: ${activityBarActiveBorderColor};
+			}
+		`);
+	}
+
+	const activityBarActiveFocusBorderColor = theme.getColor(ACTIVITY_BAR_ACTIVE_FOCUS_BORDER);
+	if (activityBarActiveFocusBorderColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:focus::before {
+				visibility: hidden;
+			}
+
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked:focus .active-item-indicator:before {
+				visibility: visible;
+				border-left-color: ${activityBarActiveFocusBorderColor};
+			}
+		`);
+	}
+
+	const activityBarActiveBackgroundColor = theme.getColor(ACTIVITY_BAR_ACTIVE_BACKGROUND);
+	if (activityBarActiveBackgroundColor) {
+		collector.addRule(`
+			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator {
+				z-index: 0;
+				background-color: ${activityBarActiveBackgroundColor};
 			}
 		`);
 	}
@@ -324,3 +449,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		}
 	}
 });
+
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(PreviousSideBarViewAction), 'View: Previous Side Bar View', nls.localize('view', "View"));
+registry.registerWorkbenchAction(SyncActionDescriptor.from(NextSideBarViewAction), 'View: Next Side Bar View', nls.localize('view', "View"));

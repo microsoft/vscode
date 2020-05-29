@@ -12,6 +12,7 @@ import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/br
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { isEqual } from 'vs/base/common/resources';
 
 // todo@joh move these things back into something like contrib/insets
 class EditorWebviewZone implements IViewZone {
@@ -75,7 +76,7 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 		id = id.substr(0, id.indexOf(',')); //todo@joh HACK
 
 		for (const candidate of this._editorService.listCodeEditors()) {
-			if (candidate.getId() === id && candidate.hasModel() && candidate.getModel()!.uri.toString() === URI.revive(uri).toString()) {
+			if (candidate.getId() === id && candidate.hasModel() && isEqual(candidate.getModel().uri, URI.revive(uri))) {
 				editor = candidate;
 				break;
 			}
@@ -88,13 +89,12 @@ export class MainThreadEditorInsets implements MainThreadEditorInsetsShape {
 
 		const disposables = new DisposableStore();
 
-		const webview = this._webviewService.createWebview('' + handle, {
+		const webview = this._webviewService.createWebviewElement('' + handle, {
 			enableFindWidget: false,
 		}, {
 			allowScripts: options.enableScripts,
 			localResourceRoots: options.localResourceRoots ? options.localResourceRoots.map(uri => URI.revive(uri)) : undefined
-		});
-		webview.extension = { id: extensionId, location: URI.revive(extensionLocation) };
+		}, { id: extensionId, location: URI.revive(extensionLocation) });
 
 		const webviewZone = new EditorWebviewZone(editor, line, height, webview);
 

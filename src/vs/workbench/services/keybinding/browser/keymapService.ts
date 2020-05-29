@@ -19,7 +19,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { parse } from 'vs/base/common/json';
+import { parse, getNodeType } from 'vs/base/common/json';
 import * as objects from 'vs/base/common/objects';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -335,6 +335,10 @@ export class BrowserKeyboardMapperFactoryBase {
 			return true;
 		}
 
+		if (standardKeyboardEvent.browserEvent.key === 'Dead' || standardKeyboardEvent.browserEvent.isComposing) {
+			return true;
+		}
+
 		const mapping = currentKeymap.mapping[standardKeyboardEvent.code];
 
 		if (!mapping) {
@@ -345,7 +349,7 @@ export class BrowserKeyboardMapperFactoryBase {
 			// The value is empty when the key is not a printable character, we skip validation.
 			if (keyboardEvent.ctrlKey || keyboardEvent.metaKey) {
 				setTimeout(() => {
-					this._getBrowserKeyMapping().then((keymap: IKeyboardMapping) => {
+					this._getBrowserKeyMapping().then((keymap: IRawMixedKeyboardMapping | null) => {
 						if (this.isKeyMappingActive(keymap)) {
 							return;
 						}
@@ -470,7 +474,7 @@ class UserKeyboardLayout extends Disposable {
 			}
 		}), 50));
 
-		this._register(Event.filter(this.fileService.onFileChanges, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
+		this._register(Event.filter(this.fileService.onDidFilesChange, e => e.contains(this.keyboardLayoutResource))(() => this.reloadConfigurationScheduler.schedule()));
 	}
 
 	async initialize(): Promise<void> {
@@ -482,9 +486,13 @@ class UserKeyboardLayout extends Disposable {
 		try {
 			const content = await this.fileService.readFile(this.keyboardLayoutResource);
 			const value = parse(content.value.toString());
-			const layoutInfo = value.layout;
-			const mappings = value.rawMapping;
-			this._keyboardLayout = KeymapInfo.createKeyboardLayoutFromDebugInfo(layoutInfo, mappings, true);
+			if (getNodeType(value) === 'object') {
+				const layoutInfo = value.layout;
+				const mappings = value.rawMapping;
+				this._keyboardLayout = KeymapInfo.createKeyboardLayoutFromDebugInfo(layoutInfo, mappings, true);
+			} else {
+				this._keyboardLayout = null;
+			}
 		} catch (e) {
 			this._keyboardLayout = null;
 		}
@@ -618,7 +626,6 @@ const keyboardConfiguration: IConfigurationNode = {
 	'order': 15,
 	'type': 'object',
 	'title': nls.localize('keyboardConfigurationTitle', "Keyboard"),
-	'overridable': true,
 	'properties': {
 		'keyboard.layout': {
 			'type': 'string',

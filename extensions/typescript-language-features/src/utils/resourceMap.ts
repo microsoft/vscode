@@ -101,5 +101,5 @@ export class ResourceMap<T> {
 }
 
 export function isWindowsPath(path: string): boolean {
-	return /^[a-zA-Z]:\\/.test(path);
+	return /^[a-zA-Z]:[\/\\]/.test(path);
 }

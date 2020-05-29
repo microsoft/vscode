@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getElectronVersion = exports.streamToPromise = exports.versionStringToNumber = exports.filter = exports.rebase = exports.getVersion = exports.ensureDir = exports.rreddir = exports.rimraf = exports.stripSourceMappingURL = exports.loadSourcemaps = exports.cleanNodeModules = exports.skipDirectories = exports.toFileUri = exports.setExecutableBit = exports.fixWin32DirectoryPermissions = exports.incremental = void 0;
 const es = require("event-stream");
 const debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -13,6 +14,7 @@ const fs = require("fs");
 const _rimraf = require("rimraf");
 const git = require("./git");
 const VinylFile = require("vinyl");
+const root = path.dirname(path.dirname(__dirname));
 const NoCancellationToken = { isCancellationRequested: () => false };
 function incremental(streamProvider, initial, supportsCancellation) {
     const input = es.through();
@@ -166,22 +168,50 @@ function stripSourceMappingURL() {
 }
 exports.stripSourceMappingURL = stripSourceMappingURL;
 function rimraf(dir) {
-    let retries = 0;
-    const retry = (cb) => {
-        _rimraf(dir, { maxBusyTries: 1 }, (err) => {
-            if (!err) {
-                return cb();
-            }
-            if (err.code === 'ENOTEMPTY' && ++retries < 5) {
-                return setTimeout(() => retry(cb), 10);
-            }
-            return cb(err);
-        });
-    };
-    retry.taskName = `clean-${path.basename(dir).toLowerCase()}`;
-    return retry;
+    const result = () => new Promise((c, e) => {
+        let retries = 0;
+        const retry = () => {
+            _rimraf(dir, { maxBusyTries: 1 }, (err) => {
+                if (!err) {
+                    return c();
+                }
+                if (err.code === 'ENOTEMPTY' && ++retries < 5) {
+                    return setTimeout(() => retry(), 10);
+                }
+                return e(err);
+            });
+        };
+        retry();
+    });
+    result.taskName = `clean-${path.basename(dir).toLowerCase()}`;
+    return result;
 }
 exports.rimraf = rimraf;
+function _rreaddir(dirPath, prepend, result) {
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+        if (entry.isDirectory()) {
+            _rreaddir(path.join(dirPath, entry.name), `${prepend}/${entry.name}`, result);
+        }
+        else {
+            result.push(`${prepend}/${entry.name}`);
+        }
+    }
+}
+function rreddir(dirPath) {
+    let result = [];
+    _rreaddir(dirPath, '', result);
+    return result;
+}
+exports.rreddir = rreddir;
+function ensureDir(dirPath) {
+    if (fs.existsSync(dirPath)) {
+        return;
+    }
+    ensureDir(path.dirname(dirPath));
+    fs.mkdirSync(dirPath);
+}
+exports.ensureDir = ensureDir;
 function getVersion(root) {
     let version = process.env['BUILD_SOURCEVERSION'];
     if (!version || !/^[0-9a-f]{40}$/i.test(version)) {
@@ -219,3 +249,16 @@ function versionStringToNumber(versionStr) {
     return parseInt(match[1], 10) * 1e4 + parseInt(match[2], 10) * 1e2 + parseInt(match[3], 10);
 }
 exports.versionStringToNumber = versionStringToNumber;
+function streamToPromise(stream) {
+    return new Promise((c, e) => {
+        stream.on('error', err => e(err));
+        stream.on('end', () => c());
+    });
+}
+exports.streamToPromise = streamToPromise;
+function getElectronVersion() {
+    const yarnrc = fs.readFileSync(path.join(root, '.yarnrc'), 'utf8');
+    const target = /^target "(.*)"$/m.exec(yarnrc)[1];
+    return target;
+}
+exports.getElectronVersion = getElectronVersion;

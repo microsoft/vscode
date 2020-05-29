@@ -7,21 +7,22 @@ import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { Schemas } from 'vs/base/common/network';
 
 export class OpenExtensionsFolderAction extends Action {
 
 	static readonly ID = 'workbench.extensions.action.openExtensionsFolder';
-	static LABEL = localize('openExtensionsFolder', "Open Extensions Folder");
+	static readonly LABEL = localize('openExtensionsFolder', "Open Extensions Folder");
 
 	constructor(
 		id: string,
 		label: string,
 		@IElectronService private readonly electronService: IElectronService,
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
 	) {
 		super(id, label, undefined, true);
 	}

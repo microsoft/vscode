@@ -11,21 +11,15 @@ const cmdline = {
 	unix: '/sbin/ifconfig -a || /sbin/ip link'
 };
 
-const invalidMacAddresses = [
+const invalidMacAddresses = new Set([
 	'00:00:00:00:00:00',
 	'ff:ff:ff:ff:ff:ff',
 	'ac:de:48:00:11:22'
-];
+]);
 
 function validateMacAddress(candidate: string): boolean {
-	let tempCandidate = candidate.replace(/\-/g, ':').toLowerCase();
-	for (let invalidMacAddress of invalidMacAddresses) {
-		if (invalidMacAddress === tempCandidate) {
-			return false;
-		}
-	}
-
-	return true;
+	const tempCandidate = candidate.replace(/\-/g, ':').toLowerCase();
+	return !invalidMacAddresses.has(tempCandidate);
 }
 
 export function getMac(): Promise<string> {

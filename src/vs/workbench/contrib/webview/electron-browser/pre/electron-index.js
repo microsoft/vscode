@@ -13,15 +13,6 @@
 				return;
 			}
 			hasRegistered = true;
-
-			// @ts-ignore
-			require('electron').webFrame.registerURLSchemeAsPrivileged('vscode-resource', {
-				secure: true,
-				bypassCSP: false,
-				allowServiceWorkers: false,
-				supportFetchAPI: true,
-				corsEnabled: true
-			});
 		};
 	}());
 
@@ -71,7 +62,10 @@
 				isMouseDown = false;
 			});
 			newFrame.contentWindow.addEventListener('mousemove', tryDispatchSyntheticMouseEvent);
-		}
+		},
+		rewriteCSP: (csp) => {
+			return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
+		},
 	};
 
 	host.onMessage('devtools-opened', () => {

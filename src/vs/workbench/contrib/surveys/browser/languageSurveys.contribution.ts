@@ -10,19 +10,23 @@ import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as 
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { ISurveyData, IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
-import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
+import { RunOnceWorker } from 'vs/base/common/async';
+import { Disposable } from 'vs/base/common/lifecycle';
 
-class LanguageSurvey {
+class LanguageSurvey extends Disposable {
 
 	constructor(
 		data: ISurveyData,
 		storageService: IStorageService,
+		storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		notificationService: INotificationService,
 		telemetryService: ITelemetryService,
 		modelService: IModelService,
@@ -30,12 +34,22 @@ class LanguageSurvey {
 		openerService: IOpenerService,
 		productService: IProductService
 	) {
+		super();
+
 		const SESSION_COUNT_KEY = `${data.surveyId}.sessionCount`;
 		const LAST_SESSION_DATE_KEY = `${data.surveyId}.lastSessionDate`;
 		const SKIP_VERSION_KEY = `${data.surveyId}.skipVersion`;
 		const IS_CANDIDATE_KEY = `${data.surveyId}.isCandidate`;
 		const EDITED_LANGUAGE_COUNT_KEY = `${data.surveyId}.editedCount`;
 		const EDITED_LANGUAGE_DATE_KEY = `${data.surveyId}.editedDate`;
+
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: SESSION_COUNT_KEY, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: LAST_SESSION_DATE_KEY, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: SKIP_VERSION_KEY, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: IS_CANDIDATE_KEY, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: EDITED_LANGUAGE_COUNT_KEY, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: EDITED_LANGUAGE_DATE_KEY, version: 1 });
 
 		const skipVersion = storageService.get(SKIP_VERSION_KEY, StorageScope.GLOBAL, '');
 		if (skipVersion) {
@@ -45,18 +59,19 @@ class LanguageSurvey {
 		const date = new Date().toDateString();
 
 		if (storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) < data.editCount) {
-			textFileService.models.onModelsSaved(e => {
-				e.forEach(event => {
-					if (event.kind === StateChange.SAVED) {
-						const model = modelService.getModel(event.resource);
-						if (model && model.getModeId() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
-							const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
-							storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL);
-							storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL);
-						}
+
+			// Process model-save event every 250ms to reduce load
+			const onModelsSavedWorker = this._register(new RunOnceWorker<ITextFileEditorModel>(models => {
+				models.forEach(m => {
+					if (m.getMode() === data.languageId && date !== storageService.get(EDITED_LANGUAGE_DATE_KEY, StorageScope.GLOBAL)) {
+						const editedCount = storageService.getNumber(EDITED_LANGUAGE_COUNT_KEY, StorageScope.GLOBAL, 0) + 1;
+						storageService.store(EDITED_LANGUAGE_COUNT_KEY, editedCount, StorageScope.GLOBAL);
+						storageService.store(EDITED_LANGUAGE_DATE_KEY, date, StorageScope.GLOBAL);
 					}
 				});
-			});
+			}, 250));
+
+			this._register(textFileService.files.onDidSave(e => onModelsSavedWorker.work(e.model)));
 		}
 
 		const lastSessionDate = storageService.get(LAST_SESSION_DATE_KEY, StorageScope.GLOBAL, new Date(0).toDateString());
@@ -126,6 +141,7 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 
 	constructor(
 		@IStorageService storageService: IStorageService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@INotificationService notificationService: INotificationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IModelService modelService: IModelService,
@@ -139,7 +155,7 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 
 		productService.surveys
 			.filter(surveyData => surveyData.surveyId && surveyData.editCount && surveyData.languageId && surveyData.surveyUrl && surveyData.userProbability)
-			.map(surveyData => new LanguageSurvey(surveyData, storageService, notificationService, telemetryService, modelService, textFileService, openerService, productService));
+			.map(surveyData => new LanguageSurvey(surveyData, storageService, storageKeysSyncRegistryService, notificationService, telemetryService, modelService, textFileService, openerService, productService));
 	}
 }
 

@@ -10,12 +10,13 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import * as objects from 'vs/base/common/objects';
 import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName?: string;
+	readonly icon?: Codicon;
 	readonly title: string;
 	readonly isChecked: boolean;
 }
@@ -38,7 +39,7 @@ const defaultOpts = {
 
 export class CheckboxActionViewItem extends BaseActionViewItem {
 
-	private checkbox!: Checkbox;
+	private checkbox: Checkbox | undefined;
 	private readonly disposables = new DisposableStore();
 
 	render(container: HTMLElement): void {
@@ -51,7 +52,7 @@ export class CheckboxActionViewItem extends BaseActionViewItem {
 			title: this._action.label
 		});
 		this.disposables.add(this.checkbox);
-		this.disposables.add(this.checkbox.onChange(() => this._action.checked = this.checkbox!.checked, this));
+		this.disposables.add(this.checkbox.onChange(() => this._action.checked = !!this.checkbox && this.checkbox.checked, this));
 		this.element.appendChild(this.checkbox.domNode);
 	}
 
@@ -93,13 +94,23 @@ export class Checkbox extends Widget {
 	constructor(opts: ICheckboxOpts) {
 		super();
 
-		this._opts = objects.deepClone(opts);
-		objects.mixin(this._opts, defaultOpts, false);
+		this._opts = { ...defaultOpts, ...opts };
 		this._checked = this._opts.isChecked;
+
+		const classes = ['monaco-custom-checkbox'];
+		if (this._opts.icon) {
+			classes.push(this._opts.icon.classNames);
+		} else {
+			classes.push('codicon'); // todo@aeschli: remove once codicon fully adopted
+		}
+		if (this._opts.actionClassName) {
+			classes.push(this._opts.actionClassName);
+		}
+		classes.push(this._checked ? 'checked' : 'unchecked');
 
 		this.domNode = document.createElement('div');
 		this.domNode.title = this._opts.title;
-		this.domNode.className = 'monaco-custom-checkbox codicon ' + (this._opts.actionClassName || '') + ' ' + (this._checked ? 'checked' : 'unchecked');
+		this.domNode.className = classes.join(' ');
 		this.domNode.tabIndex = 0;
 		this.domNode.setAttribute('role', 'checkbox');
 		this.domNode.setAttribute('aria-checked', String(this._checked));
@@ -112,6 +123,8 @@ export class Checkbox extends Widget {
 			this._onChange.fire(false);
 			ev.preventDefault();
 		});
+
+		this.ignoreGesture(this.domNode);
 
 		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
@@ -190,7 +203,7 @@ export class SimpleCheckbox extends Widget {
 	constructor(private title: string, private isChecked: boolean) {
 		super();
 
-		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, actionClassName: 'monaco-simple-checkbox' });
+		this.checkbox = new Checkbox({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-simple-checkbox' });
 
 		this.domNode = this.checkbox.domNode;
 
@@ -218,8 +231,8 @@ export class SimpleCheckbox extends Widget {
 	}
 
 	protected applyStyles(): void {
-		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : null;
-		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : null;
-		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : null;
+		this.domNode.style.color = this.styles.checkboxForeground ? this.styles.checkboxForeground.toString() : '';
+		this.domNode.style.backgroundColor = this.styles.checkboxBackground ? this.styles.checkboxBackground.toString() : '';
+		this.domNode.style.borderColor = this.styles.checkboxBorder ? this.styles.checkboxBorder.toString() : '';
 	}
 }

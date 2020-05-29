@@ -12,7 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -27,7 +27,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 	private readonly _notificationService: INotificationService;
 	private readonly _extensionsWorkbenchService: IExtensionsWorkbenchService;
 	private readonly _hostService: IHostService;
-	private readonly _extensionEnablementService: IExtensionEnablementService;
+	private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -35,7 +35,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		@INotificationService notificationService: INotificationService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IHostService hostService: IHostService,
-		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService
+		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		this._extensionService = extensionService;
 		this._notificationService = notificationService;

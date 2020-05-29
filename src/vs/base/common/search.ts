@@ -7,20 +7,19 @@ import * as strings from './strings';
 
 export function buildReplaceStringWithCasePreserved(matches: string[] | null, pattern: string): string {
 	if (matches && (matches[0] !== '')) {
+		const containsHyphens = validateSpecificSpecialCharacter(matches, pattern, '-');
+		const containsUnderscores = validateSpecificSpecialCharacter(matches, pattern, '_');
+		if (containsHyphens && !containsUnderscores) {
+			return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '-');
+		} else if (!containsHyphens && containsUnderscores) {
+			return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '_');
+		}
 		if (matches[0].toUpperCase() === matches[0]) {
 			return pattern.toUpperCase();
 		} else if (matches[0].toLowerCase() === matches[0]) {
 			return pattern.toLowerCase();
 		} else if (strings.containsUppercaseCharacter(matches[0][0])) {
-			const containsHyphens = validateSpecificSpecialCharacter(matches, pattern, '-');
-			const containsUnderscores = validateSpecificSpecialCharacter(matches, pattern, '_');
-			if (containsHyphens && !containsUnderscores) {
-				return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '-');
-			} else if (!containsHyphens && containsUnderscores) {
-				return buildReplaceStringForSpecificSpecialCharacter(matches, pattern, '_');
-			} else {
-				return pattern[0].toUpperCase() + pattern.substr(1);
-			}
+			return pattern[0].toUpperCase() + pattern.substr(1);
 		} else {
 			// we don't understand its pattern yet.
 			return pattern;

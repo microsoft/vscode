@@ -6,21 +6,28 @@
 import { localize } from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
-import { IIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/node/issue';
-import { BrowserWindow, ipcMain, screen, Event as IpcMainEvent, Display, shell } from 'electron';
+import { ICommonIssueService, IssueReporterData, IssueReporterFeatures, ProcessExplorerData } from 'vs/platform/issue/common/issue';
+import { BrowserWindow, ipcMain, screen, IpcMainEvent, Display, shell } from 'electron';
 import { ILaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { PerformanceInfo, isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsService } from 'vs/platform/diagnostics/node/diagnosticsService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { isMacintosh, IProcessEnvironment } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IWindowState } from 'vs/platform/windows/electron-main/windows';
 import { listProcesses } from 'vs/base/node/ps';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogs';
+import { URI } from 'vs/base/common/uri';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 const DEFAULT_BACKGROUND_COLOR = '#1E1E1E';
 
-export class IssueMainService implements IIssueService {
+export const IIssueMainService = createDecorator<IIssueMainService>('issueMainService');
+
+export interface IIssueMainService extends ICommonIssueService { }
+
+export class IssueMainService implements ICommonIssueService {
 	_serviceBrand: undefined;
 	_issueWindow: BrowserWindow | null = null;
 	_issueParentWindow: BrowserWindow | null = null;
@@ -30,7 +37,7 @@ export class IssueMainService implements IIssueService {
 	constructor(
 		private machineId: string,
 		private userEnv: IProcessEnvironment,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService,
 		@ILaunchMainService private readonly launchMainService: ILaunchMainService,
 		@ILogService private readonly logService: ILogService,
 		@IDiagnosticsService private readonly diagnosticsService: IDiagnosticsService,
@@ -81,10 +88,10 @@ export class IssueMainService implements IIssueService {
 
 		ipcMain.on('vscode:issueReporterClipboard', (event: IpcMainEvent) => {
 			const messageOptions = {
-				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub. Would you like to write the information to the clipboard so that it can be pasted?"),
+				message: localize('issueReporterWriteToClipboard', "There is too much data to send to GitHub directly. The data will be copied to the clipboard, please paste it into the GitHub issue page that is opened."),
 				type: 'warning',
 				buttons: [
-					localize('yes', "Yes"),
+					localize('ok', "OK"),
 					localize('cancel', "Cancel")
 				]
 			};
@@ -156,12 +163,17 @@ export class IssueMainService implements IIssueService {
 			}
 		});
 
-		ipcMain.on('windowsInfoRequest', (event: IpcMainEvent) => {
+		ipcMain.on('vscode:closeProcessExplorer', (event: IpcMainEvent) => {
+			if (this._processExplorerWindow) {
+				this._processExplorerWindow.close();
+			}
+		});
+
+		ipcMain.on('vscode:windowsInfoRequest', (event: IpcMainEvent) => {
 			this.launchMainService.getMainProcessInfo().then(info => {
 				event.sender.send('vscode:windowsInfoResponse', info.windows);
 			});
 		});
-
 	}
 
 	openReporter(data: IssueReporterData): Promise<void> {
@@ -182,7 +194,9 @@ export class IssueMainService implements IIssueService {
 						title: localize('issueReporter', "Issue Reporter"),
 						backgroundColor: data.styles.backgroundColor || DEFAULT_BACKGROUND_COLOR,
 						webPreferences: {
-							nodeIntegration: true
+							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+							nodeIntegration: true,
+							enableWebSQL: false
 						}
 					});
 
@@ -217,7 +231,7 @@ export class IssueMainService implements IIssueService {
 			if (!this._processExplorerWindow) {
 				this._processExplorerParentWindow = BrowserWindow.getFocusedWindow();
 				if (this._processExplorerParentWindow) {
-					const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 300);
+					const position = this.getWindowPosition(this._processExplorerParentWindow, 800, 500);
 					this._processExplorerWindow = new BrowserWindow({
 						skipTaskbar: true,
 						resizable: true,
@@ -231,7 +245,9 @@ export class IssueMainService implements IIssueService {
 						backgroundColor: data.styles.backgroundColor,
 						title: localize('processExplorer', "Process Explorer"),
 						webPreferences: {
-							nodeIntegration: true
+							preload: URI.parse(require.toUrl('vs/base/parts/sandbox/electron-browser/preload.js')).fsPath,
+							nodeIntegration: true,
+							enableWebSQL: false
 						}
 					});
 

@@ -8,7 +8,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol';
 import { asWebviewUri, WebviewInitData } from 'vs/workbench/api/common/shared/webview';
 import { generateUuid } from 'vs/base/common/uuid';

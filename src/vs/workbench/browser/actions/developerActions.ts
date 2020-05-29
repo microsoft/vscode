@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/screencast';
+import 'vs/css!./media/actions';
 
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
@@ -17,7 +17,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { timeout } from 'vs/base/common/async';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
@@ -25,11 +25,13 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { clamp } from 'vs/base/common/numbers';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 class InspectContextKeysAction extends Action {
 
 	static readonly ID = 'workbench.action.inspectContextKeys';
-	static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
+	static readonly LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
 
 	constructor(
 		id: string,
@@ -39,7 +41,7 @@ class InspectContextKeysAction extends Action {
 		super(id, label);
 	}
 
-	run(): Promise<void> {
+	async run(): Promise<void> {
 		const disposables = new DisposableStore();
 
 		const stylesheet = createStyleSheet();
@@ -83,15 +85,13 @@ class InspectContextKeysAction extends Action {
 
 			dispose(disposables);
 		}, null, disposables);
-
-		return Promise.resolve();
 	}
 }
 
 class ToggleScreencastModeAction extends Action {
 
 	static readonly ID = 'workbench.action.toggleScreencastMode';
-	static LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
+	static readonly LABEL = nls.localize('toggle screencast mode', "Toggle Screencast Mode");
 
 	static disposable: IDisposable | undefined;
 
@@ -99,7 +99,7 @@ class ToggleScreencastModeAction extends Action {
 		id: string,
 		label: string,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@ILayoutService private readonly layoutService: ILayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super(id, label);
@@ -114,7 +114,7 @@ class ToggleScreencastModeAction extends Action {
 
 		const disposables = new DisposableStore();
 
-		const container = this.layoutService.getWorkbenchElement();
+		const container = this.layoutService.container;
 		const mouseMarker = append(container, $('.screencast-mouse'));
 		disposables.add(toDisposable(() => mouseMarker.remove()));
 
@@ -141,18 +141,28 @@ class ToggleScreencastModeAction extends Action {
 		const keyboardMarker = append(container, $('.screencast-keyboard'));
 		disposables.add(toDisposable(() => keyboardMarker.remove()));
 
+		const updateKeyboardFontSize = () => {
+			keyboardMarker.style.fontSize = `${clamp(this.configurationService.getValue<number>('screencastMode.fontSize') || 56, 20, 100)}px`;
+		};
+
 		const updateKeyboardMarker = () => {
 			keyboardMarker.style.bottom = `${clamp(this.configurationService.getValue<number>('screencastMode.verticalOffset') || 0, 0, 90)}%`;
 		};
 
+		updateKeyboardFontSize();
 		updateKeyboardMarker();
+
 		disposables.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('screencastMode.verticalOffset')) {
 				updateKeyboardMarker();
 			}
+
+			if (e.affectsConfiguration('screencastMode.fontSize')) {
+				updateKeyboardFontSize();
+			}
 		}));
 
-		const onKeyDown = domEvent(container, 'keydown', true);
+		const onKeyDown = domEvent(window, 'keydown', true);
 		let keyboardTimeout: IDisposable = Disposable.None;
 		let length = 0;
 
@@ -195,7 +205,7 @@ class ToggleScreencastModeAction extends Action {
 class LogStorageAction extends Action {
 
 	static readonly ID = 'workbench.action.logStorage';
-	static LABEL = nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
+	static readonly LABEL = nls.localize({ key: 'logStorage', comment: ['A developer only action to log the contents of the storage for the current window.'] }, "Log Storage Database Contents");
 
 	constructor(
 		id: string,
@@ -210,13 +220,41 @@ class LogStorageAction extends Action {
 	}
 }
 
+class LogWorkingCopiesAction extends Action {
+
+	static readonly ID = 'workbench.action.logWorkingCopies';
+	static readonly LABEL = nls.localize({ key: 'logWorkingCopies', comment: ['A developer only action to log the working copies that exist.'] }, "Log Working Copies");
+
+	constructor(
+		id: string,
+		label: string,
+		@ILogService private logService: ILogService,
+		@IWorkingCopyService private workingCopyService: IWorkingCopyService
+	) {
+		super(id, label);
+	}
+
+	async run(): Promise<void> {
+		const msg = [
+			`Dirty Working Copies:`,
+			...this.workingCopyService.dirtyWorkingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+			``,
+			`All Working Copies:`,
+			...this.workingCopyService.workingCopies.map(workingCopy => workingCopy.resource.toString(true)),
+		];
+
+		this.logService.info(msg.join('\n'));
+	}
+}
+
 // --- Actions Registration
 
 const developerCategory = nls.localize('developer', "Developer");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-registry.registerWorkbenchAction(new SyncActionDescriptor(InspectContextKeysAction, InspectContextKeysAction.ID, InspectContextKeysAction.LABEL), 'Developer: Inspect Context Keys', developerCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleScreencastModeAction, ToggleScreencastModeAction.ID, ToggleScreencastModeAction.LABEL), 'Developer: Toggle Screencast Mode', developerCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(LogStorageAction, LogStorageAction.ID, LogStorageAction.LABEL), 'Developer: Log Storage Database Contents', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(InspectContextKeysAction), 'Developer: Inspect Context Keys', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(ToggleScreencastModeAction), 'Developer: Toggle Screencast Mode', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(LogStorageAction), 'Developer: Log Storage Database Contents', developerCategory);
+registry.registerWorkbenchAction(SyncActionDescriptor.from(LogWorkingCopiesAction), 'Developer: Log Working Copies', developerCategory);
 
 // Screencast Mode
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -232,6 +270,13 @@ configurationRegistry.registerConfiguration({
 			minimum: 0,
 			maximum: 90,
 			description: nls.localize('screencastMode.location.verticalPosition', "Controls the vertical offset of the screencast mode overlay from the bottom as a percentage of the workbench height.")
+		},
+		'screencastMode.fontSize': {
+			type: 'number',
+			default: 56,
+			minimum: 20,
+			maximum: 100,
+			description: nls.localize('screencastMode.fontSize', "Controls the font size (in pixels) of the screencast mode keyboard.")
 		},
 		'screencastMode.onlyKeyboardShortcuts': {
 			type: 'boolean',

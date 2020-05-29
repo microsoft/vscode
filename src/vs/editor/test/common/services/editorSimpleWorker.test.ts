@@ -167,9 +167,8 @@ suite('EditorSimpleWorker', () => {
 				assert.ok(false);
 				return;
 			}
-			const { suggestions } = result;
-			assert.equal(suggestions.length, 1);
-			assert.equal(suggestions[0].label, 'foobar');
+			assert.equal(result.length, 1);
+			assert.equal(result, 'foobar');
 		});
 	});
 
@@ -185,11 +184,7 @@ suite('EditorSimpleWorker', () => {
 			'and now we are done'
 		]);
 
-		let words: string[] = [];
-
-		for (let iter = model.createWordIterator(/[a-z]+/img), e = iter.next(); !e.done; e = iter.next()) {
-			words.push(e.value);
-		}
+		let words: string[] = [...model.words(/[a-z]+/img)];
 
 		assert.deepEqual(words, ['one', 'line', 'two', 'line', 'past', 'empty', 'single', 'and', 'now', 'we', 'are', 'done']);
 	});

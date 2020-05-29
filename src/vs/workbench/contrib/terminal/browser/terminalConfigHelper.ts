@@ -21,6 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 
 const MINIMUM_FONT_SIZE = 6;
 const MAXIMUM_FONT_SIZE = 25;
@@ -47,7 +48,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		@IStorageService private readonly _storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		this._updateConfig();
 		this._configurationService.onDidChangeConfiguration(e => {
@@ -55,6 +57,9 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 				this._updateConfig();
 			}
 		});
+
+		// opt-in to syncing
+		storageKeysSyncRegistryService.registerStorageKey({ key: 'terminalConfigHelper/launchRecommendationsIgnore', version: 1 });
 	}
 
 	private _updateConfig(): void {
@@ -119,9 +124,24 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 			fontSize,
 			letterSpacing,
 			lineHeight,
-			charWidth: rect && rect.width ? rect.width : 0,
-			charHeight: rect && rect.height ? Math.ceil(rect.height) : 0
+			charWidth: 0,
+			charHeight: 0
 		};
+
+		if (rect && rect.width && rect.height) {
+			this._lastFontMeasurement.charHeight = Math.ceil(rect.height);
+			// Char width is calculated differently for DOM and the other renderer types. Refer to
+			// how each renderer updates their dimensions in xterm.js
+			if (this.config.rendererType === 'dom') {
+				this._lastFontMeasurement.charWidth = rect.width;
+			} else {
+				const scaledCharWidth = Math.floor(rect.width * window.devicePixelRatio);
+				const scaledCellWidth = scaledCharWidth + Math.round(letterSpacing);
+				const actualCellWidth = scaledCellWidth / window.devicePixelRatio;
+				this._lastFontMeasurement.charWidth = actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
+			}
+		}
+
 		return this._lastFontMeasurement;
 	}
 
@@ -162,14 +182,14 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xtermCore) {
-			if (xtermCore._charSizeService && xtermCore._charSizeService.width && xtermCore._charSizeService.height) {
+			if (xtermCore._renderService && xtermCore._renderService.dimensions?.actualCellWidth && xtermCore._renderService.dimensions?.actualCellHeight) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xtermCore._charSizeService.height,
-					charWidth: xtermCore._charSizeService.width
+					charHeight: xtermCore._renderService.dimensions.actualCellHeight / lineHeight,
+					charWidth: xtermCore._renderService.dimensions.actualCellWidth - Math.round(letterSpacing) / window.devicePixelRatio
 				};
 			}
 		}
@@ -196,13 +216,13 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 
 		// Check if workspace setting exists and whether it's whitelisted
 		let isWorkspaceShellAllowed: boolean | undefined = false;
-		if (shellConfigValue.workspace !== undefined || shellArgsConfigValue.workspace !== undefined || envConfigValue.workspace !== undefined) {
+		if (shellConfigValue.workspaceValue !== undefined || shellArgsConfigValue.workspaceValue !== undefined || envConfigValue.workspaceValue !== undefined) {
 			isWorkspaceShellAllowed = this.isWorkspaceShellAllowed(undefined);
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
-		if (shellConfigValue.workspace === undefined && envConfigValue.workspace === undefined &&
-			shellArgsConfigValue.workspace && shellArgsConfigValue.workspace.length === 0) {
+		if (shellConfigValue.workspaceValue === undefined && envConfigValue.workspaceValue === undefined &&
+			shellArgsConfigValue.workspaceValue && shellArgsConfigValue.workspaceValue.length === 0) {
 			isWorkspaceShellAllowed = true;
 		}
 
@@ -210,16 +230,16 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		// permission
 		if (isWorkspaceShellAllowed === undefined) {
 			let shellString: string | undefined;
-			if (shellConfigValue.workspace) {
-				shellString = `shell: "${shellConfigValue.workspace}"`;
+			if (shellConfigValue.workspaceValue) {
+				shellString = `shell: "${shellConfigValue.workspaceValue}"`;
 			}
 			let argsString: string | undefined;
-			if (shellArgsConfigValue.workspace) {
-				argsString = `shellArgs: [${shellArgsConfigValue.workspace.map(v => '"' + v + '"').join(', ')}]`;
+			if (shellArgsConfigValue.workspaceValue) {
+				argsString = `shellArgs: [${shellArgsConfigValue.workspaceValue.map(v => '"' + v + '"').join(', ')}]`;
 			}
 			let envString: string | undefined;
-			if (envConfigValue.workspace) {
-				envString = `env: {${Object.keys(envConfigValue.workspace).map(k => `${k}:${envConfigValue.workspace![k]}`).join(', ')}}`;
+			if (envConfigValue.workspaceValue) {
+				envString = `env: {${Object.keys(envConfigValue.workspaceValue).map(k => `${k}:${envConfigValue.workspaceValue![k]}`).join(', ')}}`;
 			}
 			// Should not be localized as it's json-like syntax referencing settings keys
 			const workspaceConfigStrings: string[] = [];
@@ -312,9 +332,8 @@ export class TerminalConfigHelper implements IBrowserTerminalConfigHelper {
 		}
 	}
 
-	private isExtensionInstalled(id: string): Promise<boolean> {
-		return this._extensionManagementService.getInstalled(ExtensionType.User).then(extensions => {
-			return extensions.some(e => e.identifier.id === id);
-		});
+	private async isExtensionInstalled(id: string): Promise<boolean> {
+		const extensions = await this._extensionManagementService.getInstalled(ExtensionType.User);
+		return extensions.some(e => e.identifier.id === id);
 	}
 }

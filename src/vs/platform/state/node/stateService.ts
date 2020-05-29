@@ -6,21 +6,22 @@
 import * as path from 'vs/base/common/path';
 import * as fs from 'fs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { writeFileSync, readFile } from 'vs/base/node/pfs';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { IStateService } from 'vs/platform/state/node/state';
 import { ILogService } from 'vs/platform/log/common/log';
 
-type StorageDatebase = { [key: string]: any; };
+type StorageDatabase = { [key: string]: any; };
 
 export class FileStorage {
 
-	private _database: StorageDatebase | null = null;
+	private _database: StorageDatabase | null = null;
 	private lastFlushedSerializedDatabase: string | null = null;
 
 	constructor(private dbPath: string, private onError: (error: Error) => void) { }
 
-	private get database(): StorageDatebase {
+	private get database(): StorageDatabase {
 		if (!this._database) {
 			this._database = this.loadSync();
 		}
@@ -42,7 +43,7 @@ export class FileStorage {
 		this._database = database;
 	}
 
-	private loadSync(): StorageDatebase {
+	private loadSync(): StorageDatabase {
 		try {
 			this.lastFlushedSerializedDatabase = fs.readFileSync(this.dbPath).toString();
 
@@ -56,7 +57,7 @@ export class FileStorage {
 		}
 	}
 
-	private async loadAsync(): Promise<StorageDatebase> {
+	private async loadAsync(): Promise<StorageDatabase> {
 		try {
 			this.lastFlushedSerializedDatabase = (await readFile(this.dbPath)).toString();
 
@@ -127,12 +128,12 @@ export class StateService implements IStateService {
 
 	_serviceBrand: undefined;
 
-	private static STATE_FILE = 'storage.json';
+	private static readonly STATE_FILE = 'storage.json';
 
 	private fileStorage: FileStorage;
 
 	constructor(
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService environmentService: INativeEnvironmentService,
 		@ILogService logService: ILogService
 	) {
 		this.fileStorage = new FileStorage(path.join(environmentService.userDataPath, StateService.STATE_FILE), error => logService.error(error));

@@ -30,10 +30,17 @@ const defaultOptions: Options = {
 	alwaysRevealFirst: true
 };
 
+export interface IDiffNavigator {
+	canNavigate(): boolean;
+	next(): void;
+	previous(): void;
+	dispose(): void;
+}
+
 /**
  * Create a new diff navigator for the provided diff editor.
  */
-export class DiffNavigator extends Disposable {
+export class DiffNavigator extends Disposable implements IDiffNavigator {
 
 	private readonly _editor: IDiffEditor;
 	private readonly _options: Options;

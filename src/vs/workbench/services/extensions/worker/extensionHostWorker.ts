@@ -13,9 +13,7 @@ import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import 'vs/workbench/services/extensions/worker/extHost.services';
 
 //#region --- Define, capture, and override some globals
-//todo@joh do not allow extensions to call postMessage and other globals...
 
-// declare WorkerSelf#postMessage
 declare function postMessage(data: any, transferables?: Transferable[]): void;
 
 declare namespace self {
@@ -34,9 +32,6 @@ self.postMessage = () => console.trace(`'postMessage' has been blocked`);
 
 const nativeAddEventLister = addEventListener.bind(self);
 self.addEventLister = () => console.trace(`'addEventListener' has been blocked`);
-
-self.indexedDB.open = () => console.trace(`'indexedDB.open' has been blocked`);
-self.caches.open = () => console.trace(`'indexedDB.caches' has been blocked`);
 
 //#endregion ---
 

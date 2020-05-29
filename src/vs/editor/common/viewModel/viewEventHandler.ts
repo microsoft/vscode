@@ -36,6 +36,7 @@ export class ViewEventHandler extends Disposable {
 	public onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		return false;
 	}
+
 	public onCursorStateChanged(e: viewEvents.ViewCursorStateChangedEvent): boolean {
 		return false;
 	}
@@ -69,6 +70,9 @@ export class ViewEventHandler extends Disposable {
 	public onScrollChanged(e: viewEvents.ViewScrollChangedEvent): boolean {
 		return false;
 	}
+	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
+		return false;
+	}
 	public onTokensChanged(e: viewEvents.ViewTokensChangedEvent): boolean {
 		return false;
 	}
@@ -76,9 +80,6 @@ export class ViewEventHandler extends Disposable {
 		return false;
 	}
 	public onZonesChanged(e: viewEvents.ViewZonesChangedEvent): boolean {
-		return false;
-	}
-	public onThemeChanged(e: viewEvents.ViewThemeChangedEvent): boolean {
 		return false;
 	}
 
@@ -171,6 +172,12 @@ export class ViewEventHandler extends Disposable {
 					}
 					break;
 
+				case viewEvents.ViewEventType.ViewThemeChanged:
+					if (this.onThemeChanged(e)) {
+						shouldRender = true;
+					}
+					break;
+
 				case viewEvents.ViewEventType.ViewTokensColorsChanged:
 					if (this.onTokensColorsChanged(e)) {
 						shouldRender = true;
@@ -179,12 +186,6 @@ export class ViewEventHandler extends Disposable {
 
 				case viewEvents.ViewEventType.ViewZonesChanged:
 					if (this.onZonesChanged(e)) {
-						shouldRender = true;
-					}
-					break;
-
-				case viewEvents.ViewEventType.ViewThemeChanged:
-					if (this.onThemeChanged(e)) {
 						shouldRender = true;
 					}
 					break;

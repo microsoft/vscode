@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { extname } from 'vs/base/common/path';
+import { extname, isAbsolute } from 'vs/base/common/path';
 import { dirname, resolvePath, isEqualAuthority, isEqualOrParent, relativePath, extname as resourceExtname } from 'vs/base/common/resources';
 import * as jsonEdit from 'vs/base/common/jsonEdit';
 import * as json from 'vs/base/common/json';
@@ -18,7 +18,8 @@ import { toSlashes } from 'vs/base/common/extpath';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Event as CommonEvent } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export const WORKSPACE_EXTENSION = 'code-workspace';
 export const WORKSPACE_FILTER = [{ name: localize('codeWorkspace', "Code Workspace"), extensions: [WORKSPACE_EXTENSION] }];
@@ -30,18 +31,21 @@ export interface IWorkspacesService {
 
 	_serviceBrand: undefined;
 
-	// Management
+	// Workspaces Management
 	enterWorkspace(path: URI): Promise<IEnterWorkspaceResult | null>;
 	createUntitledWorkspace(folders?: IWorkspaceFolderCreationData[], remoteAuthority?: string): Promise<IWorkspaceIdentifier>;
 	deleteUntitledWorkspace(workspace: IWorkspaceIdentifier): Promise<void>;
 	getWorkspaceIdentifier(workspacePath: URI): Promise<IWorkspaceIdentifier>;
 
-	// History
-	readonly onRecentlyOpenedChange: CommonEvent<void>;
+	// Workspaces History
+	readonly onRecentlyOpenedChange: Event<void>;
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
-	removeFromRecentlyOpened(workspaces: URI[]): Promise<void>;
+	removeRecentlyOpened(workspaces: URI[]): Promise<void>;
 	clearRecentlyOpened(): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
+
+	// Dirty Workspaces
+	getDirtyWorkspaces(): Promise<Array<IWorkspaceIdentifier | URI>>;
 }
 
 export interface IRecentlyOpened {
@@ -92,7 +96,7 @@ export function reviveWorkspaceIdentifier(workspace: { id: string, configPath: U
 	return { id: workspace.id, configPath: URI.revive(workspace.configPath) };
 }
 
-export function isStoredWorkspaceFolder(thing: any): thing is IStoredWorkspaceFolder {
+export function isStoredWorkspaceFolder(thing: unknown): thing is IStoredWorkspaceFolder {
 	return isRawFileWorkspaceFolder(thing) || isRawUriWorkspaceFolder(thing);
 }
 
@@ -147,11 +151,11 @@ export interface IEnterWorkspaceResult {
 	backupPath?: string;
 }
 
-export function isSingleFolderWorkspaceIdentifier(obj: any): obj is ISingleFolderWorkspaceIdentifier {
+export function isSingleFolderWorkspaceIdentifier(obj: unknown): obj is ISingleFolderWorkspaceIdentifier {
 	return obj instanceof URI;
 }
 
-export function isWorkspaceIdentifier(obj: any): obj is IWorkspaceIdentifier {
+export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
 	const workspaceIdentifier = obj as IWorkspaceIdentifier;
 
 	return workspaceIdentifier && typeof workspaceIdentifier.id === 'string' && workspaceIdentifier.configPath instanceof URI;
@@ -170,6 +174,10 @@ export function toWorkspaceIdentifier(workspace: IWorkspace): IWorkspaceIdentifi
 
 	// Empty workspace
 	return undefined;
+}
+
+export function isUntitledWorkspace(path: URI, environmentService: IEnvironmentService): boolean {
+	return isEqualOrParent(path, environmentService.untitledWorkspacesHome);
 }
 
 export type IMultiFolderWorkspaceInitializationPayload = IWorkspaceIdentifier;
@@ -198,21 +206,22 @@ const SLASH = '/';
  * Undefined is returned if the folderURI and the targetConfigFolderURI don't have the same schema or authority
  *
  * @param folderURI a workspace folder
+ * @param forceAbsolute if set, keep the path absolute
  * @param folderName a workspace name
  * @param targetConfigFolderURI the folder where the workspace is living in
  * @param useSlashForPath if set, use forward slashes for file paths on windows
  */
-export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows): IStoredWorkspaceFolder {
+export function getStoredWorkspaceFolder(folderURI: URI, forceAbsolute: boolean, folderName: string | undefined, targetConfigFolderURI: URI, useSlashForPath = !isWindows): IStoredWorkspaceFolder {
 
 	if (folderURI.scheme !== targetConfigFolderURI.scheme) {
 		return { name: folderName, uri: folderURI.toString(true) };
 	}
 
-	let folderPath: string | undefined;
-	if (isEqualOrParent(folderURI, targetConfigFolderURI)) {
-		// use relative path
-		folderPath = relativePath(targetConfigFolderURI, folderURI) || '.'; // always uses forward slashes
-		if (isWindows && folderURI.scheme === Schemas.file && !useSlashForPath) {
+	let folderPath = !forceAbsolute ? relativePath(targetConfigFolderURI, folderURI) : undefined;
+	if (folderPath !== undefined) {
+		if (folderPath.length === 0) {
+			folderPath = '.';
+		} else if (isWindows && folderURI.scheme === Schemas.file && !useSlashForPath) {
 			// Windows gets special treatment:
 			// - use backslahes unless slash is used by other existing folders
 			folderPath = folderPath.replace(/\//g, '\\');
@@ -244,7 +253,7 @@ export function getStoredWorkspaceFolder(folderURI: URI, folderName: string | un
  * Rewrites the content of a workspace file to be saved at a new location.
  * Throws an exception if file is not a valid workspace file
  */
-export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, targetConfigPathURI: URI) {
+export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string, configPathURI: URI, isFromUntitledWorkspace: boolean, targetConfigPathURI: URI) {
 	let storedWorkspace = doParseStoredWorkspace(configPathURI, rawWorkspaceContents);
 
 	const sourceConfigFolder = dirname(configPathURI);
@@ -253,12 +262,17 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 	const rewrittenFolders: IStoredWorkspaceFolder[] = [];
 	const slashForPath = useSlashForPath(storedWorkspace.folders);
 
-	// Rewrite absolute paths to relative paths if the target workspace folder
-	// is a parent of the location of the workspace file itself. Otherwise keep
-	// using absolute paths.
 	for (const folder of storedWorkspace.folders) {
-		let folderURI = isRawFileWorkspaceFolder(folder) ? resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
-		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, folder.name, targetConfigFolder, slashForPath));
+		const folderURI = isRawFileWorkspaceFolder(folder) ? resolvePath(sourceConfigFolder, folder.path) : URI.parse(folder.uri);
+		let absolute;
+		if (isFromUntitledWorkspace) {
+			// if it was an untitled workspace, try to make paths relative
+			absolute = false;
+		} else {
+			// for existing workspaces, preserve whether a path was absolute or relative
+			absolute = !isRawFileWorkspaceFolder(folder) || isAbsolute(folder.path);
+		}
+		rewrittenFolders.push(getStoredWorkspaceFolder(folderURI, absolute, folder.name, targetConfigFolder, slashForPath));
 	}
 
 	// Preserve as much of the existing workspace as possible by using jsonEdit
@@ -280,12 +294,9 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 	let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
 
 	// Filter out folders which do not have a path or uri set
-	if (Array.isArray(storedWorkspace.folders)) {
+	if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
 		storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
-	}
-
-	// Validate
-	if (!Array.isArray(storedWorkspace.folders)) {
+	} else {
 		throw new Error(`${path} looks like an invalid workspace file.`);
 	}
 
@@ -294,12 +305,7 @@ function doParseStoredWorkspace(path: URI, contents: string): IStoredWorkspace {
 
 export function useSlashForPath(storedFolders: IStoredWorkspaceFolder[]): boolean {
 	if (isWindows) {
-		for (const folder of storedFolders) {
-			if (isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0) {
-				return true;
-			}
-		}
-		return false;
+		return storedFolders.some(folder => isRawFileWorkspaceFolder(folder) && folder.path.indexOf(SLASH) >= 0);
 	}
 	return true;
 }

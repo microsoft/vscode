@@ -70,9 +70,11 @@
 	let ctrlPressed = false;
 	let altPressed = false;
 	let hasLoadedImage = false;
+	let consumeClick = true;
+	let isActive = false;
 
 	// Elements
-	const container =  /** @type {HTMLElement} */(document.querySelector('body'));
+	const container = document.body;
 	const image = document.createElement('img');
 
 	function updateScale(newScale) {
@@ -88,9 +90,6 @@
 			image.style.width = 'auto';
 			vscode.setState(undefined);
 		} else {
-			const oldWidth = image.width;
-			const oldHeight = image.height;
-
 			scale = clamp(newScale, MIN_SCALE, MAX_SCALE);
 			if (scale >= PIXELATION_THRESHOLD) {
 				image.classList.add('pixelated');
@@ -98,31 +97,43 @@
 				image.classList.remove('pixelated');
 			}
 
-			const { scrollTop, scrollLeft } = image.parentElement;
-			const dx = (scrollLeft + image.parentElement.clientWidth / 2) / image.parentElement.scrollWidth;
-			const dy = (scrollTop + image.parentElement.clientHeight / 2) / image.parentElement.scrollHeight;
+			const dx = (window.scrollX + container.clientWidth / 2) / container.scrollWidth;
+			const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
 
 			image.classList.remove('scale-to-fit');
 			image.style.minWidth = `${(image.naturalWidth * scale)}px`;
 			image.style.width = `${(image.naturalWidth * scale)}px`;
 
-			const newWidth = image.width;
-			const scaleFactor = (newWidth - oldWidth) / oldWidth;
+			const newScrollX = container.scrollWidth * dx - container.clientWidth / 2;
+			const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
 
-			const newScrollLeft = ((oldWidth * scaleFactor * dx) + scrollLeft);
-			const newScrollTop = ((oldHeight * scaleFactor * dy) + scrollTop);
-			// scrollbar.setScrollPosition({
-			// 	scrollLeft: newScrollLeft,
-			// 	scrollTop: newScrollTop,
-			// });
+			window.scrollTo(newScrollX, newScrollY);
 
-			vscode.setState({ scale: scale, offsetX: newScrollLeft, offsetY: newScrollTop });
+			vscode.setState({ scale: scale, offsetX: newScrollX, offsetY: newScrollY });
 		}
 
 		vscode.postMessage({
 			type: 'zoom',
 			value: scale
 		});
+	}
+
+	function setActive(value) {
+		isActive = value;
+		if (value) {
+			if (isMac ? altPressed : ctrlPressed) {
+				container.classList.remove('zoom-in');
+				container.classList.add('zoom-out');
+			} else {
+				container.classList.remove('zoom-out');
+				container.classList.add('zoom-in');
+			}
+		} else {
+			ctrlPressed = false;
+			altPressed = false;
+			container.classList.remove('zoom-out');
+			container.classList.remove('zoom-in');
+		}
 	}
 
 	function firstZoom() {
@@ -132,6 +143,34 @@
 
 		scale = image.clientWidth / image.naturalWidth;
 		updateScale(scale);
+	}
+
+	function zoomIn() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = 0;
+		for (; i < zoomLevels.length; ++i) {
+			if (zoomLevels[i] > scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MAX_SCALE);
+	}
+
+	function zoomOut() {
+		if (scale === 'fit') {
+			firstZoom();
+		}
+
+		let i = zoomLevels.length - 1;
+		for (; i >= 0; --i) {
+			if (zoomLevels[i] < scale) {
+				break;
+			}
+		}
+		updateScale(zoomLevels[i] || MIN_SCALE);
 	}
 
 	window.addEventListener('keydown', (/** @type {KeyboardEvent} */ e) => {
@@ -161,6 +200,21 @@
 		}
 	});
 
+	container.addEventListener('mousedown', (/** @type {MouseEvent} */ e) => {
+		if (!image || !hasLoadedImage) {
+			return;
+		}
+
+		if (e.button !== 0) {
+			return;
+		}
+
+		ctrlPressed = e.ctrlKey;
+		altPressed = e.altKey;
+
+		consumeClick = !isActive;
+	});
+
 	container.addEventListener('click', (/** @type {MouseEvent} */ e) => {
 		if (!image || !hasLoadedImage) {
 			return;
@@ -170,31 +224,28 @@
 			return;
 		}
 
+		if (consumeClick) {
+			consumeClick = false;
+			return;
+		}
 		// left click
 		if (scale === 'fit') {
 			firstZoom();
 		}
 
 		if (!(isMac ? altPressed : ctrlPressed)) { // zoom in
-			let i = 0;
-			for (; i < zoomLevels.length; ++i) {
-				if (zoomLevels[i] > scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MAX_SCALE);
+			zoomIn();
 		} else {
-			let i = zoomLevels.length - 1;
-			for (; i >= 0; --i) {
-				if (zoomLevels[i] < scale) {
-					break;
-				}
-			}
-			updateScale(zoomLevels[i] || MIN_SCALE);
+			zoomOut();
 		}
 	});
 
 	container.addEventListener('wheel', (/** @type {WheelEvent} */ e) => {
+		// Prevent pinch to zoom
+		if (e.ctrlKey) {
+			e.preventDefault();
+		}
+
 		if (!image || !hasLoadedImage) {
 			return;
 		}
@@ -204,18 +255,15 @@
 			return;
 		}
 
-		e.preventDefault();
-		e.stopPropagation();
-
 		if (scale === 'fit') {
 			firstZoom();
 		}
 
 		let delta = e.deltaY > 0 ? 1 : -1;
 		updateScale(scale * (1 - delta * SCALE_PINCH_FACTOR));
-	});
+	}, { passive: false });
 
-	window.addEventListener('scroll', () => {
+	window.addEventListener('scroll', e => {
 		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
 			return;
 		}
@@ -224,27 +272,25 @@
 		if (entry) {
 			vscode.setState({ scale: entry.scale, offsetX: window.scrollX, offsetY: window.scrollY });
 		}
-	});
+	}, { passive: true });
 
 	container.classList.add('image');
-	container.classList.add('zoom-in');
 
 	image.classList.add('scale-to-fit');
 
 	image.addEventListener('load', () => {
-		document.querySelector('.loading').remove();
-		hasLoadedImage = true;
-
-		if (!image) {
+		if (hasLoadedImage) {
 			return;
 		}
+		hasLoadedImage = true;
 
 		vscode.postMessage({
 			type: 'size',
 			value: `${image.naturalWidth}x${image.naturalHeight}`,
 		});
 
-		container.classList.add('ready');
+		document.body.classList.remove('loading');
+		document.body.classList.add('ready');
 		document.body.append(image);
 
 		updateScale(scale);
@@ -254,12 +300,40 @@
 		}
 	});
 
-	image.src = decodeURI(settings.src);
+	image.addEventListener('error', e => {
+		if (hasLoadedImage) {
+			return;
+		}
+
+		hasLoadedImage = true;
+		document.body.classList.add('error');
+		document.body.classList.remove('loading');
+	});
+
+	image.src = settings.src;
+
+	document.querySelector('.open-file-link').addEventListener('click', () => {
+		vscode.postMessage({
+			type: 'reopen-as-text',
+		});
+	});
 
 	window.addEventListener('message', e => {
 		switch (e.data.type) {
 			case 'setScale':
 				updateScale(e.data.scale);
+				break;
+
+			case 'setActive':
+				setActive(e.data.value);
+				break;
+
+			case 'zoomIn':
+				zoomIn();
+				break;
+
+			case 'zoomOut':
+				zoomOut();
 				break;
 		}
 	});

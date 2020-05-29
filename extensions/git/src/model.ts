@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, OutputChannel, commands } from 'vscode';
 import { Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
-import { dispose, anyEvent, filterEvent, isDescendant, firstIndex } from './util';
+import { dispose, anyEvent, filterEvent, isDescendant, firstIndex, pathEquals, toDisposable } from './util';
 import { Git } from './git';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as nls from 'vscode-nls';
 import { fromGitUri } from './uri';
-import { GitErrorCodes, APIState as State } from './api/git';
+import { APIState as State, RemoteSourceProvider, CredentialsProvider } from './api/git';
+import { Askpass } from './askpass';
+import { IRemoteSourceProviderRegistry } from './remoteProvider';
 
 const localize = nls.loadMessageBundle();
 
@@ -44,7 +46,7 @@ interface OpenRepository extends Disposable {
 	repository: Repository;
 }
 
-export class Model {
+export class Model implements IRemoteSourceProviderRegistry {
 
 	private _onDidOpenRepository = new EventEmitter<Repository>();
 	readonly onDidOpenRepository: Event<Repository> = this._onDidOpenRepository.event;
@@ -72,11 +74,20 @@ export class Model {
 	setState(state: State): void {
 		this._state = state;
 		this._onDidChangeState.fire(state);
+		commands.executeCommand('setContext', 'git.state', state);
 	}
+
+	private remoteSourceProviders = new Set<RemoteSourceProvider>();
+
+	private _onDidAddRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
+	readonly onDidAddRemoteSourceProvider = this._onDidAddRemoteSourceProvider.event;
+
+	private _onDidRemoveRemoteSourceProvider = new EventEmitter<RemoteSourceProvider>();
+	readonly onDidRemoveRemoteSourceProvider = this._onDidRemoveRemoteSourceProvider.event;
 
 	private disposables: Disposable[] = [];
 
-	constructor(readonly git: Git, private globalState: Memento, private outputChannel: OutputChannel) {
+	constructor(readonly git: Git, private readonly askpass: Askpass, private globalState: Memento, private outputChannel: OutputChannel) {
 		workspace.onDidChangeWorkspaceFolders(this.onDidChangeWorkspaceFolders, this, this.disposables);
 		window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors, this, this.disposables);
 		workspace.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
@@ -89,6 +100,7 @@ export class Model {
 		const onPossibleGitRepositoryChange = filterEvent(onGitRepositoryChange, uri => !this.getRepository(uri));
 		onPossibleGitRepositoryChange(this.onPossibleGitRepositoryChange, this, this.disposables);
 
+		this.setState('uninitialized');
 		this.doInitialScan().finally(() => this.setState('initialized'));
 	}
 
@@ -112,31 +124,27 @@ export class Model {
 			return;
 		}
 
-		for (const folder of workspace.workspaceFolders || []) {
+		await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 			const root = folder.uri.fsPath;
+			const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const promises = children
+				.filter(child => child !== '.git')
+				.map(child => this.openRepository(path.join(root, child)));
 
-			try {
-				const children = await new Promise<string[]>((c, e) => fs.readdir(root, (err, r) => err ? e(err) : c(r)));
+			const folderConfig = workspace.getConfiguration('git', folder.uri);
+			const paths = folderConfig.get<string[]>('scanRepositories') || [];
 
-				children
-					.filter(child => child !== '.git')
-					.forEach(child => this.openRepository(path.join(root, child)));
-
-				const folderConfig = workspace.getConfiguration('git', folder.uri);
-				const paths = folderConfig.get<string[]>('scanRepositories') || [];
-
-				for (const possibleRepositoryPath of paths) {
-					if (path.isAbsolute(possibleRepositoryPath)) {
-						console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
-						continue;
-					}
-
-					this.openRepository(path.join(root, possibleRepositoryPath));
+			for (const possibleRepositoryPath of paths) {
+				if (path.isAbsolute(possibleRepositoryPath)) {
+					console.warn(localize('not supported', "Absolute paths not supported in 'git.scanRepositories' setting."));
+					continue;
 				}
-			} catch (err) {
-				// noop
+
+				promises.push(this.openRepository(path.join(root, possibleRepositoryPath)));
 			}
-		}
+
+			await Promise.all(promises);
+		}));
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
@@ -240,25 +248,39 @@ export class Model {
 				return;
 			}
 
-			const config = workspace.getConfiguration('git');
-			const ignoredRepos = new Set(config.get<Array<string>>('ignoredRepositories'));
-
-			if (ignoredRepos.has(rawRoot)) {
+			if (this.shouldRepositoryBeIgnored(rawRoot)) {
 				return;
 			}
 
 			const dotGit = await this.git.getRepositoryDotGit(repositoryRoot);
-			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this.globalState, this.outputChannel);
+			const repository = new Repository(this.git.open(repositoryRoot, dotGit), this, this.globalState, this.outputChannel);
 
 			this.open(repository);
 			await repository.status();
 		} catch (err) {
-			if (err.gitErrorCode === GitErrorCodes.NotAGitRepository) {
-				return;
-			}
-
-			// console.error('Failed to find repository:', err);
+			// noop
 		}
+	}
+
+	private shouldRepositoryBeIgnored(repositoryRoot: string): boolean {
+		const config = workspace.getConfiguration('git');
+		const ignoredRepos = config.get<string[]>('ignoredRepositories') || [];
+
+		for (const ignoredRepo of ignoredRepos) {
+			if (path.isAbsolute(ignoredRepo)) {
+				if (pathEquals(ignoredRepo, repositoryRoot)) {
+					return true;
+				}
+			} else {
+				for (const folder of workspace.workspaceFolders || []) {
+					if (pathEquals(path.join(folder.uri.fsPath, ignoredRepo), repositoryRoot)) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	private open(repository: Repository): void {
@@ -427,6 +449,24 @@ export class Model {
 		}
 
 		return undefined;
+	}
+
+	registerRemoteSourceProvider(provider: RemoteSourceProvider): Disposable {
+		this.remoteSourceProviders.add(provider);
+		this._onDidAddRemoteSourceProvider.fire(provider);
+
+		return toDisposable(() => {
+			this.remoteSourceProviders.delete(provider);
+			this._onDidRemoveRemoteSourceProvider.fire(provider);
+		});
+	}
+
+	registerCredentialsProvider(provider: CredentialsProvider): Disposable {
+		return this.askpass.registerCredentialsProvider(provider);
+	}
+
+	getRemoteProviders(): RemoteSourceProvider[] {
+		return [...this.remoteSourceProviders.values()];
 	}
 
 	dispose(): void {

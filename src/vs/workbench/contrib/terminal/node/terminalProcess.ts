@@ -65,27 +65,31 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			env,
 			cols,
 			rows,
-			experimentalUseConpty: useConpty,
+			useConpty,
 			// This option will force conpty to not redraw the whole viewport on launch
 			conptyInheritCursor: useConpty && !!shellLaunchConfig.initialText
 		};
 
+		// TODO: Pull verification out into its own function
 		const cwdVerification = stat(cwd).then(async stat => {
 			if (!stat.isDirectory()) {
 				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
 			}
+			return undefined;
 		}, async err => {
 			if (err && err.code === 'ENOENT') {
 				// So we can include in the error message the specified CWD
 				shellLaunchConfig.cwd = cwd;
 				return Promise.reject(SHELL_CWD_INVALID_EXIT_CODE);
 			}
+			return undefined;
 		});
 
 		const executableVerification = stat(shellLaunchConfig.executable!).then(async stat => {
 			if (!stat.isFile() && !stat.isSymbolicLink()) {
 				return Promise.reject(stat.isDirectory() ? SHELL_PATH_DIRECTORY_EXIT_CODE : SHELL_PATH_INVALID_EXIT_CODE);
 			}
+			return undefined;
 		}, async (err) => {
 			if (err && err.code === 'ENOENT') {
 				let cwd = shellLaunchConfig.cwd instanceof URI ? shellLaunchConfig.cwd.path : shellLaunchConfig.cwd!;
@@ -96,6 +100,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return Promise.reject(SHELL_PATH_INVALID_EXIT_CODE);
 				}
 			}
+			return undefined;
 		});
 
 		Promise.all([cwdVerification, executableVerification]).then(() => {
@@ -174,26 +179,25 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		this._closeTimeout = setTimeout(() => this._kill(), 250);
 	}
 
-	private _kill(): void {
+	private async _kill(): Promise<void> {
 		// Wait to kill to process until the start up code has run. This prevents us from firing a process exit before a
 		// process start.
-		this._processStartupComplete!.then(() => {
-			if (this._isDisposed) {
-				return;
+		await this._processStartupComplete;
+		if (this._isDisposed) {
+			return;
+		}
+		// Attempt to kill the pty, it may have already been killed at this
+		// point but we want to make sure
+		try {
+			if (this._ptyProcess) {
+				this._logService.trace('IPty#kill');
+				this._ptyProcess.kill();
 			}
-			// Attempt to kill the pty, it may have already been killed at this
-			// point but we want to make sure
-			try {
-				if (this._ptyProcess) {
-					this._logService.trace('IPty#kill');
-					this._ptyProcess.kill();
-				}
-			} catch (ex) {
-				// Swallow, the pty has already been killed
-			}
-			this._onProcessExit.fire(this._exitCode || 0);
-			this.dispose();
-		});
+		} catch (ex) {
+			// Swallow, the pty has already been killed
+		}
+		this._onProcessExit.fire(this._exitCode || 0);
+		this.dispose();
 	}
 
 	private _sendProcessId(ptyProcess: pty.IPty) {
@@ -237,7 +241,14 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			cols = Math.max(cols, 1);
 			rows = Math.max(rows, 1);
 			this._logService.trace('IPty#resize', cols, rows);
-			this._ptyProcess.resize(cols, rows);
+			try {
+				this._ptyProcess.resize(cols, rows);
+			} catch (e) {
+				// Swallow error if the pty has already exited
+				if (this._exitCode !== undefined) {
+					throw e;
+				}
+			}
 		}
 	}
 
@@ -253,7 +264,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('IPty#pid');
-				exec('lsof -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
+				exec('lsof -OPl -p ' + this._ptyProcess.pid + ' | grep cwd', (error, stdout, stderr) => {
 					if (stdout !== '') {
 						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
 					}

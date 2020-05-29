@@ -17,8 +17,8 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 
 	private readonly _onProcessData = this._register(new Emitter<string>());
 	public readonly onProcessData: Event<string> = this._onProcessData.event;
-	private readonly _onProcessExit = this._register(new Emitter<number>());
-	public readonly onProcessExit: Event<number> = this._onProcessExit.event;
+	private readonly _onProcessExit = this._register(new Emitter<number | undefined>());
+	public readonly onProcessExit: Event<number | undefined> = this._onProcessExit.event;
 	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
 	public get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
@@ -48,7 +48,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 	constructor(
 		public terminalId: number,
 		shellLaunchConfig: IShellLaunchConfig,
-		activeWorkspaceRootUri: URI,
+		activeWorkspaceRootUri: URI | undefined,
 		cols: number,
 		rows: number,
 		configHelper: ITerminalConfigHelper,
@@ -87,7 +87,7 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onProcessReady.fire({ pid, cwd });
 	}
 
-	public emitExit(exitCode: number): void {
+	public emitExit(exitCode: number | undefined): void {
 		this._onProcessExit.fire(exitCode);
 		this.dispose();
 	}

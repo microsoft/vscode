@@ -4,6 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.createESMSourcesAndResources2 = exports.extractEditor = void 0;
 const ts = require("typescript");
 const fs = require("fs");
 const path = require("path");
@@ -43,7 +44,9 @@ function extractEditor(options) {
     compilerOptions.declaration = false;
     compilerOptions.moduleResolution = ts.ModuleResolutionKind.Classic;
     options.compilerOptions = compilerOptions;
-    console.log(`Running with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
+    console.log(`Running tree shaker with shakeLevel ${tss.toStringShakeLevel(options.shakeLevel)}`);
+    // Take the extra included .d.ts files from `tsconfig.monaco.json`
+    options.typings = tsConfig.include.filter(includedFile => /\.d\.ts$/.test(includedFile));
     let result = tss.shake(options);
     for (let fileName in result) {
         if (result.hasOwnProperty(fileName)) {

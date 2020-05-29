@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Terminal as XTermTerminal } from 'xterm';
-import { WebLinksAddon as XTermWebLinksAddon } from 'xterm-addon-web-links';
 import { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
+import { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
+import { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { IWindowsShellHelper, ITerminalConfigHelper, ITerminalChildProcess, IShellLaunchConfig, IDefaultShellAndArgsRequest, ISpawnExtHostProcessRequest, IStartExtensionTerminalRequest, IAvailableShellsRequest, ITerminalProcessExtHostProxy, ICommandTracker, INavigationMode, TitleEventSource, ITerminalDimensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment, Platform } from 'vs/base/common/platform';
 import { Event } from 'vs/base/common/event';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { URI } from 'vs/base/common/uri';
@@ -30,9 +30,10 @@ export interface ITerminalInstanceService {
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
 
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
-	getXtermWebLinksConstructor(): Promise<typeof XTermWebLinksAddon>;
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
-	createWindowsShellHelper(shellProcessId: number, instance: ITerminalInstance, xterm: XTermTerminal): IWindowsShellHelper;
+	getXtermUnicode11Constructor(): Promise<typeof XTermUnicode11Addon>;
+	getXtermWebglConstructor(): Promise<typeof XTermWebglAddon>;
+	createWindowsShellHelper(shellProcessId: number, xterm: XTermTerminal): IWindowsShellHelper;
 	createTerminalProcess(shellLaunchConfig: IShellLaunchConfig, cwd: string, cols: number, rows: number, env: IProcessEnvironment, windowsEnableConpty: boolean): ITerminalChildProcess;
 
 	getDefaultShellAndArgs(useAutomationShell: boolean, platformOverride?: Platform): Promise<{ shell: string, args: string[] | string | undefined }>;
@@ -65,7 +66,7 @@ export interface ITerminalTab {
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
-	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance | undefined;
+	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
 export interface ITerminalService {
@@ -109,6 +110,13 @@ export interface ITerminalService {
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): ITerminalInstance | null;
 
+	/**
+	 * Perform an action with the active terminal instance, if the terminal does
+	 * not exist the callback will not be called.
+	 * @param callback The callback that fires with the active terminal
+	 */
+	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
+
 	getActiveTab(): ITerminalTab | null;
 	setActiveTabToNext(): void;
 	setActiveTabToPrevious(): void;
@@ -128,7 +136,15 @@ export interface ITerminalService {
 	findNext(): void;
 	findPrevious(): void;
 
-	selectDefaultWindowsShell(): Promise<void>;
+	/**
+	 * Link handlers can be registered here to allow intercepting links clicked in the terminal.
+	 * When a link is clicked, the link will be considered handled when the first interceptor
+	 * resolves with true. It will be considered not handled when _all_ link handlers resolve with
+	 * false, or 3 seconds have elapsed.
+	 */
+	addLinkHandler(key: string, callback: TerminalLinkHandlerCallback): IDisposable;
+
+	selectDefaultShell(): Promise<void>;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	manageWorkspaceShellPermissions(): void;
@@ -142,10 +158,10 @@ export interface ITerminalService {
 	 * @param path The path to be escaped and formatted.
 	 * @returns An escaped version of the path to be execuded in the terminal.
 	 */
-	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string): Promise<string>;
+	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType): Promise<string>;
 
 	extHostReady(remoteAuthority: string): void;
-	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
+	requestSpawnExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, activeWorkspaceRootUri: URI | undefined, cols: number, rows: number, isWorkspaceShellAllowed: boolean): void;
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): void;
 }
 
@@ -167,6 +183,26 @@ export interface ISearchOptions {
 	 */
 	incremental?: boolean;
 }
+
+export enum WindowsShellType {
+	CommandPrompt = 'cmd',
+	PowerShell = 'pwsh',
+	Wsl = 'wsl',
+	GitBash = 'gitbash'
+}
+export type TerminalShellType = WindowsShellType | undefined;
+
+export const LINK_INTERCEPT_THRESHOLD = 3000;
+
+export interface ITerminalBeforeHandleLinkEvent {
+	terminal?: ITerminalInstance;
+	/** The text of the link */
+	link: string;
+	/** Call with whether the link was handled by the interceptor */
+	resolve(wasHandled: boolean): void;
+}
+
+export type TerminalLinkHandlerCallback = (e: ITerminalBeforeHandleLinkEvent) => Promise<boolean>;
 
 export interface ITerminalInstance {
 	/**
@@ -227,7 +263,14 @@ export interface ITerminalInstance {
 	 * is the processes' exit code, an exit code of null means the process was killed as a result of
 	 * the ITerminalInstance being disposed.
 	 */
-	onExit: Event<number>;
+	onExit: Event<number | undefined>;
+
+	/**
+	 * Attach a listener to intercept and handle link clicks in the terminal.
+	 */
+	onBeforeHandleLink: Event<ITerminalBeforeHandleLinkEvent>;
+
+	readonly exitCode: number | undefined;
 
 	processReady: Promise<void>;
 
@@ -236,6 +279,11 @@ export interface ITerminalInstance {
 	 * explicit name given to the terminal instance through the extension API.
 	 */
 	readonly title: string;
+
+	/**
+	 * The shell type of the terminal.
+	 */
+	readonly shellType: TerminalShellType;
 
 	/**
 	 * The focus state of the terminal before exiting.
@@ -269,6 +317,11 @@ export interface ITerminalInstance {
 	readonly navigationMode: INavigationMode | undefined;
 
 	/**
+	 * Shows the environment information hover if the widget exists.
+	 */
+	showEnvironmentInfoHover(): void;
+
+	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
 	 *
 	 * @param immediate Whether the kill should be immediate or not. Immediate should only be used
@@ -282,26 +335,6 @@ export interface ITerminalInstance {
 	 * Forces the terminal to redraw its viewport.
 	 */
 	forceRedraw(): void;
-
-	/**
-	 * Registers a link matcher, allowing custom link patterns to be matched and handled.
-	 * @param regex The regular expression the search for, specifically this searches the
-	 * textContent of the rows. You will want to use \s to match a space ' ' character for example.
-	 * @param handler The callback when the link is called.
-	 * @param matchIndex The index of the link from the regex.match(html) call. This defaults to 0
-	 * (for regular expressions without capture groups).
-	 * @param validationCallback A callback which can be used to validate the link after it has been
-	 * added to the DOM.
-	 * @return The ID of the new matcher, this can be used to deregister.
-	 */
-	registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number;
-
-	/**
-	 * Deregisters a link matcher if it has been registered.
-	 * @param matcherId The link matcher's ID (returned after register)
-	 * @return Whether a link matcher was found and deregistered.
-	 */
-	deregisterLinkMatcher(matcherId: number): void;
 
 	/**
 	 * Check if anything is selected in terminal.
@@ -374,12 +407,6 @@ export interface ITerminalInstance {
 	 */
 	sendText(text: string, addNewLine: boolean): void;
 
-	/**
-	 * Write text directly to the terminal, skipping the process if it exists.
-	 * @param text The text to write.
-	 */
-	write(text: string): void;
-
 	/** Scroll the terminal buffer down 1 line. */
 	scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */
@@ -428,9 +455,20 @@ export interface ITerminalInstance {
 	reuseTerminal(shell: IShellLaunchConfig): void;
 
 	/**
+	 * Relaunches the terminal, killing it and reusing the launch config used initially. Any
+	 * environment variable changes will be recalculated when this happens.
+	 */
+	relaunch(): void;
+
+	/**
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventSource: TitleEventSource): void;
+
+	/**
+	 * Sets the shell type of the terminal instance.
+	 */
+	setShellType(shellType: TerminalShellType): void;
 
 	waitForTitle(): Promise<string>;
 

@@ -7,7 +7,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { CodeLensModel } from 'vs/editor/contrib/codelens/codelens';
-import { LRUCache, values } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
 import { CodeLensProvider, CodeLensList, CodeLens } from 'vs/editor/common/modes';
 import { IStorageService, StorageScope, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { Range } from 'vs/editor/common/core/range';
@@ -68,11 +68,18 @@ export class CodeLensCache implements ICodeLensCache {
 	}
 
 	put(model: ITextModel, data: CodeLensModel): void {
+		// create a copy of the model that is without command-ids
+		// but with comand-labels
+		const copyItems = data.lenses.map(item => {
+			return <CodeLens>{
+				range: item.symbol.range,
+				command: item.symbol.command && { id: '', title: item.symbol.command?.title },
+			};
+		});
+		const copyModel = new CodeLensModel();
+		copyModel.add({ lenses: copyItems, dispose: () => { } }, this._fakeProvider);
 
-		const lensModel = new CodeLensModel();
-		lensModel.add({ lenses: data.lenses.map(v => v.symbol), dispose() { } }, this._fakeProvider);
-
-		const item = new CacheItem(model.getLineCount(), lensModel);
+		const item = new CacheItem(model.getLineCount(), copyModel);
 		this._cache.set(model.uri.toString(), item);
 	}
 
@@ -96,7 +103,7 @@ export class CodeLensCache implements ICodeLensCache {
 			}
 			data[key] = {
 				lineCount: value.lineCount,
-				lines: values(lines)
+				lines: [...lines.values()]
 			};
 		});
 		return JSON.stringify(data);

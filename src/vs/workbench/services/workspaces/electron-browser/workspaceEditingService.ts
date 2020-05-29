@@ -8,13 +8,14 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
-import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspacesService, isUntitledWorkspace, IWorkspaceIdentifier, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { toBackupWorkspaceResource } from 'vs/workbench/services/backup/electron-browser/backup';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isEqual, basename, isEqualOrParent } from 'vs/base/common/resources';
+import { isEqual, basename } from 'vs/base/common/resources';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -26,9 +27,11 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { AbstractWorkspaceEditingService } from 'vs/workbench/services/workspaces/browser/abstractWorkspaceEditingService';
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { isMacintosh } from 'vs/base/common/platform';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { BackupFileService } from 'vs/workbench/services/backup/common/backupFileService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -39,22 +42,22 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IWorkspaceContextService contextService: WorkspaceService,
 		@IElectronService private electronService: IElectronService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
-		@IExtensionService extensionService: IExtensionService,
-		@IBackupFileService backupFileService: IBackupFileService,
+		@IStorageService private storageService: IStorageService,
+		@IExtensionService private extensionService: IExtensionService,
+		@IBackupFileService private backupFileService: IBackupFileService,
 		@INotificationService notificationService: INotificationService,
 		@ICommandService commandService: ICommandService,
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWorkspacesService workspacesService: IWorkspacesService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService protected environmentService: INativeWorkbenchEnvironmentService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService protected dialogService: IDialogService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IHostService hostService: IHostService,
 	) {
-		super(jsonEditingService, contextService, configurationService, storageService, extensionService, backupFileService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService);
 
 		this.registerListeners();
 	}
@@ -74,7 +77,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 
 		const workspaceIdentifier = this.getCurrentWorkspaceIdentifier();
-		if (!workspaceIdentifier || !isEqualOrParent(workspaceIdentifier.configPath, this.environmentService.untitledWorkspacesHome)) {
+		if (!workspaceIdentifier || !isUntitledWorkspace(workspaceIdentifier.configPath, this.environmentService)) {
 			return false; // only care about untitled workspaces to ask for saving
 		}
 
@@ -89,22 +92,14 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			CANCEL
 		}
 
-		const save = { label: mnemonicButtonLabel(nls.localize('save', "Save")), result: ConfirmResult.SAVE };
-		const dontSave = { label: mnemonicButtonLabel(nls.localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE };
-		const cancel = { label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL };
-
-		const buttons: { label: string; result: ConfirmResult; }[] = [];
-		if (isWindows) {
-			buttons.push(save, dontSave, cancel);
-		} else if (isLinux) {
-			buttons.push(dontSave, cancel, save);
-		} else {
-			buttons.push(save, cancel, dontSave);
-		}
-
+		const buttons: { label: string; result: ConfirmResult; }[] = [
+			{ label: mnemonicButtonLabel(nls.localize('save', "Save")), result: ConfirmResult.SAVE },
+			{ label: mnemonicButtonLabel(nls.localize('doNotSave', "Don't Save")), result: ConfirmResult.DONT_SAVE },
+			{ label: nls.localize('cancel', "Cancel"), result: ConfirmResult.CANCEL }
+		];
 		const message = nls.localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?");
 		const detail = nls.localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again.");
-		const cancelId = buttons.indexOf(cancel);
+		const cancelId = 2;
 
 		const { choice } = await this.dialogService.show(Severity.Warning, message, buttons.map(button => button.label), { detail, cancelId });
 
@@ -122,18 +117,21 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			// Save: save workspace, but do not veto unload if path provided
 			case ConfirmResult.SAVE: {
 				const newWorkspacePath = await this.pickNewWorkspacePath();
-				if (!newWorkspacePath) {
+				if (!newWorkspacePath || !hasWorkspaceFileExtension(newWorkspacePath)) {
 					return true; // keep veto if no target was provided
 				}
 
 				try {
 					await this.saveWorkspaceAs(workspaceIdentifier, newWorkspacePath);
 
+					// Make sure to add the new workspace to the history to find it again
 					const newWorkspaceIdentifier = await this.workspacesService.getWorkspaceIdentifier(newWorkspacePath);
+					this.workspacesService.addRecentlyOpened([{
+						label: this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true }),
+						workspace: newWorkspaceIdentifier
+					}]);
 
-					const label = this.labelService.getWorkspaceLabel(newWorkspaceIdentifier, { verbose: true });
-					this.workspacesService.addRecentlyOpened([{ label, workspace: newWorkspaceIdentifier }]);
-
+					// Delete the untitled one
 					this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
 				} catch (error) {
 					// ignore
@@ -162,6 +160,37 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		}
 
 		return true; // OK
+	}
+
+	async enterWorkspace(path: URI): Promise<void> {
+		const result = await this.doEnterWorkspace(path);
+		if (result) {
+
+			// Migrate storage to new workspace
+			await this.migrateStorage(result.workspace);
+
+			// Reinitialize backup service
+			this.environmentService.configuration.backupPath = result.backupPath;
+			this.environmentService.configuration.backupWorkspaceResource = result.backupPath ? toBackupWorkspaceResource(result.backupPath, this.environmentService) : undefined;
+			if (this.backupFileService instanceof BackupFileService) {
+				this.backupFileService.reinitialize();
+			}
+		}
+
+		// TODO@aeschli: workaround until restarting works
+		if (this.environmentService.configuration.remoteAuthority) {
+			this.hostService.reload();
+		}
+
+		// Restart the extension host: entering a workspace means a new location for
+		// storage and potentially a change in the workspace.rootPath property.
+		else {
+			this.extensionService.restartExtensionHost();
+		}
+	}
+
+	private migrateStorage(toWorkspace: IWorkspaceIdentifier): Promise<void> {
+		return this.storageService.migrate(toWorkspace);
 	}
 }
 

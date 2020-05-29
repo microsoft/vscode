@@ -10,6 +10,8 @@ import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
+import { EndOfLinePreference } from 'vs/editor/common/model';
 
 export class WalkThroughModel extends EditorModel {
 
@@ -51,15 +53,13 @@ export class WalkThroughInput extends EditorInput {
 	private maxTopScroll = 0;
 	private maxBottomScroll = 0;
 
+	get resource() { return this.options.resource; }
+
 	constructor(
-		private options: WalkThroughInputOptions,
+		private readonly options: WalkThroughInputOptions,
 		@ITextModelService private readonly textModelResolverService: ITextModelService
 	) {
 		super();
-	}
-
-	getResource(): URI {
-		return this.options.resource;
 	}
 
 	getTypeId(): string {
@@ -78,7 +78,7 @@ export class WalkThroughInput extends EditorInput {
 		return this.options.telemetryFrom;
 	}
 
-	getTelemetryDescriptor(): { [key: string]: unknown } {
+	getTelemetryDescriptor(): { [key: string]: unknown; } {
 		const descriptor = super.getTelemetryDescriptor();
 		descriptor['target'] = this.getTelemetryFrom();
 		/* __GDPR__FRAGMENT__
@@ -97,7 +97,7 @@ export class WalkThroughInput extends EditorInput {
 		if (!this.promise) {
 			this.promise = this.textModelResolverService.createModelReference(this.options.resource)
 				.then(ref => {
-					if (strings.endsWith(this.getResource().path, '.html')) {
+					if (strings.endsWith(this.resource.path, '.html')) {
 						return new WalkThroughModel(ref, []);
 					}
 
@@ -110,7 +110,7 @@ export class WalkThroughInput extends EditorInput {
 						return '';
 					};
 
-					const markdown = ref.object.textEditorModel.getLinesContent().join('\n');
+					const markdown = ref.object.textEditorModel.getValue(EndOfLinePreference.LF);
 					marked(markdown, { renderer });
 
 					return Promise.all(snippets)
@@ -130,7 +130,7 @@ export class WalkThroughInput extends EditorInput {
 			let otherResourceEditorInput = <WalkThroughInput>otherInput;
 
 			// Compare by properties
-			return otherResourceEditorInput.options.resource.toString() === this.options.resource.toString();
+			return isEqual(otherResourceEditorInput.options.resource, this.options.resource);
 		}
 
 		return false;

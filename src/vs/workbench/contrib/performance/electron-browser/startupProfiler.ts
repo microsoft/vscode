@@ -8,7 +8,8 @@ import { exists, readdir, readFile, rimraf } from 'vs/base/node/pfs';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-browser/environmentService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import product from 'vs/platform/product/common/product';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -17,19 +18,21 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class StartupProfiler implements IWorkbenchContribution {
 
 	constructor(
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IExtensionService extensionService: IExtensionService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IElectronService private readonly _electronService: IElectronService
+		@IElectronService private readonly _electronService: IElectronService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		// wait for everything to be ready
 		Promise.all([
@@ -88,7 +91,7 @@ export class StartupProfiler implements IWorkbenchContribution {
 						return this._dialogService.confirm({
 							type: 'info',
 							message: localize('prof.thanks', "Thanks for helping us."),
-							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._environmentService.appNameLong),
+							detail: localize('prof.detail.restart', "A final restart is required to continue to use '{0}'. Again, thank you for your contribution.", this._productService.nameLong),
 							primaryButton: localize('prof.restart', "Restart"),
 							secondaryButton: undefined
 						}).then(() => {
@@ -112,8 +115,11 @@ export class StartupProfiler implements IWorkbenchContribution {
 		}
 
 		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
-		await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
-		ref.dispose();
+		try {
+			await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
+		} finally {
+			ref.dispose();
+		}
 
 		const body = `
 1. :warning: We have copied additional data to your clipboard. Make sure to **paste** here. :warning:

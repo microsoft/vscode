@@ -4,63 +4,76 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { memoize } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
-import { UnownedDisposable } from 'vs/base/common/lifecycle';
+import { Lazy } from 'vs/base/common/lazy';
+import { IReference } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
+import { isEqual } from 'vs/base/common/resources';
+import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { WebviewContentState } from 'vs/editor/common/modes';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { ConfirmResult, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
-import { WebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/webview';
-import { WebviewInput } from 'vs/workbench/contrib/webview/browser/webviewEditorInput';
-import { IWebviewEditorService } from 'vs/workbench/contrib/webview/browser/webviewEditorService';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { promptSave } from 'vs/workbench/services/textfile/browser/textFileService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
-export class CustomFileEditorInput extends WebviewInput {
+export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public static typeId = 'workbench.editors.webviewEditor';
 
-	private name?: string;
-	private _hasResolved = false;
 	private readonly _editorResource: URI;
-	private _state = WebviewContentState.Readonly;
+	private _defaultDirtyState: boolean | undefined;
+
+	private readonly _backupId: string | undefined;
+
+	get resource() { return this._editorResource; }
+
+	private _modelRef?: IReference<ICustomEditorModel>;
 
 	constructor(
 		resource: URI,
 		viewType: string,
 		id: string,
-		webview: UnownedDisposable<WebviewEditorOverlay>,
+		webview: Lazy<WebviewOverlay>,
+		options: { startsDirty?: boolean, backupId?: string },
+		@IWebviewService webviewService: IWebviewService,
+		@IWebviewWorkbenchService webviewWorkbenchService: IWebviewWorkbenchService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
-		@IExtensionService private readonly _extensionService: IExtensionService,
-		@IDialogService private readonly dialogService: IDialogService,
+		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
+		@IFileDialogService private readonly fileDialogService: IFileDialogService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
-		super(id, viewType, '', webview);
+		super(id, viewType, '', webview, webviewService, webviewWorkbenchService);
 		this._editorResource = resource;
+		this._defaultDirtyState = options.startsDirty;
+		this._backupId = options.backupId;
 	}
 
 	public getTypeId(): string {
-		return CustomFileEditorInput.typeId;
+		return CustomEditorInput.typeId;
 	}
 
-	public getResource(): URI {
-		return this._editorResource;
+	public supportsSplitEditor() {
+		return true;
 	}
 
+	@memoize
 	getName(): string {
-		if (!this.name) {
-			this.name = basename(this.labelService.getUriLabel(this.getResource()));
-		}
-		return this.name;
+		return basename(this.labelService.getUriLabel(this.resource));
 	}
 
 	matches(other: IEditorInput): boolean {
-		return this === other || (other instanceof CustomFileEditorInput
+		return this === other || (other instanceof CustomEditorInput
 			&& this.viewType === other.viewType
-			&& this.getResource().toString() === other.getResource().toString());
+			&& isEqual(this.resource, other.resource));
 	}
 
 	@memoize
@@ -70,12 +83,12 @@ export class CustomFileEditorInput extends WebviewInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		return this.labelService.getUriLabel(this.getResource(), { relative: true });
+		return this.labelService.getUriLabel(this.resource, { relative: true });
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return this.labelService.getUriLabel(this.getResource());
+		return this.labelService.getUriLabel(this.resource);
 	}
 
 	public getTitle(verbosity?: Verbosity): string {
@@ -90,43 +103,157 @@ export class CustomFileEditorInput extends WebviewInput {
 		}
 	}
 
-	public async resolve(): Promise<IEditorModel> {
-		if (!this._hasResolved) {
-			this._hasResolved = true;
-			this._extensionService.activateByEvent(`onWebviewEditor:${this.viewType}`);
-			await this._webviewEditorService.resolveWebview(this);
-		}
-		return super.resolve();
+	public isReadonly(): boolean {
+		return this._modelRef ? this._modelRef.object.isReadonly() : false;
 	}
 
-	public setState(newState: WebviewContentState): void {
-		this._state = newState;
+	public isUntitled(): boolean {
+		return this.resource.scheme === Schemas.untitled;
+	}
+
+	public isDirty(): boolean {
+		if (!this._modelRef) {
+			return !!this._defaultDirtyState;
+		}
+		return this._modelRef.object.isDirty();
+	}
+
+	public isSaving(): boolean {
+		if (this.isUntitled()) {
+			return false; // untitled is never saving automatically
+		}
+
+		if (!this.isDirty()) {
+			return false; // the editor needs to be dirty for being saved
+		}
+
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			return true; // a short auto save is configured, treat this as being saved
+		}
+
+		return false;
+	}
+
+	public async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		if (!this._modelRef) {
+			return undefined;
+		}
+
+		const target = await this._modelRef.object.saveCustomEditor(options);
+		if (!target) {
+			return undefined; // save cancelled
+		}
+
+		if (!isEqual(target, this.resource)) {
+			return this.customEditorService.createInput(target, this.viewType, groupId);
+		}
+
+		return this;
+	}
+
+	public async saveAs(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
+		if (!this._modelRef) {
+			return undefined;
+		}
+
+		const dialogPath = this._editorResource;
+		const target = await this.fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
+		if (!target) {
+			return undefined; // save cancelled
+		}
+
+		if (!await this._modelRef.object.saveCustomEditorAs(this._editorResource, target, options)) {
+			return undefined;
+		}
+
+		return this.move(groupId, target)?.editor;
+	}
+
+	public async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		if (this._modelRef) {
+			return this._modelRef.object.revert(options);
+		}
+		this._defaultDirtyState = false;
 		this._onDidChangeDirty.fire();
 	}
 
-	public isDirty() {
-		return this._state === WebviewContentState.Dirty;
-	}
+	public async resolve(): Promise<null> {
+		await super.resolve();
 
-	public async confirmSave(): Promise<ConfirmResult> {
-		if (!this.isDirty()) {
-			return ConfirmResult.DONT_SAVE;
+		if (this.isDisposed()) {
+			return null;
 		}
-		return promptSave(this.dialogService, [this.getResource()]);
-	}
 
-	public async save(): Promise<boolean> {
-		if (!this.isDirty) {
-			return true;
+		if (!this._modelRef) {
+			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
+			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
+
+			if (this.isDirty()) {
+				this._onDidChangeDirty.fire();
+			}
 		}
-		const waitingOn: Promise<boolean>[] = [];
-		this._onWillSave.fire({
-			waitUntil: (thenable: Promise<boolean>): void => { waitingOn.push(thenable); },
-		});
-		const result = await Promise.all(waitingOn);
-		return result.every(x => x);
+
+		return null;
 	}
 
-	private readonly _onWillSave = this._register(new Emitter<{ waitUntil: (thenable: Thenable<boolean>) => void }>());
-	public readonly onWillSave = this._onWillSave.event;
+	move(group: GroupIdentifier, newResource: URI): { editor: IEditorInput } | undefined {
+		// See if we can keep using the same custom editor provider
+		const editorInfo = this.customEditorService.getCustomEditor(this.viewType);
+		if (editorInfo?.matches(newResource)) {
+			return { editor: this.doMove(group, newResource) };
+		}
+
+		return { editor: this.editorService.createEditorInput({ resource: newResource, forceFile: true }) };
+	}
+
+	private doMove(group: GroupIdentifier, newResource: URI): IEditorInput {
+		if (!this._moveHandler) {
+			return this.customEditorService.createInput(newResource, this.viewType, group);
+		}
+
+		this._moveHandler(newResource);
+		const newEditor = this.instantiationService.createInstance(CustomEditorInput,
+			newResource,
+			this.viewType,
+			this.id,
+			new Lazy(() => undefined!),
+			{ startsDirty: this._defaultDirtyState, backupId: this._backupId }); // this webview is replaced in the transfer call
+		this.transfer(newEditor);
+		newEditor.updateGroup(group);
+		return newEditor;
+	}
+
+	public undo(): void {
+		assertIsDefined(this._modelRef);
+		this.undoRedoService.undo(this.resource);
+	}
+
+	public redo(): void {
+		assertIsDefined(this._modelRef);
+		this.undoRedoService.redo(this.resource);
+	}
+
+	private _moveHandler?: (newResource: URI) => void;
+
+	public onMove(handler: (newResource: URI) => void): void {
+		// TODO: Move this to the service
+		this._moveHandler = handler;
+	}
+
+	protected transfer(other: CustomEditorInput): CustomEditorInput | undefined {
+		if (!super.transfer(other)) {
+			return;
+		}
+
+		other._moveHandler = this._moveHandler;
+		this._moveHandler = undefined;
+		return other;
+	}
+
+	get backupId(): string | undefined {
+		if (this._modelRef) {
+			return this._modelRef.object.backupId;
+		}
+		return this._backupId;
+	}
 }

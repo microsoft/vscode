@@ -5,7 +5,7 @@
 
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
-import * as minimist from 'vscode-minimist';
+import * as minimist from 'minimist';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
@@ -25,11 +25,24 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 
 interface ParsedExtHostArgs {
 	uriTransformerPath?: string;
+	useHostProxy?: string;
 }
+
+// workaround for https://github.com/microsoft/vscode/issues/85490
+// remove --inspect-port=0 after start so that it doesn't trigger LSP debugging
+(function removeInspectPort() {
+	for (let i = 0; i < process.execArgv.length; i++) {
+		if (process.execArgv[i] === '--inspect-port=0') {
+			process.execArgv.splice(i, 1);
+			i--;
+		}
+	}
+})();
 
 const args = minimist(process.argv.slice(2), {
 	string: [
-		'uriTransformerPath'
+		'uriTransformerPath',
+		'useHostProxy'
 	]
 }) as ParsedExtHostArgs;
 
@@ -222,7 +235,7 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 						promise.catch(e => {
 							unhandledPromises.splice(idx, 1);
 							console.warn(`rejected promise not handled within 1 second: ${e}`);
-							if (e.stack) {
+							if (e && e.stack) {
 								console.warn(`stack trace: ${e.stack}`);
 							}
 							onUnexpectedError(reason);
@@ -275,20 +288,6 @@ function connectToRenderer(protocol: IMessagePassingProtocol): Promise<IRenderer
 	});
 }
 
-// patchExecArgv:
-(function () {
-	// when encountering the prevent-inspect flag we delete this
-	// and the prior flag
-	if (process.env.VSCODE_PREVENT_FOREIGN_INSPECT) {
-		for (let i = 0; i < process.execArgv.length; i++) {
-			if (process.execArgv[i].match(/--inspect-brk=\d+|--inspect=\d+/)) {
-				process.execArgv.splice(i, 1);
-				break;
-			}
-		}
-	}
-})();
-
 export async function startExtensionHostProcess(): Promise<void> {
 
 	const protocol = await createExtHostProtocol();
@@ -296,6 +295,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 	const { initData } = renderer;
 	// setup things
 	patchProcess(!!initData.environment.extensionTestsLocationURI); // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+	initData.environment.useHostProxy = args.useHostProxy !== undefined ? args.useHostProxy !== 'false' : undefined;
 
 	// host abstraction
 	const hostUtils = new class NodeHost implements IHostUtils {

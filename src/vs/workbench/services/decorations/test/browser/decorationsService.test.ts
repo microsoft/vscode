@@ -4,22 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { FileDecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
+import { DecorationsService } from 'vs/workbench/services/decorations/browser/decorationsService';
 import { IDecorationsProvider, IDecorationData } from 'vs/workbench/services/decorations/browser/decorations';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ConsoleLogService } from 'vs/platform/log/common/log';
 
 suite('DecorationsService', function () {
 
-	let service: FileDecorationsService;
+	let service: DecorationsService;
 
 	setup(function () {
 		if (service) {
 			service.dispose();
 		}
-		service = new FileDecorationsService(new TestThemeService());
+		service = new DecorationsService(new TestThemeService(), new ConsoleLogService());
 	});
 
 	test('Async provider, async/evented result', function () {

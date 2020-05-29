@@ -5,14 +5,18 @@
 import * as assert from 'assert';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { ILogService, AbstractLogService, LogLevel, DEFAULT_LOG_LEVEL } from 'vs/platform/log/common/log';
-import { ITelemetryClient, EventTelemetry } from 'applicationinsights';
+import { TelemetryClient, Contracts } from 'applicationinsights';
 
-class AppInsightsMock implements ITelemetryClient {
+class AppInsightsMock extends TelemetryClient {
 	public config: any;
 	public channel: any;
-	public events: EventTelemetry[] = [];
+	public events: Contracts.EventTelemetry[] = [];
 	public IsTrackingPageView: boolean = false;
 	public exceptions: any[] = [];
+
+	constructor() {
+		super('testKey');
+	}
 
 	public trackEvent(event: any) {
 		this.events.push(event);

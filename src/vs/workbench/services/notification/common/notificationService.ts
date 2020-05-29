@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotification, INotificationHandle, Severity, NotificationMessage, INotificationActions, IPromptChoice, IPromptOptions, IStatusMessageOptions, NoOpNotification, NeverShowAgainScope, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { INotificationsModel, NotificationsModel, ChoiceAction } from 'vs/workbench/common/notifications';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
@@ -17,13 +17,16 @@ export class NotificationService extends Disposable implements INotificationServ
 	_serviceBrand: undefined;
 
 	private _model: INotificationsModel = this._register(new NotificationsModel());
+	get model(): INotificationsModel { return this._model; }
 
-	get model(): INotificationsModel {
-		return this._model;
+	constructor(
+		@IStorageService private readonly storageService: IStorageService
+	) {
+		super();
 	}
 
-	constructor(@IStorageService private readonly storageService: IStorageService) {
-		super();
+	setFilter(filter: NotificationsFilter): void {
+		this._model.setFilter(filter);
 	}
 
 	info(message: NotificationMessage | NotificationMessage[]): void {
@@ -63,10 +66,10 @@ export class NotificationService extends Disposable implements INotificationServ
 		let handle: INotificationHandle;
 		if (notification.neverShowAgain) {
 			const scope = notification.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const id = notification.neverShowAgain.id;
 
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
-			const id = notification.neverShowAgain.id;
 			if (this.storageService.getBoolean(id, scope)) {
 				return new NoOpNotification();
 			}
@@ -86,11 +89,14 @@ export class NotificationService extends Disposable implements INotificationServ
 				}));
 
 			// Insert as primary or secondary action
-			const actions = notification.actions || { primary: [], secondary: [] };
+			const actions = {
+				primary: notification.actions?.primary || [],
+				secondary: notification.actions?.secondary || []
+			};
 			if (!notification.neverShowAgain.isSecondary) {
-				actions.primary = [neverShowAgainAction, ...(actions.primary || [])]; // action comes first
+				actions.primary = [neverShowAgainAction, ...actions.primary]; // action comes first
 			} else {
-				actions.secondary = [...(actions.secondary || []), neverShowAgainAction]; // actions comes last
+				actions.secondary = [...actions.secondary, neverShowAgainAction]; // actions comes last
 			}
 
 			notification.actions = actions;
@@ -109,12 +115,12 @@ export class NotificationService extends Disposable implements INotificationServ
 		const toDispose = new DisposableStore();
 
 		// Handle neverShowAgain option accordingly
-		if (options && options.neverShowAgain) {
+		if (options?.neverShowAgain) {
 			const scope = options.neverShowAgain.scope === NeverShowAgainScope.WORKSPACE ? StorageScope.WORKSPACE : StorageScope.GLOBAL;
+			const id = options.neverShowAgain.id;
 
 			// If the user already picked to not show the notification
 			// again, we return with a no-op notification here
-			const id = options.neverShowAgain.id;
 			if (this.storageService.getBoolean(id, scope)) {
 				return new NoOpNotification();
 			}
@@ -162,7 +168,7 @@ export class NotificationService extends Disposable implements INotificationServ
 
 		// Show notification with actions
 		const actions: INotificationActions = { primary: primaryActions, secondary: secondaryActions };
-		handle = this.notify({ severity, message, actions, sticky: options && options.sticky, silent: options && options.silent });
+		handle = this.notify({ severity, message, actions, sticky: options?.sticky, silent: options?.silent });
 
 		Event.once(handle.onDidClose)(() => {
 

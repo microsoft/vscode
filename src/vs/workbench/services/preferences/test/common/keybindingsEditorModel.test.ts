@@ -34,7 +34,7 @@ class AnAction extends Action {
 	}
 }
 
-suite('KeybindingsEditorModel test', () => {
+suite('KeybindingsEditorModel', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditorModel;
@@ -568,6 +568,46 @@ suite('KeybindingsEditorModel test', () => {
 		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { keyCode: true });
 	});
 
+	test('filter modifiers are not matched when not completely matched (prefix)', async () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		const term = `alt.${uuid.generateUuid()}`;
+		const command = `command.${term}`;
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'some_command', firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: false }));
+
+		await testObject.resolve(new Map<string, string>());
+		const actual = testObject.fetch(term);
+		assert.equal(1, actual.length);
+		assert.equal(command, actual[0].keybindingItem.command);
+		assert.equal(1, actual[0].commandIdMatches?.length);
+	});
+
+	test('filter modifiers are not matched when not completely matched (includes)', async () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		const term = `abcaltdef.${uuid.generateUuid()}`;
+		const command = `command.${term}`;
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape }, isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'some_command', firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: false }));
+
+		await testObject.resolve(new Map<string, string>());
+		const actual = testObject.fetch(term);
+		assert.equal(1, actual.length);
+		assert.equal(command, actual[0].keybindingItem.command);
+		assert.equal(1, actual[0].commandIdMatches?.length);
+	});
+
+	test('filter modifiers are matched with complete term', async () => {
+		testObject = instantiationService.createInstance(KeybindingsEditorModel, OperatingSystem.Macintosh);
+		const command = `command.${uuid.generateUuid()}`;
+		const expected = aResolvedKeybindingItem({ command, firstPart: { keyCode: KeyCode.Escape, modifiers: { altKey: true } }, isDefault: false });
+		prepareKeybindingService(expected, aResolvedKeybindingItem({ command: 'some_command', firstPart: { keyCode: KeyCode.Escape }, isDefault: false }));
+
+		await testObject.resolve(new Map<string, string>());
+		const actual = testObject.fetch('alt').filter(element => element.keybindingItem.command === command);
+		assert.equal(1, actual.length);
+		assert.deepEqual(actual[0].keybindingMatches!.firstPart, { altKey: true });
+	});
+
 	function prepareKeybindingService(...keybindingItems: ResolvedKeybindingItem[]): ResolvedKeybindingItem[] {
 		instantiationService.stub(IKeybindingService, 'getKeybindings', () => keybindingItems);
 		instantiationService.stub(IKeybindingService, 'getDefaultKeybindings', () => keybindingItems);
@@ -577,7 +617,7 @@ suite('KeybindingsEditorModel test', () => {
 
 	function registerCommandWithTitle(command: string, title: string): void {
 		const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
-		registry.registerWorkbenchAction(new SyncActionDescriptor(AnAction, command, title, { primary: 0 }), '');
+		registry.registerWorkbenchAction(SyncActionDescriptor.create(AnAction, command, title, { primary: 0 }), '');
 	}
 
 	function assertKeybindingItems(actual: ResolvedKeybindingItem[], expected: ResolvedKeybindingItem[]) {

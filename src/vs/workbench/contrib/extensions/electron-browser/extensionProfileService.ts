@@ -12,7 +12,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IExtensionHostProfileService, ProfileSessionState } from 'vs/workbench/contrib/extensions/electron-browser/runtimeExtensionsEditor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { randomPort } from 'vs/base/node/ports';
 import product from 'vs/platform/product/common/product';
@@ -81,7 +81,8 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 
 		if (visible) {
 			const indicator: IStatusbarEntry = {
-				text: nls.localize('profilingExtensionHost', "$(sync~spin) Profiling Extension Host"),
+				text: '$(sync~spin) ' + nls.localize('profilingExtensionHost', "Profiling Extension Host"),
+				ariaLabel: nls.localize('profilingExtensionHost', "Profiling Extension Host"),
 				tooltip: nls.localize('selectAndStartDebug', "Click to stop profiling."),
 				command: 'workbench.action.extensionHostProfilder.stop'
 			};
@@ -89,7 +90,7 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			const timeStarted = Date.now();
 			const handle = setInterval(() => {
 				if (this.profilingStatusBarIndicator) {
-					this.profilingStatusBarIndicator.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "$(sync~spin) Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
+					this.profilingStatusBarIndicator.update({ ...indicator, text: '$(sync~spin) ' + nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
 				}
 			}, 1000);
 			this.profilingStatusBarIndicatorLabelUpdater.value = toDisposable(() => clearInterval(handle));
@@ -107,12 +108,12 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 		}
 	}
 
-	public startProfiling(): Promise<any> | null {
+	public async startProfiling(): Promise<any> {
 		if (this._state !== ProfileSessionState.None) {
 			return null;
 		}
 
-		const inspectPort = this._extensionService.getInspectPort();
+		const inspectPort = await this._extensionService.getInspectPort(true);
 		if (!inspectPort) {
 			return this._dialogService.confirm({
 				type: 'info',

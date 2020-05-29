@@ -48,7 +48,13 @@ export async function asJson<T = {}>(context: IRequestContext): Promise<T | null
 		return null;
 	}
 	const buffer = await streamToBuffer(context.stream);
-	return JSON.parse(buffer.toString());
+	const str = buffer.toString();
+	try {
+		return JSON.parse(str);
+	} catch (err) {
+		err.message += ':\n' + str;
+		throw err;
+	}
 }
 
 
@@ -69,7 +75,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 		properties: {
 			'http.proxy': {
 				type: 'string',
-				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+)(:\\d+)?/?$|^$',
+				pattern: '^https?://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables.")
 			},
 			'http.proxyStrictSSL': {

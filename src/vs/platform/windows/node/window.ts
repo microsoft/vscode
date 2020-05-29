@@ -3,18 +3,88 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OpenContext, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
-import { URI } from 'vs/base/common/uri';
+import { IWindowConfiguration, IPath, IOpenFileRequest, IPathData } from 'vs/platform/windows/common/windows';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import * as platform from 'vs/base/common/platform';
 import * as extpath from 'vs/base/common/extpath';
 import { IWorkspaceIdentifier, IResolvedWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { isEqual, isEqualOrParent } from 'vs/base/common/resources';
+import { LogLevel } from 'vs/platform/log/common/log';
+import { ExportData } from 'vs/base/common/performance';
+import { ParsedArgs } from 'vs/platform/environment/node/argv';
 
-export interface INativeOpenWindowOptions extends IOpenWindowOptions {
-	diffMode?: boolean;
-	addMode?: boolean;
-	gotoLineMode?: boolean;
-	waitMarkerFileURI?: URI;
+export const enum OpenContext {
+
+	// opening when running from the command line
+	CLI,
+
+	// macOS only: opening from the dock (also when opening files to a running instance from desktop)
+	DOCK,
+
+	// opening from the main application window
+	MENU,
+
+	// opening from a file or folder dialog
+	DIALOG,
+
+	// opening from the OS's UI
+	DESKTOP,
+
+	// opening through the API
+	API
+}
+
+export interface IRunActionInWindowRequest {
+	id: string;
+	from: 'menu' | 'touchbar' | 'mouse';
+	args?: any[];
+}
+
+export interface IRunKeybindingInWindowRequest {
+	userSettingsLabel: string;
+}
+
+export interface INativeWindowConfiguration extends IWindowConfiguration, ParsedArgs {
+	mainPid: number;
+
+	windowId: number;
+	machineId: string;
+
+	appRoot: string;
+	execPath: string;
+	backupPath?: string;
+
+	nodeCachedDataDir?: string;
+	partsSplashPath: string;
+
+	workspace?: IWorkspaceIdentifier;
+	folderUri?: ISingleFolderWorkspaceIdentifier;
+
+	isInitialStartup?: boolean;
+	logLevel: LogLevel;
+	zoomLevel?: number;
+	fullscreen?: boolean;
+	maximized?: boolean;
+	accessibilitySupport?: boolean;
+	perfEntries: ExportData;
+
+	userEnv: platform.IProcessEnvironment;
+	filesToWait?: IPathsToWaitFor;
+}
+
+export interface INativeOpenFileRequest extends IOpenFileRequest {
+	termProgram?: string;
+	filesToWait?: IPathsToWaitForData;
+}
+
+export interface IPathsToWaitFor extends IPathsToWaitForData {
+	paths: IPath[];
+	waitMarkerFileUri: URI;
+}
+
+export interface IPathsToWaitForData {
+	paths: IPathData[];
+	waitMarkerFileUri: UriComponents;
 }
 
 export interface IWindowContext {
@@ -78,7 +148,7 @@ function findWindowOnFilePath<W extends IWindowContext>(windows: W[], fileUri: U
 export function getLastActiveWindow<W extends IWindowContext>(windows: W[]): W | undefined {
 	const lastFocusedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
 
-	return windows.filter(window => window.lastFocusTime === lastFocusedDate)[0];
+	return windows.find(window => window.lastFocusTime === lastFocusedDate);
 }
 
 export function findWindowOnWorkspace<W extends IWindowContext>(windows: W[], workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)): W | null {
@@ -111,7 +181,7 @@ export function findWindowOnExtensionDevelopmentPath<W extends IWindowContext>(w
 	for (const window of windows) {
 		// match on extension development path. The path can be one or more paths or uri strings, using paths.isEqual is not 100% correct but good enough
 		const currPaths = window.extensionDevelopmentPath;
-		if (currPaths && currPaths.some(p => matches(p))) {
+		if (currPaths?.some(p => matches(p))) {
 			return window;
 		}
 	}

@@ -277,7 +277,7 @@ class TaskDetector {
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
 			const thisCapture = this;
-			this.taskProvider = vscode.workspace.registerTaskProvider('gulp', {
+			this.taskProvider = vscode.tasks.registerTaskProvider('gulp', {
 				provideTasks(): Promise<vscode.Task[]> {
 					return thisCapture.getTasks();
 				},

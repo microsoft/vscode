@@ -23,7 +23,7 @@ const commit = util.getVersion(root);
 const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
 function getDebPackageArch(arch) {
-	return { x64: 'amd64', arm: 'armhf', arm64: "arm64" }[arch];
+	return { x64: 'amd64', arm: 'armhf', arm64: 'arm64' }[arch];
 }
 
 function prepareDebPackage(arch) {
@@ -91,9 +91,7 @@ function prepareDebPackage(arch) {
 		const postinst = gulp.src('resources/linux/debian/postinst.template', { base: '.' })
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(replace('@@ARCHITECTURE@@', debArch))
-			// @ts-ignore JSON checking: quality is optional
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
-			// @ts-ignore JSON checking: updateUrl is optional
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(rename('DEBIAN/postinst'));
 
@@ -117,7 +115,7 @@ function getRpmBuildPath(rpmArch) {
 }
 
 function getRpmPackageArch(arch) {
-	return { x64: 'x86_64', arm: 'armhf', arm64: "arm64" }[arch];
+	return { x64: 'x86_64', arm: 'armhf', arm64: 'arm64' }[arch];
 }
 
 function prepareRpmPackage(arch) {
@@ -167,9 +165,7 @@ function prepareRpmPackage(arch) {
 			.pipe(replace('@@RELEASE@@', linuxPackageRevision))
 			.pipe(replace('@@ARCHITECTURE@@', rpmArch))
 			.pipe(replace('@@LICENSE@@', product.licenseName))
-			// @ts-ignore JSON checking: quality is optional
 			.pipe(replace('@@QUALITY@@', product.quality || '@@QUALITY@@'))
-			// @ts-ignore JSON checking: updateUrl is optional
 			.pipe(replace('@@UPDATEURL@@', product.updateUrl || '@@UPDATEURL@@'))
 			.pipe(replace('@@DEPENDENCIES@@', rpmDependencies[rpmArch].join(', ')))
 			.pipe(rename('SPECS/' + product.applicationName + '.spec'));

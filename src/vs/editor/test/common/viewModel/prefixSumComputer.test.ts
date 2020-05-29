@@ -4,8 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { toUint32Array } from 'vs/editor/common/core/uint';
+import { toUint32 } from 'vs/base/common/uint';
 import { PrefixSumComputer, PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
+
+function toUint32Array(arr: number[]): Uint32Array {
+	const len = arr.length;
+	const r = new Uint32Array(len);
+	for (let i = 0; i < len; i++) {
+		r[i] = toUint32(arr[i]);
+	}
+	return r;
+}
 
 suite('Editor ViewModel - PrefixSumComputer', () => {
 

@@ -11,7 +11,7 @@ import { ISelectedSuggestion } from './suggestWidget';
 
 export class SuggestAlternatives {
 
-	static OtherSuggestions = new RawContextKey<boolean>('hasOtherSuggestions', false);
+	static readonly OtherSuggestions = new RawContextKey<boolean>('hasOtherSuggestions', false);
 
 	private readonly _ckOtherSuggestions: IContextKey<boolean>;
 

@@ -10,11 +10,10 @@ import { ViewPart } from 'vs/editor/browser/view/viewPart';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { editorCursorForeground, editorOverviewRulerBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorCursorForeground, editorOverviewRulerBorder, editorOverviewRulerBackground } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/common/view/renderingContext';
-import { ViewContext } from 'vs/editor/common/view/viewContext';
+import { ViewContext, EditorTheme } from 'vs/editor/common/view/viewContext';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import { ITheme } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 class Settings {
@@ -42,7 +41,7 @@ class Settings {
 	public readonly x: number[];
 	public readonly w: number[];
 
-	constructor(config: IConfiguration, theme: ITheme) {
+	constructor(config: IConfiguration, theme: EditorTheme) {
 		const options = config.options;
 		this.lineHeight = options.get(EditorOption.lineHeight);
 		this.pixelRatio = options.get(EditorOption.pixelRatio);
@@ -61,7 +60,10 @@ class Settings {
 		const minimapOpts = options.get(EditorOption.minimap);
 		const minimapEnabled = minimapOpts.enabled;
 		const minimapSide = minimapOpts.side;
-		const backgroundColor = (minimapEnabled ? TokenizationRegistry.getDefaultBackground() : null);
+		const backgroundColor = minimapEnabled
+			? theme.getColor(editorOverviewRulerBackground) || TokenizationRegistry.getDefaultBackground()
+			: null;
+
 		if (backgroundColor === null || minimapSide === 'left') {
 			this.backgroundColor = null;
 		} else {
@@ -74,8 +76,14 @@ class Settings {
 		this.right = position.right;
 		this.domWidth = position.width;
 		this.domHeight = position.height;
-		this.canvasWidth = (this.domWidth * this.pixelRatio) | 0;
-		this.canvasHeight = (this.domHeight * this.pixelRatio) | 0;
+		if (this.overviewRulerLanes === 0) {
+			// overview ruler is off
+			this.canvasWidth = 0;
+			this.canvasHeight = 0;
+		} else {
+			this.canvasWidth = (this.domWidth * this.pixelRatio) | 0;
+			this.canvasHeight = (this.domHeight * this.pixelRatio) | 0;
+		}
 
 		const [x, w] = this._initLanes(1, this.canvasWidth, this.overviewRulerLanes);
 		this.x = x;
@@ -215,6 +223,7 @@ export class DecorationsOverviewRuler extends ViewPart {
 		this._domNode.setClassName('decorationsOverviewRuler');
 		this._domNode.setPosition('absolute');
 		this._domNode.setLayerHinting(true);
+		this._domNode.setContain('strict');
 		this._domNode.setAttribute('aria-hidden', 'true');
 
 		this._updateSettings(false);
@@ -270,7 +279,10 @@ export class DecorationsOverviewRuler extends ViewPart {
 		return true;
 	}
 	public onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
-		return true;
+		if (e.affectsOverviewRuler) {
+			return true;
+		}
+		return false;
 	}
 	public onFlushed(e: viewEvents.ViewFlushedEvent): boolean {
 		return true;
@@ -302,6 +314,11 @@ export class DecorationsOverviewRuler extends ViewPart {
 	}
 
 	private _render(): void {
+		if (this._settings.overviewRulerLanes === 0) {
+			// overview ruler is off
+			this._domNode.setBackgroundColor(this._settings.backgroundColor ? this._settings.backgroundColor : '');
+			return;
+		}
 		const canvasWidth = this._settings.canvasWidth;
 		const canvasHeight = this._settings.canvasHeight;
 		const lineHeight = this._settings.lineHeight;

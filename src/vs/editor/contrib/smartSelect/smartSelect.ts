@@ -7,7 +7,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, IActionOptions, registerEditorAction, registerEditorContribution, ServicesAccessor, registerModelCommand } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -47,10 +47,10 @@ class SelectionRanges {
 
 class SmartSelectController implements IEditorContribution {
 
-	private static readonly _id = 'editor.contrib.smartSelectController';
+	public static readonly ID = 'editor.contrib.smartSelectController';
 
 	static get(editor: ICodeEditor): SmartSelectController {
-		return editor.getContribution<SmartSelectController>(SmartSelectController._id);
+		return editor.getContribution<SmartSelectController>(SmartSelectController.ID);
 	}
 
 	private readonly _editor: ICodeEditor;
@@ -65,10 +65,6 @@ class SmartSelectController implements IEditorContribution {
 
 	dispose(): void {
 		dispose(this._selectionListener);
-	}
-
-	getId(): string {
-		return SmartSelectController._id;
 	}
 
 	run(forward: boolean): Promise<void> | void {
@@ -171,7 +167,7 @@ class GrowSelectionAction extends AbstractSmartSelect {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '1_basic',
 				title: nls.localize({ key: 'miSmartSelectGrow', comment: ['&& denotes a mnemonic'] }, "&&Expand Selection"),
@@ -200,7 +196,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			menubarOpts: {
+			menuOpts: {
 				menuId: MenuId.MenubarSelectionMenu,
 				group: '1_basic',
 				title: nls.localize({ key: 'miSmartSelectShrink', comment: ['&& denotes a mnemonic'] }, "&&Shrink Selection"),
@@ -210,7 +206,7 @@ class ShrinkSelectionAction extends AbstractSmartSelect {
 	}
 }
 
-registerEditorContribution(SmartSelectController);
+registerEditorContribution(SmartSelectController.ID, SmartSelectController);
 registerEditorAction(GrowSelectionAction);
 registerEditorAction(ShrinkSelectionAction);
 
@@ -306,6 +302,7 @@ export function provideSelectionRanges(model: ITextModel, positions: Position[],
 	});
 }
 
-registerDefaultLanguageCommand('_executeSelectionRangeProvider', function (model, _position, args) {
-	return provideSelectionRanges(model, args.positions, CancellationToken.None);
+registerModelCommand('_executeSelectionRangeProvider', function (model, ...args) {
+	const [positions] = args;
+	return provideSelectionRanges(model, positions, CancellationToken.None);
 });

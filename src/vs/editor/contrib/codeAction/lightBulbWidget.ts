@@ -15,8 +15,11 @@ import { CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import * as nls from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { editorLightBulbForeground, editorLightBulbAutoFixForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Gesture } from 'vs/base/browser/touch';
+import type { CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
+import { Codicon } from 'vs/base/common/codicons';
 
 namespace LightBulbState {
 
@@ -25,13 +28,14 @@ namespace LightBulbState {
 		Showing,
 	}
 
-	export const Hidden = new class { readonly type = Type.Hidden; };
+	export const Hidden = { type: Type.Hidden } as const;
 
 	export class Showing {
 		readonly type = Type.Showing;
 
 		constructor(
 			public readonly actions: CodeActionSet,
+			public readonly trigger: CodeActionTrigger,
 			public readonly editorPosition: IPosition,
 			public readonly widgetPosition: IContentWidgetPosition,
 		) { }
@@ -47,7 +51,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private readonly _domNode: HTMLDivElement;
 
-	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet }>());
+	private readonly _onClick = this._register(new Emitter<{ x: number; y: number; actions: CodeActionSet; trigger: CodeActionTrigger }>());
 	public readonly onClick = this._onClick.event;
 
 	private _state: LightBulbState.State = LightBulbState.Hidden;
@@ -55,23 +59,26 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _quickFixActionId: string,
+		private readonly _preferredFixActionId: string,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'codicon codicon-lightbulb';
+		this._domNode.className = Codicon.lightBulb.classNames;
 
 		this._editor.addContentWidget(this);
 
 		this._register(this._editor.onDidChangeModelContent(_ => {
 			// cancel when the line in question has been removed
 			const editorModel = this._editor.getModel();
-			if (this._state.type !== LightBulbState.Type.Showing || !editorModel || this._state.editorPosition.lineNumber >= editorModel.getLineCount()) {
+			if (this.state.type !== LightBulbState.Type.Showing || !editorModel || this.state.editorPosition.lineNumber >= editorModel.getLineCount()) {
 				this.hide();
 			}
 		}));
-		this._register(dom.addStandardDisposableListener(this._domNode, 'mousedown', e => {
-			if (this._state.type !== LightBulbState.Type.Showing) {
+
+		Gesture.ignoreTarget(this._domNode);
+		this._register(dom.addStandardDisposableGenericMouseDownListner(this._domNode, e => {
+			if (this.state.type !== LightBulbState.Type.Showing) {
 				return;
 			}
 
@@ -84,14 +91,15 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._state.widgetPosition.position !== null && this._state.widgetPosition.position.lineNumber < this._state.editorPosition.lineNumber) {
+			if (this.state.widgetPosition.position !== null && this.state.widgetPosition.position.lineNumber < this.state.editorPosition.lineNumber) {
 				pad += lineHeight;
 			}
 
 			this._onClick.fire({
 				x: e.posx,
 				y: top + height + pad,
-				actions: this._state.actions
+				actions: this.state.actions,
+				trigger: this.state.trigger,
 			});
 		}));
 		this._register(dom.addDisposableListener(this._domNode, 'mouseenter', (e: MouseEvent) => {
@@ -103,7 +111,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			// showings until mouse is released
 			this.hide();
 			const monitor = new GlobalMouseMoveMonitor<IStandardMouseMoveEventData>();
-			monitor.startMonitoring(standardMouseMoveMerger, () => { }, () => {
+			monitor.startMonitoring(<HTMLElement>e.target, e.buttons, standardMouseMoveMerger, () => { }, () => {
 				monitor.dispose();
 			});
 		}));
@@ -114,8 +122,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}));
 
-		this._updateLightBulbTitle();
-		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitle, this));
+		this._updateLightBulbTitleAndIcon();
+		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateLightBulbTitleAndIcon, this));
 	}
 
 	dispose(): void {
@@ -135,8 +143,8 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		return this._state.type === LightBulbState.Type.Showing ? this._state.widgetPosition : null;
 	}
 
-	public update(actions: CodeActionSet, atPosition: IPosition) {
-		if (actions.actions.length <= 0) {
+	public update(actions: CodeActionSet, trigger: CodeActionTrigger, atPosition: IPosition) {
+		if (actions.validActions.length <= 0) {
 			return this.hide();
 		}
 
@@ -145,11 +153,12 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return this.hide();
 		}
 
-		const { lineNumber, column } = atPosition;
 		const model = this._editor.getModel();
 		if (!model) {
 			return this.hide();
 		}
+
+		const { lineNumber, column } = model.validatePosition(atPosition);
 
 		const tabSize = model.getOptions().tabSize;
 		const fontInfo = options.get(EditorOption.fontInfo);
@@ -173,43 +182,62 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			}
 		}
 
-		this._state = new LightBulbState.Showing(actions, atPosition, {
+		this.state = new LightBulbState.Showing(actions, trigger, atPosition, {
 			position: { lineNumber: effectiveLineNumber, column: 1 },
 			preference: LightBulbWidget._posPref
 		});
-		dom.toggleClass(this._domNode, 'codicon-lightbulb-autofix', actions.hasAutoFix);
 		this._editor.layoutContentWidget(this);
+	}
+
+	public hide(): void {
+		this.state = LightBulbState.Hidden;
+		this._editor.layoutContentWidget(this);
+	}
+
+	private get state(): LightBulbState.State { return this._state; }
+
+	private set state(value) {
+		this._state = value;
+		this._updateLightBulbTitleAndIcon();
+	}
+
+	private _updateLightBulbTitleAndIcon(): void {
+		if (this.state.type === LightBulbState.Type.Showing && this.state.actions.hasAutoFix) {
+			// update icon
+			dom.removeClasses(this._domNode, Codicon.lightBulb.classNames);
+			dom.addClasses(this._domNode, Codicon.lightbulbAutofix.classNames);
+
+			const preferredKb = this._keybindingService.lookupKeybinding(this._preferredFixActionId);
+			if (preferredKb) {
+				this.title = nls.localize('prefferedQuickFixWithKb', "Show Fixes. Preferred Fix Available ({0})", preferredKb.getLabel());
+				return;
+			}
+		}
+
+		// update icon
+		dom.removeClasses(this._domNode, Codicon.lightbulbAutofix.classNames);
+		dom.addClasses(this._domNode, Codicon.lightBulb.classNames);
+
+		const kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
+		if (kb) {
+			this.title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
+		} else {
+			this.title = nls.localize('quickFix', "Show Fixes");
+		}
 	}
 
 	private set title(value: string) {
 		this._domNode.title = value;
 	}
-
-	public hide(): void {
-		this._state = LightBulbState.Hidden;
-		this._editor.layoutContentWidget(this);
-	}
-
-	private _updateLightBulbTitle(): void {
-		const kb = this._keybindingService.lookupKeybinding(this._quickFixActionId);
-		let title: string;
-		if (kb) {
-			title = nls.localize('quickFixWithKb', "Show Fixes ({0})", kb.getLabel());
-		} else {
-			title = nls.localize('quickFix', "Show Fixes");
-		}
-		this.title = title;
-	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 
 	// Lightbulb Icon
 	const editorLightBulbForegroundColor = theme.getColor(editorLightBulbForeground);
 	if (editorLightBulbForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .contentWidgets .codicon-lightbulb,
-		.monaco-workbench .markers-panel-container .codicon-lightbulb {
+		.monaco-editor .contentWidgets ${Codicon.lightBulb.cssSelector} {
 			color: ${editorLightBulbForegroundColor};
 		}`);
 	}
@@ -218,8 +246,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const editorLightBulbAutoFixForegroundColor = theme.getColor(editorLightBulbAutoFixForeground);
 	if (editorLightBulbAutoFixForegroundColor) {
 		collector.addRule(`
-		.monaco-workbench .contentWidgets .codicon-lightbulb-autofix,
-		.monaco-workbench .markers-panel-container .codicon-lightbulb-autofix {
+		.monaco-editor .contentWidgets ${Codicon.lightbulbAutofix.cssSelector} {
 			color: ${editorLightBulbAutoFixForegroundColor};
 		}`);
 	}

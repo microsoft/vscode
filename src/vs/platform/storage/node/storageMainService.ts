@@ -8,6 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { SQLiteStorageDatabase, ISQLiteStorageDatabaseLoggingOptions } from 'vs/base/parts/storage/node/storage';
 import { Storage, IStorage, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
@@ -87,13 +88,13 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	_serviceBrand: undefined;
 
-	private static STORAGE_NAME = 'state.vscdb';
+	private static readonly STORAGE_NAME = 'state.vscdb';
 
-	private readonly _onDidChangeStorage: Emitter<IStorageChangeEvent> = this._register(new Emitter<IStorageChangeEvent>());
-	readonly onDidChangeStorage: Event<IStorageChangeEvent> = this._onDidChangeStorage.event;
+	private readonly _onDidChangeStorage = this._register(new Emitter<IStorageChangeEvent>());
+	readonly onDidChangeStorage = this._onDidChangeStorage.event;
 
-	private readonly _onWillSaveState: Emitter<void> = this._register(new Emitter<void>());
-	readonly onWillSaveState: Event<void> = this._onWillSaveState.event;
+	private readonly _onWillSaveState = this._register(new Emitter<void>());
+	readonly onWillSaveState = this._onWillSaveState.event;
 
 	get items(): Map<string, string> { return this.storage.items; }
 
@@ -103,7 +104,7 @@ export class StorageMainService extends Disposable implements IStorageMainServic
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: INativeEnvironmentService
 	) {
 		super();
 

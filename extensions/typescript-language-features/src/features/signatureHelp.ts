@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as Proto from '../protocol';
+import type * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
@@ -40,14 +40,27 @@ class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 		const info = response.body;
 		const result = new vscode.SignatureHelp();
-		result.activeSignature = info.selectedItemIndex;
-		result.activeParameter = this.getActiveParmeter(info);
 		result.signatures = info.items.map(signature => this.convertSignature(signature));
+		result.activeSignature = this.getActiveSignature(context, info, result.signatures);
+		result.activeParameter = this.getActiveParameter(info);
 
 		return result;
 	}
 
-	private getActiveParmeter(info: Proto.SignatureHelpItems): number {
+	private getActiveSignature(context: vscode.SignatureHelpContext, info: Proto.SignatureHelpItems, signatures: readonly vscode.SignatureInformation[]): number {
+		// Try matching the previous active signature's label to keep it selected
+		const previouslyActiveSignature = context.activeSignatureHelp?.signatures[context.activeSignatureHelp.activeSignature];
+		if (previouslyActiveSignature && context.isRetrigger) {
+			const existingIndex = signatures.findIndex(other => other.label === previouslyActiveSignature?.label);
+			if (existingIndex >= 0) {
+				return existingIndex;
+			}
+		}
+
+		return info.selectedItemIndex;
+	}
+
+	private getActiveParameter(info: Proto.SignatureHelpItems): number {
 		const activeSignature = info.items[info.selectedItemIndex];
 		if (activeSignature && activeSignature.isVariadic) {
 			return Math.min(info.argumentIndex, activeSignature.parameters.length - 1);

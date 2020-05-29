@@ -28,10 +28,11 @@ export class BracketElectricCharacterSupport {
 		let result: string[] = [];
 
 		if (this._richEditBrackets) {
-			for (let i = 0, len = this._richEditBrackets.brackets.length; i < len; i++) {
-				let bracketPair = this._richEditBrackets.brackets[i];
-				let lastChar = bracketPair.close.charAt(bracketPair.close.length - 1);
-				result.push(lastChar);
+			for (const bracket of this._richEditBrackets.brackets) {
+				for (const close of bracket.close) {
+					const lastChar = close.charAt(close.length - 1);
+					result.push(lastChar);
+				}
 			}
 		}
 
@@ -48,28 +49,27 @@ export class BracketElectricCharacterSupport {
 			return null;
 		}
 
-		let tokenIndex = context.findTokenIndexAtOffset(column - 1);
+		const tokenIndex = context.findTokenIndexAtOffset(column - 1);
 		if (ignoreBracketsInToken(context.getStandardTokenType(tokenIndex))) {
 			return null;
 		}
 
-		let reversedBracketRegex = this._richEditBrackets.reversedRegex;
-		let text = context.getLineContent().substring(0, column - 1) + character;
+		const reversedBracketRegex = this._richEditBrackets.reversedRegex;
+		const text = context.getLineContent().substring(0, column - 1) + character;
 
-		let r = BracketsUtils.findPrevBracketInToken(reversedBracketRegex, 1, text, 0, text.length);
+		const r = BracketsUtils.findPrevBracketInRange(reversedBracketRegex, 1, text, 0, text.length);
 		if (!r) {
 			return null;
 		}
 
-		let bracketText = text.substring(r.startColumn - 1, r.endColumn - 1);
-		bracketText = bracketText.toLowerCase();
+		const bracketText = text.substring(r.startColumn - 1, r.endColumn - 1).toLowerCase();
 
-		let isOpen = this._richEditBrackets.textIsOpenBracket[bracketText];
+		const isOpen = this._richEditBrackets.textIsOpenBracket[bracketText];
 		if (isOpen) {
 			return null;
 		}
 
-		let textBeforeBracket = text.substring(0, r.startColumn - 1);
+		const textBeforeBracket = context.getActualLineContentBefore(r.startColumn - 1);
 		if (!/^\s*$/.test(textBeforeBracket)) {
 			// There is other text on the line before the bracket
 			return null;

@@ -1,7 +1,8 @@
 {
-	"$schema": "http://json-schema.org/schema#",
+	"$schema": "http://json-schema.org/draft-07/schema#",
 	"description": "Defines a dev container",
 	"allowComments": true,
+	"allowTrailingCommas": true,
 	"type": "object",
 	"definitions": {
 		"devContainerCommon": {
@@ -15,12 +16,47 @@
 					"type": "array",
 					"description": "An array of extensions that should be installed into the container.",
 					"items": {
-						"type": "string"
+						"type": "string",
+						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)$",
+						"errorMessage": "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'."
 					}
 				},
 				"settings": {
 					"$ref": "vscode://schemas/settings/machine",
 					"description": "Machine specific settings that should be copied into the container."
+				},
+				"forwardPorts": {
+					"type": "array",
+					"description": "Ports that are forwarded from the container to the local machine.",
+					"items": {
+						"type": "integer",
+						"maximum": 65535,
+						"minimum": 0
+					}
+				},
+				"remoteEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": [
+							"string",
+							"null"
+						]
+					},
+					"description": "Remote environment variables."
+				},
+				"remoteUser": {
+					"type": "string",
+					"description": "The user VS Code Server will be started with. The default is the same user as the container."
+				},
+				"initializeCommand": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "A command to run locally before anything else. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"items": {
+						"type": "string"
+					}
 				},
 				"postCreateCommand": {
 					"type": [
@@ -55,6 +91,28 @@
 						]
 					}
 				},
+				"containerEnv": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					},
+					"description": "Container environment variables."
+				},
+				"containerUser": {
+					"type": "string",
+					"description": "The user the container will be started with. The default is the user on the Docker image."
+				},
+				"updateRemoteUserUID": {
+					"type": "boolean",
+					"description": "Controls whether on Linux the container's user should be updated with the local user's UID and GID. On by default."
+				},
+				"mounts": {
+					"type": "array",
+					"description": "Mount points to set up when creating the container. See Docker's documentation for the --mount option for the supported syntax.",
+					"items": {
+						"type": "string"
+					}
+				},
 				"runArgs": {
 					"type": "array",
 					"description": "The arguments required when starting in the container.",
@@ -68,7 +126,7 @@
 						"none",
 						"stopContainer"
 					],
-					"description": "Action to take when VS Code is shutting down. The default is to stop the container."
+					"description": "Action to take when the VS Code window is closed. The default is to stop the container."
 				},
 				"overrideCommand": {
 					"type": "boolean",
@@ -84,21 +142,89 @@
 				}
 			}
 		},
-		"dockerFileContainer": {
+		"dockerfileContainer": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"build": {
+							"type": "object",
+							"description": "Docker build-related options.",
+							"allOf": [
+								{
+									"type": "object",
+									"properties": {
+										"dockerfile": {
+											"type": "string",
+											"description": "The location of the Dockerfile that defines the contents of the container. The path is relative to the folder containing the `devcontainer.json` file."
+										},
+										"context": {
+											"type": "string",
+											"description": "The location of the context folder for building the Docker image. The path is relative to the folder containing the `devcontainer.json` file."
+										}
+									},
+									"required": [
+										"dockerfile"
+									]
+								},
+								{
+									"$ref": "#/definitions/buildOptions"
+								}
+							]
+					}
+					},
+					"required": [
+						"build"
+					]
+				},
+				{
+					"allOf": [
+						{
+							"type": "object",
+							"properties": {
+								"dockerFile": {
+									"type": "string",
+									"description": "The location of the Dockerfile that defines the contents of the container. The path is relative to the folder containing the `devcontainer.json` file."
+								},
+								"context": {
+									"type": "string",
+									"description": "The location of the context folder for building the Docker image. The path is relative to the folder containing the `devcontainer.json` file."
+								}
+							},
+							"required": [
+								"dockerFile"
+							]
+						},
+						{
+							"type": "object",
+							"properties": {
+								"build": {
+									"description": "Docker build-related options.",
+									"$ref": "#/definitions/buildOptions"
+								}
+							}
+						}
+					]
+				}
+			]
+		},
+		"buildOptions": {
 			"type": "object",
 			"properties": {
-				"dockerFile": {
+				"target": {
 					"type": "string",
-					"description": "The location of the Dockerfile that defines the contents of the container. The path is relative to the folder containing the `devcontainer.json` file."
+					"description": "Target stage in a multi-stage build."
 				},
-				"context": {
-					"type": "string",
-					"description": "The location of the context folder for building the Docker image. The path is relative to the folder containing the `devcontainer.json` file."
+				"args": {
+					"type": "object",
+					"additionalProperties": {
+						"type": [
+							"string"
+						]
+					},
+					"description": "Build arguments."
 				}
-			},
-			"required": [
-				"dockerFile"
-			]
+			}
 		},
 		"imageContainer": {
 			"type": "object",
@@ -146,7 +272,7 @@
 						"none",
 						"stopCompose"
 					],
-					"description": "Action to take when VS Code is shutting down. The default is to stop the containers."
+					"description": "Action to take when the VS Code window is closed. The default is to stop the containers."
 				}
 			},
 			"required": [
@@ -156,33 +282,42 @@
 			]
 		}
 	},
-	"allOf": [
+	"oneOf": [
 		{
-			"oneOf": [
+			"allOf": [
 				{
-					"allOf": [
+					"oneOf": [
 						{
-							"oneOf": [
+							"allOf": [
 								{
-									"$ref": "#/definitions/dockerFileContainer"
+									"oneOf": [
+										{
+											"$ref": "#/definitions/dockerfileContainer"
+										},
+										{
+											"$ref": "#/definitions/imageContainer"
+										}
+									]
 								},
 								{
-									"$ref": "#/definitions/imageContainer"
+									"$ref": "#/definitions/nonComposeBase"
 								}
 							]
 						},
 						{
-							"$ref": "#/definitions/nonComposeBase"
+							"$ref": "#/definitions/composeContainer"
 						}
 					]
 				},
 				{
-					"$ref": "#/definitions/composeContainer"
+					"$ref": "#/definitions/devContainerCommon"
 				}
 			]
 		},
 		{
-			"$ref": "#/definitions/devContainerCommon"
+			"type": "object",
+			"$ref": "#/definitions/devContainerCommon",
+			"additionalProperties": false
 		}
 	]
 }

@@ -4,41 +4,40 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { registerConfiguration } from 'vs/platform/userDataSync/common/userDataSync';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isWeb } from 'vs/base/common/platform';
-import { UserDataAutoSync } from 'vs/platform/userDataSync/common/userDataSyncService';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { UserDataSyncWorkbenchContribution } from 'vs/workbench/contrib/userDataSync/browser/userDataSync';
+import { IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode } from 'vs/platform/userDataSync/common/userDataSync';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { isWeb } from 'vs/base/common/platform';
 
-class UserDataSyncConfigurationContribution implements IWorkbenchContribution {
-
-	constructor(
-		@IProductService productService: IProductService
-	) {
-		if (productService.settingsSyncStoreUrl) {
-			registerConfiguration();
-		}
-	}
-}
-
-class UserDataAutoSyncContribution extends Disposable implements IWorkbenchContribution {
+class UserDataSyncReportIssueContribution extends Disposable implements IWorkbenchContribution {
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
-		if (isWeb) {
-			instantiationService.createInstance(UserDataAutoSync);
+		this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
+	}
+
+	private onAutoSyncError(error: UserDataSyncError): void {
+		switch (error.code) {
+			case UserDataSyncErrorCode.LocalTooManyRequests:
+				this.notificationService.notify({
+					severity: Severity.Error,
+					message: localize('too many requests', "Turned off syncing preferences on this device because it is making too many requests."),
+				});
+				return;
 		}
 	}
 }
 
-
 const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncConfigurationContribution, LifecyclePhase.Starting);
-workbenchRegistry.registerWorkbenchContribution(UserDataSyncWorkbenchContribution, LifecyclePhase.Restored);
-workbenchRegistry.registerWorkbenchContribution(UserDataAutoSyncContribution, LifecyclePhase.Restored);
+workbenchRegistry.registerWorkbenchContribution(UserDataSyncWorkbenchContribution, LifecyclePhase.Ready);
+
+if (isWeb) {
+	workbenchRegistry.registerWorkbenchContribution(UserDataSyncReportIssueContribution, LifecyclePhase.Ready);
+}

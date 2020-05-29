@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { once } from 'vs/base/common/functional';
+import { Iterable } from 'vs/base/common/iterator';
 
 /**
  * Enables logging of potentially leaked disposables.
@@ -49,31 +50,30 @@ export interface IDisposable {
 }
 
 export function isDisposable<E extends object>(thing: E): thing is E & IDisposable {
-	return typeof (<IDisposable><any>thing).dispose === 'function'
-		&& (<IDisposable><any>thing).dispose.length === 0;
+	return typeof (<IDisposable>thing).dispose === 'function' && (<IDisposable>thing).dispose.length === 0;
 }
 
 export function dispose<T extends IDisposable>(disposable: T): T;
 export function dispose<T extends IDisposable>(disposable: T | undefined): T | undefined;
+export function dispose<T extends IDisposable, A extends IterableIterator<T> = IterableIterator<T>>(disposables: IterableIterator<T>): A;
 export function dispose<T extends IDisposable>(disposables: Array<T>): Array<T>;
 export function dispose<T extends IDisposable>(disposables: ReadonlyArray<T>): ReadonlyArray<T>;
-export function dispose<T extends IDisposable>(disposables: T | T[] | undefined): T | T[] | undefined {
-	if (Array.isArray(disposables)) {
-		disposables.forEach(d => {
+export function dispose<T extends IDisposable>(arg: T | IterableIterator<T> | undefined): any {
+	if (Iterable.is(arg)) {
+		for (let d of arg) {
 			if (d) {
 				markTracked(d);
 				d.dispose();
 			}
-		});
-		return [];
-	} else if (disposables) {
-		markTracked(disposables);
-		disposables.dispose();
-		return disposables;
-	} else {
-		return undefined;
+		}
+		return arg;
+	} else if (arg) {
+		markTracked(arg);
+		arg.dispose();
+		return arg;
 	}
 }
+
 
 export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	disposables.forEach(markTracked);
@@ -91,6 +91,9 @@ export function toDisposable(fn: () => void): IDisposable {
 }
 
 export class DisposableStore implements IDisposable {
+
+	static DISABLE_DISPOSED_WARNING = false;
+
 	private _toDispose = new Set<IDisposable>();
 	private _isDisposed = false;
 
@@ -121,13 +124,15 @@ export class DisposableStore implements IDisposable {
 		if (!t) {
 			return t;
 		}
-		if ((t as any as DisposableStore) === this) {
+		if ((t as unknown as DisposableStore) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 
 		markTracked(t);
 		if (this._isDisposed) {
-			console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			if (!DisposableStore.DISABLE_DISPOSED_WARNING) {
+				console.warn(new Error('Trying to add a disposable to a DisposableStore that has already been disposed of. The added object will be leaked!').stack);
+			}
 		} else {
 			this._toDispose.add(t);
 		}
@@ -138,7 +143,7 @@ export class DisposableStore implements IDisposable {
 
 export abstract class Disposable implements IDisposable {
 
-	static None = Object.freeze<IDisposable>({ dispose() { } });
+	static readonly None = Object.freeze<IDisposable>({ dispose() { } });
 
 	private readonly _store = new DisposableStore();
 
@@ -153,7 +158,7 @@ export abstract class Disposable implements IDisposable {
 	}
 
 	protected _register<T extends IDisposable>(t: T): T {
-		if ((t as any as Disposable) === this) {
+		if ((t as unknown as Disposable) === this) {
 			throw new Error('Cannot register a disposable on itself!');
 		}
 		return this._store.add(t);
@@ -163,7 +168,7 @@ export abstract class Disposable implements IDisposable {
 /**
  * Manages the lifecycle of a disposable value that may be changed.
  *
- * This ensures that when the the disposable value is changed, the previously held disposable is disposed of. You can
+ * This ensures that when the disposable value is changed, the previously held disposable is disposed of. You can
  * also register a `MutableDisposable` on a `Disposable` to ensure it is automatically cleaned up.
  */
 export class MutableDisposable<T extends IDisposable> implements IDisposable {
@@ -203,43 +208,6 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 			this._value.dispose();
 		}
 		this._value = undefined;
-	}
-}
-
-/**
- * Wrapper class that stores a disposable that is not currently "owned" by anyone.
- *
- * Example use cases:
- *
- * - Express that a function/method will take ownership of a disposable parameter.
- * - Express that a function returns a disposable that the caller must explicitly take ownership of.
- */
-export class UnownedDisposable<T extends IDisposable> extends Disposable {
-	private _hasBeenAcquired = false;
-	private _value?: T;
-
-	public constructor(value: T) {
-		super();
-		this._value = value;
-	}
-
-	public acquire(): T {
-		if (this._hasBeenAcquired) {
-			throw new Error('This disposable has already been acquired');
-		}
-		this._hasBeenAcquired = true;
-		const value = this._value!;
-		this._value = undefined;
-		return value;
-	}
-
-	public dispose() {
-		super.dispose();
-		if (!this._hasBeenAcquired) {
-			this._hasBeenAcquired = true;
-			this._value!.dispose();
-			this._value = undefined;
-		}
 	}
 }
 

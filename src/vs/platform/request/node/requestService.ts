@@ -5,7 +5,7 @@
 
 import * as https from 'https';
 import * as http from 'http';
-import { Stream } from 'stream';
+import * as streams from 'vs/base/common/stream';
 import { createGunzip } from 'zlib';
 import { parse as parseUrl } from 'url';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -18,7 +18,7 @@ import { IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/r
 import { getProxyAgent, Agent } from 'vs/platform/request/node/proxy';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
-import { toVSBufferReadableStream } from 'vs/base/common/buffer';
+import { streamToBufferReadableStream } from 'vs/base/common/buffer';
 
 export interface IRawRequestFunction {
 	(options: http.RequestOptions, callback?: (res: http.IncomingMessage) => void): http.ClientRequest;
@@ -112,13 +112,13 @@ export class RequestService extends Disposable implements IRequestService {
 						followRedirects: followRedirects - 1
 					}), token).then(c, e);
 				} else {
-					let stream: Stream = res;
+					let stream: streams.ReadableStream<Uint8Array> = res;
 
 					if (res.headers['content-encoding'] === 'gzip') {
-						stream = stream.pipe(createGunzip());
+						stream = res.pipe(createGunzip());
 					}
 
-					c({ res, stream: toVSBufferReadableStream(stream) } as IRequestContext);
+					c({ res, stream: streamToBufferReadableStream(stream) } as IRequestContext);
 				}
 			});
 

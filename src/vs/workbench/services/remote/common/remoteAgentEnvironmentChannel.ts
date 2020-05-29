@@ -10,6 +10,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { IDiagnosticInfoOptions, IDiagnosticInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { RemoteAuthorities } from 'vs/base/common/network';
+import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export interface IGetEnvironmentDataArguments {
 	language: string;
@@ -34,16 +35,14 @@ export interface IRemoteAgentEnvironmentDTO {
 
 export class RemoteExtensionEnvironmentChannelClient {
 
-	constructor(private channel: IChannel) { }
-
-	async getEnvironmentData(remoteAuthority: string, extensionDevelopmentPath?: URI[]): Promise<IRemoteAgentEnvironment> {
+	static async getEnvironmentData(channel: IChannel, remoteAuthority: string, extensionDevelopmentPath?: URI[]): Promise<IRemoteAgentEnvironment> {
 		const args: IGetEnvironmentDataArguments = {
 			language: platform.language,
 			remoteAuthority,
 			extensionDevelopmentPath
 		};
 
-		const data = await this.channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
+		const data = await channel.call<IRemoteAgentEnvironmentDTO>('getEnvironmentData', args);
 
 		RemoteAuthorities.setConnectionToken(remoteAuthority, data.connectionToken);
 
@@ -63,11 +62,19 @@ export class RemoteExtensionEnvironmentChannelClient {
 		};
 	}
 
-	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
-		return this.channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
+	static getDiagnosticInfo(channel: IChannel, options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo> {
+		return channel.call<IDiagnosticInfo>('getDiagnosticInfo', options);
 	}
 
-	disableTelemetry(): Promise<void> {
-		return this.channel.call<void>('disableTelemetry');
+	static disableTelemetry(channel: IChannel): Promise<void> {
+		return channel.call<void>('disableTelemetry');
+	}
+
+	static logTelemetry(channel: IChannel, eventName: string, data: ITelemetryData): Promise<void> {
+		return channel.call<void>('logTelemetry', { eventName, data });
+	}
+
+	static flushTelemetry(channel: IChannel): Promise<void> {
+		return channel.call<void>('flushTelemetry');
 	}
 }

@@ -343,6 +343,36 @@ suite('Filters', () => {
 		);
 	});
 
+	test('Freeze when fjfj -> jfjf, https://github.com/microsoft/vscode/issues/91807', function () {
+		assertMatches(
+			'jfjfj',
+			'fjfjfjfjfjfjfjfjfjfjfj',
+			undefined, fuzzyScore
+		);
+		assertMatches(
+			'jfjfjfjfjfjfjfjfjfj',
+			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
+			undefined, fuzzyScore
+		);
+		assertMatches(
+			'jfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfjjfjfjfjfjfjfjfjfjfj',
+			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
+			undefined, fuzzyScore
+		);
+		assertMatches(
+			'jfjfjfjfjfjfjfjfjfj',
+			'fJfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
+			'f^J^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^jfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj', // strong match
+			fuzzyScore
+		);
+		assertMatches(
+			'jfjfjfjfjfjfjfjfjfj',
+			'fjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj',
+			'f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^j^f^jfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfjfj', // any match
+			fuzzyScore, { firstMatchCanBeWeak: true }
+		);
+	});
+
 	test('fuzzyScore, issue #26423', function () {
 
 		assertMatches('baba', 'abababab', undefined, fuzzyScore);
@@ -497,5 +527,15 @@ suite('Filters', () => {
 			undefined,
 			fuzzyScore
 		);
+	});
+
+	test('"Go to Symbol" with the exact method name doesn\'t work as expected #84787', function () {
+		const match = fuzzyScore(':get', ':get', 1, 'get', 'get', 0, true);
+		assert.ok(Boolean(match));
+	});
+
+	test('Suggestion is not highlighted #85826', function () {
+		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScore);
+		assertMatches('SemanticTokens', 'SemanticTokensEdits', '^S^e^m^a^n^t^i^c^T^o^k^e^n^sEdits', fuzzyScoreGracefulAggressive);
 	});
 });

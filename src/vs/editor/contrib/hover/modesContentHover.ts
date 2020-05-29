@@ -13,7 +13,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor } from 'vs/editor/common/modes';
+import { DocumentColorProvider, Hover as MarkdownHover, HoverProviderRegistry, IColor, TokenizationRegistry, CodeActionTriggerType } from 'vs/editor/common/modes';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
@@ -22,7 +22,7 @@ import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/hoverWidgets';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, isNonEmptyArray, asArray } from 'vs/base/common/arrays';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { basename } from 'vs/base/common/resources';
@@ -34,10 +34,13 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { getCodeActions, CodeActionSet } from 'vs/editor/contrib/codeAction/codeAction';
 import { QuickFixAction, QuickFixController } from 'vs/editor/contrib/codeAction/codeActionCommands';
-import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
+import { CodeActionKind, CodeActionTrigger } from 'vs/editor/contrib/codeAction/types';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { Constants } from 'vs/base/common/uint';
+import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Progress } from 'vs/platform/progress/common/progress';
 
 const $ = dom.$;
 
@@ -185,6 +188,11 @@ class ModesContentComputer implements IHoverComputer<HoverPart[]> {
 	}
 }
 
+const markerCodeActionTrigger: CodeActionTrigger = {
+	type: CodeActionTriggerType.Manual,
+	filter: { include: CodeActionKind.QuickFix }
+};
+
 export class ModesContentHoverWidget extends ContentHoverWidget {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
@@ -198,17 +206,19 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 	private _shouldFocus: boolean;
 	private _colorPicker: ColorPickerWidget | null;
 
+	private _codeLink?: HTMLElement;
+
 	private readonly renderDisposable = this._register(new MutableDisposable<IDisposable>());
 
 	constructor(
 		editor: ICodeEditor,
 		markerDecorationsService: IMarkerDecorationsService,
+		keybindingService: IKeybindingService,
 		private readonly _themeService: IThemeService,
-		private readonly _keybindingService: IKeybindingService,
 		private readonly _modeService: IModeService,
-		private readonly _openerService: IOpenerService | null = NullOpenerService,
+		private readonly _openerService: IOpenerService = NullOpenerService,
 	) {
-		super(ModesContentHoverWidget.ID, editor);
+		super(ModesContentHoverWidget.ID, editor, keybindingService);
 
 		this._messages = [];
 		this._lastRange = null;
@@ -236,6 +246,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		}));
 		this._register(editor.onDidChangeConfiguration((e) => {
 			this._hoverOperation.setHoverTime(this._editor.getOption(EditorOption.hover).delay);
+		}));
+		this._register(TokenizationRegistry.onDidChange((e) => {
+			if (this.isVisible && this._lastRange && this._messages.length > 0) {
+				this._hover.contentsDomNode.textContent = '';
+				this._renderMessages(this._lastRange, this._messages);
+			}
 		}));
 	}
 
@@ -333,7 +349,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._colorPicker = null;
 
 		// update column from which to show
-		let renderColumn = Number.MAX_VALUE;
+		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let highlightRange: Range | null = messages[0].range ? Range.lift(messages[0].range) : null;
 		let fragment = document.createDocumentFragment();
 		let isEmptyHoverContent = true;
@@ -353,7 +369,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				containColorPicker = true;
 
 				const { red, green, blue, alpha } = msg.color;
-				const rgba = new RGBA(red * 255, green * 255, blue * 255, alpha);
+				const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
 				const color = new Color(rgba);
 
 				if (!this._editor.hasModel()) {
@@ -445,7 +461,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 							const renderer = markdownDisposeables.add(new MarkdownRenderer(this._editor, this._modeService, this._openerService));
 							markdownDisposeables.add(renderer.onDidRenderCodeBlock(() => {
 								hoverContentsElement.className = 'hover-contents code-hover-contents';
-								this.onContentsChange();
+								this._hover.onContentsChanged();
 							}));
 							const renderedContents = markdownDisposeables.add(renderer.render(contents));
 							hoverContentsElement.appendChild(renderedContents.element);
@@ -488,10 +504,34 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		messageElement.innerText = message;
 
 		if (source || code) {
-			const detailsElement = dom.append(markerElement, $('span'));
-			detailsElement.style.opacity = '0.6';
-			detailsElement.style.paddingLeft = '6px';
-			detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
+			// Code has link
+			if (code && typeof code !== 'string') {
+				const sourceAndCodeElement = $('span');
+				if (source) {
+					const sourceElement = dom.append(sourceAndCodeElement, $('span'));
+					sourceElement.innerText = source;
+				}
+				this._codeLink = dom.append(sourceAndCodeElement, $('a.code-link'));
+				this._codeLink.setAttribute('href', code.target.toString());
+
+				this._codeLink.onclick = (e) => {
+					this._openerService.open(code.target);
+					e.preventDefault();
+					e.stopPropagation();
+				};
+
+				const codeElement = dom.append(this._codeLink, $('span'));
+				codeElement.innerText = code.value;
+
+				const detailsElement = dom.append(markerElement, sourceAndCodeElement);
+				detailsElement.style.opacity = '0.6';
+				detailsElement.style.paddingLeft = '6px';
+			} else {
+				const detailsElement = dom.append(markerElement, $('span'));
+				detailsElement.style.opacity = '0.6';
+				detailsElement.style.paddingLeft = '6px';
+				detailsElement.innerText = source && code ? `${source}(${code})` : source ? source : `(${code})`;
+			}
 		}
 
 		if (isNonEmptyArray(relatedInformation)) {
@@ -505,7 +545,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					e.stopPropagation();
 					e.preventDefault();
 					if (this._openerService) {
-						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` })).catch(onUnexpectedError);
+						this._openerService.open(resource.with({ fragment: `${startLineNumber},${startColumn}` }), { fromUserGesture: true }).catch(onUnexpectedError);
 					}
 				};
 				const messageElement = dom.append<HTMLAnchorElement>(relatedInfoContainer, $('span'));
@@ -522,12 +562,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		const disposables = new DisposableStore();
 		const actionsElement = dom.append(hoverElement, $('div.actions'));
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
-			disposables.add(this.renderAction(actionsElement, {
+			disposables.add(this._renderAction(actionsElement, {
 				label: nls.localize('peek problem', "Peek Problem"),
 				commandId: NextMarkerAction.ID,
 				run: () => {
 					this.hide();
-					MarkerController.get(this._editor).show(markerHover.marker);
+					MarkerController.get(this._editor).showAtMarker(markerHover.marker);
 					this._editor.focus();
 				}
 			}));
@@ -540,14 +580,13 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		quickfixPlaceholderElement.textContent = nls.localize('checkingForQuickFixes', "Checking for quick fixes...");
 		disposables.add(toDisposable(() => quickfixPlaceholderElement.remove()));
 
-
 		const codeActionsPromise = this.getCodeActions(markerHover.marker);
 		disposables.add(toDisposable(() => codeActionsPromise.cancel()));
 		codeActionsPromise.then(actions => {
 			quickfixPlaceholderElement.style.transition = '';
 			quickfixPlaceholderElement.style.opacity = '1';
 
-			if (!actions.actions.length) {
+			if (!actions.validActions.length) {
 				actions.dispose();
 				quickfixPlaceholderElement.textContent = nls.localize('noQuickFixes', "No quick fixes available");
 				return;
@@ -561,14 +600,17 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				}
 			}));
 
-			disposables.add(this.renderAction(actionsElement, {
+			disposables.add(this._renderAction(actionsElement, {
 				label: nls.localize('quick fixes', "Quick Fix..."),
 				commandId: QuickFixAction.Id,
 				run: (target) => {
 					showing = true;
 					const controller = QuickFixController.get(this._editor);
 					const elementPosition = dom.getDomNodePagePosition(target);
-					controller.showCodeActions(actions, {
+					// Hide the hover pre-emptively, otherwise the editor can close the code actions
+					// context menu as well when using keyboard navigation
+					this.hide();
+					controller.showCodeActions(markerCodeActionTrigger, actions, {
 						x: elementPosition.left + 6,
 						y: elementPosition.top + elementPosition.height + 6
 					});
@@ -585,27 +627,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			return getCodeActions(
 				this._editor.getModel()!,
 				new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn),
-				{ type: 'manual', filter: { kind: CodeActionKind.QuickFix } },
+				markerCodeActionTrigger,
+				Progress.None,
 				cancellationToken);
-		});
-	}
-
-	private renderAction(parent: HTMLElement, actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IDisposable {
-		const actionContainer = dom.append(parent, $('div.action-container'));
-		const action = dom.append(actionContainer, $('a.action'));
-		if (actionOptions.iconClass) {
-			dom.append(action, $(`span.icon.${actionOptions.iconClass}`));
-		}
-		const label = dom.append(action, $('span'));
-		label.textContent = actionOptions.label;
-		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
-		if (keybinding) {
-			label.title = `${actionOptions.label} (${keybinding.getLabel()})`;
-		}
-		return dom.addDisposableListener(actionContainer, dom.EventType.CLICK, e => {
-			e.stopPropagation();
-			e.preventDefault();
-			actionOptions.run(actionContainer);
 		});
 	}
 
@@ -636,3 +660,10 @@ function hoverContentsEquals(first: HoverPart[], second: HoverPart[]): boolean {
 	}
 	return true;
 }
+
+registerThemingParticipant((theme, collector) => {
+	const linkFg = theme.getColor(textLinkForeground);
+	if (linkFg) {
+		collector.addRule(`.monaco-hover .hover-contents a.code-link span:hover { color: ${linkFg}; }`);
+	}
+});

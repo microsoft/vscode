@@ -16,7 +16,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IPreferencesSearchService, ISearchProvider, IWorkbenchSettingsConfiguration } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IRequestService, asJson } from 'vs/platform/request/common/request';
 import { IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
@@ -42,7 +42,7 @@ export class PreferencesSearchService extends Disposable implements IPreferences
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProductService private readonly productService: IProductService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private readonly extensionEnablementService: IExtensionEnablementService
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService
 	) {
 		super();
 
@@ -519,7 +519,7 @@ export class SettingMatches {
 			const valueMatches = or(matchesPrefix, matchesContiguousSubString)(searchString, setting.value);
 			valueRanges = valueMatches ? valueMatches.map(match => this.toValueRange(setting, match)) : this.getRangesForWords(words, this.valueMatchingWords, [this.keyMatchingWords, this.descriptionMatchingWords]);
 		} else {
-			valueRanges = this.valuesMatcher ? this.valuesMatcher(searchString, setting) : [];
+			valueRanges = this.valuesMatcher(searchString, setting);
 		}
 
 		return [...descriptionRanges, ...keyRanges, ...valueRanges];

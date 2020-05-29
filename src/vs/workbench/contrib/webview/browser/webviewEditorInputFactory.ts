@@ -4,27 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactory } from 'vs/workbench/common/editor';
+import { WebviewExtensionDescription, WebviewIcons } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewInput } from './webviewEditorInput';
-import { IWebviewEditorService, WebviewInputOptions } from './webviewEditorService';
+import { IWebviewWorkbenchService, WebviewInputOptions } from './webviewWorkbenchService';
 
 interface SerializedIconPath {
 	light: string | UriComponents;
 	dark: string | UriComponents;
 }
 
-interface SerializedWebview {
-	readonly id?: string;
+export interface SerializedWebview {
+	readonly id: string;
 	readonly viewType: string;
 	readonly title: string;
 	readonly options: WebviewInputOptions;
-	readonly extensionLocation: string | UriComponents | undefined;
+	readonly extensionLocation: UriComponents | undefined;
 	readonly extensionId: string | undefined;
 	readonly state: any;
 	readonly iconPath: SerializedIconPath | undefined;
+	readonly group?: number;
+}
+
+export interface DeserializedWebview {
+	readonly id: string;
+	readonly viewType: string;
+	readonly title: string;
+	readonly options: WebviewInputOptions;
+	readonly extension: WebviewExtensionDescription | undefined;
+	readonly state: any;
+	readonly iconPath: WebviewIcons | undefined;
 	readonly group?: number;
 }
 
@@ -33,11 +44,15 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 	public static readonly ID = WebviewInput.typeId;
 
 	public constructor(
-		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService
+		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService
 	) { }
 
+	public canSerialize(input: WebviewInput): boolean {
+		return this._webviewWorkbenchService.shouldPersist(input);
+	}
+
 	public serialize(input: WebviewInput): string | undefined {
-		if (!this._webviewService.shouldPersist(input)) {
+		if (!this._webviewWorkbenchService.shouldPersist(input)) {
 			return undefined;
 		}
 
@@ -53,21 +68,17 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 		_instantiationService: IInstantiationService,
 		serializedEditorInput: string
 	): WebviewInput {
-		const data = this.fromJson(serializedEditorInput);
-		return this._webviewService.reviveWebview(data.id || generateUuid(), data.viewType, data.title, data.iconPath, data.state, data.options, data.extensionLocation ? {
-			location: data.extensionLocation,
-			id: data.extensionId
-		} : undefined, data.group);
+		const data = this.fromJson(JSON.parse(serializedEditorInput));
+		return this._webviewWorkbenchService.reviveWebview(data.id, data.viewType, data.title, data.iconPath, data.state, data.options, data.extension, data.group);
 	}
 
-	protected fromJson(serializedEditorInput: string) {
-		const data: SerializedWebview = JSON.parse(serializedEditorInput);
+	protected fromJson(data: SerializedWebview): DeserializedWebview {
 		return {
 			...data,
-			extensionLocation: reviveUri(data.extensionLocation),
-			extensionId: data.extensionId ? new ExtensionIdentifier(data.extensionId) : undefined,
+			extension: reviveWebviewExtensionDescription(data.extensionId, data.extensionLocation),
 			iconPath: reviveIconPath(data.iconPath),
 			state: reviveState(data.state),
+			options: reviveOptions(data.options)
 		};
 	}
 
@@ -84,6 +95,25 @@ export class WebviewEditorInputFactory implements IEditorInputFactory {
 			group: input.group
 		};
 	}
+}
+
+export function reviveWebviewExtensionDescription(
+	extensionId: string | undefined,
+	extensionLocation: UriComponents | undefined,
+): WebviewExtensionDescription | undefined {
+	if (!extensionId) {
+		return undefined;
+	}
+
+	const location = reviveUri(extensionLocation);
+	if (!location) {
+		return undefined;
+	}
+
+	return {
+		id: new ExtensionIdentifier(extensionId),
+		location,
+	};
 }
 
 function reviveIconPath(data: SerializedIconPath | undefined) {
@@ -113,4 +143,11 @@ function reviveUri(data: string | UriComponents | undefined): URI | undefined {
 
 function reviveState(state: unknown | undefined): undefined | string {
 	return typeof state === 'string' ? state : undefined;
+}
+
+function reviveOptions(options: WebviewInputOptions): WebviewInputOptions {
+	return {
+		...options,
+		localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
+	};
 }

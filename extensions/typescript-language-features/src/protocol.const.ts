@@ -12,6 +12,7 @@ export class Kind {
 	public static readonly constructSignature = 'construct';
 	public static readonly directory = 'directory';
 	public static readonly enum = 'enum';
+	public static readonly enumMember = 'enum member';
 	public static readonly externalModuleName = 'external module name';
 	public static readonly function = 'function';
 	public static readonly indexSignature = 'index';
@@ -20,7 +21,7 @@ export class Kind {
 	public static readonly let = 'let';
 	public static readonly localFunction = 'local function';
 	public static readonly localVariable = 'local var';
-	public static readonly memberFunction = 'method';
+	public static readonly method = 'method';
 	public static readonly memberGetAccessor = 'getter';
 	public static readonly memberSetAccessor = 'setter';
 	public static readonly memberVariable = 'property';
@@ -32,6 +33,7 @@ export class Kind {
 	public static readonly warning = 'warning';
 	public static readonly string = 'string';
 	public static readonly parameter = 'parameter';
+	public static readonly typeParameter = 'type parameter';
 }
 
 

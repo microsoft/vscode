@@ -15,7 +15,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions, ITextEditorOptions, IResourceInput, EditorActivation } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions, IResourceEditorInput, EditorActivation } from 'vs/platform/editor/common/editor';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
@@ -24,6 +24,9 @@ import { ExtHostContext, ExtHostEditorsShape, IApplyEditsOptions, IExtHostContex
 import { EditorViewColumn, editorGroupToViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/common/shared/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { openEditorWith } from 'vs/workbench/contrib/files/common/openWith';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -101,10 +104,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _getTextEditorPositionData(): ITextEditorPositionData {
 		const result: ITextEditorPositionData = Object.create(null);
-		for (let workbenchEditor of this._editorService.visibleControls) {
-			const id = this._documentsAndEditors.findTextEditorIdFor(workbenchEditor);
+		for (let editorPane of this._editorService.visibleEditorPanes) {
+			const id = this._documentsAndEditors.findTextEditorIdFor(editorPane);
 			if (id) {
-				result[id] = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
+				result[id] = editorGroupToViewColumn(this._editorGroupService, editorPane.group);
 			}
 		}
 		return result;
@@ -121,10 +124,11 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			selection: options.selection,
 			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
-			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined
+			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
+			ignoreOverrides: true
 		};
 
-		const input: IResourceInput = {
+		const input: IResourceEditorInput = {
 			resource: uri,
 			options: editorOptions
 		};
@@ -151,10 +155,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	async $tryHideEditor(id: string): Promise<void> {
 		const mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
-			const editors = this._editorService.visibleControls;
-			for (let editor of editors) {
-				if (mainThreadEditor.matches(editor)) {
-					return editor.group.closeEditor(editor.input);
+			const editorPanes = this._editorService.visibleEditorPanes;
+			for (let editorPane of editorPanes) {
+				if (mainThreadEditor.matches(editorPane)) {
+					return editorPane.group.closeEditor(editorPane.input);
 				}
 			}
 		}
@@ -216,8 +220,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 
 	$tryApplyWorkspaceEdit(dto: IWorkspaceEditDto): Promise<boolean> {
-		const { edits } = reviveWorkspaceEditDto(dto);
-		return this._bulkEditService.apply({ edits }, undefined).then(() => true, err => false);
+		const { edits } = reviveWorkspaceEditDto(dto)!;
+		return this._bulkEditService.apply({ edits }).then(() => true, _err => false);
 	}
 
 	$tryInsertSnippet(id: string, template: string, ranges: readonly IRange[], opts: IUndoStopOptions): Promise<boolean> {
@@ -291,6 +295,21 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 	}
 	// finally, delegate to opener service
 	return openerService.open(resource).then(_ => undefined);
+});
+
+CommandsRegistry.registerCommand('_workbench.openWith', (accessor: ServicesAccessor, args: [URI, string, ITextEditorOptions | undefined, EditorViewColumn | undefined]) => {
+	const editorService = accessor.get(IEditorService);
+	const editorGroupsService = accessor.get(IEditorGroupsService);
+	const configurationService = accessor.get(IConfigurationService);
+	const quickInputService = accessor.get(IQuickInputService);
+
+	const [resource, id, options, position] = args;
+
+	const group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, position)) ?? editorGroupsService.activeGroup;
+	const textOptions = options ? { ...options, ignoreOverrides: true } : { ignoreOverrides: true };
+
+	const input = editorService.createEditorInput({ resource });
+	return openEditorWith(input, id, textOptions, group, editorService, configurationService, quickInputService);
 });
 
 

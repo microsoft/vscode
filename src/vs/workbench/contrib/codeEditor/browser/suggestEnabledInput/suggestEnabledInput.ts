@@ -27,11 +27,13 @@ import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ColorIdentifier, editorSelectionBackground, inputBackground, inputBorder, inputForeground, inputPlaceholderForeground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IStyleOverrides, IThemable, attachStyler } from 'vs/platform/theme/common/styler';
+import { IStyleOverrides, attachStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { SelectionClipboard } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { IThemable } from 'vs/base/common/styler';
 
 interface SuggestResultsProvider {
 	/**
@@ -80,7 +82,7 @@ export interface ISuggestEnabledInputStyleOverrides extends IStyleOverrides {
 }
 
 type ISuggestEnabledInputStyles = {
-	[P in keyof ISuggestEnabledInputStyleOverrides]: Color;
+	[P in keyof ISuggestEnabledInputStyleOverrides]: Color | undefined;
 };
 
 export function attachSuggestEnabledInputBoxStyler(widget: IThemable, themeService: IThemeService, style?: ISuggestEnabledInputStyleOverrides): IDisposable {
@@ -130,7 +132,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		this.inputWidget = instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,
 			editorOptions,
 			{
-				contributions: [SuggestController, SnippetController2, ContextMenuController, MenuPreventer, SelectionClipboard],
+				contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+					SuggestController.ID,
+					SnippetController2.ID,
+					ContextMenuController.ID,
+					MenuPreventer.ID,
+					SelectionClipboardContributionID,
+				]),
 				isSimpleWidget: true,
 			});
 		this._register(this.inputWidget);
@@ -179,11 +187,15 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.CompletionContext) => {
 				let query = model.getValue();
 
-				let wordStart = query.lastIndexOf(' ', position.column - 1) + 1;
-				let alreadyTypedCount = position.column - wordStart - 1;
+				const zeroIndexedColumn = position.column - 1;
+
+				let zeroIndexedWordStart = query.lastIndexOf(' ', zeroIndexedColumn - 1) + 1;
+				let alreadyTypedCount = zeroIndexedColumn - zeroIndexedWordStart;
 
 				// dont show suggestions if the user has typed something, but hasn't used the trigger character
-				if (alreadyTypedCount > 0 && (validatedSuggestProvider.triggerCharacters).indexOf(query[wordStart]) === -1) { return { suggestions: [] }; }
+				if (alreadyTypedCount > 0 && validatedSuggestProvider.triggerCharacters.indexOf(query[zeroIndexedWordStart]) === -1) {
+					return { suggestions: [] };
+				}
 
 				return {
 					suggestions: suggestionProvider.provideResults(query).map(result => {
@@ -198,6 +210,10 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 				};
 			}
 		}));
+	}
+
+	public updateAriaLabel(label: string): void {
+		this.inputWidget.updateOptions({ ariaLabel: label });
 	}
 
 	public get onFocus(): Event<void> { return this.inputWidget.onDidFocusEditorText; }
@@ -216,9 +232,9 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 
 	public style(colors: ISuggestEnabledInputStyles): void {
-		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
-		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
-		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : null;
+		this.stylingContainer.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : '';
+		this.stylingContainer.style.color = colors.inputForeground ? colors.inputForeground.toString() : '';
+		this.placeholderText.style.color = colors.inputPlaceholderForeground ? colors.inputPlaceholderForeground.toString() : '';
 
 		this.stylingContainer.style.borderWidth = '1px';
 		this.stylingContainer.style.borderStyle = 'solid';
@@ -228,7 +244,7 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 
 		const cursor = this.stylingContainer.getElementsByClassName('cursor')[0] as HTMLDivElement;
 		if (cursor) {
-			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : null;
+			cursor.style.backgroundColor = colors.inputForeground ? colors.inputForeground.toString() : '';
 		}
 	}
 
@@ -240,9 +256,13 @@ export class SuggestEnabledInput extends Widget implements IThemable {
 		}
 	}
 
+	public onHide(): void {
+		this.inputWidget.onHide();
+	}
+
 	public layout(dimension: Dimension): void {
 		this.inputWidget.layout(dimension);
-		this.placeholderText.style.width = `${dimension.width}px`;
+		this.placeholderText.style.width = `${dimension.width - 2}px`;
 	}
 
 	private selectAll(): void {
@@ -274,6 +294,11 @@ registerThemingParticipant((theme, collector) => {
 	if (inputForegroundColor) {
 		collector.addRule(`.suggest-input-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
 	}
+
+	const backgroundColor = theme.getColor(inputBackground);
+	if (backgroundColor) {
+		collector.addRule(`.suggest-input-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
+	}
 });
 
 
@@ -286,10 +311,11 @@ function getSuggestEnabledInputOptions(ariaLabel?: string): IEditorOptions {
 		roundedSelection: false,
 		renderIndentGuides: false,
 		cursorWidth: 1,
-		fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+		fontFamily: ' system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
 		ariaLabel: ariaLabel || '',
 
 		snippetSuggestions: 'none',
-		suggest: { filterGraceful: false, showIcons: false }
+		suggest: { filterGraceful: false, showIcons: false },
+		autoClosingBrackets: 'never'
 	};
 }

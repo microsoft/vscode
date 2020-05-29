@@ -20,8 +20,13 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { asArray } from 'vs/base/common/arrays';
 import { ScanCodeUtils, ScanCode } from 'vs/base/common/scanCode';
 import { isMacintosh } from 'vs/base/common/platform';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Codicon, registerIcon } from 'vs/base/common/codicons';
 
 const $ = DOM.$;
+
+const menuBarMoreIcon = registerIcon('menubar-more', Codicon.more);
 
 export interface IMenuBarOptions {
 	enableMnemonics?: boolean;
@@ -30,6 +35,7 @@ export interface IMenuBarOptions {
 	getKeybinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	alwaysOnMnemonics?: boolean;
 	compactMode?: Direction;
+	getCompactMenuActions?: () => IAction[]
 }
 
 export interface MenuBarMenu {
@@ -55,7 +61,7 @@ export class MenuBar extends Disposable {
 		actions?: ReadonlyArray<IAction>;
 	}[];
 
-	private overflowMenu: {
+	private overflowMenu!: {
 		buttonElement: HTMLElement;
 		titleElement: HTMLElement;
 		label: string;
@@ -72,22 +78,22 @@ export class MenuBar extends Disposable {
 	private menuUpdater: RunOnceScheduler;
 
 	// Input-related
-	private _mnemonicsInUse: boolean;
-	private openedViaKeyboard: boolean;
-	private awaitingAltRelease: boolean;
-	private ignoreNextMouseUp: boolean;
+	private _mnemonicsInUse: boolean = false;
+	private openedViaKeyboard: boolean = false;
+	private awaitingAltRelease: boolean = false;
+	private ignoreNextMouseUp: boolean = false;
 	private mnemonics: Map<string, number>;
 
-	private updatePending: boolean;
+	private updatePending: boolean = false;
 	private _focusState: MenubarState;
 	private actionRunner: IActionRunner;
 
 	private readonly _onVisibilityChange: Emitter<boolean>;
 	private readonly _onFocusStateChange: Emitter<boolean>;
 
-	private numMenusShown: number;
-	private menuStyle: IMenuStyles;
-	private overflowLayoutScheduled: IDisposable | null;
+	private numMenusShown: number = 0;
+	private menuStyle: IMenuStyles | undefined;
+	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions = {}) {
 		super();
@@ -134,8 +140,8 @@ export class MenuBar extends Disposable {
 				eventHandled = false;
 			}
 
-			// Never allow default tab behavior
-			if (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab)) {
+			// Never allow default tab behavior when not compact
+			if (this.options.compactMode === undefined && (event.equals(KeyCode.Tab | KeyMod.Shift) || event.equals(KeyCode.Tab))) {
 				event.preventDefault();
 			}
 
@@ -252,7 +258,14 @@ export class MenuBar extends Disposable {
 				e.stopPropagation();
 			}));
 
-			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
+			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+				// Ignore non-left-click
+				const mouseEvent = new StandardMouseEvent(e);
+				if (!mouseEvent.leftButton) {
+					e.preventDefault();
+					return;
+				}
+
 				if (!this.isOpen) {
 					// Open the menu with mouse down and ignore the following mouse up event
 					this.ignoreNextMouseUp = true;
@@ -266,6 +279,10 @@ export class MenuBar extends Disposable {
 			}));
 
 			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
+				if (e.defaultPrevented) {
+					return;
+				}
+
 				if (!this.ignoreNextMouseUp) {
 					if (this.isFocused) {
 						this.onMenuTriggered(menuIndex, true);
@@ -296,9 +313,10 @@ export class MenuBar extends Disposable {
 	}
 
 	createOverflowMenu(): void {
-		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', "...");
-		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': label, 'aria-haspopup': true });
-		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more', { 'role': 'none', 'aria-hidden': true });
+		const label = this.options.compactMode !== undefined ? nls.localize('mAppMenu', 'Application Menu') : nls.localize('mMore', 'More');
+		const title = this.options.compactMode !== undefined ? label : undefined;
+		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': this.options.compactMode !== undefined ? 0 : -1, 'aria-label': label, 'title': title, 'aria-haspopup': true });
+		const titleElement = $('div.menubar-menu-title.toolbar-toggle-more' + menuBarMoreIcon.cssSelector, { 'role': 'none', 'aria-hidden': true });
 
 		buttonElement.appendChild(titleElement);
 		this.container.appendChild(buttonElement);
@@ -308,7 +326,7 @@ export class MenuBar extends Disposable {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
-			if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
+			if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter) || (this.options.compactMode !== undefined && event.equals(KeyCode.Space))) && !this.isOpen) {
 				this.focusedMenu = { index: MenuBar.OVERFLOW_INDEX };
 				this.openedViaKeyboard = true;
 				this.focusState = MenubarState.OPEN;
@@ -337,6 +355,13 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e) => {
+			// Ignore non-left-click
+			const mouseEvent = new StandardMouseEvent(e);
+			if (!mouseEvent.leftButton) {
+				e.preventDefault();
+				return;
+			}
+
 			if (!this.isOpen) {
 				// Open the menu with mouse down and ignore the following mouse up event
 				this.ignoreNextMouseUp = true;
@@ -350,6 +375,10 @@ export class MenuBar extends Disposable {
 		}));
 
 		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
 			if (!this.ignoreNextMouseUp) {
 				if (this.isFocused) {
 					this.onMenuTriggered(MenuBar.OVERFLOW_INDEX, true);
@@ -395,9 +424,8 @@ export class MenuBar extends Disposable {
 		DOM.removeNode(this.overflowMenu.titleElement);
 		DOM.removeNode(this.overflowMenu.buttonElement);
 
-		if (this.overflowLayoutScheduled) {
-			this.overflowLayoutScheduled = dispose(this.overflowLayoutScheduled);
-		}
+		dispose(this.overflowLayoutScheduled);
+		this.overflowLayoutScheduled = undefined;
 	}
 
 	blur(): void {
@@ -462,9 +490,17 @@ export class MenuBar extends Disposable {
 				this.overflowMenu.actions.push(new SubmenuAction(this.menuCache[idx].label, this.menuCache[idx].actions || []));
 			}
 
-			DOM.removeNode(this.overflowMenu.buttonElement);
-			this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
-			this.overflowMenu.buttonElement.style.visibility = 'visible';
+			if (this.overflowMenu.buttonElement.nextElementSibling !== this.menuCache[this.numMenusShown].buttonElement) {
+				DOM.removeNode(this.overflowMenu.buttonElement);
+				this.container.insertBefore(this.overflowMenu.buttonElement, this.menuCache[this.numMenusShown].buttonElement);
+				this.overflowMenu.buttonElement.style.visibility = 'visible';
+			}
+
+			const compactMenuActions = this.options.getCompactMenuActions?.();
+			if (compactMenuActions && compactMenuActions.length) {
+				this.overflowMenu.actions.push(new Separator());
+				this.overflowMenu.actions.push(...compactMenuActions);
+			}
 		} else {
 			DOM.removeNode(this.overflowMenu.buttonElement);
 			this.container.appendChild(this.overflowMenu.buttonElement);
@@ -535,7 +571,7 @@ export class MenuBar extends Disposable {
 		if (!this.overflowLayoutScheduled) {
 			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
 				this.updateOverflowAction();
-				this.overflowLayoutScheduled = null;
+				this.overflowLayoutScheduled = undefined;
 			});
 		}
 
@@ -885,7 +921,7 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
-		const menuHolder = $('div.menubar-menu-items-holder');
+		const menuHolder = $('div.menubar-menu-items-holder', { 'title': '' });
 
 		DOM.addClass(customMenu.buttonElement, 'open');
 
@@ -909,11 +945,14 @@ export class MenuBar extends Disposable {
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
 			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
-			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right
+			expandDirection: this.options.compactMode !== undefined ? this.options.compactMode : Direction.Right,
+			useEventAsContext: true
 		};
 
 		let menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions));
-		menuWidget.style(this.menuStyle);
+		if (this.menuStyle) {
+			menuWidget.style(this.menuStyle);
+		}
 
 		this._register(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;

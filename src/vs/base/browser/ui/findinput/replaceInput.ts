@@ -17,6 +17,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Color } from 'vs/base/common/color';
 import { ICheckboxStyles, Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IFindInputCheckboxOpts } from 'vs/base/browser/ui/findinput/findInputCheckboxes';
+import { Codicon } from 'vs/base/common/codicons';
 
 export interface IReplaceInputOptions extends IReplaceInputStyles {
 	readonly placeholder?: string;
@@ -42,7 +43,7 @@ export class PreserveCaseCheckbox extends Checkbox {
 	constructor(opts: IFindInputCheckboxOpts) {
 		super({
 			// TODO: does this need its own icon?
-			actionClassName: 'codicon-preserve-case',
+			icon: Codicon.preserveCase,
 			title: NLS_PRESERVE_CASE_LABEL + opts.appendTitle,
 			isChecked: opts.isChecked,
 			inputActiveOptionBorder: opts.inputActiveOptionBorder,
@@ -123,11 +124,96 @@ export class ReplaceInput extends Widget {
 		this.inputValidationErrorBackground = options.inputValidationErrorBackground;
 		this.inputValidationErrorForeground = options.inputValidationErrorForeground;
 
+		const history = options.history || [];
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
 		const flexibleMaxHeight = options.flexibleMaxHeight;
 
-		this.buildDomNode(options.history || [], flexibleHeight, flexibleWidth, flexibleMaxHeight);
+		this.domNode = document.createElement('div');
+		dom.addClass(this.domNode, 'monaco-findInput');
+
+		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
+			ariaLabel: this.label || '',
+			placeholder: this.placeholder || '',
+			validationOptions: {
+				validation: this.validation
+			},
+			inputBackground: this.inputBackground,
+			inputForeground: this.inputForeground,
+			inputBorder: this.inputBorder,
+			inputValidationInfoBackground: this.inputValidationInfoBackground,
+			inputValidationInfoForeground: this.inputValidationInfoForeground,
+			inputValidationInfoBorder: this.inputValidationInfoBorder,
+			inputValidationWarningBackground: this.inputValidationWarningBackground,
+			inputValidationWarningForeground: this.inputValidationWarningForeground,
+			inputValidationWarningBorder: this.inputValidationWarningBorder,
+			inputValidationErrorBackground: this.inputValidationErrorBackground,
+			inputValidationErrorForeground: this.inputValidationErrorForeground,
+			inputValidationErrorBorder: this.inputValidationErrorBorder,
+			history,
+			flexibleHeight,
+			flexibleWidth,
+			flexibleMaxHeight
+		}));
+
+		this.preserveCase = this._register(new PreserveCaseCheckbox({
+			appendTitle: '',
+			isChecked: false,
+			inputActiveOptionBorder: this.inputActiveOptionBorder,
+			inputActiveOptionBackground: this.inputActiveOptionBackground,
+		}));
+		this._register(this.preserveCase.onChange(viaKeyboard => {
+			this._onDidOptionChange.fire(viaKeyboard);
+			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
+				this.inputBox.focus();
+			}
+			this.validate();
+		}));
+		this._register(this.preserveCase.onKeyDown(e => {
+			this._onPreserveCaseKeyDown.fire(e);
+		}));
+
+		if (this._showOptionButtons) {
+			this.cachedOptionsWidth = this.preserveCase.width();
+		} else {
+			this.cachedOptionsWidth = 0;
+		}
+
+		// Arrow-Key support to navigate between options
+		let indexes = [this.preserveCase.domNode];
+		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
+			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
+				let index = indexes.indexOf(<HTMLElement>document.activeElement);
+				if (index >= 0) {
+					let newIndex: number = -1;
+					if (event.equals(KeyCode.RightArrow)) {
+						newIndex = (index + 1) % indexes.length;
+					} else if (event.equals(KeyCode.LeftArrow)) {
+						if (index === 0) {
+							newIndex = indexes.length - 1;
+						} else {
+							newIndex = index - 1;
+						}
+					}
+
+					if (event.equals(KeyCode.Escape)) {
+						indexes[index].blur();
+					} else if (newIndex >= 0) {
+						indexes[newIndex].focus();
+					}
+
+					dom.EventHelper.stop(event, true);
+				}
+			}
+		});
+
+
+		let controls = document.createElement('div');
+		controls.className = 'controls';
+		controls.style.display = this._showOptionButtons ? 'block' : 'none';
+		controls.appendChild(this.preserveCase.domNode);
+
+		this.domNode.appendChild(controls);
 
 		if (parent) {
 			parent.appendChild(this.domNode);
@@ -254,94 +340,6 @@ export class ReplaceInput extends Widget {
 		dom.removeClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
 		this._lastHighlightFindOptions = 1 - this._lastHighlightFindOptions;
 		dom.addClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
-	}
-
-	private buildDomNode(history: string[], flexibleHeight: boolean, flexibleWidth: boolean, flexibleMaxHeight: number | undefined): void {
-		this.domNode = document.createElement('div');
-		dom.addClass(this.domNode, 'monaco-findInput');
-
-		this.inputBox = this._register(new HistoryInputBox(this.domNode, this.contextViewProvider, {
-			ariaLabel: this.label || '',
-			placeholder: this.placeholder || '',
-			validationOptions: {
-				validation: this.validation
-			},
-			inputBackground: this.inputBackground,
-			inputForeground: this.inputForeground,
-			inputBorder: this.inputBorder,
-			inputValidationInfoBackground: this.inputValidationInfoBackground,
-			inputValidationInfoForeground: this.inputValidationInfoForeground,
-			inputValidationInfoBorder: this.inputValidationInfoBorder,
-			inputValidationWarningBackground: this.inputValidationWarningBackground,
-			inputValidationWarningForeground: this.inputValidationWarningForeground,
-			inputValidationWarningBorder: this.inputValidationWarningBorder,
-			inputValidationErrorBackground: this.inputValidationErrorBackground,
-			inputValidationErrorForeground: this.inputValidationErrorForeground,
-			inputValidationErrorBorder: this.inputValidationErrorBorder,
-			history,
-			flexibleHeight,
-			flexibleWidth,
-			flexibleMaxHeight
-		}));
-
-		this.preserveCase = this._register(new PreserveCaseCheckbox({
-			appendTitle: '',
-			isChecked: false,
-			inputActiveOptionBorder: this.inputActiveOptionBorder,
-			inputActiveOptionBackground: this.inputActiveOptionBackground,
-		}));
-		this._register(this.preserveCase.onChange(viaKeyboard => {
-			this._onDidOptionChange.fire(viaKeyboard);
-			if (!viaKeyboard && this.fixFocusOnOptionClickEnabled) {
-				this.inputBox.focus();
-			}
-			this.validate();
-		}));
-		this._register(this.preserveCase.onKeyDown(e => {
-			this._onPreserveCaseKeyDown.fire(e);
-		}));
-
-		if (this._showOptionButtons) {
-			this.cachedOptionsWidth = this.preserveCase.width();
-		} else {
-			this.cachedOptionsWidth = 0;
-		}
-
-		// Arrow-Key support to navigate between options
-		let indexes = [this.preserveCase.domNode];
-		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
-			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-				let index = indexes.indexOf(<HTMLElement>document.activeElement);
-				if (index >= 0) {
-					let newIndex: number = -1;
-					if (event.equals(KeyCode.RightArrow)) {
-						newIndex = (index + 1) % indexes.length;
-					} else if (event.equals(KeyCode.LeftArrow)) {
-						if (index === 0) {
-							newIndex = indexes.length - 1;
-						} else {
-							newIndex = index - 1;
-						}
-					}
-
-					if (event.equals(KeyCode.Escape)) {
-						indexes[index].blur();
-					} else if (newIndex >= 0) {
-						indexes[newIndex].focus();
-					}
-
-					dom.EventHelper.stop(event, true);
-				}
-			}
-		});
-
-
-		let controls = document.createElement('div');
-		controls.className = 'controls';
-		controls.style.display = this._showOptionButtons ? 'block' : 'none';
-		controls.appendChild(this.preserveCase.domNode);
-
-		this.domNode.appendChild(controls);
 	}
 
 	public validate(): void {

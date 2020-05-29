@@ -17,10 +17,10 @@ export const folderSettingsSchemaId = 'vscode://schemas/settings/folder';
 export const launchSchemaId = 'vscode://schemas/launch';
 export const tasksSchemaId = 'vscode://schemas/tasks';
 
-export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE];
-export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.MACHINE_OVERRIDABLE];
-export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.MACHINE_OVERRIDABLE];
-export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const LOCAL_MACHINE_SCOPES = [ConfigurationScope.APPLICATION, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE];
+export const REMOTE_MACHINE_SCOPES = [ConfigurationScope.MACHINE, ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const WORKSPACE_SCOPES = [ConfigurationScope.WINDOW, ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
+export const FOLDER_SCOPES = [ConfigurationScope.RESOURCE, ConfigurationScope.LANGUAGE_OVERRIDABLE, ConfigurationScope.MACHINE_OVERRIDABLE];
 
 export const TASKS_CONFIGURATION_KEY = 'tasks';
 export const LAUNCH_CONFIGURATION_KEY = 'launch';
@@ -28,6 +28,8 @@ export const LAUNCH_CONFIGURATION_KEY = 'launch';
 export const WORKSPACE_STANDALONE_CONFIGURATIONS = Object.create(null);
 WORKSPACE_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY] = `${FOLDER_CONFIG_FOLDER_NAME}/${TASKS_CONFIGURATION_KEY}.json`;
 WORKSPACE_STANDALONE_CONFIGURATIONS[LAUNCH_CONFIGURATION_KEY] = `${FOLDER_CONFIG_FOLDER_NAME}/${LAUNCH_CONFIGURATION_KEY}.json`;
+export const USER_STANDALONE_CONFIGURATIONS = Object.create(null);
+USER_STANDALONE_CONFIGURATIONS[TASKS_CONFIGURATION_KEY] = `${TASKS_CONFIGURATION_KEY}.json`;
 
 export type ConfigurationKey = { type: 'user' | 'workspaces' | 'folder', key: string };
 
@@ -38,3 +40,5 @@ export interface IConfigurationCache {
 	remove(key: ConfigurationKey): Promise<void>;
 
 }
+
+export const TASKS_DEFAULT = '{\n\t\"version\": \"2.0.0\",\n\t\"tasks\": []\n}';

@@ -40,7 +40,7 @@ export class Editor {
 
 	async gotoDefinition(filename: string, term: string, line: number): Promise<void> {
 		await this.clickOnTerm(filename, term, line);
-		await this.commands.runCommand('Go to Implementation');
+		await this.commands.runCommand('Go to Implementations');
 	}
 
 	async peekDefinition(filename: string, term: string, line: number): Promise<References> {
@@ -89,7 +89,7 @@ export class Editor {
 		const line = `${editor} .view-lines > .view-line:nth-child(${lineNumber})`;
 		const textarea = `${editor} textarea`;
 
-		await this.code.waitAndClick(line, 0, 0);
+		await this.code.waitAndClick(line, 1, 1);
 		await this.code.waitForActiveElement(textarea);
 	}
 

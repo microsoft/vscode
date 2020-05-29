@@ -22,136 +22,31 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/terminalWidgetManager';
-import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_PANEL_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, TERMINAL_COMMAND_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { IShellLaunchConfig, ITerminalDimensions, ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, IWindowsShellHelper, SHELL_PATH_INVALID_EXIT_CODE, SHELL_PATH_DIRECTORY_EXIT_CODE, SHELL_CWD_INVALID_EXIT_CODE, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, TitleEventSource, LEGACY_CONSOLE_MODE_EXIT_CODE, DEFAULT_COMMANDS_TO_SKIP_SHELL } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalLinkHandler } from 'vs/workbench/contrib/terminal/browser/terminalLinkHandler';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ITerminalInstanceService, ITerminalInstance, TerminalShellType, WindowsShellType, ITerminalBeforeHandleLinkEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
 import { SearchAddon, ISearchOptions } from 'xterm-addon-search';
+import { Unicode11Addon } from 'xterm-addon-unicode11';
 import { CommandTrackerAddon } from 'vs/workbench/contrib/terminal/browser/addons/commandTrackerAddon';
 import { NavigationModeAddon } from 'vs/workbench/contrib/terminal/browser/addons/navigationModeAddon';
 import { XTermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { EnvironmentVariableInfoWidget } from 'vs/workbench/contrib/terminal/browser/widgets/environmentVariableInfoWidget';
+import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
-
-export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
-	TERMINAL_COMMAND_ID.CLEAR_SELECTION,
-	TERMINAL_COMMAND_ID.CLEAR,
-	TERMINAL_COMMAND_ID.COPY_SELECTION,
-	TERMINAL_COMMAND_ID.DELETE_TO_LINE_START,
-	TERMINAL_COMMAND_ID.DELETE_WORD_LEFT,
-	TERMINAL_COMMAND_ID.DELETE_WORD_RIGHT,
-	TERMINAL_COMMAND_ID.FIND_WIDGET_FOCUS,
-	TERMINAL_COMMAND_ID.FIND_WIDGET_HIDE,
-	TERMINAL_COMMAND_ID.FIND_NEXT_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.FIND_PREVIOUS_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.TOGGLE_FIND_REGEX_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.TOGGLE_FIND_WHOLE_WORD_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.TOGGLE_FIND_CASE_SENSITIVE_TERMINAL_FOCUS,
-	TERMINAL_COMMAND_ID.FOCUS_NEXT_PANE,
-	TERMINAL_COMMAND_ID.FOCUS_NEXT,
-	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS_PANE,
-	TERMINAL_COMMAND_ID.FOCUS_PREVIOUS,
-	TERMINAL_COMMAND_ID.FOCUS,
-	TERMINAL_COMMAND_ID.KILL,
-	TERMINAL_COMMAND_ID.MOVE_TO_LINE_END,
-	TERMINAL_COMMAND_ID.MOVE_TO_LINE_START,
-	TERMINAL_COMMAND_ID.NEW_IN_ACTIVE_WORKSPACE,
-	TERMINAL_COMMAND_ID.NEW,
-	TERMINAL_COMMAND_ID.PASTE,
-	TERMINAL_COMMAND_ID.RESIZE_PANE_DOWN,
-	TERMINAL_COMMAND_ID.RESIZE_PANE_LEFT,
-	TERMINAL_COMMAND_ID.RESIZE_PANE_RIGHT,
-	TERMINAL_COMMAND_ID.RESIZE_PANE_UP,
-	TERMINAL_COMMAND_ID.RUN_ACTIVE_FILE,
-	TERMINAL_COMMAND_ID.RUN_SELECTED_TEXT,
-	TERMINAL_COMMAND_ID.SCROLL_DOWN_LINE,
-	TERMINAL_COMMAND_ID.SCROLL_DOWN_PAGE,
-	TERMINAL_COMMAND_ID.SCROLL_TO_BOTTOM,
-	TERMINAL_COMMAND_ID.SCROLL_TO_NEXT_COMMAND,
-	TERMINAL_COMMAND_ID.SCROLL_TO_PREVIOUS_COMMAND,
-	TERMINAL_COMMAND_ID.SCROLL_TO_TOP,
-	TERMINAL_COMMAND_ID.SCROLL_UP_LINE,
-	TERMINAL_COMMAND_ID.SCROLL_UP_PAGE,
-	TERMINAL_COMMAND_ID.SEND_SEQUENCE,
-	TERMINAL_COMMAND_ID.SELECT_ALL,
-	TERMINAL_COMMAND_ID.SELECT_TO_NEXT_COMMAND,
-	TERMINAL_COMMAND_ID.SELECT_TO_NEXT_LINE,
-	TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_COMMAND,
-	TERMINAL_COMMAND_ID.SELECT_TO_PREVIOUS_LINE,
-	TERMINAL_COMMAND_ID.SPLIT_IN_ACTIVE_WORKSPACE,
-	TERMINAL_COMMAND_ID.SPLIT,
-	TERMINAL_COMMAND_ID.TOGGLE,
-	TERMINAL_COMMAND_ID.NAVIGATION_MODE_EXIT,
-	TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_NEXT,
-	TERMINAL_COMMAND_ID.NAVIGATION_MODE_FOCUS_PREVIOUS,
-	'editor.action.toggleTabFocusMode',
-	'workbench.action.quickOpen',
-	'workbench.action.quickOpenPreviousEditor',
-	'workbench.action.showCommands',
-	'workbench.action.tasks.build',
-	'workbench.action.tasks.restartTask',
-	'workbench.action.tasks.runTask',
-	'workbench.action.tasks.reRunTask',
-	'workbench.action.tasks.showLog',
-	'workbench.action.tasks.showTasks',
-	'workbench.action.tasks.terminate',
-	'workbench.action.tasks.test',
-	'workbench.action.toggleFullScreen',
-	'workbench.action.terminal.focusAtIndex1',
-	'workbench.action.terminal.focusAtIndex2',
-	'workbench.action.terminal.focusAtIndex3',
-	'workbench.action.terminal.focusAtIndex4',
-	'workbench.action.terminal.focusAtIndex5',
-	'workbench.action.terminal.focusAtIndex6',
-	'workbench.action.terminal.focusAtIndex7',
-	'workbench.action.terminal.focusAtIndex8',
-	'workbench.action.terminal.focusAtIndex9',
-	'workbench.action.focusSecondEditorGroup',
-	'workbench.action.focusThirdEditorGroup',
-	'workbench.action.focusFourthEditorGroup',
-	'workbench.action.focusFifthEditorGroup',
-	'workbench.action.focusSixthEditorGroup',
-	'workbench.action.focusSeventhEditorGroup',
-	'workbench.action.focusEighthEditorGroup',
-	'workbench.action.nextPanelView',
-	'workbench.action.previousPanelView',
-	'workbench.action.nextSideBarView',
-	'workbench.action.previousSideBarView',
-	'workbench.action.debug.start',
-	'workbench.action.debug.stop',
-	'workbench.action.debug.run',
-	'workbench.action.debug.restart',
-	'workbench.action.debug.continue',
-	'workbench.action.debug.pause',
-	'workbench.action.debug.stepInto',
-	'workbench.action.debug.stepOut',
-	'workbench.action.debug.stepOver',
-	'workbench.action.openNextRecentlyUsedEditorInGroup',
-	'workbench.action.openPreviousRecentlyUsedEditorInGroup',
-	'workbench.action.focusActiveEditorGroup',
-	'workbench.action.focusFirstEditorGroup',
-	'workbench.action.focusLastEditorGroup',
-	'workbench.action.firstEditorInGroup',
-	'workbench.action.lastEditorInGroup',
-	'workbench.action.navigateUp',
-	'workbench.action.navigateDown',
-	'workbench.action.navigateRight',
-	'workbench.action.navigateLeft',
-	'workbench.action.togglePanel',
-	'workbench.action.quickOpenView',
-	'workbench.action.toggleMaximizedPanel'
-];
 
 let xtermConstructor: Promise<typeof XTermTerminal> | undefined;
 
@@ -180,12 +75,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _hadFocusOnExit: boolean;
 	private _isVisible: boolean;
 	private _isDisposed: boolean;
+	private _exitCode: number | undefined;
 	private _skipTerminalCommands: string[];
+	private _shellType: TerminalShellType;
 	private _title: string = '';
 	private _wrapperElement: (HTMLElement & { xterm?: XTermTerminal }) | undefined;
 	private _xterm: XTermTerminal | undefined;
 	private _xtermCore: XTermCore | undefined;
 	private _xtermSearch: SearchAddon | undefined;
+	private _xtermUnicode11: Unicode11Addon | undefined;
 	private _xtermElement: HTMLDivElement | undefined;
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _terminalA11yTreeFocusContextKey: IContextKey<boolean>;
@@ -199,8 +97,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _messageTitleDisposable: IDisposable | undefined;
 
-	private _widgetManager: TerminalWidgetManager | undefined;
-	private _linkHandler: TerminalLinkHandler | undefined;
+	private _widgetManager: TerminalWidgetManager = this._instantiationService.createInstance(TerminalWidgetManager);
+	private _linkManager: TerminalLinkManager | undefined;
+	private _environmentInfo: { widget: EnvironmentVariableInfoWidget, disposable: IDisposable } | undefined;
 	private _commandTrackerAddon: CommandTrackerAddon | undefined;
 	private _navigationModeAddon: INavigationMode & ITerminalAddon | undefined;
 
@@ -225,15 +124,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	// TODO: How does this work with detached processes?
 	// TODO: Should this be an event as it can fire twice?
 	public get processReady(): Promise<void> { return this._processManager.ptyProcessReady; }
+	public get exitCode(): number | undefined { return this._exitCode; }
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
+	public get shellType(): TerminalShellType { return this._shellType; }
 	public get commandTracker(): CommandTrackerAddon | undefined { return this._commandTrackerAddon; }
 	public get navigationMode(): INavigationMode | undefined { return this._navigationModeAddon; }
 
-	private readonly _onExit = new Emitter<number>();
-	public get onExit(): Event<number> { return this._onExit.event; }
+	private readonly _onExit = new Emitter<number | undefined>();
+	public get onExit(): Event<number | undefined> { return this._onExit.event; }
 	private readonly _onDisposed = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused = new Emitter<ITerminalInstance>();
@@ -254,24 +155,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	public get onMaximumDimensionsChanged(): Event<void> { return this._onMaximumDimensionsChanged.event; }
 	private readonly _onFocus = new Emitter<ITerminalInstance>();
 	public get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
+	private readonly _onBeforeHandleLink = new Emitter<ITerminalBeforeHandleLinkEvent>();
+	public get onBeforeHandleLink(): Event<ITerminalBeforeHandleLinkEvent> { return this._onBeforeHandleLink.event; }
 
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
+		private readonly _terminalShellTypeContextKey: IContextKey<string>,
 		private readonly _configHelper: TerminalConfigHelper,
-		private _container: HTMLElement,
+		private _container: HTMLElement | undefined,
 		private _shellLaunchConfig: IShellLaunchConfig,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IPanelService private readonly _panelService: IPanelService,
+		@IViewsService private readonly _viewsService: IViewsService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
@@ -304,12 +209,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		});
 
 		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated')) {
+			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity')) {
 				this.updateConfig();
 				// HACK: Trigger another async layout to ensure xterm's CharMeasure is ready to use,
 				// this hack can be removed when https://github.com/xtermjs/xterm.js/issues/702 is
 				// supported.
 				this.setVisible(this._isVisible);
+			}
+			if (e.affectsConfiguration('terminal.integrated.unicodeVersion')) {
+				this._updateUnicodeVersion();
 			}
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
@@ -364,12 +272,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// when window.devicePixelRatio changes.
 		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
 
-		let scaledCharWidth: number;
-		if (this._configHelper.config.rendererType === 'dom') {
-			scaledCharWidth = font.charWidth * window.devicePixelRatio;
-		} else {
-			scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
-		}
+		const scaledCharWidth = font.charWidth * window.devicePixelRatio + font.letterSpacing;
 		const newCols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
@@ -408,14 +311,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The panel is minimized
 		if (!this._isVisible) {
 			return TerminalInstance._lastKnownCanvasDimensions;
-		} else {
-			// Trigger scroll event manually so that the viewport's scroll area is synced. This
-			// needs to happen otherwise its scrollTop value is invalid when the panel is toggled as
-			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
-			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
-			if (this._xterm && this._xtermCore) {
-				this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
-			}
 		}
 
 		if (!this._wrapperElement) {
@@ -428,7 +323,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const bottom = parseInt(wrapperElementStyle.bottom!.split('px')[0], 10);
 
 		const innerWidth = width - marginLeft - marginRight;
-		const innerHeight = height - bottom;
+		const innerHeight = height - bottom - 1;
 
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(innerWidth, innerHeight);
 		return TerminalInstance._lastKnownCanvasDimensions;
@@ -455,6 +350,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const Terminal = await this._getXtermConstructor();
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
+		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
+
 		const xterm = new Terminal({
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
@@ -465,15 +362,20 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fontSize: font.fontSize,
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
+			minimumContrastRatio: config.minimumContrastRatio,
 			bellStyle: config.enableBell ? 'sound' : 'none',
 			macOptionIsMeta: config.macOptionIsMeta,
 			macOptionClickForcesSelection: config.macOptionClickForcesSelection,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
-			// TODO: Guess whether to use canvas or dom better
-			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
+			fastScrollModifier: 'alt',
+			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
+			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
+			rendererType: config.rendererType === 'auto' || config.rendererType === 'experimentalWebgl' ? 'canvas' : config.rendererType,
+			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
 		this._xtermCore = (xterm as any)._core as XTermCore;
+		this._updateUnicodeVersion();
 		this.updateAccessibilitySupport();
 		this._terminalInstanceService.getXtermSearchConstructor().then(Addon => {
 			this._xtermSearch = new Addon();
@@ -488,10 +390,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._processManager.onProcessData(data => this._onProcessData(data));
 		this._xterm.onData(data => this._processManager.write(data));
-		// TODO: How does the cwd work on detached processes?
 		this.processReady.then(async () => {
-			if (this._linkHandler) {
-				this._linkHandler.processCwd = await this._processManager.getInitialCwd();
+			if (this._linkManager) {
+				this._linkManager.processCwd = await this._processManager.getInitialCwd();
 			}
 		});
 		// Init winpty compat and link handler after process creation as they rely on the
@@ -502,25 +403,28 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				// Force line data to be sent when the cursor is moved, the main purpose for
 				// this is because ConPTY will often not do a line feed but instead move the
 				// cursor, in which case we still want to send the current line's data to tasks.
-				xterm.parser.addCsiHandler({ final: 'H' }, () => {
+				xterm.parser.registerCsiHandler({ final: 'H' }, () => {
 					this._onCursorMove();
 					return false;
 				});
 			}
-			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, this._processManager, this._configHelper);
+			this._linkManager = this._instantiationService.createInstance(TerminalLinkManager, xterm, this._processManager!);
+			this._linkManager.onBeforeHandleLink(e => {
+				e.terminal = this;
+				this._onBeforeHandleLink.fire(e);
+			});
 		});
 
 		this._commandTrackerAddon = new CommandTrackerAddon();
 		this._xterm.loadAddon(this._commandTrackerAddon);
-		this._register(this._themeService.onThemeChange(theme => this._updateTheme(xterm, theme)));
+		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(xterm, theme)));
+		this._register(this._viewDescriptorService.onDidChangeLocation(({ views }) => {
+			if (views.some(v => v.id === TERMINAL_VIEW_ID)) {
+				this._updateTheme(xterm);
+			}
+		}));
 
 		return xterm;
-	}
-
-	private _isScreenReaderOptimized(): boolean {
-		const detected = this._accessibilityService.getAccessibilitySupport() === AccessibilitySupport.Enabled;
-		const config = this._configurationService.getValue('editor.accessibilitySupport');
-		return config === 'on' || (config === 'auto' && detected);
 	}
 
 	public reattachToElement(container: HTMLElement): void {
@@ -528,9 +432,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			throw new Error('The terminal instance has not been attached to a container yet');
 		}
 
-		if (this._wrapperElement.parentNode) {
-			this._wrapperElement.parentNode.removeChild(this._wrapperElement);
-		}
+		this._wrapperElement.parentNode?.removeChild(this._wrapperElement);
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 	}
@@ -548,131 +450,163 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// The container changed, reattach
-		this._container.removeChild(this._wrapperElement);
+		this._container?.removeChild(this._wrapperElement);
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 	}
 
-	public _attachToElement(container: HTMLElement): void {
-		this._xtermReadyPromise.then(xterm => {
-			if (this._wrapperElement) {
-				throw new Error('The terminal instance has already been attached to a container');
-			}
+	public async _attachToElement(container: HTMLElement): Promise<void> {
+		const xterm = await this._xtermReadyPromise;
 
-			this._container = container;
-			this._wrapperElement = document.createElement('div');
-			dom.addClass(this._wrapperElement, 'terminal-wrapper');
-			this._xtermElement = document.createElement('div');
+		if (this._wrapperElement) {
+			throw new Error('The terminal instance has already been attached to a container');
+		}
 
-			// Attach the xterm object to the DOM, exposing it to the smoke tests
-			this._wrapperElement.xterm = this._xterm;
+		this._container = container;
+		this._wrapperElement = document.createElement('div');
+		dom.addClass(this._wrapperElement, 'terminal-wrapper');
+		this._xtermElement = document.createElement('div');
 
-			xterm.open(this._xtermElement);
-			xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
-			xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
-				// Disable all input if the terminal is exiting
-				if (this._isExiting) {
-					return false;
-				}
+		// Attach the xterm object to the DOM, exposing it to the smoke tests
+		this._wrapperElement.xterm = this._xterm;
 
-				// Skip processing by xterm.js of keyboard events that resolve to commands described
-				// within commandsToSkipShell
-				const standardKeyboardEvent = new StandardKeyboardEvent(event);
-				const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-				if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
-					event.preventDefault();
-					return false;
-				}
-
-				// If tab focus mode is on, tab is not passed to the terminal
-				if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
-					return false;
-				}
-				// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
-				// system
-				if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
-					return false;
-				}
-
-				return true;
+		this._wrapperElement.appendChild(this._xtermElement);
+		this._container.appendChild(this._wrapperElement);
+		xterm.open(this._xtermElement);
+		if (this._configHelper.config.rendererType === 'experimentalWebgl') {
+			this._terminalInstanceService.getXtermWebglConstructor().then(Addon => {
+				xterm.loadAddon(new Addon());
 			});
-			this._register(dom.addDisposableListener(xterm.element, 'mousedown', () => {
-				// We need to listen to the mouseup event on the document since the user may release
-				// the mouse button anywhere outside of _xterm.element.
-				const listener = dom.addDisposableListener(document, 'mouseup', () => {
-					// Delay with a setTimeout to allow the mouseup to propagate through the DOM
-					// before evaluating the new selection state.
-					setTimeout(() => this._refreshSelectionContextKey(), 0);
-					listener.dispose();
-				});
-			}));
+		}
 
-			// xterm.js currently drops selection on keyup as we need to handle this case.
-			this._register(dom.addDisposableListener(xterm.element, 'keyup', () => {
-				// Wait until keyup has propagated through the DOM before evaluating
-				// the new selection state.
-				setTimeout(() => this._refreshSelectionContextKey(), 0);
-			}));
+		if (!xterm.element || !xterm.textarea) {
+			throw new Error('xterm elements not set after open');
+		}
 
-			const xtermHelper: HTMLElement = <HTMLElement>xterm.element.querySelector('.xterm-helpers');
-			const focusTrap: HTMLElement = document.createElement('div');
-			focusTrap.setAttribute('tabindex', '0');
-			dom.addClass(focusTrap, 'focus-trap');
-			this._register(dom.addDisposableListener(focusTrap, 'focus', () => {
-				let currentElement = focusTrap;
-				while (!dom.hasClass(currentElement, 'part')) {
-					currentElement = currentElement.parentElement!;
-				}
-				const hidePanelElement = <HTMLElement>currentElement.querySelector('.hide-panel-action');
-				hidePanelElement.focus();
-			}));
-			xtermHelper.insertBefore(focusTrap, xterm.textarea);
 
-			this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
-				this._terminalFocusContextKey.set(true);
-				this._onFocused.fire(this);
-			}));
-			this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
-				this._terminalFocusContextKey.reset();
-				this._refreshSelectionContextKey();
-			}));
-			this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
-				this._terminalFocusContextKey.set(true);
-			}));
-			this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
-				this._terminalFocusContextKey.reset();
-				this._refreshSelectionContextKey();
-			}));
-
-			this._wrapperElement.appendChild(this._xtermElement);
-			this._container.appendChild(this._wrapperElement);
-
-			const widgetManager = new TerminalWidgetManager(this._wrapperElement);
-			this._widgetManager = widgetManager;
-			this._processManager.onProcessReady(() => {
-				if (this._linkHandler) {
-					this._linkHandler.setWidgetManager(widgetManager);
-				}
-			});
-
-			const computedStyle = window.getComputedStyle(this._container);
-			const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
-			const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
-			this.layout(new dom.Dimension(width, height));
-			this.setVisible(this._isVisible);
-			this.updateConfig();
-
-			// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
-			// panel was initialized.
-			if (xterm.getOption('disableStdin')) {
-				this._attachPressAnyKeyToCloseListener(xterm);
+		xterm.textarea.setAttribute('aria-label', nls.localize('terminalTextBoxAriaLabel', "Terminal {0}", this._id));
+		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));
+		xterm.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
+			// Disable all input if the terminal is exiting
+			if (this._isExiting) {
+				return false;
 			}
 
-			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
-			if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
-				this._measureRenderTime();
+			const standardKeyboardEvent = new StandardKeyboardEvent(event);
+			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+
+			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
+			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
+			// terminals generally
+			const isValidChord = resolveResult?.enterChord && this._configHelper.config.allowChords && event.key !== 'Escape';
+			if (this._keybindingService.inChordMode || isValidChord) {
+				event.preventDefault();
+				return false;
 			}
+
+			// Skip processing by xterm.js of keyboard events that resolve to commands described
+			// within commandsToSkipShell
+			if (resolveResult && this._skipTerminalCommands.some(k => k === resolveResult.commandId)) {
+				event.preventDefault();
+				return false;
+			}
+
+			// Skip processing by xterm.js of keyboard events that match menu bar mnemonics
+			if (this._configHelper.config.allowMnemonics && !platform.isMacintosh && event.altKey) {
+				return false;
+			}
+
+			// If tab focus mode is on, tab is not passed to the terminal
+			if (TabFocus.getTabFocusMode() && event.keyCode === 9) {
+				return false;
+			}
+
+			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
+			// system
+			if (platform.isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
+				return false;
+			}
+
+			return true;
 		});
+		this._register(dom.addDisposableListener(xterm.element, 'mousedown', () => {
+			// We need to listen to the mouseup event on the document since the user may release
+			// the mouse button anywhere outside of _xterm.element.
+			const listener = dom.addDisposableListener(document, 'mouseup', () => {
+				// Delay with a setTimeout to allow the mouseup to propagate through the DOM
+				// before evaluating the new selection state.
+				setTimeout(() => this._refreshSelectionContextKey(), 0);
+				listener.dispose();
+			});
+		}));
+
+		// xterm.js currently drops selection on keyup as we need to handle this case.
+		this._register(dom.addDisposableListener(xterm.element, 'keyup', () => {
+			// Wait until keyup has propagated through the DOM before evaluating
+			// the new selection state.
+			setTimeout(() => this._refreshSelectionContextKey(), 0);
+		}));
+
+		const xtermHelper: HTMLElement = <HTMLElement>xterm.element.querySelector('.xterm-helpers');
+		const focusTrap: HTMLElement = document.createElement('div');
+		focusTrap.setAttribute('tabindex', '0');
+		dom.addClass(focusTrap, 'focus-trap');
+		this._register(dom.addDisposableListener(focusTrap, 'focus', () => {
+			let currentElement = focusTrap;
+			while (!dom.hasClass(currentElement, 'part')) {
+				currentElement = currentElement.parentElement!;
+			}
+			const hidePanelElement = currentElement.querySelector<HTMLElement>('.hide-panel-action');
+			hidePanelElement?.focus();
+		}));
+		xtermHelper.insertBefore(focusTrap, xterm.textarea);
+
+		this._register(dom.addDisposableListener(xterm.textarea, 'focus', () => {
+			this._terminalFocusContextKey.set(true);
+			if (this.shellType) {
+				this._terminalShellTypeContextKey.set(this.shellType.toString());
+			} else {
+				this._terminalShellTypeContextKey.reset();
+			}
+			this._onFocused.fire(this);
+		}));
+		this._register(dom.addDisposableListener(xterm.textarea, 'blur', () => {
+			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
+		}));
+		this._register(dom.addDisposableListener(xterm.element, 'focus', () => {
+			this._terminalFocusContextKey.set(true);
+			if (this.shellType) {
+				this._terminalShellTypeContextKey.set(this.shellType.toString());
+			} else {
+				this._terminalShellTypeContextKey.reset();
+			}
+		}));
+		this._register(dom.addDisposableListener(xterm.element, 'blur', () => {
+			this._terminalFocusContextKey.reset();
+			this._refreshSelectionContextKey();
+		}));
+
+		this._widgetManager.attachToElement(xterm.element);
+		this._processManager.onProcessReady(() => this._linkManager?.setWidgetManager(this._widgetManager));
+
+		const computedStyle = window.getComputedStyle(this._container);
+		const width = parseInt(computedStyle.getPropertyValue('width').replace('px', ''), 10);
+		const height = parseInt(computedStyle.getPropertyValue('height').replace('px', ''), 10);
+		this.layout(new dom.Dimension(width, height));
+		this.setVisible(this._isVisible);
+		this.updateConfig();
+
+		// If IShellLaunchConfig.waitOnExit was true and the process finished before the terminal
+		// panel was initialized.
+		if (xterm.getOption('disableStdin')) {
+			this._attachPressAnyKeyToCloseListener(xterm);
+		}
+
+		const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+		if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
+			this._measureRenderTime();
+		}
 	}
 
 	private async _measureRenderTime(): Promise<void> {
@@ -685,7 +619,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// Discard first frame time as it's normal to take longer
 			frameTimes.shift();
 
-			const medianTime = frameTimes.sort()[Math.floor(frameTimes.length / 2)];
+			const medianTime = frameTimes.sort((a, b) => a - b)[Math.floor(frameTimes.length / 2)];
 			if (medianTime > SLOW_CANVAS_RENDER_THRESHOLD) {
 				const promptChoices: IPromptChoice[] = [
 					{
@@ -722,14 +656,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		};
 	}
 
-	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
-		return this._linkHandler!.registerCustomLinkHandler(regex, handler, matchIndex, validationCallback);
-	}
-
-	public deregisterLinkMatcher(linkMatcherId: number): void {
-		this._xtermReadyPromise.then(xterm => xterm.deregisterLinkMatcher(linkMatcherId));
-	}
-
 	public hasSelection(): boolean {
 		return this._xterm ? this._xterm.hasSelection() : false;
 	}
@@ -748,19 +674,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public clearSelection(): void {
-		if (!this._xterm) {
-			return;
-		}
-		this._xterm.clearSelection();
+		this._xterm?.clearSelection();
 	}
 
 	public selectAll(): void {
-		if (!this._xterm) {
-			return;
-		}
 		// Focus here to ensure the terminal context key is set
-		this._xterm.focus();
-		this._xterm.selectAll();
+		this._xterm?.focus();
+		this._xterm?.selectAll();
 	}
 
 	public findNext(term: string, searchOptions: ISearchOptions): boolean {
@@ -790,9 +710,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		dispose(this._windowsShellHelper);
 		this._windowsShellHelper = undefined;
-		this._linkHandler = dispose(this._linkHandler);
-		this._commandTrackerAddon = dispose(this._commandTrackerAddon);
-		this._widgetManager = dispose(this._widgetManager);
+		dispose(this._linkManager);
+		this._linkManager = undefined;
+		dispose(this._commandTrackerAddon);
+		this._commandTrackerAddon = undefined;
+		dispose(this._widgetManager);
 
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
@@ -801,13 +723,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			if (this._wrapperElement.xterm) {
 				this._wrapperElement.xterm = undefined;
 			}
-			if (this._wrapperElement.parentElement) {
+			if (this._wrapperElement.parentElement && this._container) {
 				this._container.removeChild(this._wrapperElement);
 			}
 		}
 		if (this._xterm) {
 			const buffer = this._xterm.buffer;
-			this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
+			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 			this._xterm.dispose();
 		}
 
@@ -832,15 +754,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this._xterm) {
 			return;
 		}
-		if (this._configHelper.config.experimentalRefreshOnResume) {
-			if (this._xterm.getOption('rendererType') !== 'dom') {
-				this._xterm.setOption('rendererType', 'dom');
-				// Do this asynchronously to clear our the texture atlas as all terminals will not
-				// be using canvas
-				const xterm = this._xterm;
-				setTimeout(() => xterm.setOption('rendererType', 'canvas'), 0);
-			}
-		}
 		this._xterm.refresh(0, this._xterm.rows - 1);
 	}
 
@@ -858,8 +771,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public focusWhenReady(force?: boolean): Promise<void> {
-		return this._xtermReadyPromise.then(() => this.focus(force));
+	public async focusWhenReady(force?: boolean): Promise<void> {
+		await this._xtermReadyPromise;
+		this.focus(force);
 	}
 
 	public async paste(): Promise<void> {
@@ -870,16 +784,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._xterm.paste(await this._clipboardService.readText());
 	}
 
-	public write(text: string): void {
-		this._xtermReadyPromise.then(() => {
-			if (!this._xterm) {
-				return;
-			}
-			this._xterm.write(text);
-		});
-	}
-
-	public sendText(text: string, addNewLine: boolean): void {
+	public async sendText(text: string, addNewLine: boolean): Promise<void> {
 		// Normalize line endings to 'enter' press.
 		text = text.replace(TerminalInstance.EOL_REGEX, '\r');
 		if (addNewLine && text.substr(text.length - 1) !== '\r') {
@@ -887,7 +792,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
-		this._processManager.ptyProcessReady.then(() => this._processManager.write(text));
+		await this._processManager.ptyProcessReady;
+		this._processManager.write(text);
 	}
 
 	public setVisible(visible: boolean): void {
@@ -900,7 +806,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
-			this._xtermCore._onScroll.fire(this._xterm.buffer.viewportY);
+			// This can likely be removed after https://github.com/xtermjs/xterm.js/issues/291 is
+			// fixed upstream.
+			this._xtermCore._onScroll.fire(this._xterm.buffer.active.viewportY);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
@@ -919,50 +827,35 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	public scrollDownLine(): void {
-		if (this._xterm) {
-			this._xterm.scrollLines(1);
-		}
+		this._xterm?.scrollLines(1);
 	}
 
 	public scrollDownPage(): void {
-		if (this._xterm) {
-			this._xterm.scrollPages(1);
-		}
+		this._xterm?.scrollPages(1);
 	}
 
 	public scrollToBottom(): void {
-		if (this._xterm) {
-			this._xterm.scrollToBottom();
-		}
+		this._xterm?.scrollToBottom();
 	}
 
 	public scrollUpLine(): void {
-		if (this._xterm) {
-			this._xterm.scrollLines(-1);
-		}
+		this._xterm?.scrollLines(-1);
 	}
 
 	public scrollUpPage(): void {
-		if (this._xterm) {
-			this._xterm.scrollPages(-1);
-		}
+		this._xterm?.scrollPages(-1);
 	}
 
 	public scrollToTop(): void {
-		if (this._xterm) {
-			this._xterm.scrollToTop();
-		}
+		this._xterm?.scrollToTop();
 	}
 
 	public clear(): void {
-		if (this._xterm) {
-			this._xterm.clear();
-		}
+		this._xterm?.clear();
 	}
 
 	private _refreshSelectionContextKey() {
-		const activePanel = this._panelService.getActivePanel();
-		const isActive = !!activePanel && activePanel.getId() === TERMINAL_PANEL_ID;
+		const isActive = !!this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
 		this._terminalHasTextContextKey.set(isActive && this.hasSelection());
 	}
 
@@ -973,6 +866,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessData(data => this._onData.fire(data));
 		this._processManager.onProcessOverrideDimensions(e => this.setDimensions(e));
 		this._processManager.onProcessResolvedShellLaunchConfig(e => this._setResolvedShellLaunchConfig(e));
+		this._processManager.onEnvironmentVariableInfoChanged(e => this._onEnvironmentVariableInfoChanged(e));
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
@@ -1000,7 +894,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				this._xtermReadyPromise.then(xterm => {
 					if (!this._isDisposed && this._processManager && this._processManager.shellProcessId) {
-						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, this, xterm);
+						this._windowsShellHelper = this._terminalInstanceService.createWindowsShellHelper(this._processManager.shellProcessId, xterm);
+						this._windowsShellHelper.onShellNameChange(title => {
+							this.setShellType(this.getShellType(title));
+							if (this.isTitleSetByProcess) {
+								this.setTitle(title, TitleEventSource.Process);
+							}
+						});
 					}
 				});
 			});
@@ -1009,17 +909,34 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Create the process asynchronously to allow the terminal's container
 		// to be created so dimensions are accurate
 		setTimeout(() => {
-			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._isScreenReaderOptimized());
+			this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized());
 		}, 0);
 	}
 
+	private getShellType(executable: string): TerminalShellType {
+		switch (executable.toLowerCase()) {
+			case 'cmd.exe':
+				return WindowsShellType.CommandPrompt;
+			case 'powershell.exe':
+			case 'pwsh.exe':
+				return WindowsShellType.PowerShell;
+			case 'bash.exe':
+				return WindowsShellType.GitBash;
+			case 'wsl.exe':
+			case 'ubuntu.exe':
+			case 'ubuntu1804.exe':
+			case 'kali.exe':
+			case 'debian.exe':
+			case 'opensuse-42.exe':
+			case 'sles-12.exe':
+				return WindowsShellType.Wsl;
+			default:
+				return undefined;
+		}
+	}
+
 	private _onProcessData(data: string): void {
-		if (this._widgetManager) {
-			this._widgetManager.closeMessage();
-		}
-		if (this._xterm) {
-			this._xterm.write(data);
-		}
+		this._xterm?.write(data);
 	}
 
 	/**
@@ -1036,6 +953,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._logService.debug(`Terminal process exit (id: ${this.id}) with code ${exitCode}`);
 
+		this._exitCode = exitCode;
 		this._isExiting = true;
 		let exitCodeMessage: string | undefined;
 
@@ -1047,6 +965,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidPathDirectory', 'The terminal shell path "{0}" is a directory', this._shellLaunchConfig.executable);
 			} else if (exitCode === SHELL_CWD_INVALID_EXIT_CODE && this._shellLaunchConfig.cwd) {
 				exitCodeMessage = nls.localize('terminal.integrated.exitedWithInvalidCWD', 'The terminal shell CWD "{0}" does not exist', this._shellLaunchConfig.cwd.toString());
+			} else if (exitCode === LEGACY_CONSOLE_MODE_EXIT_CODE) {
+				exitCodeMessage = nls.localize('terminal.integrated.legacyConsoleModeError', 'The terminal failed to launch properly because your system has legacy console mode enabled, uncheck "Use legacy console" cmd.exe\'s properties to fix this.');
 			} else if (this._processManager.processState === ProcessState.KILLED_DURING_LAUNCH) {
 				let args = '';
 				if (typeof this._shellLaunchConfig.args === 'string') {
@@ -1105,11 +1025,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		this._onExit.fire(exitCode || 0);
+		this._onExit.fire(exitCode);
 	}
 
 	private _attachPressAnyKeyToCloseListener(xterm: XTermTerminal) {
-		if (!this._pressAnyKeyToCloseListener) {
+		if (xterm.textarea && !this._pressAnyKeyToCloseListener) {
 			this._pressAnyKeyToCloseListener = dom.addDisposableListener(xterm.textarea, 'keypress', (event: KeyboardEvent) => {
 				if (this._pressAnyKeyToCloseListener) {
 					this._pressAnyKeyToCloseListener.dispose();
@@ -1121,19 +1041,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	public reuseTerminal(shell: IShellLaunchConfig): void {
+	public reuseTerminal(shell: IShellLaunchConfig, reset: boolean = false): void {
 		// Unsubscribe any key listener we may have.
-		if (this._pressAnyKeyToCloseListener) {
-			this._pressAnyKeyToCloseListener.dispose();
-			this._pressAnyKeyToCloseListener = undefined;
-		}
+		this._pressAnyKeyToCloseListener?.dispose();
+		this._pressAnyKeyToCloseListener = undefined;
 
 		// Kill and clear up the process, making the process manager ready for a new process
 		this._processManager.dispose();
 
 		if (this._xterm) {
-			// Ensure new processes' output starts at start of new line
-			this._xterm.write('\n\x1b[G');
+			if (reset) {
+				this._xterm.reset();
+			} else {
+				// Ensure new processes' output starts at start of new line
+				this._xterm.write('\n\x1b[G');
+			}
 
 			// Print initialText if specified
 			if (shell.initialText) {
@@ -1147,11 +1069,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		// HACK: Force initialText to be non-falsy for reused terminals such that the
-		// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
-		// in Windows 10 1903 so we only want to use it when something is definitely written to the
-		// terminal.
-		shell.initialText = ' ';
+		// Dispose the environment info widget if it exists
+		this._environmentInfo?.disposable.dispose();
+		this._environmentInfo = undefined;
+
+		if (!reset) {
+			// HACK: Force initialText to be non-falsy for reused terminals such that the
+			// conptyInheritCursor flag is passed to the node-pty, this flag can cause a Window to hang
+			// in Windows 10 1903 so we only want to use it when something is definitely written to the
+			// terminal.
+			shell.initialText = ' ';
+		}
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell; // Must be done before calling _createProcess()
@@ -1168,17 +1096,21 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._processManager.onProcessData(data => this._onProcessData(data));
 	}
 
+	public relaunch(): void {
+		this.reuseTerminal(this._shellLaunchConfig, true);
+	}
+
 	private _onLineFeed(): void {
 		const buffer = this._xterm!.buffer;
-		const newLine = buffer.getLine(buffer.baseY + buffer.cursorY);
+		const newLine = buffer.active.getLine(buffer.active.baseY + buffer.active.cursorY);
 		if (newLine && !newLine.isWrapped) {
-			this._sendLineData(buffer, buffer.baseY + buffer.cursorY - 1);
+			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY - 1);
 		}
 	}
 
 	private _onCursorMove(): void {
 		const buffer = this._xterm!.buffer;
-		this._sendLineData(buffer, buffer.baseY + buffer.cursorY);
+		this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
 	}
 
 	private _onTitleChange(title: string): void {
@@ -1223,8 +1155,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private async _updateProcessCwd(): Promise<string> {
 		// reset cwd if it has changed, so file based url paths can be resolved
 		const cwd = await this.getCwd();
-		if (cwd && this._linkHandler) {
-			this._linkHandler.processCwd = cwd;
+		if (cwd && this._linkManager) {
+			this._linkManager.processCwd = cwd;
 		}
 		return cwd;
 	}
@@ -1233,25 +1165,44 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const config = this._configHelper.config;
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
+		this._setCursorWidth(config.cursorWidth);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
 		this._setEnableBell(config.enableBell);
 		this._safeSetOption('scrollback', config.scrollback);
+		this._safeSetOption('minimumContrastRatio', config.minimumContrastRatio);
+		this._safeSetOption('fastScrollSensitivity', config.fastScrollSensitivity);
+		this._safeSetOption('scrollSensitivity', config.mouseWheelScrollSensitivity);
 		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
-		this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
+		this._safeSetOption('wordSeparator', config.wordSeparators);
+		if (config.rendererType !== 'experimentalWebgl') {
+			// Never set webgl as it's an addon not a rendererType
+			this._safeSetOption('rendererType', config.rendererType === 'auto' ? 'canvas' : config.rendererType);
+		}
+		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
+	}
+
+	private async _updateUnicodeVersion(): Promise<void> {
+		if (!this._xterm) {
+			throw new Error('Cannot update unicode version before xterm has been initialized');
+		}
+		if (!this._xtermUnicode11 && this._configHelper.config.unicodeVersion === '11') {
+			const Addon = await this._terminalInstanceService.getXtermUnicode11Constructor();
+			this._xtermUnicode11 = new Addon();
+			this._xterm.loadAddon(this._xtermUnicode11);
+		}
+		this._xterm.unicode.activeVersion = this._configHelper.config.unicodeVersion;
 	}
 
 	public updateAccessibilitySupport(): void {
-		const isEnabled = this._isScreenReaderOptimized();
+		const isEnabled = this._accessibilityService.isScreenReaderOptimized();
 		if (isEnabled) {
 			this._navigationModeAddon = new NavigationModeAddon(this._terminalA11yTreeFocusContextKey);
 			this._xterm!.loadAddon(this._navigationModeAddon);
 		} else {
-			if (this._navigationModeAddon) {
-				this._navigationModeAddon.dispose();
-				this._navigationModeAddon = undefined;
-			}
+			this._navigationModeAddon?.dispose();
+			this._navigationModeAddon = undefined;
 		}
 		this._xterm!.setOption('screenReaderMode', isEnabled);
 	}
@@ -1268,6 +1219,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			// 'line' is used instead of bar in VS Code to be consistent with editor.cursorStyle
 			const xtermOption = style === 'line' ? 'bar' : style;
 			this._xterm.setOption('cursorStyle', xtermOption);
+		}
+	}
+
+	private _setCursorWidth(width: number): void {
+		if (this._xterm && this._xterm.getOption('cursorWidth') !== width) {
+			this._xterm.setOption('cursorWidth', width);
 		}
 	}
 
@@ -1312,7 +1269,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		if (this._xterm) {
+		if (this._xterm && this._xterm.element) {
 			this._xterm.element.style.width = terminalWidth + 'px';
 		}
 
@@ -1320,7 +1277,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	@debounce(50)
-	private _resize(): void {
+	private async _resize(): Promise<void> {
 		let cols = this.cols;
 		let rows = this.rows;
 
@@ -1337,6 +1294,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._safeSetOption('fontWeight', config.fontWeight);
 				this._safeSetOption('fontWeightBold', config.fontWeightBold);
 				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
+
+				// Any of the above setting changes could have changed the dimensions of the
+				// terminal, re-evaluate now.
+				this._initDimensions();
+				cols = this.cols;
+				rows = this.rows;
 			}
 
 			if (isNaN(cols) || isNaN(rows)) {
@@ -1364,7 +1327,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 
-		this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(cols, rows));
+		await this._processManager.ptyProcessReady;
+		this._processManager.setDimensions(cols, rows);
+	}
+
+	public setShellType(shellType: TerminalShellType) {
+		this._shellType = shellType;
 	}
 
 	public setTitle(title: string | undefined, eventSource: TitleEventSource): void {
@@ -1415,13 +1383,46 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._shellLaunchConfig.env = shellLaunchConfig.env;
 	}
 
-	private _getXtermTheme(theme?: ITheme): any {
-		if (!theme) {
-			theme = this._themeService.getTheme();
+	public showEnvironmentInfoHover(): void {
+		if (this._environmentInfo) {
+			this._environmentInfo.widget.focus();
+		}
+	}
+
+	private _onEnvironmentVariableInfoChanged(info: IEnvironmentVariableInfo): void {
+		if (info.requiresAction) {
+			this._xterm?.textarea?.setAttribute('aria-label', nls.localize('terminalStaleTextBoxAriaLabel', "Terminal {0} environment is stale, run the 'Show Environment Information' command for more information", this._id));
+		}
+		this._refreshEnvironmentVariableInfoWidgetState(info);
+	}
+
+	private _refreshEnvironmentVariableInfoWidgetState(info?: IEnvironmentVariableInfo): void {
+		this._environmentInfo?.disposable.dispose();
+
+		// Check if the widget should not exist
+		if (!info ||
+			this._configHelper.config.environmentChangesIndicator === 'off' ||
+			this._configHelper.config.environmentChangesIndicator === 'warnonly' && !info.requiresAction) {
+			this._environmentInfo = undefined;
+			return;
 		}
 
+		// (Re-)create the widget
+		const widget = this._instantiationService.createInstance(EnvironmentVariableInfoWidget, info);
+		const disposable = this._widgetManager.attachWidget(widget);
+		if (disposable) {
+			this._environmentInfo = { widget, disposable };
+		}
+	}
+
+	private _getXtermTheme(theme?: IColorTheme): any {
+		if (!theme) {
+			theme = this._themeService.getColorTheme();
+		}
+
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Sidebar ? theme.getColor(SIDE_BAR_BACKGROUND) : theme.getColor(PANEL_BACKGROUND));
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
 		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
 		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
@@ -1451,7 +1452,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		};
 	}
 
-	private _updateTheme(xterm: XTermTerminal, theme?: ITheme): void {
+	private _updateTheme(xterm: XTermTerminal, theme?: IColorTheme): void {
 		xterm.setOption('theme', this._getXtermTheme(theme));
 	}
 
@@ -1470,13 +1471,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 }
 
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	// Border
 	const border = theme.getColor(activeContrastBorder);
 	if (border) {
 		collector.addRule(`
-			.hc-black .monaco-workbench .panel.integrated-terminal .xterm.focus::before,
-			.hc-black .monaco-workbench .panel.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
 		);
 	}
 
@@ -1484,20 +1485,20 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(`
-			.monaco-workbench .panel.integrated-terminal .find-focused .xterm .xterm-viewport,
-			.monaco-workbench .panel.integrated-terminal .xterm.focus .xterm-viewport,
-			.monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
-			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }`
+			.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
+			.monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
+			.monaco-workbench .pane-body.integrated-terminal .xterm:focus .xterm-viewport,
+			.monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }`
 		);
 	}
 
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
-		collector.addRule(`.monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }`);
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
 	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`.monaco-workbench .panel.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
 	}
 });

@@ -3,17 +3,79 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { Event } from 'vs/base/common/event';
+
+export interface IActivity {
+	readonly badge: IBadge;
+	readonly clazz?: string;
+	readonly priority?: number;
+}
+
+export const IActivityService = createDecorator<IActivityService>('activityService');
+
+export interface IActivityService {
+
+	_serviceBrand: undefined;
+
+	/**
+	 * Show activity for the given view container
+	 */
+	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
+
+	/**
+	 * Show accounts activity
+	 */
+	showAccountsActivity(activity: IActivity): IDisposable;
+
+	/**
+	 * Show global activity
+	 */
+	showGlobalActivity(activity: IActivity): IDisposable;
+}
+
+export class ViewContaierActivityByView extends Disposable {
+
+	private activity: IActivity | undefined = undefined;
+	private activityDisposable: IDisposable = Disposable.None;
+
+	constructor(
+		private readonly viewId: string,
+		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
+		@IActivityService private readonly activityService: IActivityService,
+	) {
+		super();
+		this._register(Event.filter(this.viewDescriptorService.onDidChangeContainer, e => e.views.some(view => view.id === viewId))(() => this.update()));
+		this._register(Event.filter(this.viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === viewId))(() => this.update()));
+	}
+
+	setActivity(activity: IActivity): void {
+		this.activity = activity;
+		this.update();
+	}
+
+	private update(): void {
+		this.activityDisposable.dispose();
+		const container = this.viewDescriptorService.getViewContainerByViewId(this.viewId);
+		if (container && this.activity) {
+			this.activityDisposable = this.activityService.showViewContainerActivity(container.id, this.activity);
+		}
+	}
+
+	dispose() {
+		this.activityDisposable.dispose();
+	}
+}
 
 export interface IBadge {
 	getDescription(): string;
 }
 
-export class BaseBadge implements IBadge {
-	descriptorFn: (args: any) => string;
+class BaseBadge implements IBadge {
 
-	constructor(descriptorFn: (args: any) => string) {
+	constructor(public readonly descriptorFn: (arg: any) => string) {
 		this.descriptorFn = descriptorFn;
 	}
 
@@ -23,9 +85,8 @@ export class BaseBadge implements IBadge {
 }
 
 export class NumberBadge extends BaseBadge {
-	number: number;
 
-	constructor(number: number, descriptorFn: (args: any) => string) {
+	constructor(public readonly number: number, descriptorFn: (num: number) => string) {
 		super(descriptorFn);
 
 		this.number = number;
@@ -37,31 +98,17 @@ export class NumberBadge extends BaseBadge {
 }
 
 export class TextBadge extends BaseBadge {
-	text: string;
 
-	constructor(text: string, descriptorFn: (args: any) => string) {
+	constructor(public readonly text: string, descriptorFn: () => string) {
 		super(descriptorFn);
-
-		this.text = text;
 	}
 }
 
 export class IconBadge extends BaseBadge {
 
-	constructor(descriptorFn: (args: any) => string) {
+	constructor(descriptorFn: () => string) {
 		super(descriptorFn);
 	}
 }
 
 export class ProgressBadge extends BaseBadge { }
-
-export const IActivityService = createDecorator<IActivityService>('activityService');
-
-export interface IActivityService {
-	_serviceBrand: undefined;
-
-	/**
-	 * Show activity in the panel for the given panel or in the activitybar for the given viewlet or global action.
-	 */
-	showActivity(compositeOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
-}

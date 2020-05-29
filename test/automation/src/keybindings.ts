@@ -11,7 +11,7 @@ export class KeybindingsEditor {
 
 	constructor(private code: Code) { }
 
-	async updateKeybinding(command: string, keybinding: string, ariaLabel: string): Promise<any> {
+	async updateKeybinding(command: string, keybinding: string, title: string): Promise<any> {
 		if (process.platform === 'darwin') {
 			await this.code.dispatchKeybinding('cmd+k cmd+s');
 		} else {
@@ -24,11 +24,11 @@ export class KeybindingsEditor {
 		await this.code.waitAndClick('.keybindings-list-container .monaco-list-row.keybinding-item');
 		await this.code.waitForElement('.keybindings-list-container .monaco-list-row.keybinding-item.focused.selected');
 
-		await this.code.waitAndClick('.keybindings-list-container .monaco-list-row.keybinding-item .action-item .codicon.add');
+		await this.code.waitAndClick('.keybindings-list-container .monaco-list-row.keybinding-item .action-item .codicon.codicon-add');
 		await this.code.waitForActiveElement('.defineKeybindingWidget .monaco-inputbox input');
 
 		await this.code.dispatchKeybinding(keybinding);
 		await this.code.dispatchKeybinding('enter');
-		await this.code.waitForElement(`.keybindings-list-container div[aria-label="Keybinding is ${ariaLabel}."]`);
+		await this.code.waitForElement(`.keybindings-list-container .keybinding-label div[title="${title}"]`);
 	}
 }

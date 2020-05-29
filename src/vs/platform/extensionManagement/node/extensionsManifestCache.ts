@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { join } from 'vs/base/common/path';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE } from 'vs/platform/extensions/common/extensions';
 import * as pfs from 'vs/base/node/pfs';
@@ -15,7 +15,7 @@ export class ExtensionsManifestCache extends Disposable {
 	private extensionsManifestCache = join(this.environmentService.userDataPath, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE);
 
 	constructor(
-		private readonly environmentService: IEnvironmentService,
+		private readonly environmentService: INativeEnvironmentService,
 		extensionsManagementService: IExtensionManagementService
 	) {
 		super();

@@ -1,7 +1,7 @@
 steps:
 - task: NodeTool@0
   inputs:
-    versionSpec: "10.15.1"
+    versionSpec: "12.13.0"
 
 - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
   inputs:
@@ -43,12 +43,10 @@ steps:
     # Create snap package
     BUILD_VERSION="$(date +%s)"
     SNAP_FILENAME="code-$VSCODE_QUALITY-$BUILD_VERSION.snap"
-    PACKAGEJSON="$(ls $SNAP_ROOT/code*/usr/share/code*/resources/app/package.json)"
-    VERSION=$(node -p "require(\"$PACKAGEJSON\").version")
     SNAP_PATH="$SNAP_ROOT/$SNAP_FILENAME"
     (cd $SNAP_ROOT/code-* && sudo --preserve-env snapcraft snap --output "$SNAP_PATH")
 
     # Publish snap package
     AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
     AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-    node build/azure-pipelines/common/publish.js "$VSCODE_QUALITY" "linux-snap-x64" package "$SNAP_FILENAME" "$VERSION" true "$SNAP_PATH"
+    node build/azure-pipelines/common/createAsset.js "linux-snap-x64" package "$SNAP_FILENAME" "$SNAP_PATH"

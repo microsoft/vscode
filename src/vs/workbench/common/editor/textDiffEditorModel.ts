@@ -14,23 +14,22 @@ import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
  */
 export class TextDiffEditorModel extends DiffEditorModel {
 
-	protected readonly _originalModel!: BaseTextEditorModel | null;
-	protected readonly _modifiedModel!: BaseTextEditorModel | null;
+	protected readonly _originalModel: BaseTextEditorModel | null;
+	get originalModel(): BaseTextEditorModel | null { return this._originalModel; }
+
+	protected readonly _modifiedModel: BaseTextEditorModel | null;
+	get modifiedModel(): BaseTextEditorModel | null { return this._modifiedModel; }
 
 	private _textDiffEditorModel: IDiffEditorModel | null = null;
+	get textDiffEditorModel(): IDiffEditorModel | null { return this._textDiffEditorModel; }
 
 	constructor(originalModel: BaseTextEditorModel, modifiedModel: BaseTextEditorModel) {
 		super(originalModel, modifiedModel);
 
+		this._originalModel = originalModel;
+		this._modifiedModel = modifiedModel;
+
 		this.updateTextDiffEditorModel();
-	}
-
-	get originalModel(): BaseTextEditorModel | null {
-		return this._originalModel;
-	}
-
-	get modifiedModel(): BaseTextEditorModel | null {
-		return this._modifiedModel;
 	}
 
 	async load(): Promise<EditorModel> {
@@ -42,7 +41,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 	}
 
 	private updateTextDiffEditorModel(): void {
-		if (this.originalModel && this.originalModel.isResolved() && this.modifiedModel && this.modifiedModel.isResolved()) {
+		if (this.originalModel?.isResolved() && this.modifiedModel?.isResolved()) {
 
 			// Create new
 			if (!this._textDiffEditorModel) {
@@ -58,10 +57,6 @@ export class TextDiffEditorModel extends DiffEditorModel {
 				this._textDiffEditorModel.modified = this.modifiedModel.textEditorModel;
 			}
 		}
-	}
-
-	get textDiffEditorModel(): IDiffEditorModel | null {
-		return this._textDiffEditorModel;
 	}
 
 	isResolved(): boolean {

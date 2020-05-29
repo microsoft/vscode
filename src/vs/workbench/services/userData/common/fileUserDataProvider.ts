@@ -5,14 +5,20 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability } from 'vs/platform/files/common/files';
+import { IFileSystemProviderWithFileReadWriteCapability, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileWriteOptions, FileDeleteOptions, FileSystemProviderCapabilities, IFileSystemProviderWithOpenReadWriteCloseCapability, FileOpenOptions, hasReadWriteCapability, hasOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, hasFileReadStreamCapability } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import * as resources from 'vs/base/common/resources';
 import { startsWith } from 'vs/base/common/strings';
 import { BACKUPS } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ReadableStreamEvents } from 'vs/base/common/stream';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export class FileUserDataProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability {
+export class FileUserDataProvider extends Disposable implements
+	IFileSystemProviderWithFileReadWriteCapability,
+	IFileSystemProviderWithOpenReadWriteCloseCapability,
+	IFileSystemProviderWithFileReadStreamCapability {
 
 	readonly capabilities: FileSystemProviderCapabilities = this.fileSystemProvider.capabilities;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
@@ -26,7 +32,8 @@ export class FileUserDataProvider extends Disposable implements IFileSystemProvi
 		private readonly fileSystemUserDataHome: URI,
 		private readonly fileSystemBackupsHome: URI,
 		private readonly fileSystemProvider: IFileSystemProviderWithFileReadWriteCapability | IFileSystemProviderWithOpenReadWriteCloseCapability,
-		environmentService: IWorkbenchEnvironmentService
+		environmentService: IWorkbenchEnvironmentService,
+		private readonly logService: ILogService,
 	) {
 		super();
 
@@ -56,6 +63,13 @@ export class FileUserDataProvider extends Disposable implements IFileSystemProvi
 	readFile(resource: URI): Promise<Uint8Array> {
 		if (hasReadWriteCapability(this.fileSystemProvider)) {
 			return this.fileSystemProvider.readFile(this.toFileSystemResource(resource));
+		}
+		throw new Error('not supported');
+	}
+
+	readFileStream(resource: URI, opts: FileReadStreamOptions, token?: CancellationToken): ReadableStreamEvents<Uint8Array> {
+		if (hasFileReadStreamCapability(this.fileSystemProvider)) {
+			return this.fileSystemProvider.readFileStream(this.toFileSystemResource(resource), opts, token);
 		}
 		throw new Error('not supported');
 	}
@@ -115,6 +129,7 @@ export class FileUserDataProvider extends Disposable implements IFileSystemProvi
 			}
 		}
 		if (userDataChanges.length) {
+			this.logService.debug('User data changed');
 			this._onDidChangeFile.fire(userDataChanges);
 		}
 	}

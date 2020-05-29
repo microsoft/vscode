@@ -9,6 +9,7 @@ export interface NLSConfiguration {
 		[key: string]: string;
 	};
 	pseudo?: boolean;
+	_languagePackSupport?: boolean;
 }
 
 export interface InternalNLSConfiguration extends NLSConfiguration {

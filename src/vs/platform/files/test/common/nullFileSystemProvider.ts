@@ -6,14 +6,22 @@
 import { URI } from 'vs/base/common/uri';
 import { FileSystemProviderCapabilities, IFileSystemProvider, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileChange } from 'vs/platform/files/common/files';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 
 export class NullFileSystemProvider implements IFileSystemProvider {
 
 	capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
 
-	onDidChangeCapabilities: Event<void> = Event.None;
-	onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
+	private readonly _onDidChangeCapabilities = new Emitter<void>();
+	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
+
+	setCapabilities(capabilities: FileSystemProviderCapabilities): void {
+		this.capabilities = capabilities;
+
+		this._onDidChangeCapabilities.fire();
+	}
+
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
 
 	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
 

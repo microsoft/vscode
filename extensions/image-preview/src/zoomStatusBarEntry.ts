@@ -5,28 +5,26 @@
 
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
-import { Disposable } from './dispose';
+import { PreviewStatusBarEntry as OwnedStatusBarEntry } from './ownedStatusBarEntry';
 
 const localize = nls.loadMessageBundle();
 
 const selectZoomLevelCommandId = '_imagePreview.selectZoomLevel';
 
-type Scale = number | 'fit';
+export type Scale = number | 'fit';
 
-export class ZoomStatusBarEntry extends Disposable {
-	private readonly _entry: vscode.StatusBarItem;
+export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
 
 	private readonly _onDidChangeScale = this._register(new vscode.EventEmitter<{ scale: Scale }>());
 	public readonly onDidChangeScale = this._onDidChangeScale.event;
 
 	constructor() {
-		super();
-		this._entry = this._register(vscode.window.createStatusBarItem({
+		super({
 			id: 'imagePreview.zoom',
-			name: 'Image Zoom',
+			name: localize('zoomStatusBar.name', "Image Zoom"),
 			alignment: vscode.StatusBarAlignment.Right,
 			priority: 102 /* to the left of editor size entry (101) */,
-		}));
+		});
 
 		this._register(vscode.commands.registerCommand(selectZoomLevelCommandId, async () => {
 			type MyPickItem = vscode.QuickPickItem & { scale: Scale };
@@ -45,19 +43,11 @@ export class ZoomStatusBarEntry extends Disposable {
 			}
 		}));
 
-		this._entry.command = selectZoomLevelCommandId;
+		this.entry.command = selectZoomLevelCommandId;
 	}
 
-	public show() {
-		this._entry.show();
-	}
-
-	public hide() {
-		this._entry.hide();
-	}
-
-	public update(scale: Scale) {
-		this._entry.text = this.zoomLabel(scale);
+	public show(owner: string, scale: Scale) {
+		this.showItem(owner, this.zoomLabel(scale));
 	}
 
 	private zoomLabel(scale: Scale): string {

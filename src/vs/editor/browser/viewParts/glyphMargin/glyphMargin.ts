@@ -177,7 +177,7 @@ export class GlyphMarginOverlay extends DedupOverlay {
 				output[lineIndex] = '';
 			} else {
 				output[lineIndex] = (
-					'<div class="cgmr '
+					'<div class="cgmr codicon '
 					+ classNames.join(' ')
 					+ common
 				);

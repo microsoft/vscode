@@ -21,8 +21,9 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { MessageBoxOptions } from 'electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
+import { fromNow } from 'vs/base/common/date';
 
 interface IMassagedMessageBoxOptions {
 
@@ -43,10 +44,11 @@ export class DialogService implements IDialogService {
 
 	_serviceBrand: undefined;
 
-	private impl: IDialogService;
+	private nativeImpl: IDialogService;
+	private customImpl: IDialogService;
 
 	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private configurationService: IConfigurationService,
 		@ILogService logService: ILogService,
 		@ILayoutService layoutService: ILayoutService,
 		@IThemeService themeService: IThemeService,
@@ -56,27 +58,32 @@ export class DialogService implements IDialogService {
 		@IClipboardService clipboardService: IClipboardService,
 		@IElectronService electronService: IElectronService
 	) {
+		this.customImpl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
+		this.nativeImpl = new NativeDialogService(logService, sharedProcessService, electronService, clipboardService);
+	}
 
-		// Use HTML based dialogs
-		if (configurationService.getValue('workbench.dialogs.customEnabled') === true) {
-			this.impl = new HTMLDialogService(logService, layoutService, themeService, keybindingService, productService, clipboardService);
-		}
-		// Electron dialog service
-		else {
-			this.impl = new NativeDialogService(logService, sharedProcessService, electronService, clipboardService);
-		}
+	private get useCustomDialog(): boolean {
+		return this.configurationService.getValue('workbench.dialogs.customEnabled') === true;
 	}
 
 	confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
-		return this.impl.confirm(confirmation);
+		if (this.useCustomDialog) {
+			return this.customImpl.confirm(confirmation);
+		}
+
+		return this.nativeImpl.confirm(confirmation);
 	}
 
 	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions | undefined): Promise<IShowResult> {
-		return this.impl.show(severity, message, buttons, options);
+		if (this.useCustomDialog) {
+			return this.customImpl.show(severity, message, buttons, options);
+		}
+
+		return this.nativeImpl.show(severity, message, buttons, options);
 	}
 
 	about(): Promise<void> {
-		return this.impl.about();
+		return this.nativeImpl.about();
 	}
 }
 
@@ -210,17 +217,23 @@ class NativeDialogService implements IDialogService {
 		}
 
 		const isSnap = process.platform === 'linux' && process.env.SNAP && process.env.SNAP_REVISION;
-		const detail = nls.localize('aboutDetail',
-			"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
-			version,
-			product.commit || 'Unknown',
-			product.date || 'Unknown',
-			process.versions['electron'],
-			process.versions['chrome'],
-			process.versions['node'],
-			process.versions['v8'],
-			`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
-		);
+
+		const detailString = (useAgo: boolean): string => {
+			return nls.localize('aboutDetail',
+				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
+				version,
+				product.commit || 'Unknown',
+				product.date ? `${product.date}${useAgo ? ' (' + fromNow(new Date(product.date), true) + ')' : ''}` : 'Unknown',
+				process.versions['electron'],
+				process.versions['chrome'],
+				process.versions['node'],
+				process.versions['v8'],
+				`${os.type()} ${os.arch()} ${os.release()}${isSnap ? ' snap' : ''}`
+			);
+		};
+
+		const detail = detailString(true);
+		const detailToCopy = detailString(false);
 
 		const ok = nls.localize('okButton', "OK");
 		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
@@ -243,7 +256,7 @@ class NativeDialogService implements IDialogService {
 		});
 
 		if (buttons[result.response] === copy) {
-			this.clipboardService.writeText(detail);
+			this.clipboardService.writeText(detailToCopy);
 		}
 	}
 }

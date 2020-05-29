@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,7 +20,7 @@ import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEn
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHostStarter } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHostStarter';
 import { URI } from 'vs/base/common/uri';
-import { isWebExtension } from 'vs/workbench/services/extensions/common/extensionsUtil';
+import { canExecuteOnWeb } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { FetchFileSystemProvider } from 'vs/workbench/services/extensions/browser/webWorkerFileSystemProvider';
@@ -39,7 +39,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@INotificationService notificationService: INotificationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IExtensionEnablementService extensionEnablementService: IExtensionEnablementService,
+		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -85,14 +85,14 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected _createExtensionHosts(_isInitialStart: boolean, initialActivationEvents: string[]): ExtensionHostProcessManager[] {
 		const result: ExtensionHostProcessManager[] = [];
 
-		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => isWebExtension(ext, this._configService)));
+		const webExtensions = this.getExtensions().then(extensions => extensions.filter(ext => canExecuteOnWeb(ext, this._productService, this._configService)));
 		const webHostProcessWorker = this._instantiationService.createInstance(WebWorkerExtensionHostStarter, true, webExtensions, URI.file(this._environmentService.logsPath).with({ scheme: this._environmentService.logFile.scheme }));
 		const webHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, webHostProcessWorker, null, initialActivationEvents);
 		result.push(webHostProcessManager);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		if (remoteAgentConnection) {
-			const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !isWebExtension(ext, this._configService)));
+			const remoteExtensions = this.getExtensions().then(extensions => extensions.filter(ext => !canExecuteOnWeb(ext, this._productService, this._configService)));
 			const remoteExtHostProcessWorker = this._instantiationService.createInstance(RemoteExtensionHostClient, remoteExtensions, this._createProvider(remoteAgentConnection.remoteAuthority), this._remoteAgentService.socketFactory);
 			const remoteExtHostProcessManager = this._instantiationService.createInstance(ExtensionHostProcessManager, false, remoteExtHostProcessWorker, remoteAgentConnection.remoteAuthority, initialActivationEvents);
 			result.push(remoteExtHostProcessManager);
@@ -111,7 +111,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		let result: DeltaExtensionsResult;
 
 		// local: only enabled and web'ish extension
-		localExtensions = localExtensions.filter(ext => this._isEnabled(ext) && isWebExtension(ext, this._configService));
+		localExtensions = localExtensions!.filter(ext => this._isEnabled(ext) && canExecuteOnWeb(ext, this._productService, this._configService));
 		this._checkEnableProposedApi(localExtensions);
 
 		if (!remoteEnv) {
@@ -119,7 +119,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 
 		} else {
 			// remote: only enabled and none-web'ish extension
-			remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension) && !isWebExtension(extension, this._configService));
+			remoteEnv.extensions = remoteEnv.extensions.filter(extension => this._isEnabled(extension) && !canExecuteOnWeb(extension, this._productService, this._configService));
 			this._checkEnableProposedApi(remoteEnv.extensions);
 
 			// in case of overlap, the remote wins
@@ -140,8 +140,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	public _onExtensionHostExit(code: number): void {
-		console.log(`vscode:exit`, code);
-		// ipc.send('vscode:exit', code);
+		// We log the exit code to the console. Do NOT remove this
+		// code as the automated integration tests in browser rely
+		// on this message to exit properly.
+		console.log(`vscode:exit ${code}`);
 	}
 }
 

@@ -6,7 +6,7 @@
 import { IChannel, IServerChannel, IClientRouter, IConnectionHub, Client } from 'vs/base/parts/ipc/common/ipc';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { IURLHandler } from 'vs/platform/url/common/url';
+import { IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { first } from 'vs/base/common/arrays';
 
@@ -31,7 +31,7 @@ export class URLHandlerChannelClient implements IURLHandler {
 
 	constructor(private channel: IChannel) { }
 
-	handleURL(uri: URI): Promise<boolean> {
+	handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		return this.channel.call('handleURL', uri.toJSON());
 	}
 }
@@ -49,11 +49,12 @@ export class URLHandlerRouter implements IClientRouter<string> {
 			const uri = URI.revive(arg);
 
 			if (uri && uri.query) {
-				const match = /\bwindowId=([^&]+)/.exec(uri.query);
+				const match = /\bwindowId=(\d+)/.exec(uri.query);
 
 				if (match) {
 					const windowId = match[1];
-					const connection = first(hub.connections, c => c.ctx === windowId);
+					const regex = new RegExp(`window:${windowId}`);
+					const connection = first(hub.connections, c => regex.test(c.ctx));
 
 					if (connection) {
 						return connection;

@@ -372,12 +372,6 @@ export function distinctES6<T>(array: ReadonlyArray<T>): T[] {
 	});
 }
 
-export function fromSet<T>(set: Set<T>): T[] {
-	const result: T[] = [];
-	set.forEach(o => result.push(o));
-	return result;
-}
-
 export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	const seen: { [key: string]: boolean; } = Object.create(null);
 
@@ -405,6 +399,9 @@ export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean):
 	return -1;
 }
 
+/**
+ * @deprecated ES6: use `Array.findIndex`
+ */
 export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = 0; i < array.length; i++) {
 		const element = array[i];
@@ -417,6 +414,10 @@ export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean)
 	return -1;
 }
 
+
+/**
+ * @deprecated ES6: use `Array.find`
+ */
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | undefined;
 export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | undefined = undefined): T | undefined {
@@ -469,14 +470,6 @@ export function range(arg: number, to?: number): number[] {
 	}
 
 	return result;
-}
-
-export function fill<T>(num: number, value: T, arr: T[] = []): T[] {
-	for (let i = 0; i < num; i++) {
-		arr[i] = value;
-	}
-
-	return arr;
 }
 
 export function index<T>(array: ReadonlyArray<T>, indexer: (t: T) => string): { [key: string]: T; };
@@ -564,6 +557,10 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 	}
 }
 
+
+/**
+ * @deprecated ES6: use `Array.find`
+ */
 export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
 	for (let i = 0; i < arr.length; i++) {
 		const element = arr[i];
@@ -583,4 +580,8 @@ export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 
 export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
+}
+
+export function getRandomElement<T>(arr: T[]): T | undefined {
+	return arr[Math.floor(Math.random() * arr.length)];
 }

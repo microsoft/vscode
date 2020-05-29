@@ -12,6 +12,7 @@ export interface IMouseEvent {
 	readonly leftButton: boolean;
 	readonly middleButton: boolean;
 	readonly rightButton: boolean;
+	readonly buttons: number;
 	readonly target: HTMLElement;
 	readonly detail: number;
 	readonly posx: number;
@@ -33,6 +34,7 @@ export class StandardMouseEvent implements IMouseEvent {
 	public readonly leftButton: boolean;
 	public readonly middleButton: boolean;
 	public readonly rightButton: boolean;
+	public readonly buttons: number;
 	public readonly target: HTMLElement;
 	public detail: number;
 	public readonly posx: number;
@@ -49,6 +51,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		this.leftButton = e.button === 0;
 		this.middleButton = e.button === 1;
 		this.rightButton = e.button === 2;
+		this.buttons = e.buttons;
 
 		this.target = <HTMLElement>e.target;
 
@@ -77,15 +80,11 @@ export class StandardMouseEvent implements IMouseEvent {
 	}
 
 	public preventDefault(): void {
-		if (this.browserEvent.preventDefault) {
-			this.browserEvent.preventDefault();
-		}
+		this.browserEvent.preventDefault();
 	}
 
 	public stopPropagation(): void {
-		if (this.browserEvent.stopPropagation) {
-			this.browserEvent.stopPropagation();
-		}
+		this.browserEvent.stopPropagation();
 	}
 }
 
@@ -152,8 +151,16 @@ export class StandardWheelEvent {
 		this.deltaX = deltaX;
 
 		if (e) {
-			if (e.type === 'wheel') {
+			// Old (deprecated) wheel events
+			let e1 = <IWebKitMouseWheelEvent><any>e;
+			let e2 = <IGeckoMouseWheelEvent><any>e;
 
+			// vertical delta scroll
+			if (typeof e1.wheelDeltaY !== 'undefined') {
+				this.deltaY = e1.wheelDeltaY / 120;
+			} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
+				this.deltaY = -e2.detail / 3;
+			} else if (e.type === 'wheel') {
 				// Modern wheel event
 				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
 				const ev = <WheelEvent><unknown>e;
@@ -161,56 +168,49 @@ export class StandardWheelEvent {
 				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
 					// the deltas are expressed in lines
 					this.deltaY = -e.deltaY;
-					this.deltaX = -e.deltaX;
 				} else {
 					this.deltaY = -e.deltaY / 40;
+				}
+			}
+
+			// horizontal delta scroll
+			if (typeof e1.wheelDeltaX !== 'undefined') {
+				if (browser.isSafari && platform.isWindows) {
+					this.deltaX = - (e1.wheelDeltaX / 120);
+				} else {
+					this.deltaX = e1.wheelDeltaX / 120;
+				}
+			} else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
+				this.deltaX = -e.detail / 3;
+			} else if (e.type === 'wheel') {
+				// Modern wheel event
+				// https://developer.mozilla.org/en-US/docs/Web/API/WheelEvent
+				const ev = <WheelEvent><unknown>e;
+
+				if (ev.deltaMode === ev.DOM_DELTA_LINE) {
+					// the deltas are expressed in lines
+					this.deltaX = -e.deltaX;
+				} else {
 					this.deltaX = -e.deltaX / 40;
 				}
+			}
 
-			} else {
-				// Old (deprecated) wheel events
-				let e1 = <IWebKitMouseWheelEvent><any>e;
-				let e2 = <IGeckoMouseWheelEvent><any>e;
-
-				// vertical delta scroll
-				if (typeof e1.wheelDeltaY !== 'undefined') {
-					this.deltaY = e1.wheelDeltaY / 120;
-				} else if (typeof e2.VERTICAL_AXIS !== 'undefined' && e2.axis === e2.VERTICAL_AXIS) {
-					this.deltaY = -e2.detail / 3;
-				}
-
-				// horizontal delta scroll
-				if (typeof e1.wheelDeltaX !== 'undefined') {
-					if (browser.isSafari && platform.isWindows) {
-						this.deltaX = - (e1.wheelDeltaX / 120);
-					} else {
-						this.deltaX = e1.wheelDeltaX / 120;
-					}
-				} else if (typeof e2.HORIZONTAL_AXIS !== 'undefined' && e2.axis === e2.HORIZONTAL_AXIS) {
-					this.deltaX = -e.detail / 3;
-				}
-
-				// Assume a vertical scroll if nothing else worked
-				if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
-					this.deltaY = e.wheelDelta / 120;
-				}
+			// Assume a vertical scroll if nothing else worked
+			if (this.deltaY === 0 && this.deltaX === 0 && e.wheelDelta) {
+				this.deltaY = e.wheelDelta / 120;
 			}
 		}
 	}
 
 	public preventDefault(): void {
 		if (this.browserEvent) {
-			if (this.browserEvent.preventDefault) {
-				this.browserEvent.preventDefault();
-			}
+			this.browserEvent.preventDefault();
 		}
 	}
 
 	public stopPropagation(): void {
 		if (this.browserEvent) {
-			if (this.browserEvent.stopPropagation) {
-				this.browserEvent.stopPropagation();
-			}
+			this.browserEvent.stopPropagation();
 		}
 	}
 }

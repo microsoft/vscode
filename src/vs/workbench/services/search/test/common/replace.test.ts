@@ -214,5 +214,21 @@ suite('Replace Pattern test', () => {
 		testObject = new ReplacePattern('$0ah', { pattern: 'b(la)(?=\\stext$)', isRegExp: true });
 		actual = testObject.getReplaceString('this is a bla text');
 		assert.equal('blaah', actual);
+
+		testObject = new ReplacePattern('newrege$1', true, /Testrege(\w*)/);
+		actual = testObject.getReplaceString('Testregex', true);
+		assert.equal('Newregex', actual);
+
+		testObject = new ReplacePattern('newrege$1', true, /TESTREGE(\w*)/);
+		actual = testObject.getReplaceString('TESTREGEX', true);
+		assert.equal('NEWREGEX', actual);
+
+		testObject = new ReplacePattern('new_rege$1', true, /Test_Rege(\w*)/);
+		actual = testObject.getReplaceString('Test_Regex', true);
+		assert.equal('New_Regex', actual);
+
+		testObject = new ReplacePattern('new-rege$1', true, /Test-Rege(\w*)/);
+		actual = testObject.getReplaceString('Test-Regex', true);
+		assert.equal('New-Regex', actual);
 	});
 });

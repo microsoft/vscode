@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMainContext, MainContext, MainThreadClipboardShape } from 'vs/workbench/api/common/extHost.protocol';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 
 export class ExtHostClipboard implements vscode.Clipboard {
 

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as vscode from 'vscode';
+import type * as vscode from 'vscode';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ExtensionActivationError, MissingDependencyError } from 'vs/workbench/services/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 
 const NO_OP_VOID_PROMISE = Promise.resolve<void>(undefined);
 
@@ -182,7 +183,13 @@ export class ExtensionsActivator {
 	 */
 	private readonly _alreadyActivatedEvents: { [activationEvent: string]: boolean; };
 
-	constructor(registry: ExtensionDescriptionRegistry, resolvedExtensions: ExtensionIdentifier[], hostExtensions: ExtensionIdentifier[], host: IExtensionsActivatorHost) {
+	constructor(
+		registry: ExtensionDescriptionRegistry,
+		resolvedExtensions: ExtensionIdentifier[],
+		hostExtensions: ExtensionIdentifier[],
+		host: IExtensionsActivatorHost,
+		@ILogService private readonly _logService: ILogService
+	) {
 		this._registry = registry;
 		this._resolvedExtensionsSet = new Set<string>();
 		resolvedExtensions.forEach((extensionId) => this._resolvedExtensionsSet.add(ExtensionIdentifier.toKey(extensionId)));
@@ -245,7 +252,15 @@ export class ExtensionsActivator {
 			return;
 		}
 
-		const currentExtension = this._registry.getExtensionDescription(currentActivation.id)!;
+		const currentExtension = this._registry.getExtensionDescription(currentActivation.id);
+		if (!currentExtension) {
+			// Error condition 0: unknown extension
+			this._host.onExtensionActivationError(currentActivation.id, new MissingDependencyError(currentActivation.id.value));
+			const error = new Error(`Unknown dependency '${currentActivation.id.value}'`);
+			this._activatedExtensions.set(ExtensionIdentifier.toKey(currentActivation.id), new FailedExtension(error));
+			return;
+		}
+
 		const depIds = (typeof currentExtension.extensionDependencies === 'undefined' ? [] : currentExtension.extensionDependencies);
 		let currentExtensionGetsGreenLight = true;
 
@@ -308,7 +323,6 @@ export class ExtensionsActivator {
 	}
 
 	private _activateExtensions(extensions: ActivationIdAndReason[]): Promise<void> {
-		// console.log('_activateExtensions: ', extensions.map(p => p.id.value));
 		if (extensions.length === 0) {
 			return Promise.resolve(undefined);
 		}
@@ -335,9 +349,6 @@ export class ExtensionsActivator {
 
 		const green = Object.keys(greenMap).map(id => greenMap[id]);
 
-		// console.log('greenExtensions: ', green.map(p => p.id.value));
-		// console.log('redExtensions: ', red.map(p => p.id.value));
-
 		if (red.length === 0) {
 			// Finally reached only leafs!
 			return Promise.all(green.map((p) => this._activateExtension(p.id, p.reason))).then(_ => undefined);
@@ -362,8 +373,8 @@ export class ExtensionsActivator {
 
 		const newlyActivatingExtension = this._host.actualActivateExtension(extensionId, reason).then(undefined, (err) => {
 			this._host.onExtensionActivationError(extensionId, nls.localize('activationError', "Activating extension '{0}' failed: {1}.", extensionId.value, err.message));
-			console.error('Activating extension `' + extensionId.value + '` failed: ', err.message);
-			console.log('Here is the error stack: ', err.stack);
+			this._logService.error(`Activating extension ${extensionId.value} failed due to an error:`);
+			this._logService.error(err);
 			// Treat the extension as being empty
 			return new FailedExtension(err);
 		}).then((x: ActivatedExtension) => {

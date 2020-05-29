@@ -14,12 +14,12 @@ suite('Glob', () => {
 	// 	let patterns = [
 	// 		'{**/*.cs,**/*.json,**/*.csproj,**/*.sln}',
 	// 		'{**/*.cs,**/*.csproj,**/*.sln}',
-	// 		'{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs}',
+	// 		'{**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs}',
 	// 		'**/*.go',
 	// 		'{**/*.ps,**/*.ps1}',
 	// 		'{**/*.c,**/*.cpp,**/*.h}',
 	// 		'{**/*.fsx,**/*.fsi,**/*.fs,**/*.ml,**/*.mli}',
-	// 		'{**/*.js,**/*.jsx,**/*.es6,**/*.mjs}',
+	// 		'{**/*.js,**/*.jsx,**/*.es6,**/*.mjs,**/*.cjs}',
 	// 		'{**/*.ts,**/*.tsx}',
 	// 		'{**/*.php}',
 	// 		'{**/*.php}',
@@ -239,10 +239,7 @@ suite('Glob', () => {
 		assertGlobMatch(p, 'some/folder/project.json');
 		assertNoGlobMatch(p, 'some/folder/file_project.json');
 		assertNoGlobMatch(p, 'some/folder/fileproject.json');
-		// assertNoGlobMatch(p, '/rrproject.json'); TODO@ben this still fails if T1-3 are disabled
 		assertNoGlobMatch(p, 'some/rrproject.json');
-		// assertNoGlobMatch(p, 'rrproject.json');
-		// assertNoGlobMatch(p, '\\rrproject.json');
 		assertNoGlobMatch(p, 'some\\rrproject.json');
 
 		p = 'test/**';

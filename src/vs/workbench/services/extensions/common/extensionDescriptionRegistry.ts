@@ -5,6 +5,7 @@
 
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Emitter } from 'vs/base/common/event';
+import * as path from 'vs/base/common/path';
 
 export class DeltaExtensionsResult {
 	constructor(
@@ -27,6 +28,9 @@ export class ExtensionDescriptionRegistry {
 	}
 
 	private _initialize(): void {
+		// Ensure extensions are stored in the order: builtin, user, under development
+		this._extensionDescriptions.sort(extensionCmp);
+
 		this._extensionsMap = new Map<string, IExtensionDescription>();
 		this._extensionsArr = [];
 		this._activationMap = new Map<string, IExtensionDescription[]>();
@@ -192,4 +196,35 @@ export class ExtensionDescriptionRegistry {
 		const extension = this._extensionsMap.get(ExtensionIdentifier.toKey(extensionId));
 		return extension ? extension : undefined;
 	}
+}
+
+const enum SortBucket {
+	Builtin = 0,
+	User = 1,
+	Dev = 2
+}
+
+/**
+ * Ensure that:
+ * - first are builtin extensions
+ * - second are user extensions
+ * - third are extensions under development
+ *
+ * In each bucket, extensions must be sorted alphabetically by their folder name.
+ */
+function extensionCmp(a: IExtensionDescription, b: IExtensionDescription): number {
+	const aSortBucket = (a.isBuiltin ? SortBucket.Builtin : a.isUnderDevelopment ? SortBucket.Dev : SortBucket.User);
+	const bSortBucket = (b.isBuiltin ? SortBucket.Builtin : b.isUnderDevelopment ? SortBucket.Dev : SortBucket.User);
+	if (aSortBucket !== bSortBucket) {
+		return aSortBucket - bSortBucket;
+	}
+	const aLastSegment = path.posix.basename(a.extensionLocation.path);
+	const bLastSegment = path.posix.basename(b.extensionLocation.path);
+	if (aLastSegment < bLastSegment) {
+		return -1;
+	}
+	if (aLastSegment > bLastSegment) {
+		return 1;
+	}
+	return 0;
 }

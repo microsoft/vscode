@@ -29,10 +29,11 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/common/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecution2DTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, CustomExecutionDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO,
 	RunOptionsDTO
 } from 'vs/workbench/api/common/shared/tasks';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
@@ -131,7 +132,7 @@ namespace ProcessExecutionOptionsDTO {
 }
 
 namespace ProcessExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecution2DTO): value is ProcessExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ProcessExecutionDTO {
 		const candidate = value as ProcessExecutionDTO;
 		return candidate && !!candidate.process;
 	}
@@ -199,7 +200,7 @@ namespace ShellExecutionOptionsDTO {
 }
 
 namespace ShellExecutionDTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecution2DTO): value is ShellExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is ShellExecutionDTO {
 		const candidate = value as ShellExecutionDTO;
 		return candidate && (!!candidate.commandLine || !!candidate.command);
 	}
@@ -230,21 +231,21 @@ namespace ShellExecutionDTO {
 	}
 }
 
-namespace CustomExecution2DTO {
-	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecution2DTO): value is CustomExecution2DTO {
-		const candidate = value as CustomExecution2DTO;
-		return candidate && candidate.customExecution === 'customExecution2';
+namespace CustomExecutionDTO {
+	export function is(value: ShellExecutionDTO | ProcessExecutionDTO | CustomExecutionDTO): value is CustomExecutionDTO {
+		const candidate = value as CustomExecutionDTO;
+		return candidate && candidate.customExecution === 'customExecution';
 	}
 
-	export function from(value: CommandConfiguration): CustomExecution2DTO {
+	export function from(value: CommandConfiguration): CustomExecutionDTO {
 		return {
-			customExecution: 'customExecution2'
+			customExecution: 'customExecution'
 		};
 	}
 
-	export function to(value: CustomExecution2DTO): CommandConfiguration {
+	export function to(value: CustomExecutionDTO): CommandConfiguration {
 		return {
-			runtime: RuntimeType.CustomExecution2,
+			runtime: RuntimeType.CustomExecution,
 			presentation: undefined
 		};
 	}
@@ -264,7 +265,7 @@ namespace TaskSourceDTO {
 			}
 		} else if (value.kind === TaskSourceKind.Workspace) {
 			result.extensionId = '$core';
-			result.scope = value.config.workspaceFolder.uri;
+			result.scope = value.config.workspaceFolder ? value.config.workspaceFolder.uri : TaskScope.Global;
 		}
 		return result;
 	}
@@ -311,7 +312,7 @@ namespace TaskDTO {
 		const result: TaskDTO = {
 			_id: task._id,
 			name: task.configurationProperties.name,
-			definition: TaskDefinitionDTO.from(task.getDefinition()),
+			definition: TaskDefinitionDTO.from(task.getDefinition(true)),
 			source: TaskSourceDTO.from(task._source),
 			execution: undefined,
 			presentationOptions: !ConfiguringTask.is(task) && task.command ? TaskPresentationOptionsDTO.from(task.command.presentation) : undefined,
@@ -322,6 +323,9 @@ namespace TaskDTO {
 		};
 		if (task.configurationProperties.group) {
 			result.group = task.configurationProperties.group;
+		}
+		if (task.configurationProperties.detail) {
+			result.detail = task.configurationProperties.detail;
 		}
 		if (!ConfiguringTask.is(task) && task.command) {
 			if (task.command.runtime === RuntimeType.Process) {
@@ -351,8 +355,8 @@ namespace TaskDTO {
 				command = ShellExecutionDTO.to(task.execution);
 			} else if (ProcessExecutionDTO.is(task.execution)) {
 				command = ProcessExecutionDTO.to(task.execution);
-			} else if (CustomExecution2DTO.is(task.execution)) {
-				command = CustomExecution2DTO.to(task.execution);
+			} else if (CustomExecutionDTO.is(task.execution)) {
+				command = CustomExecutionDTO.to(task.execution);
 			}
 		}
 
@@ -380,6 +384,7 @@ namespace TaskDTO {
 				group: task.group,
 				isBackground: !!task.isBackground,
 				problemMatchers: task.problemMatchers.slice(),
+				detail: task.detail
 			}
 		);
 		return result;
@@ -508,17 +513,21 @@ export class MainThreadTask implements MainThreadTaskShape {
 	public $executeTask(value: TaskHandleDTO | TaskDTO): Promise<TaskExecutionDTO> {
 		return new Promise<TaskExecutionDTO>((resolve, reject) => {
 			if (TaskHandleDTO.is(value)) {
-				const workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
+				const workspaceFolder = typeof value.workspaceFolder === 'string' ? value.workspaceFolder : this._workspaceContextServer.getWorkspaceFolder(URI.revive(value.workspaceFolder));
 				if (workspaceFolder) {
-					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task) => {
-						this._taskService.run(task).then(undefined, reason => {
-							// eat the error, it has already been surfaced to the user and we don't care about it here
-						});
-						const result: TaskExecutionDTO = {
-							id: value.id,
-							task: TaskDTO.from(task)
-						};
-						resolve(result);
+					this._taskService.getTask(workspaceFolder, value.id, true).then((task: Task | undefined) => {
+						if (!task) {
+							reject(new Error('Task not found'));
+						} else {
+							this._taskService.run(task).then(undefined, reason => {
+								// eat the error, it has already been surfaced to the user and we don't care about it here
+							});
+							const result: TaskExecutionDTO = {
+								id: value.id,
+								task: TaskDTO.from(task)
+							};
+							resolve(result);
+						}
 					}, (_error) => {
 						reject(new Error('Task not found'));
 					});
@@ -596,7 +605,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 				return URI.parse(`${info.scheme}://${info.authority}${path}`);
 			},
 			context: this._extHostContext,
-			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet): Promise<ResolvedVariables> => {
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, toResolve: ResolveSet, target: ConfigurationTarget): Promise<ResolvedVariables> => {
 				const vars: string[] = [];
 				toResolve.variables.forEach(item => vars.push(item));
 				return Promise.resolve(this._proxy.$resolveVariables(workspaceFolder.uri, { process: toResolve.process, variables: vars })).then(values => {
@@ -605,7 +614,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						partiallyResolvedVars.push(entry.value);
 					});
 					return new Promise<ResolvedVariables>((resolve, reject) => {
-						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks').then(resolvedVars => {
+						this._configurationResolverService.resolveWithInteraction(workspaceFolder, partiallyResolvedVars, 'tasks', undefined, target).then(resolvedVars => {
 							const result: ResolvedVariables = {
 								process: undefined,
 								variables: new Map<string, string>()
@@ -613,7 +622,10 @@ export class MainThreadTask implements MainThreadTaskShape {
 							for (let i = 0; i < partiallyResolvedVars.length; i++) {
 								const variableName = vars[i].substring(2, vars[i].length - 1);
 								if (resolvedVars && values.variables[vars[i]] === vars[i]) {
-									result.variables.set(variableName, resolvedVars.get(variableName));
+									const resolved = resolvedVars.get(variableName);
+									if (typeof resolved === 'string') {
+										result.variables.set(variableName, resolved);
+									}
 								} else {
 									result.variables.set(variableName, partiallyResolvedVars[i]);
 								}

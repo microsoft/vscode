@@ -6,10 +6,10 @@
 import * as httpRequest from 'request-light';
 import * as vscode from 'vscode';
 import { addJSONProviders } from './features/jsonContributions';
+import { runSelectedScript, selectAndRunScriptFromFolder } from './commands';
 import { NpmScriptsTreeDataProvider } from './npmView';
 import { invalidateTasksCache, NpmTaskProvider, hasPackageJson } from './tasks';
 import { invalidateHoverScriptsCache, NpmScriptHoverProvider } from './scriptHover';
-import { runSelectedScript } from './commands';
 
 let treeDataProvider: NpmScriptsTreeDataProvider | undefined;
 
@@ -21,7 +21,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	configureHttpRequest();
 	let d = vscode.workspace.onDidChangeConfiguration((e) => {
 		configureHttpRequest();
-		if (e.affectsConfiguration('npm.exclude')) {
+		if (e.affectsConfiguration('npm.exclude') || e.affectsConfiguration('npm.autoDetect')) {
 			invalidateTasksCache();
 			if (treeDataProvider) {
 				treeDataProvider.refresh();
@@ -45,6 +45,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 	if (await hasPackageJson()) {
 		vscode.commands.executeCommand('setContext', 'npm:showScriptExplorer', true);
 	}
+
+	context.subscriptions.push(vscode.commands.registerCommand('npm.runScriptFromFolder', selectAndRunScriptFromFolder));
 }
 
 function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposable | undefined {
@@ -68,7 +70,7 @@ function registerTaskProvider(context: vscode.ExtensionContext): vscode.Disposab
 		context.subscriptions.push(workspaceWatcher);
 
 		let provider: vscode.TaskProvider = new NpmTaskProvider();
-		let disposable = vscode.workspace.registerTaskProvider('npm', provider);
+		let disposable = vscode.tasks.registerTaskProvider('npm', provider);
 		context.subscriptions.push(disposable);
 		return disposable;
 	}
