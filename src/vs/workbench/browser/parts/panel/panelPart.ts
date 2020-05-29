@@ -317,6 +317,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	private registerListeners(): void {
+
 		// Panel registration
 		this._register(this.registry.onDidRegister(panel => this.onDidRegisterPanels([panel])));
 		this._register(this.registry.onDidDeregister(panel => this.onDidDeregisterPanel(panel.id)));

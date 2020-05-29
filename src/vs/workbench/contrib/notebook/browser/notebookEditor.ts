@@ -94,7 +94,7 @@ export class NotebookEditor extends BaseEditor {
 		}
 
 		this._widget?.onWillHide();
-		super.onHide();
+		super.onWillHide();
 	}
 
 	setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
