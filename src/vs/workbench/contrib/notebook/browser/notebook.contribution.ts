@@ -30,7 +30,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IEditorGroup, OpenEditorInGroupContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
@@ -215,7 +215,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		return this.notebookService.getContributedNotebookProviders(resource);
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorInGroupContext, id: string | undefined): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext, id: string | undefined): IOpenEditorOverride | undefined {
 		if (originalInput instanceof NotebookEditorInput) {
 			if ((originalInput.group === group.id || originalInput.group === undefined) && (originalInput.viewType === id || typeof id !== 'string')) {
 				// No need to do anything
@@ -230,7 +230,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				const copiedInput = this.instantiationService.createInstance(NotebookEditorInput, originalInput.resource, originalInput.name, originalInput.viewType);
 				copiedInput.updateGroup(group.id);
 
-				if (context === OpenEditorInGroupContext.MOVE_EDITOR) {
+				if (context === OpenEditorContext.MOVE_EDITOR) {
 					// transfer ownership of editor widget
 					const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
 					if (widgetRef) {

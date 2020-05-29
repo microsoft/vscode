@@ -16,7 +16,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER, EDITOR_GROUP_HEADER_BORDER } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, OpenEditorInGroupContext } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, GroupsOrder, ICloseEditorOptions, ICloseAllEditorsOptions, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
@@ -863,7 +863,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region openEditor()
 
-	async openEditor(editor: EditorInput, options?: EditorOptions, context?: OpenEditorInGroupContext): Promise<IEditorPane | null> {
+	async openEditor(editor: EditorInput, options?: EditorOptions, context?: OpenEditorContext): Promise<IEditorPane | null> {
 
 		// Guard against invalid inputs
 		if (!editor) {
@@ -1171,7 +1171,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}));
 
 		// A move to another group is an open first...
-		target.openEditor(editor, options, keepCopy ? OpenEditorInGroupContext.COPY_EDITOR : OpenEditorInGroupContext.MOVE_EDITOR);
+		target.openEditor(editor, options, keepCopy ? OpenEditorContext.COPY_EDITOR : OpenEditorContext.MOVE_EDITOR);
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
@@ -1718,7 +1718,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 		private _group: GroupIdentifier,
 		private _editor: EditorInput,
 		private _options: EditorOptions | undefined,
-		private _context: OpenEditorInGroupContext | undefined
+		private _context: OpenEditorContext | undefined
 	) {
 	}
 
@@ -1734,7 +1734,7 @@ class EditorOpeningEvent implements IEditorOpeningEvent {
 		return this._options;
 	}
 
-	get context(): OpenEditorInGroupContext | undefined {
+	get context(): OpenEditorContext | undefined {
 		return this._context;
 	}
 
