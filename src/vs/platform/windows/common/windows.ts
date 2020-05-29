@@ -28,6 +28,10 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	waitMarkerFileURI?: URI;
 }
 
+export interface IAddFoldersRequest {
+	foldersToAdd: UriComponents[];
+}
+
 export interface IOpenedWindow {
 	id: number;
 	workspace?: IWorkspaceIdentifier;
