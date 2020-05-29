@@ -33,7 +33,16 @@ export interface IExtUri {
 	 * @param uri2 Uri
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
-	isEqual(uri1: URI, uri2: URI, ignoreFragment?: boolean): boolean;
+	isEqual(uri1: URI | undefined, uri2: URI | undefined, ignoreFragment?: boolean): boolean;
+
+	/**
+	 * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
+	 *
+	 * @param base A uri which is "longer"
+	 * @param parentCandidate A uri which is "shorter" then `base`
+	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
+	 */
+	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean): boolean;
 
 	/**
 	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
@@ -42,6 +51,13 @@ export interface IExtUri {
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
 	getComparisonKey(uri: URI, ignoreFragment?: boolean): string;
+
+	/**
+	 *
+	 * @param from
+	 * @param to
+	 */
+	relativePath(from: URI, to: URI): string | undefined;
 }
 
 export class ExtUri implements IExtUri {
@@ -71,11 +87,62 @@ export class ExtUri implements IExtUri {
 	}
 
 	getComparisonKey(uri: URI, ignoreFragment: boolean = false): string {
-		return getComparisonKey(uri, this._ignorePathCasing(uri), ignoreFragment);
+		return uri.with({
+			path: this._ignorePathCasing(uri) ? uri.path.toLowerCase() : undefined,
+			fragment: ignoreFragment ? null : undefined
+		}).toString();
 	}
 
-	isEqual(uri1: URI, uri2: URI, ignoreFragment: boolean = false): boolean {
-		return isEqual(uri1, uri2, this._ignorePathCasing(uri1), ignoreFragment);
+	isEqual(uri1: URI | undefined, uri2: URI | undefined, ignoreFragment: boolean = false): boolean {
+		if (uri1 === uri2) {
+			return true;
+		}
+		if (!uri1 || !uri2) {
+			return false;
+		}
+		if (uri1.scheme !== uri2.scheme || !isEqualAuthority(uri1.authority, uri2.authority)) {
+			return false;
+		}
+		const p1 = uri1.path, p2 = uri2.path;
+		return (p1 === p2 || this._ignorePathCasing(uri1) && equalsIgnoreCase(p1, p2)) && uri1.query === uri2.query && (ignoreFragment || uri1.fragment === uri2.fragment);
+	}
+
+	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
+		if (base.scheme === parentCandidate.scheme) {
+			if (base.scheme === Schemas.file) {
+				return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), this._ignorePathCasing(base)) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+			}
+			if (isEqualAuthority(base.authority, parentCandidate.authority)) {
+				return extpath.isEqualOrParent(base.path, parentCandidate.path, this._ignorePathCasing(base), '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
+			}
+		}
+		return false;
+	}
+
+	// --- path math
+
+	relativePath(from: URI, to: URI): string | undefined {
+		if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
+			return undefined;
+		}
+		if (from.scheme === Schemas.file) {
+			const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
+			return isWindows ? extpath.toSlashes(relativePath) : relativePath;
+		}
+		let fromPath = from.path || '/', toPath = to.path || '/';
+		if (this._ignorePathCasing(from)) {
+			// make casing of fromPath match toPath
+			let i = 0;
+			for (const len = Math.min(fromPath.length, toPath.length); i < len; i++) {
+				if (fromPath.charCodeAt(i) !== toPath.charCodeAt(i)) {
+					if (fromPath.charAt(i).toLowerCase() !== toPath.charAt(i).toLowerCase()) {
+						break;
+					}
+				}
+			}
+			fromPath = toPath.substr(0, i) + fromPath.substr(i);
+		}
+		return paths.posix.relative(fromPath, toPath);
 	}
 }
 
@@ -86,8 +153,16 @@ export class ExtUri implements IExtUri {
  * assertEqual(aUri.toString() === bUri.toString(), exturi.isEqual(aUri, bUri))
  * ```
  */
-export const exturi = new ExtUri(() => false);
+export const extUri = new ExtUri(() => false);
 
+/**
+ * BIASED utility that always ignores the casing of uris path. ONLY use these util if you
+ * understand what you are doing.
+ *
+ * Note that `IUriIdentityService#extUri` is a better replacement for this because that utility
+ * knows when path casing matters and when not.
+ */
+export const extUriIgnorePathCase = new ExtUri(_ => true);
 
 //#endregion
 
@@ -95,25 +170,20 @@ export function originalFSPath(uri: URI): string {
 	return uriToFsPath(uri, true);
 }
 
-// DO NOT EXPORT, DO NOT USE
-function _ignorePathCasingGuess(resource: URI | undefined): boolean {
+const exturiBiasedIgnorePathCase = new ExtUri(uri => {
 	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
 	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
-	return resource && resource.scheme === Schemas.file ? !isLinux : true;
-}
+	return uri && uri.scheme === Schemas.file ? !isLinux : true;
+});
 
 /**
  * Creates a key from a resource URI to be used to resource comparison and for resource maps.
  *
  * @param resource Uri
- * @param ignorePathCasing Ignore casing when comparing path component (defaults mostly to `true`)
  * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function getComparisonKey(resource: URI, ignorePathCasing: boolean = _ignorePathCasingGuess(resource), ignoreFragment: boolean = false): string {
-	return resource.with({
-		path: ignorePathCasing ? resource.path.toLowerCase() : undefined,
-		fragment: ignoreFragment ? null : undefined
-	}).toString();
+export function getComparisonKey(resource: URI, ignoreFragment: boolean = false): string {
+	return exturiBiasedIgnorePathCase.getComparisonKey(resource, ignoreFragment);
 }
 
 /**
@@ -124,18 +194,8 @@ export function getComparisonKey(resource: URI, ignorePathCasing: boolean = _ign
  * @param ignorePathCasing Ignore casing when comparing path component (defaults mostly to `true`)
  * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function isEqual(first: URI | undefined, second: URI | undefined, ignorePathCasing: boolean = _ignorePathCasingGuess(first), ignoreFragment: boolean = false): boolean {
-	if (first === second) {
-		return true;
-	}
-	if (!first || !second) {
-		return false;
-	}
-	if (first.scheme !== second.scheme || !isEqualAuthority(first.authority, second.authority)) {
-		return false;
-	}
-	const p1 = first.path, p2 = second.path;
-	return (p1 === p2 || ignorePathCasing && equalsIgnoreCase(p1, p2)) && first.query === second.query && (ignoreFragment || first.fragment === second.fragment);
+export function isEqual(first: URI | undefined, second: URI | undefined, ignoreFragment: boolean = false): boolean {
+	return exturiBiasedIgnorePathCase.isEqual(first, second, ignoreFragment);
 }
 
 
@@ -147,16 +207,8 @@ export function isEqual(first: URI | undefined, second: URI | undefined, ignoreP
  * @param ignorePathCasing Ignore casing when comparing path component (defaults mostly to `true`)
  * @param ignoreFragment Ignore the fragment (defaults to `false`)
  */
-export function isEqualOrParent(base: URI, parentCandidate: URI, ignorePathCasing: boolean = _ignorePathCasingGuess(base), ignoreFragment: boolean = false): boolean {
-	if (base.scheme === parentCandidate.scheme) {
-		if (base.scheme === Schemas.file) {
-			return extpath.isEqualOrParent(originalFSPath(base), originalFSPath(parentCandidate), ignorePathCasing) && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
-		}
-		if (isEqualAuthority(base.authority, parentCandidate.authority)) {
-			return extpath.isEqualOrParent(base.path, parentCandidate.path, ignorePathCasing, '/') && base.query === parentCandidate.query && (ignoreFragment || base.fragment === parentCandidate.fragment);
-		}
-	}
-	return false;
+export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
+	return exturiBiasedIgnorePathCase.isEqualOrParent(base, parentCandidate, ignoreFragment);
 }
 
 
@@ -300,28 +352,8 @@ export function addTrailingPathSeparator(resource: URI, sep: string = paths.sep)
  * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.
  * The returned relative path always uses forward slashes.
  */
-export function relativePath(from: URI, to: URI, ignorePathCasing = _ignorePathCasingGuess(from)): string | undefined {
-	if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
-		return undefined;
-	}
-	if (from.scheme === Schemas.file) {
-		const relativePath = paths.relative(originalFSPath(from), originalFSPath(to));
-		return isWindows ? extpath.toSlashes(relativePath) : relativePath;
-	}
-	let fromPath = from.path || '/', toPath = to.path || '/';
-	if (ignorePathCasing) {
-		// make casing of fromPath match toPath
-		let i = 0;
-		for (const len = Math.min(fromPath.length, toPath.length); i < len; i++) {
-			if (fromPath.charCodeAt(i) !== toPath.charCodeAt(i)) {
-				if (fromPath.charAt(i).toLowerCase() !== toPath.charAt(i).toLowerCase()) {
-					break;
-				}
-			}
-		}
-		fromPath = toPath.substr(0, i) + fromPath.substr(i);
-	}
-	return paths.posix.relative(fromPath, toPath);
+export function relativePath(from: URI, to: URI): string | undefined {
+	return exturiBiasedIgnorePathCase.relativePath(from, to);
 }
 
 /**

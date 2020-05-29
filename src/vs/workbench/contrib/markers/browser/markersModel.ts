@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { basename, exturi } from 'vs/base/common/resources';
+import { basename, extUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -15,7 +15,7 @@ import { withUndefinedAsNull } from 'vs/base/common/types';
 
 
 export function compareMarkersByUri(a: IMarker, b: IMarker) {
-	return exturi.compare(a.resource, b.resource);
+	return extUri.compare(a.resource, b.resource);
 }
 
 function compareResourceMarkers(a: ResourceMarkers, b: ResourceMarkers): number {
@@ -148,14 +148,14 @@ export class MarkersModel {
 	}
 
 	getResourceMarkers(resource: URI): ResourceMarkers | null {
-		return withUndefinedAsNull(this.resourcesByUri.get(exturi.getComparisonKey(resource, true)));
+		return withUndefinedAsNull(this.resourcesByUri.get(extUri.getComparisonKey(resource, true)));
 	}
 
 	setResourceMarkers(resourcesMarkers: [URI, IMarker[]][]): void {
 		const change: MarkerChangesEvent = { added: new Set(), removed: new Set(), updated: new Set() };
 		for (const [resource, rawMarkers] of resourcesMarkers) {
 
-			const key = exturi.getComparisonKey(resource, true);
+			const key = extUri.getComparisonKey(resource, true);
 			let resourceMarkers = this.resourcesByUri.get(key);
 
 			if (isNonEmptyArray(rawMarkers)) {
