@@ -209,7 +209,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		for (const panel of panels) {
 			const cachedPanel = this.getCachedPanels().filter(({ id }) => id === panel.id)[0];
 			const activePanel = this.getActivePanel();
-			const isActive = activePanel?.getId() === panel.id || (!activePanel && this.getLastActivePanelId() === panel.id);
+			const isActive =
+				activePanel?.getId() === panel.id ||
+				(!activePanel && this.getLastActivePanelId() === panel.id) ||
+				(this.extensionsRegistered && this.compositeBar.getVisibleComposites().length === 0);
 
 			if (isActive || !this.shouldBeHidden(panel.id, cachedPanel)) {
 
