@@ -105,9 +105,12 @@ export class TaskQuickPick extends Disposable {
 		for (let j = 0; j < configuredTasks.length; j++) {
 			const workspaceFolder = configuredTasks[j].getWorkspaceFolder()?.uri.toString();
 			const definition = configuredTasks[j].getDefinition()?._key;
+			const type = configuredTasks[j].type;
+			const label = configuredTasks[j]._label;
 			const recentKey = configuredTasks[j].getRecentlyUsedKey();
 			const findIndex = recentTasks.findIndex((value) => {
-				return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder && value.getDefinition()?._key === definition)
+				return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder
+					&& ((value.getDefinition()?._key === definition) || (value.type === type && value._label === label)))
 					|| (recentKey && value.getRecentlyUsedKey() === recentKey);
 			});
 			if (findIndex === -1) {
