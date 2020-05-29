@@ -378,8 +378,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
-		await this.currentMachineIdPromise;
-		const syncData: ISyncData = { version: this.version, content };
+		const machineId = await this.currentMachineIdPromise;
+		const syncData: ISyncData = { version: this.version, machineId, content };
 		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref);
 		return { ref, syncData };
 	}
