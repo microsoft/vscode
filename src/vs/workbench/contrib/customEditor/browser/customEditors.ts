@@ -427,7 +427,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		this._register(this.editorService.overrideOpenEditor({
-			open: (editor, options, group, id) => {
+			open: (editor, options, group, context, id) => {
 				return this.onEditorOpening(editor, options, group, id);
 			},
 			getEditorOverrides: (resource: URI, _options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {

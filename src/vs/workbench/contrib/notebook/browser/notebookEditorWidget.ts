@@ -75,6 +75,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private webview: BackLayerWebView | null = null;
 	private webviewTransparentCover: HTMLElement | null = null;
 	private list: INotebookCellList | undefined;
+	private dndController: CellDragAndDropController | null = null;
 	private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined> = new Map();
 	private eventDispatcher: NotebookEventDispatcher | undefined;
 	private notebookViewModel: NotebookViewModel | undefined;
@@ -252,11 +253,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private createCellList(): void {
 		DOM.addClass(this.body, 'cell-list-container');
 
-		const dndController = this._register(new CellDragAndDropController(this, this.body));
+		this.dndController = this._register(new CellDragAndDropController(this, this.body));
 		const getScopedContextKeyService = (container?: HTMLElement) => this.list!.contextKeyService.createScoped(container);
 		const renderers = [
-			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors, dndController, getScopedContextKeyService),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this, dndController, this.renderedEditors, getScopedContextKeyService),
+			this.instantiationService.createInstance(CodeCellRenderer, this, this.renderedEditors, this.dndController, getScopedContextKeyService),
+			this.instantiationService.createInstance(MarkdownCellRenderer, this, this.dndController, this.renderedEditors, getScopedContextKeyService),
 		];
 
 		this.list = this.instantiationService.createInstance(
@@ -303,7 +304,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			},
 		);
-		dndController.setList(this.list);
+		this.dndController.setList(this.list);
 
 		// create Webview
 
@@ -368,6 +369,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.detachModel();
 			await this.attachModel(textModel, viewState);
 		}
+
+		// clear state
+		this.dndController?.clearGlobalDragState();
 
 		this._setKernels(textModel);
 
@@ -555,6 +559,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this.list!.layout();
+		this.dndController?.clearGlobalDragState();
 
 		// restore list state at last, it must be after list layout
 		this.restoreListViewState(viewState);
