@@ -342,15 +342,35 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1,
 			`first move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.source}`);
 
-		// await vscode.commands.executeCommand('notebook.cell.moveDown');
-		// activeCell = vscode.notebook.activeNotebookEditor!.selection;
+		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		await vscode.commands.executeCommand('notebook.cell.moveDown');
+		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2,
-		// 	`second move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.source}`);
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[0].source, 'test');
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[1].source, '');
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[2].source, 'test');
-		// assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[3].source, '');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2,
+			`second move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.source}
+			${vscode.notebook.activeNotebookEditor!.document.cells.map(cell => cell.uri.toString() + ':' + cell.source).join('\t')}
+			`);
+
+		const moveCellEventRet = await cellsChangeEvent;
+		assert.deepEqual(moveCellEventRet, {
+			document: vscode.notebook.activeNotebookEditor!.document,
+			changes: [
+				{
+					start: 1,
+					deletedCount: 1,
+					items: []
+				},
+				{
+					start: 2,
+					deletedCount: 0,
+					items: [activeCell]
+				}
+			]
+		});
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[0].source, 'test');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[1].source, '');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[2].source, 'test');
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[3].source, '');
 
 		// ---- ---- //
 
