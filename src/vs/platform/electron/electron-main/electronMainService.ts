@@ -8,7 +8,7 @@ import { IWindowsMainService, ICodeWindow } from 'vs/platform/windows/electron-m
 import { MessageBoxOptions, MessageBoxReturnValue, shell, OpenDevToolsOptions, SaveDialogOptions, SaveDialogReturnValue, OpenDialogOptions, OpenDialogReturnValue, CrashReporterStartOptions, crashReporter, Menu, BrowserWindow, app, clipboard } from 'electron';
 import { OpenContext } from 'vs/platform/windows/node/window';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
-import { IOpenedWindow, INativeOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IOpenWindowOptions, IWindowOpenable, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { isMacintosh } from 'vs/base/common/platform';
 import { ICommonElectronService } from 'vs/platform/electron/common/electron';
@@ -91,8 +91,8 @@ export class ElectronMainService implements IElectronMainService {
 	}
 
 	openWindow(windowId: number | undefined, options?: IOpenEmptyWindowOptions): Promise<void>;
-	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
-	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: INativeOpenWindowOptions): Promise<void> {
+	openWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
+	openWindow(windowId: number | undefined, arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> {
 		if (Array.isArray(arg1)) {
 			return this.doOpenWindow(windowId, arg1, arg2);
 		}
@@ -100,7 +100,7 @@ export class ElectronMainService implements IElectronMainService {
 		return this.doOpenEmptyWindow(windowId, arg1);
 	}
 
-	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: INativeOpenWindowOptions = Object.create(null)): Promise<void> {
+	private async doOpenWindow(windowId: number | undefined, toOpen: IWindowOpenable[], options: IOpenWindowOptions = Object.create(null)): Promise<void> {
 		if (toOpen.length > 0) {
 			this.windowsMainService.open({
 				context: OpenContext.API,

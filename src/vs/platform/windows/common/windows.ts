@@ -20,14 +20,11 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 
 	noRecentEntry?: boolean;
 
-	diffMode?: boolean;
-	gotoLineMode?: boolean;
-}
-
-export interface INativeOpenWindowOptions extends IOpenWindowOptions {
-	diffMode?: boolean;
 	addMode?: boolean;
+
+	diffMode?: boolean;
 	gotoLineMode?: boolean;
+
 	waitMarkerFileURI?: URI;
 }
 
