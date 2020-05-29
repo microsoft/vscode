@@ -20,6 +20,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { domEvent } from 'vs/base/browser/event';
 import { memoize } from 'vs/base/common/decorators';
 import { parseLineAndColumnAware } from 'vs/base/common/extpath';
+import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -66,7 +69,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -116,13 +120,18 @@ export class BrowserHostService extends Disposable implements IHostService {
 	private async doOpenWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void> {
 		const payload = this.preservePayload();
 		const fileOpenables: IFileToOpen[] = [];
+		const foldersToAdd: IWorkspaceFolderCreationData[] = [];
 
 		for (const openable of toOpen) {
 			openable.label = openable.label || this.getRecentLabel(openable);
 
 			// Folder
 			if (isFolderToOpen(openable)) {
-				this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+				if (options?.addMode) {
+					foldersToAdd.push(({ uri: openable.folderUri }));
+				} else {
+					this.workspaceProvider.open({ folderUri: openable.folderUri }, { reuse: this.shouldReuse(options, false /* no file */), payload });
+				}
 			}
 
 			// Workspace
@@ -134,6 +143,14 @@ export class BrowserHostService extends Disposable implements IHostService {
 			else if (isFileToOpen(openable)) {
 				fileOpenables.push(openable);
 			}
+		}
+
+		// Handle Folders to Add
+		if (foldersToAdd.length > 0) {
+			this.instantiationService.invokeFunction(accessor => {
+				const workspaceEditingService: IWorkspaceEditingService = accessor.get(IWorkspaceEditingService);
+				workspaceEditingService.addFolders(foldersToAdd);
+			});
 		}
 
 		// Handle Files
@@ -200,6 +217,19 @@ export class BrowserHostService extends Disposable implements IHostService {
 					}
 				}
 			}
+
+			// Support wait mode
+			const waitMarkerFileURI = options?.waitMarkerFileURI;
+			if (waitMarkerFileURI) {
+				(async () => {
+
+					// Wait for the resources to be closed in the editor...
+					await this.editorService.whenClosed(fileOpenables.map(openable => openable.fileUri));
+
+					// ...before deleting the wait marker file
+					await this.fileService.del(waitMarkerFileURI);
+				})();
+			}
 		}
 	}
 
@@ -237,6 +267,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private shouldReuse(options: IOpenWindowOptions = Object.create(null), isFile: boolean): boolean {
+		if (options.waitMarkerFileURI) {
+			return true; // always handle --wait in same window
+		}
+
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openInNewWindowConfig = isFile ? (windowConfig?.openFilesInNewWindow || 'off' /* default */) : (windowConfig?.openFoldersInNewWindow || 'default' /* default */);
 

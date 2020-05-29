@@ -14,8 +14,8 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { toResource, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors } from 'vs/workbench/common/editor';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService, crashReporterIdStorageKey } from 'vs/platform/telemetry/common/telemetry';
-import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle } from 'vs/platform/windows/common/windows';
-import { IRunActionInWindowRequest, IRunKeybindingInWindowRequest, IAddFoldersRequest, INativeOpenFileRequest } from 'vs/platform/windows/node/window';
+import { IWindowSettings, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest } from 'vs/platform/windows/common/windows';
+import { IRunActionInWindowRequest, IRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/windows/node/window';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
@@ -29,7 +29,7 @@ import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction, SubmenuIte
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
@@ -43,7 +43,6 @@ import { IAccessibilityService, AccessibilitySupport } from 'vs/platform/accessi
 import { WorkbenchState, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { coalesce } from 'vs/base/common/arrays';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MenubarControl } from '../browser/parts/titlebar/menubarControl';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -242,10 +241,7 @@ export class NativeWindow extends Disposable {
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.environmentService.configuration.filesToWait;
 		if (filesToWait) {
-			const waitMarkerFile = filesToWait.waitMarkerFileUri;
-			const resourcesToWaitFor = coalesce(filesToWait.paths.map(p => p.fileUri));
-
-			this._register(this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor));
+			this.trackClosedWaitFiles(filesToWait.waitMarkerFileUri, coalesce(filesToWait.paths.map(path => path.fileUri)));
 		}
 
 		// macOS OS integration
@@ -593,7 +589,7 @@ export class NativeWindow extends Disposable {
 	private onAddFoldersRequest(request: IAddFoldersRequest): void {
 
 		// Buffer all pending requests
-		this.pendingFoldersToAdd.push(...request.foldersToAdd.map(f => URI.revive(f)));
+		this.pendingFoldersToAdd.push(...request.foldersToAdd.map(folder => URI.revive(folder)));
 
 		// Delay the adding of folders a bit to buffer in case more requests are coming
 		if (!this.addFoldersScheduler.isScheduled()) {
@@ -633,65 +629,17 @@ export class NativeWindow extends Disposable {
 			// In wait mode, listen to changes to the editors and wait until the files
 			// are closed that the user wants to wait for. When this happens we delete
 			// the wait marker file to signal to the outside that editing is done.
-			const waitMarkerFile = URI.revive(request.filesToWait.waitMarkerFileUri);
-			const resourcesToWaitFor = coalesce(request.filesToWait.paths.map(p => URI.revive(p.fileUri)));
-			this.trackClosedWaitFiles(waitMarkerFile, resourcesToWaitFor);
+			this.trackClosedWaitFiles(URI.revive(request.filesToWait.waitMarkerFileUri), coalesce(request.filesToWait.paths.map(p => URI.revive(p.fileUri))));
 		}
 	}
 
-	private trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): IDisposable {
-		let remainingResourcesToWaitFor = resourcesToWaitFor.slice(0);
+	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
 
-		// In wait mode, listen to changes to the editors and wait until the files
-		// are closed that the user wants to wait for. When this happens we delete
-		// the wait marker file to signal to the outside that editing is done.
-		const listener = this.editorService.onDidCloseEditor(async event => {
-			const detailsResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.DETAILS });
-			const masterResource = toResource(event.editor, { supportSideBySide: SideBySideEditor.MASTER });
+		// Wait for the resources to be closed in the editor...
+		await this.editorService.whenClosed(resourcesToWaitFor);
 
-			// Remove from resources to wait for based on the
-			// resources from editors that got closed
-			remainingResourcesToWaitFor = remainingResourcesToWaitFor.filter(resourceToWaitFor => {
-				if (isEqual(resourceToWaitFor, masterResource) || isEqual(resourceToWaitFor, detailsResource)) {
-					return false; // remove - the closing editor matches this resource
-				}
-
-				return true; // keep - not yet closed
-			});
-
-			if (remainingResourcesToWaitFor.length === 0) {
-				// If auto save is configured with the default delay (1s) it is possible
-				// to close the editor while the save still continues in the background. As such
-				// we have to also check if the files to wait for are dirty and if so wait
-				// for them to get saved before deleting the wait marker file.
-				const dirtyFilesToWait = resourcesToWaitFor.filter(resourceToWaitFor => this.workingCopyService.isDirty(resourceToWaitFor));
-				if (dirtyFilesToWait.length > 0) {
-					await Promise.all(dirtyFilesToWait.map(async dirtyFileToWait => await this.joinResourceSaved(dirtyFileToWait)));
-				}
-
-				listener.dispose();
-				await this.fileService.del(waitMarkerFile);
-			}
-		});
-
-		return listener;
-	}
-
-	private joinResourceSaved(resource: URI): Promise<void> {
-		return new Promise(resolve => {
-			if (!this.workingCopyService.isDirty(resource)) {
-				return resolve(); // return early if resource is not dirty
-			}
-
-			// Otherwise resolve promise when resource is saved
-			const listener = this.workingCopyService.onDidChangeDirty(workingCopy => {
-				if (!workingCopy.isDirty() && isEqual(resource, workingCopy.resource)) {
-					listener.dispose();
-
-					resolve();
-				}
-			});
-		});
+		// ...before deleting the wait marker file
+		await this.fileService.del(waitMarkerFile);
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
