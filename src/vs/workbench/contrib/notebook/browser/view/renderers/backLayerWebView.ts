@@ -212,7 +212,7 @@ ${loaderJs}
 		<html lang="en">
 			<head>
 				<meta charset="UTF-8">
-				<base url="${baseUrl}/"/>
+				<base href="${baseUrl}/"/>
 				<style>
 					#container > div > div {
 						width: 100%;
