@@ -116,8 +116,6 @@ async function setupTest() {
 	instantiationService.stub(IExtensionRecommendationsService, {});
 	instantiationService.stub(IURLService, NativeURLService);
 
-	instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
-	instantiationService.stubPromise(IExtensionManagementService, 'getExtensionsReport', []);
 	instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 	instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{ getExtensions: () => Promise.resolve([]), onDidChangeExtensions: new Emitter<void>().event, canAddExtension: (extension: IExtensionDescription) => false, canRemoveExtension: (extension: IExtensionDescription) => false });
 	(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
@@ -126,7 +124,7 @@ async function setupTest() {
 }
 
 
-suite('ExtensionsActions Test', () => {
+suite('ExtensionsActions', () => {
 
 	setup(setupTest);
 	teardown(() => disposables.dispose());
@@ -2571,7 +2569,13 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IE
 		onUninstallExtension: Event.None,
 		onDidUninstallExtension: Event.None,
 		getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
-		installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported'))
+		installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
+		updateMetadata: async (local: ILocalExtension, metadata: IGalleryMetadata) => {
+			local.identifier.uuid = metadata.id;
+			local.publisherDisplayName = metadata.publisherDisplayName;
+			local.publisherId = metadata.publisherId;
+			return local;
+		}
 	};
 }
 
