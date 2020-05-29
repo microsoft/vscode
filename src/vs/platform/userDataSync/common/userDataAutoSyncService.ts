@@ -6,9 +6,11 @@
 import { Delayer, disposableTimeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable, MutableDisposable, IDisposable } from 'vs/base/common/lifecycle';
-import { IUserDataSyncLogService, IUserDataSyncService, SyncStatus, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, ALL_SYNC_RESOURCES } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, IUserDataSyncService, IUserDataAutoSyncService, UserDataSyncError, UserDataSyncErrorCode, IUserDataSyncEnablementService, ALL_SYNC_RESOURCES, getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
 import { IAuthenticationTokenService } from 'vs/platform/authentication/common/authentication';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type AutoSyncClassification = {
 	sources: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -34,26 +36,33 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		@IUserDataSyncLogService private readonly logService: IUserDataSyncLogService,
 		@IAuthenticationTokenService private readonly authTokenService: IAuthenticationTokenService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		this.updateEnablement();
 		this.syncTriggerDelayer = this._register(new Delayer<void>(0));
-		this._register(Event.any(authTokenService.onDidChangeToken, userDataSyncService.onDidChangeStatus, this.userDataSyncEnablementService.onDidChangeEnablement)(() => this.updateEnablement()));
-		this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerAutoSync([RESOURCE_ENABLEMENT_SOURCE])));
+
+		if (getUserDataSyncStore(this.productService, this.configurationService)) {
+			this.updateAutoSync();
+			this._register(Event.any(authTokenService.onDidChangeToken, this.userDataSyncEnablementService.onDidChangeEnablement)(() => this.updateAutoSync()));
+			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerAutoSync([RESOURCE_ENABLEMENT_SOURCE])));
+		}
 	}
 
-	private updateEnablement(): void {
+	private updateAutoSync(): void {
 		const { enabled, reason } = this.isAutoSyncEnabled();
 		if (enabled) {
 			if (this.autoSync.value === undefined) {
-				const autoSync = new AutoSync(this.startAutoSync(), 1000 * 60 * 5 /* 5 miutes */, this.userDataSyncService, this.logService);
-				autoSync.register(autoSync.onDidStartSync(() => this.lastSyncTriggerTime = new Date().getTime()));
-				autoSync.register(autoSync.onDidFinishSync(e => this.onDidFinishSync(e)));
-				this.autoSync.value = autoSync;
+				this.autoSync.value = new AutoSync(1000 * 60 * 5 /* 5 miutes */, this.userDataSyncService, this.logService);
+				this.autoSync.value.register(this.autoSync.value.onDidStartSync(() => this.lastSyncTriggerTime = new Date().getTime()));
+				this.autoSync.value.register(this.autoSync.value.onDidFinishSync(e => this.onDidFinishSync(e)));
+				if (this.startAutoSync()) {
+					this.autoSync.value.start();
+				}
 			}
 		} else {
 			if (this.autoSync.value !== undefined) {
-				this.logService.trace('Auto Sync: Disabled because', reason);
+				this.logService.info('Auto Sync: Disabled because', reason);
 				this.autoSync.clear();
 			}
 		}
@@ -65,9 +74,6 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	private isAutoSyncEnabled(): { enabled: boolean, reason?: string } {
 		if (!this.userDataSyncEnablementService.isEnabled()) {
 			return { enabled: false, reason: 'sync is disabled' };
-		}
-		if (this.userDataSyncService.status === SyncStatus.Uninitialized) {
-			return { enabled: false, reason: 'sync is not initialized' };
 		}
 		if (!this.authTokenService.token) {
 			return { enabled: false, reason: 'token is not avaialable' };
@@ -145,21 +151,21 @@ class AutoSync extends Disposable {
 	readonly onDidFinishSync = this._onDidFinishSync.event;
 
 	constructor(
-		start: boolean,
 		private readonly interval: number /* in milliseconds */,
 		private readonly userDataSyncService: IUserDataSyncService,
 		private readonly logService: IUserDataSyncLogService,
 	) {
 		super();
-		if (start) {
-			this._register(this.onDidFinishSync(() => this.waitUntilNextIntervalAndSync()));
-			this._register(toDisposable(() => {
-				this.logService.info('Auto Sync: Stopped');
-				this.userDataSyncService.stop();
-			}));
-			this.logService.info('Auto Sync: Started');
-			this.sync(AutoSync.INTERVAL_SYNCING);
-		}
+	}
+
+	start(): void {
+		this._register(this.onDidFinishSync(() => this.waitUntilNextIntervalAndSync()));
+		this._register(toDisposable(() => {
+			this.userDataSyncService.stop();
+			this.logService.info('Auto Sync: Stopped');
+		}));
+		this.logService.info('Auto Sync: Started');
+		this.sync(AutoSync.INTERVAL_SYNCING);
 	}
 
 	private waitUntilNextIntervalAndSync(): void {
@@ -173,6 +179,7 @@ class AutoSync extends Disposable {
 		try {
 			await this.userDataSyncService.sync();
 		} catch (e) {
+			this.logService.error(e);
 			error = e;
 		}
 		this._onDidFinishSync.fire(error);

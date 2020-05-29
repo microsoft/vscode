@@ -89,13 +89,18 @@ function splitMatches(uri: URI, filterData: FuzzyScore | undefined): [IMatch[] |
 		const allMatches = createMatches(filterData);
 
 		for (const match of allMatches) {
-			if (match.end <= fileName.length) {
-				matches!.push(match);
+			if (match.start < fileName.length) {
+				matches!.push(
+					{
+						start: match.start,
+						end: Math.min(match.end, fileName.length)
+					}
+				);
 			} else {
 				descriptionMatches!.push(
 					{
-						start: match.start - fileName.length,
-						end: match.end - fileName.length
+						start: match.start - (fileName.length + 1),
+						end: match.end - (fileName.length + 1)
 					}
 				);
 			}
@@ -403,7 +408,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			const fileName = basename(element.sourceUri);
 			const filePath = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true });
 
-			return filePath.length !== 0 ? `${fileName}${filePath}` : fileName;
+			return filePath.length !== 0 ? `${fileName} ${filePath}` : fileName;
 		}
 	}
 

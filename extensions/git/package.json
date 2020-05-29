@@ -106,6 +106,12 @@
         "icon": "$(add)"
       },
       {
+        "command": "git.stageAllMerge",
+        "title": "%command.stageAllMerge%",
+        "category": "Git",
+        "icon": "$(add)"
+      },
+      {
         "command": "git.stageSelectedRanges",
         "title": "%command.stageSelectedRanges%",
         "category": "Git"
@@ -488,6 +494,10 @@
         },
         {
           "command": "git.stageAllUntracked",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stageAllMerge",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -897,12 +907,12 @@
       ],
       "scm/resourceGroup/context": [
         {
-          "command": "git.stageAll",
+          "command": "git.stageAllMerge",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
         },
         {
-          "command": "git.stageAll",
+          "command": "git.stageAllMerge",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "inline"
         },

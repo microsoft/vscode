@@ -36,6 +36,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 // Editor Contribution
 
@@ -52,9 +55,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -115,13 +115,35 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	private _resourceMapping = new ResourceMap<NotebookEditorInput>();
 
 	constructor(
-		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IEditorService private readonly editorService: IEditorService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
 		super();
+
+		this._register(undoRedoService.registerUriComparisonKeyComputer({
+			getComparisonKey: (uri: URI): string | null => {
+				if (uri.scheme !== CellUri.scheme) {
+					return null;
+				}
+
+				const data = CellUri.parse(uri);
+				if (!data) {
+					return null;
+				}
+
+				return data.notebook.scheme + ':' + data.notebook.fsPath;
+
+				// const documentUri = this._resourceMapping.get(data.notebook)?.resource;
+				// if (documentUri) {
+				// 	return documentUri.toString();
+				// }
+
+				// return null;
+			}
+		}));
 
 		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {

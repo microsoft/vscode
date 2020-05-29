@@ -166,11 +166,6 @@ export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEd
 export interface EditorServiceImpl extends IEditorService {
 
 	/**
-	 * Emitted when an editor is closed.
-	 */
-	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
-
-	/**
 	 * Emitted when an editor failed to open.
 	 */
 	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;

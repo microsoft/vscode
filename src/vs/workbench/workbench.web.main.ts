@@ -26,6 +26,7 @@ import 'vs/workbench/browser/web.main';
 
 
 //#region --- workbench services
+
 import 'vs/workbench/services/integrity/browser/integrityService';
 import 'vs/workbench/services/textMate/browser/textMateService';
 import 'vs/workbench/services/search/common/searchService';
@@ -128,6 +129,6 @@ import 'vs/workbench/contrib/tasks/browser/taskService';
 import 'vs/workbench/contrib/welcome/telemetryOptOut/browser/telemetryOptOut.contribution';
 
 // Issues
-import 'vs/workbench/contrib/issue/browser/issue.contribution';
+import 'vs/workbench/contrib/issue/browser/issue.web.contribution';
 
 //#endregion

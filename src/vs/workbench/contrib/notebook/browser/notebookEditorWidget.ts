@@ -39,7 +39,7 @@ import { CellDragAndDropController, CodeCellRenderer, MarkdownCellRenderer, Note
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, IOutput, INotebookKernelInfo, INotebookKernelInfoDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -454,8 +454,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.toggleClass(this.getDomNode(), 'notebook-editor-editable', !!this.viewModel!.metadata?.editable);
 	}
 
-	private createWebview(id: string, document: URI) {
+	private async createWebview(id: string, document: URI): Promise<void> {
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this, id, document);
+		await this.webview.waitForInitialization();
 		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
 		this.webview.webview.onDidFocus(() => this.updateEditorFocus());
 		this.localStore.add(this.webview.onMessage(message => {
@@ -467,8 +468,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	private async attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
-		this.createWebview(this.getId(), textModel.uri);
-		await this.webview!.waitForInitialization();
+		await this.createWebview(this.getId(), textModel.uri);
 
 		this.eventDispatcher = new NotebookEventDispatcher();
 		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this.eventDispatcher, this.getLayoutInfo());
@@ -512,8 +512,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this.webview!.element.style.height = `${scrollHeight}px`;
 
 				if (this.webview?.insetMapping) {
-					let updateItems: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[] = [];
-					let removedItems: IOutput[] = [];
+					let updateItems: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[] = [];
+					let removedItems: IProcessedOutput[] = [];
 					this.webview?.insetMapping.forEach((value, key) => {
 						const cell = value.cell;
 						const viewIndex = this.list?.getViewIndex(cell);
@@ -1130,6 +1130,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async executeNotebookCell(cell: ICellViewModel): Promise<void> {
+		if (cell.cellKind === CellKind.Markdown) {
+			cell.editState = CellEditState.Preview;
+			return;
+		}
+
 		if (!cell.getEvaluatedMetadata(this.notebookViewModel!.metadata).runnable) {
 			return;
 		}
@@ -1219,7 +1224,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.list?.triggerScrollFromMouseWheelEvent(event);
 	}
 
-	createInset(cell: CodeCellViewModel, output: IOutput, shadowContent: string, offset: number) {
+	createInset(cell: CodeCellViewModel, output: IProcessedOutput, shadowContent: string, offset: number) {
 		if (!this.webview) {
 			return;
 		}
@@ -1237,7 +1242,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	removeInset(output: IOutput) {
+	removeInset(output: IProcessedOutput) {
 		if (!this.webview) {
 			return;
 		}
@@ -1245,7 +1250,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.webview!.removeInset(output);
 	}
 
-	hideInset(output: IOutput) {
+	hideInset(output: IProcessedOutput) {
 		if (!this.webview) {
 			return;
 		}

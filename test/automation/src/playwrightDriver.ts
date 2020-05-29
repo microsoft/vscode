@@ -25,7 +25,8 @@ const vscodeToPlaywrightKey: { [key: string]: string } = {
 	up: 'ArrowUp',
 	down: 'ArrowDown',
 	left: 'ArrowLeft',
-	home: 'Home'
+	home: 'Home',
+	esc: 'Escape'
 };
 
 function buildDriver(browser: playwright.Browser, page: playwright.Page): IDriver {

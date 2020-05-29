@@ -3,55 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ipcMain as ipc, IpcMainEvent, protocol } from 'electron';
+import { protocol } from 'electron';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { streamToNodeReadable } from 'vs/base/node/stream';
 import { IFileService } from 'vs/platform/files/common/files';
 import { loadLocalResourceStream, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
-
-export interface RegisterWebviewMetadata {
-	readonly extensionLocation: URI | undefined;
-	readonly localResourceRoots: readonly URI[];
-}
-
 
 export class WebviewProtocolProvider extends Disposable {
 
 	private readonly webviewMetadata = new Map<string, {
 		readonly extensionLocation: URI | undefined;
-		readonly localResourceRoots: URI[];
+		readonly localResourceRoots: readonly URI[];
 	}>();
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
-
-		ipc.on('vscode:registerWebview', (event: IpcMainEvent, id: string, data: RegisterWebviewMetadata) => {
-			this.webviewMetadata.set(id, {
-				extensionLocation: data.extensionLocation ? URI.from(data.extensionLocation) : undefined,
-				localResourceRoots: data.localResourceRoots.map((x: UriComponents) => URI.from(x)),
-			});
-
-			event.sender.send(`vscode:didRegisterWebview-${id}`);
-		});
-
-		ipc.on('vscode:updateWebviewLocalResourceRoots', (event: IpcMainEvent, id: string, localResourceRoots: readonly URI[]) => {
-			const entry = this.webviewMetadata.get(id);
-			if (entry) {
-				this.webviewMetadata.set(id, {
-					extensionLocation: entry.extensionLocation,
-					localResourceRoots: localResourceRoots.map((x: UriComponents) => URI.from(x)),
-				});
-			}
-			event.sender.send(`vscode:didUpdateWebviewLocalResourceRoots-${id}`);
-		});
-
-		ipc.on('vscode:unregisterWebview', (_event: IpcMainEvent, id: string) => {
-			this.webviewMetadata.delete(id);
-		});
 
 		protocol.registerStreamProtocol(Schemas.vscodeWebviewResource, async (request, callback): Promise<void> => {
 			try {
@@ -85,5 +55,23 @@ export class WebviewProtocolProvider extends Disposable {
 		});
 
 		this._register(toDisposable(() => protocol.unregisterProtocol(Schemas.vscodeWebviewResource)));
+	}
+
+	public registerWebview(id: string, extensionLocation: URI | undefined, localResourceRoots: readonly URI[]): void {
+		this.webviewMetadata.set(id, { extensionLocation, localResourceRoots });
+	}
+
+	public unreigsterWebview(id: string): void {
+		this.webviewMetadata.delete(id);
+	}
+
+	public updateLocalResourceRoots(id: string, localResourceRoots: readonly URI[]) {
+		const entry = this.webviewMetadata.get(id);
+		if (entry) {
+			this.webviewMetadata.set(id, {
+				extensionLocation: entry.extensionLocation,
+				localResourceRoots: localResourceRoots,
+			});
+		}
 	}
 }

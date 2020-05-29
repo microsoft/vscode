@@ -78,7 +78,6 @@ declare module 'vscode' {
 		readonly removed: string[];
 	}
 
-
 	/**
 	 * Options to be used when getting a session from an [AuthenticationProvider](#AuthenticationProvider).
 	 */
@@ -1018,8 +1017,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-
-
 	//#region Terminal link handlers https://github.com/microsoft/vscode/issues/91606
 
 	export namespace window {
@@ -1534,7 +1531,6 @@ declare module 'vscode' {
 
 	export interface CustomTextEditorProvider {
 
-
 		/**
 		 * Handle when the underlying resource for a custom editor is renamed.
 		 *
@@ -1551,7 +1547,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region allow QuickPicks to skip sorting: https://github.com/microsoft/vscode/issues/73904
 
@@ -1660,6 +1655,12 @@ declare module 'vscode' {
 		breakpointMargin?: boolean;
 
 		/**
+		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Defaults to true.
+		 */
+		hasExecutionOrder?: boolean;
+
+		/**
 		 * The order in which this cell was executed.
 		 */
 		executionOrder?: number;
@@ -1727,10 +1728,10 @@ declare module 'vscode' {
 		cellRunnable?: boolean;
 
 		/**
-		 * Whether the [execution order](#NotebookCellMetadata.executionOrder) indicator will be displayed.
+		 * Default value for [cell hasExecutionOrder metadata](#NotebookCellMetadata.hasExecutionOrder).
 		 * Defaults to true.
 		 */
-		hasExecutionOrder?: boolean;
+		cellHasExecutionOrder?: boolean;
 
 		displayOrder?: GlobPattern[];
 
@@ -1834,7 +1835,6 @@ declare module 'vscode' {
 		render(document: NotebookDocument, output: CellDisplayOutput, mimeType: string): string;
 		preloads?: Uri[];
 	}
-
 
 	export interface NotebookCellsChangeData {
 		readonly start: number;
@@ -2033,7 +2033,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region @eamodio - timeline: https://github.com/microsoft/vscode/issues/84297
 
@@ -2266,7 +2265,6 @@ declare module 'vscode' {
 	}
 
 	//#endregion
-
 
 	//#region https://github.com/microsoft/vscode/issues/91555
 

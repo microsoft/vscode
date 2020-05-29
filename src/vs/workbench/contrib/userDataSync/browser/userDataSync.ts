@@ -136,7 +136,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				this.userDataSyncWorkbenchService.onDidChangeAccountStatus
 			)(() => this.updateBadge()));
 			this._register(userDataSyncService.onDidChangeConflicts(() => this.onDidChangeConflicts(this.userDataSyncService.conflicts)));
-			this._register(userDataSyncService.onSyncErrors(errors => this.onSyncErrors(errors)));
+			this._register(userDataSyncService.onSyncErrors(errors => this.onSynchronizerErrors(errors)));
 			this._register(userDataAutoSyncService.onError(error => this.onAutoSyncError(error)));
 
 			this.registerActions();
@@ -261,7 +261,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
-	private onAutoSyncError(error: UserDataSyncError): void {
+	private onAutoSyncError(error: UserDataSyncError): boolean {
 		switch (error.code) {
 			case UserDataSyncErrorCode.TurnedOff:
 			case UserDataSyncErrorCode.SessionExpired:
@@ -272,7 +272,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Preferences Sync..."), undefined, true, () => this.turnOn())]
 					}
 				});
-				return;
+				return true;
 			case UserDataSyncErrorCode.TooLarge:
 				if (error.resource === SyncResource.Keybindings || error.resource === SyncResource.Settings) {
 					this.disableSync(error.resource);
@@ -286,19 +286,21 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						}
 					});
 				}
-				return;
+				return true;
 			case UserDataSyncErrorCode.Incompatible:
+			case UserDataSyncErrorCode.UpgradeRequired:
 				this.disableSync();
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('error incompatible', "Turned off sync because local data is incompatible with the data in the cloud. Please update {0} and turn on sync to continue syncing.", this.productService.nameLong),
+					message: localize('error upgrade required', "Turned off sync because the current version ({0}, {1}) of {2} is not compatible with the Preferences Sync Service. Please update and turn on sync to continue syncing.", this.productService.version, this.productService.commit, this.productService.nameLong),
 				});
-				return;
+				return true;
 		}
+		return false;
 	}
 
 	private readonly invalidContentErrorDisposables = new Map<SyncResource, IDisposable>();
-	private onSyncErrors(errors: [SyncResource, UserDataSyncError][]): void {
+	private onSynchronizerErrors(errors: [SyncResource, UserDataSyncError][]): void {
 		if (errors.length) {
 			for (const [source, error] of errors) {
 				switch (error.code) {
@@ -392,6 +394,14 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			}
 			await this.userDataSyncWorkbenchService.turnOn();
 			this.storageService.store('sync.donotAskPreviewConfirmation', true, StorageScope.GLOBAL);
+		} catch (e) {
+			if (isPromiseCanceledError(e)) {
+				return;
+			}
+			if (e instanceof UserDataSyncError && this.onAutoSyncError(e)) {
+				return;
+			}
+			this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
 		} finally {
 			this.turningOnSync = false;
 		}
@@ -616,15 +626,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 
 	private registerTurnOnSyncAction(): void {
 		const turnOnSyncWhenContext = ContextKeyExpr.and(CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized), CONTEXT_SYNC_ENABLEMENT.toNegated(), CONTEXT_ACCOUNT_STATE.notEqualsTo(AccountStatus.Uninitialized), CONTEXT_TURNING_ON_STATE.negate());
-		CommandsRegistry.registerCommand(turnOnSyncCommand.id, async () => {
-			try {
-				await this.turnOn();
-			} catch (e) {
-				if (!isPromiseCanceledError(e)) {
-					this.notificationService.error(localize('turn on failed', "Error while starting Sync: {0}", toErrorMessage(e)));
-				}
-			}
-		});
+		CommandsRegistry.registerCommand(turnOnSyncCommand.id, () => this.turnOn());
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			group: '5_sync',
 			command: {

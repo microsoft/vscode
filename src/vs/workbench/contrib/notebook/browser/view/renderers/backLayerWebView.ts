@@ -12,17 +12,23 @@ import { isWeb } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as UUID from 'vs/base/common/uuid';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { IOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
+
+export interface WebviewIntialized {
+	__vscode_notebook_message: boolean;
+	type: 'initialized'
+}
 
 export interface IDimensionMessage {
 	__vscode_notebook_message: boolean;
@@ -107,12 +113,13 @@ export interface IScrollRequestMessage {
 export interface IUpdatePreloadResourceMessage {
 	type: 'preload';
 	resources: string[];
+	source: string;
 }
 
 interface ICachedInset {
 	outputId: string;
 	cell: CodeCellViewModel;
-	preloads: ReadonlySet<number>;
+	preloads: ReadonlySet<string>;
 	cachedCreation: ICreationRequestMessage;
 }
 
@@ -124,22 +131,22 @@ function html(strings: TemplateStringsArray, ...values: any[]): string {
 	return str;
 }
 
-type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage;
+type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage | WebviewIntialized;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
 	element: HTMLElement;
 	webview!: WebviewElement;
-	insetMapping: Map<IOutput, ICachedInset> = new Map();
-	hiddenInsetMapping: Set<IOutput> = new Set();
-	reversedInsetMapping: Map<string, IOutput> = new Map();
+	insetMapping: Map<IProcessedOutput, ICachedInset> = new Map();
+	hiddenInsetMapping: Set<IProcessedOutput> = new Set();
+	reversedInsetMapping: Map<string, IProcessedOutput> = new Map();
 	preloadsCache: Map<string, boolean> = new Map();
-	kernelPreloadsCache: Map<string, boolean> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
 	rendererRootsCache: URI[] = [];
 	kernelRootsCache: URI[] = [];
 	private readonly _onMessage = this._register(new Emitter<any>());
 	public readonly onMessage: Event<any> = this._onMessage.event;
+	private _loaded!: Promise<void>;
 	private _initalized: Promise<void>;
 	private _disposed = false;
 
@@ -473,6 +480,11 @@ ${loaderJs}
 				}
 		}
 	});
+
+	vscode.postMessage({
+		__vscode_notebook_message: true,
+		type: 'initialized'
+	});
 }());
 
 </script>
@@ -480,7 +492,7 @@ ${loaderJs}
 `;
 	}
 
-	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IOutput } | undefined {
+	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IProcessedOutput } | undefined {
 		const output = this.reversedInsetMapping.get(id);
 		if (!output) {
 			return;
@@ -494,7 +506,14 @@ ${loaderJs}
 		this.webview.mountTo(this.element);
 
 		this._register(this.webview.onDidClickLink(link => {
-			this.openerService.open(link, { fromUserGesture: true });
+			if (!link) {
+				return;
+			}
+
+			if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)
+				|| matchesScheme(link, Schemas.command)) {
+				this.openerService.open(link, { fromUserGesture: true });
+			}
 		}));
 
 		this._register(this.webview.onDidReload(() => {
@@ -584,11 +603,24 @@ ${loaderJs}
 			allowScripts: true,
 			localResourceRoots: this.localResourceRootsCache
 		}, undefined);
+
+		let resolveFunc: () => void;
+		this._loaded = new Promise<void>((resolve, reject) => {
+			resolveFunc = resolve;
+		});
+
+		let dispose = webview.onMessage((data: IMessage) => {
+			if (data.__vscode_notebook_message && data.type === 'initialized') {
+				resolveFunc();
+				dispose.dispose();
+			}
+		});
+
 		webview.html = content;
 		return webview;
 	}
 
-	shouldUpdateInset(cell: CodeCellViewModel, output: IOutput, cellTop: number) {
+	shouldUpdateInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number) {
 		if (this._disposed) {
 			return;
 		}
@@ -608,7 +640,7 @@ ${loaderJs}
 		return true;
 	}
 
-	updateViewScrollTop(top: number, items: { cell: CodeCellViewModel, output: IOutput, cellTop: number }[]) {
+	updateViewScrollTop(top: number, items: { cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -639,7 +671,7 @@ ${loaderJs}
 		this.webview.sendMessage(message);
 	}
 
-	createInset(cell: CodeCellViewModel, output: IOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<number>) {
+	createInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<string>) {
 		if (this._disposed) {
 			return;
 		}
@@ -678,7 +710,7 @@ ${loaderJs}
 		this.reversedInsetMapping.set(outputId, output);
 	}
 
-	removeInset(output: IOutput) {
+	removeInset(output: IProcessedOutput) {
 		if (this._disposed) {
 			return;
 		}
@@ -698,7 +730,7 @@ ${loaderJs}
 		this.reversedInsetMapping.delete(id);
 	}
 
-	hideInset(output: IOutput) {
+	hideInset(output: IProcessedOutput) {
 		if (this._disposed) {
 			return;
 		}
@@ -744,10 +776,12 @@ ${loaderJs}
 		}, 50);
 	}
 
-	updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
+	async updateKernelPreloads(extensionLocations: URI[], preloads: URI[]) {
 		if (this._disposed) {
 			return;
 		}
+
+		await this._loaded;
 
 		let resources: string[] = [];
 		preloads = preloads.map(preload => {
@@ -758,9 +792,9 @@ ${loaderJs}
 		});
 
 		preloads.forEach(e => {
-			if (!this.kernelPreloadsCache.has(e.toString())) {
+			if (!this.preloadsCache.has(e.toString())) {
 				resources.push(e.toString());
-				this.kernelPreloadsCache.set(e.toString(), true);
+				this.preloadsCache.set(e.toString(), true);
 			}
 		});
 
@@ -769,13 +803,15 @@ ${loaderJs}
 		}
 
 		this.kernelRootsCache = [...extensionLocations, ...this.kernelRootsCache];
-		this._updatePreloads(resources);
+		this._updatePreloads(resources, 'kernel');
 	}
 
-	updateRendererPreloads(preloads: ReadonlySet<number>) {
+	async updateRendererPreloads(preloads: ReadonlySet<string>) {
 		if (this._disposed) {
 			return;
 		}
+
+		await this._loaded;
 
 		let resources: string[] = [];
 		let extensionLocations: URI[] = [];
@@ -799,23 +835,23 @@ ${loaderJs}
 			}
 		});
 
+		if (!resources.length) {
+			return;
+		}
+
 		this.rendererRootsCache = extensionLocations;
-		this._updatePreloads(resources);
+		this._updatePreloads(resources, 'renderer');
 	}
 
-	private _updatePreloads(resources: string[]) {
+	private _updatePreloads(resources: string[], source: string) {
 		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
 
-		this.webview.contentOptions = {
-			allowMultipleAPIAcquire: true,
-			allowScripts: true,
-			enableCommandUris: true,
-			localResourceRoots: mixedResourceRoots
-		};
+		this.webview.localResourcesRoot = mixedResourceRoots;
 
 		let message: IUpdatePreloadResourceMessage = {
 			type: 'preload',
-			resources: resources
+			resources: resources,
+			source: source
 		};
 
 		this.webview.sendMessage(message);

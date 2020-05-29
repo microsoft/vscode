@@ -7,7 +7,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import * as DOM from 'vs/base/browser/dom';
 import * as glob from 'vs/base/common/glob';
 import { IListVirtualDelegate, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation, IProgressStep, IProgress } from 'vs/platform/progress/common/progress';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -19,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, TreeFilterResult, IAsyncDataSou
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration, IExplorerService } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, IExplorerService, VIEW_ID } from 'vs/workbench/contrib/files/common/files';
 import { dirname, joinPath, isEqualOrParent, basename, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
@@ -50,12 +50,13 @@ import { Emitter, Event, EventMultiplexer } from 'vs/base/common/event';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { VSBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
 import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IEditorInput } from 'vs/workbench/common/editor';
+import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -753,7 +754,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkingCopyFileService private workingCopyFileService: IWorkingCopyFileService,
 		@IHostService private hostService: IHostService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
+		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		this.toDispose = [];
 
@@ -971,22 +973,37 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		const results: { isFile: boolean, resource: URI }[] = [];
-		for (let entry of entries) {
-			const result = await this.doUploadWebFileEntry(entry, target.resource, target);
+		const cts = new CancellationTokenSource();
 
-			if (result) {
-				results.push(result);
+		// Start upload and report progress globally
+		const uploadPromise = this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			delay: 800,
+			cancellable: true,
+			title: localize('uploadingFiles', "Uploading")
+		}, async progress => {
+			for (let entry of entries) {
+				const result = await this.doUploadWebFileEntry(entry, target.resource, target, progress, cts.token);
+				if (result) {
+					results.push(result);
+				}
 			}
-		}
+		}, () => cts.dispose(true));
+
+		// Also indicate progress in the files view
+		this.progressService.withProgress({ location: VIEW_ID, delay: 800 }, () => uploadPromise);
+
+		// Wait until upload is done
+		await uploadPromise;
 
 		// Open uploaded file in editor only if we upload just one
-		if (results.length === 1 && results[0].isFile) {
+		if (!cts.token.isCancellationRequested && results.length === 1 && results[0].isFile) {
 			await this.editorService.openEditor({ resource: results[0].resource, options: { pinned: true } });
 		}
 	}
 
-	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined): Promise<{ isFile: boolean, resource: URI } | undefined> {
-		if (!entry.name || !entry.isFile && !entry.isDirectory) {
+	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
+		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}
 
@@ -1000,35 +1017,43 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 		}
 
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		// Report progress
+		progress.report({ message: entry.name });
+
 		// Handle file upload
 		if (entry.isFile) {
 			const file = await new Promise<File>((resolve, reject) => entry.file(resolve, reject));
-			await new Promise<void>((resolve, reject) => {
-				const reader = new FileReader();
-				reader.onload = async event => {
-					try {
-						if (event.target?.result instanceof ArrayBuffer) {
-							await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
-						} else {
-							throw new Error('Could not read from dropped file.');
-						}
 
-						resolve();
-					} catch (error) {
-						reject(error);
-					}
-				};
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 
-				// Start reading the file to trigger `onload`
-				reader.readAsArrayBuffer(file);
-			});
+			// Chrome/Edge/Firefox support stream method
+			if (typeof file.stream === 'function') {
+				await this.doUploadWebFileEntryBuffered(resource, file);
+			}
+
+			// Fallback to unbuffered upload for other browsers
+			else {
+				await this.doUploadWebFileEntryUnbuffered(resource, file);
+			}
 
 			return { isFile: true, resource };
 		}
 
 		// Handle folder upload
 		else {
+
+			// Create target folder
 			await this.fileService.createFolder(resource);
+
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
 
 			// Recursive upload files in this directory
 			const folderTarget = target && target.getChild(entry.name) || undefined;
@@ -1038,11 +1063,56 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			});
 
 			for (let childEntry of childEntries) {
-				await this.doUploadWebFileEntry(childEntry, resource, folderTarget);
+				await this.doUploadWebFileEntry(childEntry, resource, folderTarget, progress, token);
 			}
 
 			return { isFile: false, resource };
 		}
+	}
+
+	private async doUploadWebFileEntryBuffered(resource: URI, file: File): Promise<void> {
+		const writeableStream = newWriteableBufferStream();
+
+		// Read the file in chunks using File.stream() web APIs
+		(async () => {
+			try {
+				const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+
+				let res = await reader.read();
+				while (!res.done) {
+					writeableStream.write(VSBuffer.wrap(res.value));
+
+					res = await reader.read();
+				}
+				writeableStream.end(res.value instanceof Uint8Array ? VSBuffer.wrap(res.value) : undefined);
+			} catch (error) {
+				writeableStream.end(error);
+			}
+		})();
+
+		await this.fileService.writeFile(resource, writeableStream);
+	}
+
+	private doUploadWebFileEntryUnbuffered(resource: URI, file: File): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = async event => {
+				try {
+					if (event.target?.result instanceof ArrayBuffer) {
+						await this.fileService.writeFile(resource, VSBuffer.wrap(new Uint8Array(event.target.result)));
+					} else {
+						throw new Error('Could not read from dropped file.');
+					}
+
+					resolve();
+				} catch (error) {
+					reject(error);
+				}
+			};
+
+			// Start reading the file to trigger `onload`
+			reader.readAsArrayBuffer(file);
+		});
 	}
 
 	private async handleExternalDrop(data: DesktopDragAndDropData, target: ExplorerItem, originalEvent: DragEvent): Promise<void> {

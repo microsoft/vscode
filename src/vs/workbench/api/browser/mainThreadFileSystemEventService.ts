@@ -8,12 +8,9 @@ import { FileChangeType, IFileService, FileOperation } from 'vs/platform/files/c
 import { extHostCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../common/extHost.protocol';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IProgressService } from 'vs/platform/progress/common/progress';
 import { localize } from 'vs/nls';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 
 @extHostCustomer
@@ -25,9 +22,6 @@ export class MainThreadFileSystemEventService {
 		extHostContext: IExtHostContext,
 		@IFileService fileService: IFileService,
 		@ITextFileService textFileService: ITextFileService,
-		@IProgressService progressService: IProgressService,
-		@IConfigurationService configService: IConfigurationService,
-		@ILogService logService: ILogService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 
