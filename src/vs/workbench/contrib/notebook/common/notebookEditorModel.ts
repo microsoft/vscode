@@ -138,6 +138,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 			this.setDirty(true);
 			this._onDidChangeContent.fire();
 		}));
+		this._register(this._notebook.onDidChangeUnknown(() => {
+			this.setDirty(true);
+		}));
 
 		await this.backupFileService.discardBackup(this._workingCopyResource);
 		this.setDirty(true);
@@ -154,6 +157,9 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		this._register(this._notebook.onDidChangeContent(() => {
 			this.setDirty(true);
 			this._onDidChangeContent.fire();
+		}));
+		this._register(this._notebook.onDidChangeUnknown(() => {
+			this.setDirty(true);
 		}));
 
 		return this;

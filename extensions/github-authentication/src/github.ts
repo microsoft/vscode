@@ -21,18 +21,6 @@ interface SessionData {
 	accessToken: string;
 }
 
-// TODO remove
-interface OldSessionData {
-	id: string;
-	accountName: string;
-	scopes: string[];
-	accessToken: string;
-}
-
-function isOldSessionData(x: any): x is OldSessionData {
-	return !!x.accountName;
-}
-
 export class GitHubAuthenticationProvider {
 	private _sessions: vscode.AuthenticationSession2[] = [];
 	private _githubServer = new GitHubServer();
@@ -96,9 +84,9 @@ export class GitHubAuthenticationProvider {
 		const storedSessions = await keychain.getToken();
 		if (storedSessions) {
 			try {
-				const sessionData: (SessionData | OldSessionData)[] = JSON.parse(storedSessions);
-				const sessionPromises = sessionData.map(async (session: SessionData | OldSessionData): Promise<vscode.AuthenticationSession2> => {
-					const needsUserInfo = isOldSessionData(session) || !session.account;
+				const sessionData: SessionData[] = JSON.parse(storedSessions);
+				const sessionPromises = sessionData.map(async (session: SessionData): Promise<vscode.AuthenticationSession2> => {
+					const needsUserInfo = !session.account;
 					let userInfo: { id: string, accountName: string };
 					if (needsUserInfo) {
 						userInfo = await this._githubServer.getUserInfo(session.accessToken);
@@ -107,12 +95,8 @@ export class GitHubAuthenticationProvider {
 					return {
 						id: session.id,
 						account: {
-							displayName: isOldSessionData(session)
-								? session.accountName
-								: session.account?.displayName ?? userInfo!.accountName,
-							id: isOldSessionData(session)
-								? userInfo!.id
-								: session.account?.id ?? userInfo!.id
+							displayName: session.account?.displayName ?? userInfo!.accountName,
+							id: session.account?.id ?? userInfo!.id
 						},
 						scopes: session.scopes,
 						accessToken: session.accessToken

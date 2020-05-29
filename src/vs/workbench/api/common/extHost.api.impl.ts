@@ -715,8 +715,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 
 				return uriPromise.then(uri => {
-					return extHostDocuments.ensureDocumentData(uri).then(() => {
-						return extHostDocuments.getDocument(uri);
+					return extHostDocuments.ensureDocumentData(uri).then(documentData => {
+						return documentData.document;
 					});
 				});
 			},

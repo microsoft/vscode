@@ -160,6 +160,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		super.dispose();
 	}
 }
+
 export interface IResourceDescriptor {
 	readonly resource: URI;
 	readonly name: string;

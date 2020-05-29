@@ -16,8 +16,9 @@ import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocum
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource, isEqualOrParent } from 'vs/base/common/resources';
+import { toLocalResource, isEqualOrParent, extUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class BoundModelReferenceCollection {
 
@@ -78,6 +79,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _textFileService: ITextFileService;
 	private readonly _fileService: IFileService;
 	private readonly _environmentService: IWorkbenchEnvironmentService;
+	private readonly _uriIdentityService: IUriIdentityService;
 
 	private readonly _toDispose = new DisposableStore();
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
@@ -93,6 +95,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 		this._modelService = modelService;
@@ -100,6 +103,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._textFileService = textFileService;
 		this._fileService = fileService;
 		this._environmentService = environmentService;
+		this._uriIdentityService = uriIdentityService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 
@@ -179,33 +183,37 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return this._textFileService.save(URI.revive(uri)).then(target => !!target);
 	}
 
-	$tryOpenDocument(_uri: UriComponents): Promise<any> {
-		const uri = URI.revive(_uri);
-		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
+	$tryOpenDocument(uriData: UriComponents): Promise<URI> {
+		const inputUri = URI.revive(uriData);
+		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
 			return Promise.reject(new Error(`Invalid uri. Scheme and authority or path must be set.`));
 		}
 
-		let promise: Promise<boolean>;
-		switch (uri.scheme) {
+		const canonicalUri = this._uriIdentityService.asCanonicalUri(inputUri);
+
+		let promise: Promise<URI>;
+		switch (canonicalUri.scheme) {
 			case Schemas.untitled:
-				promise = this._handleUntitledScheme(uri);
+				promise = this._handleUntitledScheme(canonicalUri);
 				break;
 			case Schemas.file:
 			default:
-				promise = this._handleAsResourceInput(uri);
+				promise = this._handleAsResourceInput(canonicalUri);
 				break;
 		}
 
-		return promise.then(success => {
-			if (!success) {
-				return Promise.reject(new Error('cannot open ' + uri.toString()));
-			} else if (!this._modelIsSynced.has(uri.toString())) {
-				return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
+		return promise.then(documentUri => {
+			if (!documentUri) {
+				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}`));
+			} else if (!extUri.isEqual(documentUri, canonicalUri)) {
+				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`));
+			} else if (!this._modelIsSynced.has(canonicalUri.toString())) {
+				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`));
 			} else {
-				return undefined;
+				return canonicalUri;
 			}
 		}, err => {
-			return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err)));
+			return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: ${toErrorMessage(err)}`));
 		});
 	}
 
@@ -213,21 +221,20 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
 	}
 
-	private _handleAsResourceInput(uri: URI): Promise<boolean> {
+	private _handleAsResourceInput(uri: URI): Promise<URI> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
 			this._modelReferenceCollection.add(uri, ref);
-			const result = !!ref.object;
-			return result;
+			return ref.object.textEditorModel.uri;
 		});
 	}
 
-	private _handleUntitledScheme(uri: URI): Promise<boolean> {
+	private _handleUntitledScheme(uri: URI): Promise<URI> {
 		const asLocalUri = toLocalResource(uri, this._environmentService.configuration.remoteAuthority);
 		return this._fileService.resolve(asLocalUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));
 		}, err => {
-			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined).then(resource => !!resource);
+			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
 		});
 	}
 

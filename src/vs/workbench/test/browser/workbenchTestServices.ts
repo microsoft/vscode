@@ -107,6 +107,8 @@ import { TestWorkingCopyService, TestContextService, TestStorageService, TestTex
 import { IViewsService, IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -149,7 +151,9 @@ export function workbenchInstantiationService(overrides?: {
 	const themeService = new TestThemeService();
 	instantiationService.stub(IThemeService, themeService);
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
-	instantiationService.stub(IFileService, new TestFileService());
+	const fileService = new TestFileService();
+	instantiationService.stub(IFileService, fileService);
+	instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
 	instantiationService.stub(IBackupFileService, new TestBackupFileService());
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
 	instantiationService.stub(INotificationService, new TestNotificationService());
@@ -670,6 +674,7 @@ export class TestEditorService implements EditorServiceImpl {
 	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	whenClosed(resources: URI[], options?: { waitForSaved: boolean }): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 export class TestFileService implements IFileService {

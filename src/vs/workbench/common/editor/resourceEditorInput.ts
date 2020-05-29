@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITextEditorModel, IModeSupport, TextResourceEditorInput } from 'vs/workbench/common/editor';
+import { ITextEditorModel, IModeSupport } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -14,12 +14,13 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 
 /**
  * A read-only text editor input whos contents are made of the provided resource that points to an existing
  * code editor model.
  */
-export class ResourceEditorInput extends TextResourceEditorInput implements IModeSupport {
+export class ResourceEditorInput extends AbstractTextResourceEditorInput implements IModeSupport {
 
 	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
@@ -64,6 +65,7 @@ export class ResourceEditorInput extends TextResourceEditorInput implements IMod
 	setDescription(description: string): void {
 		if (this.description !== description) {
 			this.description = description;
+
 			this._onDidChangeLabel.fire();
 		}
 	}
@@ -87,9 +89,8 @@ export class ResourceEditorInput extends TextResourceEditorInput implements IMod
 
 		const ref = await this.modelReference;
 
-		const model = ref.object;
-
 		// Ensure the resolved model is of expected type
+		const model = ref.object;
 		if (!(model instanceof ResourceEditorModel)) {
 			ref.dispose();
 			this.modelReference = undefined;

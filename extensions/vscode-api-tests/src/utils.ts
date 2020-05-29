@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { MemFS } from './memfs';
+import { TestFS } from './memfs';
 import * as assert from 'assert';
 
 export function rndName() {
 	return Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 10);
 }
 
-export const testFs = new MemFS();
-vscode.workspace.registerFileSystemProvider(testFs.scheme, testFs);
+export const testFs = new TestFS('fake-fs', true);
+vscode.workspace.registerFileSystemProvider(testFs.scheme, testFs, { isCaseSensitive: testFs.isCaseSensitive });
 
 export async function createRandomFile(contents = '', dir: vscode.Uri | undefined = undefined, ext = ''): Promise<vscode.Uri> {
 	let fakeFile: vscode.Uri;

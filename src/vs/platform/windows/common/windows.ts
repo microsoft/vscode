@@ -20,15 +20,16 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 
 	noRecentEntry?: boolean;
 
+	addMode?: boolean;
+
 	diffMode?: boolean;
 	gotoLineMode?: boolean;
+
+	waitMarkerFileURI?: URI;
 }
 
-export interface INativeOpenWindowOptions extends IOpenWindowOptions {
-	diffMode?: boolean;
-	addMode?: boolean;
-	gotoLineMode?: boolean;
-	waitMarkerFileURI?: URI;
+export interface IAddFoldersRequest {
+	foldersToAdd: UriComponents[];
 }
 
 export interface IOpenedWindow {

@@ -44,10 +44,6 @@ export interface IRunKeybindingInWindowRequest {
 	userSettingsLabel: string;
 }
 
-export interface IAddFoldersRequest {
-	foldersToAdd: UriComponents[];
-}
-
 export interface INativeWindowConfiguration extends IWindowConfiguration, ParsedArgs {
 	mainPid: number;
 

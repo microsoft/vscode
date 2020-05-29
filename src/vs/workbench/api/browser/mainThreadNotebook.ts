@@ -282,6 +282,13 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 		return;
 	}
 
+	async $onNotebookChange(viewType: string, uri: UriComponents): Promise<void> {
+		let controller = this._notebookProviders.get(viewType);
+		if (controller) {
+			controller.handleNotebookChange(uri);
+		}
+	}
+
 	async $unregisterNotebookProvider(viewType: string): Promise<void> {
 		this._notebookProviders.delete(viewType);
 		this._notebookService.unregisterNotebookProvider(viewType);
@@ -502,6 +509,11 @@ export class MainThreadNotebookController implements IMainNotebookController {
 	}
 
 	// Methods for ExtHost
+
+	handleNotebookChange(resource: UriComponents) {
+		let document = this._mapping.get(URI.from(resource).toString());
+		document?.textModel.handleUnknownChange();
+	}
 
 	updateLanguages(resource: UriComponents, languages: string[]) {
 		let document = this._mapping.get(URI.from(resource).toString());

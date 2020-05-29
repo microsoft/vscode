@@ -6,12 +6,12 @@
 import { SyncStatus, IUserDataSyncStoreService, ISyncExtension, IUserDataSyncLogService, IUserDataSynchroniser, SyncResource, IUserDataSyncEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, ISyncPreviewResult, USER_DATA_SYNC_SCHEME } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType, IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
+import { merge, getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { AbstractSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -87,9 +87,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
 
 			if (remoteUserData.syncData !== null) {
-				const localExtensions = await this.getLocalExtensions();
+				const installedExtensions = await this.extensionManagementService.getInstalled();
+				const localExtensions = this.getLocalExtensions(installedExtensions);
 				const remoteExtensions = await this.parseAndMigrateExtensions(remoteUserData.syncData);
-				const { added, updated, remote, removed } = merge(localExtensions, remoteExtensions, localExtensions, [], this.getIgnoredExtensions());
+				const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+				const { added, updated, remote, removed } = merge(localExtensions, remoteExtensions, localExtensions, [], ignoredExtensions);
 				await this.apply({
 					added, removed, updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
 					hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
@@ -120,8 +122,10 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			this.logService.info(`${this.syncResourceLogLabel}: Started pushing extensions...`);
 			this.setStatus(SyncStatus.Syncing);
 
-			const localExtensions = await this.getLocalExtensions();
-			const { added, removed, updated, remote } = merge(localExtensions, null, null, [], this.getIgnoredExtensions());
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const localExtensions = this.getLocalExtensions(installedExtensions);
+			const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+			const { added, removed, updated, remote } = merge(localExtensions, null, null, [], ignoredExtensions);
 			const lastSyncUserData = await this.getLastSyncUserData<ILastSyncUserData>();
 			const remoteUserData = await this.getRemoteUserData(lastSyncUserData);
 			await this.apply({
@@ -145,7 +149,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	async resolveContent(uri: URI): Promise<string | null> {
 		if (isEqual(uri, ExtensionsSynchroniser.EXTENSIONS_DATA_URI)) {
-			const localExtensions = await this.getLocalExtensions();
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const localExtensions = this.getLocalExtensions(installedExtensions);
 			return this.format(localExtensions);
 		}
 
@@ -189,7 +194,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 
 	async hasLocalData(): Promise<boolean> {
 		try {
-			const localExtensions = await this.getLocalExtensions();
+			const installedExtensions = await this.extensionManagementService.getInstalled();
+			const localExtensions = this.getLocalExtensions(installedExtensions);
 			if (isNonEmptyArray(localExtensions)) {
 				return true;
 			}
@@ -206,9 +212,11 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 	}
 
 	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<void> {
-		const localExtensions = await this.getLocalExtensions();
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const localExtensions = this.getLocalExtensions(installedExtensions);
 		const syncExtensions = await this.parseAndMigrateExtensions(syncData);
-		const { added, updated, removed } = merge(localExtensions, syncExtensions, localExtensions, [], this.getIgnoredExtensions());
+		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
+		const { added, updated, removed } = merge(localExtensions, syncExtensions, localExtensions, [], ignoredExtensions);
 
 		await this.apply({
 			added, removed, updated, remote: syncExtensions, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
@@ -222,7 +230,9 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? await this.parseAndMigrateExtensions(lastSyncUserData.syncData!) : null;
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
 
-		const localExtensions = await this.getLocalExtensions();
+		const installedExtensions = await this.extensionManagementService.getInstalled();
+		const localExtensions = this.getLocalExtensions(installedExtensions);
+		const ignoredExtensions = getIgnoredExtensions(installedExtensions, this.configurationService);
 
 		if (remoteExtensions) {
 			this.logService.trace(`${this.syncResourceLogLabel}: Merging remote extensions with local extensions...`);
@@ -230,7 +240,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			this.logService.trace(`${this.syncResourceLogLabel}: Remote extensions does not exist. Synchronizing extensions for the first time.`);
 		}
 
-		const { added, removed, updated, remote } = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, this.getIgnoredExtensions());
+		const { added, removed, updated, remote } = merge(localExtensions, remoteExtensions, lastSyncExtensions, skippedExtensions, ignoredExtensions);
 
 		return {
 			added,
@@ -244,10 +254,6 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
 			hasRemoteChanged: remote !== null
 		};
-	}
-
-	private getIgnoredExtensions() {
-		return this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
 	}
 
 	private async apply({ added, removed, updated, remote, remoteUserData, skippedExtensions, lastSyncUserData, localExtensions, hasLocalChanged, hasRemoteChanged }: IExtensionsSyncPreviewResult, forcePush?: boolean): Promise<void> {
@@ -388,8 +394,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		return JSON.parse(syncData.content);
 	}
 
-	private async getLocalExtensions(): Promise<ISyncExtension[]> {
-		const installedExtensions = await this.extensionManagementService.getInstalled();
+	private getLocalExtensions(installedExtensions: ILocalExtension[]): ISyncExtension[] {
 		const disabledExtensions = this.extensionEnablementService.getDisabledExtensions();
 		return installedExtensions
 			.map(({ identifier, type }) => {
