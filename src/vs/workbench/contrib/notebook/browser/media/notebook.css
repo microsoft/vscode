@@ -400,7 +400,7 @@
 	opacity: 1;
 }
 
-.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before {
+.notebookOverlay .monaco-list-row .cell-editor-part:before {
 	z-index: 20;
 	content: "";
 	right: 0px;
@@ -513,11 +513,6 @@
 	line-height: 1.2;
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
-	border-color: rgba(255, 255, 255, 0.18);
-}
-
-.monaco-workbench.vs .notebookOverlay .cell.markdown h1 {
-	border-color: rgba(0, 0, 0, 0.18);
 }
 
 .notebookOverlay .cell.markdown h1,
