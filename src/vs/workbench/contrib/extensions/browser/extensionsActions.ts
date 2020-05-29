@@ -1082,7 +1082,6 @@ export class CheckForUpdatesAction extends Action {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IViewletService private readonly viewletService: IViewletService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super(id, label, '', true);
@@ -1091,7 +1090,7 @@ export class CheckForUpdatesAction extends Action {
 	private checkUpdatesAndNotify(): void {
 		const outdated = this.extensionsWorkbenchService.outdated;
 		if (!outdated.length) {
-			this.dialogService.show(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."), [localize('ok', "OK")]);
+			this.notificationService.prompt(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."), []);
 			return;
 		}
 
