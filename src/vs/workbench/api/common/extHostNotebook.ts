@@ -815,8 +815,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		// }
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
+
+		const listener = provider.onDidChangeNotebook(e => {
+			this._proxy.$onNotebookChange(viewType, e.document.uri);
+		});
+
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 		return new extHostTypes.Disposable(() => {
+			listener.dispose();
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
 		});

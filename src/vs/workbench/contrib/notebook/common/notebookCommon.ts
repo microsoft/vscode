@@ -258,6 +258,7 @@ export interface INotebookTextModel {
 	renderers: Set<string>;
 	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
 	onDidChangeContent: Event<void>;
+	onDidChangeUnknown: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -560,4 +561,3 @@ export interface IEditor extends editorCommon.ICompositeCodeEditor {
 	hasFocus(): boolean;
 	hasModel(): boolean;
 }
-

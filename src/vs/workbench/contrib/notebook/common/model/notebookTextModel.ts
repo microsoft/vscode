@@ -78,6 +78,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private _onDidChangeMetadata = new Emitter<NotebookDocumentMetadata>();
 	onDidChangeMetadata: Event<NotebookDocumentMetadata> = this._onDidChangeMetadata.event;
+	private readonly _onDidChangeUnknown = new Emitter<void>();
+	readonly onDidChangeUnknown: Event<void> = this._onDidChangeUnknown.event;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
@@ -220,6 +222,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 	private _increaseVersionId(): void {
 		this._versionId = this._versionId + 1;
+	}
+
+	handleUnknownChange() {
+		this._onDidChangeUnknown.fire();
 	}
 
 	updateLanguages(languages: string[]) {
