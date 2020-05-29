@@ -152,7 +152,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	}
 
-	install(vsix: URI, isDefault?: boolean): Promise<ILocalExtension> {
+	install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#install', vsix.toString());
 		return createCancelablePromise(token => {
 			return this.downloadVsix(vsix).then(downloadLocation => {
@@ -170,6 +170,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 							.then(installedExtensions => {
 								const existing = installedExtensions.filter(i => areSameExtensions(identifier, i.identifier))[0];
 								if (existing) {
+									isMachineScoped = isMachineScoped || existing.isMachineScoped;
 									operation = InstallOperation.Update;
 									if (identifierWithVersion.equals(new ExtensionIdentifierWithVersion(existing.identifier, existing.manifest.version))) {
 										return this.extensionsScanner.removeExtension(existing, 'existing').then(null, e => Promise.reject(new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", manifest.displayName || manifest.name))));
@@ -194,8 +195,8 @@ export class ExtensionManagementService extends Disposable implements IExtension
 								this._onInstallExtension.fire({ identifier, zipPath });
 								return this.getGalleryMetadata(getGalleryExtensionId(manifest.publisher, manifest.name))
 									.then(
-										metadata => this.installFromZipPath(identifierWithVersion, zipPath, { ...metadata, isDefault }, operation, token),
-										() => this.installFromZipPath(identifierWithVersion, zipPath, isDefault ? { isDefault } : undefined, operation, token))
+										metadata => this.installFromZipPath(identifierWithVersion, zipPath, { ...metadata, isMachineScoped }, operation, token),
+										() => this.installFromZipPath(identifierWithVersion, zipPath, isMachineScoped ? { isMachineScoped } : undefined, operation, token))
 									.then(
 										local => { this.logService.info('Successfully installed the extension:', identifier.id); return local; },
 										e => {
@@ -239,7 +240,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			));
 	}
 
-	async installFromGallery(extension: IGalleryExtension, isDefault?: boolean): Promise<ILocalExtension> {
+	async installFromGallery(extension: IGalleryExtension, isMachineScoped?: boolean): Promise<ILocalExtension> {
 		if (!this.galleryService.isEnabled()) {
 			return Promise.reject(new Error(nls.localize('MarketPlaceDisabled', "Marketplace is not enabled")));
 		}
@@ -288,7 +289,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 				this.downloadInstallableExtension(extension, operation)
 					.then(installableExtension => {
-						installableExtension.metadata.isDefault = isDefault !== undefined ? isDefault : existingExtension?.isDefault;
+						installableExtension.metadata.isMachineScoped = isMachineScoped || existingExtension?.isMachineScoped;
 						return this.installExtension(installableExtension, cancellationToken)
 							.then(local => this.extensionsDownloader.delete(URI.file(installableExtension.zipPath)).finally(() => { }).then(() => local));
 					})
@@ -483,7 +484,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	async updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
-		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...metadata, isDefault: local.isDefault });
+		local = await this.extensionsScanner.saveMetadataForLocalExtension(local, { ...metadata, isMachineScoped: local.isMachineScoped });
 		this.manifestCache.invalidate();
 		return local;
 	}
