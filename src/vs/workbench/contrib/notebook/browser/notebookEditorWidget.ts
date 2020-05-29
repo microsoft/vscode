@@ -93,6 +93,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	private scrollBeyondLastLine: boolean;
 	private readonly memento: Memento;
 	private _isDisposed: boolean = false;
+	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
+	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
@@ -341,6 +344,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}));
 
 		this._register(this.list.onDidChangeFocus(_e => this._onDidChangeActiveEditor.fire(this)));
+
+		const widgetFocusTracker = DOM.trackFocus(this.getDomNode());
+		this._register(widgetFocusTracker);
+		this._register(widgetFocusTracker.onDidFocus(() => this._onDidFocusWidget.fire()));
 	}
 
 	getDomNode() {
@@ -462,7 +469,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.webview = this.instantiationService.createInstance(BackLayerWebView, this, id, document);
 		await this.webview.waitForInitialization();
 		this.webview.webview.onDidBlur(() => this.updateEditorFocus());
-		this.webview.webview.onDidFocus(() => this.updateEditorFocus());
+		this.webview.webview.onDidFocus(() => {
+			this.updateEditorFocus();
+			this._onDidFocusWidget.fire();
+		});
+
 		this.localStore.add(this.webview.onMessage(message => {
 			if (this.viewModel) {
 				this.notebookService.onDidReceiveMessage(this.viewModel.viewType, this.getId(), message);
