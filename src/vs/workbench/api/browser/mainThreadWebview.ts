@@ -722,7 +722,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	//#endregion
 
 	public isReadonly() {
-		return this._editable;
+		return !this._editable;
 	}
 
 	public get viewType() {
