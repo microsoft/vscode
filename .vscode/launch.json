@@ -170,7 +170,7 @@
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"presentation": {
-				"group": "6_tests",
+				"group": "5_tests",
 				"order": 6
 			}
 		},
