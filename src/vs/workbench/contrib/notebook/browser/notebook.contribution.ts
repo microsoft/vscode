@@ -36,6 +36,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 // Editor Contribution
 
@@ -52,10 +55,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -116,7 +115,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	private _resourceMapping = new ResourceMap<NotebookEditorInput>();
 
 	constructor(
-		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IEditorService private readonly editorService: IEditorService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,

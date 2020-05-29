@@ -1278,6 +1278,7 @@ export class DelegatingEditorService implements IEditorService {
 
 	get onDidActiveEditorChange(): Event<void> { return this.editorService.onDidActiveEditorChange; }
 	get onDidVisibleEditorsChange(): Event<void> { return this.editorService.onDidVisibleEditorsChange; }
+	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this.editorService.onDidCloseEditor; }
 
 	get activeEditor(): IEditorInput | undefined { return this.editorService.activeEditor; }
 	get activeEditorPane(): IVisibleEditorPane | undefined { return this.editorService.activeEditorPane; }
