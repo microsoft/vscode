@@ -37,6 +37,7 @@ import { indexOfPath } from 'vs/base/common/extpath';
 import { DEFAULT_CUSTOM_EDITOR, updateViewTypeSchema, editorAssociationsConfigurationNode } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -74,7 +75,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IUriIdentityService private readonly uriIdentitiyService: IUriIdentityService
 	) {
 		super();
 
@@ -867,20 +869,25 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Resource Editor Support
 		const resourceEditorInput = input as IResourceEditorInput;
 		if (resourceEditorInput.resource instanceof URI) {
-			let label = resourceEditorInput.label;
-			if (!label) {
-				label = basename(resourceEditorInput.resource); // derive the label from the path
-			}
 
-			return this.createOrGetCached(resourceEditorInput.resource, () => {
+			// We do not trust the resource that is being passed in as being the truth
+			// (e.g. in terms of path casing) and as such we ask the URI service to give
+			// us the canconical form of the URI. As such we ensure that any editor that
+			// is being opened will use the same canonical form of the URI.
+			const canonicalResource = this.uriIdentitiyService.asCanonicalUri(resourceEditorInput.resource);
+
+			// Derive the label from the path if not provided explicitly
+			const label = resourceEditorInput.label || basename(canonicalResource);
+
+			return this.createOrGetCached(canonicalResource, () => {
 
 				// File
-				if (resourceEditorInput.forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resourceEditorInput.resource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(resourceEditorInput.resource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
+				if (resourceEditorInput.forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(canonicalResource)) {
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
 				}
 
 				// Resource
-				return this.instantiationService.createInstance(ResourceEditorInput, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.resource, resourceEditorInput.mode);
+				return this.instantiationService.createInstance(ResourceEditorInput, resourceEditorInput.label, resourceEditorInput.description, canonicalResource, resourceEditorInput.mode);
 			}, cachedInput => {
 
 				// Untitled
