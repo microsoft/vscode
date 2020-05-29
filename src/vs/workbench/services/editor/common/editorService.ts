@@ -240,6 +240,9 @@ export interface IEditorService {
 	 */
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
 
+	/**
+	 * Register handlers for custom editor view types.
+	 */
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
@@ -279,4 +282,10 @@ export interface IEditorService {
 	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Track the provided list of resources for being opened as editors
+	 * and resolve once all have been closed.
+	 */
+	whenClosed(resources: URI[]): Promise<void>;
 }

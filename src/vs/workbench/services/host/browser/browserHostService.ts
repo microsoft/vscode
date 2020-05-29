@@ -217,6 +217,19 @@ export class BrowserHostService extends Disposable implements IHostService {
 					}
 				}
 			}
+
+			// Support wait mode
+			const waitMarkerFileURI = options?.waitMarkerFileURI;
+			if (waitMarkerFileURI) {
+				(async () => {
+
+					// Wait for the resources to be closed in the editor...
+					await this.editorService.whenClosed(fileOpenables.map(openable => openable.fileUri));
+
+					// ...before deleting the wait marker file
+					await this.fileService.del(waitMarkerFileURI);
+				})();
+			}
 		}
 	}
 
@@ -254,6 +267,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	private shouldReuse(options: IOpenWindowOptions = Object.create(null), isFile: boolean): boolean {
+		if (options.waitMarkerFileURI) {
+			return true; // always handle --wait in same window
+		}
+
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
 		const openInNewWindowConfig = isFile ? (windowConfig?.openFilesInNewWindow || 'off' /* default */) : (windowConfig?.openFoldersInNewWindow || 'default' /* default */);
 
