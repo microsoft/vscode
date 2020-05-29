@@ -342,16 +342,13 @@ suite('notebook workflow', () => {
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1,
 			`first move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.source}`);
 
-		const cellsChangeEvent = getEventOncePromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		let moveCellEventRet: vscode.NotebookCellsChangeEvent | undefined
+		vscode.notebook.onDidChangeNotebookCells(e => {
+			moveCellEventRet = e;
+		});
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
 		activeCell = vscode.notebook.activeNotebookEditor!.selection;
 
-		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2,
-			`second move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.source}
-			${vscode.notebook.activeNotebookEditor!.document.cells.map(cell => cell.uri.toString() + ':' + cell.source).join('\t')}
-			`);
-
-		const moveCellEventRet = await cellsChangeEvent;
 		assert.deepEqual(moveCellEventRet, {
 			document: vscode.notebook.activeNotebookEditor!.document,
 			changes: [
@@ -366,7 +363,13 @@ suite('notebook workflow', () => {
 					items: [activeCell]
 				}
 			]
-		});
+		}, 'content change event should always come first');
+
+		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(activeCell!), 2,
+			`second move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.source}
+			${vscode.notebook.activeNotebookEditor!.document.cells.map(cell => cell.uri.toString() + ':' + cell.source).join('\t')}
+			`);
+
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[0].source, 'test');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[1].source, '');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells[2].source, 'test');
