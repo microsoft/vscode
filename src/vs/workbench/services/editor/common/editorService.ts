@@ -291,6 +291,10 @@ export interface IEditorService {
 	/**
 	 * Track the provided list of resources for being opened as editors
 	 * and resolve once all have been closed.
+	 *
+	 * @param options use `waitForSaved: true` to wait for the resources
+	 * being saved. If auto-save is enabled, it may be possible to close
+	 * an editor while the save continues in the background.
 	 */
-	whenClosed(resources: URI[]): Promise<void>;
+	whenClosed(resources: URI[], options?: { waitForSaved: boolean }): Promise<void>;
 }

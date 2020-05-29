@@ -1157,7 +1157,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region Editor Tracking
 
-	whenClosed(resources: URI[]): Promise<void> {
+	whenClosed(resources: URI[], options?: { waitForSaved: boolean }): Promise<void> {
 		let remainingResources = [...resources];
 
 		return new Promise(resolve => {
@@ -1175,14 +1175,17 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					return true; // keep - not yet closed
 				});
 
+				// All resources to wait for being closed are closed
 				if (remainingResources.length === 0) {
-					// If auto save is configured with the default delay (1s) it is possible
-					// to close the editor while the save still continues in the background. As such
-					// we have to also check if the files to track for are dirty and if so wait
-					// for them to get saved.
-					const dirtyFiles = resources.filter(resource => this.workingCopyService.isDirty(resource));
-					if (dirtyFiles.length > 0) {
-						await Promise.all(dirtyFiles.map(async dirtyFile => await this.joinResourceSaved(dirtyFile)));
+					if (options?.waitForSaved) {
+						// If auto save is configured with the default delay (1s) it is possible
+						// to close the editor while the save still continues in the background. As such
+						// we have to also check if the files to track for are dirty and if so wait
+						// for them to get saved.
+						const dirtyFiles = resources.filter(resource => this.workingCopyService.isDirty(resource));
+						if (dirtyFiles.length > 0) {
+							await Promise.all(dirtyFiles.map(async dirtyFile => await this.whenSaved(dirtyFile)));
+						}
 					}
 
 					listener.dispose();
@@ -1193,7 +1196,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		});
 	}
 
-	private joinResourceSaved(resource: URI): Promise<void> {
+	private whenSaved(resource: URI): Promise<void> {
 		return new Promise(resolve => {
 			if (!this.workingCopyService.isDirty(resource)) {
 				return resolve(); // return early if resource is not dirty
