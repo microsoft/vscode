@@ -661,10 +661,11 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	) {
 		super();
 
+		this._fromBackup = fromBackup;
+
 		if (_editable) {
 			this._register(workingCopyService.registerWorkingCopy(this));
 		}
-		this._fromBackup = fromBackup;
 	}
 
 	get editorResource() {
