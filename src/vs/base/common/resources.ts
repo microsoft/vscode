@@ -13,9 +13,15 @@ import { CharCode } from 'vs/base/common/charCode';
 import { ParsedExpression, IExpression, parse } from 'vs/base/common/glob';
 import { TernarySearchTree } from 'vs/base/common/map';
 
+export function originalFSPath(uri: URI): string {
+	return uriToFsPath(uri, true);
+}
+
 //#region IExtUri
 
 export interface IExtUri {
+
+	// --- identity
 
 	/**
 	 * Compares two uris.
@@ -52,12 +58,79 @@ export interface IExtUri {
 	 */
 	getComparisonKey(uri: URI, ignoreFragment?: boolean): string;
 
+	// --- path math
+
+	basenameOrAuthority(resource: URI): string;
+
+	/**
+	 * Returns the basename of the path component of an uri.
+	 * @param resource
+	 */
+	basename(resource: URI): string;
+
+	/**
+	 * Returns the extension of the path component of an uri.
+	 * @param resource
+	 */
+	extname(resource: URI): string;
+	/**
+	 * Return a URI representing the directory of a URI path.
+	 *
+	 * @param resource The input URI.
+	 * @returns The URI representing the directory of the input URI.
+	 */
+	dirname(resource: URI): URI;
+	/**
+	 * Join a URI path with path fragments and normalizes the resulting path.
+	 *
+	 * @param resource The input URI.
+	 * @param pathFragment The path fragment to add to the URI path.
+	 * @returns The resulting URI.
+	 */
+	joinPath(resource: URI, ...pathFragment: string[]): URI
+	/**
+	 * Normalizes the path part of a URI: Resolves `.` and `..` elements with directory names.
+	 *
+	 * @param resource The URI to normalize the path.
+	 * @returns The URI with the normalized path.
+	 */
+	normalizePath(resource: URI): URI;
 	/**
 	 *
 	 * @param from
 	 * @param to
 	 */
 	relativePath(from: URI, to: URI): string | undefined;
+	/**
+	 * Resolves an absolute or relative path against a base URI.
+	 * The path can be relative or absolute posix or a Windows path
+	 */
+	resolvePath(base: URI, path: string): URI;
+
+	// --- misc
+
+	/**
+	 * Returns true if the URI path is absolute.
+	 */
+	isAbsolutePath(resource: URI): boolean;
+	/**
+	 * Tests whether the two authorities are the same
+	 */
+	isEqualAuthority(a1: string, a2: string): boolean;
+	/**
+	 * Returns true if the URI path has a trailing path separator
+	 */
+	hasTrailingPathSeparator(resource: URI, sep?: string): boolean;
+	/**
+	 * Removes a trailing path separator, if there's one.
+	 * Important: Doesn't remove the first slash, it would make the URI invalid
+	 */
+	removeTrailingPathSeparator(resource: URI, sep?: string): URI;
+	/**
+	 * Adds a trailing path separator to the URI if there isn't one already.
+	 * For example, c:\ would be unchanged, but c:\users would become c:\users\
+	 */
+	addTrailingPathSeparator(resource: URI, sep?: string): URI;
 }
 
 export class ExtUri implements IExtUri {
@@ -121,6 +194,64 @@ export class ExtUri implements IExtUri {
 
 	// --- path math
 
+	joinPath(resource: URI, ...pathFragment: string[]): URI {
+		let joinedPath: string;
+		if (resource.scheme === 'file') {
+			joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
+		} else {
+			joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
+		}
+		return resource.with({
+			path: joinedPath
+		});
+	}
+
+	basenameOrAuthority(resource: URI): string {
+		return basename(resource) || resource.authority;
+	}
+
+	basename(resource: URI): string {
+		return paths.posix.basename(resource.path);
+	}
+
+	extname(resource: URI): string {
+		return paths.posix.extname(resource.path);
+	}
+
+	dirname(resource: URI): URI {
+		if (resource.path.length === 0) {
+			return resource;
+		}
+		let dirname;
+		if (resource.scheme === Schemas.file) {
+			dirname = URI.file(paths.dirname(originalFSPath(resource))).path;
+		} else {
+			dirname = paths.posix.dirname(resource.path);
+			if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
+				console.error(`dirname("${resource.toString})) resulted in a relative path`);
+				dirname = '/'; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
+			}
+		}
+		return resource.with({
+			path: dirname
+		});
+	}
+
+	normalizePath(resource: URI): URI {
+		if (!resource.path.length) {
+			return resource;
+		}
+		let normalizedPath: string;
+		if (resource.scheme === Schemas.file) {
+			normalizedPath = URI.file(paths.normalize(originalFSPath(resource))).path;
+		} else {
+			normalizedPath = paths.posix.normalize(resource.path);
+		}
+		return resource.with({
+			path: normalizedPath
+		});
+	}
+
 	relativePath(from: URI, to: URI): string | undefined {
 		if (from.scheme !== to.scheme || !isEqualAuthority(from.authority, to.authority)) {
 			return undefined;
@@ -144,6 +275,69 @@ export class ExtUri implements IExtUri {
 		}
 		return paths.posix.relative(fromPath, toPath);
 	}
+
+	resolvePath(base: URI, path: string): URI {
+		if (base.scheme === Schemas.file) {
+			const newURI = URI.file(paths.resolve(originalFSPath(base), path));
+			return base.with({
+				authority: newURI.authority,
+				path: newURI.path
+			});
+		}
+		if (path.indexOf('/') === -1) { // no slashes? it's likely a Windows path
+			path = extpath.toSlashes(path);
+			if (/^[a-zA-Z]:(\/|$)/.test(path)) { // starts with a drive letter
+				path = '/' + path;
+			}
+		}
+		return base.with({
+			path: paths.posix.resolve(base.path, path)
+		});
+	}
+
+	// --- misc
+
+	isAbsolutePath(resource: URI): boolean {
+		return !!resource.path && resource.path[0] === '/';
+	}
+
+	isEqualAuthority(a1: string, a2: string) {
+		return a1 === a2 || equalsIgnoreCase(a1, a2);
+	}
+
+	hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {
+		if (resource.scheme === Schemas.file) {
+			const fsp = originalFSPath(resource);
+			return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
+		} else {
+			const p = resource.path;
+			return (p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash) && !(/^[a-zA-Z]:(\/$|\\$)/.test(resource.fsPath)); // ignore the slash at offset 0
+		}
+	}
+
+	removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+		// Make sure that the path isn't a drive letter. A trailing separator there is not removable.
+		if (hasTrailingPathSeparator(resource, sep)) {
+			return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
+		}
+		return resource;
+	}
+
+	addTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
+		let isRootSep: boolean = false;
+		if (resource.scheme === Schemas.file) {
+			const fsp = originalFSPath(resource);
+			isRootSep = ((fsp !== undefined) && (fsp.length === extpath.getRoot(fsp).length) && (fsp[fsp.length - 1] === sep));
+		} else {
+			sep = '/';
+			const p = resource.path;
+			isRootSep = p.length === 1 && p.charCodeAt(p.length - 1) === CharCode.Slash;
+		}
+		if (!isRootSep && !hasTrailingPathSeparator(resource, sep)) {
+			return resource.with({ path: resource.path + '/' });
+		}
+		return resource;
+	}
 }
 
 /**
@@ -164,220 +358,30 @@ export const extUri = new ExtUri(() => false);
  */
 export const extUriIgnorePathCase = new ExtUri(_ => true);
 
-//#endregion
-
-export function originalFSPath(uri: URI): string {
-	return uriToFsPath(uri, true);
-}
-
 const exturiBiasedIgnorePathCase = new ExtUri(uri => {
 	// A file scheme resource is in the same platform as code, so ignore case for non linux platforms
 	// Resource can be from another platform. Lowering the case as an hack. Should come from File system provider
 	return uri && uri.scheme === Schemas.file ? !isLinux : true;
 });
 
-/**
- * Creates a key from a resource URI to be used to resource comparison and for resource maps.
- *
- * @param resource Uri
- * @param ignoreFragment Ignore the fragment (defaults to `false`)
- */
-export function getComparisonKey(resource: URI, ignoreFragment: boolean = false): string {
-	return exturiBiasedIgnorePathCase.getComparisonKey(resource, ignoreFragment);
-}
+export const isEqual = exturiBiasedIgnorePathCase.isEqual.bind(exturiBiasedIgnorePathCase);
+export const isEqualOrParent = exturiBiasedIgnorePathCase.isEqualOrParent.bind(exturiBiasedIgnorePathCase);
+export const getComparisonKey = exturiBiasedIgnorePathCase.getComparisonKey.bind(exturiBiasedIgnorePathCase);
+export const basenameOrAuthority = exturiBiasedIgnorePathCase.basenameOrAuthority.bind(exturiBiasedIgnorePathCase);
+export const basename = exturiBiasedIgnorePathCase.basename.bind(exturiBiasedIgnorePathCase);
+export const extname = exturiBiasedIgnorePathCase.extname.bind(exturiBiasedIgnorePathCase);
+export const dirname = exturiBiasedIgnorePathCase.dirname.bind(exturiBiasedIgnorePathCase);
+export const joinPath = extUri.joinPath.bind(extUri);
+export const normalizePath = exturiBiasedIgnorePathCase.normalizePath.bind(exturiBiasedIgnorePathCase);
+export const relativePath = exturiBiasedIgnorePathCase.relativePath.bind(exturiBiasedIgnorePathCase);
+export const resolvePath = exturiBiasedIgnorePathCase.resolvePath.bind(exturiBiasedIgnorePathCase);
+export const isAbsolutePath = exturiBiasedIgnorePathCase.isAbsolutePath.bind(exturiBiasedIgnorePathCase);
+export const isEqualAuthority = exturiBiasedIgnorePathCase.isEqualAuthority.bind(exturiBiasedIgnorePathCase);
+export const hasTrailingPathSeparator = exturiBiasedIgnorePathCase.hasTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
+export const removeTrailingPathSeparator = exturiBiasedIgnorePathCase.removeTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
+export const addTrailingPathSeparator = exturiBiasedIgnorePathCase.addTrailingPathSeparator.bind(exturiBiasedIgnorePathCase);
 
-/**
- * Tests whether two uris are equal
- *
- * @param first Uri
- * @param second Uri
- * @param ignorePathCasing Ignore casing when comparing path component (defaults mostly to `true`)
- * @param ignoreFragment Ignore the fragment (defaults to `false`)
- */
-export function isEqual(first: URI | undefined, second: URI | undefined, ignoreFragment: boolean = false): boolean {
-	return exturiBiasedIgnorePathCase.isEqual(first, second, ignoreFragment);
-}
-
-
-/**
- * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
- *
- * @param base A uri which is "longer"
- * @param parentCandidate A uri which is "shorter" then `base`
- * @param ignorePathCasing Ignore casing when comparing path component (defaults mostly to `true`)
- * @param ignoreFragment Ignore the fragment (defaults to `false`)
- */
-export function isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
-	return exturiBiasedIgnorePathCase.isEqualOrParent(base, parentCandidate, ignoreFragment);
-}
-
-
-export function basenameOrAuthority(resource: URI): string {
-	return basename(resource) || resource.authority;
-}
-
-/**
- * Tests whether the two authorities are the same
- */
-export function isEqualAuthority(a1: string, a2: string) {
-	return a1 === a2 || equalsIgnoreCase(a1, a2);
-}
-
-export function basename(resource: URI): string {
-	return paths.posix.basename(resource.path);
-}
-
-export function extname(resource: URI): string {
-	return paths.posix.extname(resource.path);
-}
-
-/**
- * Return a URI representing the directory of a URI path.
- *
- * @param resource The input URI.
- * @returns The URI representing the directory of the input URI.
- */
-export function dirname(resource: URI): URI {
-	if (resource.path.length === 0) {
-		return resource;
-	}
-	let dirname;
-	if (resource.scheme === Schemas.file) {
-		dirname = URI.file(paths.dirname(originalFSPath(resource))).path;
-	} else {
-		dirname = paths.posix.dirname(resource.path);
-		if (resource.authority && dirname.length && dirname.charCodeAt(0) !== CharCode.Slash) {
-			console.error(`dirname("${resource.toString})) resulted in a relative path`);
-			dirname = '/'; // If a URI contains an authority component, then the path component must either be empty or begin with a CharCode.Slash ("/") character
-		}
-	}
-	return resource.with({
-		path: dirname
-	});
-}
-
-/**
- * Join a URI path with path fragments and normalizes the resulting path.
- *
- * @param resource The input URI.
- * @param pathFragment The path fragment to add to the URI path.
- * @returns The resulting URI.
- */
-export function joinPath(resource: URI, ...pathFragment: string[]): URI {
-	let joinedPath: string;
-	if (resource.scheme === 'file') {
-		joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
-	} else {
-		joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
-	}
-	return resource.with({
-		path: joinedPath
-	});
-}
-
-/**
- * Normalizes the path part of a URI: Resolves `.` and `..` elements with directory names.
- *
- * @param resource The URI to normalize the path.
- * @returns The URI with the normalized path.
- */
-export function normalizePath(resource: URI): URI {
-	if (!resource.path.length) {
-		return resource;
-	}
-	let normalizedPath: string;
-	if (resource.scheme === Schemas.file) {
-		normalizedPath = URI.file(paths.normalize(originalFSPath(resource))).path;
-	} else {
-		normalizedPath = paths.posix.normalize(resource.path);
-	}
-	return resource.with({
-		path: normalizedPath
-	});
-}
-
-/**
- * Returns true if the URI path is absolute.
- */
-export function isAbsolutePath(resource: URI): boolean {
-	return !!resource.path && resource.path[0] === '/';
-}
-
-/**
- * Returns true if the URI path has a trailing path separator
- */
-export function hasTrailingPathSeparator(resource: URI, sep: string = paths.sep): boolean {
-	if (resource.scheme === Schemas.file) {
-		const fsp = originalFSPath(resource);
-		return fsp.length > extpath.getRoot(fsp).length && fsp[fsp.length - 1] === sep;
-	} else {
-		const p = resource.path;
-		return (p.length > 1 && p.charCodeAt(p.length - 1) === CharCode.Slash) && !(/^[a-zA-Z]:(\/$|\\$)/.test(resource.fsPath)); // ignore the slash at offset 0
-	}
-}
-
-/**
- * Removes a trailing path separator, if there's one.
- * Important: Doesn't remove the first slash, it would make the URI invalid
- */
-export function removeTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
-	// Make sure that the path isn't a drive letter. A trailing separator there is not removable.
-	if (hasTrailingPathSeparator(resource, sep)) {
-		return resource.with({ path: resource.path.substr(0, resource.path.length - 1) });
-	}
-	return resource;
-}
-
-/**
- * Adds a trailing path separator to the URI if there isn't one already.
- * For example, c:\ would be unchanged, but c:\users would become c:\users\
- */
-export function addTrailingPathSeparator(resource: URI, sep: string = paths.sep): URI {
-	let isRootSep: boolean = false;
-	if (resource.scheme === Schemas.file) {
-		const fsp = originalFSPath(resource);
-		isRootSep = ((fsp !== undefined) && (fsp.length === extpath.getRoot(fsp).length) && (fsp[fsp.length - 1] === sep));
-	} else {
-		sep = '/';
-		const p = resource.path;
-		isRootSep = p.length === 1 && p.charCodeAt(p.length - 1) === CharCode.Slash;
-	}
-	if (!isRootSep && !hasTrailingPathSeparator(resource, sep)) {
-		return resource.with({ path: resource.path + '/' });
-	}
-	return resource;
-}
-
-/**
- * Returns a relative path between two URIs. If the URIs don't have the same schema or authority, `undefined` is returned.
- * The returned relative path always uses forward slashes.
- */
-export function relativePath(from: URI, to: URI): string | undefined {
-	return exturiBiasedIgnorePathCase.relativePath(from, to);
-}
-
-/**
- * Resolves an absolute or relative path against a base URI.
- * The path can be relative or absolute posix or a Windows path
- */
-export function resolvePath(base: URI, path: string): URI {
-	if (base.scheme === Schemas.file) {
-		const newURI = URI.file(paths.resolve(originalFSPath(base), path));
-		return base.with({
-			authority: newURI.authority,
-			path: newURI.path
-		});
-	}
-	if (path.indexOf('/') === -1) { // no slashes? it's likely a Windows path
-		path = extpath.toSlashes(path);
-		if (/^[a-zA-Z]:(\/|$)/.test(path)) { // starts with a drive letter
-			path = '/' + path;
-		}
-	}
-	return base.with({
-		path: paths.posix.resolve(base.path, path)
-	});
-}
+//#endregion
 
 export function distinctParents<T>(items: T[], resourceAccessor: (item: T) => URI): T[] {
 	const distinctParents: T[] = [];
