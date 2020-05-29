@@ -67,14 +67,17 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		return this._documentData.document;
 	}
 
+	get notebook(): vscode.NotebookDocument {
+		return this._notebook;
+	}
+
 	get source() {
 		// todo@jrieken remove this
 		return this._documentData.getText();
 	}
 
 	constructor(
-		private readonly viewType: string,
-		private readonly documentUri: URI,
+		private readonly _notebook: ExtHostNotebookDocument,
 		readonly handle: number,
 		readonly uri: URI,
 		content: string,
@@ -141,7 +144,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	}
 
 	private updateMetadata(): Promise<void> {
-		return this._proxy.$updateNotebookCellMetadata(this.viewType, this.documentUri, this.handle, this._metadata);
+		return this._proxy.$updateNotebookCellMetadata(this._notebook.viewType, this._notebook.uri, this.handle, this._metadata);
 	}
 
 	attachTextDocument(document: ExtHostDocumentData) {
@@ -283,7 +286,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		splices.reverse().forEach(splice => {
 			let cellDtos = splice[2];
 			let newCells = cellDtos.map(cell => {
-				const extCell = new ExtHostCell(this.viewType, this.uri, cell.handle, URI.revive(cell.uri), cell.source.join('\n'), cell.cellKind, cell.language, cell.outputs, cell.metadata, this._proxy);
+				const extCell = new ExtHostCell(this, cell.handle, URI.revive(cell.uri), cell.source.join('\n'), cell.cellKind, cell.language, cell.outputs, cell.metadata, this._proxy);
 				const documentData = this._documentsAndEditors.getDocument(URI.revive(cell.uri));
 
 				if (documentData) {
