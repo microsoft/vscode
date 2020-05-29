@@ -195,15 +195,7 @@ export class ExtUri implements IExtUri {
 	// --- path math
 
 	joinPath(resource: URI, ...pathFragment: string[]): URI {
-		let joinedPath: string;
-		if (resource.scheme === 'file') {
-			joinedPath = URI.file(paths.join(originalFSPath(resource), ...pathFragment)).path;
-		} else {
-			joinedPath = paths.posix.join(resource.path || '/', ...pathFragment);
-		}
-		return resource.with({
-			path: joinedPath
-		});
+		return URI.joinPath(resource, ...pathFragment);
 	}
 
 	basenameOrAuthority(resource: URI): string {
