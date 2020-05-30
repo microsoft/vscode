@@ -17,7 +17,7 @@ export class FindDecorations implements IDisposable {
 	private readonly _editor: IActiveCodeEditor;
 	private _decorations: string[];
 	private _overviewRulerApproximateDecorations: string[];
-	private _findScopeDecorationId: string | null;
+	private _findScopeDecorationIds: string[];
 	private _rangeHighlightDecorationId: string | null;
 	private _highlightedDecorationId: string | null;
 	private _startPosition: Position;
@@ -26,7 +26,7 @@ export class FindDecorations implements IDisposable {
 		this._editor = editor;
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];
-		this._findScopeDecorationId = null;
+		this._findScopeDecorationIds = [];
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
 		this._startPosition = this._editor.getPosition();
@@ -37,7 +37,7 @@ export class FindDecorations implements IDisposable {
 
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];
-		this._findScopeDecorationId = null;
+		this._findScopeDecorationIds = [];
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
 	}
@@ -45,7 +45,7 @@ export class FindDecorations implements IDisposable {
 	public reset(): void {
 		this._decorations = [];
 		this._overviewRulerApproximateDecorations = [];
-		this._findScopeDecorationId = null;
+		this._findScopeDecorationIds = [];
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
 	}
@@ -54,9 +54,22 @@ export class FindDecorations implements IDisposable {
 		return this._decorations.length;
 	}
 
+	/** @deprecated use getFindScopes to support multiple selections */
 	public getFindScope(): Range | null {
-		if (this._findScopeDecorationId) {
-			return this._editor.getModel().getDecorationRange(this._findScopeDecorationId);
+		if (this._findScopeDecorationIds[0]) {
+			return this._editor.getModel().getDecorationRange(this._findScopeDecorationIds[0]);
+		}
+		return null;
+	}
+
+	public getFindScopes(): Range[] | null {
+		if (this._findScopeDecorationIds.length) {
+			const scopes = this._findScopeDecorationIds.map(findScopeDecorationId =>
+				this._editor.getModel().getDecorationRange(findScopeDecorationId)
+			).filter(element => !!element);
+			if (scopes.length) {
+				return scopes as Range[];
+			}
 		}
 		return null;
 	}
@@ -133,7 +146,7 @@ export class FindDecorations implements IDisposable {
 		return matchPosition;
 	}
 
-	public set(findMatches: FindMatch[], findScope: Range | null): void {
+	public set(findMatches: FindMatch[], findScopes: Range[] | null): void {
 		this._editor.changeDecorations((accessor) => {
 
 			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
@@ -195,12 +208,12 @@ export class FindDecorations implements IDisposable {
 			}
 
 			// Find scope
-			if (this._findScopeDecorationId) {
-				accessor.removeDecoration(this._findScopeDecorationId);
-				this._findScopeDecorationId = null;
+			if (this._findScopeDecorationIds.length) {
+				this._findScopeDecorationIds.forEach(findScopeDecorationId => accessor.removeDecoration(findScopeDecorationId));
+				this._findScopeDecorationIds = [];
 			}
-			if (findScope) {
-				this._findScopeDecorationId = accessor.addDecoration(findScope, FindDecorations._FIND_SCOPE_DECORATION);
+			if (findScopes?.length) {
+				this._findScopeDecorationIds = findScopes.map(findScope => accessor.addDecoration(findScope, FindDecorations._FIND_SCOPE_DECORATION));
 			}
 		});
 	}
@@ -253,8 +266,8 @@ export class FindDecorations implements IDisposable {
 		let result: string[] = [];
 		result = result.concat(this._decorations);
 		result = result.concat(this._overviewRulerApproximateDecorations);
-		if (this._findScopeDecorationId) {
-			result.push(this._findScopeDecorationId);
+		if (this._findScopeDecorationIds.length) {
+			result.push(...this._findScopeDecorationIds);
 		}
 		if (this._rangeHighlightDecorationId) {
 			result.push(this._rangeHighlightDecorationId);
