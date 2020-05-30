@@ -93,6 +93,10 @@ export abstract class ContextKeyExpr {
 		return ContextKeyOrExpr.create(expr);
 	}
 
+	public static forbidRepeatAnd(...expr: Array<ContextKeyExpression | undefined | null>): ContextKeyExpression | undefined {
+		return ContextKeyAndExpr.create(expr, true);
+	}
+
 	public static deserialize(serialized: string | null | undefined, strict: boolean = false): ContextKeyExpression | undefined {
 		if (!serialized) {
 			return undefined;
@@ -636,8 +640,8 @@ export class ContextKeyNotRegexExpr implements IContextKeyExpression {
 
 export class ContextKeyAndExpr implements IContextKeyExpression {
 
-	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>): ContextKeyExpression | undefined {
-		const expr = ContextKeyAndExpr._normalizeArr(_expr);
+	public static create(_expr: ReadonlyArray<ContextKeyExpression | null | undefined>, forbidRepeat?: boolean | null | undefined): ContextKeyExpression | undefined {
+		const expr = ContextKeyAndExpr._normalizeArr(_expr, forbidRepeat);
 		if (expr.length === 0) {
 			return undefined;
 		}
@@ -697,9 +701,10 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 		return true;
 	}
 
-	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>): ContextKeyExpression[] {
+	private static _normalizeArr(arr: ReadonlyArray<ContextKeyExpression | null | undefined>, forbidRepeat?: boolean | null | undefined): ContextKeyExpression[] {
 		const expr: ContextKeyExpression[] = [];
 		let hasTrue = false;
+		let hasKeyMap: Map<string, boolean> = new Map<string, boolean>();
 
 		for (const e of arr) {
 			if (!e) {
@@ -718,7 +723,17 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 			}
 
 			if (e.type === ContextKeyExprType.And) {
-				expr.push(...e.expr);
+				if (forbidRepeat) {
+					for (const i of e.expr) {
+						const ikeys = i.keys();
+						if (ikeys && ikeys.length > 0 && !hasKeyMap.has(ikeys[0])) {
+							expr.push(i);
+							hasKeyMap.set(ikeys[0], true);
+						}
+					}
+				} else {
+					expr.push(...e.expr);
+				}
 				continue;
 			}
 
@@ -727,7 +742,15 @@ export class ContextKeyAndExpr implements IContextKeyExpression {
 				throw new Error(`It is not allowed to have an or expression here due to lack of parens! For example "a && (b||c)" is not supported, use "(a&&b) || (a&&c)" instead.`);
 			}
 
-			expr.push(e);
+			if (forbidRepeat) {
+				const keys = e.keys();
+				if (keys && keys.length > 0 && !hasKeyMap.has(keys[0])) {
+					expr.push(e);
+					hasKeyMap.set(keys[0], true);
+				}
+			} else {
+				expr.push(e);
+			}
 		}
 
 		if (expr.length === 0 && hasTrue) {

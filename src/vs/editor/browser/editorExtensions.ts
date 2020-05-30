@@ -86,7 +86,7 @@ export abstract class Command {
 			let kbWhen = this._kbOpts.kbExpr;
 			if (this.precondition) {
 				if (kbWhen) {
-					kbWhen = ContextKeyExpr.and(kbWhen, this.precondition);
+					kbWhen = ContextKeyExpr.forbidRepeatAnd(kbWhen, this.precondition);
 				} else {
 					kbWhen = this.precondition;
 				}
