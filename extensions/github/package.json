@@ -43,6 +43,11 @@
         "view": "scm",
         "contents": "%welcome.publishFolder%",
         "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
+      },
+      {
+        "view": "scm",
+        "contents": "%welcome.publishWorkspaceFolder%",
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
       }
     ]
   },

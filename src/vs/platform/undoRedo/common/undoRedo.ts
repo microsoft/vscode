@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IUndoRedoService = createDecorator<IUndoRedoService>('undoRedoService');
 
@@ -28,6 +29,13 @@ export interface IWorkspaceUndoRedoElement {
 	undo(): Promise<void> | void;
 	redo(): Promise<void> | void;
 	split(): IResourceUndoRedoElement[];
+
+	/**
+	 * If implemented, will be invoked before calling `undo()` or `redo()`.
+	 * This is a good place to prepare everything such that the calls to `undo()` or `redo()` are synchronous.
+	 * If a disposable is returned, it will be invoked to clean things up.
+	 */
+	prepareUndoRedo?(): Promise<IDisposable> | IDisposable | void;
 }
 
 export type IUndoRedoElement = IResourceUndoRedoElement | IWorkspaceUndoRedoElement;
@@ -37,8 +45,17 @@ export interface IPastFutureElements {
 	future: IUndoRedoElement[];
 }
 
+export interface UriComparisonKeyComputer {
+	/**
+	 * Return `null` if you don't own this URI.
+	 */
+	getComparisonKey(uri: URI): string | null;
+}
+
 export interface IUndoRedoService {
 	_serviceBrand: undefined;
+
+	registerUriComparisonKeyComputer(uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
 
 	/**
 	 * Add a new element to the `undo` stack.

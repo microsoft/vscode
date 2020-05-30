@@ -53,7 +53,8 @@ export async function loadLocalResource(
 
 	try {
 		const data = await fileService.readFile(resourceToLoad);
-		return new WebviewResourceResponse.BufferSuccess(data.value, getWebviewContentMimeType(resourceToLoad));
+		const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
+		return new WebviewResourceResponse.BufferSuccess(data.value, mime);
 	} catch (err) {
 		console.log(err);
 		return WebviewResourceResponse.Failed;
@@ -73,7 +74,8 @@ export async function loadLocalResourceStream(
 
 	try {
 		const contents = await fileService.readFileStream(resourceToLoad);
-		return new WebviewResourceResponse.StreamSuccess(contents.value, getWebviewContentMimeType(requestUri));
+		const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
+		return new WebviewResourceResponse.StreamSuccess(contents.value, mime);
 	} catch (err) {
 		console.log(err);
 		return WebviewResourceResponse.Failed;
@@ -118,7 +120,17 @@ function normalizeRequestPath(requestUri: URI) {
 	//
 	// vscode-webview-resource://id/scheme//authority?/path
 	//
-	const resourceUri = URI.parse(requestUri.path.replace(/^\/(\w+)\/{1,2}/, '$1://'));
+	const resourceUri = URI.parse(requestUri.path.replace(/^\/([a-z0-9\-]+)\/{1,2}/i, '$1://'));
+
+	if (resourceUri.scheme === REMOTE_HOST_SCHEME) {
+		return URI.from({
+			scheme: Schemas.file,
+			path: resourceUri.path,
+			query: requestUri.query,
+			fragment: requestUri.fragment
+		});
+	}
+
 	return resourceUri.with({
 		query: requestUri.query,
 		fragment: requestUri.fragment

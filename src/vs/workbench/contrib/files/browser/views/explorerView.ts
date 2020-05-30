@@ -43,7 +43,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { isEqualOrParent } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/map';
 import { first } from 'vs/base/common/arrays';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -56,6 +55,7 @@ import { Color } from 'vs/base/common/color';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -171,6 +171,7 @@ export class ExplorerView extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IFileService private readonly fileService: IFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IOpenerService openerService: IOpenerService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -471,7 +472,7 @@ export class ExplorerView extends ViewPane {
 		}
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): void {
+	private async onContextMenu(e: ITreeContextMenuEvent<ExplorerItem>): Promise<void> {
 		const disposables = new DisposableStore();
 		let stat = e.element;
 		let anchor = e.anchor;
@@ -490,7 +491,7 @@ export class ExplorerView extends ViewPane {
 		}
 
 		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
+		this.fileCopiedContextKey.set(await this.clipboardService.hasResources());
 		this.setContextKeys(stat);
 
 		const selection = this.tree.getSelection();
@@ -652,8 +653,7 @@ export class ExplorerView extends ViewPane {
 		}
 
 		// Expand all stats in the parent chain.
-		const ignoreCase = !this.fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive);
-		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => isEqualOrParent(resource, i.resource, ignoreCase))
+		let item: ExplorerItem | undefined = this.explorerService.roots.filter(i => this.uriIdentityService.extUri.isEqualOrParent(resource, i.resource))
 			// Take the root that is the closest to the stat #72299
 			.sort((first, second) => second.resource.path.length - first.resource.path.length)[0];
 
@@ -663,7 +663,7 @@ export class ExplorerView extends ViewPane {
 			} catch (e) {
 				return this.selectResource(resource, reveal, retry + 1);
 			}
-			item = first(values(item.children), i => isEqualOrParent(resource, i.resource, ignoreCase));
+			item = first(values(item.children), i => this.uriIdentityService.extUri.isEqualOrParent(resource, i.resource));
 		}
 
 		if (item) {

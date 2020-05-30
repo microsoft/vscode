@@ -630,7 +630,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	public toResource(filepath: string): vscode.Uri {
-		if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
+		if (filepath.match(/^[a-z]{2,}:/) || filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
 		) {
 			let resource = vscode.Uri.parse(filepath);
 			const dirName = path.dirname(resource.path);

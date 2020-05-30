@@ -9,7 +9,6 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { CodiconLabel } from 'vs/base/browser/ui/codicons/codiconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -726,7 +725,6 @@ class StatusbarEntryItem extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 		super();
@@ -828,12 +826,6 @@ class StatusbarEntryItem extends Disposable {
 	private async executeCommand(command: string | Command): Promise<void> {
 		const id = typeof command === 'string' ? command : command.id;
 		const args = typeof command === 'string' ? [] : command.arguments ?? [];
-
-		// Maintain old behaviour of always focusing the editor here
-		const activeTextEditorControl = this.editorService.activeTextEditorControl;
-		if (activeTextEditorControl) {
-			activeTextEditorControl.focus();
-		}
 
 		this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id, from: 'status bar' });
 		try {

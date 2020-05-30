@@ -28,7 +28,7 @@ const languageScopeSchemaId = 'vscode://schemas/snippets';
 
 const snippetSchemaProperties: IJSONSchemaMap = {
 	prefix: {
-		description: nls.localize('snippetSchema.json.prefix', 'The prefix to used when selecting the snippet in intellisense'),
+		description: nls.localize('snippetSchema.json.prefix', 'The prefix to use when selecting the snippet in intellisense'),
 		type: ['string', 'array']
 	},
 	body: {

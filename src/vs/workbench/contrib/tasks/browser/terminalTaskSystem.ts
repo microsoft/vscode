@@ -725,7 +725,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 				// The process never got ready. Need to think how to handle this.
 			});
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task, terminal.id));
-			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
 				if (skipLine) {
@@ -770,7 +769,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 					watchingProblemMatcher.done();
 					watchingProblemMatcher.dispose();
-					registeredLinkMatchers.forEach(handle => terminal!.deregisterLinkMatcher(handle));
 					if (!processStartedSignaled) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal!.processId!));
 						processStartedSignaled = true;
@@ -813,7 +811,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 			let problemMatchers = this.resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService, ProblemHandlingStrategy.Clean, this.fileService);
-			const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 			let skipLine: boolean = (!!task.command.presentation && task.command.presentation.echo);
 			const onData = terminal.onLineData((line) => {
 				if (skipLine) {
@@ -824,7 +821,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 			promise = new Promise<ITaskSummary>((resolve, reject) => {
 				const onExit = terminal!.onExit((exitCode) => {
-					onData.dispose();
 					onExit.dispose();
 					let key = task.getMapKey();
 					this.removeFromActiveTasks(task);
@@ -850,13 +846,12 @@ export class TerminalTaskSystem implements ITaskSystem {
 						this.terminalService.setActiveInstance(terminal);
 						this.terminalService.showPanel(false);
 					}
-					startStopProblemMatcher.done();
-					startStopProblemMatcher.dispose();
-					registeredLinkMatchers.forEach(handle => {
-						if (terminal) {
-							terminal.deregisterLinkMatcher(handle);
-						}
-					});
+					// Hack to work around #92868 until terminal is fixed.
+					setTimeout(() => {
+						onData.dispose();
+						startStopProblemMatcher.done();
+						startStopProblemMatcher.dispose();
+					}, 100);
 					if (!processStartedSignaled && terminal) {
 						this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, terminal.processId!));
 						processStartedSignaled = true;
@@ -1048,7 +1043,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.configuration.remoteAuthority);
+			shellLaunchConfig.cwd = isUNC(cwd) ? cwd : resources.toLocalResource(URI.from({ scheme: Schemas.file, path: cwd }), this.environmentService.configuration.remoteAuthority);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
@@ -1284,9 +1279,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 		}
 
-		if (basename === 'cmd' && platform === Platform.Platform.Windows && commandQuoted && argQuoted) {
-			commandLine = '"' + commandLine + '"';
-		}
 		return commandLine;
 	}
 
@@ -1474,35 +1466,6 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			});
 		}
-		return result;
-	}
-
-	private registerLinkMatchers(terminal: ITerminalInstance, problemMatchers: ProblemMatcher[]): number[] {
-		let result: number[] = [];
-		/*
-		let handlePattern = (matcher: ProblemMatcher, pattern: ProblemPattern): void => {
-			if (pattern.regexp instanceof RegExp && Types.isNumber(pattern.file)) {
-				result.push(terminal.registerLinkMatcher(pattern.regexp, (match: string) => {
-					let resource: URI = getResource(match, matcher);
-					if (resource) {
-						this.workbenchEditorService.openEditor({
-							resource: resource
-						});
-					}
-				}, 0));
-			}
-		};
-
-		for (let problemMatcher of problemMatchers) {
-			if (Array.isArray(problemMatcher.pattern)) {
-				for (let pattern of problemMatcher.pattern) {
-					handlePattern(problemMatcher, pattern);
-				}
-			} else if (problemMatcher.pattern) {
-				handlePattern(problemMatcher, problemMatcher.pattern);
-			}
-		}
-		*/
 		return result;
 	}
 

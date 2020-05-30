@@ -5,10 +5,10 @@
 
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorReplacement, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 
@@ -35,7 +35,7 @@ export interface IOpenEditorOverrideEntry {
 }
 
 export interface IOpenEditorOverrideHandler {
-	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id?: string): IOpenEditorOverride | undefined;
+	open(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext, id?: string): IOpenEditorOverride | undefined;
 	getEditorOverrides?(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[];
 }
 
@@ -102,6 +102,11 @@ export interface IEditorService {
 	 * @see `IEditorService.visibleEditorPanes`
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
+
+	/**
+	 * Emitted when an editor is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * The currently active editor pane or `undefined` if none. The editor pane is
@@ -240,6 +245,9 @@ export interface IEditorService {
 	 */
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
 
+	/**
+	 * Register handlers for custom editor view types.
+	 */
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable;
 
 	/**
@@ -279,4 +287,14 @@ export interface IEditorService {
 	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Track the provided list of resources for being opened as editors
+	 * and resolve once all have been closed.
+	 *
+	 * @param options use `waitForSaved: true` to wait for the resources
+	 * being saved. If auto-save is enabled, it may be possible to close
+	 * an editor while the save continues in the background.
+	 */
+	whenClosed(resources: URI[], options?: { waitForSaved: boolean }): Promise<void>;
 }

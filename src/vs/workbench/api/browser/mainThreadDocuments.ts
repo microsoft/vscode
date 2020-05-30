@@ -10,17 +10,19 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services/modelService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/browser/mainThreadDocumentsAndEditors';
 import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocumentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource } from 'vs/base/common/resources';
+import { toLocalResource, isEqualOrParent, extUri } from 'vs/base/common/resources';
+import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class BoundModelReferenceCollection {
 
-	private _data = new Array<{ length: number, dispose(): void }>();
+	private _data = new Array<{ uri: URI, length: number, dispose(): void }>();
 	private _length = 0;
 
 	constructor(
@@ -34,10 +36,18 @@ export class BoundModelReferenceCollection {
 		this._data = dispose(this._data);
 	}
 
-	add(ref: IReference<ITextEditorModel>): void {
+	remove(uri: URI): void {
+		for (const entry of [...this._data] /* copy array because dispose will modify it */) {
+			if (isEqualOrParent(entry.uri, uri)) {
+				entry.dispose();
+			}
+		}
+	}
+
+	add(uri: URI, ref: IReference<ITextEditorModel>): void {
 		const length = ref.object.textEditorModel.getValueLength();
 		let handle: any;
-		let entry: { length: number, dispose(): void };
+		let entry: { uri: URI, length: number, dispose(): void };
 		const dispose = () => {
 			const idx = this._data.indexOf(entry);
 			if (idx >= 0) {
@@ -48,7 +58,7 @@ export class BoundModelReferenceCollection {
 			}
 		};
 		handle = setTimeout(dispose, this._maxAge);
-		entry = { length, dispose };
+		entry = { uri, length, dispose };
 
 		this._data.push(entry);
 		this._length += length;
@@ -69,12 +79,13 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private readonly _textFileService: ITextFileService;
 	private readonly _fileService: IFileService;
 	private readonly _environmentService: IWorkbenchEnvironmentService;
+	private readonly _uriIdentityService: IUriIdentityService;
 
 	private readonly _toDispose = new DisposableStore();
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private readonly _proxy: ExtHostDocumentsShape;
 	private readonly _modelIsSynced = new Set<string>();
-	private _modelReferenceCollection = new BoundModelReferenceCollection();
+	private readonly _modelReferenceCollection = new BoundModelReferenceCollection();
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
@@ -83,13 +94,16 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		@ITextFileService textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
 	) {
 		this._modelService = modelService;
 		this._textModelResolverService = textModelResolverService;
 		this._textFileService = textFileService;
 		this._fileService = fileService;
 		this._environmentService = environmentService;
+		this._uriIdentityService = uriIdentityService;
 
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 
@@ -106,6 +120,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.add(textFileService.files.onDidChangeDirty(m => {
 			if (this._shouldHandleFileEvent(m.resource)) {
 				this._proxy.$acceptDirtyStateChanged(m.resource, m.isDirty());
+			}
+		}));
+
+		this._toDispose.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			if (e.source && (e.operation === FileOperation.MOVE || e.operation === FileOperation.DELETE)) {
+				this._modelReferenceCollection.remove(e.source);
 			}
 		}));
 
@@ -163,33 +183,37 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return this._textFileService.save(URI.revive(uri)).then(target => !!target);
 	}
 
-	$tryOpenDocument(_uri: UriComponents): Promise<any> {
-		const uri = URI.revive(_uri);
-		if (!uri.scheme || !(uri.fsPath || uri.authority)) {
+	$tryOpenDocument(uriData: UriComponents): Promise<URI> {
+		const inputUri = URI.revive(uriData);
+		if (!inputUri.scheme || !(inputUri.fsPath || inputUri.authority)) {
 			return Promise.reject(new Error(`Invalid uri. Scheme and authority or path must be set.`));
 		}
 
-		let promise: Promise<boolean>;
-		switch (uri.scheme) {
+		const canonicalUri = this._uriIdentityService.asCanonicalUri(inputUri);
+
+		let promise: Promise<URI>;
+		switch (canonicalUri.scheme) {
 			case Schemas.untitled:
-				promise = this._handleUntitledScheme(uri);
+				promise = this._handleUntitledScheme(canonicalUri);
 				break;
 			case Schemas.file:
 			default:
-				promise = this._handleAsResourceInput(uri);
+				promise = this._handleAsResourceInput(canonicalUri);
 				break;
 		}
 
-		return promise.then(success => {
-			if (!success) {
-				return Promise.reject(new Error('cannot open ' + uri.toString()));
-			} else if (!this._modelIsSynced.has(uri.toString())) {
-				return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: Files above 50MB cannot be synchronized with extensions.'));
+		return promise.then(documentUri => {
+			if (!documentUri) {
+				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}`));
+			} else if (!extUri.isEqual(documentUri, canonicalUri)) {
+				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Actual document opened as ${documentUri.toString()}`));
+			} else if (!this._modelIsSynced.has(canonicalUri.toString())) {
+				return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: Files above 50MB cannot be synchronized with extensions.`));
 			} else {
-				return undefined;
+				return canonicalUri;
 			}
 		}, err => {
-			return Promise.reject(new Error('cannot open ' + uri.toString() + '. Detail: ' + toErrorMessage(err)));
+			return Promise.reject(new Error(`cannot open ${canonicalUri.toString()}. Detail: ${toErrorMessage(err)}`));
 		});
 	}
 
@@ -197,21 +221,20 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return this._doCreateUntitled(undefined, options ? options.language : undefined, options ? options.content : undefined);
 	}
 
-	private _handleAsResourceInput(uri: URI): Promise<boolean> {
+	private _handleAsResourceInput(uri: URI): Promise<URI> {
 		return this._textModelResolverService.createModelReference(uri).then(ref => {
-			this._modelReferenceCollection.add(ref);
-			const result = !!ref.object;
-			return result;
+			this._modelReferenceCollection.add(uri, ref);
+			return ref.object.textEditorModel.uri;
 		});
 	}
 
-	private _handleUntitledScheme(uri: URI): Promise<boolean> {
+	private _handleUntitledScheme(uri: URI): Promise<URI> {
 		const asLocalUri = toLocalResource(uri, this._environmentService.configuration.remoteAuthority);
 		return this._fileService.resolve(asLocalUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return Promise.reject(new Error('file already exists'));
 		}, err => {
-			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined).then(resource => !!resource);
+			return this._doCreateUntitled(Boolean(uri.path) ? uri : undefined);
 		});
 	}
 

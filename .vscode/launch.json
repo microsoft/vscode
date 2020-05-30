@@ -170,7 +170,7 @@
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"presentation": {
-				"group": "6_tests",
+				"group": "5_tests",
 				"order": 6
 			}
 		},
@@ -217,10 +217,7 @@
 			"type": "node",
 			"request": "launch",
 			"name": "VS Code (Web)",
-			"runtimeExecutable": "yarn",
-			"runtimeArgs": [
-				"web"
-			],
+			"program": "${workspaceFolder}/scripts/code-web.js",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2
@@ -274,12 +271,27 @@
 		{
 			"type": "node",
 			"request": "launch",
-			"name": "HTML Unit Tests",
+			"name": "HTML Server Unit Tests",
 			"program": "${workspaceFolder}/extensions/html-language-features/server/test/index.js",
 			"stopOnEntry": false,
 			"cwd": "${workspaceFolder}/extensions/html-language-features/server",
 			"outFiles": [
 				"${workspaceFolder}/extensions/html-language-features/server/out/**/*.js"
+			],
+			"presentation": {
+				"group": "5_tests",
+				"order": 10
+			}
+		},
+		{
+			"type": "node",
+			"request": "launch",
+			"name": "CSS Server Unit Tests",
+			"program": "${workspaceFolder}/extensions/css-language-features/server/test/index.js",
+			"stopOnEntry": false,
+			"cwd": "${workspaceFolder}/extensions/css-language-features/server",
+			"outFiles": [
+				"${workspaceFolder}/extensions/css-language-features/server/out/**/*.js"
 			],
 			"presentation": {
 				"group": "5_tests",

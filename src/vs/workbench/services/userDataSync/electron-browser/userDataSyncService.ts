@@ -116,6 +116,10 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
 	}
 
+	async getMachineId(resource: SyncResource, syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
+		return this.channel.call<string | undefined>('getMachineId', [resource, syncResourceHandle]);
+	}
+
 	private async updateStatus(status: SyncStatus): Promise<void> {
 		this._status = status;
 		this._onDidChangeStatus.fire(status);

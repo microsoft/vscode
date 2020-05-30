@@ -13,6 +13,7 @@ import { Emitter } from 'vs/base/common/event';
 
 interface WebviewThemeData {
 	readonly activeTheme: string;
+	readonly themeLabel: string;
 	readonly styles: { readonly [key: string]: string | number; };
 }
 
@@ -73,7 +74,7 @@ export class WebviewThemeDataProvider extends Disposable {
 		};
 
 		const activeTheme = ApiThemeClassName.fromTheme(theme);
-		return { styles, activeTheme };
+		return { styles, activeTheme, themeLabel: theme.label, };
 	}
 
 	private reset() {

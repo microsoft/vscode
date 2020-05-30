@@ -2715,10 +2715,10 @@ electron-to-chromium@^1.2.7:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.3.27.tgz#78ecb8a399066187bb374eede35d9c70565a803d"
   integrity sha1-eOy4o5kGYYe7N07t412ccFZagD0=
 
-electron@7.2.4:
-  version "7.2.4"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-7.2.4.tgz#9fc0446dae23ead897af8742470cb18da55c6ce9"
-  integrity sha512-Z+R692uTzXgP8AHrabE+kkrMlQJ6pnAYoINenwj9QSqaD2YbO8IuXU9DMCcUY0+VpA91ee09wFZJNUKYPMnCKg==
+electron@7.3.0:
+  version "7.3.0"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-7.3.0.tgz#b4e1bd1efe32314534dba9b60ea5cc688216f3b3"
+  integrity sha512-uG3WVhyawWXBUJN+f5GkdCq8z5r+XsvpLLAyUuPo+DL2PXt57YI1wEXc5qTJq9hzlLAcGOlU/4+8pSkYBWOn1A==
   dependencies:
     "@electron/get" "^1.0.1"
     "@types/node" "^12.0.12"
@@ -9270,10 +9270,10 @@ typescript@^2.6.2:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-2.6.2.tgz#3c5b6fd7f6de0914269027f03c0946758f7673a4"
   integrity sha1-PFtv1/beCRQmkCfwPAlGdY92c6Q=
 
-typescript@^3.9.1-rc:
-  version "3.9.1-rc"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.1-rc.tgz#81d5a5a0a597e224b6e2af8dffb46524b2eaf5f3"
-  integrity sha512-+cPv8L2Vd4KidCotqi2wjegBZ5n47CDRUu/QiLVu2YbeXAz78hIfcai9ziBiNI6JTGTVwUqXRug2UZxDcxhvFw==
+typescript@^3.9.3:
+  version "3.9.3"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.9.3.tgz#d3ac8883a97c26139e42df5e93eeece33d610b8a"
+  integrity sha512-D/wqnB2xzNFIcoBG9FG8cXRDjiqSTbG2wd8DMZeQyJlP1vfTkIxH4GKveWaEBYySKIg+USu+E+EDIR47SqnaMQ==
 
 uc.micro@^1.0.1, uc.micro@^1.0.3:
   version "1.0.3"
@@ -10051,11 +10051,6 @@ xterm-addon-unicode11@0.2.0:
   version "0.2.0"
   resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.2.0.tgz#9ed0c482b353908bba27778893ca80823382737c"
   integrity sha512-rjFDItPc/IDoSiEnoDFwKroNwLD/7t9vYKENjrcKVZg5tgJuuUj8D4rZtP6iVCjSB1LTLYmUs4L/EmCqIyLR/Q==
-
-xterm-addon-web-links@0.4.0:
-  version "0.4.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-web-links/-/xterm-addon-web-links-0.4.0.tgz#265cbf8221b9b315d0a748e1323bee331cd5da03"
-  integrity sha512-xv8GeiINmx0zENO9hf5k+5bnkaE8mRzF+OBAr9WeFq2eLaQSudioQSiT34M1ofKbzcdjSsKiZm19Rw3i4eXamg==
 
 xterm-addon-webgl@0.7.0:
   version "0.7.0"

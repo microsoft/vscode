@@ -10,7 +10,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isWeb } from 'vs/base/common/platform';
 import { RequestsSession } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IRequestService } from 'vs/platform/request/common/request';
 import { newWriteableBufferStream } from 'vs/base/common/buffer';
@@ -332,39 +331,41 @@ suite('UserDataSyncRequestsSession', () => {
 		async resolveProxy() { return undefined; }
 	};
 
-	test('too many requests are thrown when limit exceeded', () => {
-		const testObject = new RequestsSession(1, 100, requestService, NullTelemetryService);
-		testObject.request({}, CancellationToken.None);
+	test('too many requests are thrown when limit exceeded', async () => {
+		const testObject = new RequestsSession(1, 500, requestService);
+		await testObject.request({}, CancellationToken.None);
 
 		try {
-			testObject.request({}, CancellationToken.None);
-			assert.fail('Should fail with limit exceeded');
+			await testObject.request({}, CancellationToken.None);
 		} catch (error) {
 			assert.ok(error instanceof UserDataSyncStoreError);
 			assert.equal((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);
+			return;
 		}
+		assert.fail('Should fail with limit exceeded');
 	});
 
 	test('requests are handled after session is expired', async () => {
-		const testObject = new RequestsSession(1, 100, requestService, NullTelemetryService);
-		testObject.request({}, CancellationToken.None);
-		await timeout(100);
-		testObject.request({}, CancellationToken.None);
+		const testObject = new RequestsSession(1, 500, requestService);
+		await testObject.request({}, CancellationToken.None);
+		await timeout(600);
+		await testObject.request({}, CancellationToken.None);
 	});
 
 	test('too many requests are thrown after session is expired', async () => {
-		const testObject = new RequestsSession(1, 100, requestService, NullTelemetryService);
-		testObject.request({}, CancellationToken.None);
-		await timeout(100);
-		testObject.request({}, CancellationToken.None);
+		const testObject = new RequestsSession(1, 500, requestService);
+		await testObject.request({}, CancellationToken.None);
+		await timeout(600);
+		await testObject.request({}, CancellationToken.None);
 
 		try {
-			testObject.request({}, CancellationToken.None);
-			assert.fail('Should fail with limit exceeded');
+			await testObject.request({}, CancellationToken.None);
 		} catch (error) {
 			assert.ok(error instanceof UserDataSyncStoreError);
 			assert.equal((<UserDataSyncStoreError>error).code, UserDataSyncErrorCode.LocalTooManyRequests);
+			return;
 		}
+		assert.fail('Should fail with limit exceeded');
 	});
 
 });

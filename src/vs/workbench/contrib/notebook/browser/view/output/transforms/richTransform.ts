@@ -15,6 +15,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/workbench/contrib/notebook/browser/view/renderers/mdRenderer';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { handleANSIOutput } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 
 class RichRenderer implements IOutputTransformContribution {
 	private _mdRenderer: MarkdownRenderer;
@@ -24,7 +26,8 @@ class RichRenderer implements IOutputTransformContribution {
 		public notebookEditor: INotebookEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService
+		@IModeService private readonly modeService: IModeService,
+		@IThemeService private readonly themeService: IThemeService
 	) {
 		this._mdRenderer = instantiationService.createInstance(MarkdownRenderer, undefined);
 		this._richMimeTypeRenderers.set('application/json', this.renderJSON.bind(this));
@@ -209,8 +212,8 @@ class RichRenderer implements IOutputTransformContribution {
 	renderPlainText(output: any, container: HTMLElement) {
 		let data = output.data['text/plain'];
 		let str = isArray(data) ? data.join('') : data;
-		const contentNode = document.createElement('p');
-		contentNode.innerText = str;
+		const contentNode = DOM.$('.output-plaintext');
+		contentNode.appendChild(handleANSIOutput(str, this.themeService));
 		container.appendChild(contentNode);
 
 		return {

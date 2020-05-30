@@ -19,7 +19,7 @@ import {
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -37,6 +37,7 @@ import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension, is
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { asDomUri } from 'vs/base/browser/dom';
+import { getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -94,8 +95,8 @@ class Extension implements IExtension {
 			return this.gallery.publisherDisplayName || this.gallery.publisher;
 		}
 
-		if (this.local!.metadata && this.local!.metadata.publisherDisplayName) {
-			return this.local!.metadata.publisherDisplayName;
+		if (this.local?.publisherDisplayName) {
+			return this.local.publisherDisplayName;
 		}
 
 		return this.local!.manifest.publisher;
@@ -367,7 +368,7 @@ class Extensions extends Disposable {
 		}
 		// Sync the local extension with gallery extension if local extension doesnot has metadata
 		if (extension.local) {
-			const local = extension.local.metadata ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
+			const local = extension.local.identifier.uuid ? extension.local : await this.server.extensionManagementService.updateMetadata(extension.local, { id: compatible.identifier.uuid, publisherDisplayName: compatible.publisherDisplayName, publisherId: compatible.publisherId });
 			extension.local = local;
 			extension.gallery = compatible;
 			this._onChange.fire({ extension });
@@ -861,6 +862,39 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			location: ProgressLocation.Extensions,
 			source: `${toReinstall.identifier.id}`
 		}, () => this.extensionService.reinstallFromGallery(toReinstall).then(() => this.local.filter(local => areSameExtensions(local.identifier, extension.identifier))[0]));
+	}
+
+	isExtensionIgnoredToSync(extension: IExtension): boolean {
+		const localExtensions = (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer
+			? this.local.filter(i => i.server === this.extensionManagementServerService.localExtensionManagementServer)
+			: this.local)
+			.filter(l => !!l.local)
+			.map(l => l.local!);
+
+		const ignoredExtensions = getIgnoredExtensions(localExtensions, this.configurationService);
+		return ignoredExtensions.includes(extension.identifier.id.toLowerCase());
+	}
+
+	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void> {
+		const isIgnored = this.isExtensionIgnoredToSync(extension);
+		const isDefaultIgnored = extension.local?.isMachineScoped;
+		const id = extension.identifier.id.toLowerCase();
+
+		// first remove the extension completely from ignored extensions
+		let currentValue = [...this.configurationService.getValue<string[]>('sync.ignoredExtensions')].map(id => id.toLowerCase());
+		currentValue = currentValue.filter(v => v !== id && v !== `-${id}`);
+
+		// If ignored, then add only if it is ignored by default
+		if (isIgnored && isDefaultIgnored) {
+			currentValue.push(`-${id}`);
+		}
+
+		// If asked not to sync, then add only if it is not ignored by default
+		if (!isIgnored && !isDefaultIgnored) {
+			currentValue.push(id);
+		}
+
+		return this.configurationService.updateValue('sync.ignoredExtensions', currentValue.length ? currentValue : undefined, ConfigurationTarget.USER);
 	}
 
 	private installWithProgress<T>(installTask: () => Promise<T>, extensionName?: string): Promise<T> {

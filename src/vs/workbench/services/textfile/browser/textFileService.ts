@@ -251,11 +251,13 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Next, if the source does not seem to be a file, we try to
 		// resolve a text model from the resource to get at the
 		// contents and additional meta data (e.g. encoding).
-		else if (this.textModelService.hasTextModelContentProvider(source.scheme)) {
+		else if (this.textModelService.canHandleResource(source)) {
 			const modelReference = await this.textModelService.createModelReference(source);
-			success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
-
-			modelReference.dispose(); // free up our use of the reference
+			try {
+				success = await this.doSaveAsTextFile(modelReference.object, source, target, options);
+			} finally {
+				modelReference.dispose(); // free up our use of the reference
+			}
 		}
 
 		// Finally we simply check if we can find a editor model that

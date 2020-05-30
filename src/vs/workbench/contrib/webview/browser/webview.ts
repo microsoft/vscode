@@ -76,6 +76,7 @@ export interface WebviewExtensionDescription {
 export interface Webview extends IDisposable {
 	html: string;
 	contentOptions: WebviewContentOptions;
+	localResourcesRoot: URI[];
 	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;
