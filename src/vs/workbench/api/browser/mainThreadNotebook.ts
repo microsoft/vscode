@@ -171,8 +171,9 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			this._addNotebookEditor(editor);
 		}));
 
-		this._register(this._notebookService.onNotebookEditorRemove(editor => {
-			this._removeNotebookEditor(editor);
+
+		this._register(this._notebookService.onNotebookDocumentRemove(() => {
+			this._updateState();
 		}));
 
 		const updateOrder = () => {
@@ -201,9 +202,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 	}
 
 	async addNotebookDocument(data: INotebookModelAddedData) {
-		await this._proxy.$acceptDocumentAndEditorsDelta({
-			addedDocuments: [data]
-		});
+		this._updateState();
 	}
 
 	private _addNotebookEditor(e: IEditor) {
