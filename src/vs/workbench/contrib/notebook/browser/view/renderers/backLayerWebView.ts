@@ -18,7 +18,7 @@ import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookB
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { IWebviewService, WebviewElement, IDataLinkClickEvent } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname, joinPath } from 'vs/base/common/resources';
@@ -27,6 +27,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { getExtensionForMimeType } from 'vs/base/common/mime';
 
 export interface WebviewIntialized {
 	__vscode_notebook_message: boolean;
@@ -71,6 +72,13 @@ export interface IBlurOutputMessage {
 	type: 'focus-editor';
 	id: string;
 	focusNext?: boolean;
+}
+
+export interface IClickedDataUrlMessage {
+	__vscode_notebook_message: string;
+	type: 'clicked-data-url';
+	data: string;
+	downloadName?: string;
 }
 
 export interface IClearMessage {
@@ -134,7 +142,7 @@ function html(strings: TemplateStringsArray, ...values: any[]): string {
 	return str;
 }
 
-type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage | WebviewIntialized;
+type IMessage = IDimensionMessage | IScrollAckMessage | IWheelMessage | IMouseEnterMessage | IMouseLeaveMessage | IBlurOutputMessage | WebviewIntialized | IClickedDataUrlMessage;
 
 let version = 0;
 export class BackLayerWebView extends Disposable {
@@ -241,6 +249,50 @@ ${loaderJs}
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
 <script>
 (function () {
+
+		const handleInnerClick = (event) => {
+			if (!event || !event.view || !event.view.document) {
+				return;
+			}
+
+			/** @type {any} */
+			let node = event.target;
+			while (node) {
+				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+					if (node.href.startsWith('blob:')) {
+						handleBlobUrlClick(node.href, node.download);
+					}
+					event.preventDefault();
+					break;
+				}
+				node = node.parentNode;
+			}
+		};
+
+		const handleBlobUrlClick = async (url, downloadName) => {
+			try {
+				const response = await fetch(url);
+				const blob = await response.blob();
+				const reader = new FileReader();
+				reader.addEventListener('load', () => {
+					const data = reader.result;
+
+					vscode.postMessage({
+						__vscode_notebook_message: true,
+						type: 'clicked-data-url',
+						data,
+						downloadName
+					});
+				});
+				reader.readAsDataURL(blob);
+			} catch (e) {
+				console.error(e.message);
+			}
+		};
+
+		document.body.addEventListener('click', handleInnerClick);
+
+
 	// eslint-disable-next-line no-undef
 	const vscode = acquireVsCodeApi();
 
@@ -521,10 +573,6 @@ ${loaderJs}
 			}
 		}));
 
-		this._register(this.webview.onDidClickDataLink(event => {
-			this._onDidClickDataLink(event);
-		}));
-
 		this._register(this.webview.onDidReload(() => {
 			this.preloadsCache.clear();
 			for (const [output, inset] of this.insetMapping.entries()) {
@@ -587,6 +635,8 @@ ${loaderJs}
 							this.notebookEditor.focusNotebookCell(info.cell, 'editor');
 						}
 					}
+				} else if (data.type === 'clicked-data-url') {
+					this._onDidClickDataLink(data);
 				}
 				return;
 			}
@@ -595,19 +645,27 @@ ${loaderJs}
 		}));
 	}
 
-	private async _onDidClickDataLink(event: IDataLinkClickEvent): Promise<void> {
-		const defaultDir = dirname(this.documentUri);
-		const defaultUri = joinPath(defaultDir, event.downloadName || 'download.png');
+	private async _onDidClickDataLink(event: IClickedDataUrlMessage): Promise<void> {
+		const [splitStart, splitData] = event.data.split(';base64,');
+		if (!splitData || !splitStart) {
+			return;
+		}
 
+		const defaultDir = dirname(this.documentUri);
+		let defaultName: string;
+		if (event.downloadName) {
+			defaultName = event.downloadName;
+		} else {
+			const mimeType = splitStart.replace(/^data:/, '');
+			const candidateExtension = mimeType && getExtensionForMimeType(mimeType);
+			defaultName = candidateExtension ? `download${candidateExtension}` : 'download';
+		}
+
+		const defaultUri = joinPath(defaultDir, defaultName);
 		const newFileUri = await this.fileDialogService.showSaveDialog({
 			defaultUri
 		});
 		if (!newFileUri) {
-			return;
-		}
-
-		const splitData = event.dataURL.split(';base64,')[1];
-		if (!splitData) {
 			return;
 		}
 
