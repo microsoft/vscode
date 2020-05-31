@@ -1,10 +1,7 @@
 jobs:
-- task: AzureAppServiceManage@0
+- task: DotNetCoreCLI@2
   inputs:
-    azureSubscription: 'REALITY-iothub - Azure'
-    Action: 'Swap Slots'
-    WebAppName: 'Reesacup'
-    ResourceGroupName: 'GoalsnGrowth'
+    command: 'build'
 - job: Windows
   pool:
     vmImage: VS2017-Win2016
