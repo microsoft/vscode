@@ -8,6 +8,14 @@ import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { join } from 'path';
 
+export function timeoutAsync(n: number): Promise<void> {
+	return new Promise(resolve => {
+		setTimeout(() => {
+			resolve();
+		}, n);
+	});
+}
+
 export function once<T>(event: vscode.Event<T>): vscode.Event<T> {
 	return (listener: any, thisArgs = null, disposables?: any) => {
 		// we need this, in case the event fires during the listener call
@@ -103,14 +111,14 @@ suite('API tests', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(count, 1);
 
-		await vscode.commands.executeCommand('workbench.action.splitEditor');
+		await splitEditor();
 		assert.equal(count, 2);
 
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 		assert.equal(count, 0);
 	});
 
-	test('editor editing event', async function () {
+	test('editor editing event 2', async function () {
 		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
