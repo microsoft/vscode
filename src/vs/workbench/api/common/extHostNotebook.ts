@@ -517,7 +517,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			for (const documentData of documents) {
 				let data = CellUri.parse(documentData.document.uri);
 				if (data) {
-					if (this.document.uri.toString() === data.notebook.toString()) {
+					if (this.document.uri.fsPath === data.notebook.fsPath) {
 						document.attachCellTextDocument(documentData);
 					}
 				}
@@ -528,7 +528,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			for (const documentData of documents) {
 				let data = CellUri.parse(documentData.document.uri);
 				if (data) {
-					if (this.document.uri.toString() === data.notebook.toString()) {
+					if (this.document.uri.fsPath === data.notebook.fsPath) {
 						document.detachCellTextDocument(documentData);
 					}
 				}
