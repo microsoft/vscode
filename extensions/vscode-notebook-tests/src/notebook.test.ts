@@ -39,6 +39,15 @@ async function getEventOncePromise<T>(event: vscode.Event<T>): Promise<T> {
 	});
 }
 
+// Since `workbench.action.splitEditor` command does await properly
+// Notebook editor/document events are not guaranteed to be sent to the ext host when promise resolves
+// The workaround here is waiting for the first visible notebook editor change event.
+async function splitEditor() {
+	const once = getEventOncePromise(vscode.notebook.onDidChangeVisibleNotebookEditors);
+	await vscode.commands.executeCommand('workbench.action.splitEditor');
+	await once;
+}
+
 suite('API tests', () => {
 	test('document open/close event', async function () {
 		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
@@ -64,7 +73,7 @@ suite('API tests', () => {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(counter, 1);
 
-		await vscode.commands.executeCommand('workbench.action.splitEditor');
+		await splitEditor();
 		assert.equal(counter, 1);
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 		assert.equal(counter, 0);
@@ -204,7 +213,7 @@ suite('API tests', () => {
 		assert.equal(firstEditor?.active, true);
 		assert.equal(firstEditor?.visible, true);
 
-		await vscode.commands.executeCommand('workbench.action.splitEditor');
+		await splitEditor();
 		const secondEditor = vscode.notebook.activeNotebookEditor;
 		assert.equal(secondEditor?.active, true);
 		assert.equal(secondEditor?.visible, true);
@@ -630,7 +639,7 @@ suite('notebook working copy', () => {
 		assert.equal(firstNotebookEditor!.selection?.source, 'test');
 		assert.equal(firstNotebookEditor!.selection?.language, 'typescript');
 
-		await vscode.commands.executeCommand('workbench.action.splitEditor');
+		await splitEditor();
 		const secondNotebookEditor = vscode.notebook.activeNotebookEditor;
 		assert.equal(secondNotebookEditor !== undefined, true, 'notebook first');
 		assert.equal(secondNotebookEditor!.selection?.source, 'test');
