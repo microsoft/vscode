@@ -728,7 +728,12 @@ suite('regression', () => {
 });
 
 suite('webview', () => {
+	// for web, `asWebUri` gets `https`?
 	test('asWebviewUri', async function () {
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			return;
+		}
+
 		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
@@ -737,7 +742,13 @@ suite('webview', () => {
 		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
+
+	// 404 on web
 	test('custom renderer message', async function () {
+		if (vscode.env.uiKind === vscode.UIKind.Web) {
+			return;
+		}
+
 		const resource = vscode.Uri.parse(join(vscode.workspace.rootPath || '', './customRenderer.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
