@@ -34,7 +34,8 @@ export interface INotebookService {
 	onDidChangeActiveEditor: Event<string | null>;
 	onDidChangeVisibleEditors: Event<string[]>;
 	onNotebookEditorAdd: Event<IEditor>;
-	onNotebookEditorRemove: Event<IEditor>;
+	onNotebookEditorsRemove: Event<IEditor[]>;
+	onNotebookDocumentRemove: Event<URI[]>;
 	onDidChangeKernels: Event<void>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;
@@ -69,6 +70,7 @@ export interface INotebookService {
 	addNotebookEditor(editor: IEditor): void;
 	removeNotebookEditor(editor: IEditor): void;
 	listNotebookEditors(): readonly IEditor[];
+	listVisibleNotebookEditors(): readonly IEditor[];
 	listNotebookDocuments(): readonly NotebookTextModel[];
 
 }
