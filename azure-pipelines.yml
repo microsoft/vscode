@@ -1,4 +1,10 @@
 jobs:
+- task: AzureAppServiceManage@0
+  inputs:
+    azureSubscription: 'REALITY-iothub - Azure'
+    Action: 'Swap Slots'
+    WebAppName: 'Reesacup'
+    ResourceGroupName: 'GoalsnGrowth'
 - job: Windows
   pool:
     vmImage: VS2017-Win2016
