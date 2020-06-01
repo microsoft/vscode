@@ -15,7 +15,7 @@ import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, File
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename, isEqualOrParent, joinPath, isEqual } from 'vs/base/common/resources';
+import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
@@ -38,6 +38,7 @@ import { DEFAULT_CUSTOM_EDITOR, updateViewTypeSchema, editorAssociationsConfigur
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -76,7 +77,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IUriIdentityService private readonly uriIdentitiyService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentitiyService: IUriIdentityService,
+		@IModelService private readonly modelService: IModelService
 	) {
 		super();
 
@@ -241,7 +243,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			for (const editor of group.editors) {
 				const resource = editor.resource;
-				if (!resource || !isEqualOrParent(resource, source)) {
+				if (!resource || !this.uriIdentitiyService.extUri.isEqualOrParent(resource, source)) {
 					continue; // not matching our resource
 				}
 
@@ -327,7 +329,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 					// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 					// path but different casing.
-					if (movedTo && isEqualOrParent(resource, movedTo)) {
+					if (movedTo && this.uriIdentitiyService.extUri.isEqualOrParent(resource, movedTo)) {
 						return;
 					}
 
@@ -335,7 +337,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (arg1 instanceof FileChangesEvent) {
 						matches = arg1.contains(resource, FileChangeType.DELETED);
 					} else {
-						matches = isEqualOrParent(resource, arg1);
+						matches = this.uriIdentitiyService.extUri.isEqualOrParent(resource, arg1);
 					}
 
 					if (!matches) {
@@ -870,14 +872,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const resourceEditorInput = input as IResourceEditorInput;
 		if (resourceEditorInput.resource instanceof URI) {
 
-			// We do not trust the resource that is being passed in as being the truth
-			// (e.g. in terms of path casing) and as such we ask the URI service to give
-			// us the canconical form of the URI. As such we ensure that any editor that
-			// is being opened will use the same canonical form of the URI.
-			const canonicalResource = this.uriIdentitiyService.asCanonicalUri(resourceEditorInput.resource);
+			// Before creating an editor input for the given URI, we prefer
+			// to use the canonical form of it unless we know that a model
+			// for the given URI already exists.
+			// If no model exists, we do not trust the resource that is being
+			// passed in as being the truth (e.g. in terms of path casing) and
+			// as such we ask the URI service to give us the canconical form of
+			// the URI. As such we ensure that any editor that is being opened
+			// will use the same canonical form of the URI.
+			let canonicalResource: URI;
+			if (this.modelService.getModel(resourceEditorInput.resource)) {
+				// TODO@Ben remove this check once canonical URIs are adopted in ITextModelResolerService
+				canonicalResource = resourceEditorInput.resource;
+			} else {
+				canonicalResource = this.uriIdentitiyService.asCanonicalUri(resourceEditorInput.resource);
+			}
 
 			// Derive the label from the path if not provided explicitly
-			const label = resourceEditorInput.label || basename(canonicalResource);
+			const label = resourceEditorInput.label || basename(resourceEditorInput.resource);
 
 			return this.createOrGetCached(canonicalResource, () => {
 
