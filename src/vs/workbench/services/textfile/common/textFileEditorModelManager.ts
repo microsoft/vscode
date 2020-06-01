@@ -23,9 +23,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot, ITextBufferFactory } from 'vs/editor/common/model';
-import { joinPath, isEqualOrParent, isEqual, extUri } from 'vs/base/common/resources';
+import { joinPath, extUri } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -76,7 +77,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -142,11 +144,12 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			for (const model of this.models) {
 				const resource = model.resource;
 
-				if (extUri.isEqualOrParent(resource, e.target/* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
+				if (extUri.isEqualOrParent(resource, e.target)) {
+					// EXPLICITLY do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384
 					targetModels.push(model);
 				}
 
-				if (isEqualOrParent(resource, source)) {
+				if (this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
 					sourceModels.push(model);
 				}
 			}
@@ -159,7 +162,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 				// If the source is the actual model, just use target as new resource
 				let targetModelResource: URI;
-				if (isEqual(sourceModelResource, e.source)) {
+				if (this.uriIdentityService.extUri.isEqual(sourceModelResource, e.source)) {
 					targetModelResource = e.target;
 				}
 
