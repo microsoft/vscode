@@ -372,6 +372,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 							'{0} will be a glob pattern'
 						]
 					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
+				} else if (/^onStartup:/.test(activationEvent)) {
+					const time = activationEvent.substr('onStartup:'.length);
+					title = nls.localize('startupActivation', "Activated by {0} with a delay of {1} ms on start-up", activationId, time);
 				} else if (/^onLanguage:/.test(activationEvent)) {
 					let language = activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);

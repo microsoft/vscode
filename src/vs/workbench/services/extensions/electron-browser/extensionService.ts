@@ -323,6 +323,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 					shouldActivateReason = activationEvent;
 					break;
 				}
+
+				if (/^onStartup/.test(activationEvent)) {
+					shouldActivate = true;
+					shouldActivateReason = activationEvent;
+					break;
+				}
 			}
 		}
 
