@@ -179,16 +179,16 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		};
 	}
 
-	async $onWillRunFileOperation(operation: FileOperation, target: UriComponents, source: UriComponents | undefined, timeout: number, token: CancellationToken): Promise<any> {
+	async $onWillRunFileOperation(operation: FileOperation, files: { target: UriComponents, source: UriComponents | undefined }[], timeout: number, token: CancellationToken): Promise<any> {
 		switch (operation) {
 			case FileOperation.MOVE:
-				await this._fireWillEvent(this._onWillRenameFile, { files: [{ oldUri: URI.revive(source!), newUri: URI.revive(target) }] }, timeout, token);
+				await this._fireWillEvent(this._onWillRenameFile, { files: files.map(f => ({ oldUri: URI.revive(f.source!), newUri: URI.revive(f.target) })) }, timeout, token);
 				break;
 			case FileOperation.DELETE:
-				await this._fireWillEvent(this._onWillDeleteFile, { files: [URI.revive(target)] }, timeout, token);
+				await this._fireWillEvent(this._onWillDeleteFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 				break;
 			case FileOperation.CREATE:
-				await this._fireWillEvent(this._onWillCreateFile, { files: [URI.revive(target)] }, timeout, token);
+				await this._fireWillEvent(this._onWillCreateFile, { files: files.map(f => URI.revive(f.target)) }, timeout, token);
 				break;
 			default:
 			//ignore, dont send
