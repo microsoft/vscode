@@ -738,7 +738,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		if (editor.resource) {
-			return this.editorsObserver.hasEditor(editor.resource);
+			return this.editorsObserver.hasEditor(this.asCanonicalEditorResource(editor.resource));
 		}
 
 		return false;
@@ -872,24 +872,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const resourceEditorInput = input as IResourceEditorInput;
 		if (resourceEditorInput.resource instanceof URI) {
 
-			// Before creating an editor input for the given URI, we prefer
-			// to use the canonical form of it unless we know that a model
-			// for the given URI already exists.
-			// If no model exists, we do not trust the resource that is being
-			// passed in as being the truth (e.g. in terms of path casing) and
-			// as such we ask the URI service to give us the canconical form of
-			// the URI. As such we ensure that any editor that is being opened
-			// will use the same canonical form of the URI.
-			let canonicalResource: URI;
-			if (this.modelService.getModel(resourceEditorInput.resource)) {
-				// TODO@Ben remove this check once canonical URIs are adopted in ITextModelResolerService
-				canonicalResource = resourceEditorInput.resource;
-			} else {
-				canonicalResource = this.uriIdentityService.asCanonicalUri(resourceEditorInput.resource);
-			}
-
 			// Derive the label from the path if not provided explicitly
 			const label = resourceEditorInput.label || basename(resourceEditorInput.resource);
+
+			// From this moment on, only operate on the canonical resource
+			// to ensure we reduce the chance of opening the same resource
+			// with different resource forms (e.g. path casing on Windows)
+			const canonicalResource = this.asCanonicalEditorResource(resourceEditorInput.resource);
 
 			return this.createOrGetCached(canonicalResource, () => {
 
@@ -936,6 +925,25 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		throw new Error('Unknown input type');
+	}
+
+	private asCanonicalEditorResource(resource: URI): URI {
+		// We prefer to use the canonical form unless we know that a model
+		// for the given URI already exists.
+		// If no model exists, we do not trust the resource that is being
+		// passed in as being the truth (e.g. in terms of path casing) and
+		// as such we ask the URI service to give us the canconical form of
+		// the URI. As such we ensure that any editor that is being opened
+		// will use the same canonical form of the URI.
+		let canonicalResource: URI;
+		if (this.modelService.getModel(resource)) {
+			// TODO@Ben remove this check once canonical URIs are adopted in ITextModelResolerService
+			canonicalResource = resource;
+		} else {
+			canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
+		}
+
+		return canonicalResource;
 	}
 
 	private createOrGetCached(resource: URI, factoryFn: () => CachedEditorInput, cachedFn?: (input: CachedEditorInput) => void): CachedEditorInput {
