@@ -326,7 +326,7 @@ registerAction2(class extends NotebookAction {
 			title: localize('notebookActions.quitEditing', "Quit Notebook Cell Editing"),
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext, EditorContextKeys.hoverVisible.toNegated()),
 				primary: KeyCode.Escape,
 				weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
 			},
