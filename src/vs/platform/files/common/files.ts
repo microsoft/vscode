@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { ExtUri } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
@@ -491,7 +491,7 @@ export interface IFileChange {
 
 export class FileChangesEvent {
 
-	constructor(public readonly changes: readonly IFileChange[]) { }
+	constructor(public readonly changes: readonly IFileChange[], private readonly extUri: ExtUri) { }
 
 	/**
 	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
@@ -512,10 +512,10 @@ export class FileChangesEvent {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (change.type === FileChangeType.DELETED) {
-				return isEqualOrParent(resource, change.resource);
+				return this.extUri.isEqualOrParent(resource, change.resource);
 			}
 
-			return isEqual(resource, change.resource);
+			return this.extUri.isEqual(resource, change.resource);
 		});
 	}
 
@@ -569,6 +569,10 @@ export class FileChangesEvent {
 		return this.changes.some(change => {
 			return change.type === type;
 		});
+	}
+
+	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
+		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.extUri);
 	}
 }
 

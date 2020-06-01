@@ -14,6 +14,7 @@ import { toResource } from 'vs/base/test/common/utils';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { extUri } from 'vs/base/common/resources';
 
 suite('Files - TextFileEditorModelManager', () => {
 
@@ -184,8 +185,8 @@ suite('Files - TextFileEditorModelManager', () => {
 		const model1 = await manager.resolve(resource1, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 1);
 
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }]));
-		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }]));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.DELETED }], extUri));
+		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource: resource1, type: FileChangeType.ADDED }], extUri));
 
 		const model2 = await manager.resolve(resource2, { encoding: 'utf8' });
 		assert.equal(loadedCounter, 2);
