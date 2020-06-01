@@ -267,6 +267,7 @@ export interface ISyncResourceHandle {
 export type Conflict = { remote: URI, local: URI };
 
 export interface ISyncPreviewResult {
+	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
 }
@@ -344,7 +345,7 @@ export interface IUserDataSyncService {
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 
-	isFirstTimeSyncWithMerge(): Promise<boolean>;
+	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
 	acceptConflict(conflictResource: URI, content: string): Promise<void>;
 

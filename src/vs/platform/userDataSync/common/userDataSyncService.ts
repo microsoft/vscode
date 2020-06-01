@@ -277,23 +277,35 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.getSynchroniser(resource).getMachineId(syncResourceHandle);
 	}
 
-	async isFirstTimeSyncWithMerge(): Promise<boolean> {
+	async isFirstTimeSyncingWithAnotherMachine(): Promise<boolean> {
 		await this.checkEnablement();
+
 		if (!await this.userDataSyncStoreService.manifest()) {
 			return false;
 		}
-		if (await this.hasPreviouslySynced()) {
+
+		// skip global state synchronizer
+		const synchronizers = [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.extensionsSynchroniser];
+
+		let hasLocalData: boolean = false;
+		for (const synchroniser of synchronizers) {
+			if (await synchroniser.hasLocalData()) {
+				hasLocalData = true;
+				break;
+			}
+		}
+
+		if (!hasLocalData) {
 			return false;
 		}
-		if (!(await this.hasLocalData())) {
-			return false;
-		}
-		for (const synchroniser of [this.settingsSynchroniser, this.keybindingsSynchroniser, this.snippetsSynchroniser, this.extensionsSynchroniser]) {
+
+		for (const synchroniser of synchronizers) {
 			const preview = await synchroniser.getSyncPreview();
-			if (preview.hasLocalChanged || preview.hasRemoteChanged) {
+			if (!preview.isLastSyncFromCurrentMachine && (preview.hasLocalChanged || preview.hasRemoteChanged)) {
 				return true;
 			}
 		}
+
 		return false;
 	}
 
@@ -323,15 +335,6 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 	private async hasPreviouslySynced(): Promise<boolean> {
 		for (const synchroniser of this.synchronisers) {
 			if (await synchroniser.hasPreviouslySynced()) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private async hasLocalData(): Promise<boolean> {
-		for (const synchroniser of this.synchronisers) {
-			if (await synchroniser.hasLocalData()) {
 				return true;
 			}
 		}

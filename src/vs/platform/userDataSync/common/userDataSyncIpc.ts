@@ -48,7 +48,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
-			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
+			case 'isFirstTimeSyncingWithAnotherMachine': return this.service.isFirstTimeSyncingWithAnotherMachine();
 			case 'acceptConflict': return this.service.acceptConflict(URI.revive(args[0]), args[1]);
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);

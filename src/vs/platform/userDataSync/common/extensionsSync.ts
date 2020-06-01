@@ -12,7 +12,6 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IFileService } from 'vs/platform/files/common/files';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { merge, getIgnoredExtensions } from 'vs/platform/userDataSync/common/extensionsMerge';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { AbstractSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
@@ -95,7 +94,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 				await this.apply({
 					added, removed, updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
 					hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-					hasRemoteChanged: remote !== null
+					hasRemoteChanged: remote !== null,
+					isLastSyncFromCurrentMachine: false
 				});
 			}
 
@@ -131,7 +131,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			await this.apply({
 				added, removed, updated, remote, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
 				hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-				hasRemoteChanged: remote !== null
+				hasRemoteChanged: remote !== null,
+				isLastSyncFromCurrentMachine: false
 			}, true);
 
 			this.logService.info(`${this.syncResourceLogLabel}: Finished pushing extensions.`);
@@ -196,7 +197,7 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		try {
 			const installedExtensions = await this.extensionManagementService.getInstalled();
 			const localExtensions = this.getLocalExtensions(installedExtensions);
-			if (isNonEmptyArray(localExtensions)) {
+			if (localExtensions.some(e => e.installed || e.disabled)) {
 				return true;
 			}
 		} catch (error) {
@@ -221,14 +222,23 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 		await this.apply({
 			added, removed, updated, remote: syncExtensions, remoteUserData, localExtensions, skippedExtensions: [], lastSyncUserData,
 			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-			hasRemoteChanged: true
+			hasRemoteChanged: true,
+			isLastSyncFromCurrentMachine: false
 		});
 	}
 
 	protected async generatePreview(remoteUserData: IRemoteUserData, lastSyncUserData: ILastSyncUserData | null): Promise<IExtensionsSyncPreviewResult> {
 		const remoteExtensions: ISyncExtension[] | null = remoteUserData.syncData ? await this.parseAndMigrateExtensions(remoteUserData.syncData) : null;
-		const lastSyncExtensions: ISyncExtension[] | null = lastSyncUserData ? await this.parseAndMigrateExtensions(lastSyncUserData.syncData!) : null;
 		const skippedExtensions: ISyncExtension[] = lastSyncUserData ? lastSyncUserData.skippedExtensions || [] : [];
+		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
+		let lastSyncExtensions: ISyncExtension[] | null = null;
+		if (lastSyncUserData === null) {
+			if (isLastSyncFromCurrentMachine) {
+				lastSyncExtensions = await this.parseAndMigrateExtensions(remoteUserData.syncData!);
+			}
+		} else {
+			lastSyncExtensions = await this.parseAndMigrateExtensions(lastSyncUserData.syncData!);
+		}
 
 		const installedExtensions = await this.extensionManagementService.getInstalled();
 		const localExtensions = this.getLocalExtensions(installedExtensions);
@@ -252,7 +262,8 @@ export class ExtensionsSynchroniser extends AbstractSynchroniser implements IUse
 			localExtensions,
 			lastSyncUserData,
 			hasLocalChanged: added.length > 0 || removed.length > 0 || updated.length > 0,
-			hasRemoteChanged: remote !== null
+			hasRemoteChanged: remote !== null,
+			isLastSyncFromCurrentMachine
 		};
 	}
 
