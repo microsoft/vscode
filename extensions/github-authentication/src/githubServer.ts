@@ -23,6 +23,8 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 
 export const uriHandler = new UriEventHandler;
 
+const onDidManuallyProvideToken = new vscode.EventEmitter<string>();
+
 const exchangeCodeForToken: (state: string) => PromiseAdapter<vscode.Uri, string> =
 	(state) => async (uri, resolve, reject) => {
 		Logger.info('Exchanging code for token...');
@@ -84,7 +86,10 @@ export class GitHubServer {
 
 		vscode.env.openExternal(uri);
 
-		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state)).finally(() => {
+		return Promise.race([
+			promiseFromEvent(uriHandler.event, exchangeCodeForToken(state)),
+			promiseFromEvent<string, string>(onDidManuallyProvideToken.event)
+		]).finally(() => {
 			this.updateStatusBarItem(false);
 		});
 	}
@@ -111,8 +116,9 @@ export class GitHubServer {
 			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }
 			uriHandler.handleUri(uri);
 		} catch (e) {
-			Logger.error(e);
-			vscode.window.showErrorMessage(localize('unexpectedInput', "The input did not matched the expected format"));
+			// If it doesn't look like a URI, treat it as a token.
+			Logger.info('Treating input as token');
+			onDidManuallyProvideToken.fire(uriOrToken);
 		}
 	}
 
