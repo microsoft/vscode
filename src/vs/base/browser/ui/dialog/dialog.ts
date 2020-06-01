@@ -86,11 +86,11 @@ export class Dialog extends Disposable {
 
 		if (this.options.detail) {
 			const messageElement = messageContainer.appendChild($('.dialog-message'));
-			const messageTextElement = messageElement.appendChild($('.dialog-message-text'));
+			const messageTextElement = messageElement.appendChild($('#dialogMessageText.dialog-message-text'));
 			messageTextElement.innerText = this.message;
 		}
 
-		this.messageDetailElement = messageContainer.appendChild($('.dialog-message-detail'));
+		this.messageDetailElement = messageContainer.appendChild($('#dialogMessageDetailText.dialog-message-detail'));
 		this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 
 		if (this.options.checkboxLabel) {
@@ -139,6 +139,7 @@ export class Dialog extends Disposable {
 
 			buttonGroup.buttons.forEach((button, index) => {
 				button.label = mnemonicButtonLabel(buttonMap[index].label, true);
+				button.element.setAttribute('aria-labeledby', '#dialogMessageText;#dialogMessageDetailText');
 
 				this._register(button.onDidClick(e => {
 					EventHelper.stop(e);
