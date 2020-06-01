@@ -1321,7 +1321,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 }
 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
-	dark: transparent(PANEL_BORDER, .4),
+	dark: transparent(PANEL_BORDER, .6),
 	light: transparent(PANEL_BORDER, .4),
 	hc: null
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
@@ -1440,7 +1440,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
 	}
 
-	const editorBorderColor = theme.getColor(notebookOutputContainerColor);
+	const editorBorderColor = theme.getColor(notebookCellBorder);
 	if (editorBorderColor) {
 		collector.addRule(`.notebookOverlay .monaco-list-row .cell-editor-part:before { outline: solid 1px ${editorBorderColor}; }`);
 	}
