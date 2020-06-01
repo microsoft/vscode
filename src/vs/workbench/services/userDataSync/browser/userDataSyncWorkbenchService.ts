@@ -365,8 +365,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		// Account proviers
 		for (const authenticationProvider of this.authenticationProviders) {
-			const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
-			quickPickItems.push({ label: localize('sign in using account', "Sign in with {0}", providerName), authenticationProvider });
+			const signedInForProvider = this.all.some(account => account.authenticationProviderId === authenticationProvider.id);
+			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
+				const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
+				quickPickItems.push({ label: localize('sign in using account', "Sign in with {0}", providerName), authenticationProvider });
+			}
 		}
 
 		return quickPickItems;
