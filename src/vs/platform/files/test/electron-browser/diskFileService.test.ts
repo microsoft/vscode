@@ -1005,7 +1005,7 @@ suite('Disk File Service', function () {
 
 		const target = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
 
-		assert.ok((await service.canCopy(source.resource, target)) instanceof Error);
+		const canCopy = await service.canCopy(source.resource, target);
 
 		let error;
 		let copied: IFileStatWithMetadata;
@@ -1017,12 +1017,14 @@ suite('Disk File Service', function () {
 
 		if (isLinux) {
 			assert.ok(!error);
+			assert.equal(canCopy, true);
 
 			assert.equal(existsSync(copied!.resource.fsPath), true);
 			assert.ok(readdirSync(testDir).some(f => f === 'INDEX.html'));
 			assert.equal(source.size, copied!.size);
 		} else {
 			assert.ok(error);
+			assert.ok(canCopy instanceof Error);
 
 			source = await service.resolve(source.resource, { resolveMetadata: true });
 			assert.equal(originalSize, source.size);
@@ -1036,7 +1038,7 @@ suite('Disk File Service', function () {
 
 		const target = URI.file(join(dirname(source.resource.fsPath), 'INDEX.html'));
 
-		assert.ok((await service.canCopy(source.resource, target, true)) instanceof Error);
+		const canCopy = await service.canCopy(source.resource, target, true);
 
 		let error;
 		let copied: IFileStatWithMetadata;
@@ -1048,12 +1050,14 @@ suite('Disk File Service', function () {
 
 		if (isLinux) {
 			assert.ok(!error);
+			assert.equal(canCopy, true);
 
 			assert.equal(existsSync(copied!.resource.fsPath), true);
 			assert.ok(readdirSync(testDir).some(f => f === 'INDEX.html'));
 			assert.equal(source.size, copied!.size);
 		} else {
 			assert.ok(error);
+			assert.ok(canCopy instanceof Error);
 
 			source = await service.resolve(source.resource, { resolveMetadata: true });
 			assert.equal(originalSize, source.size);
