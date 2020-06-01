@@ -22,7 +22,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as glob from 'vs/base/common/glob';
-import { basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -270,7 +270,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private _notebookKernelMatch(resource: URI, selectors: (string | glob.IRelativePattern)[]): boolean {
 		for (let i = 0; i < selectors.length; i++) {
 			const pattern = typeof selectors[i] !== 'string' ? selectors[i] : selectors[i].toString();
-			if (glob.match(pattern, basename(resource).toLowerCase())) {
+			if (glob.match(pattern, basename(resource.fsPath).toLowerCase())) {
 				return true;
 			}
 		}
