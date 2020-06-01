@@ -79,6 +79,10 @@
 	border-radius: 3px;
 }
 
+.explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:first-child > .monaco-highlighted-label {
+	padding-left: 0;
+}
+
 .explorer-viewlet .explorer-item .monaco-icon-name-container.multiple > .label-name:hover > .monaco-highlighted-label,
 .explorer-viewlet .monaco-list .monaco-list-row.focused .explorer-item .monaco-icon-name-container.multiple > .label-name.active > .monaco-highlighted-label {
 	text-decoration: underline;
