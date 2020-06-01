@@ -17,7 +17,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceMap } from 'vs/base/common/map';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
-import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TextFileContentProvider } from 'vs/workbench/contrib/files/common/files';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { SAVE_FILE_COMMAND_ID, REVERT_FILE_COMMAND_ID, SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL } from 'vs/workbench/contrib/files/browser/fileCommands';
@@ -43,14 +43,15 @@ const conflictEditorHelp = nls.localize('userGuide', "Use the actions in the edi
 
 // A handler for text file save error happening with conflict resolution actions
 export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
-	private messages: ResourceMap<INotificationHandle>;
-	private conflictResolutionContext: IContextKey<boolean>;
-	private activeConflictResolutionResource?: URI;
+
+	private readonly messages = new ResourceMap<INotificationHandle>();
+	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(this.contextKeyService);
+	private activeConflictResolutionResource: URI | undefined = undefined;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITextFileService private readonly textFileService: ITextFileService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -61,9 +62,6 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 		// opt-in to syncing
 		storageKeysSyncRegistryService.registerStorageKey({ key: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, version: 1 });
-
-		this.messages = new ResourceMap<INotificationHandle>();
-		this.conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false).bindTo(contextKeyService);
 
 		const provider = this._register(instantiationService.createInstance(TextFileContentProvider));
 		this._register(textModelService.registerTextModelContentProvider(CONFLICT_RESOLUTION_SCHEME, provider));

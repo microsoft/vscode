@@ -362,7 +362,7 @@ export class ExplorerService implements IExplorerService {
 	}
 
 	private filterToViewRelevantEvents(e: FileChangesEvent): FileChangesEvent {
-		return new FileChangesEvent(e.changes.filter(change => {
+		return e.filter(change => {
 			if (change.type === FileChangeType.UPDATED && this._sortOrder !== SortOrder.Modified) {
 				return false; // we only are about updated if we sort by modified time
 			}
@@ -376,7 +376,7 @@ export class ExplorerService implements IExplorerService {
 			}
 
 			return true;
-		}));
+		});
 	}
 
 	private async onConfigurationUpdated(configuration: IFilesConfiguration, event?: IConfigurationChangeEvent): Promise<void> {

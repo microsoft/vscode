@@ -109,6 +109,7 @@ import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -120,7 +121,8 @@ export interface ITestInstantiationService extends IInstantiationService {
 
 export function workbenchInstantiationService(overrides?: {
 	textFileService?: (instantiationService: IInstantiationService) => ITextFileService
-	pathService?: (instantiationService: IInstantiationService) => IPathService
+	pathService?: (instantiationService: IInstantiationService) => IPathService,
+	editorService?: (instantiationService: IInstantiationService) => IEditorService
 }): ITestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
@@ -171,7 +173,7 @@ export function workbenchInstantiationService(overrides?: {
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
 	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
-	const editorService = new TestEditorService(editorGroupService);
+	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new CodeEditorService(editorService, themeService));
 	instantiationService.stub(IViewletService, new TestViewletService());
@@ -223,7 +225,8 @@ export class TestTextFileService extends BrowserTextFileService {
 		@ITextModelService textModelService: ITextModelService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService pathService: IPathService,
-		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(
 			fileService,
@@ -239,7 +242,8 @@ export class TestTextFileService extends BrowserTextFileService {
 			textModelService,
 			codeEditorService,
 			pathService,
-			workingCopyFileService
+			workingCopyFileService,
+			uriIdentityService
 		);
 	}
 
@@ -674,7 +678,7 @@ export class TestEditorService implements EditorServiceImpl {
 	saveAll(options?: ISaveEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
-	whenClosed(resources: URI[], options?: { waitForSaved: boolean }): Promise<void> { throw new Error('Method not implemented.'); }
+	whenClosed(editors: IResourceEditorInput[], options?: { waitForSaved: boolean }): Promise<void> { throw new Error('Method not implemented.'); }
 }
 
 export class TestFileService implements IFileService {
@@ -822,6 +826,10 @@ export class TestFileService implements IFileService {
 
 	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
 	dispose(): void { }
+
+	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
+	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
+	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined; } | undefined): Promise<Error | true> { return true; }
 }
 
 export class TestBackupFileService implements IBackupFileService {
@@ -1139,5 +1147,16 @@ export class TestPathService implements IPathService {
 
 	async fileURI(path: string): Promise<URI> {
 		return URI.file(path);
+	}
+}
+
+export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
+
+	add(resource: URI, model: TextFileEditorModel): void {
+		return super.add(resource, model);
+	}
+
+	remove(resource: URI): void {
+		return super.remove(resource);
 	}
 }

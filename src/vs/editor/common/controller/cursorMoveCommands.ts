@@ -404,13 +404,14 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveLeft(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
+		const hasMultipleCursors = (cursors.length > 1);
 		let result: PartialCursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
-
+			const skipWrappingPointStop = hasMultipleCursors || !cursor.viewState.hasSelection();
 			let newViewState = MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns);
 
-			if (!cursor.viewState.hasSelection() && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
+			if (skipWrappingPointStop && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
 				// moved over to the previous view line
 				const newViewModelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
 				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {
@@ -436,12 +437,14 @@ export class CursorMoveCommands {
 	}
 
 	private static _moveRight(viewModel: IViewModel, cursors: CursorState[], inSelectionMode: boolean, noOfColumns: number): PartialCursorState[] {
+		const hasMultipleCursors = (cursors.length > 1);
 		let result: PartialCursorState[] = [];
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
+			const skipWrappingPointStop = hasMultipleCursors || !cursor.viewState.hasSelection();
 			let newViewState = MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, noOfColumns);
 
-			if (!cursor.viewState.hasSelection() && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
+			if (skipWrappingPointStop && noOfColumns === 1 && newViewState.position.lineNumber !== cursor.viewState.position.lineNumber) {
 				// moved over to the next view line
 				const newViewModelPosition = viewModel.coordinatesConverter.convertViewPositionToModelPosition(newViewState.position);
 				if (newViewModelPosition.lineNumber === cursor.modelState.position.lineNumber) {

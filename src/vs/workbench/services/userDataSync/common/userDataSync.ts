@@ -57,3 +57,4 @@ export const CONTEXT_ENABLE_VIEWS = new RawContextKey<boolean>(`showUserDataSync
 export const ENABLE_SYNC_VIEWS_COMMAND_ID = 'workbench.userDataSync.actions.enableViews';
 export const CONFIGURE_SYNC_COMMAND_ID = 'workbench.userDataSync.actions.configure';
 export const SHOW_SYNC_LOG_COMMAND_ID = 'workbench.userDataSync.actions.showLog';
+export const SHOW_SYNCED_DATA_COMMAND_ID = 'workbench.userDataSync.actions.showSyncedData';
