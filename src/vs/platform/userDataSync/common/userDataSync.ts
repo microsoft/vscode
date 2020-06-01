@@ -184,18 +184,20 @@ export interface IUserDataSyncBackupStoreService {
 // #region User Data Sync Error
 
 export enum UserDataSyncErrorCode {
-	// Server Errors
-	Unauthorized = 'Unauthorized',
-	Forbidden = 'Forbidden',
+	// Client Errors (>= 400 )
+	Unauthorized = 'Unauthorized', /* 401 */
+	Gone = 'Gone', /* 410 */
+	PreconditionFailed = 'PreconditionFailed', /* 412 */
+	TooLarge = 'TooLarge', /* 413 */
+	UpgradeRequired = 'UpgradeRequired', /* 426 */
+	PreconditionRequired = 'PreconditionRequired', /* 428 */
+	TooManyRequests = 'RemoteTooManyRequests', /* 429 */
+
+	// Local Errors
 	ConnectionRefused = 'ConnectionRefused',
-	RemotePreconditionFailed = 'RemotePreconditionFailed',
-	TooManyRequests = 'RemoteTooManyRequests',
-	TooLarge = 'TooLarge',
 	NoRef = 'NoRef',
 	TurnedOff = 'TurnedOff',
 	SessionExpired = 'SessionExpired',
-
-	// Local Errors
 	LocalTooManyRequests = 'LocalTooManyRequests',
 	LocalPreconditionFailed = 'LocalPreconditionFailed',
 	LocalInvalidContent = 'LocalInvalidContent',
@@ -239,6 +241,7 @@ export interface ISyncExtension {
 	identifier: IExtensionIdentifier;
 	version?: string;
 	disabled?: boolean;
+	installed?: boolean;
 }
 
 export interface IStorageValue {
@@ -265,6 +268,7 @@ export interface ISyncResourceHandle {
 export type Conflict = { remote: URI, local: URI };
 
 export interface ISyncPreviewResult {
+	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
 }
@@ -342,7 +346,7 @@ export interface IUserDataSyncService {
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 
-	isFirstTimeSyncWithMerge(): Promise<boolean>;
+	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
 	acceptConflict(conflictResource: URI, content: string): Promise<void>;
 

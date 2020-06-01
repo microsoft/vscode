@@ -30,12 +30,16 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 
 // Editor Contribution
 
@@ -52,9 +56,6 @@ import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/streamTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 import 'vs/workbench/contrib/notebook/browser/view/output/transforms/richTransform';
-import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -115,13 +116,28 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	private _resourceMapping = new ResourceMap<NotebookEditorInput>();
 
 	constructor(
-		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IEditorService private readonly editorService: IEditorService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
-
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUndoRedoService undoRedoService: IUndoRedoService
 	) {
 		super();
+
+		this._register(undoRedoService.registerUriComparisonKeyComputer({
+			getComparisonKey: (uri: URI): string | null => {
+				if (uri.scheme !== CellUri.scheme) {
+					return null;
+				}
+
+				const data = CellUri.parse(uri);
+				if (!data) {
+					return null;
+				}
+
+				return data.notebook.toString();
+			}
+		}));
 
 		this._register(this.editorService.overrideOpenEditor({
 			getEditorOverrides: (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup | undefined) => {
@@ -141,7 +157,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					};
 				});
 			},
-			open: (editor, options, group, id) => this.onEditorOpening(editor, options, group, id)
+			open: (editor, options, group, context, id) => this.onEditorOpening(editor, options, group, context, id)
 		}));
 
 		this._register(this.editorService.onDidVisibleEditorsChange(() => {
@@ -168,9 +184,15 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				return;
 			}
 
-			if (!this.editorService.editors.some(other => other === editor)) {
-				editor.dispose();
+			if (!this.editorService.editors.some(other => (
+				other.resource === editor.resource
+				&& other instanceof NotebookEditorInput
+				&& other.viewType === editor.viewType
+			))) {
+				editor.clearTextModel();
 			}
+
+			editor.dispose();
 		}));
 	}
 
@@ -193,7 +215,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 		return this.notebookService.getContributedNotebookProviders(resource);
 	}
 
-	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, id: string | undefined): IOpenEditorOverride | undefined {
+	private onEditorOpening(originalInput: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup, context: OpenEditorContext, id: string | undefined): IOpenEditorOverride | undefined {
 		if (originalInput instanceof NotebookEditorInput) {
 			if ((originalInput.group === group.id || originalInput.group === undefined) && (originalInput.viewType === id || typeof id !== 'string')) {
 				// No need to do anything
@@ -208,12 +230,14 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				const copiedInput = this.instantiationService.createInstance(NotebookEditorInput, originalInput.resource, originalInput.name, originalInput.viewType);
 				copiedInput.updateGroup(group.id);
 
-				// transfer ownership of editor widget
-				// const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
-				// if (widgetRef) {
-				// 	NotebookRegistry.releaseNotebookEditorWidget(originalInput);
-				// 	NotebookRegistry.claimNotebookEditorWidget(copiedInput, widgetRef);
-				// }
+				if (context === OpenEditorContext.MOVE_EDITOR) {
+					// transfer ownership of editor widget
+					const widgetRef = NotebookRegistry.getNotebookEditorWidget(originalInput);
+					if (widgetRef) {
+						NotebookRegistry.releaseNotebookEditorWidget(originalInput);
+						NotebookRegistry.claimNotebookEditorWidget(copiedInput, widgetRef);
+					}
+				}
 
 				return {
 					override: this.editorService.openEditor(copiedInput, new NotebookEditorOptions(options || {}).with({ ignoreOverrides: true }), group)

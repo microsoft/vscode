@@ -126,6 +126,12 @@
 	box-sizing: border-box;
 }
 
+.notebookOverlay .output > div.foreground .output-stream,
+.notebookOverlay .output > div.foreground .output-plaintext {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	white-space: pre-wrap;
+}
+
 .notebookOverlay .cell-drag-image .output .multi-mimetype-output {
 	display: none;
 }
@@ -379,8 +385,15 @@
 	top: 22px;
 	bottom: 36px;
 	visibility: hidden;
-	cursor: pointer;
 	opacity: 0.6;
+}
+
+.notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator:hover {
+	cursor: grab;
+}
+
+.notebookOverlay .monaco-list .monaco-list-row .notebook-cell-focus-indicator .codicon:hover {
+	cursor: pointer;
 }
 
 .notebookOverlay .monaco-list .monaco-list-row:hover .notebook-cell-focus-indicator,
@@ -623,7 +636,6 @@
 	position: absolute;
 	top: 8px;
 	left: 6px;
-	cursor: pointer;
 }
 
 .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {

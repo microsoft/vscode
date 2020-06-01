@@ -226,7 +226,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	async getSyncPreview(): Promise<ISyncPreviewResult> {
 		if (!this.isEnabled()) {
-			return { hasLocalChanged: false, hasRemoteChanged: false };
+			return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false };
 		}
 
 		const lastSyncUserData = await this.getLastSyncUserData();
@@ -238,7 +238,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		if (remoteUserData.syncData && remoteUserData.syncData.version > this.version) {
 			// current version is not compatible with cloud version
 			this.telemetryService.publicLog2<{ source: string }, SyncSourceClassification>('sync/incompatible', { source: this.resource });
-			throw new UserDataSyncError(localize('incompatible', "Cannot sync {0} as its version {1} is not compatible with cloud {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.Incompatible, this.resource);
+			throw new UserDataSyncError(localize({ key: 'incompatible', comment: ['This is an error while syncing a resource that its local version is not compatible with its remote version.'] }, "Cannot sync {0} as its local version {1} is not compatible with its remote version {2}", this.resource, this.version, remoteUserData.syncData.version), UserDataSyncErrorCode.Incompatible, this.resource);
 		}
 		try {
 			const status = await this.performSync(remoteUserData, lastSyncUserData);
@@ -246,7 +246,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 		} catch (e) {
 			if (e instanceof UserDataSyncError) {
 				switch (e.code) {
-					case UserDataSyncErrorCode.RemotePreconditionFailed:
+					case UserDataSyncErrorCode.PreconditionFailed:
 						// Rejected as there is a new remote version. Syncing again...
 						this.logService.info(`${this.syncResourceLogLabel}: Failed to synchronize as there is a new remote version available. Synchronizing again...`);
 
@@ -267,6 +267,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 	async hasPreviouslySynced(): Promise<boolean> {
 		const lastSyncData = await this.getLastSyncUserData();
 		return !!lastSyncData;
+	}
+
+	protected async isLastSyncFromCurrentMachine(remoteUserData: IRemoteUserData): Promise<boolean> {
+		const machineId = await this.currentMachineIdPromise;
+		return !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
 	}
 
 	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {
@@ -378,8 +383,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected async updateRemoteUserData(content: string, ref: string | null): Promise<IRemoteUserData> {
-		await this.currentMachineIdPromise;
-		const syncData: ISyncData = { version: this.version, content };
+		const machineId = await this.currentMachineIdPromise;
+		const syncData: ISyncData = { version: this.version, machineId, content };
 		ref = await this.userDataSyncStoreService.write(this.resource, JSON.stringify(syncData), ref);
 		return { ref, syncData };
 	}

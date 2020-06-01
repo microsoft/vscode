@@ -5,7 +5,7 @@
 
 import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPane, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -90,6 +90,11 @@ export interface IEditorOpeningEvent extends IEditorIdentifier {
 	options?: IEditorOptions;
 
 	/**
+	 * Context indicates how the editor open event is initialized.
+	 */
+	context?: OpenEditorContext;
+
+	/**
 	 * Allows to prevent the opening of an editor by providing a callback
 	 * that will be executed instead. By returning another editor promise
 	 * it is possible to override the opening with another editor. It is ok
@@ -164,11 +169,6 @@ export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEd
  * events from clients.
  */
 export interface EditorServiceImpl extends IEditorService {
-
-	/**
-	 * Emitted when an editor is closed.
-	 */
-	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * Emitted when an editor failed to open.

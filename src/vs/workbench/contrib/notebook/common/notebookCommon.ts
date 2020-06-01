@@ -50,6 +50,8 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 	'image/jpeg',
 ];
 
+export const BUILTIN_RENDERER_ID = '_builtin';
+
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	editable: true,
 	runnable: true,
@@ -101,9 +103,12 @@ export interface INotebookMimeTypeSelector {
 }
 
 export interface INotebookRendererInfo {
-	id: ExtensionIdentifier;
+	id: string;
+	extensionId: ExtensionIdentifier;
 	extensionLocation: URI,
-	preloads: URI[]
+	preloads: URI[],
+	render(uri: URI, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined>;
+	render2<T>(uri: URI, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined>;
 }
 
 export interface INotebookKernelInfo {
@@ -165,7 +170,7 @@ export enum MimeTypeRendererResolver {
 export interface IOrderedMimeType {
 	mimeType: string;
 	isResolved: boolean;
-	rendererId?: number;
+	rendererId?: string;
 	output?: string;
 }
 
@@ -173,8 +178,8 @@ export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
 	data: { [key: string]: any; }
 
-	orderedMimeTypes: IOrderedMimeType[];
-	pickedMimeTypeIndex: number;
+	orderedMimeTypes?: IOrderedMimeType[];
+	pickedMimeTypeIndex?: number;
 }
 
 export interface IGenericOutput {
@@ -184,14 +189,50 @@ export interface IGenericOutput {
 	transformedOutput?: { [key: string]: IDisplayOutput };
 }
 
-export type IOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
+export type IProcessedOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
+
+export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
+
+export interface IOutputRenderRequestOutputInfo {
+	index: number;
+	handlerId: string;
+	mimeType: string;
+	output?: IRawOutput;
+}
+
+export interface IOutputRenderRequestCellInfo<T> {
+	key: T;
+	outputs: IOutputRenderRequestOutputInfo[];
+}
+
+export interface IOutputRenderRequest<T> {
+	items: IOutputRenderRequestCellInfo<T>[];
+}
+
+export interface IOutputRenderResponseOutputInfo {
+	index: number;
+	mimeType: string;
+	handlerId: string;
+	transformedOutput: string;
+}
+
+export interface IOutputRenderResponseCellInfo<T> {
+	key: T;
+	outputs: IOutputRenderResponseOutputInfo[];
+}
+
+
+export interface IOutputRenderResponse<T> {
+	items: IOutputRenderResponseCellInfo<T>[];
+}
+
 
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutput[];
+	outputs: IProcessedOutput[];
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
@@ -214,9 +255,10 @@ export interface INotebookTextModel {
 	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
-	renderers: Set<number>;
+	renderers: Set<string>;
 	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
 	onDidChangeContent: Event<void>;
+	onDidChangeUnknown: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -234,7 +276,7 @@ export type NotebookCellTextModelSplice = [
 export type NotebookCellOutputsSplice = [
 	number /* start */,
 	number /* delete count */,
-	IOutput[]
+	IProcessedOutput[]
 ];
 
 export interface IMainCellDto {
@@ -243,7 +285,7 @@ export interface IMainCellDto {
 	source: string[];
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutput[];
+	outputs: IProcessedOutput[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -263,7 +305,7 @@ export enum NotebookCellsChangeType {
 
 export interface NotebookCellsModelChangedEvent {
 	readonly kind: NotebookCellsChangeType.ModelChange;
-	readonly change: NotebookCellsSplice2;
+	readonly changes: NotebookCellsSplice2[];
 	readonly versionId: number;
 }
 
@@ -302,7 +344,7 @@ export interface ICellDto2 {
 	source: string | string[];
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutput[];
+	outputs: IProcessedOutput[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -330,7 +372,6 @@ export interface NotebookDataDto {
 	readonly cells: ICellDto2[];
 	readonly languages: string[];
 	readonly metadata: NotebookDocumentMetadata;
-	readonly renderers: number[];
 }
 
 

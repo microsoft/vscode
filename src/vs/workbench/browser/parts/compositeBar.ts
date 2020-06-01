@@ -63,7 +63,6 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 				}
 
 				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before));
-				this.openComposite(currentContainer.id);
 			}
 		}
 
@@ -682,7 +681,7 @@ class CompositeBarModel {
 
 	private updateItemsOrder(): void {
 		if (this._items) {
-			this.items.forEach((item, index) => item.order = index);
+			this.items.forEach((item, index) => { if (item.order !== undefined) { item.order = index; } });
 		}
 	}
 
