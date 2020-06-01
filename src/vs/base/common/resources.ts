@@ -176,6 +176,10 @@ export class ExtUri implements IExtUri {
 		if (uri1.scheme !== uri2.scheme || !isEqualAuthority(uri1.authority, uri2.authority)) {
 			return false;
 		}
+		if (uri1.toString() === uri2.toString()) {
+			// TODO@jrieken see https://github.com/microsoft/vscode/issues/98934
+			return true;
+		}
 		const p1 = uri1.path, p2 = uri2.path;
 		return (p1 === p2 || this._ignorePathCasing(uri1) && equalsIgnoreCase(p1, p2)) && uri1.query === uri2.query && (ignoreFragment || uri1.fragment === uri2.fragment);
 	}
