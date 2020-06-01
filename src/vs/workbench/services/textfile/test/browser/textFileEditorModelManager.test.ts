@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { toResource } from 'vs/base/test/common/utils';
@@ -26,7 +26,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('add, remove, clear, get, getAll', function () {
-		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);
@@ -81,7 +81,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('resolve', async () => {
-		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 		const resource = URI.file('/test.html');
 		const encoding = 'utf8';
 
@@ -115,7 +115,7 @@ suite('Files - TextFileEditorModelManager', () => {
 	});
 
 	test('removed from cache when model disposed', function () {
-		const manager: TextFileEditorModelManager = instantiationService.createInstance(TextFileEditorModelManager);
+		const manager: TestTextFileEditorModelManager = instantiationService.createInstance(TestTextFileEditorModelManager);
 
 		const model1: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random1.txt'), 'utf8', undefined);
 		const model2: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/random2.txt'), 'utf8', undefined);

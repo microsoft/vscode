@@ -109,6 +109,7 @@ import { IStorageKeysSyncRegistryService, StorageKeysSyncRegistryService } from 
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
+import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined);
@@ -1146,5 +1147,16 @@ export class TestPathService implements IPathService {
 
 	async fileURI(path: string): Promise<URI> {
 		return URI.file(path);
+	}
+}
+
+export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
+
+	add(resource: URI, model: TextFileEditorModel): void {
+		return super.add(resource, model);
+	}
+
+	remove(resource: URI): void {
+		return super.remove(resource);
 	}
 }
