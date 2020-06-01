@@ -77,7 +77,7 @@ class UnusualLineTerminatorsDetector extends Disposable implements IEditorContri
 		const result = await this._dialogService.confirm({
 			title: nls.localize('unusualLineTerminators.title', "Unusual Line Terminators"),
 			message: nls.localize('unusualLineTerminators.message', "Detected unusual line terminators"),
-			detail: nls.localize('unusualLineTerminators.detail', "Your file contains one or more unusual line terminator characters, like Line Separator (LS), Paragraph Separator (PS) or Next Line (NEL).\n\nThese characters can cause subtle problems with language servers, due to how each programming language specifies its line terminators. e.g. what is line 11 for VS Code might be line 12 for a language server.\n\nThis check can be disabled via `editor.removeUnusualLineTerminators`."),
+			detail: nls.localize('unusualLineTerminators.detail', "Your file contains one or more unusual line terminator characters, like Line Separator (LS), Paragraph Separator (PS) or Next Line (NEL).\n\nThis check can be disabled via `editor.removeUnusualLineTerminators`."),
 			primaryButton: nls.localize('unusualLineTerminators.fix', "Fix this file"),
 			secondaryButton: nls.localize('unusualLineTerminators.ignore', "Ignore problem for this file")
 		});
