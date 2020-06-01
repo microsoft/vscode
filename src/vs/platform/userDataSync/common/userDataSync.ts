@@ -186,6 +186,7 @@ export interface IUserDataSyncBackupStoreService {
 export enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
+	Gone = 'Gone', /* 410 */
 	PreconditionFailed = 'PreconditionFailed', /* 412 */
 	TooLarge = 'TooLarge', /* 413 */
 	UpgradeRequired = 'UpgradeRequired', /* 426 */

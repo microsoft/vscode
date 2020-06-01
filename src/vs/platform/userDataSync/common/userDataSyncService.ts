@@ -402,6 +402,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 				case UserDataSyncErrorCode.TooLarge:
 				case UserDataSyncErrorCode.TooManyRequests:
 				case UserDataSyncErrorCode.LocalTooManyRequests:
+				case UserDataSyncErrorCode.Gone:
 				case UserDataSyncErrorCode.UpgradeRequired:
 				case UserDataSyncErrorCode.Incompatible:
 					throw e;
