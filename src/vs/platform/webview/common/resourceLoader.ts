@@ -112,20 +112,27 @@ function getResourceToLoad(
 }
 
 function normalizeRequestPath(requestUri: URI) {
-	if (requestUri.scheme !== Schemas.vscodeWebviewResource) {
+	if (requestUri.scheme === Schemas.vscodeWebviewResource) {
+		// The `vscode-webview-resource` scheme has the following format:
+		//
+		// vscode-webview-resource://id/scheme//authority?/path
+		//
+		const resourceUri = URI.parse(requestUri.path.replace(/^\/([a-z0-9\-]+)\/{1,2}/i, '$1://'));
+
+		return resourceUri.with({
+			query: requestUri.query,
+			fragment: requestUri.fragment
+		});
+	} else if (requestUri.scheme === Schemas.oldVscodeWebviewResource) {
+		// The `vscode-resource` puts the scheme as the authority
+		const resourceUri = URI.parse(`${requestUri.authority}:${encodeURIComponent(requestUri.path).replace(/%2F/g, '/')}`);
+		return resourceUri.with({
+			query: requestUri.query,
+			fragment: requestUri.fragment
+		});
+	} else {
 		return requestUri;
 	}
-
-	// The `vscode-webview-resource` scheme has the following format:
-	//
-	// vscode-webview-resource://id/scheme//authority?/path
-	//
-	const resourceUri = URI.parse(requestUri.path.replace(/^\/([a-z0-9\-]+)\/{1,2}/i, '$1://'));
-
-	return resourceUri.with({
-		query: requestUri.query,
-		fragment: requestUri.fragment
-	});
 }
 
 function containsResource(root: URI, resource: URI): boolean {
