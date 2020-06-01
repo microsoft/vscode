@@ -203,6 +203,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	async canResolve(viewType: string): Promise<boolean> {
 		if (!this._notebookProviders.has(viewType)) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			// notebook providers/kernels/renderers might use `*` as activation event.
+			await this.extensionService.activateByEvent(`*`);
 			// this awaits full activation of all matching extensions
 			await this.extensionService.activateByEvent(`onNotebookEditor:${viewType}`);
 		}

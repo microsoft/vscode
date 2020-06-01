@@ -6,8 +6,7 @@
   "license": "MIT",
   "private": true,
   "activationEvents": [
-    "*",
-    "onNotebookEditor:notebookCoreTest"
+    "*"
   ],
   "main": "./out/notebookTestMain",
   "enableProposedApi": true,
