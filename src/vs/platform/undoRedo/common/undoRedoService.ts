@@ -201,6 +201,27 @@ class ResourceEditStack {
 		}
 	}
 
+	private _setElementValidFlag(element: StackElement, isValid: boolean): void {
+		if (element.type === UndoRedoElementType.Workspace) {
+			element.setValid(this.resourceLabel, this.strResource, isValid);
+		} else {
+			element.setValid(isValid);
+		}
+	}
+
+	public setElementsValidFlag(isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void {
+		for (const element of this._past) {
+			if (filter(element.actual)) {
+				this._setElementValidFlag(element, isValid);
+			}
+		}
+		for (const element of this._future) {
+			if (filter(element.actual)) {
+				this._setElementValidFlag(element, isValid);
+			}
+		}
+	}
+
 	public pushElement(element: StackElement): void {
 		// remove the future
 		for (const futureElement of this._future) {
@@ -352,7 +373,7 @@ export class UndoRedoService implements IUndoRedoService {
 		};
 	}
 
-	private _uriGetComparisonKey(resource: URI): string {
+	public getUriComparisonKey(resource: URI): string {
 		for (const uriComparisonKeyComputer of this._uriComparisonKeyComputers) {
 			const result = uriComparisonKeyComputer.getComparisonKey(resource);
 			if (result !== null) {
@@ -365,7 +386,7 @@ export class UndoRedoService implements IUndoRedoService {
 	public pushElement(element: IUndoRedoElement): void {
 		if (element.type === UndoRedoElementType.Resource) {
 			const resourceLabel = getResourceLabel(element.resource);
-			const strResource = this._uriGetComparisonKey(element.resource);
+			const strResource = this.getUriComparisonKey(element.resource);
 			this._pushElement(new ResourceStackElement(element, resourceLabel, strResource));
 		} else {
 			const seen = new Set<string>();
@@ -373,7 +394,7 @@ export class UndoRedoService implements IUndoRedoService {
 			const strResources: string[] = [];
 			for (const resource of element.resources) {
 				const resourceLabel = getResourceLabel(resource);
-				const strResource = this._uriGetComparisonKey(resource);
+				const strResource = this.getUriComparisonKey(resource);
 
 				if (seen.has(strResource)) {
 					continue;
@@ -409,7 +430,7 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	public getLastElement(resource: URI): IUndoRedoElement | null {
-		const strResource = this._uriGetComparisonKey(resource);
+		const strResource = this.getUriComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
 			if (editStack.hasFutureElements()) {
@@ -426,7 +447,7 @@ export class UndoRedoService implements IUndoRedoService {
 		const individualMap = new Map<string, ResourceStackElement>();
 		for (const _element of individualArr) {
 			const resourceLabel = getResourceLabel(_element.resource);
-			const strResource = this._uriGetComparisonKey(_element.resource);
+			const strResource = this.getUriComparisonKey(_element.resource);
 			const element = new ResourceStackElement(_element, resourceLabel, strResource);
 			individualMap.set(element.strResource, element);
 		}
@@ -445,7 +466,7 @@ export class UndoRedoService implements IUndoRedoService {
 		const individualMap = new Map<string, ResourceStackElement>();
 		for (const _element of individualArr) {
 			const resourceLabel = getResourceLabel(_element.resource);
-			const strResource = this._uriGetComparisonKey(_element.resource);
+			const strResource = this.getUriComparisonKey(_element.resource);
 			const element = new ResourceStackElement(_element, resourceLabel, strResource);
 			individualMap.set(element.strResource, element);
 		}
@@ -460,7 +481,7 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	public removeElements(resource: URI | string): void {
-		const strResource = typeof resource === 'string' ? resource : this._uriGetComparisonKey(resource);
+		const strResource = typeof resource === 'string' ? resource : this.getUriComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
 			editStack.dispose();
@@ -468,18 +489,16 @@ export class UndoRedoService implements IUndoRedoService {
 		}
 	}
 
-	public setElementsIsValid(resource: URI, isValid: boolean): void {
-		const strResource = this._uriGetComparisonKey(resource);
+	public setElementsValidFlag(resource: URI, isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void {
+		const strResource = this.getUriComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
-			editStack.setElementsIsValid(isValid);
+			editStack.setElementsValidFlag(isValid, filter);
 		}
 	}
 
-	// resource
-
 	public hasElements(resource: URI): boolean {
-		const strResource = this._uriGetComparisonKey(resource);
+		const strResource = this.getUriComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
 			return (editStack.hasPastElements() || editStack.hasFutureElements());
@@ -488,7 +507,7 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	public getElements(resource: URI): IPastFutureElements {
-		const strResource = this._uriGetComparisonKey(resource);
+		const strResource = this.getUriComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
 			return editStack.getElements();
@@ -497,7 +516,7 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	public canUndo(resource: URI): boolean {
-		const strResource = this._uriGetComparisonKey(resource);
+		const strResource = this.getUriComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
 			return editStack.hasPastElements();
@@ -744,7 +763,7 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	public undo(resource: URI | string): Promise<void> | void {
-		const strResource = typeof resource === 'string' ? resource : this._uriGetComparisonKey(resource);
+		const strResource = typeof resource === 'string' ? resource : this.getUriComparisonKey(resource);
 		if (!this._editStacks.has(strResource)) {
 			return;
 		}
@@ -763,7 +782,7 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	public canRedo(resource: URI): boolean {
-		const strResource = this._uriGetComparisonKey(resource);
+		const strResource = this.getUriComparisonKey(resource);
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
 			return editStack.hasFutureElements();
@@ -873,7 +892,7 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	public redo(resource: URI | string): Promise<void> | void {
-		const strResource = typeof resource === 'string' ? resource : this._uriGetComparisonKey(resource);
+		const strResource = typeof resource === 'string' ? resource : this.getUriComparisonKey(resource);
 		if (!this._editStacks.has(strResource)) {
 			return;
 		}
