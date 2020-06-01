@@ -169,7 +169,7 @@ export class NotebookEditor extends BaseEditor {
 		const model = await input.resolve(this._widget!.getId());
 		const viewState = this.loadTextEditorViewState(input);
 
-		this._widget.setModel(model.notebook, viewState, options);
+		await this._widget.setModel(model.notebook, viewState, options);
 		this._widgetDisposableStore.add(this._widget.onDidFocus(() => this._onDidFocusWidget.fire()));
 	}
 
