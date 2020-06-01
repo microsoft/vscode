@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode, Verbosity } from 'vs/workbench/common/editor';
 import { TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
@@ -17,13 +17,23 @@ import { timeout } from 'vs/base/common/async';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 suite('Files - FileEditorInput', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		instantiationService = workbenchInstantiationService();
+		instantiationService = workbenchInstantiationService({
+			editorService: () => {
+				return new class extends TestEditorService {
+					createEditorInput(input: IResourceEditorInput) {
+						return instantiationService.createInstance(FileEditorInput, input.resource, undefined, undefined);
+					}
+				};
+			}
+		});
+
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 	});
 

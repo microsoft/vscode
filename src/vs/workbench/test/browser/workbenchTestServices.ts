@@ -120,7 +120,8 @@ export interface ITestInstantiationService extends IInstantiationService {
 
 export function workbenchInstantiationService(overrides?: {
 	textFileService?: (instantiationService: IInstantiationService) => ITextFileService
-	pathService?: (instantiationService: IInstantiationService) => IPathService
+	pathService?: (instantiationService: IInstantiationService) => IPathService,
+	editorService?: (instantiationService: IInstantiationService) => IEditorService
 }): ITestInstantiationService {
 	const instantiationService = new TestInstantiationService(new ServiceCollection([ILifecycleService, new TestLifecycleService()]));
 
@@ -171,7 +172,7 @@ export function workbenchInstantiationService(overrides?: {
 	const editorGroupService = new TestEditorGroupsService([new TestEditorGroupView(0)]);
 	instantiationService.stub(IEditorGroupsService, editorGroupService);
 	instantiationService.stub(ILabelService, <ILabelService>instantiationService.createInstance(LabelService));
-	const editorService = new TestEditorService(editorGroupService);
+	const editorService = overrides?.editorService ? overrides.editorService(instantiationService) : new TestEditorService(editorGroupService);
 	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new CodeEditorService(editorService, themeService));
 	instantiationService.stub(IViewletService, new TestViewletService());
