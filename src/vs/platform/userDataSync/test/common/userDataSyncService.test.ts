@@ -103,7 +103,7 @@ suite('UserDataSyncService', () => {
 
 		// Sync (pull) from the test client
 		target.reset();
-		await testObject.isFirstTimeSyncWithMerge();
+		await testObject.isFirstTimeSyncingWithAnotherMachine();
 		await testObject.pull();
 
 		assert.deepEqual(target.requests, [
@@ -143,7 +143,7 @@ suite('UserDataSyncService', () => {
 
 		// Sync (pull) from the test client
 		target.reset();
-		await testObject.isFirstTimeSyncWithMerge();
+		await testObject.isFirstTimeSyncingWithAnotherMachine();
 		await testObject.pull();
 
 		assert.deepEqual(target.requests, [
@@ -175,7 +175,7 @@ suite('UserDataSyncService', () => {
 
 		// Sync (merge) from the test client
 		target.reset();
-		await testObject.isFirstTimeSyncWithMerge();
+		await testObject.isFirstTimeSyncingWithAnotherMachine();
 		await testObject.sync();
 
 		assert.deepEqual(target.requests, [
@@ -219,7 +219,7 @@ suite('UserDataSyncService', () => {
 
 		// Sync (merge) from the test client
 		target.reset();
-		await testObject.isFirstTimeSyncWithMerge();
+		await testObject.isFirstTimeSyncingWithAnotherMachine();
 		await testObject.sync();
 
 		assert.deepEqual(target.requests, [

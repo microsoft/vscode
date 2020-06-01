@@ -8,10 +8,11 @@ import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThre
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
+import { extUri } from 'vs/base/common/resources';
 
 suite('BoundModelReferenceCollection', () => {
 
-	let col = new BoundModelReferenceCollection(15, 75);
+	let col = new BoundModelReferenceCollection(extUri, 15, 75);
 
 	teardown(() => {
 		col.dispose();

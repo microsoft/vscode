@@ -288,6 +288,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				}
 				return true;
 			case UserDataSyncErrorCode.Incompatible:
+			case UserDataSyncErrorCode.Gone:
 			case UserDataSyncErrorCode.UpgradeRequired:
 				this.disableSync();
 				this.notificationService.notify({

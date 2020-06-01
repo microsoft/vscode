@@ -122,15 +122,6 @@ function normalizeRequestPath(requestUri: URI) {
 	//
 	const resourceUri = URI.parse(requestUri.path.replace(/^\/([a-z0-9\-]+)\/{1,2}/i, '$1://'));
 
-	if (resourceUri.scheme === REMOTE_HOST_SCHEME) {
-		return URI.from({
-			scheme: Schemas.file,
-			path: resourceUri.path,
-			query: requestUri.query,
-			fragment: requestUri.fragment
-		});
-	}
-
 	return resourceUri.with({
 		query: requestUri.query,
 		fragment: requestUri.fragment

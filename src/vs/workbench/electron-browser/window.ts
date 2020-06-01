@@ -635,7 +635,7 @@ export class NativeWindow extends Disposable {
 	private async trackClosedWaitFiles(waitMarkerFile: URI, resourcesToWaitFor: URI[]): Promise<void> {
 
 		// Wait for the resources to be closed in the editor...
-		await this.editorService.whenClosed(resourcesToWaitFor, { waitForSaved: true });
+		await this.editorService.whenClosed(resourcesToWaitFor.map(resource => ({ resource })), { waitForSaved: true });
 
 		// ...before deleting the wait marker file
 		await this.fileService.del(waitMarkerFile);

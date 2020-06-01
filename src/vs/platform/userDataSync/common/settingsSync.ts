@@ -94,6 +94,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 					hasLocalChanged: true,
 					hasRemoteChanged: false,
 					hasConflicts: false,
+					isLastSyncFromCurrentMachine: false
 				}));
 
 				await this.apply();
@@ -140,6 +141,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 					hasRemoteChanged: true,
 					hasLocalChanged: false,
 					hasConflicts: false,
+					isLastSyncFromCurrentMachine: false
 				}));
 
 				await this.apply(true);
@@ -276,6 +278,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 				hasLocalChanged: true,
 				hasRemoteChanged: true,
 				hasConflicts: false,
+				isLastSyncFromCurrentMachine: false
 			}));
 
 			await this.apply();
@@ -340,7 +343,15 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 		const fileContent = await this.getLocalFileContent();
 		const formattingOptions = await this.getFormattingOptions();
 		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-		const lastSettingsSyncContent = lastSyncUserData ? this.getSettingsSyncContent(lastSyncUserData) : null;
+		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
+		let lastSettingsSyncContent: ISettingsSyncContent | null = null;
+		if (lastSyncUserData === null) {
+			if (isLastSyncFromCurrentMachine) {
+				lastSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+			}
+		} else {
+			lastSettingsSyncContent = this.getSettingsSyncContent(lastSyncUserData);
+		}
 
 		let content: string | null = null;
 		let hasLocalChanged: boolean = false;
@@ -375,7 +386,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 
 		this.setConflicts(hasConflicts && !token.isCancellationRequested ? [{ local: this.localPreviewResource, remote: this.remotePreviewResource }] : []);
 
-		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts };
+		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts, isLastSyncFromCurrentMachine };
 	}
 
 	private getSettingsSyncContent(remoteUserData: IRemoteUserData): ISettingsSyncContent | null {
