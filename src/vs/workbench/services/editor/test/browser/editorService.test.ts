@@ -1084,7 +1084,7 @@ suite('EditorService', () => {
 		const editor = await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
 
-		const whenClosed = service.whenClosed([input1.resource, input2.resource]);
+		const whenClosed = service.whenClosed([input1, input2]);
 
 		editor?.group?.closeAllEditors();
 

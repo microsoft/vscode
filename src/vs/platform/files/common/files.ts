@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { IExtUri } from 'vs/base/common/resources';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
@@ -122,11 +122,23 @@ export interface IFileService {
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
 
 	/**
+	 * Find out if a move operation is possible given the arguments. No changes on disk will
+	 * be performed. Returns an Error if the operation cannot be done.
+	 */
+	canMove(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
+
+	/**
 	 * Copies the file/folder to a path identified by the resource.
 	 *
 	 * The optional parameter overwrite can be set to replace an existing file at the location.
 	 */
 	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Find out if a copy operation is possible given the arguments. No changes on disk will
+	 * be performed. Returns an Error if the operation cannot be done.
+	 */
+	canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true>;
 
 	/**
 	 * Creates a new file with the given path and optional contents. The returned promise
@@ -148,6 +160,12 @@ export interface IFileService {
 	 * non-empty folders recursively.
 	 */
 	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void>;
+
+	/**
+	 * Find out if a delete operation is possible given the arguments. No changes on disk will
+	 * be performed. Returns an Error if the operation cannot be done.
+	 */
+	canDelete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<Error | true>;
 
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
@@ -473,7 +491,7 @@ export interface IFileChange {
 
 export class FileChangesEvent {
 
-	constructor(public readonly changes: readonly IFileChange[]) { }
+	constructor(public readonly changes: readonly IFileChange[], private readonly extUri: IExtUri) { }
 
 	/**
 	 * Returns true if this change event contains the provided file with the given change type (if provided). In case of
@@ -494,10 +512,10 @@ export class FileChangesEvent {
 
 			// For deleted also return true when deleted folder is parent of target path
 			if (change.type === FileChangeType.DELETED) {
-				return isEqualOrParent(resource, change.resource);
+				return this.extUri.isEqualOrParent(resource, change.resource);
 			}
 
-			return isEqual(resource, change.resource);
+			return this.extUri.isEqual(resource, change.resource);
 		});
 	}
 
@@ -551,6 +569,10 @@ export class FileChangesEvent {
 		return this.changes.some(change => {
 			return change.type === type;
 		});
+	}
+
+	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
+		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.extUri);
 	}
 }
 

@@ -16,7 +16,7 @@ import { ExtHostContext, ExtHostDocumentsShape, IExtHostContext, MainThreadDocum
 import { ITextEditorModel } from 'vs/workbench/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { toLocalResource, isEqualOrParent, extUri } from 'vs/base/common/resources';
+import { toLocalResource, extUri, IExtUri } from 'vs/base/common/resources';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
@@ -26,8 +26,9 @@ export class BoundModelReferenceCollection {
 	private _length = 0;
 
 	constructor(
+		private readonly _extUri: IExtUri,
 		private readonly _maxAge: number = 1000 * 60 * 3,
-		private readonly _maxLength: number = 1024 * 1024 * 80
+		private readonly _maxLength: number = 1024 * 1024 * 80,
 	) {
 		//
 	}
@@ -38,7 +39,7 @@ export class BoundModelReferenceCollection {
 
 	remove(uri: URI): void {
 		for (const entry of [...this._data] /* copy array because dispose will modify it */) {
-			if (isEqualOrParent(entry.uri, uri)) {
+			if (this._extUri.isEqualOrParent(entry.uri, uri)) {
 				entry.dispose();
 			}
 		}
@@ -85,7 +86,7 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 	private _modelToDisposeMap: { [modelUrl: string]: IDisposable; };
 	private readonly _proxy: ExtHostDocumentsShape;
 	private readonly _modelIsSynced = new Set<string>();
-	private readonly _modelReferenceCollection = new BoundModelReferenceCollection();
+	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
 
 	constructor(
 		documentsAndEditors: MainThreadDocumentsAndEditors,
@@ -105,11 +106,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._environmentService = environmentService;
 		this._uriIdentityService = uriIdentityService;
 
+		this._modelReferenceCollection = this._toDispose.add(new BoundModelReferenceCollection(uriIdentityService.extUri));
+
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocuments);
 
 		this._toDispose.add(documentsAndEditors.onDocumentAdd(models => models.forEach(this._onModelAdded, this)));
 		this._toDispose.add(documentsAndEditors.onDocumentRemove(urls => urls.forEach(this._onModelRemoved, this)));
-		this._toDispose.add(this._modelReferenceCollection);
 		this._toDispose.add(modelService.onModelModeChanged(this._onModelModeChanged, this));
 
 		this._toDispose.add(textFileService.files.onDidSave(e => {

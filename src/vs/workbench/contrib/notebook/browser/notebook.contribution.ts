@@ -135,14 +135,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 					return null;
 				}
 
-				return data.notebook.scheme + ':' + data.notebook.fsPath;
-
-				// const documentUri = this._resourceMapping.get(data.notebook)?.resource;
-				// if (documentUri) {
-				// 	return documentUri.toString();
-				// }
-
-				// return null;
+				return data.notebook.toString();
 			}
 		}));
 

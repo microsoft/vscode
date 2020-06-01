@@ -14,6 +14,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { renderHoverAction, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export class ContentHoverWidget extends Widget implements IContentWidget {
 
@@ -40,6 +41,7 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 	constructor(
 		id: string,
 		editor: ICodeEditor,
+		private readonly _hoverVisibleKey: IContextKey<boolean>,
 		private readonly _keybindingService: IKeybindingService
 	) {
 		super();
@@ -83,6 +85,7 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 		// Position has changed
 		this._showAtPosition = position;
 		this._showAtRange = range;
+		this._hoverVisibleKey.set(true);
 		this.isVisible = true;
 
 		this._editor.layoutContentWidget(this);
@@ -100,6 +103,12 @@ export class ContentHoverWidget extends Widget implements IContentWidget {
 			return;
 		}
 
+		setTimeout(() => {
+			// Give commands a chance to see the key
+			if (!this.isVisible) {
+				this._hoverVisibleKey.set(false);
+			}
+		}, 0);
 		this.isVisible = false;
 
 		this._editor.layoutContentWidget(this);

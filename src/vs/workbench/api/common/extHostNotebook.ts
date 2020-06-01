@@ -517,7 +517,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			for (const documentData of documents) {
 				let data = CellUri.parse(documentData.document.uri);
 				if (data) {
-					if (this.document.uri.toString() === data.notebook.toString()) {
+					if (this.document.uri.fsPath === data.notebook.fsPath) {
 						document.attachCellTextDocument(documentData);
 					}
 				}
@@ -528,7 +528,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			for (const documentData of documents) {
 				let data = CellUri.parse(documentData.document.uri);
 				if (data) {
-					if (this.document.uri.toString() === data.notebook.toString()) {
+					if (this.document.uri.fsPath === data.notebook.fsPath) {
 						document.detachCellTextDocument(documentData);
 					}
 				}
@@ -1173,7 +1173,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (delta.visibleEditors) {
-			this.visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)?.editor).filter(editor => !!editor) as ExtHostNotebookEditor[];
+			this.visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)!.editor).filter(editor => !!editor) as ExtHostNotebookEditor[];
 			const visibleEditorsSet = new Set<string>();
 			this.visibleNotebookEditors.forEach(editor => visibleEditorsSet.add(editor.id));
 
@@ -1191,18 +1191,23 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
 				this._activeNotebookEditor?._acceptActive(true);
 				this._activeNotebookDocument = this._activeNotebookEditor ? this._documents.get(this._activeNotebookEditor!.uri.toString()) : undefined;
+				[...this._editors.values()].forEach((e) => {
+					if (e.editor !== this.activeNotebookEditor) {
+						e.editor._acceptActive(false);
+					}
+				});
 			} else {
+				// clear active notebook as current active editor is non-notebook editor
 				this._activeNotebookEditor = undefined;
 				this._activeNotebookDocument = undefined;
+
+				[...this._editors.values()].forEach((e) => {
+					e.editor._acceptActive(false);
+				});
+
 			}
 
 			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor);
 		}
-
-		[...this._editors.values()].forEach((e) => {
-			if (e.editor !== this.activeNotebookEditor) {
-				e.editor._acceptActive(false);
-			}
-		});
 	}
 }

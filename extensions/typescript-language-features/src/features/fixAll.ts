@@ -18,7 +18,7 @@ import FileConfigurationManager from './fileConfigurationManager';
 const localize = nls.loadMessageBundle();
 
 interface AutoFix {
-	readonly code: number;
+	readonly codes: Set<number>;
 	readonly fixName: string;
 }
 
@@ -31,12 +31,12 @@ async function buildIndividualFixes(
 	token: vscode.CancellationToken,
 ): Promise<void> {
 	for (const diagnostic of diagnostics) {
-		for (const { code, fixName } of fixes) {
+		for (const { codes, fixName } of fixes) {
 			if (token.isCancellationRequested) {
 				return;
 			}
 
-			if (diagnostic.code !== code) {
+			if (!codes.has(diagnostic.code as number)) {
 				continue;
 			}
 
@@ -68,12 +68,12 @@ async function buildCombinedFix(
 	token: vscode.CancellationToken,
 ): Promise<void> {
 	for (const diagnostic of diagnostics) {
-		for (const { code, fixName } of fixes) {
+		for (const { codes, fixName } of fixes) {
 			if (token.isCancellationRequested) {
 				return;
 			}
 
-			if (diagnostic.code !== code) {
+			if (!codes.has(diagnostic.code as number)) {
 				continue;
 			}
 
@@ -139,12 +139,12 @@ class SourceFixAll extends SourceAction {
 		this.edit = new vscode.WorkspaceEdit();
 
 		await buildIndividualFixes([
-			{ code: errorCodes.incorrectlyImplementsInterface, fixName: fixNames.classIncorrectlyImplementsInterface },
-			{ code: errorCodes.asyncOnlyAllowedInAsyncFunctions, fixName: fixNames.awaitInSyncFunction },
+			{ codes: errorCodes.incorrectlyImplementsInterface, fixName: fixNames.classIncorrectlyImplementsInterface },
+			{ codes: errorCodes.asyncOnlyAllowedInAsyncFunctions, fixName: fixNames.awaitInSyncFunction },
 		], this.edit, client, file, diagnostics, token);
 
 		await buildCombinedFix([
-			{ code: errorCodes.unreachableCode, fixName: fixNames.unreachableCode }
+			{ codes: errorCodes.unreachableCode, fixName: fixNames.unreachableCode }
 		], this.edit, client, file, diagnostics, token);
 	}
 }
@@ -160,7 +160,7 @@ class SourceRemoveUnused extends SourceAction {
 	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {
 		this.edit = new vscode.WorkspaceEdit();
 		await buildCombinedFix([
-			{ code: errorCodes.variableDeclaredButNeverUsed, fixName: fixNames.unusedIdentifier },
+			{ codes: errorCodes.variableDeclaredButNeverUsed, fixName: fixNames.unusedIdentifier },
 		], this.edit, client, file, diagnostics, token);
 	}
 }
@@ -175,8 +175,9 @@ class SourceAddMissingImports extends SourceAction {
 
 	async build(client: ITypeScriptServiceClient, file: string, diagnostics: readonly vscode.Diagnostic[], token: vscode.CancellationToken): Promise<void> {
 		this.edit = new vscode.WorkspaceEdit();
-		await buildCombinedFix(
-			errorCodes.cannotFindName.map(code => ({ code, fixName: fixNames.fixImport })),
+		await buildCombinedFix([
+			{ codes: errorCodes.cannotFindName, fixName: fixNames.fixImport }
+		],
 			this.edit, client, file, diagnostics, token);
 	}
 }

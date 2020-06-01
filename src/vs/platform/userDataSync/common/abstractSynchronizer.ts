@@ -226,7 +226,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 
 	async getSyncPreview(): Promise<ISyncPreviewResult> {
 		if (!this.isEnabled()) {
-			return { hasLocalChanged: false, hasRemoteChanged: false };
+			return { hasLocalChanged: false, hasRemoteChanged: false, isLastSyncFromCurrentMachine: false };
 		}
 
 		const lastSyncUserData = await this.getLastSyncUserData();
@@ -267,6 +267,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 	async hasPreviouslySynced(): Promise<boolean> {
 		const lastSyncData = await this.getLastSyncUserData();
 		return !!lastSyncData;
+	}
+
+	protected async isLastSyncFromCurrentMachine(remoteUserData: IRemoteUserData): Promise<boolean> {
+		const machineId = await this.currentMachineIdPromise;
+		return !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
 	}
 
 	async getRemoteSyncResourceHandles(): Promise<ISyncResourceHandle[]> {

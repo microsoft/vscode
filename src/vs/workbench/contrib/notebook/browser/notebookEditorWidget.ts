@@ -25,7 +25,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
@@ -49,6 +49,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { URI } from 'vs/base/common/uri';
+import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 
 const $ = DOM.$;
 
@@ -1327,12 +1328,29 @@ export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator
 	hc: new Color(new RGBA(0, 73, 122))
 }, nls.localize('notebook.focusedCellIndicator', "The color of the focused notebook cell indicator."));
 
+export const cellStatusIconSuccess = registerColor('notebookStatusSuccessIcon.foreground', {
+	light: debugIconStartForeground,
+	dark: debugIconStartForeground,
+	hc: debugIconStartForeground
+}, nls.localize('notebookStatusSuccessIcon.foreground', "The error icon color of notebook cells in the cell status bar."));
+
+export const cellStatusIconError = registerColor('notebookStatusErrorIcon.foreground', {
+	light: errorForeground,
+	dark: errorForeground,
+	hc: errorForeground
+}, nls.localize('notebookStatusErrorIcon.foreground', "The error icon color of notebook cells in the cell status bar."));
+
+export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.foreground', {
+	light: foreground,
+	dark: foreground,
+	hc: foreground
+}, nls.localize('notebookStatusRunningIcon.foreground', "The running icon color of notebook cells in the cell status bar."));
+
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
 	dark: new Color(new RGBA(255, 255, 255, 0.06)),
 	light: new Color(new RGBA(237, 239, 249)),
 	hc: null
-}
-	, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
+}, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
 // TODO currently also used for toolbar border, if we keep all of this, pick a generic name
 export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperator', {
@@ -1341,6 +1359,11 @@ export const CELL_TOOLBAR_SEPERATOR = registerColor('notebook.cellToolbarSeperat
 	hc: contrastBorder
 }, nls.localize('cellToolbarSeperator', "The color of seperator in Cell bottom toolbar"));
 
+export const cellStatusBarItemHover = registerColor('notebook.cellStatusBarItemHoverBackground', {
+	light: new Color(new RGBA(0, 0, 0, 0.08)),
+	dark: new Color(new RGBA(255, 255, 255, 0.15)),
+	hc: new Color(new RGBA(255, 255, 255, 0.15)),
+}, nls.localize('notebook.cellStatusBarItemHoverBackground', "The background color of notebook cell status bar items."));
 
 registerThemingParticipant((theme, collector) => {
 	collector.addRule(`.notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element {
@@ -1410,6 +1433,26 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
+	}
+
+	const cellStatusSuccessIcon = theme.getColor(cellStatusIconSuccess);
+	if (cellStatusSuccessIcon) {
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-check { color: ${cellStatusSuccessIcon} }`);
+	}
+
+	const cellStatusErrorIcon = theme.getColor(cellStatusIconError);
+	if (cellStatusErrorIcon) {
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-error { color: ${cellStatusErrorIcon} }`);
+	}
+
+	const cellStatusRunningIcon = theme.getColor(cellStatusIconRunning);
+	if (cellStatusRunningIcon) {
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-status .codicon-sync { color: ${cellStatusRunningIcon} }`);
+	}
+
+	const cellStatusBarHoverBg = theme.getColor(cellStatusBarItemHover);
+	if (cellStatusBarHoverBg) {
+		collector.addRule(`.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-language-picker:hover { background-color: ${cellStatusBarHoverBg}; }`);
 	}
 
 	// const widgetShadowColor = theme.getColor(widgetShadow);
