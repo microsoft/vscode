@@ -61,9 +61,9 @@ export class NativeTextFileService extends AbstractTextFileService {
 		@IPathService pathService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService private readonly logService: ILogService,
-		@IUriIdentityService uriIdentitiyService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentitiyService);
+		super(fileService, untitledTextEditorService, lifecycleService, instantiationService, modelService, environmentService, dialogService, fileDialogService, textResourceConfigurationService, filesConfigurationService, textModelService, codeEditorService, pathService, workingCopyFileService, uriIdentityService);
 	}
 
 	private _encoding: EncodingOracle | undefined;

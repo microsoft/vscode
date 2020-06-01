@@ -76,7 +76,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@IPathService athService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
 		@ILogService logService: ILogService,
-		@IUriIdentityService uriIdentitiyService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
 		super(
 			fileService,
@@ -95,7 +95,7 @@ export class TestTextFileService extends NativeTextFileService {
 			athService,
 			workingCopyFileService,
 			logService,
-			uriIdentitiyService
+			uriIdentityService
 		);
 	}
 

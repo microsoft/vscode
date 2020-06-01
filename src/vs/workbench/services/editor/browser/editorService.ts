@@ -77,7 +77,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IUriIdentityService private readonly uriIdentitiyService: IUriIdentityService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IModelService private readonly modelService: IModelService
 	) {
 		super();
@@ -243,7 +243,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			for (const editor of group.editors) {
 				const resource = editor.resource;
-				if (!resource || !this.uriIdentitiyService.extUri.isEqualOrParent(resource, source)) {
+				if (!resource || !this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
 					continue; // not matching our resource
 				}
 
@@ -329,7 +329,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 					// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 					// path but different casing.
-					if (movedTo && this.uriIdentitiyService.extUri.isEqualOrParent(resource, movedTo)) {
+					if (movedTo && this.uriIdentityService.extUri.isEqualOrParent(resource, movedTo)) {
 						return;
 					}
 
@@ -337,7 +337,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (arg1 instanceof FileChangesEvent) {
 						matches = arg1.contains(resource, FileChangeType.DELETED);
 					} else {
-						matches = this.uriIdentitiyService.extUri.isEqualOrParent(resource, arg1);
+						matches = this.uriIdentityService.extUri.isEqualOrParent(resource, arg1);
 					}
 
 					if (!matches) {
@@ -885,7 +885,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// TODO@Ben remove this check once canonical URIs are adopted in ITextModelResolerService
 				canonicalResource = resourceEditorInput.resource;
 			} else {
-				canonicalResource = this.uriIdentitiyService.asCanonicalUri(resourceEditorInput.resource);
+				canonicalResource = this.uriIdentityService.asCanonicalUri(resourceEditorInput.resource);
 			}
 
 			// Derive the label from the path if not provided explicitly
@@ -1187,7 +1187,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// Remove from resources to wait for being closed based on the
 				// resources from editors that got closed
 				remainingEditors = remainingEditors.filter(({ resource }) => {
-					if (this.uriIdentitiyService.extUri.isEqual(resource, masterResource) || this.uriIdentitiyService.extUri.isEqual(resource, detailsResource)) {
+					if (this.uriIdentityService.extUri.isEqual(resource, masterResource) || this.uriIdentityService.extUri.isEqual(resource, detailsResource)) {
 						return false; // remove - the closing editor matches this resource
 					}
 
@@ -1223,7 +1223,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Otherwise resolve promise when resource is saved
 			const listener = this.workingCopyService.onDidChangeDirty(workingCopy => {
-				if (!workingCopy.isDirty() && this.uriIdentitiyService.extUri.isEqual(resource, workingCopy.resource)) {
+				if (!workingCopy.isDirty() && this.uriIdentityService.extUri.isEqual(resource, workingCopy.resource)) {
 					listener.dispose();
 
 					resolve();

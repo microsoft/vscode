@@ -71,7 +71,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IPathService private readonly pathService: IPathService,
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
-		@IUriIdentityService private readonly uriIdentitiyService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -231,7 +231,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// If the target is different but of same identity, we
 		// move the source to the target, knowing that the
 		// underlying file system cannot have both and then save.
-		if (this.fileService.canHandleResource(source) && this.uriIdentitiyService.extUri.isEqual(source, target)) {
+		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target)) {
 			await this.workingCopyFileService.move(source, target);
 
 			return this.save(target, options);
