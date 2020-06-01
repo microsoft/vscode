@@ -7,7 +7,7 @@ import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 
 import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, hasFileReadStreamCapability, IFileSystemProviderWithFileReadStreamCapability, ensureFileSystemProviderError, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { isAbsolutePath, dirname, basename, joinPath, isEqual, ExtUri } from 'vs/base/common/resources';
+import { isAbsolutePath, dirname, basename, joinPath, ExtUri } from 'vs/base/common/resources';
 import { localize } from 'vs/nls';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
@@ -540,6 +540,29 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region Move/Copy/Delete/Create Folder
 
+	async canMove(source: URI, target: URI, overwrite?: boolean): Promise<Error | true> {
+		return this.doCanMoveCopy(source, target, 'move', overwrite);
+	}
+
+	async canCopy(source: URI, target: URI, overwrite?: boolean): Promise<Error | true> {
+		return this.doCanMoveCopy(source, target, 'copy', overwrite);
+	}
+
+	private async doCanMoveCopy(source: URI, target: URI, mode: 'move' | 'copy', overwrite?: boolean): Promise<Error | true> {
+		if (source.toString() !== target.toString()) {
+			try {
+				const sourceProvider = mode === 'move' ? this.throwIfFileSystemIsReadonly(await this.withWriteProvider(source), source) : await this.withReadProvider(source);
+				const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
+
+				await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
+			} catch (error) {
+				return error;
+			}
+		}
+
+		return true;
+	}
+
 	async move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		const sourceProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(source), source);
 		const targetProvider = this.throwIfFileSystemIsReadonly(await this.withWriteProvider(target), target);
@@ -673,8 +696,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Check if source is equal or parent to target (requires providers to be the same)
 		if (sourceProvider === targetProvider) {
-			const isPathCaseSensitive = !!(sourceProvider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-			const extUri = new ExtUri(_ => !isPathCaseSensitive);
+			const { extUri, isPathCaseSensitive } = this.getExtUri(sourceProvider);
 			if (!isPathCaseSensitive) {
 				isSameResourceWithDifferentPathCase = extUri.isEqual(source, target);
 			}
@@ -700,8 +722,7 @@ export class FileService extends Disposable implements IFileService {
 			// Special case: if the target is a parent of the source, we cannot delete
 			// it as it would delete the source as well. In this case we have to throw
 			if (sourceProvider === targetProvider) {
-				const isPathCaseSensitive = !!(sourceProvider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
-				const extUri = new ExtUri(_ => !isPathCaseSensitive);
+				const { extUri } = this.getExtUri(sourceProvider);
 				if (extUri.isEqualOrParent(source, target)) {
 					throw new Error(localize('unableToMoveCopyError4', "Unable to move/copy '{0}' into '{1}' since a file would replace the folder it is contained in.", this.resourceForError(source), this.resourceForError(target)));
 				}
@@ -709,6 +730,15 @@ export class FileService extends Disposable implements IFileService {
 		}
 
 		return { exists, isSameResourceWithDifferentPathCase };
+	}
+
+	private getExtUri(provider: IFileSystemProvider): { extUri: ExtUri, isPathCaseSensitive: boolean } {
+		const isPathCaseSensitive = !!(provider.capabilities & FileSystemProviderCapabilities.PathCaseSensitive);
+
+		return {
+			extUri: new ExtUri(() => !isPathCaseSensitive),
+			isPathCaseSensitive
+		};
 	}
 
 	async createFolder(resource: URI): Promise<IFileStatWithMetadata> {
@@ -728,7 +758,8 @@ export class FileService extends Disposable implements IFileService {
 		const directoriesToCreate: string[] = [];
 
 		// mkdir until we reach root
-		while (!isEqual(directory, dirname(directory))) {
+		const { extUri } = this.getExtUri(provider);
+		while (!extUri.isEqual(directory, dirname(directory))) {
 			try {
 				const stat = await provider.stat(directory);
 				if ((stat.type & FileType.Directory) === 0) {
@@ -773,7 +804,17 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	async del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
+	async canDelete(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<Error | true> {
+		try {
+			await this.doValidateDelete(resource, options);
+		} catch (error) {
+			return error;
+		}
+
+		return true;
+	}
+
+	private async doValidateDelete(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<IFileSystemProvider> {
 		const provider = this.throwIfFileSystemIsReadonly(await this.withProvider(resource), resource);
 
 		// Validate trash support
@@ -796,6 +837,15 @@ export class FileService extends Disposable implements IFileService {
 				throw new Error(localize('deleteFailedNonEmptyFolder', "Unable to delete non-empty folder '{0}'.", this.resourceForError(resource)));
 			}
 		}
+
+		return provider;
+	}
+
+	async del(resource: URI, options?: { useTrash?: boolean; recursive?: boolean; }): Promise<void> {
+		const provider = await this.doValidateDelete(resource, options);
+
+		const useTrash = !!options?.useTrash;
+		const recursive = !!options?.recursive;
 
 		// Delete through provider
 		await provider.delete(resource, { recursive, useTrash });

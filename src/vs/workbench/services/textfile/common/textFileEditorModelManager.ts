@@ -191,9 +191,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 				this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
 
 				modelsToRestore.forEach(model => {
-					// snapshot presence means this model used to be dirty
 					if (model.snapshot) {
-						this.get(model.source)?.setDirty(true);
+						this.get(model.source)?.setDirty(true); // snapshot presence means this model used to be dirty
 					}
 				});
 			}
