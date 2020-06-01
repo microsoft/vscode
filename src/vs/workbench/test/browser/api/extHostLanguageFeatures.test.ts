@@ -43,7 +43,7 @@ import { getColors } from 'vs/editor/contrib/colorPicker/color';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { nullExtensionDescription as defaultExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/smartSelect';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { mock } from 'vs/base/test/common/mock';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { dispose } from 'vs/base/common/lifecycle';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -760,6 +760,72 @@ suite('ExtHostLanguageFeatures', function () {
 		const value = await rename(model, new EditorPosition(1, 1), 'newName');
 		// least relevant rename provider
 		assert.equal(value.edits.length, 2);
+	});
+
+	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
+
+		let called = [false, false, false, false];
+
+		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
+			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
+				called[0] = true;
+				let range = document.getWordRangeAtPosition(position);
+				return range;
+			}
+
+			provideRenameEdits(): vscode.ProviderResult<vscode.WorkspaceEdit> {
+				called[1] = true;
+				return undefined;
+			}
+		}));
+
+		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
+			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
+				called[2] = true;
+				return Promise.reject('Cannot rename this symbol2.');
+			}
+			provideRenameEdits(): vscode.ProviderResult<vscode.WorkspaceEdit> {
+				called[3] = true;
+				return undefined;
+			}
+		}));
+
+		await rpcProtocol.sync();
+		await rename(model, new EditorPosition(1, 1), 'newName');
+
+		assert.deepEqual(called, [true, true, true, false]);
+	});
+
+	test('Multiple RenameProviders don\'t respect all possible PrepareRename handlers, #98352', async function () {
+
+		let called = [false, false, false];
+
+		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
+			prepareRename(document: vscode.TextDocument, position: vscode.Position,): vscode.ProviderResult<vscode.Range> {
+				called[0] = true;
+				let range = document.getWordRangeAtPosition(position);
+				return range;
+			}
+
+			provideRenameEdits(): vscode.ProviderResult<vscode.WorkspaceEdit> {
+				called[1] = true;
+				return undefined;
+			}
+		}));
+
+		disposables.push(extHost.registerRenameProvider(defaultExtension, defaultSelector, new class implements vscode.RenameProvider {
+
+			provideRenameEdits(document: vscode.TextDocument, position: vscode.Position, newName: string,): vscode.ProviderResult<vscode.WorkspaceEdit> {
+				called[2] = true;
+				return new types.WorkspaceEdit();
+			}
+		}));
+
+		await rpcProtocol.sync();
+		await rename(model, new EditorPosition(1, 1), 'newName');
+
+		// first provider has NO prepare which means it is taken by default
+		assert.deepEqual(called, [false, false, true]);
 	});
 
 	// --- parameter hints

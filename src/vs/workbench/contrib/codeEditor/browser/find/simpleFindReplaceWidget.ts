@@ -352,6 +352,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}, 0);
 	}
 
+	public focus(): void {
+		this._findInput.focus();
+	}
+
 	public show(initialInput?: string): void {
 		if (initialInput && !this._isVisible) {
 			this._findInput.setValue(initialInput);
@@ -363,6 +367,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			dom.addClass(this._domNode, 'visible');
 			dom.addClass(this._domNode, 'visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'false');
+
+			this.focus();
 		}, 0);
 	}
 

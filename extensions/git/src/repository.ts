@@ -16,6 +16,7 @@ import { toGitUri } from './uri';
 import { anyEvent, combinedDisposable, debounceEvent, dispose, EmptyDisposable, eventToPromise, filterEvent, find, IDisposable, isDescendant, onceEvent } from './util';
 import { IFileWatcher, watch } from './watch';
 import { Log, LogLevel } from './log';
+import { IRemoteSourceProviderRegistry } from './remoteProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -251,11 +252,13 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	get resourceDecoration(): Decoration {
-		const title = this.tooltip;
-		const letter = this.letter;
-		const color = this.color;
-		const priority = this.priority;
-		return { bubble: true, title, letter, color, priority };
+		return {
+			bubble: this.type !== Status.DELETED && this.type !== Status.INDEX_DELETED,
+			title: this.tooltip,
+			letter: this.letter,
+			color: this.color,
+			priority: this.priority
+		};
 	}
 
 	constructor(
@@ -679,6 +682,7 @@ export class Repository implements Disposable {
 
 	constructor(
 		private readonly repository: BaseRepository,
+		remoteSourceProviderRegistry: IRemoteSourceProviderRegistry,
 		globalState: Memento,
 		outputChannel: OutputChannel
 	) {
@@ -774,7 +778,7 @@ export class Repository implements Disposable {
 			}
 		}, null, this.disposables);
 
-		const statusBar = new StatusBarCommands(this);
+		const statusBar = new StatusBarCommands(this, remoteSourceProviderRegistry);
 		this.disposables.push(statusBar);
 		statusBar.onDidChange(() => this._sourceControl.statusBarCommands = statusBar.commands, null, this.disposables);
 		this._sourceControl.statusBarCommands = statusBar.commands;

@@ -5,7 +5,8 @@
 
 import * as glob from 'vs/base/common/glob';
 import { URI } from 'vs/base/common/uri';
-import { basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
+import { INotebookKernelInfoDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface NotebookSelector {
 	readonly filenamePattern?: string;
@@ -18,17 +19,21 @@ export class NotebookProviderInfo {
 	readonly displayName: string;
 	readonly selector: readonly NotebookSelector[];
 	readonly providerDisplayName: string;
+	readonly providerExtensionLocation: URI;
+	kernel?: INotebookKernelInfoDto;
 
 	constructor(descriptor: {
 		readonly id: string;
 		readonly displayName: string;
 		readonly selector: readonly NotebookSelector[];
 		readonly providerDisplayName: string;
+		readonly providerExtensionLocation: URI;
 	}) {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
 		this.selector = descriptor.selector;
 		this.providerDisplayName = descriptor.providerDisplayName;
+		this.providerExtensionLocation = descriptor.providerExtensionLocation;
 	}
 
 	matches(resource: URI): boolean {
@@ -37,9 +42,9 @@ export class NotebookProviderInfo {
 
 	static selectorMatches(selector: NotebookSelector, resource: URI): boolean {
 		if (selector.filenamePattern) {
-			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+			if (glob.match(selector.filenamePattern.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
 				if (selector.excludeFileNamePattern) {
-					if (glob.match(selector.excludeFileNamePattern.toLowerCase(), basename(resource).toLowerCase())) {
+					if (glob.match(selector.excludeFileNamePattern.toLowerCase(), basename(resource.fsPath).toLowerCase())) {
 						// should exclude
 
 						return false;

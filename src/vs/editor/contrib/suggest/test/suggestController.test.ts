@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,13 +26,14 @@ import { IMenuService, IMenu } from 'vs/platform/actions/common/actions';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { Range } from 'vs/editor/common/core/range';
 import { timeout } from 'vs/base/common/async';
+import { NullLogService, ILogService } from 'vs/platform/log/common/log';
 
 suite('SuggestController', function () {
 
 	const disposables = new DisposableStore();
 
 	let controller: SuggestController;
-	let editor: TestCodeEditor;
+	let editor: ITestCodeEditor;
 	let model: TextModel;
 
 	setup(function () {
@@ -40,6 +41,7 @@ suite('SuggestController', function () {
 
 		const serviceCollection = new ServiceCollection(
 			[ITelemetryService, NullTelemetryService],
+			[ILogService, new NullLogService()],
 			[IStorageService, new InMemoryStorageService()],
 			[IKeybindingService, new MockKeybindingService()],
 			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {

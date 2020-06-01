@@ -13,7 +13,7 @@ import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
 import { DEFAULT_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { CustomEditorAssociation, CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverrideEntry, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 
 const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
@@ -45,7 +45,7 @@ export async function openEditorWith(
 
 	const overrideToUse = typeof id === 'string' && allEditorOverrides.find(([_, entry]) => entry.id === id);
 	if (overrideToUse) {
-		return overrideToUse[0].open(input, options, group, id)?.override;
+		return overrideToUse[0].open(input, options, group, OpenEditorContext.NEW_EDITOR, id)?.override;
 	}
 
 	// Prompt
@@ -108,7 +108,7 @@ export async function openEditorWith(
 		picker.show();
 	});
 
-	return pickedItem?.handler.open(input!, options, group, pickedItem.id)?.override;
+	return pickedItem?.handler.open(input!, options, group, OpenEditorContext.NEW_EDITOR, pickedItem.id)?.override;
 }
 
 export const defaultEditorOverrideEntry = Object.freeze({

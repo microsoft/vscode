@@ -11,7 +11,7 @@ import * as json from 'vs/base/common/json';
 import { URI } from 'vs/base/common/uri';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Action } from 'vs/base/common/actions';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, IReference } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as Types from 'vs/base/common/types';
 import { TerminateResponseCode } from 'vs/base/common/processes';
@@ -72,7 +72,7 @@ import { RunAutomaticTasks } from 'vs/workbench/contrib/tasks/browser/runAutomat
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { format } from 'vs/base/common/jsonFormatter';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { ITextModelService, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
 import { applyEdits } from 'vs/base/common/jsonEdit';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { ITextEditorSelection, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
@@ -1066,15 +1066,23 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (typeof task === 'string') {
 					stringValue = task;
 				} else {
-					const model = (await this.textModelResolverService.createModelReference(resource)).object.textEditorModel;
-					const { tabSize, insertSpaces } = model.getOptions();
-					const eol = model.getEOL();
-					const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
-					let stringified = applyEdits(JSON.stringify(task), edits);
-					const regex = new RegExp(eol + '\\t', 'g');
-					stringified = stringified.replace(regex, eol + '\t\t\t');
-					const twoTabs = '\t\t';
-					stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+					let reference: IReference<IResolvedTextEditorModel> | undefined;
+					try {
+						reference = await this.textModelResolverService.createModelReference(resource);
+						const model = reference.object.textEditorModel;
+						const { tabSize, insertSpaces } = model.getOptions();
+						const eol = model.getEOL();
+						const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
+						let stringified = applyEdits(JSON.stringify(task), edits);
+						const regex = new RegExp(eol + '\\t', 'g');
+						stringified = stringified.replace(regex, eol + '\t\t\t');
+						const twoTabs = '\t\t';
+						stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+					} finally {
+						if (reference) {
+							reference.dispose();
+						}
+					}
 				}
 
 				const index = contentValue.indexOf(stringValue);
@@ -2365,10 +2373,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (identifier !== undefined) {
 			this.getGroupedTasks().then(async (grouped) => {
 				let resolver = this.createResolver(grouped);
-				let folders: (IWorkspaceFolder | string)[] = this.contextService.getWorkspace().folders;
-				folders = folders.concat([USER_TASKS_GROUP_KEY]);
-				for (let folder of folders) {
-					let task = await resolver.resolve(typeof folder === 'string' ? folder : folder.uri, identifier);
+				let folderURIs: (URI | string)[] = this.contextService.getWorkspace().folders.map(folder => folder.uri);
+				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
+					folderURIs.push(this.contextService.getWorkspace().configuration!);
+				}
+				folderURIs.push(USER_TASKS_GROUP_KEY);
+				for (let uri of folderURIs) {
+					let task = await resolver.resolve(uri, identifier);
 					if (task) {
 						this.run(task).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
@@ -2504,38 +2515,58 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			location: ProgressLocation.Window,
 			title: nls.localize('TaskService.fetchingBuildTasks', 'Fetching build tasks...')
 		};
-		let promise = this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
-			if (tasks.length > 0) {
-				let { defaults, users } = this.splitPerGroupType(tasks);
-				if (defaults.length === 1) {
-					this.run(defaults[0]).then(undefined, reason => {
-						// eat the error, it has already been surfaced to the user and we don't care about it here
-					});
-					return;
-				} else if (defaults.length + users.length > 0) {
-					tasks = defaults.concat(users);
+		let promise = this.getWorkspaceTasks().then(tasks => {
+			const buildTasks: ConfiguringTask[] = [];
+			for (const taskSource of tasks) {
+				for (const task in taskSource[1].configurations?.byIdentifier) {
+					if ((taskSource[1].configurations?.byIdentifier[task].configurationProperties.group === TaskGroup.Build) &&
+						(taskSource[1].configurations?.byIdentifier[task].configurationProperties.groupType === GroupType.default)) {
+						buildTasks.push(taskSource[1].configurations.byIdentifier[task]);
+					}
 				}
 			}
-			this.showIgnoredFoldersMessage().then(() => {
-				this.showQuickPick(tasks,
-					nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
-					{
-						label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
-						task: null
-					},
-					true).then((entry) => {
-						let task: Task | undefined | null = entry ? entry.task : undefined;
-						if (task === undefined) {
-							return;
-						}
-						if (task === null) {
-							this.runConfigureDefaultBuildTask();
-							return;
-						}
-						this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+			if (buildTasks.length === 1) {
+				this.tryResolveTask(buildTasks[0]).then(resolvedTask => {
+					this.run(resolvedTask).then(undefined, reason => {
+						// eat the error, it has already been surfaced to the user and we don't care about it here
+					});
+				});
+				return;
+			}
+
+			return this.getTasksForGroup(TaskGroup.Build).then((tasks) => {
+				if (tasks.length > 0) {
+					let { defaults, users } = this.splitPerGroupType(tasks);
+					if (defaults.length === 1) {
+						this.run(defaults[0]).then(undefined, reason => {
 							// eat the error, it has already been surfaced to the user and we don't care about it here
 						});
-					});
+						return;
+					} else if (defaults.length + users.length > 0) {
+						tasks = defaults.concat(users);
+					}
+				}
+				this.showIgnoredFoldersMessage().then(() => {
+					this.showQuickPick(tasks,
+						nls.localize('TaskService.pickBuildTask', 'Select the build task to run'),
+						{
+							label: nls.localize('TaskService.noBuildTask', 'No build task to run found. Configure Build Task...'),
+							task: null
+						},
+						true).then((entry) => {
+							let task: Task | undefined | null = entry ? entry.task : undefined;
+							if (task === undefined) {
+								return;
+							}
+							if (task === null) {
+								this.runConfigureDefaultBuildTask();
+								return;
+							}
+							this.run(task, { attachProblemMatcher: true }).then(undefined, reason => {
+								// eat the error, it has already been surfaced to the user and we don't care about it here
+							});
+						});
+				});
 			});
 		});
 		this.progressService.withProgress(options, () => promise);

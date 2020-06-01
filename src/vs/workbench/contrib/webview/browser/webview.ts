@@ -40,12 +40,14 @@ export interface IWebviewService {
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewElement;
 
 	createWebviewOverlay(
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewOverlay;
 
 	setIcons(id: string, value: WebviewIcons | undefined): void;
@@ -71,9 +73,15 @@ export interface WebviewExtensionDescription {
 	readonly id: ExtensionIdentifier;
 }
 
+export interface IDataLinkClickEvent {
+	dataURL: string;
+	downloadName?: string;
+}
+
 export interface Webview extends IDisposable {
 	html: string;
 	contentOptions: WebviewContentOptions;
+	localResourcesRoot: URI[];
 	extension: WebviewExtensionDescription | undefined;
 	initialScrollProgress: number;
 	state: string | undefined;

@@ -6,7 +6,7 @@
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/dynamicWebviewEditorOverlay';
-import { IWebviewService, WebviewContentOptions, WebviewOverlay, WebviewElement, WebviewIcons, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
+import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewIcons, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
 import { WebviewIconManager } from 'vs/workbench/contrib/webview/browser/webviewIconManager';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
@@ -29,13 +29,14 @@ export class ElectronWebviewService implements IWebviewService {
 	createWebviewElement(
 		id: string,
 		options: WebviewOptions,
-		contentOptions: WebviewContentOptions
+		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewElement {
 		const useExternalEndpoint = this._configService.getValue<string>('webview.experimental.useExternalEndpoint');
 		if (useExternalEndpoint) {
-			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, this._webviewThemeDataProvider);
+			return this._instantiationService.createInstance(IFrameWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		} else {
-			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, id, options, contentOptions, this._webviewThemeDataProvider);
+			return this._instantiationService.createInstance(ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
 		}
 	}
 
@@ -43,8 +44,9 @@ export class ElectronWebviewService implements IWebviewService {
 		id: string,
 		options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
+		extension: WebviewExtensionDescription | undefined,
 	): WebviewOverlay {
-		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions);
+		return this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions, extension);
 	}
 
 	setIcons(id: string, iconPath: WebviewIcons | undefined): void {

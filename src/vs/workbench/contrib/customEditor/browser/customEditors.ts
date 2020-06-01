@@ -17,9 +17,9 @@ import { EditorActivation, IEditorOptions, ITextEditorOptions } from 'vs/platfor
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -37,7 +37,7 @@ import { CustomEditorInput } from './customEditorInput';
 export class CustomEditorService extends Disposable implements ICustomEditorService, ICustomEditorViewTypesHandler {
 	_serviceBrand: any;
 
-	private readonly _contributedEditors = this._register(new ContributedCustomEditors());
+	private readonly _contributedEditors: ContributedCustomEditors;
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
 	private readonly _models = new CustomEditorModelManager();
@@ -51,6 +51,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IFileService fileService: IFileService,
+		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -64,11 +65,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		this._focusedCustomEditorIsEditable = CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE.bindTo(contextKeyService);
 		this._webviewHasOwnEditFunctions = webviewHasOwnEditFunctionsContext.bindTo(contextKeyService);
 
-		this._register(this.editorService.registerCustomEditorViewTypesHandler('Custom Editor', this));
+
+		this._contributedEditors = this._register(new ContributedCustomEditors(storageService));
 		this._register(this._contributedEditors.onChange(() => {
 			this.updateContexts();
 			this._onDidChangeViewTypes.fire();
 		}));
+		this._register(this.editorService.registerCustomEditorViewTypesHandler('Custom Editor', this));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateContexts()));
 
 		this._register(fileService.onDidRunOperation(e => {
@@ -231,7 +234,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 		const id = generateUuid();
 		const webview = new Lazy(() => {
-			return this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {});
+			return this.webviewService.createWebviewOverlay(id, { customClasses: options?.customClasses }, {}, undefined);
 		});
 		const input = this.instantiationService.createInstance(CustomEditorInput, resource, viewType, id, webview, {});
 		if (typeof group !== 'undefined') {
@@ -418,13 +421,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 export class CustomEditorContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IEditorService private readonly editorService: IEditorService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 	) {
 		super();
 
 		this._register(this.editorService.overrideOpenEditor({
-			open: (editor, options, group, id) => {
+			open: (editor, options, group, context, id) => {
 				return this.onEditorOpening(editor, options, group, id);
 			},
 			getEditorOverrides: (resource: URI, _options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {

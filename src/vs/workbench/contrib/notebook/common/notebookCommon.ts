@@ -16,6 +16,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { GlobPattern } from 'vs/workbench/api/common/extHost.protocol';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Schemas } from 'vs/base/common/network';
 
 export enum CellKind {
 	Markdown = 1,
@@ -49,12 +50,14 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 	'image/jpeg',
 ];
 
+export const BUILTIN_RENDERER_ID = '_builtin';
+
 export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
 	editable: true,
 	runnable: true,
 	cellEditable: true,
 	cellRunnable: true,
-	hasExecutionOrder: true,
+	cellHasExecutionOrder: true,
 	displayOrder: NOTEBOOK_DISPLAY_ORDER,
 	custom: {}
 };
@@ -64,7 +67,7 @@ export interface NotebookDocumentMetadata {
 	runnable: boolean;
 	cellEditable: boolean;
 	cellRunnable: boolean;
-	hasExecutionOrder: boolean;
+	cellHasExecutionOrder: boolean;
 	displayOrder?: GlobPattern[];
 	custom?: { [key: string]: any };
 }
@@ -79,6 +82,8 @@ export enum NotebookCellRunState {
 export interface NotebookCellMetadata {
 	editable?: boolean;
 	runnable?: boolean;
+	breakpointMargin?: boolean;
+	hasExecutionOrder?: boolean;
 	executionOrder?: number;
 	statusMessage?: string;
 	runState?: NotebookCellRunState;
@@ -98,9 +103,12 @@ export interface INotebookMimeTypeSelector {
 }
 
 export interface INotebookRendererInfo {
-	id: ExtensionIdentifier;
+	id: string;
+	extensionId: ExtensionIdentifier;
 	extensionLocation: URI,
-	preloads: URI[]
+	preloads: URI[],
+	render(uri: URI, request: IOutputRenderRequest<UriComponents>): Promise<IOutputRenderResponse<UriComponents> | undefined>;
+	render2<T>(uri: URI, request: IOutputRenderRequest<T>): Promise<IOutputRenderResponse<T> | undefined>;
 }
 
 export interface INotebookKernelInfo {
@@ -111,6 +119,13 @@ export interface INotebookKernelInfo {
 	extensionLocation: URI,
 	preloads: URI[];
 	executeNotebook(viewType: string, uri: URI, handle: number | undefined, token: CancellationToken): Promise<void>;
+}
+
+export interface INotebookKernelInfoDto {
+	id: string;
+	label: string,
+	extensionLocation: URI;
+	preloads?: UriComponents[];
 }
 
 export interface INotebookSelectors {
@@ -155,7 +170,7 @@ export enum MimeTypeRendererResolver {
 export interface IOrderedMimeType {
 	mimeType: string;
 	isResolved: boolean;
-	rendererId?: number;
+	rendererId?: string;
 	output?: string;
 }
 
@@ -163,8 +178,8 @@ export interface ITransformedDisplayOutputDto {
 	outputKind: CellOutputKind.Rich;
 	data: { [key: string]: any; }
 
-	orderedMimeTypes: IOrderedMimeType[];
-	pickedMimeTypeIndex: number;
+	orderedMimeTypes?: IOrderedMimeType[];
+	pickedMimeTypeIndex?: number;
 }
 
 export interface IGenericOutput {
@@ -174,14 +189,50 @@ export interface IGenericOutput {
 	transformedOutput?: { [key: string]: IDisplayOutput };
 }
 
-export type IOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
+export type IProcessedOutput = ITransformedDisplayOutputDto | IStreamOutput | IErrorOutput;
+
+export type IRawOutput = IDisplayOutput | IStreamOutput | IErrorOutput;
+
+export interface IOutputRenderRequestOutputInfo {
+	index: number;
+	handlerId: string;
+	mimeType: string;
+	output?: IRawOutput;
+}
+
+export interface IOutputRenderRequestCellInfo<T> {
+	key: T;
+	outputs: IOutputRenderRequestOutputInfo[];
+}
+
+export interface IOutputRenderRequest<T> {
+	items: IOutputRenderRequestCellInfo<T>[];
+}
+
+export interface IOutputRenderResponseOutputInfo {
+	index: number;
+	mimeType: string;
+	handlerId: string;
+	transformedOutput: string;
+}
+
+export interface IOutputRenderResponseCellInfo<T> {
+	key: T;
+	outputs: IOutputRenderResponseOutputInfo[];
+}
+
+
+export interface IOutputRenderResponse<T> {
+	items: IOutputRenderResponseCellInfo<T>[];
+}
+
 
 export interface ICell {
 	readonly uri: URI;
 	handle: number;
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutput[];
+	outputs: IProcessedOutput[];
 	metadata?: NotebookCellMetadata;
 	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
 	onDidChangeLanguage: Event<string>;
@@ -204,9 +255,10 @@ export interface INotebookTextModel {
 	readonly versionId: number;
 	languages: string[];
 	cells: ICell[];
-	renderers: Set<number>;
+	renderers: Set<string>;
 	onDidChangeCells?: Event<NotebookCellTextModelSplice[]>;
 	onDidChangeContent: Event<void>;
+	onDidChangeUnknown: Event<void>;
 	onWillDispose(listener: () => void): IDisposable;
 }
 
@@ -224,7 +276,7 @@ export type NotebookCellTextModelSplice = [
 export type NotebookCellOutputsSplice = [
 	number /* start */,
 	number /* delete count */,
-	IOutput[]
+	IProcessedOutput[]
 ];
 
 export interface IMainCellDto {
@@ -233,7 +285,7 @@ export interface IMainCellDto {
 	source: string[];
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutput[];
+	outputs: IProcessedOutput[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -292,7 +344,7 @@ export interface ICellDto2 {
 	source: string | string[];
 	language: string;
 	cellKind: CellKind;
-	outputs: IOutput[];
+	outputs: IProcessedOutput[];
 	metadata?: NotebookCellMetadata;
 }
 
@@ -329,9 +381,8 @@ export namespace CellUri {
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
-			path: `${notebook.path}, cell ${handle + 1}`,
-			query: JSON.stringify({ cell: handle, notebook: notebook.toString() }),
 			scheme,
+			fragment: `${handle}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
@@ -339,15 +390,17 @@ export namespace CellUri {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		try {
-			const data = <{ cell: number, notebook: string }>JSON.parse(cell.query);
-			return {
-				handle: data.cell,
-				notebook: URI.parse(data.notebook)
-			};
-		} catch {
+		const handle = parseInt(cell.fragment);
+		if (isNaN(handle)) {
 			return undefined;
 		}
+		return {
+			handle,
+			notebook: cell.with({
+				scheme: cell.fragment.substr(handle.toString().length) || Schemas.file,
+				fragment: null
+			})
+		};
 	}
 }
 
@@ -490,4 +543,21 @@ export interface INotebookEditorModel extends IEditorModel {
 	notebook: NotebookTextModel;
 	isDirty(): boolean;
 	save(): Promise<boolean>;
+}
+
+export interface INotebookTextModelBackup {
+	metadata: NotebookDocumentMetadata;
+	languages: string[];
+	cells: ICellDto2[]
+}
+
+export interface IEditor extends editorCommon.ICompositeCodeEditor {
+	readonly onDidChangeModel: Event<NotebookTextModel | undefined>;
+	readonly onDidFocusEditorWidget: Event<void>;
+	isNotebookEditor: boolean;
+	uri?: URI;
+	textModel?: NotebookTextModel;
+	getId(): string;
+	hasFocus(): boolean;
+	hasModel(): boolean;
 }

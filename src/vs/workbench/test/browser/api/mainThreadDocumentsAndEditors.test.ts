@@ -11,8 +11,8 @@ import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/workbench/api/common/extHost.protocol';
-import { createTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { mock } from 'vs/workbench/test/browser/api/mock';
+import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { mock } from 'vs/base/test/common/mock';
 import { TestEditorService, TestEditorGroupsService, TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
@@ -25,7 +25,8 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
-import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -35,7 +36,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 	let deltas: IDocumentsAndEditorsDelta[] = [];
 	const hugeModelString = new Array(2 + (50 * 1024 * 1024)).join('-');
 
-	function myCreateTestCodeEditor(model: ITextModel | undefined): TestCodeEditor {
+	function myCreateTestCodeEditor(model: ITextModel | undefined): ITestCodeEditor {
 		return createTestCodeEditor({
 			model: model,
 			serviceCollection: new ServiceCollection(
@@ -88,7 +89,9 @@ suite('MainThreadDocumentsAndEditors', () => {
 					return undefined;
 				}
 			},
-			TestEnvironmentService
+			TestEnvironmentService,
+			new TestWorkingCopyFileService(),
+			new UriIdentityService(fileService),
 		);
 	});
 
