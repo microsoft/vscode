@@ -34,6 +34,7 @@ import { suggestFilename } from 'vs/base/common/mime';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -69,7 +70,8 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IPathService private readonly pathService: IPathService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
+		@IUriIdentityService private readonly uriIdentitiyService: IUriIdentityService
 	) {
 		super();
 
@@ -224,6 +226,15 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Just save if target is same as models own resource
 		if (source.toString() === target.toString()) {
 			return this.save(source, options);
+		}
+
+		// If the target is different but of same identity, we
+		// move the source to the target, knowing that the
+		// underlying file system cannot have both and then save.
+		if (this.fileService.canHandleResource(source) && this.uriIdentitiyService.extUri.isEqual(source, target)) {
+			await this.workingCopyFileService.move(source, target);
+
+			return this.save(target, options);
 		}
 
 		// Do it

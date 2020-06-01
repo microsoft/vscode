@@ -38,6 +38,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { INativeWindowConfiguration } from 'vs/platform/windows/node/window';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export const TestWindowConfiguration: INativeWindowConfiguration = {
 	windowId: 0,
@@ -74,7 +75,8 @@ export class TestTextFileService extends NativeTextFileService {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IPathService athService: IPathService,
 		@IWorkingCopyFileService workingCopyFileService: IWorkingCopyFileService,
-		@ILogService logService: ILogService
+		@ILogService logService: ILogService,
+		@IUriIdentityService uriIdentitiyService: IUriIdentityService
 	) {
 		super(
 			fileService,
@@ -92,7 +94,8 @@ export class TestTextFileService extends NativeTextFileService {
 			codeEditorService,
 			athService,
 			workingCopyFileService,
-			logService
+			logService,
+			uriIdentitiyService
 		);
 	}
 
