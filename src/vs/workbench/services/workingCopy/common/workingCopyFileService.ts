@@ -12,7 +12,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IFileService, FileOperation, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IWorkingCopyService, IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 import { WorkingCopyFileOperationParticipant } from 'vs/workbench/services/workingCopy/common/workingCopyFileOperationParticipant';
 
@@ -189,7 +189,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -200,10 +201,10 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 					// only check for parents if the resource can be handled
 					// by the file system where we then assume a folder like
 					// path structure
-					return isEqualOrParent(workingCopy.resource, resource);
+					return this.uriIdentityService.extUri.isEqualOrParent(workingCopy.resource, resource);
 				}
 
-				return isEqual(workingCopy.resource, resource);
+				return this.uriIdentityService.extUri.isEqual(workingCopy.resource, resource);
 			});
 		});
 	}
@@ -226,6 +227,18 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 
 		// file operation participant
 		await this.runFileOperationParticipants(target, source, move ? FileOperation.MOVE : FileOperation.COPY);
+
+		// Before doing the heave operations, check first if source and target
+		// are either identical or are considered to be identical for the file
+		// system. In that case we want the model to stay as is and only do the
+		// raw file operation.
+		if (this.uriIdentityService.extUri.isEqual(source, target)) {
+			if (move) {
+				return this.fileService.move(source, target, overwrite);
+			} else {
+				return this.fileService.copy(source, target, overwrite);
+			}
+		}
 
 		// before event
 		const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, target, source };

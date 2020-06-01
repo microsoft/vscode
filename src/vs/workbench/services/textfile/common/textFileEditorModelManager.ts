@@ -191,8 +191,12 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 				this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
 
 				modelsToRestore.forEach(model => {
+
+					// snapshot presence means this model used to be dirty and so we restore that
+					// flag. we do NOT have to restore the content because the model was only soft
+					// reverted and did not loose its original dirty contents.
 					if (model.snapshot) {
-						this.get(model.source)?.setDirty(true); // snapshot presence means this model used to be dirty
+						this.get(model.source)?.setDirty(true);
 					}
 				});
 			}
