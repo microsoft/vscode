@@ -377,7 +377,7 @@
 	opacity: 1;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before {
+.monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
 	z-index: 20;
 	content: "";
 	right: 0px;
