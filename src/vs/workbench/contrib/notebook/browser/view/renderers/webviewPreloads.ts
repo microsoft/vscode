@@ -30,6 +30,45 @@ interface EmitterLike<T> {
 
 function webviewPreloads() {
 	const vscode = acquireVsCodeApi();
+
+	const handleInnerClick = (event: MouseEvent) => {
+		if (!event || !event.view || !event.view.document) {
+			return;
+		}
+
+		for (let node = event.target as HTMLElement | null; node; node = node.parentNode as HTMLElement) {
+			if (node instanceof HTMLAnchorElement && node.href) {
+				if (node.href.startsWith('blob:')) {
+					handleBlobUrlClick(node.href, node.download);
+				}
+				event.preventDefault();
+				break;
+			}
+		}
+	};
+
+	const handleBlobUrlClick = async (url: string, downloadName: string) => {
+		try {
+			const response = await fetch(url);
+			const blob = await response.blob();
+			const reader = new FileReader();
+			reader.addEventListener('load', () => {
+				const data = reader.result;
+				vscode.postMessage({
+					__vscode_notebook_message: true,
+					type: 'clicked-data-url',
+					data,
+					downloadName
+				});
+			});
+			reader.readAsDataURL(blob);
+		} catch (e) {
+			console.error(e.message);
+		}
+	};
+
+	document.body.addEventListener('click', handleInnerClick);
+
 	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
 		'type', 'src', 'nonce', 'noModule', 'async',
 	];

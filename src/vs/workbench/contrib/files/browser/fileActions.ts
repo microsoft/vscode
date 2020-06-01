@@ -48,7 +48,7 @@ import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
@@ -576,7 +576,7 @@ export class ToggleEditorTypeCommand extends Action {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(input, options, group, firstNonActiveOverride[1].id)?.override;
+		await firstNonActiveOverride[0].open(input, options, group, OpenEditorContext.NEW_EDITOR, firstNonActiveOverride[1].id)?.override;
 	}
 }
 

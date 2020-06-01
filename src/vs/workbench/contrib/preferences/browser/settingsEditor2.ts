@@ -169,6 +169,7 @@ export class SettingsEditor2 extends BaseEditor {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
 		@IProductService private readonly productService: IProductService,
+		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -339,7 +340,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.focusSearch();
 	}
 
-	onHide(): void {
+	onDidHide(): void {
 		this.searchWidget.onHide();
 	}
 
@@ -468,7 +469,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER_LOCAL;
 		this.settingsTargetsWidget.onDidTargetChange(target => this.onDidSettingsTargetChange(target));
 
-		if (syncAllowed(this.productService, this.configurationService)) {
+		if (syncAllowed(this.productService, this.configurationService) && this.userDataSyncEnablementService.canToggleEnablement()) {
 			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => this.updateInputAriaLabel(lastSyncedLabel)));
 		}

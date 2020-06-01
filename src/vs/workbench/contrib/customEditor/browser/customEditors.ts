@@ -20,7 +20,6 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { EditorInput, EditorOptions, GroupIdentifier, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -422,13 +421,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 
 export class CustomEditorContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IEditorService private readonly editorService: EditorServiceImpl,
+		@IEditorService private readonly editorService: IEditorService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 	) {
 		super();
 
 		this._register(this.editorService.overrideOpenEditor({
-			open: (editor, options, group, id) => {
+			open: (editor, options, group, context, id) => {
 				return this.onEditorOpening(editor, options, group, id);
 			},
 			getEditorOverrides: (resource: URI, _options: IEditorOptions | undefined, group: IEditorGroup | undefined): IOpenEditorOverrideEntry[] => {

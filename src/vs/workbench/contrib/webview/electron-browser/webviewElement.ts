@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FindInPageOptions, OnBeforeRequestListenerDetails, OnHeadersReceivedListenerDetails, Response, WebContents, WebviewTag } from 'electron';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { equals } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -14,22 +13,51 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
 import * as modes from 'vs/editor/common/modes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { loadLocalResource, WebviewResourceResponse } from 'vs/platform/webview/common/resourceLoader';
+import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
 import { Webview, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewPortMappingManager } from 'vs/workbench/contrib/webview/common/portMapping';
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WebviewFindDelegate, WebviewFindWidget } from '../browser/webviewFindWidget';
-import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
-import { createChannelSender } from 'vs/base/parts/ipc/common/ipc';
+
+export function registerFileProtocol(
+	contents: WebContents,
+	protocol: string,
+	fileService: IFileService,
+	extensionLocation: URI | undefined,
+	getRoots: () => ReadonlyArray<URI>
+) {
+	contents.session.protocol.registerBufferProtocol(protocol, async (request, callback: any) => {
+		try {
+			const result = await loadLocalResource(URI.parse(request.url), fileService, extensionLocation, getRoots());
+			if (result.type === WebviewResourceResponse.Type.Success) {
+				return callback({
+					data: Buffer.from(result.buffer.buffer),
+					mimeType: result.mimeType
+				});
+			}
+			if (result.type === WebviewResourceResponse.Type.AccessDenied) {
+				console.error('Webview: Cannot load resource outside of protocol root');
+				return callback({ error: -10 /* ACCESS_DENIED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+			}
+		} catch  {
+			// noop
+		}
+
+		return callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+	});
+}
 
 class WebviewTagHandle extends Disposable {
 
@@ -124,21 +152,24 @@ class WebviewProtocolProvider extends Disposable {
 	private _localResourceRoots: ReadonlyArray<URI>;
 
 	constructor(
-		private readonly id: string,
-		private readonly extension: WebviewExtensionDescription | undefined,
+		handle: WebviewTagHandle,
+		extension: WebviewExtensionDescription | undefined,
 		initialLocalResourceRoots: ReadonlyArray<URI>,
+		fileService: IFileService,
 	) {
 		super();
 
 		this._localResourceRoots = initialLocalResourceRoots;
 
-		ipcRenderer.send('vscode:registerWebview', this.id, {
-			extensionLocation: this.extension?.location.toJSON(),
-			localResourceRoots: initialLocalResourceRoots.map(x => x.toJSON()),
-		});
-
-		this._ready = new Promise((resolve) => {
-			ipcRenderer.once(`vscode:didRegisterWebview-${this.id}`, () => resolve());
+		this._ready = new Promise((resolve, reject) => {
+			this._register(handle.onFirstLoad(contents => {
+				try {
+					registerFileProtocol(contents, Schemas.oldVscodeWebviewResource, fileService, extension?.location, () => this._localResourceRoots);
+					resolve();
+				} catch {
+					reject();
+				}
+			}));
 		});
 	}
 
@@ -148,22 +179,10 @@ class WebviewProtocolProvider extends Disposable {
 		}
 
 		this._localResourceRoots = localResourceRoots;
-
-		ipcRenderer.send('vscode:updateWebviewLocalResourceRoots', this.id, localResourceRoots.map(x => x.toJSON()));
-
-		this._ready = new Promise((resolve) => {
-			ipcRenderer.once(`vscode:didUpdateWebviewLocalResourceRoots-${this.id}`, () => resolve());
-		});
 	}
 
 	async synchronize(): Promise<void> {
 		return this._ready;
-	}
-
-	dispose() {
-		super.dispose();
-
-		ipcRenderer.send('vscode:unregisterWebview', this.id);
 	}
 }
 
@@ -289,7 +308,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		const webviewAndContents = this._register(new WebviewTagHandle(this.element!));
 		const session = this._register(new WebviewSession(webviewAndContents));
 
-		this._protocolProvider = this._register(new WebviewProtocolProvider(id, extension, this.content.options.localResourceRoots || []));
+		this._protocolProvider = this._register(new WebviewProtocolProvider(webviewAndContents, extension, this.content.options.localResourceRoots || [], fileService));
 
 		this._register(new WebviewPortMappingProvider(
 			session,
@@ -371,6 +390,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		element.focus = () => {
 			this.doFocus();
 		};
+		element.setAttribute('partition', `webview${Date.now()}`);
 		element.setAttribute('webpreferences', 'contextIsolation=yes');
 		element.className = `webview ${options.customClasses || ''}`;
 
@@ -381,7 +401,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 
 		element.preload = require.toUrl('./pre/electron-index.js');
 		element.src = 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%20role%3D%22document%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
-
 		return element;
 	}
 
@@ -402,19 +421,8 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	}
 
 	private preprocessHtml(value: string): string {
-		return value
-			.replace(/(["'])vscode-resource:(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (match, startQuote, _1, scheme, path, endQuote) => {
-				if (scheme) {
-					return `${startQuote}${Schemas.vscodeWebviewResource}://${this.id}/${scheme}${path}${endQuote}`;
-				}
-				if (!path.startsWith('//')) {
-					// Add an empty authority if we don't already have one
-					path = '//' + path;
-				}
-				return `${startQuote}${Schemas.vscodeWebviewResource}://${this.id}/file${path}${endQuote}`;
-			});
+		return value;
 	}
-
 
 	public mountTo(parent: HTMLElement) {
 		if (!this.element) {

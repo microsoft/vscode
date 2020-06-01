@@ -45,8 +45,19 @@ export interface IPastFutureElements {
 	future: IUndoRedoElement[];
 }
 
+export interface UriComparisonKeyComputer {
+	/**
+	 * Return `null` if you don't own this URI.
+	 */
+	getComparisonKey(uri: URI): string | null;
+}
+
 export interface IUndoRedoService {
 	_serviceBrand: undefined;
+
+	registerUriComparisonKeyComputer(uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
+
+	getUriComparisonKey(resource: URI): string;
 
 	/**
 	 * Add a new element to the `undo` stack.
@@ -63,7 +74,7 @@ export interface IUndoRedoService {
 
 	hasElements(resource: URI): boolean;
 
-	setElementsIsValid(resource: URI, isValid: boolean): void;
+	setElementsValidFlag(resource: URI, isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void;
 
 	/**
 	 * Remove elements that target `resource`.

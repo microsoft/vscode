@@ -23,6 +23,8 @@ class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.
 
 export const uriHandler = new UriEventHandler;
 
+const onDidManuallyProvideToken = new vscode.EventEmitter<string>();
+
 const exchangeCodeForToken: (state: string) => PromiseAdapter<vscode.Uri, string> =
 	(state) => async (uri, resolve, reject) => {
 		Logger.info('Exchanging code for token...');
@@ -80,11 +82,14 @@ export class GitHubServer {
 
 		const state = uuid();
 		const callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-		const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code`);
+		const uri = vscode.Uri.parse(`https://${AUTH_RELAY_SERVER}/authorize/?callbackUri=${encodeURIComponent(callbackUri.toString())}&scope=${scopes}&state=${state}&responseType=code&authServer=https://github.com`);
 
 		vscode.env.openExternal(uri);
 
-		return promiseFromEvent(uriHandler.event, exchangeCodeForToken(state)).finally(() => {
+		return Promise.race([
+			promiseFromEvent(uriHandler.event, exchangeCodeForToken(state)),
+			promiseFromEvent<string, string>(onDidManuallyProvideToken.event)
+		]).finally(() => {
 			this.updateStatusBarItem(false);
 		});
 	}
@@ -111,8 +116,9 @@ export class GitHubServer {
 			if (!uri.scheme || uri.scheme === 'file') { throw new Error; }
 			uriHandler.handleUri(uri);
 		} catch (e) {
-			Logger.error(e);
-			vscode.window.showErrorMessage(localize('unexpectedInput', "The input did not matched the expected format"));
+			// If it doesn't look like a URI, treat it as a token.
+			Logger.info('Treating input as token');
+			onDidManuallyProvideToken.fire(uriOrToken);
 		}
 	}
 

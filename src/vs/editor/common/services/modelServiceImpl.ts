@@ -26,7 +26,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUndoRedoService, IUndoRedoElement, IPastFutureElements } from 'vs/platform/undoRedo/common/undoRedo';
 import { StringSHA1 } from 'vs/base/common/hash';
-import { SingleModelEditStackElement, MultiModelEditStackElement, EditStackElement } from 'vs/editor/common/model/editStack';
+import { SingleModelEditStackElement, MultiModelEditStackElement, EditStackElement, isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { SemanticTokensProviderStyling, toMultilineTokens2 } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
@@ -139,6 +139,7 @@ class DisposedModelInfo {
 	constructor(
 		public readonly uri: URI,
 		public readonly time: number,
+		public readonly sharesUndoRedoStack: boolean,
 		public readonly heapSize: number,
 		public readonly sha1: string,
 		public readonly versionId: number,
@@ -352,7 +353,11 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (this._disposedModelsHeapSize > maxModelsHeapSize) {
 			// we must remove some old undo stack elements to free up some memory
 			const disposedModels: DisposedModelInfo[] = [];
-			this._disposedModels.forEach(entry => disposedModels.push(entry));
+			this._disposedModels.forEach(entry => {
+				if (!entry.sharesUndoRedoStack) {
+					disposedModels.push(entry);
+				}
+			});
 			disposedModels.sort((a, b) => a.time - b.time);
 			while (disposedModels.length > 0 && this._disposedModelsHeapSize > maxModelsHeapSize) {
 				const disposedModel = disposedModels.shift()!;
@@ -369,16 +374,23 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;
 			const elements = this._undoRedoService.getElements(resource);
-			if (computeModelSha1(model) === disposedModelData.sha1 && isEditStackPastFutureElements(elements)) {
+			const sha1IsEqual = (computeModelSha1(model) === disposedModelData.sha1);
+			if (sha1IsEqual || disposedModelData.sharesUndoRedoStack) {
 				for (const element of elements.past) {
-					element.setModel(model);
+					if (isEditStackElement(element) && element.matchesResource(resource)) {
+						element.setModel(model);
+					}
 				}
 				for (const element of elements.future) {
-					element.setModel(model);
+					if (isEditStackElement(element) && element.matchesResource(resource)) {
+						element.setModel(model);
+					}
 				}
-				this._undoRedoService.setElementsIsValid(resource, true);
-				model._overwriteVersionId(disposedModelData.versionId);
-				model._overwriteAlternativeVersionId(disposedModelData.alternativeVersionId);
+				this._undoRedoService.setElementsValidFlag(resource, true, (element) => (isEditStackElement(element) && element.matchesResource(resource)));
+				if (sha1IsEqual) {
+					model._overwriteVersionId(disposedModelData.versionId);
+					model._overwriteAlternativeVersionId(disposedModelData.alternativeVersionId);
+				}
 			} else {
 				this._undoRedoService.removeElements(resource);
 			}
@@ -504,31 +516,39 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 			return;
 		}
 		const model = modelData.model;
+		const sharesUndoRedoStack = (this._undoRedoService.getUriComparisonKey(model.uri) !== model.uri.toString());
 		let maintainUndoRedoStack = false;
 		let heapSize = 0;
-		if (this._shouldRestoreUndoStack() && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData)) {
+		if (sharesUndoRedoStack || (this._shouldRestoreUndoStack() && (resource.scheme === Schemas.file || resource.scheme === Schemas.vscodeRemote || resource.scheme === Schemas.userData))) {
 			const elements = this._undoRedoService.getElements(resource);
-			if ((elements.past.length > 0 || elements.future.length > 0) && isEditStackPastFutureElements(elements)) {
-				maintainUndoRedoStack = true;
+			if (elements.past.length > 0 || elements.future.length > 0) {
 				for (const element of elements.past) {
-					heapSize += element.heapSize(resource);
-					element.setModel(resource); // remove reference from text buffer instance
+					if (isEditStackElement(element) && element.matchesResource(resource)) {
+						maintainUndoRedoStack = true;
+						heapSize += element.heapSize(resource);
+						element.setModel(resource); // remove reference from text buffer instance
+					}
 				}
 				for (const element of elements.future) {
-					heapSize += element.heapSize(resource);
-					element.setModel(resource); // remove reference from text buffer instance
+					if (isEditStackElement(element) && element.matchesResource(resource)) {
+						maintainUndoRedoStack = true;
+						heapSize += element.heapSize(resource);
+						element.setModel(resource); // remove reference from text buffer instance
+					}
 				}
 			}
 		}
 
 		if (!maintainUndoRedoStack) {
-			this._undoRedoService.removeElements(resource);
+			if (!sharesUndoRedoStack) {
+				this._undoRedoService.removeElements(resource);
+			}
 			modelData.model.dispose();
 			return;
 		}
 
 		const maxMemory = ModelServiceImpl.MAX_MEMORY_FOR_CLOSED_FILES_UNDO_STACK;
-		if (heapSize > maxMemory) {
+		if (!sharesUndoRedoStack && heapSize > maxMemory) {
 			// the undo stack for this file would never fit in the configured memory, so don't bother with it.
 			this._undoRedoService.removeElements(resource);
 			modelData.model.dispose();
@@ -538,8 +558,8 @@ export class ModelServiceImpl extends Disposable implements IModelService {
 		this._ensureDisposedModelsHeapSize(maxMemory - heapSize);
 
 		// We only invalidate the elements, but they remain in the undo-redo service.
-		this._undoRedoService.setElementsIsValid(resource, false);
-		this._insertDisposedModel(new DisposedModelInfo(resource, Date.now(), heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
+		this._undoRedoService.setElementsValidFlag(resource, false, (element) => (isEditStackElement(element) && element.matchesResource(resource)));
+		this._insertDisposedModel(new DisposedModelInfo(resource, Date.now(), sharesUndoRedoStack, heapSize, computeModelSha1(model), model.getVersionId(), model.getAlternativeVersionId()));
 
 		modelData.model.dispose();
 	}

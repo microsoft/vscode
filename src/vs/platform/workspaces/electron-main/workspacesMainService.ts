@@ -134,7 +134,7 @@ export class WorkspacesMainService extends Disposable implements IWorkspacesMain
 		if (storedWorkspace && Array.isArray(storedWorkspace.folders)) {
 			storedWorkspace.folders = storedWorkspace.folders.filter(folder => isStoredWorkspaceFolder(folder));
 		} else {
-			throw new Error(`${path.toString()} looks like an invalid workspace file.`);
+			throw new Error(`${path.toString(true)} looks like an invalid workspace file.`);
 		}
 
 		return storedWorkspace;

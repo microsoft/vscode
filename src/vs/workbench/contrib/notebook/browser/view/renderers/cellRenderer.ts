@@ -606,6 +606,10 @@ export class CellDragAndDropController extends Disposable {
 		};
 	}
 
+	clearGlobalDragState() {
+		this.notebookEditor.getDomNode().classList.remove(GLOBAL_DRAG_CLASS);
+	}
+
 	private onGlobalDragStart() {
 		this.notebookEditor.getDomNode().classList.add(GLOBAL_DRAG_CLASS);
 	}

@@ -3,37 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
-import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, workspace, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
-import { Disposable, LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, ProvideCompletionItemsSignature } from 'vscode-languageclient';
+import { commands, CompletionItem, CompletionItemKind, ExtensionContext, languages, Position, Range, SnippetString, TextEdit, window, TextDocument, CompletionContext, CancellationToken, ProviderResult, CompletionList } from 'vscode';
+import { Disposable, LanguageClientOptions, ProvideCompletionItemsSignature, NotificationType, CommonLanguageClient } from 'vscode-languageclient';
 import * as nls from 'vscode-nls';
-import { getCustomDataPathsFromAllExtensions, getCustomDataPathsInAllWorkspaces } from './customData';
+import { getCustomDataSource } from './customData';
+import { RequestService, serveFileSystemRequests } from './requests';
+
+namespace CustomDataChangedNotification {
+	export const type: NotificationType<string[]> = new NotificationType('css/customDataChanged');
+}
 
 const localize = nls.loadMessageBundle();
 
-// this method is called when vs code is activated
-export function activate(context: ExtensionContext) {
+export type LanguageClientConstructor = (name: string, description: string, clientOptions: LanguageClientOptions) => CommonLanguageClient;
 
-	let serverMain = readJSONFile(context.asAbsolutePath('./server/package.json')).main;
-	let serverModule = context.asAbsolutePath(path.join('server', serverMain));
+export interface Runtime {
+	TextDecoder: { new(encoding?: string): { decode(buffer: ArrayBuffer): string; } };
+	fs?: RequestService;
+}
 
-	// The debug options for the server
-	let debugOptions = { execArgv: ['--nolazy', '--inspect=6044'] };
+export function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime) {
 
-	// If the extension is launch in debug mode the debug server options are use
-	// Otherwise the run options are used
-	let serverOptions: ServerOptions = {
-		run: { module: serverModule, transport: TransportKind.ipc },
-		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
-	};
+	const customDataSource = getCustomDataSource(context.subscriptions);
 
 	let documentSelector = ['css', 'scss', 'less'];
-
-	let dataPaths = [
-		...getCustomDataPathsInAllWorkspaces(workspace.workspaceFolders),
-		...getCustomDataPathsFromAllExtensions()
-	];
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -42,7 +35,7 @@ export function activate(context: ExtensionContext) {
 			configurationSection: ['css', 'scss', 'less']
 		},
 		initializationOptions: {
-			dataPaths
+			handledSchemas: ['file']
 		},
 		middleware: {
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
@@ -82,8 +75,17 @@ export function activate(context: ExtensionContext) {
 	};
 
 	// Create the language client and start the client.
-	let client = new LanguageClient('css', localize('cssserver.name', 'CSS Language Server'), serverOptions, clientOptions);
+	let client = newLanguageClient('css', localize('cssserver.name', 'CSS Language Server'), clientOptions);
 	client.registerProposedFeatures();
+	client.onReady().then(() => {
+
+		client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
+		customDataSource.onDidChange(() => {
+			client.sendNotification(CustomDataChangedNotification.type, customDataSource.uris);
+		});
+
+		serveFileSystemRequests(client, runtime);
+	});
 
 	let disposable = client.start();
 	// Push the disposable to the context's subscriptions so that the
@@ -118,7 +120,7 @@ export function activate(context: ExtensionContext) {
 		const regionCompletionRegExpr = /^(\s*)(\/(\*\s*(#\w*)?)?)?$/;
 
 		return languages.registerCompletionItemProvider(documentSelector, {
-			provideCompletionItems(doc, pos) {
+			provideCompletionItems(doc: TextDocument, pos: Position) {
 				let lineUntilPos = doc.getText(new Range(new Position(pos.line, 0), pos));
 				let match = lineUntilPos.match(regionCompletionRegExpr);
 				if (match) {
@@ -162,13 +164,3 @@ export function activate(context: ExtensionContext) {
 		}
 	}
 }
-
-function readJSONFile(location: string) {
-	try {
-		return JSON.parse(fs.readFileSync(location).toString());
-	} catch (e) {
-		console.log(`Problems reading ${location}: ${e}`);
-		return {};
-	}
-}
-

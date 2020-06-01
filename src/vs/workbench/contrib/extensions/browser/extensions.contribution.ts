@@ -45,7 +45,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IQuickAccessRegistry, Extensions } from 'vs/platform/quickinput/common/quickAccess';
 import { InstallExtensionQuickAccessProvider, ManageExtensionsQuickAccessProvider } from 'vs/workbench/contrib/extensions/browser/extensionsQuickAccess';
 import { ExtensionRecommendationsService } from 'vs/workbench/contrib/extensions/browser/extensionRecommendationsService';
@@ -450,15 +449,11 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, id: string) {
-		const configurationService = accessor.get(IConfigurationService);
-		const ignoredExtensions = [...configurationService.getValue<string[]>('sync.ignoredExtensions')];
-		const index = ignoredExtensions.findIndex(ignoredExtension => areSameExtensions({ id: ignoredExtension }, { id }));
-		if (index !== -1) {
-			ignoredExtensions.splice(index, 1);
-		} else {
-			ignoredExtensions.push(id);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
+		const extension = extensionsWorkbenchService.local.find(e => areSameExtensions({ id }, e.identifier));
+		if (extension) {
+			return extensionsWorkbenchService.toggleExtensionIgnoredToSync(extension);
 		}
-		return configurationService.updateValue('sync.ignoredExtensions', ignoredExtensions.length ? ignoredExtensions : undefined, ConfigurationTarget.USER);
 	}
 });
 

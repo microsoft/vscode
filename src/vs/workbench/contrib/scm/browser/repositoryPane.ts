@@ -1163,10 +1163,10 @@ export class RepositoryPane extends ViewPane {
 	}
 
 	private getInputEditorFontFamily(): string {
-		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily');
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
 
 		if (inputFontFamily.toLowerCase() === 'editor') {
-			return this.configurationService.getValue<string>('editor.fontFamily');
+			return this.configurationService.getValue<string>('editor.fontFamily').trim();
 		}
 
 		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {

@@ -153,7 +153,17 @@ class CodeActionSet {
 				this._actions.delete(existing);
 			}
 		}
+
 		this._actions.add(action);
+
+		if (action.tsAction.fixId) {
+			// If we have an existing fix all action, then make sure it follows this action
+			const existingFixAll = this._fixAllActions.get(action.tsAction.fixId);
+			if (existingFixAll) {
+				this._actions.delete(existingFixAll);
+				this._actions.add(existingFixAll);
+			}
+		}
 	}
 
 	public addFixAllAction(fixId: {}, action: VsCodeCodeAction) {

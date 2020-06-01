@@ -10,7 +10,7 @@ import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection } from 'vs/editor/common/commands/replaceCommand';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Constants } from 'vs/base/common/uint';
 import { ScrollType, ICommand } from 'vs/editor/common/editorCommon';
@@ -23,6 +23,7 @@ import { ReplacePattern, parseReplaceString } from 'vs/editor/contrib/find/repla
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { binarySearch, findFirstInSorted } from 'vs/base/common/arrays';
 
 export const CONTEXT_FIND_WIDGET_VISIBLE = new RawContextKey<boolean>('findWidgetVisible', false);
 export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNegated();
@@ -189,8 +190,17 @@ export class FindModelBoundToEditorModel {
 		let findMatches = this._findMatches(findScope, false, MATCHES_LIMIT);
 		this._decorations.set(findMatches, findScope);
 
+		const editorSelection = this._editor.getSelection();
+		let currentMatchesPosition = this._decorations.getCurrentMatchesPosition(editorSelection);
+		if (currentMatchesPosition === 0 && findMatches.length > 0) {
+			// current selection is not on top of a match
+			// try to find its nearest result from the top of the document
+			const matchAfterSelection = findFirstInSorted(findMatches.map(match => match.range), range => Range.compareRangesUsingStarts(range, editorSelection) >= 0);
+			currentMatchesPosition = matchAfterSelection > 0 ? matchAfterSelection - 1 + 1 /** match position is one based */ : currentMatchesPosition;
+		}
+
 		this._state.changeMatchInfo(
-			this._decorations.getCurrentMatchesPosition(this._editor.getSelection()),
+			currentMatchesPosition,
 			this._decorations.getCount(),
 			undefined
 		);

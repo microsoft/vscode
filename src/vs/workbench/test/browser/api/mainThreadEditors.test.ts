@@ -48,6 +48,8 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { extUri } from 'vs/base/common/resources';
 
 suite('MainThreadEditors', () => {
 
@@ -137,6 +139,9 @@ suite('MainThreadEditors', () => {
 			getActivePanel() {
 				return undefined;
 			}
+		});
+		services.set(IUriIdentityService, new class extends mock<IUriIdentityService>() {
+			get extUri() { return extUri; }
 		});
 
 		const instaService = new InstantiationService(services);
