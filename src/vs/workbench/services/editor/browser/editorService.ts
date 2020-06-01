@@ -77,8 +77,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IModelService private readonly modelService: IModelService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -927,6 +926,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		throw new Error('Unknown input type');
 	}
 
+	private _modelService: IModelService | undefined = undefined;
+	private get modelService(): IModelService | undefined {
+		if (!this._modelService) {
+			this._modelService = this.instantiationService.invokeFunction(accessor => accessor.get(IModelService));
+		}
+
+		return this._modelService;
+	}
+
 	private asCanonicalEditorResource(resource: URI): URI {
 		// We prefer to use the canonical form unless we know that a model
 		// for the given URI already exists.
@@ -936,7 +944,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// the URI. As such we ensure that any editor that is being opened
 		// will use the same canonical form of the URI.
 		let canonicalResource: URI;
-		if (this.modelService.getModel(resource)) {
+		if (this.modelService?.getModel(resource)) {
 			// TODO@Ben remove this check once canonical URIs are adopted in ITextModelResolerService
 			canonicalResource = resource;
 		} else {
