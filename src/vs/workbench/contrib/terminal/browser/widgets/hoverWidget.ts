@@ -214,12 +214,9 @@ class CompositeMouseTracker extends Widget {
 registerThemingParticipant((theme, collector) => {
 	let editorHoverHighlightColor = theme.getColor(editorHoverHighlight);
 	if (editorHoverHighlightColor) {
-
-		// This code is temporary and is a workaround to the issue #97521.
 		if (editorHoverHighlightColor.isOpaque()) {
-			editorHoverHighlightColor = editorHoverHighlightColor.transparent(0.90);
+			editorHoverHighlightColor = editorHoverHighlightColor.transparent(0.5);
 		}
-
 		collector.addRule(`.integrated-terminal .hoverHighlight { background-color: ${editorHoverHighlightColor}; }`);
 	}
 	const hoverBackground = theme.getColor(editorHoverBackground);
