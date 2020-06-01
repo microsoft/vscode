@@ -1164,8 +1164,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region Editor Tracking
 
-	whenClosed(resources: URI[], options?: { waitForSaved: boolean }): Promise<void> {
-		let remainingResources = [...resources];
+	whenClosed(editors: IResourceEditorInput[], options?: { waitForSaved: boolean }): Promise<void> {
+		let remainingEditors = [...editors];
 
 		return new Promise(resolve => {
 			const listener = this.onDidCloseEditor(async event => {
@@ -1174,8 +1174,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Remove from resources to wait for being closed based on the
 				// resources from editors that got closed
-				remainingResources = remainingResources.filter(resource => {
-					if (isEqual(resource, masterResource) || isEqual(resource, detailsResource)) {
+				remainingEditors = remainingEditors.filter(({ resource }) => {
+					if (this.uriIdentitiyService.extUri.isEqual(resource, masterResource) || this.uriIdentitiyService.extUri.isEqual(resource, detailsResource)) {
 						return false; // remove - the closing editor matches this resource
 					}
 
@@ -1183,15 +1183,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				});
 
 				// All resources to wait for being closed are closed
-				if (remainingResources.length === 0) {
+				if (remainingEditors.length === 0) {
 					if (options?.waitForSaved) {
 						// If auto save is configured with the default delay (1s) it is possible
 						// to close the editor while the save still continues in the background. As such
-						// we have to also check if the files to track for are dirty and if so wait
+						// we have to also check if the editors to track for are dirty and if so wait
 						// for them to get saved.
-						const dirtyFiles = resources.filter(resource => this.workingCopyService.isDirty(resource));
-						if (dirtyFiles.length > 0) {
-							await Promise.all(dirtyFiles.map(async dirtyFile => await this.whenSaved(dirtyFile)));
+						const dirtyResources = editors.filter(({ resource }) => this.workingCopyService.isDirty(resource)).map(({ resource }) => resource);
+						if (dirtyResources.length > 0) {
+							await Promise.all(dirtyResources.map(async resource => await this.whenSaved(resource)));
 						}
 					}
 
@@ -1211,7 +1211,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Otherwise resolve promise when resource is saved
 			const listener = this.workingCopyService.onDidChangeDirty(workingCopy => {
-				if (!workingCopy.isDirty() && isEqual(resource, workingCopy.resource)) {
+				if (!workingCopy.isDirty() && this.uriIdentitiyService.extUri.isEqual(resource, workingCopy.resource)) {
 					listener.dispose();
 
 					resolve();
@@ -1340,7 +1340,7 @@ export class DelegatingEditorService implements IEditorService {
 
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable { return this.editorService.registerCustomEditorViewTypesHandler(source, handler); }
 
-	whenClosed(resources: URI[]): Promise<void> { return this.editorService.whenClosed(resources); }
+	whenClosed(editors: IResourceEditorInput[]): Promise<void> { return this.editorService.whenClosed(editors); }
 
 	//#endregion
 }
