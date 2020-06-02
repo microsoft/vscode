@@ -175,10 +175,13 @@ export async function readTrustedDomains(accessor: ServicesAccessor) {
 		}
 	} catch (err) { }
 
-	const userDomains = ((await authenticationService.getSessions('github')) ?? [])
-		.map(session => session.account.displayName)
-		.filter((v, i, a) => a.indexOf(v) === i)
-		.map(username => `https://github.com/${username}/`);
+	const userDomains =
+		authenticationService.isAuthenticationProviderRegistered('github')
+			? ((await authenticationService.getSessions('github')) ?? [])
+				.map(session => session.account.displayName)
+				.filter((v, i, a) => a.indexOf(v) === i)
+				.map(username => `https://github.com/${username}/`)
+			: [];
 
 	const workspaceDomains = await getRemotes(fileService, textFileService, workspaceContextService);
 
