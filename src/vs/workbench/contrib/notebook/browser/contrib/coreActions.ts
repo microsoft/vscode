@@ -45,7 +45,6 @@ const CHANGE_CELL_TO_MARKDOWN_COMMAND_ID = 'notebook.cell.changeToMarkdown';
 
 const EDIT_CELL_COMMAND_ID = 'notebook.cell.edit';
 const QUIT_EDIT_CELL_COMMAND_ID = 'notebook.cell.quitEdit';
-const SAVE_CELL_COMMAND_ID = 'notebook.cell.save';
 const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 
 const MOVE_CELL_UP_COMMAND_ID = 'notebook.cell.moveUp';
@@ -321,30 +320,6 @@ registerAction2(class extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		return context.notebookEditor.cancelNotebookExecution();
-	}
-});
-
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super({
-			id: QUIT_EDIT_CELL_COMMAND_ID,
-			title: localize('notebookActions.quitEditing', "Quit Notebook Cell Editing"),
-			category: NOTEBOOK_ACTIONS_CATEGORY,
-			keybinding: {
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext, EditorContextKeys.hoverVisible.toNegated()),
-				primary: KeyCode.Escape,
-				weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
-			},
-			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
-		});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		if (context.cell.cellKind === CellKind.Markdown) {
-			context.cell.editState = CellEditState.Preview;
-		}
-
-		await context.notebookEditor.focusNotebookCell(context.cell, 'container');
 	}
 });
 
@@ -626,7 +601,7 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		context.notebookEditor.editNotebookCell(context.cell);
+		context.notebookEditor.focusNotebookCell(context.cell, 'editor');
 	}
 });
 
@@ -634,8 +609,8 @@ registerAction2(class extends NotebookAction {
 	constructor() {
 		super(
 			{
-				id: SAVE_CELL_COMMAND_ID,
-				title: localize('notebookActions.saveCell', "Save Cell"),
+				id: QUIT_EDIT_CELL_COMMAND_ID,
+				title: localize('notebookActions.quitEdit', "Stop Editing Cell"),
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
@@ -644,12 +619,24 @@ registerAction2(class extends NotebookAction {
 						NOTEBOOK_CELL_EDITABLE),
 					order: CellToolbarOrder.SaveCell
 				},
-				icon: { id: 'codicon/check' }
+				icon: { id: 'codicon/check' },
+				keybinding: {
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext, EditorContextKeys.hoverVisible.toNegated()),
+					primary: KeyCode.Escape,
+					weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
+				},
+				category: NOTEBOOK_ACTIONS_CATEGORY,
+				precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
+				f1: true
 			});
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		return context.notebookEditor.saveNotebookCell(context.cell);
+		if (context.cell.cellKind === CellKind.Markdown) {
+			context.cell.editState = CellEditState.Preview;
+		}
+
+		return context.notebookEditor.focusNotebookCell(context.cell, 'container');
 	}
 });
 

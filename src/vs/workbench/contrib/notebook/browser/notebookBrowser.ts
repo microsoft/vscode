@@ -220,19 +220,6 @@ export interface INotebookEditor extends IEditor {
 	moveCell(cell: ICellViewModel, relativeToCell: ICellViewModel, direction: 'above' | 'below'): Promise<boolean>;
 
 	/**
-	 * Switch the cell into editing mode.
-	 *
-	 * For code cell, the monaco editor will be focused.
-	 * For markdown cell, it will switch from preview mode to editing mode, which focuses the monaco editor.
-	 */
-	editNotebookCell(cell: ICellViewModel): void;
-
-	/**
-	 * Quit cell editing mode.
-	 */
-	saveNotebookCell(cell: ICellViewModel): void;
-
-	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
 	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;

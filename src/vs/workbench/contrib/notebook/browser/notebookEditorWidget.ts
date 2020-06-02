@@ -1091,10 +1091,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.renderedEditors.get(cell)?.focus();
 	}
 
-	saveNotebookCell(cell: ICellViewModel): void {
-		cell.editState = CellEditState.Preview;
-	}
-
 	getActiveCell() {
 		let elements = this.list?.getFocusedElements();
 
