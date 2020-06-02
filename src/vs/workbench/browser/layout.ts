@@ -783,7 +783,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 						if ('path' in f && 'scheme' in f) {
 							return { fileUri: URI.file((f as any).path).with({ scheme: (f as any).scheme }) };
 						}
-						return { fileUri: URI.revive(f.uri), openOnlyIfExists: f.openOnlyIfExists };
+						return { fileUri: URI.revive(f.uri), openOnlyIfExists: f.openOnlyIfExists, overrideId: f.openWith };
 					})
 			};
 		}

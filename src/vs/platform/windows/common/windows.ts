@@ -166,6 +166,9 @@ export interface IPathData {
 
 	// Specifies if the file should be only be opened if it exists
 	openOnlyIfExists?: boolean;
+
+	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
+	overrideId?: string;
 }
 
 export interface IOpenFileRequest {

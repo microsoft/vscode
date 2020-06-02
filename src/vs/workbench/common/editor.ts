@@ -930,6 +930,11 @@ export class EditorOptions implements IEditorOptions {
 	ignoreOverrides: boolean | undefined;
 
 	/**
+	 * An optional id to override the editor used to edit the resource, e.g. custom editor.
+	 */
+	overrideId: string | undefined;
+
+	/**
 	 * A optional hint to signal in which context the editor opens.
 	 *
 	 * If configured to be `EditorOpenContext.USER`, this hint can be
@@ -989,6 +994,10 @@ export class EditorOptions implements IEditorOptions {
 			this.ignoreOverrides = options.ignoreOverrides;
 		}
 
+		if (typeof options.overrideId === 'string') {
+			this.overrideId = options.overrideId;
+		}
+
 		if (typeof options.context === 'number') {
 			this.context = options.context;
 		}
@@ -1018,11 +1027,11 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	selectionRevealType: TextEditorSelectionRevealType | undefined;
 
 	static from(input?: IBaseResourceEditorInput): TextEditorOptions | undefined {
-		if (!input || !input.options) {
+		if (!input?.options) {
 			return undefined;
 		}
 
-		return TextEditorOptions.create(input.options);
+		return TextEditorOptions.create({ ...input.options, overrideId: input.overrideId });
 	}
 
 	/**
@@ -1360,7 +1369,7 @@ export async function pathsToEditors(paths: IPathData[] | undefined, fileService
 		if (!exists) {
 			input = { resource, options, forceUntitled: true };
 		} else {
-			input = { resource, options, forceFile: true };
+			input = { resource, options, forceFile: true, overrideId: path.overrideId };
 		}
 
 		return input;

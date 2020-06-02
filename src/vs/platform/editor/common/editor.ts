@@ -58,6 +58,11 @@ export interface IBaseResourceEditorInput {
 	 * looking at the scheme of the resource(s).
 	 */
 	readonly forceUntitled?: boolean;
+
+	/**
+	 * An optional id to override the editor used to edit the resource, e.g. custom editor.
+	 */
+	readonly overrideId?: string;
 }
 
 export interface IResourceEditorInput extends IBaseResourceEditorInput {
@@ -200,6 +205,11 @@ export interface IEditorOptions {
 	 * Does not use editor overrides while opening the editor
 	 */
 	readonly ignoreOverrides?: boolean;
+
+	/**
+	 * An optional id to override the editor used to edit the resource, e.g. custom editor.
+	 */
+	readonly overrideId?: string;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.

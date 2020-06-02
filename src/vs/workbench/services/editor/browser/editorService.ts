@@ -501,12 +501,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
-		if (event.options && event.options.ignoreOverrides) {
+		if (event.options?.ignoreOverrides) {
 			return;
 		}
 
 		for (const handler of this.openEditorHandlers) {
-			const result = handler.open(event.editor, event.options, group, event.context || OpenEditorContext.NEW_EDITOR);
+			const result = handler.open(event.editor, event.options, group, event.context ?? OpenEditorContext.NEW_EDITOR, event.options?.overrideId);
 			const override = result?.override;
 			if (override) {
 				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
@@ -689,13 +689,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
 
 		// Convert to typed editors and options
-		const typedEditors: IEditorInputWithOptions[] = [];
-		editors.forEach(editor => {
+		const typedEditors = editors.map(editor => {
 			if (isEditorInputWithOptions(editor)) {
-				typedEditors.push(editor);
-			} else {
-				typedEditors.push({ editor: this.createEditorInput(editor), options: TextEditorOptions.from(editor) });
+				return editor;
 			}
+
+			const editorInput: IEditorInputWithOptions = { editor: this.createEditorInput(editor), options: TextEditorOptions.from(editor) };
+			return editorInput;
 		});
 
 		// Find target groups to open
