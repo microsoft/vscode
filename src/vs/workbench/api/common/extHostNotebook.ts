@@ -263,8 +263,10 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 	accpetModelChanged(event: NotebookCellsChangedEvent): void {
 		this._versionId = event.versionId;
-		if (event.kind === NotebookCellsChangeType.ModelChange) {
-			this.$spliceNotebookCells(event.changes);
+		if (event.kind === NotebookCellsChangeType.Initialize) {
+			this.$spliceNotebookCells(event.changes, true);
+		} if (event.kind === NotebookCellsChangeType.ModelChange) {
+			this.$spliceNotebookCells(event.changes, false);
 		} else if (event.kind === NotebookCellsChangeType.Move) {
 			this.$moveCell(event.index, event.newIdx);
 		} else if (event.kind === NotebookCellsChangeType.CellClearOutput) {
@@ -276,7 +278,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		}
 	}
 
-	private $spliceNotebookCells(splices: NotebookCellsSplice2[]): void {
+	private $spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {
 		if (this._disposed) {
 			return;
 		}
@@ -323,10 +325,12 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			contentChangeEvents.push(event);
 		});
 
-		this._emitter.emitModelChange({
-			document: this,
-			changes: contentChangeEvents
-		});
+		if (!initialization) {
+			this._emitter.emitModelChange({
+				document: this,
+				changes: contentChangeEvents
+			});
+		}
 	}
 
 	private $moveCell(index: number, newIdx: number): void {
@@ -1105,7 +1109,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					}
 
 					document.accpetModelChanged({
-						kind: NotebookCellsChangeType.ModelChange,
+						kind: NotebookCellsChangeType.Initialize,
 						versionId: modelData.versionId,
 						changes: [[
 							0,

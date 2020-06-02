@@ -278,6 +278,23 @@ suite('API tests', () => {
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
+
+	test('initialzation should not emit cell change events.', async function () {
+		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+
+		let count = 0;
+		const disposables: vscode.Disposable[] = [];
+		disposables.push(vscode.notebook.onDidChangeNotebookCells(() => {
+			count++;
+		}));
+
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		assert.equal(count, 0);
+
+		disposables.forEach(d => d.dispose());
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+	});
 });
 
 suite('notebook workflow', () => {

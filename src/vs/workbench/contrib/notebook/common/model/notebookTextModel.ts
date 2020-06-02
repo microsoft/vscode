@@ -134,10 +134,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cellUri = CellUri.generate(this.uri, cellHandle);
 			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 		});
-		this.insertNewCell(0, mainCells);
+		this.insertNewCell(0, mainCells, false);
 	}
 
-	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[]): boolean {
+	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], emitToExtHost: boolean = true): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
@@ -198,19 +198,21 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return [diff.start, diff.deleteCount, diff.toInsert] as [number, number, NotebookCellTextModel[]];
 		});
 
-		this._onDidModelChangeProxy.fire({
-			kind: NotebookCellsChangeType.ModelChange,
-			versionId: this._versionId,
-			changes: diffs.map(diff => [diff[0], diff[1], diff[2].map(cell => ({
-				handle: cell.handle,
-				uri: cell.uri,
-				source: cell.textBuffer.getLinesContent(),
-				language: cell.language,
-				cellKind: cell.cellKind,
-				outputs: cell.outputs,
-				metadata: cell.metadata
-			}))] as [number, number, IMainCellDto[]])
-		});
+		if (emitToExtHost) {
+			this._onDidModelChangeProxy.fire({
+				kind: NotebookCellsChangeType.ModelChange,
+				versionId: this._versionId,
+				changes: diffs.map(diff => [diff[0], diff[1], diff[2].map(cell => ({
+					handle: cell.handle,
+					uri: cell.uri,
+					source: cell.textBuffer.getLinesContent(),
+					language: cell.language,
+					cellKind: cell.cellKind,
+					outputs: cell.outputs,
+					metadata: cell.metadata
+				}))] as [number, number, IMainCellDto[]])
+			});
+		}
 
 		this._onDidChangeCells.fire(diffs);
 		return true;
