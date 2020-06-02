@@ -1281,6 +1281,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			panesToRemove.push(this.panes[index]);
 		}
 		this.removePanes(panesToRemove);
+
+		for (const pane of panesToRemove) {
+			pane.setVisible(false);
+		}
 	}
 
 	protected toggleViewVisibility(viewId: string): void {
