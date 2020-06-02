@@ -52,6 +52,11 @@ steps:
     yarn compile
   displayName: Compile Sources
 
+- task: RichCodeNavIndexer@0
+  inputs:
+    languages: 'typescript'
+    environment: 'production'
+
 - powershell: |
     yarn download-builtin-extensions
   displayName: Download Built-in Extensions
