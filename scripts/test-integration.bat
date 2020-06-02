@@ -22,6 +22,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call yarn gulp 	compile-extension:vscode-api-tests^
 					compile-extension:vscode-colorize-tests^
 					compile-extension:markdown-language-features^
+					compile-extension:vscode-notebook-tests^
 					compile-extension:emmet^
 					compile-extension:css-language-features-server^
 					compile-extension:html-language-features-server^
