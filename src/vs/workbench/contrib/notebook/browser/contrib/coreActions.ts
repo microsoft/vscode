@@ -621,7 +621,11 @@ registerAction2(class extends NotebookAction {
 				},
 				icon: { id: 'codicon/check' },
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext, EditorContextKeys.hoverVisible.toNegated()),
+					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_FOCUSED,
+						InputFocusedContext,
+						EditorContextKeys.hoverVisible.toNegated(),
+						EditorContextKeys.hasNonEmptySelection.toNegated()),
 					primary: KeyCode.Escape,
 					weight: EDITOR_WIDGET_ACTION_WEIGHT - 5
 				},
