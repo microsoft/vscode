@@ -274,7 +274,7 @@ suite('vscode API - webview', () => {
 		}
 	});
 
-	test('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
+	conditionalTest('webviews should allow overriding allowed resource paths using localResourceRoots', async () => {
 		const webview = _register(vscode.window.createWebviewPanel(webviewId, 'title', { viewColumn: vscode.ViewColumn.One }, {
 			enableScripts: true,
 			localResourceRoots: [vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub'))]
@@ -293,11 +293,11 @@ suite('vscode API - webview', () => {
 			</script>`);
 
 		{
-			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(vscode.workspace.rootPath! + '/sub/image.png')).toString() });
+			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, 'sub', 'image.png'))).toString() });
 			assert.strictEqual((await response).value, true);
 		}
 		{
-			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(vscode.workspace.rootPath! + '/image.png')).toString() });
+			const response = sendRecieveMessage(webview, { src: webview.webview.asWebviewUri(vscode.Uri.file(join(vscode.workspace.rootPath!, 'image.png'))).toString() });
 			assert.strictEqual((await response).value, false);
 		}
 	});

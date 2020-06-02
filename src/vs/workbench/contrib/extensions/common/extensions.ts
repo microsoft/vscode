@@ -88,6 +88,10 @@ export interface IExtensionsWorkbenchService {
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): Promise<void>;
 	open(extension: IExtension, options?: { sideByside?: boolean, preserveFocus?: boolean, pinned?: boolean }): Promise<any>;
 	checkForUpdates(): Promise<void>;
+
+	// Sync APIs
+	isExtensionIgnoredToSync(extension: IExtension): boolean;
+	toggleExtensionIgnoredToSync(extension: IExtension): Promise<void>;
 }
 
 export const ConfigurationKey = 'extensions';

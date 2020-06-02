@@ -46,6 +46,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { generateUuid } from 'vs/base/common/uuid';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
+import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 
 export class DebugService implements IDebugService {
 	_serviceBrand: undefined;
@@ -304,6 +305,9 @@ export class DebugService implements IDebugService {
 						this.endInitializingState();
 						return false;
 					}
+				}
+				if (compound.stopAll) {
+					options = { ...options, compoundRoot: new DebugCompoundRoot() };
 				}
 
 				const values = await Promise.all(compound.configurations.map(configData => {

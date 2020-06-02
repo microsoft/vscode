@@ -64,7 +64,7 @@
 			newFrame.contentWindow.addEventListener('mousemove', tryDispatchSyntheticMouseEvent);
 		},
 		rewriteCSP: (csp) => {
-			return csp.replace(/vscode-resource:(?=(\s|;|$))/g, 'vscode-webview-resource:');
+			return csp;
 		},
 	};
 

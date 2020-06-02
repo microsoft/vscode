@@ -140,10 +140,10 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 		const domains = new Set<string>();
 		let match: RegExpExecArray | null;
 
-		const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)([^.]*)\.git\s*$/mg;
+		const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)\.git\s*$/mg;
 		while (match = RemoteMatcher.exec(content)) {
-			const [domain, repo] = [match[1], match[2]];
-			if (domain && repo) {
+			const repo = match[1];
+			if (repo) {
 				domains.add(`https://github.com/${repo}/`);
 			}
 		}
@@ -175,10 +175,13 @@ export async function readTrustedDomains(accessor: ServicesAccessor) {
 		}
 	} catch (err) { }
 
-	const userDomains = ((await authenticationService.getSessions('github')) ?? [])
-		.map(session => session.account.displayName)
-		.filter((v, i, a) => a.indexOf(v) === i)
-		.map(username => `https://github.com/${username}/`);
+	const userDomains =
+		authenticationService.isAuthenticationProviderRegistered('github')
+			? ((await authenticationService.getSessions('github')) ?? [])
+				.map(session => session.account.displayName)
+				.filter((v, i, a) => a.indexOf(v) === i)
+				.map(username => `https://github.com/${username}/`)
+			: [];
 
 	const workspaceDomains = await getRemotes(fileService, textFileService, workspaceContextService);
 

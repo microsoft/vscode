@@ -129,12 +129,12 @@ export class NotebookEditorInput extends EditorInput {
 		return;
 	}
 
-	async resolve(): Promise<NotebookEditorModel> {
+	async resolve(editorId?: string): Promise<NotebookEditorModel> {
 		if (!await this.notebookService.canResolve(this.viewType!)) {
 			throw new Error(`Cannot open notebook of type '${this.viewType}'`);
 		}
 
-		this.textModel = await this.notebookService.modelManager.resolve(this.resource, this.viewType!);
+		this.textModel = await this.notebookService.modelManager.resolve(this.resource, this.viewType!, editorId);
 
 		this._register(this.textModel.onDidChangeDirty(() => {
 			this._onDidChangeDirty.fire();
@@ -158,12 +158,14 @@ export class NotebookEditorInput extends EditorInput {
 		return false;
 	}
 
-	dispose() {
+	clearTextModel() {
 		if (this.textModel) {
 			this.notebookService.destoryNotebookDocument(this.textModel!.notebook.viewType, this.textModel!.notebook);
 			this.textModel.dispose();
 		}
+	}
 
+	dispose() {
 		super.dispose();
 	}
 }

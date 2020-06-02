@@ -61,7 +61,7 @@ registerAction2(class extends Action2 {
 
 		const provider = notebookService.getContributedNotebookProviders(editor.viewModel!.uri)[0];
 
-		if (provider.hasKernelSupport) {
+		if (provider.kernel) {
 			picks.unshift({
 				id: provider.id,
 				label: provider.displayName,

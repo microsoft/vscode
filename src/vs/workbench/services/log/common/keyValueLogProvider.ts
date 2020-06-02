@@ -8,7 +8,7 @@ import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapab
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resources';
+import { joinPath, extUri } from 'vs/base/common/resources';
 import { values } from 'vs/base/common/map';
 import { localize } from 'vs/nls';
 
@@ -65,8 +65,8 @@ export abstract class KeyValueLogProvider extends Disposable implements IFileSys
 		const files: Map<string, [string, FileType]> = new Map<string, [string, FileType]>();
 		for (const key of keys) {
 			const keyResource = this.toResource(key);
-			if (isEqualOrParent(keyResource, resource, false)) {
-				const path = relativePath(resource, keyResource, false);
+			if (extUri.isEqualOrParent(keyResource, resource)) {
+				const path = extUri.relativePath(resource, keyResource);
 				if (path) {
 					const keySegments = path.split('/');
 					files.set(keySegments[0], [keySegments[0], keySegments.length === 1 ? FileType.File : FileType.Directory]);

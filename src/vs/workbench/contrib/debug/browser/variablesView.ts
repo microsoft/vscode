@@ -359,7 +359,7 @@ class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpr
 			return nls.localize('variableScopeAriaLabel', "Scope {0}", element.name);
 		}
 		if (element instanceof Variable) {
-			return nls.localize('variableAriaLabel', "{0}, value {1}", element.name, element.value);
+			return nls.localize({ key: 'variableAriaLabel', comment: ['Placeholders are variable name and variable value respectivly. They should not be translated.'] }, "{0}, value {1}", element.name, element.value);
 		}
 
 		return null;

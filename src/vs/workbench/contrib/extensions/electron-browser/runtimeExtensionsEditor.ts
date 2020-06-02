@@ -24,7 +24,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { writeFile } from 'vs/base/node/pfs';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { memoize } from 'vs/base/common/decorators';
@@ -372,6 +372,9 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 							'{0} will be a glob pattern'
 						]
 					}, "Activated by {1} because searching for {0} took too long", glob, activationId);
+				} else if (/^onStartup:/.test(activationEvent)) {
+					const time = activationEvent.substr('onStartup:'.length);
+					title = nls.localize('startupActivation', "Activated by {0} with a delay of {1} ms on start-up", activationId, time);
 				} else if (/^onLanguage:/.test(activationEvent)) {
 					let language = activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated by {1} because you opened a {0} file", language, activationId);

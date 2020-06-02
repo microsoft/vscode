@@ -86,7 +86,7 @@ export class Main {
 		} else if (argv['list-extensions']) {
 			await this.listExtensions(!!argv['show-versions'], argv['category']);
 		} else if (argv['install-extension']) {
-			await this.installExtensions(argv['install-extension'], !!argv['force']);
+			await this.installExtensions(argv['install-extension'], !!argv['force'], !!argv['donot-sync']);
 		} else if (argv['uninstall-extension']) {
 			await this.uninstallExtension(argv['uninstall-extension']);
 		} else if (argv['locate-extension']) {
@@ -126,7 +126,7 @@ export class Main {
 		extensions.forEach(e => console.log(getId(e.manifest, showVersions)));
 	}
 
-	private async installExtensions(extensions: string[], force: boolean): Promise<void> {
+	private async installExtensions(extensions: string[], force: boolean, donotSync: boolean): Promise<void> {
 		const failed: string[] = [];
 		const installedExtensionsManifests: IExtensionManifest[] = [];
 		if (extensions.length) {
@@ -135,7 +135,7 @@ export class Main {
 
 		for (const extension of extensions) {
 			try {
-				const manifest = await this.installExtension(extension, force);
+				const manifest = await this.installExtension(extension, force, donotSync);
 				if (manifest) {
 					installedExtensionsManifests.push(manifest);
 				}
@@ -150,7 +150,7 @@ export class Main {
 		return failed.length ? Promise.reject(localize('installation failed', "Failed Installing Extensions: {0}", failed.join(', '))) : Promise.resolve();
 	}
 
-	private async installExtension(extension: string, force: boolean): Promise<IExtensionManifest | null> {
+	private async installExtension(extension: string, force: boolean, donotSync: boolean): Promise<IExtensionManifest | null> {
 		if (/\.vsix$/i.test(extension)) {
 			extension = path.isAbsolute(extension) ? extension : path.join(process.cwd(), extension);
 
@@ -158,7 +158,7 @@ export class Main {
 			const valid = await this.validate(manifest, force);
 
 			if (valid) {
-				return this.extensionManagementService.install(URI.file(extension)).then(id => {
+				return this.extensionManagementService.install(URI.file(extension), donotSync).then(id => {
 					console.log(localize('successVsixInstall', "Extension '{0}' was successfully installed.", getBaseLabel(extension)));
 					return manifest;
 				}, error => {
@@ -205,7 +205,7 @@ export class Main {
 						}
 						console.log(localize('updateMessage', "Updating the extension '{0}' to the version {1}", id, extension.version));
 					}
-					await this.installFromGallery(id, extension);
+					await this.installFromGallery(id, extension, donotSync);
 					return manifest;
 				}));
 	}
@@ -227,11 +227,11 @@ export class Main {
 		return true;
 	}
 
-	private async installFromGallery(id: string, extension: IGalleryExtension): Promise<void> {
+	private async installFromGallery(id: string, extension: IGalleryExtension, donotSync: boolean): Promise<void> {
 		console.log(localize('installing', "Installing extension '{0}' v{1}...", id, extension.version));
 
 		try {
-			await this.extensionManagementService.installFromGallery(extension);
+			await this.extensionManagementService.installFromGallery(extension, donotSync);
 			console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed.", id, extension.version));
 		} catch (error) {
 			if (isPromiseCanceledError(error)) {

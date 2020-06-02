@@ -148,17 +148,16 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			const testResolverExtPath = path.join(options.extensionsPath, 'vscode-test-resolver');
-			if (!fs.existsSync(testResolverExtPath)) {
-				const orig = path.join(repoPath, 'extensions', 'vscode-test-resolver');
-				await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
-			}
+			copyExtension(options, 'vscode-test-resolver');
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${options.userDataDir}-server`;
 		mkdirp.sync(remoteDataDir);
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 	}
+
+	copyExtension(options, 'vscode-notebook-tests');
+	args.push('--enable-proposed-api=vscode.vscode-notebook-tests');
 
 	if (!codePath) {
 		args.unshift(repoPath);
@@ -183,6 +182,14 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	child.once('exit', () => instances.delete(child!));
 	connectDriver = connectElectronDriver;
 	return connect(connectDriver, child, outPath, handle, options.logger);
+}
+
+async function copyExtension(options: SpawnOptions, extId: string): Promise<void> {
+	const testResolverExtPath = path.join(options.extensionsPath, extId);
+	if (!fs.existsSync(testResolverExtPath)) {
+		const orig = path.join(repoPath, 'extensions', extId);
+		await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
+	}
 }
 
 async function poll<T>(

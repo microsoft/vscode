@@ -15,7 +15,6 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { TrackedRangeStickiness } from 'vs/editor/common/model';
 import { reduceCellRanges, ICellRange } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { generateUuid } from 'vs/base/common/uuid';
 
 suite('NotebookViewModel', () => {
 	const instantiationService = new TestInstantiationService();
@@ -24,7 +23,7 @@ suite('NotebookViewModel', () => {
 	instantiationService.spy(IUndoRedoService, 'pushElement');
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel(0, 'notebook', URI.parse('test'), generateUuid());
+		const notebook = new NotebookTextModel(0, 'notebook', URI.parse('test'));
 		const model = new NotebookEditorTestModel(notebook);
 		const eventDispatcher = new NotebookEventDispatcher();
 		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, blukEditService, undoRedoService);
@@ -155,9 +154,9 @@ suite('NotebookViewModel', () => {
 				[['var e = 5;'], 'javascript', CellKind.Code, [], { editable: false, runnable: false }],
 			],
 			(editor, viewModel) => {
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, hasExecutionOrder: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: true, cellEditable: true, cellHasExecutionOrder: true };
 
-				const defaults = {};
+				const defaults = { hasExecutionOrder: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
@@ -189,7 +188,7 @@ suite('NotebookViewModel', () => {
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: true, hasExecutionOrder: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: true, cellHasExecutionOrder: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: true,
@@ -221,7 +220,7 @@ suite('NotebookViewModel', () => {
 					...defaults
 				});
 
-				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: false, hasExecutionOrder: true };
+				viewModel.notebookDocument.metadata = { editable: true, runnable: true, cellRunnable: false, cellEditable: false, cellHasExecutionOrder: true };
 
 				assert.deepEqual(viewModel.viewCells[0].getEvaluatedMetadata(viewModel.metadata), <NotebookCellMetadata>{
 					editable: false,

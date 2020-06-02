@@ -8,6 +8,7 @@ import * as vscode from 'vscode';
 import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName, disposeAll, testFs, delay, withLogDisabled } from '../utils';
 import { join, posix, basename } from 'path';
 import * as fs from 'fs';
+import { TestFS } from '../memfs';
 
 suite('vscode API - workspace', () => {
 
@@ -161,6 +162,40 @@ suite('vscode API - workspace', () => {
 		]).then(() => {
 			registration.dispose();
 		});
+	});
+
+	test('openTextDocument, actual casing first', async function () {
+
+		const fs = new TestFS('this-fs', false);
+		const reg = vscode.workspace.registerFileSystemProvider(fs.scheme, fs, { isCaseSensitive: fs.isCaseSensitive });
+
+		let uriOne = vscode.Uri.parse('this-fs:/one');
+		let uriTwo = vscode.Uri.parse('this-fs:/two');
+		let uriONE = vscode.Uri.parse('this-fs:/ONE'); // same resource, different uri
+		let uriTWO = vscode.Uri.parse('this-fs:/TWO');
+
+		fs.writeFile(uriOne, Buffer.from('one'), { create: true, overwrite: true });
+		fs.writeFile(uriTwo, Buffer.from('two'), { create: true, overwrite: true });
+
+		// lower case (actual case) comes first
+		let docOne = await vscode.workspace.openTextDocument(uriOne);
+		assert.equal(docOne.uri.toString(), uriOne.toString());
+
+		let docONE = await vscode.workspace.openTextDocument(uriONE);
+		assert.equal(docONE === docOne, true);
+		assert.equal(docONE.uri.toString(), uriOne.toString());
+		assert.equal(docONE.uri.toString() !== uriONE.toString(), true); // yep
+
+		// upper case (NOT the actual case) comes first
+		let docTWO = await vscode.workspace.openTextDocument(uriTWO);
+		assert.equal(docTWO.uri.toString(), uriTWO.toString());
+
+		let docTwo = await vscode.workspace.openTextDocument(uriTwo);
+		assert.equal(docTWO === docTwo, true);
+		assert.equal(docTwo.uri.toString(), uriTWO.toString());
+		assert.equal(docTwo.uri.toString() !== uriTwo.toString(), true); // yep
+
+		reg.dispose();
 	});
 
 	test('eol, read', () => {

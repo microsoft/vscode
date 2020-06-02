@@ -17,11 +17,12 @@ export interface IUserDataSyncAuthToken {
 export interface IAuthenticationTokenService {
 	_serviceBrand: undefined;
 
+	readonly token: IUserDataSyncAuthToken | undefined;
 	readonly onDidChangeToken: Event<IUserDataSyncAuthToken | undefined>;
-	readonly onTokenFailed: Event<void>;
 
-	getToken(): Promise<IUserDataSyncAuthToken | undefined>;
 	setToken(userDataSyncAuthToken: IUserDataSyncAuthToken | undefined): Promise<void>;
+
+	readonly onTokenFailed: Event<void>;
 	sendTokenFailed(): void;
 }
 
@@ -29,21 +30,14 @@ export class AuthenticationTokenService extends Disposable implements IAuthentic
 
 	_serviceBrand: any;
 
+	private _token: IUserDataSyncAuthToken | undefined;
+	get token(): IUserDataSyncAuthToken | undefined { return this._token; }
 	private _onDidChangeToken = this._register(new Emitter<IUserDataSyncAuthToken | undefined>());
 	readonly onDidChangeToken = this._onDidChangeToken.event;
 
 	private _onTokenFailed: Emitter<void> = this._register(new Emitter<void>());
 	readonly onTokenFailed: Event<void> = this._onTokenFailed.event;
 
-	private _token: IUserDataSyncAuthToken | undefined;
-
-	constructor() {
-		super();
-	}
-
-	async getToken(): Promise<IUserDataSyncAuthToken | undefined> {
-		return this._token;
-	}
 
 	async setToken(token: IUserDataSyncAuthToken | undefined): Promise<void> {
 		if (token && this._token ? token.token !== this._token.token || token.authenticationProviderId !== this._token.authenticationProviderId : token !== this._token) {
