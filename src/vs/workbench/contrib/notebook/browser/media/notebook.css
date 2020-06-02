@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .monaco-workbench .notebookOverlay.notebook-editor {
+.monaco-workbench .notebookOverlay.notebook-editor {
 	box-sizing: border-box;
 	line-height: 22px;
 	user-select: initial;
@@ -11,7 +11,7 @@
 	position: relative;
 }
 
-.cell.markdown {
+.monaco-workbench .cell.markdown {
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: initial;
