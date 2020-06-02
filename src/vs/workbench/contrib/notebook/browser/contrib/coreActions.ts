@@ -217,23 +217,26 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		await runCell(context);
-
 		const idx = context.notebookEditor.viewModel?.getCellIndex(context.cell);
 		if (typeof idx !== 'number') {
 			return;
 		}
 
+		const executionP = runCell(context);
+
 		// Try to select below, fall back on inserting
 		const nextCell = context.notebookEditor.viewModel?.viewCells[idx + 1];
+		const newFocusMode = context.cell.editState === CellEditState.Editing ? 'editor' : 'container';
 		if (nextCell) {
-			await context.notebookEditor.focusNotebookCell(nextCell, context.cell.editState === CellEditState.Editing ? 'editor' : 'container');
+			context.notebookEditor.focusNotebookCell(nextCell, newFocusMode);
 		} else {
 			const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
 			if (newCell) {
-				await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+				context.notebookEditor.focusNotebookCell(newCell, newFocusMode);
 			}
 		}
+
+		return executionP;
 	}
 });
 
@@ -254,11 +257,13 @@ registerAction2(class extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		await runCell(context);
+		const executionP = runCell(context);
 		const newCell = context.notebookEditor.insertNotebookCell(context.cell, CellKind.Code, 'below');
 		if (newCell) {
-			await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+			context.notebookEditor.focusNotebookCell(newCell, context.cell.editState === CellEditState.Editing ? 'editor' : 'container');
 		}
+
+		return executionP;
 	}
 });
 
