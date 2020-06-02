@@ -1333,7 +1333,7 @@ registerAction2(class extends NotebookAction {
 				category: NOTEBOOK_ACTIONS_CATEGORY,
 				menu: {
 					id: MenuId.NotebookCellTitle,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_EDITABLE, InputFocusedContext),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_CELL_TYPE.isEqualTo('code'), NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, InputFocusedContext),
 					order: CellToolbarOrder.SplitCell
 				},
 				icon: { id: 'codicon/split-vertical' },

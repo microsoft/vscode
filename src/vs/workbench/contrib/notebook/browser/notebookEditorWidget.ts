@@ -896,6 +896,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
+		if (!cell.metadata?.editable) {
+			return null;
+		}
+
 		let splitPoints = cell.getSelectionsStartPosition();
 		if (splitPoints && splitPoints.length > 0) {
 			await cell.resolveTextModel();
@@ -932,6 +936,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
+		if (!cell.metadata?.editable) {
+			return null;
+		}
+
 		if (constraint && cell.cellKind !== constraint) {
 			return null;
 		}
@@ -948,6 +956,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (direction === 'above') {
 			const above = this.notebookViewModel!.viewCells[index - 1];
 			if (constraint && above.cellKind !== constraint) {
+				return null;
+			}
+
+			if (!above.metadata?.editable) {
 				return null;
 			}
 
@@ -968,6 +980,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			const below = this.notebookViewModel!.viewCells[index + 1];
 			if (constraint && below.cellKind !== constraint) {
+				return null;
+			}
+
+			if (!below.metadata?.editable) {
 				return null;
 			}
 
