@@ -649,7 +649,7 @@ export interface IDiffEditorOptions extends IEditorOptions {
 	 */
 	originalCodeLens?: boolean;
 	/**
-	 * Original editor should be have code lens enabled?
+	 * Modified editor should be have code lens enabled?
 	 * Defaults to false.
 	 */
 	modifiedCodeLens?: boolean;
