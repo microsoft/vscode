@@ -23,7 +23,7 @@ registerEditorAction(class FormatDocumentMultipleAction extends EditorAction {
 			id: 'editor.action.formatDocument.none',
 			label: nls.localize('formatDocument.label.multiple', "Format Document"),
 			alias: 'Format Document',
-			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasDocumentFormattingProvider.toNegated()),
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable),
 			kbOpts: {
 				kbExpr: ContextKeyExpr.and(EditorContextKeys.editorTextFocus, EditorContextKeys.hasDocumentFormattingProvider.toNegated()),
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_F,
