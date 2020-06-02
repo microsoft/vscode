@@ -204,7 +204,7 @@ export class NotebookEditor extends BaseEditor {
 			return;
 		}
 
-		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString()) {
+		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString() && this._widget?.viewModel) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document
