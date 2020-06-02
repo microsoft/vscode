@@ -139,10 +139,11 @@
 .monaco-workbench .notebookOverlay .output .multi-mimetype-output {
 	position: absolute;
 	top: 4px;
-	left: -32px;
+	left: -34px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;
+	padding: 4px;
 }
 
 .monaco-workbench .notebookOverlay .output .error_message {
@@ -282,12 +283,17 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .monaco-toolbar {
-	margin-top: 8px;
+	margin-top: 4px;
 	visibility: hidden;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .monaco-toolbar .codicon {
-	margin-right: 8px;
+	margin: 0 0 0 2px; /* accounts for 2px indicator on left */
+	padding: 4px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .monaco-toolbar .actions-container {
+	justify-content: center;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell.runnable .run-button-container .monaco-toolbar,
@@ -605,12 +611,15 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
 	position: absolute;
-	top: 8px;
-	left: 6px;
+	top: 4px;
+	left: 0px;
+	right: 0;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
+	padding: 4px;
+	width: calc(100% - 8px);
 }
 
 /** Theming */
