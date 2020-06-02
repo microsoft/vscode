@@ -752,7 +752,7 @@ export class DiffReview extends Disposable {
 			switch (type) {
 				case DiffEntryType.Equal:
 					if (originalLine === modifiedLine) {
-						ariaLabel = nls.localize('unchangedLine', "{0} unchanged line {1}", lineContent, originalLine);
+						ariaLabel = nls.localize({ key: 'unchangedLine', comment: ['The placholders are contents of the line and should not be translated.'] }, "{0} unchanged line {1}", lineContent, originalLine);
 					} else {
 						ariaLabel = nls.localize('equalLine', "{0} original line {1} modified line {2}", lineContent, originalLine, modifiedLine);
 					}
