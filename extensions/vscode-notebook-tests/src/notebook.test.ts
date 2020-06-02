@@ -769,26 +769,26 @@ suite('webview', () => {
 
 
 	// 404 on web
-	test('custom renderer message', async function () {
-		if (vscode.env.uiKind === vscode.UIKind.Web) {
-			return;
-		}
+	// test('custom renderer message', async function () {
+	// 	if (vscode.env.uiKind === vscode.UIKind.Web) {
+	// 		return;
+	// 	}
 
-		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './customRenderer.vsctestnb'));
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+	// 	const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './customRenderer.vsctestnb'));
+	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 
-		const editor = vscode.notebook.activeNotebookEditor;
-		const promise = new Promise(resolve => {
-			const messageEmitter = editor?.onDidReceiveMessage(e => {
-				if (e.type === 'custom_renderer_initialize') {
-					resolve();
-					messageEmitter?.dispose();
-				}
-			});
-		});
+	// 	const editor = vscode.notebook.activeNotebookEditor;
+	// 	const promise = new Promise(resolve => {
+	// 		const messageEmitter = editor?.onDidReceiveMessage(e => {
+	// 			if (e.type === 'custom_renderer_initialize') {
+	// 				resolve();
+	// 				messageEmitter?.dispose();
+	// 			}
+	// 		});
+	// 	});
 
-		await vscode.commands.executeCommand('notebook.cell.execute');
-		await promise;
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-	});
+	// 	await vscode.commands.executeCommand('notebook.cell.execute');
+	// 	await promise;
+	// 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	// });
 });
