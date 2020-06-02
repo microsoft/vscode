@@ -248,6 +248,7 @@
 	margin-right: 8px;
 }
 
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration,
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-message {
 	display: flex;
 	align-items: center;
