@@ -657,7 +657,7 @@ MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
 
 registerEditorCommand(new SuggestCommand({
 	id: 'acceptAlternativeSelectedSuggestion',
-	precondition: ContextKeyExpr.and(SuggestContext.Visible, EditorContextKeys.textInputFocus),
+	precondition: ContextKeyExpr.and(SuggestContext.Visible),
 	kbOpts: {
 		weight: weight,
 		kbExpr: EditorContextKeys.textInputFocus,
@@ -832,7 +832,6 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'insertNextSuggestion',
 	precondition: ContextKeyExpr.and(
-		EditorContextKeys.textInputFocus,
 		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
 		SuggestAlternatives.OtherSuggestions,
 		SuggestContext.Visible.toNegated(),
@@ -849,7 +848,6 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'insertPrevSuggestion',
 	precondition: ContextKeyExpr.and(
-		EditorContextKeys.textInputFocus,
 		ContextKeyExpr.equals('config.editor.tabCompletion', 'on'),
 		SuggestAlternatives.OtherSuggestions,
 		SuggestContext.Visible.toNegated(),
