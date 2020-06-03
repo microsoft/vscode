@@ -1056,12 +1056,19 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			}
 
 			// Recursive upload files in this directory
-			const folderTarget = target && target.getChild(entry.name) || undefined;
 			const dirReader = entry.createReader();
-			const childEntries = await new Promise<IWebkitDataTransferItemEntry[]>((resolve, reject) => {
-				dirReader.readEntries(resolve, reject);
-			});
+			const childEntries: IWebkitDataTransferItemEntry[] = [];
+			let done = false;
+			do {
+				const childEntriesChunk = await new Promise<IWebkitDataTransferItemEntry[]>((resolve, reject) => dirReader.readEntries(resolve, reject));
+				if (childEntriesChunk.length > 0) {
+					childEntries.push(...childEntriesChunk);
+				} else {
+					done = true; // an empty array is a signal that all entries have been read
+				}
+			} while (!done);
 
+			const folderTarget = target && target.getChild(entry.name) || undefined;
 			for (let childEntry of childEntries) {
 				await this.doUploadWebFileEntry(childEntry, resource, folderTarget, progress, token);
 			}
