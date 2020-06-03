@@ -986,7 +986,7 @@ export class RepositoryPane extends ViewPane {
 	private updateIndentStyles(theme: IFileIconTheme): void {
 		toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
 		toggleClass(this.listContainer, 'tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
-		toggleClass(this.listContainer, 'align-icons-and-twisties', this.viewModel.mode === ViewModelMode.Tree && theme.hasFileIcons && !theme.hasFolderIcons);
+		toggleClass(this.listContainer, 'align-icons-and-twisties', (this.viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
 		toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
