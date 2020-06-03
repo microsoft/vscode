@@ -74,6 +74,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -862,6 +863,10 @@ export class RepositoryPane extends ViewPane {
 		this.inputEditor.setModel(this.inputModel);
 
 		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
+
+		const opts = this.modelService.getCreationOptions(this.inputModel.getLanguageIdentifier().language, this.inputModel.uri, this.inputModel.isForSimpleWidget);
+		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
+		this._register(onEnter(() => this.inputModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
 
 		// Keep model in sync with API
 		this.inputModel.setValue(this.repository.input.value);
