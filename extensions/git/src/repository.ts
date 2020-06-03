@@ -1225,9 +1225,16 @@ export class Repository implements Disposable {
 				const tags = config.get<boolean>('pullTags');
 				const supportCancellation = config.get<boolean>('supportCancellation');
 
-				const fn = fetchOnPull
-					? async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, undefined, undefined, { tags, cancellationToken })
-					: async (cancellationToken?: CancellationToken) => await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+				const fn = async (cancellationToken?: CancellationToken) => {
+
+					// When fetchOnPull is enabled, fetch all branches when pulling
+					if (fetchOnPull) {
+						await this.repository.fetch({ all: true, cancellationToken });
+					}
+
+					await this.repository.pull(rebase, remoteName, pullBranch, { tags, cancellationToken });
+				};
+
 
 				if (supportCancellation) {
 					const opts: ProgressOptions = {

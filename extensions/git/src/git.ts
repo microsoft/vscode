@@ -1513,9 +1513,11 @@ export class Repository {
 		await this.run(args);
 	}
 
-	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean } = {}): Promise<void> {
+	async fetch(options: { remote?: string, ref?: string, all?: boolean, prune?: boolean, depth?: number, silent?: boolean, readonly cancellationToken?: CancellationToken } = {}): Promise<void> {
 		const args = ['fetch'];
-		const spawnOptions: SpawnOptions = {};
+		const spawnOptions: SpawnOptions = {
+			cancellationToken: options.cancellationToken,
+		};
 
 		if (options.remote) {
 			args.push(options.remote);
