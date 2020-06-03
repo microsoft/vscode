@@ -834,18 +834,19 @@ configurationRegistry.registerConfiguration({
 		'search.searchEditor.defaultShowContextValue': {
 			type: ['number', 'null'],
 			default: null,
+			markdownDescription: nls.localize('search.searchEditor.defaultShowContextValue', "The default number of surrounding context lines to show in Search Editor results. If defined, this overrides `#search.searchEditor.reusePriorSearchConfiguration#` for context line configuration.")
 		},
 		'search.sortOrder': {
 			'type': 'string',
 			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
 			'default': SearchSortOrder.Default,
 			'enumDescriptions': [
-				nls.localize('searchSortOrder.default', 'Results are sorted by folder and file names, in alphabetical order.'),
-				nls.localize('searchSortOrder.filesOnly', 'Results are sorted by file names ignoring folder order, in alphabetical order.'),
-				nls.localize('searchSortOrder.type', 'Results are sorted by file extensions, in alphabetical order.'),
-				nls.localize('searchSortOrder.modified', 'Results are sorted by file last modified date, in descending order.'),
-				nls.localize('searchSortOrder.countDescending', 'Results are sorted by count per file, in descending order.'),
-				nls.localize('searchSortOrder.countAscending', 'Results are sorted by count per file, in ascending order.')
+				nls.localize('searchSortOrder.default', "Results are sorted by folder and file names, in alphabetical order."),
+				nls.localize('searchSortOrder.filesOnly', "Results are sorted by file names ignoring folder order, in alphabetical order."),
+				nls.localize('searchSortOrder.type', "Results are sorted by file extensions, in alphabetical order."),
+				nls.localize('searchSortOrder.modified', "Results are sorted by file last modified date, in descending order."),
+				nls.localize('searchSortOrder.countDescending', "Results are sorted by count per file, in descending order."),
+				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
 			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
 		},
