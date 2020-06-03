@@ -6,7 +6,7 @@
 import * as extpath from 'vs/base/common/extpath';
 import * as paths from 'vs/base/common/path';
 import { URI, uriToFsPath } from 'vs/base/common/uri';
-import { equalsIgnoreCase, compare as strCompare, compareIgnoreCase } from 'vs/base/common/strings';
+import { equalsIgnoreCase, compare as strCompare } from 'vs/base/common/strings';
 import { Schemas } from 'vs/base/common/network';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
@@ -138,32 +138,10 @@ export class ExtUri implements IExtUri {
 	constructor(private _ignorePathCasing: (uri: URI) => boolean) { }
 
 	compare(uri1: URI, uri2: URI, ignoreFragment: boolean = false): number {
-		// scheme
-		let ret = strCompare(uri1.scheme, uri2.scheme);
-		if (ret === 0) {
-			// authority
-			ret = compareIgnoreCase(uri1.authority, uri2.authority);
-			if (ret === 0) {
-				// path
-				ret = this._ignorePathCasing(uri1) ? compareIgnoreCase(uri1.path, uri2.path) : strCompare(uri1.path, uri2.path);
-				// query
-				if (ret === 0) {
-					ret = strCompare(uri1.query, uri2.query);
-					// fragment
-					if (ret === 0 && !ignoreFragment) {
-						ret = strCompare(uri1.fragment, uri2.fragment);
-					}
-				}
-			}
+		if (uri1 === uri2) {
+			return 0;
 		}
-		return ret;
-	}
-
-	getComparisonKey(uri: URI, ignoreFragment: boolean = false): string {
-		return uri.with({
-			path: this._ignorePathCasing(uri) ? uri.path.toLowerCase() : undefined,
-			fragment: ignoreFragment ? null : undefined
-		}).toString();
+		return strCompare(this.getComparisonKey(uri1, ignoreFragment), this.getComparisonKey(uri2, ignoreFragment));
 	}
 
 	isEqual(uri1: URI | undefined, uri2: URI | undefined, ignoreFragment: boolean = false): boolean {
@@ -173,15 +151,14 @@ export class ExtUri implements IExtUri {
 		if (!uri1 || !uri2) {
 			return false;
 		}
-		if (uri1.scheme !== uri2.scheme || !isEqualAuthority(uri1.authority, uri2.authority)) {
-			return false;
-		}
-		if (uri1.toString() === uri2.toString()) {
-			// TODO@jrieken see https://github.com/microsoft/vscode/issues/98934
-			return true;
-		}
-		const p1 = uri1.path, p2 = uri2.path;
-		return (p1 === p2 || this._ignorePathCasing(uri1) && equalsIgnoreCase(p1, p2)) && uri1.query === uri2.query && (ignoreFragment || uri1.fragment === uri2.fragment);
+		return this.getComparisonKey(uri1, ignoreFragment) === this.getComparisonKey(uri2, ignoreFragment);
+	}
+
+	getComparisonKey(uri: URI, ignoreFragment: boolean = false): string {
+		return uri.with({
+			path: this._ignorePathCasing(uri) ? uri.path.toLowerCase() : undefined,
+			fragment: ignoreFragment ? null : undefined
+		}).toString();
 	}
 
 	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment: boolean = false): boolean {
