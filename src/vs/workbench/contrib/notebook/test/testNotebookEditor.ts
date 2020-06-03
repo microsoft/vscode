@@ -184,12 +184,6 @@ export class TestNotebookEditor implements INotebookEditor {
 	deleteNotebookCell(cell: CellViewModel): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
-	editNotebookCell(cell: CellViewModel): void {
-		// throw new Error('Method not implemented.');
-	}
-	saveNotebookCell(cell: CellViewModel): void {
-		// throw new Error('Method not implemented.');
-	}
 	focusNotebookCell(cell: CellViewModel, focusItem: 'editor' | 'container' | 'output'): void {
 		// throw new Error('Method not implemented.');
 	}

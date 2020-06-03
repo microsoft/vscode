@@ -96,7 +96,11 @@ export class NotebookEditor extends BaseEditor {
 			this.saveEditorViewState(this.input);
 		}
 
-		this._widget?.onWillHide();
+		if (this.input && NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput) === this._widget) {
+			// the widget is not transfered to other editor inputs
+			this._widget?.onWillHide();
+		}
+
 		super.onWillHide();
 	}
 
@@ -147,8 +151,12 @@ export class NotebookEditor extends BaseEditor {
 
 		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input);
 		if (existingEditorWidgetForInput) {
-			// hide current widget
-			this._widget?.onWillHide();
+			// hide previous widget
+			if (NotebookRegistry.getNotebookEditorWidget(this.input! as NotebookEditorInput) === this._widget) {
+				// the widet is not transfered to other editor inputs
+				this._widget?.onWillHide();
+			}
+
 			// previous widget is then detached
 			// set the new one
 			this._widget = existingEditorWidgetForInput;

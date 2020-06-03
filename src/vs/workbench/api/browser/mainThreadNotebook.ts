@@ -476,14 +476,16 @@ export class MainThreadNotebookController implements IMainNotebookController {
 			document.textModel.metadata = backup.metadata;
 			document.textModel.languages = backup.languages;
 
+			// restored from backup, update the text model without emitting any event to exthost
 			document.textModel.$applyEdit(document.textModel.versionId, [
 				{
 					editType: CellEditType.Insert,
 					index: 0,
 					cells: backup.cells || []
 				}
-			]);
+			], false);
 
+			// create document in ext host with cells data
 			await this._mainThreadNotebook.addNotebookDocument({
 				viewType: document.viewType,
 				handle: document.handle,

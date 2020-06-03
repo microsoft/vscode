@@ -443,14 +443,16 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 						...defaultEditorOverrideEntry,
 						active: currentEditor instanceof FileEditorInput,
 					},
-					...customEditors.allEditors.map(entry => {
-						return {
-							id: entry.id,
-							active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
-							label: entry.displayName,
-							detail: entry.providerDisplayName,
-						};
-					})
+					...customEditors.allEditors
+						.filter(entry => entry.id !== defaultCustomEditor.id)
+						.map(entry => {
+							return {
+								id: entry.id,
+								active: currentEditor instanceof CustomEditorInput && currentEditor.viewType === entry.id,
+								label: entry.displayName,
+								detail: entry.providerDisplayName,
+							};
+						})
 				];
 			}
 		}));

@@ -1315,7 +1315,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 		});
 
-		const isPanel = this.viewDescriptorService.getViewLocationById(this.viewContainer.id) === ViewContainerLocation.Panel;
+		const isPanel = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
 		const paneStyler = attachStyler<IPaneColors>(this.themeService, {
 			headerForeground: isPanel ? PANEL_SECTION_HEADER_FOREGROUND : SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: isPanel ? PANEL_SECTION_HEADER_BACKGROUND : SIDE_BAR_SECTION_HEADER_BACKGROUND,

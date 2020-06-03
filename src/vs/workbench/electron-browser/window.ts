@@ -182,6 +182,7 @@ export class NativeWindow extends Disposable {
 			this.notificationService.info(message);
 		});
 
+		// Display change events
 		ipcRenderer.on('vscode:displayChanged', () => {
 			clearAllFontInfos();
 		});
