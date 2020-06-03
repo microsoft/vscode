@@ -476,7 +476,7 @@ class Extensions extends Disposable {
 export class ExtensionsWorkbenchService extends Disposable implements IExtensionsWorkbenchService, IURLHandler {
 
 	private static readonly SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly localExtensions: Extensions | null = null;
 	private readonly remoteExtensions: Extensions | null = null;

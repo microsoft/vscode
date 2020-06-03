@@ -22,7 +22,7 @@ import { createReadStream } from 'vs/platform/files/common/io';
 
 export class FileService extends Disposable implements IFileService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly BUFFER_SIZE = 64 * 1024;
 

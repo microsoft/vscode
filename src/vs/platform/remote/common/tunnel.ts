@@ -29,7 +29,7 @@ export interface ITunnelProvider {
 }
 
 export interface ITunnelService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly tunnels: Promise<readonly RemoteTunnel[]>;
 	readonly onTunnelOpened: Event<RemoteTunnel>;

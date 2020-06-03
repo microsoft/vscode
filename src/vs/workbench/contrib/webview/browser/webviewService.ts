@@ -12,7 +12,7 @@ import { DynamicWebviewEditorOverlay } from './dynamicWebviewEditorOverlay';
 import { WebviewIconManager } from './webviewIconManager';
 
 export class WebviewService implements IWebviewService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _webviewThemeDataProvider: WebviewThemeDataProvider;
 	private readonly _iconManager: WebviewIconManager;

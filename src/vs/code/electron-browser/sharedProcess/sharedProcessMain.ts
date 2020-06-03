@@ -95,7 +95,7 @@ class MainProcessService implements IMainProcessService {
 		private mainRouter: StaticRouter
 	) { }
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	getChannel(channelName: string): IChannel {
 		return this.server.getChannel(channelName, this.mainRouter);

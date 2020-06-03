@@ -16,7 +16,7 @@ export const ILabelService = createDecorator<ILabelService>('labelService');
 
 export interface ILabelService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Gets the human readable label for a uri.

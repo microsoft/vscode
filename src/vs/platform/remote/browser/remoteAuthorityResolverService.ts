@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 
 export class RemoteAuthorityResolverService implements IRemoteAuthorityResolverService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		resourceUriProvider: ((uri: URI) => URI) | undefined

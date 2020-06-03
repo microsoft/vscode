@@ -63,7 +63,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	static readonly PLACEHOLDER_VIEW_CONTAINERS = 'workbench.panel.placeholderPanels';
 	private static readonly MIN_COMPOSITE_BAR_WIDTH = 50;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region IView
 

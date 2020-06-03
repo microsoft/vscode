@@ -82,7 +82,7 @@ class GridWidgetView<T extends IView> implements IView {
 
 export class EditorPart extends Part implements IEditorGroupsService, IEditorGroupsAccessor {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';

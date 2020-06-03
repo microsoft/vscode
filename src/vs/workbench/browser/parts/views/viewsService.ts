@@ -34,7 +34,7 @@ import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export class ViewsService extends Disposable implements IViewsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 	private readonly viewPaneContainers: Map<string, { viewPaneContainer: ViewPaneContainer, disposable: IDisposable }>;

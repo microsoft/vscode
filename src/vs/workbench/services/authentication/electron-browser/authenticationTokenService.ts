@@ -12,7 +12,7 @@ import { IAuthenticationTokenService, IUserDataSyncAuthToken } from 'vs/platform
 
 export class AuthenticationTokenService extends Disposable implements IAuthenticationTokenService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly channel: IChannel;
 

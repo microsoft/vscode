@@ -27,7 +27,7 @@ interface ICachedViewContainerInfo {
 
 export class ViewDescriptorService extends Disposable implements IViewDescriptorService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly CACHED_VIEW_POSITIONS = 'views.cachedViewPositions';
 	private static readonly CACHED_VIEW_CONTAINER_LOCATIONS = 'views.cachedViewContainerLocations';

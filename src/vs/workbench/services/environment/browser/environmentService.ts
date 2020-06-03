@@ -99,7 +99,7 @@ interface IExtensionHostDebugEnvironment {
 
 export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironmentService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _configuration: IEnvironmentConfiguration | undefined = undefined;
 	get configuration(): IEnvironmentConfiguration {

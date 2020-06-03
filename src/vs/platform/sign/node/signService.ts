@@ -13,7 +13,7 @@ declare module vsda {
 }
 
 export class SignService implements ISignService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private vsda(): Promise<typeof vsda> {
 		return new Promise((resolve, reject) => require(['vsda'], resolve, reject));
