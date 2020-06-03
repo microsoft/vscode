@@ -638,10 +638,17 @@ export class TestEditorService implements EditorServiceImpl {
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 	onDidMostRecentlyActiveEditorsChange: Event<void> = Event.None;
 
+	private _activeTextEditorControl: ICodeEditor | IDiffEditor | undefined;
+	public get activeTextEditorControl(): ICodeEditor | IDiffEditor | undefined { return this._activeTextEditorControl; }
+	public set activeTextEditorControl(value: ICodeEditor | IDiffEditor | undefined) { this._activeTextEditorControl = value; }
+
 	activeEditorPane: IVisibleEditorPane | undefined;
-	activeTextEditorControl: ICodeEditor | IDiffEditor | undefined;
 	activeTextEditorMode: string | undefined;
-	activeEditor: IEditorInput | undefined;
+
+	private _activeEditor: IEditorInput | undefined;
+	public get activeEditor(): IEditorInput | undefined { return this._activeEditor; }
+	public set activeEditor(value: IEditorInput | undefined) { this._activeEditor = value; }
+
 	editors: ReadonlyArray<IEditorInput> = [];
 	mostRecentlyActiveEditors: ReadonlyArray<IEditorIdentifier> = [];
 	visibleEditorPanes: ReadonlyArray<IVisibleEditorPane> = [];
