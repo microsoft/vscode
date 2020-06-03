@@ -360,6 +360,8 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
+	enable(): void;
+	disable(): void;
 	triggerAutoSync(sources: string[]): Promise<void>;
 }
 

@@ -74,6 +74,8 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'triggerAutoSync': return this.service.triggerAutoSync(args[0]);
+			case 'enable': return Promise.resolve(this.service.enable());
+			case 'disable': return Promise.resolve(this.service.disable());
 		}
 		throw new Error('Invalid call');
 	}
