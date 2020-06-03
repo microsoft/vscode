@@ -16,9 +16,8 @@ const fs = require('fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
 const paths = require('./paths');
-// @ts-ignore
+/** @type {any} */
 const product = require('../product.json');
-// @ts-ignore
 const { app, protocol } = require('electron');
 
 // Enable portable support
@@ -63,9 +62,11 @@ if (crashReporterDirectory) {
 
 	// Start crash reporter
 	const { crashReporter } = require('electron');
+	const productName = (product.crashReporter && product.crashReporter.productName) || product.nameShort;
+	const companyName = (product.crashReporter && product.crashReporter.companyName) || 'Microsoft';
 	crashReporter.start({
-		companyName: 'Microsoft',
-		productName: product.nameShort,
+		companyName: companyName,
+		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
 		submitURL: '',
 		uploadToServer: false
 	});
@@ -135,7 +136,6 @@ if (locale) {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		// @ts-ignore
 		const contentTracing = require('electron').contentTracing;
 
 		const traceOptions = {
