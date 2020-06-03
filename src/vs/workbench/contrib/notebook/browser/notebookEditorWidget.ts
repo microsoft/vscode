@@ -405,6 +405,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							endLineNumber: selection.endLineNumber || selection.startLineNumber,
 							endColumn: selection.endColumn || selection.startColumn
 						});
+						editor.revealPositionInCenterIfOutsideViewport({
+							lineNumber: selection.startLineNumber,
+							column: selection.startColumn
+						});
 					}
 					if (!cellOptions.options?.preserveFocus) {
 						editor.focus();
