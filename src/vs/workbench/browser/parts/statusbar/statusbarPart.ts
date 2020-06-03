@@ -738,6 +738,7 @@ class StatusbarEntryItem extends Disposable {
 		// Label Container
 		this.labelContainer = document.createElement('a');
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
+		this.labelContainer.setAttribute('role', 'button');
 
 		// Label
 		this.label = new CodiconLabel(this.labelContainer);
