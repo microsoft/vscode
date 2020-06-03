@@ -30,7 +30,7 @@ import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { compareFileExtensionsNumeric, compareFileNamesNumeric } from 'vs/base/common/comparers';
-import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType, extractRemoteResources } from 'vs/workbench/browser/dnd';
+import { fillResourceDataTransfers, CodeDataTransfers, extractResources, containsDragType } from 'vs/workbench/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
@@ -921,9 +921,12 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			if (fileResources.length) {
 				originalEvent.dataTransfer.setData(CodeDataTransfers.FILES, JSON.stringify(fileResources));
 			}
-			const remoteResources = items.filter(s => !s.isDirectory && (s.resource.scheme === Schemas.vscodeRemote)).map(r => r.resource.toString());
+			const remoteResources = items.filter(s => !s.isDirectory && (s.resource.scheme === Schemas.vscodeRemote)).map(i => i.resource);
 			if (remoteResources.length) {
-				originalEvent.dataTransfer.setData(CodeDataTransfers.REMOTE_FILES, JSON.stringify(remoteResources));
+				remoteResources.forEach(async resource => {
+					const content = await this.fileService.readFile(resource);
+					originalEvent.dataTransfer!.items.add(new File([content.value.buffer], content.name));
+				});
 			}
 		}
 	}
@@ -953,7 +956,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Desktop DND (Import file)
 		if (data instanceof DesktopDragAndDropData) {
-			if (isWeb) {
+			const droppedResources = extractResources(originalEvent, true);
+			if (isWeb || droppedResources.some(d => d.resource.scheme === Schemas.vscodeRemote)) {
 				this.handleWebExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
 			} else {
 				this.handleExternalDrop(data, target, originalEvent).then(undefined, e => this.notificationService.warn(e));
@@ -1123,8 +1127,6 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Check for dropped external files to be folders
 		const droppedResources = extractResources(originalEvent, true);
-		const droppedRemoteResources = extractRemoteResources(originalEvent);
-		droppedResources.push(...droppedRemoteResources);
 		const result = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
 
 		// Pass focus to window

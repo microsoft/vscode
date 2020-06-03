@@ -68,7 +68,6 @@ export interface ISerializedDraggedEditor {
 export const CodeDataTransfers = {
 	EDITORS: 'CodeEditors',
 	FILES: 'CodeFiles',
-	REMOTE_FILES: 'CodeRemoteFiles'
 };
 
 export function extractResources(e: DragEvent, externalOnly?: boolean): Array<IDraggedResource | IDraggedEditor> {
@@ -134,27 +133,6 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 				codeFiles.forEach(codeFile => {
 					if (!resources.some(r => r.resource.fsPath === codeFile) /* prevent duplicates */) {
 						resources.push({ resource: URI.file(codeFile), isExternal: true });
-					}
-				});
-			} catch (error) {
-				// Invalid transfer
-			}
-		}
-	}
-
-	return resources;
-}
-
-export function extractRemoteResources(e: DragEvent): Array<IDraggedResource> {
-	const resources: Array<IDraggedResource> = [];
-	if (e.dataTransfer) {
-		const rawCodeFiles = e.dataTransfer.getData(CodeDataTransfers.REMOTE_FILES);
-		if (rawCodeFiles) {
-			try {
-				const codeFiles: string[] = JSON.parse(rawCodeFiles);
-				codeFiles.forEach(codeFile => {
-					if (!resources.some(r => r.resource.toString() === codeFile) /* prevent duplicates */) {
-						resources.push({ resource: URI.parse(codeFile), isExternal: true });
 					}
 				});
 			} catch (error) {
