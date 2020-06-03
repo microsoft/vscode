@@ -125,6 +125,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 		this.sources.push(...sources);
 		return this.syncTriggerDelayer.trigger(async () => {
+			this.logService.trace('activity sources', ...this.sources);
 			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
 			this.sources = [];
 			if (this.autoSync.value) {
