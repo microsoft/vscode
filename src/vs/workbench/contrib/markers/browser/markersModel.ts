@@ -174,7 +174,7 @@ export class MarkersModel {
 					const index = markersCountByKey.get(key) || 0;
 					markersCountByKey.set(key, index + 1);
 
-					const markerId = this.id(resourceMarkers!.id, key, index);
+					const markerId = this.id(resourceMarkers!.id, key, index, rawMarker.resource.toString());
 
 					let relatedInformation: RelatedInformation[] | undefined = undefined;
 					if (rawMarker.relatedInformation) {
