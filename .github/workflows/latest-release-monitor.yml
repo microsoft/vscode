@@ -16,5 +16,7 @@ jobs:
       - name: Install Actions
         run: npm install --production --prefix ./actions
         run: npm install @azure/storage-blob
-      - name: Run Locker
+      - name: Run Latest Release Monitor
         uses: ./actions/latest-release-monitor
+        with:
+          storageKey: ${{secrets.AZURE_BLOB_STORAGE_CONNECTION_STRING_NEW}}
