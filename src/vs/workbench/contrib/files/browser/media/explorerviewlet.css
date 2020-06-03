@@ -55,6 +55,7 @@
 	align-items: center;
 }
 
+.pane.horizontal:not(.expanded) .pane-header .dirty-count.monaco-count-badge,
 .pane-header .dirty-count.monaco-count-badge.hidden {
 	display: none;
 }
