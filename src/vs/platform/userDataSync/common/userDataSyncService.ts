@@ -107,7 +107,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.updateLastSyncTime();
 		} catch (error) {
 			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { resource: error.resource });
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${error.code}`, { resource: error.resource });
 			}
 			throw error;
 		}
@@ -126,7 +126,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			this.updateLastSyncTime();
 		} catch (error) {
 			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { resource: error.resource });
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${error.code}`, { resource: error.resource });
 			}
 			throw error;
 		}
@@ -208,7 +208,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 
 		} catch (error) {
 			if (error instanceof UserDataSyncError) {
-				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${UserDataSyncErrorCode.TooLarge}`, { resource: error.resource });
+				this.telemetryService.publicLog2<{ resource?: string }, SyncClassification>(`sync/error/${error.code}`, { resource: error.resource });
 			}
 			throw error;
 		} finally {
