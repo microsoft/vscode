@@ -36,6 +36,7 @@ import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { generateUuid } from 'vs/base/common/uuid';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
 
@@ -357,19 +358,27 @@ abstract class UserDataSyncHistoryViewDataProvider implements ITreeViewDataProvi
 
 	protected async getChildrenForSyncResource(syncResource: SyncResource): Promise<ITreeItem[]> {
 		const refHandles = await this.getSyncResourceHandles(syncResource);
-		return refHandles.map(({ uri, created }) => {
-			const handle = JSON.stringify({ resource: uri.toString(), syncResource });
-			return <SyncResourceTreeItem>{
-				handle,
-				collapsibleState: TreeItemCollapsibleState.Collapsed,
-				label: { label: label(new Date(created)) },
-				description: fromNow(created, true),
-				resourceUri: uri,
-				resource: syncResource,
-				resourceHandle: { uri, created },
-				contextValue: `sync-resource-${syncResource}`
-			};
-		});
+		if (refHandles.length) {
+			return refHandles.map(({ uri, created }) => {
+				const handle = JSON.stringify({ resource: uri.toString(), syncResource });
+				return <SyncResourceTreeItem>{
+					handle,
+					collapsibleState: TreeItemCollapsibleState.Collapsed,
+					label: { label: label(new Date(created)) },
+					description: fromNow(created, true),
+					resourceUri: uri,
+					resource: syncResource,
+					resourceHandle: { uri, created },
+					contextValue: `sync-resource-${syncResource}`
+				};
+			});
+		} else {
+			return [{
+				handle: generateUuid(),
+				collapsibleState: TreeItemCollapsibleState.None,
+				label: { label: localize('no data', "No Data") },
+			}];
+		}
 	}
 
 	protected async getChildrenForSyncResourceTreeItem(element: SyncResourceTreeItem): Promise<ITreeItem[]> {
