@@ -104,6 +104,11 @@ class BrowserExtensionHostDebugService extends ExtensionHostDebugChannelClient i
 			environment.set('inspect-brk-extensions', inspectBrkExtensions);
 		}
 
+		const inspectExtensions = this.findArgument('inspect-extensions', args);
+		if (inspectExtensions) {
+			environment.set('inspect-extensions', inspectExtensions);
+		}
+
 		// Open debug window as new window. Pass ParsedArgs over.
 		return this.workspaceProvider.open(debugWorkspace, {
 			reuse: false, 								// debugging always requires a new window
