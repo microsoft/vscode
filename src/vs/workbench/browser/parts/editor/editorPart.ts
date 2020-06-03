@@ -6,7 +6,7 @@
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, toggleClass, addClass, $, EventHelper } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, toggleClass, addClass, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -830,6 +830,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const overlay = document.createElement('div');
 		addClass(overlay, 'drop-block-overlay');
 		parent.appendChild(overlay);
+
+		// Hide the block if a mouse down event occurs #99065
+		this._register(addDisposableGenericMouseDownListner(overlay, e => {
+			toggleClass(overlay, 'visible', false);
+		}));
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragStart: e => {
