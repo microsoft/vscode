@@ -175,7 +175,7 @@ registerAction2(class ApplyAction extends Action2 {
 			title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
 			category: localize('cat', "Refactor Preview"),
 			icon: { id: 'codicon/check' },
-			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
+			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
 				id: MenuId.BulkEditTitle,
 				group: 'navigation'
