@@ -1,7 +1,7 @@
 name: Latest Release Monitor
 on:
   schedule:
-    - cron: 0/10 * * * *
+    - cron: 0/5 * * * *
 
 jobs:
   main:
@@ -21,3 +21,4 @@ jobs:
         uses: ./actions/latest-release-monitor
         with:
           storageKey: ${{secrets.AZURE_BLOB_STORAGE_CONNECTION_STRING_NEW}}
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
