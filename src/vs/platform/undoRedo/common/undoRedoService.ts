@@ -14,6 +14,8 @@ import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IDisposable, Disposable, isDisposable } from 'vs/base/common/lifecycle';
 
+const DEBUG = false;
+
 function getResourceLabel(resource: URI): string {
 	return resource.scheme === Schemas.file ? resource.fsPath : resource.path;
 }
@@ -41,6 +43,10 @@ class ResourceStackElement {
 
 	public setValid(isValid: boolean): void {
 		this.isValid = isValid;
+	}
+
+	public toString(): string {
+		return `[VALID] ${this.actual}`;
 	}
 }
 
@@ -143,6 +149,10 @@ class WorkspaceStackElement {
 			}
 		}
 	}
+
+	public toString(): string {
+		return `[VALID] ${this.actual}`;
+	}
 }
 
 type StackElement = ResourceStackElement | WorkspaceStackElement;
@@ -176,6 +186,18 @@ class ResourceEditStack {
 			}
 		}
 		this.versionId++;
+	}
+
+	public toString(): string {
+		let result: string[] = [];
+		result.push(`* ${this.strResource}:`);
+		for (let i = 0; i < this._past.length; i++) {
+			result.push(`   * [UNDO] ${this._past[i]}`);
+		}
+		for (let i = this._future.length - 1; i >= 0; i--) {
+			result.push(`   * [REDO] ${this._future[i]}`);
+		}
+		return result.join('\n');
 	}
 
 	public flushAllElements(): void {
@@ -383,6 +405,16 @@ export class UndoRedoService implements IUndoRedoService {
 		return resource.toString();
 	}
 
+	private _print(label: string): void {
+		console.log(`------------------------------------`);
+		console.log(`AFTER ${label}: `);
+		let str: string[] = [];
+		for (const element of this._editStacks) {
+			str.push(element[1].toString());
+		}
+		console.log(str.join('\n'));
+	}
+
 	public pushElement(element: IUndoRedoElement): void {
 		if (element.type === UndoRedoElementType.Resource) {
 			const resourceLabel = getResourceLabel(element.resource);
@@ -409,6 +441,9 @@ export class UndoRedoService implements IUndoRedoService {
 			} else {
 				this._pushElement(new WorkspaceStackElement(element, resourceLabels, strResources));
 			}
+		}
+		if (DEBUG) {
+			this._print('pushElement');
 		}
 	}
 
@@ -487,6 +522,9 @@ export class UndoRedoService implements IUndoRedoService {
 			editStack.dispose();
 			this._editStacks.delete(strResource);
 		}
+		if (DEBUG) {
+			this._print('removeElements');
+		}
 	}
 
 	public setElementsValidFlag(resource: URI, isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void {
@@ -494,6 +532,9 @@ export class UndoRedoService implements IUndoRedoService {
 		if (this._editStacks.has(strResource)) {
 			const editStack = this._editStacks.get(strResource)!;
 			editStack.setElementsValidFlag(isValid, filter);
+		}
+		if (DEBUG) {
+			this._print('setElementsValidFlag');
 		}
 	}
 
@@ -774,10 +815,16 @@ export class UndoRedoService implements IUndoRedoService {
 			return;
 		}
 
-		if (element.type === UndoRedoElementType.Workspace) {
-			return this._workspaceUndo(strResource, element);
-		} else {
-			return this._resourceUndo(editStack, element);
+		try {
+			if (element.type === UndoRedoElementType.Workspace) {
+				return this._workspaceUndo(strResource, element);
+			} else {
+				return this._resourceUndo(editStack, element);
+			}
+		} finally {
+			if (DEBUG) {
+				this._print('undo');
+			}
 		}
 	}
 
@@ -903,10 +950,16 @@ export class UndoRedoService implements IUndoRedoService {
 			return;
 		}
 
-		if (element.type === UndoRedoElementType.Workspace) {
-			return this._workspaceRedo(strResource, element);
-		} else {
-			return this._resourceRedo(editStack, element);
+		try {
+			if (element.type === UndoRedoElementType.Workspace) {
+				return this._workspaceRedo(strResource, element);
+			} else {
+				return this._resourceRedo(editStack, element);
+			}
+		} finally {
+			if (DEBUG) {
+				this._print('redo');
+			}
 		}
 	}
 }
