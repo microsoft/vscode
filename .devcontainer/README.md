@@ -8,6 +8,8 @@ This repository includes configuration for a development container for working w
 
 2. [Docker Desktop] If you are not using the new WSL2 Docker Desktop engine, increase the resources allocated to Docker Desktop to at least **4 Cores and 4 GB of RAM (8 GB recommended)**. Right-click on the Docker status bar item, go to **Preferences/Settings > Resources > Advanced** to do so.
 
+	> **Note:** The [Resource Monitor](https://marketplace.visualstudio.com/items?itemName=mutantdino.resourcemonitor) extension is included in the container so you can keep an eye on CPU/Memory in the status bar.
+
 3. Install [Visual Studio Code Stable](https://code.visualstudio.com/) or [Insiders](https://code.visualstudio.com/insiders/) and the [Remote - Containers](https://aka.ms/vscode-remote/download/containers) extension.
 
     ![Image of Remote - Containers extension](https://microsoft.github.io/vscode-remote-release/images/remote-containers-extn.png)
@@ -16,7 +18,7 @@ This repository includes configuration for a development container for working w
 
 4. Press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and select **Remote - Containers: Open Repository in Container...**.
 
-    > Tip: While you can use your local source tree instead, operations like `yarn install` can be slow on macOS or using the Hyper-V engine on Windows. We recommend the "open repository" approach instead since it uses "named volume" rather than the local filesystem.
+    > **Tip:** While you can use your local source tree instead, operations like `yarn install` can be slow on macOS or using the Hyper-V engine on Windows. We recommend the "open repository" approach instead since it uses "named volume" rather than the local filesystem.
 
 5. Type `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box and press <kbd>Enter</kbd>.
 

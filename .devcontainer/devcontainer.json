@@ -16,6 +16,8 @@
 	"settings": {
 		// zsh is also available
 		"terminal.integrated.shell.linux": "/bin/bash",
+		"resmon.show.battery": false,
+		"resmon.show.cpufreq": false,
 		"remote.extensionKind": {
 			"ms-vscode.js-debug-nightly": "workspace",
 			"msjsdiag.debugger-for-chrome": "workspace"
@@ -31,6 +33,7 @@
 		"EditorConfig.EditorConfig",
 		"ms-vscode.js-debug-nightly",
 		"msjsdiag.debugger-for-chrome",
+		"mutantdino.resourcemonitor",
 		"GitHub.vscode-pull-request-github"
 	],
 
