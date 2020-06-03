@@ -1335,7 +1335,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(PANEL_BORDER, .6),
 	light: transparent(PANEL_BORDER, .4),
-	hc: null
+	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
 export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {
