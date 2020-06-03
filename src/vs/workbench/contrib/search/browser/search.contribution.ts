@@ -834,7 +834,7 @@ configurationRegistry.registerConfiguration({
 		'search.searchEditor.defaultShowContextValue': {
 			type: ['number', 'null'],
 			default: null,
-			markdownDescription: nls.localize('search.searchEditor.defaultShowContextValue', "The default number of surrounding context lines to show in Search Editor results. If defined, this overrides `#search.searchEditor.reusePriorSearchConfiguration#` for context line configuration.")
+			markdownDescription: nls.localize('search.searchEditor.defaultShowContextValue', "The default number of surrounding context lines to show in Search Editor results. If defined, this overrides `#search.searchEditor.reusePriorSearchConfiguration#` for context line configuration in new Search Editors.")
 		},
 		'search.sortOrder': {
 			'type': 'string',
