@@ -32,7 +32,7 @@ export class SashSizeController extends Disposable implements IWorkbenchContribu
 	}
 
 	private onDidChangeSizeConfiguration(): void {
-		const size = clamp(this.configurationService.getValue<number>(this.configurationName), minSize, maxSize) ?? minSize;
+		const size = clamp(this.configurationService.getValue<number>(this.configurationName) ?? minSize, minSize, maxSize);
 
 		// Update styles
 		this.stylesheet.innerHTML = `
