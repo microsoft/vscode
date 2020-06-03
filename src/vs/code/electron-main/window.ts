@@ -444,13 +444,27 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
-
-				this.sendWhenReady('vscode:displayChanged');
 			}, 100));
 
-			const displayChangedListener = () => simpleFullScreenScheduler.schedule();
+			const displayChangedListener = () => {
 
-			screen.on('display-metrics-changed', displayChangedListener);
+				// Fix simple-fullscreen visuals
+				simpleFullScreenScheduler.schedule();
+
+				// Notify renderers
+				this.sendWhenReady('vscode:displayChanged');
+			};
+
+			screen.on('display-metrics-changed', (event, display, changedMetrics) => {
+				if (changedMetrics.length === 1 && changedMetrics[0] === 'workArea') {
+					// Electron will emit 'display-metrics-changed' events even when actually
+					// going fullscreen, because the dock hides. However, we do not want to
+					// react on this event as there is no change in display bounds.
+					return;
+				}
+
+				displayChangedListener();
+			});
 			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayChangedListener)));
 
 			screen.on('display-added', displayChangedListener);
