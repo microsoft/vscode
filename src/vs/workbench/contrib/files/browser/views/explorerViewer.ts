@@ -974,6 +974,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		const results: { isFile: boolean, resource: URI }[] = [];
 		const cts = new CancellationTokenSource();
+		const operation = { total: entries.length, worked: 0 };
 
 		// Start upload and report progress globally
 		const uploadPromise = this.progressService.withProgress({
@@ -983,7 +984,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			title: localize('uploadingFiles', "Uploading")
 		}, async progress => {
 			for (let entry of entries) {
-				const result = await this.doUploadWebFileEntry(entry, target.resource, target, progress, cts.token);
+				const result = await this.doUploadWebFileEntry(entry, target.resource, target, progress, operation, cts.token);
 				if (result) {
 					results.push(result);
 				}
@@ -1002,7 +1003,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 	}
 
-	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
+	private async doUploadWebFileEntry(entry: IWebkitDataTransferItemEntry, parentResource: URI, target: ExplorerItem | undefined, progress: IProgress<IProgressStep>, operation: { total: number; worked: number; }, token: CancellationToken): Promise<{ isFile: boolean, resource: URI } | undefined> {
 		if (token.isCancellationRequested || !entry.name || (!entry.isFile && !entry.isDirectory)) {
 			return undefined;
 		}
@@ -1022,7 +1023,8 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		// Report progress
-		progress.report({ message: entry.name });
+		operation.worked++;
+		progress.report({ message: localize('uploadProgress', "{0} of {1} files", operation.worked, operation.total) });
 
 		// Handle file upload
 		if (entry.isFile) {
@@ -1068,9 +1070,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				}
 			} while (!done);
 
+			// Update operation total based on new counts
+			operation.total += childEntries.length;
+
+			// Upload all entries as files to target
 			const folderTarget = target && target.getChild(entry.name) || undefined;
 			for (let childEntry of childEntries) {
-				await this.doUploadWebFileEntry(childEntry, resource, folderTarget, progress, token);
+				await this.doUploadWebFileEntry(childEntry, resource, folderTarget, progress, operation, token);
 			}
 
 			return { isFile: false, resource };
