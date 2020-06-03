@@ -78,4 +78,10 @@ suite('Link protection domain matching', () => {
 
 		linkAllowedByRules('https://github.com', ['https://github.com/foo/bar', 'https://github.com']);
 	});
+
+	test('case normalization', () => {
+		// https://github.com/microsoft/vscode/issues/99294
+		linkAllowedByRules('https://github.com/Microsoft/vscode/issues/new', ['https://github.com/microsoft']);
+		linkAllowedByRules('https://github.com/microsoft/vscode/issues/new', ['https://github.com/Microsoft']);
+	});
 });
