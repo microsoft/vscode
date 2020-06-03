@@ -358,6 +358,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		const cells = this.cells.splice(index, 1);
 		this.cells.splice(newIdx, 0, ...cells);
+		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
 
