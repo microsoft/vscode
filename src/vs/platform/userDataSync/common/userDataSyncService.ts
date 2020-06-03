@@ -400,6 +400,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		if (e instanceof UserDataSyncError) {
 			switch (e.code) {
 				case UserDataSyncErrorCode.TooLarge:
+					throw new UserDataSyncError(e.message, e.code, source);
+
 				case UserDataSyncErrorCode.TooManyRequests:
 				case UserDataSyncErrorCode.LocalTooManyRequests:
 				case UserDataSyncErrorCode.Gone:
