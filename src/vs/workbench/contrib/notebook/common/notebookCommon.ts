@@ -385,11 +385,12 @@ export interface NotebookDataDto {
 export namespace CellUri {
 
 	export const scheme = 'vscode-notebook-cell';
+	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
 			scheme,
-			fragment: `${handle}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
@@ -397,14 +398,15 @@ export namespace CellUri {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		const handle = parseInt(cell.fragment);
-		if (isNaN(handle)) {
+		const match = _regex.exec(cell.fragment);
+		if (!match) {
 			return undefined;
 		}
+		const handle = Number(match[0]);
 		return {
 			handle,
 			notebook: cell.with({
-				scheme: cell.fragment.substr(handle.toString().length) || Schemas.file,
+				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};
