@@ -140,7 +140,7 @@ async function getRemotes(fileService: IFileService, textFileService: ITextFileS
 		const domains = new Set<string>();
 		let match: RegExpExecArray | null;
 
-		const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)\.git\s*$/mg;
+		const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)(?:\.git)?\s*$/mg;
 		while (match = RemoteMatcher.exec(content)) {
 			const repo = match[1];
 			if (repo) {
