@@ -897,6 +897,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (statusBarItemActiveBackground) {
 		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
 	}
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorderColor) {
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus { outline: 1px solid ${contrastBorderColor};}`);
+	}
 
 	const statusBarProminentItemForeground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
 	if (statusBarProminentItemForeground) {
