@@ -1162,11 +1162,12 @@ export class Repository implements Disposable {
 				const fetchOnPull = config.get<boolean>('fetchOnPull');
 				const tags = config.get<boolean>('pullTags');
 
+				// When fetchOnPull is enabled, fetch all branches when pulling
 				if (fetchOnPull) {
-					await this.repository.pull(rebase, undefined, undefined, { unshallow, tags });
-				} else {
-					await this.repository.pull(rebase, remote, branch, { unshallow, tags });
+					await this.repository.fetch({ all: true });
 				}
+
+				await this.repository.pull(rebase, remote, branch, { unshallow, tags });
 			});
 		});
 	}
