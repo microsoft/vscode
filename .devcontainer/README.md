@@ -16,17 +16,15 @@ This repository includes configuration for a development container for working w
 
 4. Press <kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd> and select **Remote - Containers: Open Repository in Container...**.
 
-    > Tip: While you can use your local source tree from the container, operations like `yarn install` can be slow on macOS or using the Hyper-V engine on Windows. We recommend this approach instead since it uses "named volume" rather than the local filesystem.
+    > Tip: While you can use your local source tree instead, operations like `yarn install` can be slow on macOS or using the Hyper-V engine on Windows. We recommend the "open repository" approach instead since it uses "named volume" rather than the local filesystem.
 
 5. Type `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box and press <kbd>Enter</kbd>.
 
-6. After the container is running, open a web browser and go to [http://localhost:6080](http://localhost:6080).
+6. After the container is running, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901`.
 
 Anything you start in VS Code or the integrated terminal will appear here.
 
-This container uses the [Fluxbox desktop](http://fluxbox.org/) to keep things lean. **Right-click on the desktop** to see menu options. It works with GNOME and GTK applications, so other tools can be installed if needed.
-
-You can also set the resolution of the desktop from the command line by typing `set-resolution`.
+Next: **[Try it out!](#try-it)**
 
 ## Quick start - Codespaces
 
@@ -44,17 +42,17 @@ Note that the Codspaces browser-based editor cannot currently access the desktop
 
 4. Use default settings, select a plan, and then enter the repository URL `https://github.com/microsoft/vscode` (or a branch or PR URL) in the input box when prompted.
 
-5. After the Codespace is running, open a web browser and go to [http://localhost:6080](http://localhost:6080).
+5. After the container is running, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901`.
 
 6. Anything you start in VS Code or the integrated terminal will appear here.
 
-This container uses the [Fluxbox desktop](http://fluxbox.org/) to keep things lean. **Right-click on the desktop** to see menu options. It works with GNOME and GTK applications, so other tools can be installed if needed.
-
-You can also set the resolution of the desktop from the command line by typing `set-resolution`.
-
 ## Try it!
 
-Follow these steps:
+This container uses the [Fluxbox](http://fluxbox.org/) window manager to keep things lean. **Right-click on the desktop** to see menu options. It works with GNOME and GTK applications, so other tools can be installed if needed.
+
+Note you can also set the resolution from the command line by typing `set-resolution`.
+
+To start working with Code - OSS, follow these steps:
 
 1. In your local VS Code, open a terminal (<kbd>Ctrl/Cmd</kbd> + <kbd>Shift</kbd> + <kbd>\`</kbd>) and type the following commands:
 
@@ -63,17 +61,17 @@ Follow these steps:
     scripts/code.sh
     ```
 
-2. After the build is complete, use a local browser to open [http://localhost:6080](http://localhost:6080) or use a VNC client to connect to localhost:5901.
+2. After the build is complete, open a web browser and go to [http://localhost:6080](http://localhost:6080) or use a [VNC Viewer](https://www.realvnc.com/en/connect/download/viewer/) to connect to `localhost:5901`.
 
 3. You should now see Code - OSS!
 
 Next, let's try debugging.
 
-1. Shut down Code - OSS by clicking the box in the upper right corner using your browser or VNC client.
+1. Shut down Code - OSS by clicking the box in the upper right corner of the Code - OSS window through your browser or VNC viewer.
 
 2. Go to your local VS Code client, and use Run / Debug view to launch the **VS Code** configuration. (Typically the default, so you can likely just press <kbd>F5</kbd>).
 
-    > **Note:** If launching times out, you can increase the value of `timeout` in the VS Code, Attach Main Process, Attach Extension Host, and Attach to Shared Process configurations.
+    > **Note:** If launching times out, you can increase the value of `timeout` in the "VS Code", "Attach Main Process", "Attach Extension Host", and "Attach to Shared Process" configurations in [launch.json](../.vscode/launch.json). However, running `scripts/code.sh` first will set up Electron which will usually solve timeout issues.
 
 3. After a bit, Code - OSS will appear with the debugger attached!
 
