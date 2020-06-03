@@ -405,6 +405,7 @@ export interface IActionBarOptions {
 	ariaLabel?: string;
 	animated?: boolean;
 	triggerKeys?: ActionTrigger;
+	allowContextMenu?: boolean;
 }
 
 const defaultOptions: IActionBarOptions = {
@@ -634,9 +635,11 @@ export class ActionBar extends Disposable implements IActionRunner {
 			actionViewItemElement.setAttribute('role', 'presentation');
 
 			// Prevent native context menu on actions
-			this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
-				DOM.EventHelper.stop(e, true);
-			}));
+			if (!this.options.allowContextMenu) {
+				this._register(DOM.addDisposableListener(actionViewItemElement, DOM.EventType.CONTEXT_MENU, (e: DOM.EventLike) => {
+					DOM.EventHelper.stop(e, true);
+				}));
+			}
 
 			let item: IActionViewItem | undefined;
 

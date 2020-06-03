@@ -37,7 +37,6 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ExplorerItem, NewExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
@@ -606,11 +605,19 @@ export class ExplorerView extends ViewPane {
 			if (Array.isArray(input)) {
 				if (!viewState || previousInput instanceof ExplorerItem) {
 					// There is no view state for this workspace, expand all roots. Or we transitioned from a folder workspace.
-					input.forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+					input.forEach(async item => {
+						try {
+							await this.tree.expand(item);
+						} catch (e) { }
+					});
 				}
 				if (Array.isArray(previousInput) && previousInput.length < input.length) {
 					// Roots added to the explorer -> expand them.
-					input.slice(previousInput.length).forEach(item => this.tree.expand(item).then(undefined, onUnexpectedError));
+					input.slice(previousInput.length).forEach(async item => {
+						try {
+							await this.tree.expand(item);
+						} catch (e) { }
+					});
 				}
 			}
 			if (initialInputSetup) {

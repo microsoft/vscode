@@ -27,15 +27,15 @@ import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import VersionStatus from './utils/versionStatus';
 
 // Style check diagnostics that can be reported as warnings
-const styleCheckDiagnostics = [
-	errorCodes.variableDeclaredButNeverUsed,
-	errorCodes.propertyDeclaretedButNeverUsed,
-	errorCodes.allImportsAreUnused,
-	errorCodes.unreachableCode,
-	errorCodes.unusedLabel,
-	errorCodes.fallThroughCaseInSwitch,
-	errorCodes.notAllCodePathsReturnAValue,
-];
+const styleCheckDiagnostics = new Set([
+	...errorCodes.variableDeclaredButNeverUsed,
+	...errorCodes.propertyDeclaretedButNeverUsed,
+	...errorCodes.allImportsAreUnused,
+	...errorCodes.unreachableCode,
+	...errorCodes.unusedLabel,
+	...errorCodes.fallThroughCaseInSwitch,
+	...errorCodes.notAllCodePathsReturnAValue,
+]);
 
 export default class TypeScriptServiceClientHost extends Disposable {
 
@@ -286,6 +286,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 	}
 
 	private isStyleCheckDiagnostic(code: number | undefined): boolean {
-		return code ? styleCheckDiagnostics.indexOf(code) !== -1 : false;
+		return typeof code === 'number' && styleCheckDiagnostics.has(code);
 	}
 }

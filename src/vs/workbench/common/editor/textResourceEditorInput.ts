@@ -13,7 +13,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { createMemoizer } from 'vs/base/common/decorators';
 import { Schemas } from 'vs/base/common/network';
-import { dirname, isEqual } from 'vs/base/common/resources';
+import { dirname } from 'vs/base/common/resources';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -164,11 +164,7 @@ export abstract class AbstractTextResourceEditorInput extends EditorInput {
 			return undefined; // save cancelled
 		}
 
-		if (!isEqual(target, this.resource)) {
-			return this.editorService.createEditorInput({ resource: target });
-		}
-
-		return this;
+		return this.editorService.createEditorInput({ resource: target });
 	}
 
 	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {

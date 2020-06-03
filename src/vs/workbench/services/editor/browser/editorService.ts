@@ -15,9 +15,9 @@ import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, File
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename, isEqualOrParent, joinPath, isEqual } from 'vs/base/common/resources';
+import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorOverrideEntry, ICustomEditorViewTypesHandler, ICustomEditorInfo } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -37,6 +37,8 @@ import { indexOfPath } from 'vs/base/common/extpath';
 import { DEFAULT_CUSTOM_EDITOR, updateViewTypeSchema, editorAssociationsConfigurationNode } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IModelService } from 'vs/editor/common/services/modelService';
 
 type CachedEditorInput = ResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
@@ -74,7 +76,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -239,7 +242,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			for (const editor of group.editors) {
 				const resource = editor.resource;
-				if (!resource || !isEqualOrParent(resource, source)) {
+				if (!resource || !this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
 					continue; // not matching our resource
 				}
 
@@ -325,7 +328,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					// Do NOT close any opened editor that matches the resource path (either equal or being parent) of the
 					// resource we move to (movedTo). Otherwise we would close a resource that has been renamed to the same
 					// path but different casing.
-					if (movedTo && isEqualOrParent(resource, movedTo)) {
+					if (movedTo && this.uriIdentityService.extUri.isEqualOrParent(resource, movedTo)) {
 						return;
 					}
 
@@ -333,7 +336,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (arg1 instanceof FileChangesEvent) {
 						matches = arg1.contains(resource, FileChangeType.DELETED);
 					} else {
-						matches = isEqualOrParent(resource, arg1);
+						matches = this.uriIdentityService.extUri.isEqualOrParent(resource, arg1);
 					}
 
 					if (!matches) {
@@ -498,12 +501,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
-		if (event.options && event.options.ignoreOverrides) {
+		if (event.options?.ignoreOverrides) {
 			return;
 		}
 
 		for (const handler of this.openEditorHandlers) {
-			const result = handler.open(event.editor, event.options, group);
+			const result = handler.open(event.editor, event.options, group, event.context ?? OpenEditorContext.NEW_EDITOR, event.options?.overrideId);
 			const override = result?.override;
 			if (override) {
 				event.prevent((() => override.then(editor => withNullAsUndefined(editor))));
@@ -686,13 +689,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
 
 		// Convert to typed editors and options
-		const typedEditors: IEditorInputWithOptions[] = [];
-		editors.forEach(editor => {
+		const typedEditors = editors.map(editor => {
 			if (isEditorInputWithOptions(editor)) {
-				typedEditors.push(editor);
-			} else {
-				typedEditors.push({ editor: this.createEditorInput(editor), options: TextEditorOptions.from(editor) });
+				return editor;
 			}
+
+			const editorInput: IEditorInputWithOptions = { editor: this.createEditorInput(editor), options: TextEditorOptions.from(editor) };
+			return editorInput;
 		});
 
 		// Find target groups to open
@@ -734,7 +737,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		if (editor.resource) {
-			return this.editorsObserver.hasEditor(editor.resource);
+			return this.editorsObserver.hasEditor(this.asCanonicalEditorResource(editor.resource));
 		}
 
 		return false;
@@ -867,20 +870,24 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Resource Editor Support
 		const resourceEditorInput = input as IResourceEditorInput;
 		if (resourceEditorInput.resource instanceof URI) {
-			let label = resourceEditorInput.label;
-			if (!label) {
-				label = basename(resourceEditorInput.resource); // derive the label from the path
-			}
 
-			return this.createOrGetCached(resourceEditorInput.resource, () => {
+			// Derive the label from the path if not provided explicitly
+			const label = resourceEditorInput.label || basename(resourceEditorInput.resource);
+
+			// From this moment on, only operate on the canonical resource
+			// to ensure we reduce the chance of opening the same resource
+			// with different resource forms (e.g. path casing on Windows)
+			const canonicalResource = this.asCanonicalEditorResource(resourceEditorInput.resource);
+
+			return this.createOrGetCached(canonicalResource, () => {
 
 				// File
-				if (resourceEditorInput.forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(resourceEditorInput.resource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(resourceEditorInput.resource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
+				if (resourceEditorInput.forceFile /* fix for https://github.com/Microsoft/vscode/issues/48275 */ || this.fileService.canHandleResource(canonicalResource)) {
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
 				}
 
 				// Resource
-				return this.instantiationService.createInstance(ResourceEditorInput, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.resource, resourceEditorInput.mode);
+				return this.instantiationService.createInstance(ResourceEditorInput, resourceEditorInput.label, resourceEditorInput.description, canonicalResource, resourceEditorInput.mode);
 			}, cachedInput => {
 
 				// Untitled
@@ -917,6 +924,34 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		throw new Error('Unknown input type');
+	}
+
+	private _modelService: IModelService | undefined = undefined;
+	private get modelService(): IModelService | undefined {
+		if (!this._modelService) {
+			this._modelService = this.instantiationService.invokeFunction(accessor => accessor.get(IModelService));
+		}
+
+		return this._modelService;
+	}
+
+	private asCanonicalEditorResource(resource: URI): URI {
+		// We prefer to use the canonical form unless we know that a model
+		// for the given URI already exists.
+		// If no model exists, we do not trust the resource that is being
+		// passed in as being the truth (e.g. in terms of path casing) and
+		// as such we ask the URI service to give us the canconical form of
+		// the URI. As such we ensure that any editor that is being opened
+		// will use the same canonical form of the URI.
+		let canonicalResource: URI;
+		if (this.modelService?.getModel(resource)) {
+			// TODO@Ben remove this check once canonical URIs are adopted in ITextModelResolerService
+			canonicalResource = resource;
+		} else {
+			canonicalResource = this.uriIdentityService.asCanonicalUri(resource);
+		}
+
+		return canonicalResource;
 	}
 
 	private createOrGetCached(resource: URI, factoryFn: () => CachedEditorInput, cachedFn?: (input: CachedEditorInput) => void): CachedEditorInput {
@@ -1157,8 +1192,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region Editor Tracking
 
-	whenClosed(resources: URI[], options?: { waitForSaved: boolean }): Promise<void> {
-		let remainingResources = [...resources];
+	whenClosed(editors: IResourceEditorInput[], options?: { waitForSaved: boolean }): Promise<void> {
+		let remainingEditors = [...editors];
 
 		return new Promise(resolve => {
 			const listener = this.onDidCloseEditor(async event => {
@@ -1167,8 +1202,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Remove from resources to wait for being closed based on the
 				// resources from editors that got closed
-				remainingResources = remainingResources.filter(resource => {
-					if (isEqual(resource, masterResource) || isEqual(resource, detailsResource)) {
+				remainingEditors = remainingEditors.filter(({ resource }) => {
+					if (this.uriIdentityService.extUri.isEqual(resource, masterResource) || this.uriIdentityService.extUri.isEqual(resource, detailsResource)) {
 						return false; // remove - the closing editor matches this resource
 					}
 
@@ -1176,15 +1211,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				});
 
 				// All resources to wait for being closed are closed
-				if (remainingResources.length === 0) {
+				if (remainingEditors.length === 0) {
 					if (options?.waitForSaved) {
 						// If auto save is configured with the default delay (1s) it is possible
 						// to close the editor while the save still continues in the background. As such
-						// we have to also check if the files to track for are dirty and if so wait
+						// we have to also check if the editors to track for are dirty and if so wait
 						// for them to get saved.
-						const dirtyFiles = resources.filter(resource => this.workingCopyService.isDirty(resource));
-						if (dirtyFiles.length > 0) {
-							await Promise.all(dirtyFiles.map(async dirtyFile => await this.whenSaved(dirtyFile)));
+						const dirtyResources = editors.filter(({ resource }) => this.workingCopyService.isDirty(resource)).map(({ resource }) => resource);
+						if (dirtyResources.length > 0) {
+							await Promise.all(dirtyResources.map(async resource => await this.whenSaved(resource)));
 						}
 					}
 
@@ -1204,7 +1239,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Otherwise resolve promise when resource is saved
 			const listener = this.workingCopyService.onDidChangeDirty(workingCopy => {
-				if (!workingCopy.isDirty() && isEqual(resource, workingCopy.resource)) {
+				if (!workingCopy.isDirty() && this.uriIdentityService.extUri.isEqual(resource, workingCopy.resource)) {
 					listener.dispose();
 
 					resolve();
@@ -1333,7 +1368,7 @@ export class DelegatingEditorService implements IEditorService {
 
 	registerCustomEditorViewTypesHandler(source: string, handler: ICustomEditorViewTypesHandler): IDisposable { return this.editorService.registerCustomEditorViewTypesHandler(source, handler); }
 
-	whenClosed(resources: URI[]): Promise<void> { return this.editorService.whenClosed(resources); }
+	whenClosed(editors: IResourceEditorInput[]): Promise<void> { return this.editorService.whenClosed(editors); }
 
 	//#endregion
 }

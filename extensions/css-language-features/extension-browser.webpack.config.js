@@ -12,7 +12,7 @@ const path = require('path');
 const webpack = require('webpack');
 
 const vscodeNlsReplacement = new webpack.NormalModuleReplacementPlugin(
-	/vscode\-nls\/lib\/main\.js/,
+	/vscode\-nls[\\/]lib[\\/]main\.js/,
 	path.join(__dirname, 'client/out/browser/vscodeNlsShim.js')
 );
 

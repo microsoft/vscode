@@ -186,6 +186,7 @@ export interface IUserDataSyncBackupStoreService {
 export enum UserDataSyncErrorCode {
 	// Client Errors (>= 400 )
 	Unauthorized = 'Unauthorized', /* 401 */
+	Gone = 'Gone', /* 410 */
 	PreconditionFailed = 'PreconditionFailed', /* 412 */
 	TooLarge = 'TooLarge', /* 413 */
 	UpgradeRequired = 'UpgradeRequired', /* 426 */
@@ -210,7 +211,7 @@ export class UserDataSyncError extends Error {
 
 	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly resource?: SyncResource) {
 		super(message);
-		this.name = `${this.code} (UserDataSyncError) ${this.resource}`;
+		this.name = `${this.code} (UserDataSyncError) ${this.resource || ''}`;
 	}
 
 	static toUserDataSyncError(error: Error): UserDataSyncError {
@@ -267,6 +268,7 @@ export interface ISyncResourceHandle {
 export type Conflict = { remote: URI, local: URI };
 
 export interface ISyncPreviewResult {
+	readonly isLastSyncFromCurrentMachine: boolean;
 	readonly hasLocalChanged: boolean;
 	readonly hasRemoteChanged: boolean;
 }
@@ -344,7 +346,7 @@ export interface IUserDataSyncService {
 	reset(): Promise<void>;
 	resetLocal(): Promise<void>;
 
-	isFirstTimeSyncWithMerge(): Promise<boolean>;
+	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean>;
 	resolveContent(resource: URI): Promise<string | null>;
 	acceptConflict(conflictResource: URI, content: string): Promise<void>;
 
@@ -358,6 +360,8 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
+	enable(): void;
+	disable(): void;
 	triggerAutoSync(sources: string[]): Promise<void>;
 }
 

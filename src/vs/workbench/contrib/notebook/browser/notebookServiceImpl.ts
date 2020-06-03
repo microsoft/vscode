@@ -7,8 +7,8 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { notebookProviderExtensionPoint, notebookRendererExtensionPoint, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { NotebookProviderInfo, NotebookEditorDescriptor } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -22,16 +22,55 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { NotebookEditorModelManager } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 import { INotebookService, IMainNotebookController } from 'vs/workbench/contrib/notebook/common/notebookService';
 import * as glob from 'vs/base/common/glob';
-import { basename } from 'vs/base/common/resources';
+import { basename } from 'vs/base/common/path';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { Memento } from 'vs/workbench/common/memento';
+import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
 }
 
-export class NotebookProviderInfoStore {
+export class NotebookProviderInfoStore implements IDisposable {
+	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
+	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
+
+	private readonly _memento: Memento;
+	constructor(storageService: IStorageService) {
+		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
+
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
+		for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
+			this.add(new NotebookProviderInfo(info));
+		}
+	}
+
+	update(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
+		this.clear();
+
+		for (const extension of extensions) {
+			for (const notebookContribution of extension.value) {
+				this.add(new NotebookProviderInfo({
+					id: notebookContribution.viewType,
+					displayName: notebookContribution.displayName,
+					selector: notebookContribution.selector || [],
+					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
+					providerExtensionLocation: extension.description.extensionLocation
+				}));
+			}
+		}
+
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
+		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this.contributedEditors.values());
+		this._memento.saveMemento();
+	}
+
+	dispose(): void {
+	}
+
 	private readonly contributedEditors = new Map<string, NotebookProviderInfo>();
 
 	clear() {
@@ -101,18 +140,20 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<string, INotebookRendererInfo>();
 	private readonly _notebookKernels = new Map<string, INotebookKernelInfo>();
-	notebookProviderInfoStore: NotebookProviderInfoStore = new NotebookProviderInfoStore();
+	notebookProviderInfoStore: NotebookProviderInfoStore;
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
-	private readonly _models: { [modelId: string]: ModelData; };
+	private readonly _models = new Map<string, ModelData>();
 	private _onDidChangeActiveEditor = new Emitter<string | null>();
 	onDidChangeActiveEditor: Event<string | null> = this._onDidChangeActiveEditor.event;
 	private _onDidChangeVisibleEditors = new Emitter<string[]>();
 	onDidChangeVisibleEditors: Event<string[]> = this._onDidChangeVisibleEditors.event;
 	private readonly _onNotebookEditorAdd: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
 	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
-	private readonly _onNotebookEditorRemove: Emitter<INotebookEditor> = this._register(new Emitter<INotebookEditor>());
-	public readonly onNotebookEditorRemove: Event<INotebookEditor> = this._onNotebookEditorRemove.event;
-	private readonly _notebookEditors: { [editorId: string]: INotebookEditor; };
+	private readonly _onNotebookEditorsRemove: Emitter<INotebookEditor[]> = this._register(new Emitter<INotebookEditor[]>());
+	public readonly onNotebookEditorsRemove: Event<INotebookEditor[]> = this._onNotebookEditorsRemove.event;
+	private readonly _onNotebookDocumentRemove: Emitter<URI[]> = this._register(new Emitter<URI[]>());
+	public readonly onNotebookDocumentRemove: Event<URI[]> = this._onNotebookDocumentRemove.event;
+	private readonly _notebookEditors = new Map<string, INotebookEditor>();
 
 	private readonly _onDidChangeViewTypes = new Emitter<void>();
 	onDidChangeViewTypes: Event<void> = this._onDidChangeViewTypes.event;
@@ -129,28 +170,19 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
-		this._models = {};
-		this._notebookEditors = Object.create(null);
 		this.modelManager = this.instantiationService.createInstance(NotebookEditorModelManager);
+		this._register(this.modelManager);
+		this.notebookProviderInfoStore = new NotebookProviderInfoStore(this.storageService);
+		this._register(this.notebookProviderInfoStore);
 
 		notebookProviderExtensionPoint.setHandler((extensions) => {
-			this.notebookProviderInfoStore.clear();
+			this.notebookProviderInfoStore.update(extensions);
 
-			for (const extension of extensions) {
-				for (const notebookContribution of extension.value) {
-					this.notebookProviderInfoStore.add(new NotebookProviderInfo({
-						id: notebookContribution.viewType,
-						displayName: notebookContribution.displayName,
-						selector: notebookContribution.selector || [],
-						providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
-						providerExtensionLocation: extension.description.extensionLocation
-					}));
-				}
-			}
 			// console.log(this._notebookProviderInfoStore);
 		});
 
@@ -203,6 +235,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 	async canResolve(viewType: string): Promise<boolean> {
 		if (!this._notebookProviders.has(viewType)) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			// notebook providers/kernels/renderers might use `*` as activation event.
+			await this.extensionService.activateByEvent(`*`);
 			// this awaits full activation of all matching extensions
 			await this.extensionService.activateByEvent(`onNotebookEditor:${viewType}`);
 		}
@@ -270,7 +305,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private _notebookKernelMatch(resource: URI, selectors: (string | glob.IRelativePattern)[]): boolean {
 		for (let i = 0; i < selectors.length; i++) {
 			const pattern = typeof selectors[i] !== 'string' ? selectors[i] : selectors[i].toString();
-			if (glob.match(pattern, basename(resource).toLowerCase())) {
+			if (glob.match(pattern, basename(resource.fsPath).toLowerCase())) {
 				return true;
 			}
 		}
@@ -300,9 +335,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		const modelId = MODEL_ID(uri);
 		const modelData = new ModelData(
 			notebookModel,
-			(model) => this._onWillDispose(model),
+			(model) => this._onWillDisposeDocument(model),
 		);
-		this._models[modelId] = modelData;
+		this._models.set(modelId, modelData);
 		return modelData.model;
 	}
 
@@ -319,10 +354,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		const modelId = MODEL_ID(uri);
 		const modelData = new ModelData(
 			notebookModel!,
-			(model) => this._onWillDispose(model),
+			(model) => this._onWillDisposeDocument(model),
 		);
 
-		this._models[modelId] = modelData;
+		this._models.set(modelId, modelData);
 		return modelData.model;
 	}
 
@@ -610,30 +645,37 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	removeNotebookEditor(editor: INotebookEditor) {
-		if (delete this._notebookEditors[editor.getId()]) {
-			this._onNotebookEditorRemove.fire(editor);
+		let editorCache = this._notebookEditors.get(editor.getId());
+
+		if (editorCache) {
+			this._notebookEditors.delete(editor.getId());
+			this._onNotebookEditorsRemove.fire([editor]);
 		}
 	}
 
 	addNotebookEditor(editor: INotebookEditor) {
-		this._notebookEditors[editor.getId()] = editor;
+		this._notebookEditors.set(editor.getId(), editor);
 		this._onNotebookEditorAdd.fire(editor);
 	}
 
 	listNotebookEditors(): INotebookEditor[] {
-		return Object.keys(this._notebookEditors).map(id => this._notebookEditors[id]);
+		return [...this._notebookEditors].map(e => e[1]);
+	}
+
+	listVisibleNotebookEditors(): INotebookEditor[] {
+		return this.editorService.visibleEditorPanes
+			.filter(pane => (pane as any).isNotebookEditor)
+			.map(pane => pane.getControl() as INotebookEditor)
+			.filter(editor => !!editor)
+			.filter(editor => this._notebookEditors.has(editor.getId()));
 	}
 
 	listNotebookDocuments(): NotebookTextModel[] {
-		return Object.keys(this._models).map(id => this._models[id].model);
+		return [...this._models].map(e => e[1].model);
 	}
 
 	destoryNotebookDocument(viewType: string, notebook: INotebookTextModel): void {
-		let provider = this._notebookProviders.get(viewType);
-
-		if (provider) {
-			provider.controller.removeNotebookDocument(notebook);
-		}
+		this._onWillDisposeDocument(notebook);
 	}
 
 	updateActiveNotebookEditor(editor: INotebookEditor | null) {
@@ -641,7 +683,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	}
 
 	updateVisibleNotebookEditor(editors: string[]) {
-		this._onDidChangeVisibleEditors.fire(editors);
+		const alreadyCreated = editors.filter(editorId => this._notebookEditors.has(editorId));
+		this._onDidChangeVisibleEditors.fire(alreadyCreated);
 	}
 
 	setToCopy(items: NotebookCellTextModel[]) {
@@ -680,13 +723,33 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 	}
 
-	private _onWillDispose(model: INotebookTextModel): void {
+	private _onWillDisposeDocument(model: INotebookTextModel): void {
 		let modelId = MODEL_ID(model.uri);
-		let modelData = this._models[modelId];
 
-		delete this._models[modelId];
-		modelData?.dispose();
+		let modelData = this._models.get(modelId);
+		this._models.delete(modelId);
 
-		// this._onModelRemoved.fire(model);
+		if (modelData) {
+			// delete editors and documents
+			const willRemovedEditors: INotebookEditor[] = [];
+			this._notebookEditors.forEach(editor => {
+				if (editor.textModel === modelData!.model) {
+					willRemovedEditors.push(editor);
+				}
+			});
+
+			willRemovedEditors.forEach(e => this._notebookEditors.delete(e.getId()));
+
+			let provider = this._notebookProviders.get(modelData!.model.viewType);
+
+			if (provider) {
+				provider.controller.removeNotebookDocument(modelData!.model);
+			}
+
+
+			this._onNotebookEditorsRemove.fire(willRemovedEditors.map(e => e));
+			this._onNotebookDocumentRemove.fire([modelData.model.uri]);
+			modelData?.dispose();
+		}
 	}
 }

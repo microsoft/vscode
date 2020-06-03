@@ -28,8 +28,15 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 	}
 
 	triggerAutoSync(sources: string[]): Promise<void> {
-
 		return this.channel.call('triggerAutoSync', [sources]);
+	}
+
+	enable(): void {
+		this.channel.call('enable');
+	}
+
+	disable(): void {
+		this.channel.call('disable');
 	}
 
 }

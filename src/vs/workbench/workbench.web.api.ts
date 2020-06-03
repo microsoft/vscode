@@ -164,6 +164,7 @@ interface IDefaultPanelLayout {
 interface IDefaultEditor {
 	readonly uri: UriComponents;
 	readonly openOnlyIfExists?: boolean;
+	readonly openWith?: string;
 }
 
 interface IDefaultLayout {

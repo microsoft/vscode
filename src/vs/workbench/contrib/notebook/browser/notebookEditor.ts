@@ -6,7 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MutableDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -29,6 +29,9 @@ export class NotebookEditor extends BaseEditor {
 	private _widget?: NotebookEditorWidget;
 	private _rootElement!: HTMLElement;
 	private dimension: DOM.Dimension | null = null;
+	private _widgetDisposableStore: DisposableStore = new DisposableStore();
+	private readonly _onDidFocusWidget = this._register(new Emitter<void>());
+	public get onDidFocus(): Event<any> { return this._onDidFocusWidget.event; }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -93,7 +96,11 @@ export class NotebookEditor extends BaseEditor {
 			this.saveEditorViewState(this.input);
 		}
 
-		this._widget?.onWillHide();
+		if (this.input && NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput) === this._widget) {
+			// the widget is not transfered to other editor inputs
+			this._widget?.onWillHide();
+		}
+
 		super.onWillHide();
 	}
 
@@ -133,19 +140,27 @@ export class NotebookEditor extends BaseEditor {
 		Event.once(input.onDispose)(() => {
 			// make sure the editor widget is removed from the view
 			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
-			existingEditorWidgetForInput?.getDomNode().remove();
-			existingEditorWidgetForInput?.dispose();
-			NotebookRegistry.releaseNotebookEditorWidget(this.input as NotebookEditorInput);
+			if (existingEditorWidgetForInput) {
+				existingEditorWidgetForInput?.getDomNode().remove();
+				existingEditorWidgetForInput?.dispose();
+				NotebookRegistry.releaseNotebookEditorWidget(this.input as NotebookEditorInput);
+			}
 		});
 
+		this._widgetDisposableStore.clear();
 
 		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input);
 		if (existingEditorWidgetForInput) {
-			// hide current widget
-			this._widget?.onWillHide();
+			// hide previous widget
+			if (NotebookRegistry.getNotebookEditorWidget(this.input! as NotebookEditorInput) === this._widget) {
+				// the widet is not transfered to other editor inputs
+				this._widget?.onWillHide();
+			}
+
 			// previous widget is then detached
 			// set the new one
 			this._widget = existingEditorWidgetForInput;
+			NotebookRegistry.claimNotebookEditorWidget(input, this._widget);
 		} else {
 			// hide current widget
 			this._widget?.onWillHide();
@@ -162,11 +177,13 @@ export class NotebookEditor extends BaseEditor {
 		const model = await input.resolve(this._widget!.getId());
 		const viewState = this.loadTextEditorViewState(input);
 
-		this._widget.setModel(model.notebook, viewState, options);
+		await this._widget.setModel(model.notebook, viewState, options);
+		this._widgetDisposableStore.add(this._widget.onDidFocus(() => this._onDidFocusWidget.fire()));
 	}
 
 	clearInput(): void {
-		this._widget?.onWillHide();
+		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
+		existingEditorWidgetForInput?.onWillHide();
 		this._widget = undefined;
 		super.clearInput();
 	}
@@ -195,7 +212,7 @@ export class NotebookEditor extends BaseEditor {
 			return;
 		}
 
-		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString()) {
+		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString() && this._widget?.viewModel) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document

@@ -23,9 +23,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot, ITextBufferFactory } from 'vs/editor/common/model';
-import { joinPath, isEqualOrParent, isEqual, extUri } from 'vs/base/common/resources';
+import { joinPath, extUri } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -76,7 +77,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService
+		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		super();
 
@@ -142,11 +144,12 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 			for (const model of this.models) {
 				const resource = model.resource;
 
-				if (extUri.isEqualOrParent(resource, e.target/* do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384 */)) {
+				if (extUri.isEqualOrParent(resource, e.target)) {
+					// EXPLICITLY do not ignorecase, see https://github.com/Microsoft/vscode/issues/56384
 					targetModels.push(model);
 				}
 
-				if (isEqualOrParent(resource, source)) {
+				if (this.uriIdentityService.extUri.isEqualOrParent(resource, source)) {
 					sourceModels.push(model);
 				}
 			}
@@ -159,7 +162,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 				// If the source is the actual model, just use target as new resource
 				let targetModelResource: URI;
-				if (isEqual(sourceModelResource, e.source)) {
+				if (this.uriIdentityService.extUri.isEqual(sourceModelResource, e.source)) {
 					targetModelResource = e.target;
 				}
 
@@ -191,7 +194,10 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 				this.mapCorrelationIdToModelsToRestore.delete(e.correlationId);
 
 				modelsToRestore.forEach(model => {
-					// snapshot presence means this model used to be dirty
+
+					// snapshot presence means this model used to be dirty and so we restore that
+					// flag. we do NOT have to restore the content because the model was only soft
+					// reverted and did not loose its original dirty contents.
 					if (model.snapshot) {
 						this.get(model.source)?.setDirty(true);
 					}
@@ -347,7 +353,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToModelListeners.set(model.resource, modelListeners);
 	}
 
-	add(resource: URI, model: TextFileEditorModel): void {
+	protected add(resource: URI, model: TextFileEditorModel): void {
 		const knownModel = this.mapResourceToModel.get(resource);
 		if (knownModel === model) {
 			return; // already cached
@@ -364,7 +370,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this.mapResourceToDisposeListener.set(resource, model.onDispose(() => this.remove(resource)));
 	}
 
-	remove(resource: URI): void {
+	protected remove(resource: URI): void {
 		this.mapResourceToModel.delete(resource);
 
 		const disposeListener = this.mapResourceToDisposeListener.get(resource);
