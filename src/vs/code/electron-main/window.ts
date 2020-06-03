@@ -8,7 +8,7 @@ import * as objects from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, nativeTheme, Event } from 'electron';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -431,40 +431,36 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this._lastFocusTime = Date.now();
 		});
 
-		// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
-		// we need to detect when display metrics change or displays are added/removed and toggle the
-		// fullscreen manually.
 		if (isMacintosh) {
-			const simpleFullScreenScheduler = this._register(new RunOnceScheduler(() => {
+			const displayChangedScheduler = this._register(new RunOnceScheduler(() => {
 				if (!this._win) {
 					return; // disposed
 				}
 
+				// Notify renderers about displays changed
+				this.sendWhenReady('vscode:displayChanged');
+
+				// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
+				// we need to detect when display metrics change or displays are added/removed and toggle the
+				// fullscreen manually.
 				if (!this.useNativeFullScreen() && this.isFullScreen) {
 					this.setFullScreen(false);
 					this.setFullScreen(true);
 				}
 			}, 100));
 
-			const displayChangedListener = () => {
-
-				// Fix simple-fullscreen visuals
-				simpleFullScreenScheduler.schedule();
-
-				// Notify renderers
-				this.sendWhenReady('vscode:displayChanged');
-			};
-
-			screen.on('display-metrics-changed', (event, display, changedMetrics) => {
-				if (changedMetrics.length === 1 && changedMetrics[0] === 'workArea') {
+			const displayChangedListener = (event: Event, display: Display, changedMetrics?: string[]) => {
+				if (Array.isArray(changedMetrics) && changedMetrics.length === 1 && changedMetrics[0] === 'workArea') {
 					// Electron will emit 'display-metrics-changed' events even when actually
 					// going fullscreen, because the dock hides. However, we do not want to
 					// react on this event as there is no change in display bounds.
 					return;
 				}
 
-				displayChangedListener();
-			});
+				displayChangedScheduler.schedule();
+			};
+
+			screen.on('display-metrics-changed', displayChangedListener);
 			this._register(toDisposable(() => screen.removeListener('display-metrics-changed', displayChangedListener)));
 
 			screen.on('display-added', displayChangedListener);
