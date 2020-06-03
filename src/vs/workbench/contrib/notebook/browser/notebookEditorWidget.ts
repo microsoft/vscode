@@ -940,7 +940,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
-		if (!cell.metadata?.editable) {
+		if (!cell.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
 			return null;
 		}
 
@@ -963,7 +963,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return null;
 			}
 
-			if (!above.metadata?.editable) {
+			if (!above.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
 				return null;
 			}
 
@@ -987,7 +987,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return null;
 			}
 
-			if (!below.metadata?.editable) {
+			if (below.metadata && !below.metadata.editable) {
 				return null;
 			}
 
