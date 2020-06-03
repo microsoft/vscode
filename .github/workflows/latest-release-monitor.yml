@@ -1,7 +1,7 @@
 name: Latest Release Monitor
 on:
   schedule:
-    - cron: 0 * * * *
+    - cron: 0/10 * * * *
 
 jobs:
   main:
