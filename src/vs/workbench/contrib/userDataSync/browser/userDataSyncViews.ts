@@ -19,7 +19,7 @@ import { fromNow } from 'vs/base/common/date';
 import { pad } from 'vs/base/common/strings';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -158,15 +158,15 @@ export class UserDataSyncDataViews extends Disposable {
 	}
 
 	private registerMachinesView(container: ViewContainer): void {
-		const that = this;
 		const id = `workbench.views.sync.machines`;
 		const name = localize('synced machines', "Synced Machines");
 		const treeView = this.instantiationService.createInstance(TreeView, id, name);
+		const dataProvider = this.instantiationService.createInstance(UserDataSyncMachinesViewDataProvider, treeView);
 		treeView.showRefreshAction = true;
 		const disposable = treeView.onDidChangeVisibility(visible => {
 			if (visible && !treeView.dataProvider) {
 				disposable.dispose();
-				treeView.dataProvider = new UserDataSyncMachinesViewDataProvider(treeView, this.userDataSyncMachinesService);
+				treeView.dataProvider = dataProvider;
 			}
 		});
 		this._register(Event.any(this.userDataSyncEnablementService.onDidChangeResourceEnablement, this.userDataSyncEnablementService.onDidChangeEnablement)(() => treeView.refresh()));
@@ -197,26 +197,10 @@ export class UserDataSyncDataViews extends Disposable {
 				});
 			}
 			async run(accessor: ServicesAccessor, handle: TreeViewItemHandleArg): Promise<void> {
-				const quickInputService = accessor.get(IQuickInputService);
-				const inputBox = quickInputService.createInputBox();
-				inputBox.placeholder = localize('placeholder', "Enter the name of the machine");
-				inputBox.show();
-				return new Promise((c, e) => {
-					inputBox.onDidAccept(async () => {
-						const name = inputBox.value;
-						inputBox.dispose();
-						if (name) {
-							try {
-								await that.userDataSyncMachinesService.renameMachine(handle.$treeItemHandle, name);
-								await treeView.refresh();
-								c();
-							} catch (error) {
-								e(error);
-								return;
-							}
-						}
-					});
-				});
+				const changed = await dataProvider.rename(handle.$treeItemHandle);
+				if (changed) {
+					await treeView.refresh();
+				}
 			}
 		});
 	}
@@ -455,13 +439,19 @@ class RemoteUserDataSyncHistoryViewDataProvider extends UserDataSyncHistoryViewD
 
 class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 
+	private machinesPromise: Promise<IUserDataSyncMachine[]> | undefined;
+
 	constructor(
 		private readonly treeView: TreeView,
-		private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) { }
 
-	async getChildren(): Promise<ITreeItem[]> {
-		let machines = await this.userDataSyncMachinesService.getMachines();
+	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
+		if (!element) {
+			this.machinesPromise = undefined;
+		}
+		let machines = await this.getMachines();
 		machines = machines.filter(m => !m.disabled).sort((m1, m2) => m1.isCurrent ? -1 : 1);
 		this.treeView.message = machines.length ? undefined : localize('no machines', "No Machines");
 		return machines.map(({ id, name, isCurrent }) => ({
@@ -472,6 +462,52 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 			themeIcon: Codicon.vm,
 			contextValue: 'sync-machine'
 		}));
+	}
+
+	private getMachines(): Promise<IUserDataSyncMachine[]> {
+		if (this.machinesPromise === undefined) {
+			this.machinesPromise = this.userDataSyncMachinesService.getMachines();
+		}
+		return this.machinesPromise;
+	}
+
+	async rename(machineId: string): Promise<boolean> {
+		const disposableStore = new DisposableStore();
+		const inputBox = disposableStore.add(this.quickInputService.createInputBox());
+		inputBox.placeholder = localize('placeholder', "Enter the name of the machine");
+		inputBox.busy = true;
+		inputBox.show();
+		const machines = await this.getMachines();
+		const machine = machines.find(({ id }) => id === machineId);
+		if (!machine) {
+			inputBox.hide();
+			disposableStore.dispose();
+			throw new Error(localize('not found', "machine not found with id: {0}", machineId));
+		}
+		inputBox.busy = false;
+		inputBox.value = machine.name;
+		const validateMachineName = (machineName: string): string | null => {
+			machineName = machineName.trim();
+			return machineName && !machines.some(m => m.id !== machineId && m.name === machineName) ? machineName : null;
+		};
+		disposableStore.add(inputBox.onDidChangeValue(() =>
+			inputBox.validationMessage = validateMachineName(inputBox.value) ? '' : localize('valid message', "Machine name should be unique and not empty")));
+		return new Promise<boolean>((c, e) => {
+			disposableStore.add(inputBox.onDidAccept(async () => {
+				const machineName = validateMachineName(inputBox.value);
+				disposableStore.dispose();
+				if (machineName && machineName !== machine.name) {
+					try {
+						await this.userDataSyncMachinesService.renameMachine(machineId, machineName);
+						c(true);
+					} catch (error) {
+						e(error);
+					}
+				} else {
+					c(false);
+				}
+			}));
+		});
 	}
 }
 
