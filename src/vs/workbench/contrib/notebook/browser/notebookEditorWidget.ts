@@ -793,6 +793,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		let relayout = (cell: ICellViewModel, height: number) => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this.list?.updateElementHeight2(cell, height);
 		};
 
@@ -1012,6 +1016,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<boolean> {
 		if (!this.notebookViewModel!.metadata.editable) {
 			return false;
+		}
+
+		if (this.pendingLayouts.has(cell)) {
+			this.pendingLayouts.get(cell)!.dispose();
 		}
 
 		const index = this.notebookViewModel!.getCellIndex(cell);
