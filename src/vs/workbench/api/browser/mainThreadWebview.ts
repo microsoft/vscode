@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -925,7 +925,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 				this._backupId = backupId;
 			}
 		} catch (e) {
-			// Make sure state has not changed in the meantime
+			if (isPromiseCanceledError(e)) {
+				// This is expected
+				throw e;
+			}
+
+			// Otherwise it could be a real error. Make sure state has not changed in the meantime.
 			if (this._hotExitState === pendingState) {
 				this._hotExitState = HotExitState.NotAllowed;
 			}
