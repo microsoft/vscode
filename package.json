@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.46.0",
-  "distro": "d4eced2b3485a4ef446032a8141459a9856c18ad",
+  "distro": "ebf621f403497559e97da316516d55d16e4bf964",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -99,7 +99,7 @@
     "css-loader": "^3.2.0",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "7.3.0",
+    "electron": "7.3.1",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",
@@ -160,7 +160,7 @@
     "vinyl": "^2.0.0",
     "vinyl-fs": "^3.0.0",
     "vsce": "1.48.0",
-    "vscode-debugprotocol": "^1.40.0",
+    "vscode-debugprotocol": "1.41.0",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^4.16.5",
     "webpack-cli": "^3.3.8",

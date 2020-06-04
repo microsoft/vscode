@@ -89,8 +89,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		return this.channel.call('resetLocal');
 	}
 
-	isFirstTimeSyncWithMerge(): Promise<boolean> {
-		return this.channel.call('isFirstTimeSyncWithMerge');
+	isFirstTimeSyncingWithAnotherMachine(): Promise<boolean> {
+		return this.channel.call('isFirstTimeSyncingWithAnotherMachine');
 	}
 
 	acceptConflict(conflict: URI, content: string): Promise<void> {

@@ -148,6 +148,13 @@ export class Model implements IRemoteSourceProviderRegistry {
 	}
 
 	private onPossibleGitRepositoryChange(uri: Uri): void {
+		const config = workspace.getConfiguration('git');
+		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
+
+		if (autoRepositoryDetection === false) {
+			return;
+		}
+
 		this.eventuallyScanPossibleGitRepository(uri.fsPath.replace(/\.git.*$/, ''));
 	}
 

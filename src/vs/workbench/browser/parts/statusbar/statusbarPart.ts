@@ -738,6 +738,7 @@ class StatusbarEntryItem extends Disposable {
 		// Label Container
 		this.labelContainer = document.createElement('a');
 		this.labelContainer.tabIndex = -1; // allows screen readers to read title, but still prevents tab focus.
+		this.labelContainer.setAttribute('role', 'button');
 
 		// Label
 		this.label = new CodiconLabel(this.labelContainer);
@@ -895,6 +896,10 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const statusBarItemActiveBackground = theme.getColor(STATUS_BAR_ITEM_ACTIVE_BACKGROUND);
 	if (statusBarItemActiveBackground) {
 		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:active { background-color: ${statusBarItemActiveBackground}; }`);
+	}
+	const contrastBorderColor = theme.getColor(contrastBorder);
+	if (contrastBorderColor) {
+		collector.addRule(`.monaco-workbench .part.statusbar > .items-container > .statusbar-item a:focus { outline: 1px solid ${contrastBorderColor};}`);
 	}
 
 	const statusBarProminentItemForeground = theme.getColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);

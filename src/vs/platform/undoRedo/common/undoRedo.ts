@@ -57,6 +57,8 @@ export interface IUndoRedoService {
 
 	registerUriComparisonKeyComputer(uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
 
+	getUriComparisonKey(resource: URI): string;
+
 	/**
 	 * Add a new element to the `undo` stack.
 	 * This will destroy the `redo` stack.
@@ -72,7 +74,7 @@ export interface IUndoRedoService {
 
 	hasElements(resource: URI): boolean;
 
-	setElementsIsValid(resource: URI, isValid: boolean): void;
+	setElementsValidFlag(resource: URI, isValid: boolean, filter: (element: IUndoRedoElement) => boolean): void;
 
 	/**
 	 * Remove elements that target `resource`.

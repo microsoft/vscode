@@ -48,7 +48,7 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'replace': return this.service.replace(URI.revive(args[0]));
 			case 'reset': return this.service.reset();
 			case 'resetLocal': return this.service.resetLocal();
-			case 'isFirstTimeSyncWithMerge': return this.service.isFirstTimeSyncWithMerge();
+			case 'isFirstTimeSyncingWithAnotherMachine': return this.service.isFirstTimeSyncingWithAnotherMachine();
 			case 'acceptConflict': return this.service.acceptConflict(URI.revive(args[0]), args[1]);
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0]);
@@ -74,6 +74,8 @@ export class UserDataAutoSyncChannel implements IServerChannel {
 	call(context: any, command: string, args?: any): Promise<any> {
 		switch (command) {
 			case 'triggerAutoSync': return this.service.triggerAutoSync(args[0]);
+			case 'enable': return Promise.resolve(this.service.enable());
+			case 'disable': return Promise.resolve(this.service.disable());
 		}
 		throw new Error('Invalid call');
 	}

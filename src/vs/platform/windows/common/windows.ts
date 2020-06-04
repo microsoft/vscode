@@ -20,15 +20,16 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 
 	noRecentEntry?: boolean;
 
+	addMode?: boolean;
+
 	diffMode?: boolean;
 	gotoLineMode?: boolean;
+
+	waitMarkerFileURI?: URI;
 }
 
-export interface INativeOpenWindowOptions extends IOpenWindowOptions {
-	diffMode?: boolean;
-	addMode?: boolean;
-	gotoLineMode?: boolean;
-	waitMarkerFileURI?: URI;
+export interface IAddFoldersRequest {
+	foldersToAdd: UriComponents[];
 }
 
 export interface IOpenedWindow {
@@ -165,6 +166,9 @@ export interface IPathData {
 
 	// Specifies if the file should be only be opened if it exists
 	openOnlyIfExists?: boolean;
+
+	// Specifies an optional id to override the editor used to edit the resource, e.g. custom editor.
+	overrideId?: string;
 }
 
 export interface IOpenFileRequest {

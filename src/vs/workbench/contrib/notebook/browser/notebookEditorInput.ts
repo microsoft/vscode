@@ -158,12 +158,14 @@ export class NotebookEditorInput extends EditorInput {
 		return false;
 	}
 
-	dispose() {
+	clearTextModel() {
 		if (this.textModel) {
 			this.notebookService.destoryNotebookDocument(this.textModel!.notebook.viewType, this.textModel!.notebook);
 			this.textModel.dispose();
 		}
+	}
 
+	dispose() {
 		super.dispose();
 	}
 }

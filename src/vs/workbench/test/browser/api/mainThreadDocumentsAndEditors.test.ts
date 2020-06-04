@@ -26,6 +26,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { TestTextResourcePropertiesService, TestWorkingCopyFileService } from 'vs/workbench/test/common/workbenchTestServices';
+import { UriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentityService';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -89,7 +90,8 @@ suite('MainThreadDocumentsAndEditors', () => {
 				}
 			},
 			TestEnvironmentService,
-			new TestWorkingCopyFileService()
+			new TestWorkingCopyFileService(),
+			new UriIdentityService(fileService),
 		);
 	});
 

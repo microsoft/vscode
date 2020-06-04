@@ -27,20 +27,13 @@ export class PaneComposite extends Composite implements IPaneComposite {
 	constructor(
 		id: string,
 		protected readonly viewPaneContainer: ViewPaneContainer,
-		@ITelemetryService
-		telemetryService: ITelemetryService,
-		@IStorageService
-		protected storageService: IStorageService,
-		@IInstantiationService
-		protected instantiationService: IInstantiationService,
-		@IThemeService
-		themeService: IThemeService,
-		@IContextMenuService
-		protected contextMenuService: IContextMenuService,
-		@IExtensionService
-		protected extensionService: IExtensionService,
-		@IWorkspaceContextService
-		protected contextService: IWorkspaceContextService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IStorageService protected storageService: IStorageService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService protected contextMenuService: IContextMenuService,
+		@IExtensionService protected extensionService: IExtensionService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super(id, telemetryService, themeService, storageService);
 

@@ -61,11 +61,22 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 				}
 			}
 		} else {
+			this.syncTriggerDelayer.cancel();
 			if (this.autoSync.value !== undefined) {
 				this.logService.info('Auto Sync: Disabled because', reason);
 				this.autoSync.clear();
 			}
 		}
+	}
+
+	enable(): void {
+		this.userDataSyncEnablementService.setEnablement(true);
+		this.updateAutoSync();
+	}
+
+	disable(): void {
+		this.userDataSyncEnablementService.setEnablement(false);
+		this.updateAutoSync();
 	}
 
 	// For tests purpose only
@@ -93,11 +104,10 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		if (userDataSyncError.code === UserDataSyncErrorCode.TurnedOff || userDataSyncError.code === UserDataSyncErrorCode.SessionExpired) {
 			this.logService.info('Auto Sync: Sync is turned off in the cloud.');
 			await this.userDataSyncService.resetLocal();
-			this.logService.info('Auto Sync: Did reset the local sync state.');
-			this.userDataSyncEnablementService.setEnablement(false);
+			this.disable();
 			this.logService.info('Auto Sync: Turned off sync because sync is turned off in the cloud');
 		} else if (userDataSyncError.code === UserDataSyncErrorCode.LocalTooManyRequests) {
-			this.userDataSyncEnablementService.setEnablement(false);
+			this.disable();
 			this.logService.info('Auto Sync: Turned off sync because of making too many requests to server');
 		} else {
 			this.logService.error(userDataSyncError);
@@ -125,6 +135,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 
 		this.sources.push(...sources);
 		return this.syncTriggerDelayer.trigger(async () => {
+			this.logService.trace('activity sources', ...this.sources);
 			this.telemetryService.publicLog2<{ sources: string[] }, AutoSyncClassification>('sync/triggered', { sources: this.sources });
 			this.sources = [];
 			if (this.autoSync.value) {

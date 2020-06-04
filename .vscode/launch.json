@@ -397,6 +397,7 @@
 	"compounds": [
 		{
 			"name": "VS Code",
+			"stopAll": true,
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Main Process",

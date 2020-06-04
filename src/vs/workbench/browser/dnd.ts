@@ -47,11 +47,7 @@ export class DraggedEditorIdentifier {
 
 export class DraggedEditorGroupIdentifier {
 
-	constructor(private _identifier: GroupIdentifier) { }
-
-	get identifier(): GroupIdentifier {
-		return this._identifier;
-	}
+	constructor(public readonly identifier: GroupIdentifier) { }
 }
 
 export interface IDraggedEditor extends IDraggedResource {

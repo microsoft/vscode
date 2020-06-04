@@ -22,6 +22,7 @@ if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
 	call yarn gulp 	compile-extension:vscode-api-tests^
 					compile-extension:vscode-colorize-tests^
 					compile-extension:markdown-language-features^
+					compile-extension:vscode-notebook-tests^
 					compile-extension:emmet^
 					compile-extension:css-language-features-server^
 					compile-extension:html-language-features-server^
@@ -41,6 +42,9 @@ call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in the extension host
+
+call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-notebook-tests\test --enable-proposed-api=vscode.vscode-notebook-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-notebook-tests --extensionTestsPath=%~dp0\..\extensions\vscode-notebook-tests\out --disable-telemetry --crash-reporter-directory=%VSCODECRASHDIR% --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR%
+if %errorlevel% neq 0 exit /b %errorlevel%
 
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\singlefolder-tests --disable-telemetry --crash-reporter-directory=%VSCODECRASHDIR% --disable-updates --disable-extensions --user-data-dir=%VSCODEUSERDATADIR%
 if %errorlevel% neq 0 exit /b %errorlevel%

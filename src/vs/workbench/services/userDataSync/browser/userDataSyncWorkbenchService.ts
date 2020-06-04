@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncEnablementService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncEnablementService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNCED_DATA_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent } from 'vs/editor/common/modes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -26,6 +26,7 @@ import { canceled } from 'vs/base/common/errors';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 type UserAccountClassification = {
 	id: { classification: 'EndUserPseudonymizedInformation', purpose: 'BusinessInsight' };
@@ -81,6 +82,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService productService: IProductService,
@@ -89,6 +91,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -101,8 +104,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 			this.syncStatusContext.set(this.userDataSyncService.status);
 			this._register(userDataSyncService.onDidChangeStatus(status => this.syncStatusContext.set(status)));
-			this.syncEnablementContext.set(this.userDataSyncEnablementService.isEnabled());
-			this._register(this.userDataSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
+			this.syncEnablementContext.set(userDataSyncEnablementService.isEnabled());
+			this._register(userDataSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
 
 			extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
@@ -220,46 +223,52 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		await this.handleFirstTimeSync();
-		this.userDataSyncEnablementService.setEnablement(true);
+		this.userDataAutoSyncService.enable();
 		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
+		this.userDataAutoSyncService.disable();
+
 		if (everywhere) {
 			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 			await this.userDataSyncService.reset();
 		} else {
 			await this.userDataSyncService.resetLocal();
 		}
-		this.userDataSyncEnablementService.setEnablement(false);
 	}
 
 	private async handleFirstTimeSync(): Promise<void> {
-		const isFirstSyncWithMerge = await this.userDataSyncService.isFirstTimeSyncWithMerge();
-		if (!isFirstSyncWithMerge) {
+		const isFirstTimeSyncingWithAnotherMachine = await this.userDataSyncService.isFirstTimeSyncingWithAnotherMachine();
+		if (!isFirstTimeSyncingWithAnotherMachine) {
 			return;
 		}
 		const result = await this.dialogService.show(
 			Severity.Info,
-			localize('firs time sync', "Sync"),
+			localize('Replace or Merge', "Replace or Merge"),
 			[
-				localize('merge', "Merge"),
+				localize('show synced data', "Show Synced Data"),
 				localize('cancel', "Cancel"),
-				localize('replace', "Replace Local"),
+				localize('merge', "Merge"),
+				localize('replace local', "Replace Local"),
 			],
 			{
 				cancelId: 1,
-				detail: localize('first time sync detail', "It looks like this is the first time sync is set up.\nWould you like to merge or replace with the data from the cloud?"),
+				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to replace or merge with the synced data?"),
 			}
 		);
 		switch (result.choice) {
 			case 0:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
-				break;
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'showSyncedData' });
+				await this.commandService.executeCommand(SHOW_SYNCED_DATA_COMMAND_ID);
+				throw canceled();
 			case 1:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
 				throw canceled();
 			case 2:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
+				break;
+			case 3:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'replace-local' });
 				await this.userDataSyncService.pull();
 				break;
@@ -358,8 +367,11 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 		// Account proviers
 		for (const authenticationProvider of this.authenticationProviders) {
-			const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
-			quickPickItems.push({ label: localize('sign in using account', "Sign in with {0}", providerName), authenticationProvider });
+			const signedInForProvider = this.all.some(account => account.authenticationProviderId === authenticationProvider.id);
+			if (!signedInForProvider || this.authenticationService.supportsMultipleAccounts(authenticationProvider.id)) {
+				const providerName = this.authenticationService.getDisplayName(authenticationProvider.id);
+				quickPickItems.push({ label: localize('sign in using account', "Sign in with {0}", providerName), authenticationProvider });
+			}
 		}
 
 		return quickPickItems;

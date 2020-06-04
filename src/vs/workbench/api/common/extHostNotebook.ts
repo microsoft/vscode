@@ -67,14 +67,17 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 		return this._documentData.document;
 	}
 
+	get notebook(): vscode.NotebookDocument {
+		return this._notebook;
+	}
+
 	get source() {
 		// todo@jrieken remove this
 		return this._documentData.getText();
 	}
 
 	constructor(
-		private readonly viewType: string,
-		private readonly documentUri: URI,
+		private readonly _notebook: ExtHostNotebookDocument,
 		readonly handle: number,
 		readonly uri: URI,
 		content: string,
@@ -141,7 +144,7 @@ export class ExtHostCell extends Disposable implements vscode.NotebookCell {
 	}
 
 	private updateMetadata(): Promise<void> {
-		return this._proxy.$updateNotebookCellMetadata(this.viewType, this.documentUri, this.handle, this._metadata);
+		return this._proxy.$updateNotebookCellMetadata(this._notebook.viewType, this._notebook.uri, this.handle, this._metadata);
 	}
 
 	attachTextDocument(document: ExtHostDocumentData) {
@@ -260,8 +263,10 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 
 	accpetModelChanged(event: NotebookCellsChangedEvent): void {
 		this._versionId = event.versionId;
-		if (event.kind === NotebookCellsChangeType.ModelChange) {
-			this.$spliceNotebookCells(event.changes);
+		if (event.kind === NotebookCellsChangeType.Initialize) {
+			this.$spliceNotebookCells(event.changes, true);
+		} if (event.kind === NotebookCellsChangeType.ModelChange) {
+			this.$spliceNotebookCells(event.changes, false);
 		} else if (event.kind === NotebookCellsChangeType.Move) {
 			this.$moveCell(event.index, event.newIdx);
 		} else if (event.kind === NotebookCellsChangeType.CellClearOutput) {
@@ -273,7 +278,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		}
 	}
 
-	private $spliceNotebookCells(splices: NotebookCellsSplice2[]): void {
+	private $spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {
 		if (this._disposed) {
 			return;
 		}
@@ -283,7 +288,7 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 		splices.reverse().forEach(splice => {
 			let cellDtos = splice[2];
 			let newCells = cellDtos.map(cell => {
-				const extCell = new ExtHostCell(this.viewType, this.uri, cell.handle, URI.revive(cell.uri), cell.source.join('\n'), cell.cellKind, cell.language, cell.outputs, cell.metadata, this._proxy);
+				const extCell = new ExtHostCell(this, cell.handle, URI.revive(cell.uri), cell.source.join('\n'), cell.cellKind, cell.language, cell.outputs, cell.metadata, this._proxy);
 				const documentData = this._documentsAndEditors.getDocument(URI.revive(cell.uri));
 
 				if (documentData) {
@@ -320,10 +325,12 @@ export class ExtHostNotebookDocument extends Disposable implements vscode.Notebo
 			contentChangeEvents.push(event);
 		});
 
-		this._emitter.emitModelChange({
-			document: this,
-			changes: contentChangeEvents
-		});
+		if (!initialization) {
+			this._emitter.emitModelChange({
+				document: this,
+				changes: contentChangeEvents
+			});
+		}
 	}
 
 	private $moveCell(index: number, newIdx: number): void {
@@ -514,7 +521,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			for (const documentData of documents) {
 				let data = CellUri.parse(documentData.document.uri);
 				if (data) {
-					if (this.document.uri.toString() === data.notebook.toString()) {
+					if (this.document.uri.fsPath === data.notebook.fsPath) {
 						document.attachCellTextDocument(documentData);
 					}
 				}
@@ -525,7 +532,7 @@ export class ExtHostNotebookEditor extends Disposable implements vscode.Notebook
 			for (const documentData of documents) {
 				let data = CellUri.parse(documentData.document.uri);
 				if (data) {
-					if (this.document.uri.toString() === data.notebook.toString()) {
+					if (this.document.uri.fsPath === data.notebook.fsPath) {
 						document.detachCellTextDocument(documentData);
 					}
 				}
@@ -812,8 +819,14 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		// }
 
 		this._notebookContentProviders.set(viewType, { extension, provider });
+
+		const listener = provider.onDidChangeNotebook
+			? provider.onDidChangeNotebook(e => this._proxy.$onNotebookChange(viewType, e.document.uri))
+			: Disposable.None;
+
 		this._proxy.$registerNotebookProvider({ id: extension.identifier, location: extension.extensionLocation }, viewType, provider.kernel ? { id: viewType, label: provider.kernel.label, extensionLocation: extension.extensionLocation, preloads: provider.kernel.preloads } : undefined);
 		return new extHostTypes.Disposable(() => {
+			listener.dispose();
 			this._notebookContentProviders.delete(viewType);
 			this._proxy.$unregisterNotebookProvider(viewType);
 		});
@@ -1096,7 +1109,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 					}
 
 					document.accpetModelChanged({
-						kind: NotebookCellsChangeType.ModelChange,
+						kind: NotebookCellsChangeType.Initialize,
 						versionId: modelData.versionId,
 						changes: [[
 							0,
@@ -1164,7 +1177,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 		}
 
 		if (delta.visibleEditors) {
-			this.visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)?.editor).filter(editor => !!editor) as ExtHostNotebookEditor[];
+			this.visibleNotebookEditors = delta.visibleEditors.map(id => this._editors.get(id)!.editor).filter(editor => !!editor) as ExtHostNotebookEditor[];
 			const visibleEditorsSet = new Set<string>();
 			this.visibleNotebookEditors.forEach(editor => visibleEditorsSet.add(editor.id));
 
@@ -1182,18 +1195,23 @@ export class ExtHostNotebookController implements ExtHostNotebookShape, ExtHostN
 				this._activeNotebookEditor = this._editors.get(delta.newActiveEditor)?.editor;
 				this._activeNotebookEditor?._acceptActive(true);
 				this._activeNotebookDocument = this._activeNotebookEditor ? this._documents.get(this._activeNotebookEditor!.uri.toString()) : undefined;
+				[...this._editors.values()].forEach((e) => {
+					if (e.editor !== this.activeNotebookEditor) {
+						e.editor._acceptActive(false);
+					}
+				});
 			} else {
+				// clear active notebook as current active editor is non-notebook editor
 				this._activeNotebookEditor = undefined;
 				this._activeNotebookDocument = undefined;
+
+				[...this._editors.values()].forEach((e) => {
+					e.editor._acceptActive(false);
+				});
+
 			}
 
 			this._onDidChangeActiveNotebookEditor.fire(this._activeNotebookEditor);
 		}
-
-		[...this._editors.values()].forEach((e) => {
-			if (e.editor !== this.activeNotebookEditor) {
-				e.editor._acceptActive(false);
-			}
-		});
 	}
 }

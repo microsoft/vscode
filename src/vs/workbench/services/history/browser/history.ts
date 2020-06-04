@@ -32,6 +32,7 @@ import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/d
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -825,7 +826,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
-			entries = coalesce(JSON.parse(entriesRaw));
+			try {
+				entries = coalesce(JSON.parse(entriesRaw));
+			} catch (error) {
+				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
+			}
 		}
 
 		const registry = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);

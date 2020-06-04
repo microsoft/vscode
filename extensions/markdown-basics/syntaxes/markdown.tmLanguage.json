@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/7cf9aa7bb76c55428063383610edc0a631230d58",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/a7e4475626a505472c76d18e0a1b3cfcf46f9cf9",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1715,6 +1715,72 @@
 				}
 			]
 		},
+		"fenced_code_block_erlang": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(erlang)((\\s+|:|\\{)[^`~]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.erlang",
+					"patterns": [
+						{
+							"include": "source.erlang"
+						}
+					]
+				}
+			]
+		},
+		"fenced_code_block_elixir": {
+			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(elixir)((\\s+|:|\\{)[^`~]*)?$)",
+			"name": "markup.fenced_code.block.markdown",
+			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+			"beginCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				},
+				"4": {
+					"name": "fenced_code.block.language.markdown"
+				},
+				"5": {
+					"name": "fenced_code.block.language.attributes.markdown"
+				}
+			},
+			"endCaptures": {
+				"3": {
+					"name": "punctuation.definition.markdown"
+				}
+			},
+			"patterns": [
+				{
+					"begin": "(^|\\G)(\\s*)(.*)",
+					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+					"contentName": "meta.embedded.block.elixir",
+					"patterns": [
+						{
+							"include": "source.elixir"
+						}
+					]
+				}
+			]
+		},
 		"fenced_code_block": {
 			"patterns": [
 				{
@@ -1866,6 +1932,12 @@
 				},
 				{
 					"include": "#fenced_code_block_log"
+				},
+				{
+					"include": "#fenced_code_block_erlang"
+				},
+				{
+					"include": "#fenced_code_block_elixir"
 				},
 				{
 					"include": "#fenced_code_block_unknown"

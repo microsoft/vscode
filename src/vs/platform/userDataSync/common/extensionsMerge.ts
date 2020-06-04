@@ -8,6 +8,9 @@ import { ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { startsWith } from 'vs/base/common/strings';
 import { deepClone } from 'vs/base/common/objects';
+import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { distinct } from 'vs/base/common/arrays';
 
 export interface IMergeResult {
 	added: ISyncExtension[];
@@ -200,4 +203,20 @@ function massageOutgoingExtension(extension: ISyncExtension, key: string): ISync
 		massagedExtension.version = extension.version;
 	}
 	return massagedExtension;
+}
+
+export function getIgnoredExtensions(installed: ILocalExtension[], configurationService: IConfigurationService): string[] {
+	const defaultIgnoredExtensions = installed.filter(i => i.isMachineScoped).map(i => i.identifier.id.toLowerCase());
+	const value = (configurationService.getValue<string[]>('sync.ignoredExtensions') || []).map(id => id.toLowerCase());
+	const added: string[] = [], removed: string[] = [];
+	if (Array.isArray(value)) {
+		for (const key of value) {
+			if (startsWith(key, '-')) {
+				removed.push(key.substring(1));
+			} else {
+				added.push(key);
+			}
+		}
+	}
+	return distinct([...defaultIgnoredExtensions, ...added,].filter(setting => removed.indexOf(setting) === -1));
 }

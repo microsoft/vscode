@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestServiceAccessor, TestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
@@ -72,7 +72,7 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve file', async function () {
 		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
-		(<TextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
+		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
 		await textModel.load();
 

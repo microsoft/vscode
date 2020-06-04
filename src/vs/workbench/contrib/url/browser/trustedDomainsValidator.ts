@@ -158,14 +158,32 @@ function isLocalhostAuthority(authority: string) {
 }
 
 /**
+ * Case-normalize some case-insinsitive URLs, such as github.
+ */
+function normalizeURL(url: string | URI): string {
+	const caseInsensitiveAuthorities = ['github.com'];
+	try {
+		const parsed = typeof url === 'string' ? URI.parse(url, true) : url;
+		if (caseInsensitiveAuthorities.includes(parsed.authority)) {
+			return parsed.with({ path: parsed.path.toLowerCase() }).toString(true);
+		} else {
+			return parsed.toString(true);
+		}
+	} catch { return url.toString(); }
+}
+
+/**
  * Check whether a domain like https://www.microsoft.com matches
  * the list of trusted domains.
  *
  * - Schemes must match
- * - There's no subdomain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
+ * - There's no subdomsain matching. For example https://microsoft.com doesn't match https://www.microsoft.com
  * - Star matches all subdomains. For example https://*.microsoft.com matches https://www.microsoft.com and https://foo.bar.microsoft.com
  */
 export function isURLDomainTrusted(url: URI, trustedDomains: string[]) {
+	url = URI.parse(normalizeURL(url));
+	trustedDomains = trustedDomains.map(normalizeURL);
+
 	if (isLocalhostAuthority(url.authority)) {
 		return true;
 	}

@@ -74,6 +74,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 	private static readonly ACTION_HEIGHT = 48;
 	static readonly PINNED_VIEW_CONTAINERS = 'workbench.activity.pinnedViewlets2';
 	private static readonly PLACEHOLDER_VIEW_CONTAINERS = 'workbench.activity.placeholderViewlets';
+	private static readonly HOME_BAR_VISIBILITY_PREFERENCE = 'workbench.activity.showHomeIndicator';
 
 	//#region IView
 
@@ -122,6 +123,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.PINNED_VIEW_CONTAINERS, version: 1 });
+		storageKeysSyncRegistryService.registerStorageKey({ key: ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE, version: 1 });
 		this.migrateFromOldCachedViewContainersValue();
 
 		for (const cachedViewContainer of this.cachedViewContainers) {
@@ -144,6 +146,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			getContextMenuActions: () => {
 				const menuBarVisibility = getMenuBarVisibility(this.configurationService, this.environmentService);
 				const actions = [];
+				if (this.homeBarContainer) {
+					actions.push(new Action('toggleHomeBarAction',
+						this.homeBarVisibilityPreference ? nls.localize('hideHomeBar', "Hide Home Button") : nls.localize('showHomeBar', "Show Home Button"),
+						undefined,
+						true,
+						async () => { this.homeBarVisibilityPreference = !this.homeBarVisibilityPreference; }));
+				}
 
 				if (menuBarVisibility === 'compact' || (menuBarVisibility === 'hidden' && isWeb)) {
 					actions.push(this.instantiationService.createInstance(ToggleMenuBarAction, ToggleMenuBarAction.ID, menuBarVisibility === 'compact' ? nls.localize('hideMenu', "Hide Menu") : nls.localize('showMenu', "Show Menu")));
@@ -152,7 +161,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 				return actions;
 			},
-			getContextMenuActionsForComposite: () => [],
+			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
@@ -171,6 +180,31 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	focusActivityBar(): void {
 		this.compositeBar.focus();
+	}
+
+	private getContextMenuActionsForComposite(compositeId: string): Action[] {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
+
+		const actions = [];
+		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
+		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
+			actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation);
+			}));
+		} else {
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			if (viewContainerModel.allViewDescriptors.length === 1) {
+				const viewToReset = viewContainerModel.allViewDescriptors[0];
+				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
+				if (defaultContainer !== viewContainer) {
+					actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
+						this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer);
+					}));
+				}
+			}
+		}
+
+		return actions;
 	}
 
 	private registerListeners(): void {
@@ -224,6 +258,12 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		} else {
 			// Deactivate view container action on close
 			this.compositeBar.deactivateComposite(id);
+		}
+	}
+
+	private onDidChangeHomeBarVisibility(): void {
+		if (this.homeBarContainer) {
+			this.homeBarContainer.style.display = this.homeBarVisibilityPreference ? '' : 'none';
 		}
 	}
 
@@ -364,6 +404,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				codicon = Codicon.code;
 			}
 			this.createHomeBar(homeIndicator.href, homeIndicator.command, homeIndicator.title, codicon);
+			this.onDidChangeHomeBarVisibility();
 		}
 
 		// Install menubar if compact
@@ -394,7 +435,8 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			orientation: ActionsOrientation.VERTICAL,
 			animated: false,
 			ariaLabel: nls.localize('home', "Home"),
-			actionViewItemProvider: command ? undefined : action => new HomeActionViewItem(action)
+			actionViewItemProvider: command ? undefined : action => new HomeActionViewItem(action),
+			allowContextMenu: true
 		}));
 
 		const homeBarIconBadge = document.createElement('div');
@@ -704,6 +746,10 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 			this.compositeBar.setCompositeBarItems(newCompositeItems);
 		}
+
+		if (e.key === ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE && e.scope === StorageScope.GLOBAL) {
+			this.onDidChangeHomeBarVisibility();
+		}
 	}
 
 	private saveCachedViewContainers(): void {
@@ -831,6 +877,14 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEW_CONTAINERS, value, StorageScope.GLOBAL);
+	}
+
+	private get homeBarVisibilityPreference(): boolean {
+		return this.storageService.getBoolean(ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE, StorageScope.GLOBAL, true);
+	}
+
+	private set homeBarVisibilityPreference(value: boolean) {
+		this.storageService.store(ActivitybarPart.HOME_BAR_VISIBILITY_PREFERENCE, value, StorageScope.GLOBAL);
 	}
 
 	private migrateFromOldCachedViewContainersValue(): void {

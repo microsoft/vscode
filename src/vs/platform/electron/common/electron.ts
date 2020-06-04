@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, CrashReporterStartOptions } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, INativeOpenWindowOptions } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 
@@ -31,7 +31,7 @@ export interface ICommonElectronService {
 	getActiveWindowId(): Promise<number | undefined>;
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
-	openWindow(toOpen: IWindowOpenable[], options?: INativeOpenWindowOptions): Promise<void>;
+	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
 	toggleFullScreen(): Promise<void>;
 
