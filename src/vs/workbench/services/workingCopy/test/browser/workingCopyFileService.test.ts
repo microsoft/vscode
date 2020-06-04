@@ -41,7 +41,7 @@ suite('WorkingCopyFileService', () => {
 		let correlationId: number | undefined = undefined;
 
 		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async (target, source, operation) => {
+			participate: async ([{ target }], operation) => {
 				assert.equal(target.toString(), model.resource.toString());
 				assert.equal(operation, FileOperation.DELETE);
 				eventCounter++;
@@ -76,6 +76,13 @@ suite('WorkingCopyFileService', () => {
 		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
 	});
 
+	test('move multiple - dirty file', async function () {
+		await testMoveOrCopyMany([
+			{ source: toResource.call(this, '/path/file1.txt'), target: toResource.call(this, '/path/file1_target.txt') },
+			{ source: toResource.call(this, '/path/file2.txt'), target: toResource.call(this, '/path/file2_target.txt') }],
+			true);
+	});
+
 	test('move - dirty file (target exists and is dirty)', async function () {
 		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true, true);
 	});
@@ -108,7 +115,7 @@ suite('WorkingCopyFileService', () => {
 		let correlationId: number | undefined = undefined;
 
 		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async (target, source, operation) => {
+			participate: async ([{ target, source }], operation) => {
 				assert.equal(target.toString(), targetModel.resource.toString());
 				assert.equal(source?.toString(), sourceModel.resource.toString());
 				assert.equal(operation, move ? FileOperation.MOVE : FileOperation.COPY);
@@ -151,6 +158,92 @@ suite('WorkingCopyFileService', () => {
 
 		sourceModel.dispose();
 		targetModel.dispose();
+
+		participant.dispose();
+		listener1.dispose();
+		listener2.dispose();
+	}
+
+	async function testMoveOrCopyMany(data: { source: URI, target: URI }[], move: boolean, targetDirty?: boolean): Promise<void> {
+
+		let eventCounter = 0;
+		const models = await Promise.all(data.map(async ({ source, target }, i) => {
+			let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
+			let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
+			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
+			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel.resource, targetModel);
+
+			await sourceModel.load();
+			sourceModel.textEditorModel!.setValue('foo' + i);
+			assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
+			if (targetDirty) {
+				await targetModel.load();
+				targetModel.textEditorModel!.setValue('bar' + i);
+				assert.ok(accessor.textFileService.isDirty(targetModel.resource));
+			}
+
+			return { sourceModel, targetModel };
+		}));
+
+		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+			participate: async (data, operation) => {
+				for (let i = 0; i < data.length; i++) {
+					const { target, source } = data[i];
+					const { targetModel, sourceModel } = models[i];
+
+					assert.equal(target.toString(), targetModel.resource.toString());
+					assert.equal(source?.toString(), sourceModel.resource.toString());
+					assert.equal(operation, move ? FileOperation.MOVE : FileOperation.COPY);
+					eventCounter++;
+				}
+			}
+		});
+
+		const correlationIds: Array<Number | undefined> = [];
+
+		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
+			const foundIndex = models.findIndex(m => e.target.toString() === m.targetModel.resource.toString() &&
+				e.source?.toString() === m.sourceModel.resource.toString());
+
+			assert.equal(foundIndex !== -1, true);
+			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
+			eventCounter++;
+			correlationIds.push(e.correlationId);
+		});
+
+		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+			const foundIndex = models.findIndex(m => e.target.toString() === m.targetModel.resource.toString() &&
+				e.source?.toString() === m.sourceModel.resource.toString());
+
+			assert.equal(foundIndex !== -1, true);
+			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
+			eventCounter++;
+
+			assert.equal(correlationIds.includes(e.correlationId), true);
+		});
+
+		if (move) {
+			await accessor.workingCopyFileService.moveMany(models.map(m => ({ source: m.sourceModel.resource, target: m.targetModel.resource })), true);
+		} else {
+			// await accessor.workingCopyFileService.copy(sourceModel.resource, targetModel.resource, true);
+		}
+
+		for (let i = 0; i < models.length; i++) {
+			const { sourceModel, targetModel } = models[i];
+
+			assert.equal(targetModel.textEditorModel!.getValue(), 'foo' + i);
+
+			if (move) {
+				assert.ok(!accessor.textFileService.isDirty(sourceModel.resource));
+			} else {
+				assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
+			}
+			assert.ok(accessor.textFileService.isDirty(targetModel.resource));
+
+			sourceModel.dispose();
+			targetModel.dispose();
+		}
+		assert.equal(eventCounter, 3 * models.length);
 
 		participant.dispose();
 		listener1.dispose();

@@ -155,7 +155,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 	async create(resource: URI, value?: string | ITextSnapshot | VSBuffer, options?: ICreateFileOptions): Promise<IFileStatWithMetadata> {
 
 		// file operation participation
-		await this.workingCopyFileService.runFileOperationParticipants(resource, undefined, FileOperation.CREATE);
+		await this.workingCopyFileService.runFileOperationParticipants([{ target: resource, source: undefined }], FileOperation.CREATE);
 
 		// create file on disk
 		const stat = await this.doCreate(resource, value, options);

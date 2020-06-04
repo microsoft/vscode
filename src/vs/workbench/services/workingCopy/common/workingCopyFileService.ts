@@ -45,12 +45,11 @@ export interface WorkingCopyFileEvent extends IWaitUntil {
 export interface IWorkingCopyFileOperationParticipant {
 
 	/**
-	 * Participate in a file operation of a working copy. Allows to
-	 * change the working copy before it is being saved to disk.
+	 * Participate in a file operation of working copies. Allows to
+	 * change the working copies before they are being saved to disk.
 	 */
 	participate(
-		target: URI,
-		source: URI | undefined,
+		data: { target: URI, source: URI | undefined }[],
 		operation: FileOperation,
 		progress: IProgress<IProgressStep>,
 		timeout: number,
@@ -114,7 +113,7 @@ export interface IWorkingCopyFileService {
 	/**
 	 * Execute all known file operation participants.
 	 */
-	runFileOperationParticipants(target: URI, source: URI | undefined, operation: FileOperation): Promise<void>
+	runFileOperationParticipants(data: { target: URI, source: URI | undefined }[], operation: FileOperation): Promise<void>
 
 
 	//#region File operations
@@ -127,6 +126,15 @@ export interface IWorkingCopyFileService {
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
 	move(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+
+	/**
+	 * Will move working copies matching the provided resources and corresponding children
+	 * to the target resources using the associated file service for those resources.
+	 *
+	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
+	 * `onDidRunWorkingCopyFileOperation` events to participate.
+	 */
+	moveMany(data: { source: URI, target: URI }[], overwrite?: boolean): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will copy working copies matching the provided resource and children
@@ -213,6 +221,10 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.moveOrCopy(source, target, true, overwrite);
 	}
 
+	async moveMany(data: { source: URI, target: URI }[], overwrite?: boolean): Promise<IFileStatWithMetadata[]> {
+		return this.moveOrCopyMany(data, true, overwrite);
+	}
+
 	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
 		return this.moveOrCopy(source, target, false, overwrite);
 	}
@@ -226,9 +238,9 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		}
 
 		// file operation participant
-		await this.runFileOperationParticipants(target, source, move ? FileOperation.MOVE : FileOperation.COPY);
+		await this.runFileOperationParticipants([{ target, source }], move ? FileOperation.MOVE : FileOperation.COPY);
 
-		// Before doing the heave operations, check first if source and target
+		// Before doing the heavy operations, check first if source and target
 		// are either identical or are considered to be identical for the file
 		// system. In that case we want the model to stay as is and only do the
 		// raw file operation.
@@ -272,6 +284,69 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return stat;
 	}
 
+	private async moveOrCopyMany(data: { source: URI, target: URI }[], move: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata[]> {
+
+		let stats = [];
+		for (let i = 0; i < data.length; i++) {
+			const { source, target } = data[i];
+			// validate move/copy operation before starting
+			const validateMoveOrCopy = move ? this.fileService.canMove(source, target, overwrite) : this.fileService.canCopy(source, target, overwrite);
+			if (validateMoveOrCopy instanceof Error) {
+				throw validateMoveOrCopy;
+			}
+		}
+
+		// file operation participant
+		await this.runFileOperationParticipants(data, move ? FileOperation.MOVE : FileOperation.COPY);
+
+		for (let i = 0; i < data.length; i++) {
+			const { source, target } = data[i];
+
+			// Before doing the heavy operations, check first if source and target
+			// are either identical or are considered to be identical for the file
+			// system. In that case we want the model to stay as is and only do the
+			// raw file operation.
+			if (this.uriIdentityService.extUri.isEqual(source, target)) {
+				if (move) {
+					stats.push(this.fileService.move(source, target, overwrite));
+				} else {
+					stats.push(this.fileService.copy(source, target, overwrite));
+				}
+				continue;
+			}
+
+			// before event
+			const event = { correlationId: this.correlationIds++, operation: move ? FileOperation.MOVE : FileOperation.COPY, target, source };
+			await this._onWillRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+			// handle dirty working copies depending on the operation:
+			// - move: revert both source and target (if any)
+			// - copy: revert target (if any)
+			const dirtyWorkingCopies = (move ? [...this.getDirty(source), ...this.getDirty(target)] : this.getDirty(target));
+			await Promise.all(dirtyWorkingCopies.map(dirtyWorkingCopy => dirtyWorkingCopy.revert({ soft: true })));
+
+			// now we can rename the source to target via file operation
+			try {
+				if (move) {
+					stats.push(await this.fileService.move(source, target, overwrite));
+				} else {
+					stats.push(await this.fileService.copy(source, target, overwrite));
+				}
+			} catch (error) {
+
+				// error event
+				await this._onDidFailWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+
+				throw error;
+			}
+
+			// after event
+			await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None);
+		}
+
+		return Promise.all(stats);
+	}
+
 	async delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): Promise<void> {
 
 		// validate delete operation before starting
@@ -281,7 +356,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		}
 
 		// file operation participant
-		await this.runFileOperationParticipants(resource, undefined, FileOperation.DELETE);
+		await this.runFileOperationParticipants([{ target: resource, source: undefined }], FileOperation.DELETE);
 
 		// before events
 		const event = { correlationId: this.correlationIds++, operation: FileOperation.DELETE, target: resource };
@@ -317,8 +392,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.fileOperationParticipants.addFileOperationParticipant(participant);
 	}
 
-	runFileOperationParticipants(target: URI, source: URI | undefined, operation: FileOperation): Promise<void> {
-		return this.fileOperationParticipants.participate(target, source, operation);
+	runFileOperationParticipants(data: { target: URI, source: URI | undefined }[], operation: FileOperation): Promise<void> {
+		return this.fileOperationParticipants.participate(data, operation);
 	}
 
 	//#endregion
