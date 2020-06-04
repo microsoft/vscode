@@ -229,7 +229,7 @@ export class UserDataSyncDataViews extends Disposable {
 			constructor() {
 				super({
 					id: `workbench.actions.sync.replaceCurrent`,
-					title: localize('workbench.actions.sync.replaceCurrent', "Download..."),
+					title: localize('workbench.actions.sync.replaceCurrent', "Revert"),
 					icon: { id: 'codicon/cloud-download' },
 					menu: {
 						id: MenuId.ViewItemContext,
