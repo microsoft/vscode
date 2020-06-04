@@ -91,6 +91,10 @@
 				"devPort": {
 					"type": "integer",
 					"description": "The port VS Code can use to connect to its backend."
+				},
+				"codespaces": {
+					"type": "object",
+					"description": "Codespaces-specific configuration."
 				}
 			}
 		},
