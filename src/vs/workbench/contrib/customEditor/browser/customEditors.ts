@@ -589,7 +589,7 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		options: ITextEditorOptions | undefined,
 		group: IEditorGroup
 	): IOpenEditorOverride | undefined {
-		const getCustomEditorOverrideForSubInput = (subInput: IEditorInput, customClasses: string): EditorInput | undefined => {
+		const getBestAvailableEditorForSubInput = (subInput: IEditorInput): CustomEditorInfo | undefined => {
 			if (subInput instanceof CustomEditorInput) {
 				return undefined;
 			}
@@ -598,28 +598,38 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 				return undefined;
 			}
 
-			// Prefer default editors in the diff editor case but ultimatly always take the first editor
+			// Prefer default editors in the diff editor case but ultimately always take the first editor
 			const allEditors = new CustomEditorInfoCollection([
 				...this.customEditorService.getUserConfiguredCustomEditors(resource).allEditors,
 				...this.customEditorService.getContributedCustomEditors(resource).allEditors.filter(x => x.priority !== CustomEditorPriority.option),
 			]);
-
-			const bestAvailableEditor = allEditors.bestAvailableEditor;
-			if (!bestAvailableEditor) {
-				return undefined;
-			}
-
-			const input = this.customEditorService.createInput(resource, bestAvailableEditor.id, group.id, { customClasses });
-			if (input instanceof EditorInput) {
-				return input;
-			}
-
-			return undefined;
+			return allEditors.bestAvailableEditor;
 		};
 
-		const modifiedOverride = getCustomEditorOverrideForSubInput(editor.modifiedInput, 'modified');
-		const originalOverride = getCustomEditorOverrideForSubInput(editor.originalInput, 'original');
+		const createEditorForSubInput = (subInput: IEditorInput, editor: CustomEditorInfo | undefined, customClasses: string): EditorInput | undefined => {
+			if (!editor) {
+				return;
+			}
+			if (!subInput.resource) {
+				return;
+			}
+			const input = this.customEditorService.createInput(subInput.resource, editor.id, group.id, { customClasses });
+			return input instanceof EditorInput ? input : undefined;
+		};
 
+		const modifiedEditorInfo = getBestAvailableEditorForSubInput(editor.modifiedInput);
+		const originalEditorInfo = getBestAvailableEditorForSubInput(editor.originalInput);
+
+		// If we are only using default editors, no need to override anything
+		if (
+			(!modifiedEditorInfo || modifiedEditorInfo.id === defaultCustomEditor.id) &&
+			(!originalEditorInfo || originalEditorInfo.id === defaultCustomEditor.id)
+		) {
+			return undefined;
+		}
+
+		const modifiedOverride = createEditorForSubInput(editor.modifiedInput, modifiedEditorInfo, 'modified');
+		const originalOverride = createEditorForSubInput(editor.originalInput, originalEditorInfo, 'original');
 		if (modifiedOverride || originalOverride) {
 			return {
 				override: (async () => {
