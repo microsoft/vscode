@@ -1024,7 +1024,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Report progress
 		operation.worked++;
-		progress.report({ message: localize('uploadProgress', "{0} of {1} files", operation.worked, operation.total) });
+		if (operation.total === 1) {
+			progress.report({ message: entry.name });
+		} else {
+			progress.report({ message: localize('uploadProgress', "{0} of {1} files", operation.worked, operation.total) });
+		}
 
 		// Handle file upload
 		if (entry.isFile) {
