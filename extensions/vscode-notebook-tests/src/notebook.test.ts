@@ -232,7 +232,9 @@ suite('API tests', () => {
 
 		assert.equal(vscode.notebook.visibleNotebookEditors.length, 2);
 
+		const untitledEditorChange = getEventOncePromise(vscode.notebook.onDidChangeActiveNotebookEditor);
 		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
+		await untitledEditorChange;
 		// TODO@rebornix, this is not safe, we might need to listen to visible editor change event.
 		assert.equal(firstEditor?.visible, true);
 		assert.equal(firstEditor?.active, false);
@@ -240,7 +242,9 @@ suite('API tests', () => {
 		assert.equal(secondEditor?.active, false);
 		assert.equal(vscode.notebook.visibleNotebookEditors.length, 1);
 
+		const activeEditorClose = getEventOncePromise(vscode.notebook.onDidChangeActiveNotebookEditor);
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		await activeEditorClose;
 		assert.equal(secondEditor?.active, true);
 		assert.equal(secondEditor?.visible, true);
 		assert.equal(vscode.notebook.visibleNotebookEditors.length, 2);
