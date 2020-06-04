@@ -212,9 +212,6 @@ suite('API tests', () => {
 				}
 			]
 		});
-
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
 	test('notebook editor active/visible', async function () {
@@ -380,9 +377,11 @@ suite('notebook workflow', () => {
 
 		// ---- move up and down ---- //
 
+		const firstMoveDownEvent = getEventOncePromise(vscode.notebook.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
 		assert.equal(vscode.notebook.activeNotebookEditor!.document.cells.indexOf(vscode.notebook.activeNotebookEditor!.selection!), 1,
 			`first move down, active cell ${vscode.notebook.activeNotebookEditor!.selection!.uri.toString()}, ${vscode.notebook.activeNotebookEditor!.selection!.source}`);
+		await firstMoveDownEvent;
 
 		let moveCellEventRet: vscode.NotebookCellsChangeEvent | undefined
 		vscode.notebook.onDidChangeNotebookCells(e => {
