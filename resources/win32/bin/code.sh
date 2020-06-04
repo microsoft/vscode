@@ -2,6 +2,10 @@
 #
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
+if [ "$VSCODE_WSL_DEBUG_INFO" = true ]; then
+	set -x
+fi
+
 COMMIT="@@COMMIT@@"
 APP_NAME="@@APPNAME@@"
 QUALITY="@@QUALITY@@"
@@ -11,7 +15,7 @@ VSCODE_PATH="$(dirname "$(dirname "$(realpath "$0")")")"
 ELECTRON="$VSCODE_PATH/$NAME.exe"
 if grep -qi Microsoft /proc/version; then
 	# in a wsl shell
-	WSL_BUILD=$(uname -r | sed -E 's/^[0-9.]+-([0-9]+)-Microsoft|([0-9]+).([0-9]+).([0-9]+)-microsoft-standard|.*/\1\2\3\4/')
+	WSL_BUILD=$(uname -r | sed -E 's/^[0-9.]+-([0-9]+)-Microsoft.*|([0-9]+).([0-9]+).([0-9]+)-microsoft-standard.*|.*/\1\2\3\4/')
 	if [ -z "$WSL_BUILD" ]; then
 		WSL_BUILD=0
 	fi

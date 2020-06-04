@@ -45,6 +45,16 @@
 						"pattern": "^([a-z0-9A-Z][a-z0-9\\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\\-A-Z]*)$",
 						"errorMessage": "Expected format '${publisher}.${name}'. Example: 'vscode.csharp'."
 					}
+				},
+				"postAttachCommand": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "A command to run after attaching to the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		}
