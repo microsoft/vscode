@@ -1085,25 +1085,25 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 	private async doUploadWebFileEntryBuffered(resource: URI, file: File): Promise<void> {
 		const writeableStream = newWriteableBufferStream();
+		const writeFilePromise = this.fileService.writeFile(resource, writeableStream);
 
 		// Read the file in chunks using File.stream() web APIs
-		(async () => {
-			try {
-				const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
+		try {
+			const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
 
-				let res = await reader.read();
-				while (!res.done) {
-					writeableStream.write(VSBuffer.wrap(res.value));
+			let res = await reader.read();
+			while (!res.done) {
+				writeableStream.write(VSBuffer.wrap(res.value));
 
-					res = await reader.read();
-				}
-				writeableStream.end(res.value instanceof Uint8Array ? VSBuffer.wrap(res.value) : undefined);
-			} catch (error) {
-				writeableStream.end(error);
+				res = await reader.read();
 			}
-		})();
+			writeableStream.end(res.value instanceof Uint8Array ? VSBuffer.wrap(res.value) : undefined);
+		} catch (error) {
+			writeableStream.end(error);
+		}
 
-		await this.fileService.writeFile(resource, writeableStream);
+		// Wait for file being written to target
+		await writeFilePromise;
 	}
 
 	private doUploadWebFileEntryUnbuffered(resource: URI, file: File): Promise<void> {
