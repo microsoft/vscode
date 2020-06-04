@@ -269,6 +269,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 						extensionHostDebugEnvironment.params.port = parseInt(value);
 						extensionHostDebugEnvironment.params.break = true;
 						break;
+					case 'inspect-extensions':
+						extensionHostDebugEnvironment.params.port = parseInt(value);
+						break;
 					case 'enableProposedApi':
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];
 						break;
