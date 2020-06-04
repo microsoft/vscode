@@ -991,7 +991,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				return null;
 			}
 
-			if (below.metadata && !below.metadata.editable) {
+			if (!below.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
 				return null;
 			}
 
