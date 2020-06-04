@@ -43,6 +43,10 @@ export interface IDiffEditorContributionDescription {
 export interface ICommandKeybindingsOptions extends IKeybindings {
 	kbExpr?: ContextKeyExpression | null;
 	weight: number;
+	/**
+	 * the default keybinding arguments
+	 */
+	args?: any;
 }
 export interface ICommandMenuOptions {
 	menuId: MenuId;
@@ -96,6 +100,7 @@ export abstract class Command {
 				id: this.id,
 				handler: (accessor, args) => this.runCommand(accessor, args),
 				weight: this._kbOpts.weight,
+				args: this._kbOpts.args,
 				when: kbWhen,
 				primary: this._kbOpts.primary,
 				secondary: this._kbOpts.secondary,
