@@ -35,7 +35,6 @@ import { IUserDataSyncWorkbenchService, CONTEXT_SYNC_STATE, getSyncAreaLabel, CO
 import { IUserDataSyncMachinesService, IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { generateUuid } from 'vs/base/common/uuid';
 
 export class UserDataSyncViewPaneContainer extends ViewPaneContainer {
@@ -461,6 +460,7 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 		private readonly treeView: TreeView,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@INotificationService private readonly notificationService: INotificationService,
 	) { }
 
 	async getChildren(element?: ITreeItem): Promise<ITreeItem[]> {
@@ -480,7 +480,7 @@ class UserDataSyncMachinesViewDataProvider implements ITreeViewDataProvider {
 				contextValue: 'sync-machine'
 			}));
 		} catch (error) {
-			this.treeView.message = localize('errorMessage', "Error while fetching data - {0}", toErrorMessage(error));
+			this.notificationService.error(error);
 			return [];
 		}
 	}
