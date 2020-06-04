@@ -1290,7 +1290,7 @@ declare module 'vscode' {
 		 * The path segments are normalized in the following ways:
 		 * - sequences of path separators (`/` or `\`) are replaced with a single separator
 		 * - for `file`-uris on windows, the backslash-character (`\`) is considered a path-separator
-		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segement
+		 * - the `..`-segment denotes the parent segment, the `.` denotes the current segment
 		 * - paths have a root which always remains, for instance on windows drive-letters are roots
 		 * so that is true: `joinPath(Uri.file('file:///c:/root'), '../../other').fsPath === 'c:/other'`
 		 *
@@ -4376,7 +4376,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The call hierarchy provider interface describes the constract between extensions
+	 * The call hierarchy provider interface describes the contract between extensions
 	 * and the call hierarchy feature which allows to browse calls and caller of function,
 	 * methods, constructor etc.
 	 */
@@ -5922,7 +5922,7 @@ declare module 'vscode' {
 	 */
 	export enum TaskScope {
 		/**
-		 * The task is a global task. Global tasks are currrently not supported.
+		 * The task is a global task. Global tasks are currently not supported.
 		 */
 		Global = 1,
 
@@ -7084,7 +7084,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Provider for editiable custom editors that use a custom document model.
+	 * Provider for editable custom editors that use a custom document model.
 	 *
 	 * Custom editors use [`CustomDocument`](#CustomDocument) as their document model instead of a [`TextDocument`](#TextDocument).
 	 * This gives extensions full control over actions such as edit, save, and backup.
@@ -7317,7 +7317,7 @@ declare module 'vscode' {
 		 *
 		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
 		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
-		 * the port fowarding tunnel is managed by VS Code and the tunnel can be closed by the user.
+		 * the port forwarding tunnel is managed by VS Code and the tunnel can be closed by the user.
 		 *
 		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
 		 *
@@ -9619,7 +9619,7 @@ declare module 'vscode' {
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * [`workspace.fs`](#FileSystem)-api.
 		 *
-		 * *Note 2:* When this event is fired, edits to files thare are being created cannot be applied.
+		 * *Note 2:* When this event is fired, edits to files that are are being created cannot be applied.
 		 */
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
 
@@ -9688,7 +9688,7 @@ declare module 'vscode' {
 		 * is returned. Dots in the section-identifier are interpreted as child-access,
 		 * like `{ myExt: { setting: { doIt: true }}}` and `getConfiguration('myExt.setting').get('doIt') === true`.
 		 *
-		 * When a scope is provided configuraiton confined to that scope is returned. Scope can be a resource or a language identifier or both.
+		 * When a scope is provided configuration confined to that scope is returned. Scope can be a resource or a language identifier or both.
 		 *
 		 * @param section A dot-separated identifier.
 		 * @param scope A scope for which the configuration is asked for.
@@ -11014,7 +11014,7 @@ declare module 'vscode' {
 		 * Folder specific variables used in the configuration (e.g. '${workspaceFolder}') are resolved against the given folder.
 		 * @param folder The [workspace folder](#WorkspaceFolder) for looking up named configurations and resolving variables or `undefined` for a non-folder setup.
 		 * @param nameOrConfiguration Either the name of a debug or compound configuration or a [DebugConfiguration](#DebugConfiguration) object.
-		 * @param parentSessionOrOptions Debug sesison options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
+		 * @param parentSessionOrOptions Debug session options. When passed a parent [debug session](#DebugSession), assumes options with just this parent session.
 		 * @return A thenable that resolves when debugging could be successfully started.
 		 */
 		export function startDebugging(folder: WorkspaceFolder | undefined, nameOrConfiguration: string | DebugConfiguration, parentSessionOrOptions?: DebugSession | DebugSessionOptions): Thenable<boolean>;
@@ -11193,7 +11193,7 @@ declare module 'vscode' {
 		/**
 		 * Dispose this comment thread.
 		 *
-		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when approriate.
+		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when appropriate.
 		 */
 		dispose(): void;
 	}
