@@ -212,6 +212,9 @@ suite('API tests', () => {
 				}
 			]
 		});
+
+		await vscode.commands.executeCommand('workbench.action.files.save');
+		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 	});
 
 	test.skip('notebook editor active/visible', async function () {
