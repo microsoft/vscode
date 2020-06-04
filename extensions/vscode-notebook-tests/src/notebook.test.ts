@@ -754,18 +754,18 @@ suite('regression', () => {
 
 suite('webview', () => {
 	// for web, `asWebUri` gets `https`?
-	test('asWebviewUri', async function () {
-		if (vscode.env.uiKind === vscode.UIKind.Web) {
-			return;
-		}
+	// test('asWebviewUri', async function () {
+	// 	if (vscode.env.uiKind === vscode.UIKind.Web) {
+	// 		return;
+	// 	}
 
-		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
-		const uri = vscode.notebook.activeNotebookEditor!.asWebviewUri(vscode.Uri.file('./hello.png'));
-		assert.equal(uri.scheme, 'vscode-resource');
-		await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-	});
+	// 	const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
+	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+	// 	assert.equal(vscode.notebook.activeNotebookEditor !== undefined, true, 'notebook first');
+	// 	const uri = vscode.notebook.activeNotebookEditor!.asWebviewUri(vscode.Uri.file('./hello.png'));
+	// 	assert.equal(uri.scheme, 'vscode-resource');
+	// 	await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+	// });
 
 
 	// 404 on web
