@@ -214,7 +214,7 @@ suite('API tests', () => {
 		});
 	});
 
-	test.skip('notebook editor active/visible', async function () {
+	test('notebook editor active/visible', async function () {
 		const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './first.vsctestnb'));
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const firstEditor = vscode.notebook.activeNotebookEditor;
