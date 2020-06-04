@@ -6896,12 +6896,15 @@ declare module 'vscode' {
 		 * This is called when a user first opens a resource for a `CustomTextEditorProvider`, or if they reopen an
 		 * existing editor using this `CustomTextEditorProvider`.
 		 *
-		 * To resolve a custom editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
-		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
 		 *
 		 * @param document Document for the resource to resolve.
-		 * @param webviewPanel Webview to resolve.
+		 *
+		 * @param webviewPanel The webview panel used to display the editor UI for this resource.
+		 *
+		 * During resolve, the provider must fill in the initial html for the content webview panel and hook up all
+		 * the event listeners on it that it is interested in. The provider can also hold onto the `WebviewPanel` to
+		 * use later for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
+		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
 		 * @return Thenable indicating that the custom editor has been resolved.
@@ -6963,7 +6966,7 @@ declare module 'vscode' {
 		/**
 		 * Display name describing the edit.
 		 *
-		 * This is shown in the UI to users.
+		 * This will be shown to users in the UI for undo/redo operations.
 		 */
 		readonly label?: string;
 	}
@@ -7010,7 +7013,9 @@ declare module 'vscode' {
 		 *
 		 * Note that your extension is free to ignore this and use its own strategy for backup.
 		 *
-		 * For editors for workspace resource, this destination will be in the workspace storage. The path may not
+		 * If the editor is for a resource from the current workspace, `destination` will point to a file inside
+		 * `ExtensionContext.storagePath`. The parent folder of `destination` may not exist, so make sure to created it
+		 * before writing the backup to this location.
 		 */
 		readonly destination: Uri;
 	}
@@ -7023,7 +7028,7 @@ declare module 'vscode' {
 		 * The id of the backup to restore the document from or `undefined` if there is no backup.
 		 *
 		 * If this is provided, your extension should restore the editor from the backup instead of reading the file
-		 * the user's workspace.
+		 * from the user's workspace.
 		 */
 		readonly backupId?: string;
 	}
@@ -7043,10 +7048,12 @@ declare module 'vscode' {
 		/**
 		 * Create a new document for a given resource.
 		 *
-		 * `openCustomDocument` is called when the first editor for a given resource is opened, and the resolve document
-		 * is passed to `resolveCustomEditor`. The resolved `CustomDocument` is re-used for subsequent editor opens.
-		 * If all editors for a given resource are closed, the `CustomDocument` is disposed of. Opening an editor at
-		 * this point will trigger another call to `openCustomDocument`.
+		 * `openCustomDocument` is called when the first time an editor for a given resource is opened. The opened
+		 * document is then passed to `resolveCustomEditor` so that the editor can be shown to the user.
+		 *
+		 * Already opened `CustomDocument` are re-used if the user opened additional editors. When all editors for a
+		 * given resource are closed, the `CustomDocument` is disposed of. Opening an editor at this point will
+		 * trigger another call to `openCustomDocument`.
 		 *
 		 * @param uri Uri of the document to open.
 		 * @param openContext Additional information about the opening custom document.
@@ -7061,12 +7068,14 @@ declare module 'vscode' {
 		 *
 		 * This is called whenever the user opens a new editor for this `CustomEditorProvider`.
 		 *
-		 * To resolve a custom editor, the provider must fill in its initial html content and hook up all
-		 * the event listeners it is interested it. The provider can also hold onto the `WebviewPanel` to use later,
-		 * for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
-		 *
 		 * @param document Document for the resource being resolved.
-		 * @param webviewPanel Webview to resolve.
+		 *
+		 * @param webviewPanel The webview panel used to display the editor UI for this resource.
+		 *
+		 * During resolve, the provider must fill in the initial html for the content webview panel and hook up all
+		 * the event listeners on it that it is interested in. The provider can also hold onto the `WebviewPanel` to
+		 * use later for example in a command. See [`WebviewPanel`](#WebviewPanel) for additional details.
+		 *
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 *
 		 * @return Optional thenable indicating that the custom editor has been resolved.
@@ -8033,6 +8042,9 @@ declare module 'vscode' {
 		 * @return Disposable that unregisters the provider.
 		 */
 		export function registerCustomEditorProvider(viewType: string, provider: CustomTextEditorProvider | CustomReadonlyEditorProvider | CustomEditorProvider, options?: {
+			/**
+			 * Content settings for the webview panels created for this custom editor.
+			 */
 			readonly webviewOptions?: WebviewPanelOptions;
 
 			/**
@@ -8041,12 +8053,13 @@ declare module 'vscode' {
 			 * Indicates that the provider allows multiple editor instances to be open at the same time for
 			 * the same resource.
 			 *
-			 * If not set, VS Code only allows one editor instance to be open at a time for each resource. If the
+			 * By default, VS Code only allows one editor instance to be open at a time for each resource. If the
 			 * user tries to open a second editor instance for the resource, the first one is instead moved to where
 			 * the second one was to be opened.
 			 *
-			 * When set, users can split and create copies of the custom editor. The custom editor must make sure it
-			 * can properly synchronize the states of all editor instances for a resource so that they are consistent.
+			 * When `supportsMultipleEditorsPerDocument` is enabled, users can split and create copies of the custom
+			 * editor. In this case, the custom editor must make sure it can properly synchronize the states of all
+			 * editor instances for a resource so that they are consistent.
 			 */
 			readonly supportsMultipleEditorsPerDocument?: boolean;
 		}): Disposable;
