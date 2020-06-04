@@ -1014,6 +1014,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return false;
 		}
 
+		this.pendingLayouts.get(cell)?.dispose();
+		this.pendingLayouts.delete(cell);
 		const index = this.notebookViewModel!.getCellIndex(cell);
 		this.notebookViewModel!.deleteCell(index, true);
 		return true;
