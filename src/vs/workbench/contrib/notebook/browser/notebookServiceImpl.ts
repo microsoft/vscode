@@ -328,7 +328,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false, editorId);
-		await this.transformTextModelOutputs(notebookModel!);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -341,6 +340,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		);
 		this._models.set(modelId, modelData);
 		this._onNotebookDocumentAdd.fire([notebookModel.uri]);
+		// after the document is added to the store and sent to ext host, we transform the ouputs
+		await this.transformTextModelOutputs(notebookModel!);
 		return modelData.model;
 	}
 
@@ -355,8 +356,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			return undefined;
 		}
 
-		await this.transformTextModelOutputs(notebookModel!);
-
 		// new notebook model created
 		const modelId = MODEL_ID(uri);
 		const modelData = new ModelData(
@@ -366,6 +365,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 
 		this._models.set(modelId, modelData);
 		this._onNotebookDocumentAdd.fire([notebookModel!.uri]);
+		// after the document is added to the store and sent to ext host, we transform the ouputs
+		await this.transformTextModelOutputs(notebookModel!);
 		return modelData.model;
 	}
 
