@@ -16,11 +16,11 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 const ignoreUnusualLineTerminators = 'ignoreUnusualLineTerminators';
 
 function writeIgnoreState(codeEditorService: ICodeEditorService, model: ITextModel, state: boolean): void {
-	codeEditorService.setTransientModelProperty(model, ignoreUnusualLineTerminators, state);
+	codeEditorService.setModelProperty(model.uri, ignoreUnusualLineTerminators, state);
 }
 
 function readIgnoreState(codeEditorService: ICodeEditorService, model: ITextModel): boolean | undefined {
-	return codeEditorService.getTransientModelProperty(model, ignoreUnusualLineTerminators);
+	return codeEditorService.getModelProperty(model.uri, ignoreUnusualLineTerminators);
 }
 
 class UnusualLineTerminatorsDetector extends Disposable implements IEditorContribution {
