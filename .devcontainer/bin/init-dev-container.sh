@@ -10,6 +10,10 @@ startInBackgroundIfNotRunning()
 	echo -e "\n** $(date) **" | sudoIf tee -a /tmp/$1.log > /dev/null
 	if ! pidof $1 > /dev/null; then
 		keepRunningInBackground "$@"
+		while ! pidof $1 > /dev/null; do
+			sleep 1
+		done
+		log "$1 started."
 	else
 		echo "$1 is already running." | sudoIf tee -a /tmp/$1.log > /dev/null
 		log "$1 is already running."
@@ -20,10 +24,6 @@ startInBackgroundIfNotRunning()
 keepRunningInBackground()
 {
 	($2 sh -c "while :; do echo [\$(date)] Process started.; $3; echo [\$(date)] Process exited!; sleep 5; done 2>&1" | sudoIf tee -a /tmp/$1.log > /dev/null & echo "$!" | sudoIf tee /tmp/$1.pid > /dev/null)
-	while ! pidof $1 > /dev/null; do
-		sleep 1
-	done
-	log "$1 started."
 }
 
 # Use sudo to run as root when required
@@ -77,8 +77,11 @@ startInBackgroundIfNotRunning "fluxbox" sudoUserIf "dbus-launch startfluxbox"
 startInBackgroundIfNotRunning "x11vnc" sudoIf "x11vnc -display ${DISPLAY:-:1} -rfbport ${VNC_PORT:-5901}  -localhost -no6 -xkb -shared -forever -nopw"
 
 # Spin up noVNC if installed and not runnning.
-if [ -d "/usr/local/novnc" ] && [ "$(ps -ef | grep /usr/local/novnc/noVNC*/utils/launch.sh)" = "" ]; then
+if [ -d "/usr/local/novnc" ] && [ "$(ps -ef | grep /usr/local/novnc/noVNC*/utils/launch.sh | grep -v grep)" = "" ]; then
 	keepRunningInBackground "noVNC" sudoIf "/usr/local/novnc/noVNC*/utils/launch.sh --listen ${NOVNC_PORT:-6080} --vnc localhost:${VNC_PORT:-5901}"
+	log "noVNC started."
+else
+	log "noVNC is already running or not installed."
 fi
 
 # Run whatever was passed in
