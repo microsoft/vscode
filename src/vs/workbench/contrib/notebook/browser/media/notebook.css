@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .monaco-workbench .notebookOverlay.notebook-editor {
+.monaco-workbench .notebookOverlay.notebook-editor {
 	box-sizing: border-box;
 	line-height: 22px;
 	user-select: initial;
@@ -11,7 +11,7 @@
 	position: relative;
 }
 
-.cell.markdown {
+.monaco-workbench .cell.markdown {
 	user-select: text;
 	-webkit-user-select: text;
 	white-space: initial;
@@ -139,10 +139,11 @@
 .monaco-workbench .notebookOverlay .output .multi-mimetype-output {
 	position: absolute;
 	top: 4px;
-	left: -32px;
+	left: -34px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;
+	padding: 4px;
 }
 
 .monaco-workbench .notebookOverlay .output .error_message {
@@ -248,6 +249,7 @@
 	margin-right: 8px;
 }
 
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-run-duration,
 .monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-message {
 	display: flex;
 	align-items: center;
@@ -281,12 +283,17 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .monaco-toolbar {
-	margin-top: 8px;
+	margin-top: 4px;
 	visibility: hidden;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .monaco-toolbar .codicon {
-	margin-right: 8px;
+	margin: 0 0 0 2px; /* accounts for 2px indicator on left */
+	padding: 4px;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell .run-button-container .monaco-toolbar .actions-container {
+	justify-content: center;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .cell.runnable .run-button-container .monaco-toolbar,
@@ -377,7 +384,7 @@
 	opacity: 1;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before {
+.monaco-workbench .notebookOverlay .monaco-list-row .cell-editor-part:before {
 	z-index: 20;
 	content: "";
 	right: 0px;
@@ -604,12 +611,15 @@
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator {
 	position: absolute;
-	top: 8px;
-	left: 6px;
+	top: 4px;
+	left: 0px;
+	right: 0;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator .codicon {
 	visibility: visible;
+	padding: 4px;
+	width: calc(100% - 8px);
 }
 
 /** Theming */

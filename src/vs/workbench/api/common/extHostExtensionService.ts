@@ -432,9 +432,35 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 			this._logService.error(err);
 		});
 
+		for (const desc of this._registry.getAllExtensionDescriptions()) {
+			if (desc.activationEvents) {
+				for (const activationEvent of desc.activationEvents) {
+					if (/^onStartup:/.test(activationEvent)) {
+						const strTime = activationEvent.substr('onStartup:'.length);
+						const time = parseInt(strTime, 10);
+						if (!isNaN(time)) {
+							this._activateDelayed(desc, activationEvent, time);
+						}
+					}
+				}
+			}
+		}
+
 		this._disposables.add(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
 		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
 		return this._handleWorkspaceContainsEagerExtensions(folders);
+	}
+
+	private _activateDelayed(desc: IExtensionDescription, activationEvent: string, delayMs: number): void {
+		setTimeout(() => {
+			this._activateById(desc.identifier, {
+				startup: true,
+				extensionId: desc.identifier,
+				activationEvent: activationEvent
+			}).then(undefined, (err) => {
+				this._logService.error(err);
+			});
+		}, delayMs);
 	}
 
 	private _handleWorkspaceContainsEagerExtensions(folders: ReadonlyArray<vscode.WorkspaceFolder>): Promise<void> {

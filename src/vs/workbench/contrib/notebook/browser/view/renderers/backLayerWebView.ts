@@ -16,13 +16,14 @@ import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener'
 import { CELL_MARGIN, CELL_RUN_GUTTER } from 'vs/workbench/contrib/notebook/browser/constants';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellOutputKind, IProcessedOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webviewUri';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { preloadsScriptStr } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { Schemas } from 'vs/base/common/network';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -98,6 +99,7 @@ export interface ICreationRequestMessage {
 	top: number;
 	left: number;
 	initiallyHidden?: boolean;
+	apiNamespace?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
@@ -121,11 +123,61 @@ export interface IScrollRequestMessage {
 	version: number;
 }
 
+export interface IClearOutputRequestMessage {
+	type: 'clearOutput';
+	id: string;
+	cellUri: string;
+	apiNamespace: string | undefined;
+}
+
+export interface IHideOutputMessage {
+	type: 'hideOutput';
+	id: string;
+}
+
+export interface IShowOutputMessage {
+	type: 'showOutput';
+	id: string;
+	top: number;
+}
+
+export interface IFocusOutputMessage {
+	type: 'focus-output';
+	id: string;
+}
+
+export interface IPreloadResource {
+	uri: string
+}
+
 export interface IUpdatePreloadResourceMessage {
 	type: 'preload';
-	resources: string[];
-	source: string;
+	resources: IPreloadResource[];
+	source: 'renderer' | 'kernel';
 }
+
+export type FromWebviewMessage =
+	| WebviewIntialized
+	| IDimensionMessage
+	| IMouseEnterMessage
+	| IMouseLeaveMessage
+	| IWheelMessage
+	| IScrollAckMessage
+	| IBlurOutputMessage;
+
+export type ToWebviewMessage =
+	| IClearMessage
+	| IFocusOutputMessage
+	| ICreationRequestMessage
+	| IViewScrollTopRequestMessage
+	| IScrollRequestMessage
+	| IClearOutputRequestMessage
+	| IHideOutputMessage
+	| IShowOutputMessage
+	| IUpdatePreloadResourceMessage
+	| IFocusOutputMessage;
+
+export type AnyMessage = FromWebviewMessage | ToWebviewMessage;
 
 interface ICachedInset {
 	outputId: string;
@@ -247,306 +299,9 @@ ${loaderJs}
 				${coreDependencies}
 				<div id="__vscode_preloads"></div>
 				<div id='container' class="widgetarea" style="position: absolute;width:100%;top: 0px"></div>
-<script>
-(function () {
-
-		const handleInnerClick = (event) => {
-			if (!event || !event.view || !event.view.document) {
-				return;
-			}
-
-			/** @type {any} */
-			let node = event.target;
-			while (node) {
-				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
-					if (node.href.startsWith('blob:')) {
-						handleBlobUrlClick(node.href, node.download);
-					}
-					event.preventDefault();
-					break;
-				}
-				node = node.parentNode;
-			}
-		};
-
-		const handleBlobUrlClick = async (url, downloadName) => {
-			try {
-				const response = await fetch(url);
-				const blob = await response.blob();
-				const reader = new FileReader();
-				reader.addEventListener('load', () => {
-					const data = reader.result;
-
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'clicked-data-url',
-						data,
-						downloadName
-					});
-				});
-				reader.readAsDataURL(blob);
-			} catch (e) {
-				console.error(e.message);
-			}
-		};
-
-		document.body.addEventListener('click', handleInnerClick);
-
-
-	// eslint-disable-next-line no-undef
-	const vscode = acquireVsCodeApi();
-
-	const preservedScriptAttributes = {
-		type: true,
-		src: true,
-		nonce: true,
-		noModule: true,
-		async: true
-	};
-
-	// derived from https://github.com/jquery/jquery/blob/d0ce00cdfa680f1f0c38460bc51ea14079ae8b07/src/core/DOMEval.js
-	const domEval = (container) => {
-		var arr = Array.from(container.getElementsByTagName('script'));
-		for (let n = 0; n < arr.length; n++) {
-			let node = arr[n];
-			let scriptTag = document.createElement('script');
-			scriptTag.text = node.innerText;
-			for (let key in preservedScriptAttributes ) {
-				const val = node[key] || node.getAttribute && node.getAttribute(key);
-				if (val) {
-					scriptTag.setAttribute(key, val);
-				}
-			}
-
-			// TODO: should script with src not be removed?
-			container.appendChild(scriptTag).parentNode.removeChild(scriptTag);
-		}
-	};
-
-	let observers = [];
-
-	const resizeObserve = (container, id) => {
-		const resizeObserver = new ResizeObserver(entries => {
-			for (let entry of entries) {
-				if (entry.target.id === id && entry.contentRect) {
-					vscode.postMessage({
-							__vscode_notebook_message: true,
-							type: 'dimension',
-							id: id,
-							data: {
-								height: entry.contentRect.height + ${outputNodePadding} * 2
-							}
-						});
-				}
-			}
-		});
-
-		resizeObserver.observe(container);
-		observers.push(resizeObserver);
-	}
-
-	function scrollWillGoToParent(event) {
-		for (let node = event.target; node; node = node.parentNode) {
-			if (node.id === 'container') {
-				return false;
-			}
-
-			if (event.deltaY < 0 && node.scrollTop > 0) {
-				return true;
-			}
-
-			if (event.deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) {
-				return true;
-			}
-		}
-
-		return false;
-	}
-
-	const handleWheel = (event) => {
-		if (event.defaultPrevented || scrollWillGoToParent(event)) {
-			return;
-		}
-
-		vscode.postMessage({
-			__vscode_notebook_message: true,
-			type: 'did-scroll-wheel',
-			payload: {
-				deltaMode: event.deltaMode,
-				deltaX: event.deltaX,
-				deltaY: event.deltaY,
-				deltaZ: event.deltaZ,
-				detail: event.detail,
-				type: event.type
-			}
-		});
-	};
-
-	function focusFirstFocusableInCell(cellId) {
-		const cellOutputContainer = document.getElementById(cellId);
-		if (cellOutputContainer) {
-			const focusableElement = cellOutputContainer.querySelector('[tabindex="0"], [href], button, input, option, select, textarea');
-			focusableElement && focusableElement.focus();
-		}
-	}
-
-	function createFocusSink(cellId, outputId, focusNext) {
-		const element = document.createElement('div');
-		element.tabIndex = 0;
-		element.addEventListener('focus', () => {
-			vscode.postMessage({
-				__vscode_notebook_message: true,
-				type: 'focus-editor',
-				id: outputId,
-				focusNext
-			});
-
-			setTimeout(() => { // Wait a tick to prevent the focus indicator blinking before webview blurs
-				// Move focus off the focus sink - single use
-				focusFirstFocusableInCell(cellId);
-			}, 50);
-		});
-
-		return element;
-	}
-
-	window.addEventListener('wheel', handleWheel);
-
-	window.addEventListener('message', event => {
-		let id = event.data.id;
-
-		switch (event.data.type) {
-			case 'html':
-				{
-					let cellOutputContainer = document.getElementById(id);
-					let outputId = event.data.outputId;
-					if (!cellOutputContainer) {
-						const container = document.getElementById('container');
-
-						const upperWrapperElement = createFocusSink(id, outputId);
-						container.appendChild(upperWrapperElement);
-
-						let newElement = document.createElement('div');
-
-						newElement.id = id;
-						container.appendChild(newElement);
-						cellOutputContainer = newElement;
-
-						cellOutputContainer.addEventListener('mouseenter', () => {
-							vscode.postMessage({
-								__vscode_notebook_message: true,
-								type: 'mouseenter',
-								id: outputId,
-								data: { }
-							});
-						});
-						cellOutputContainer.addEventListener('mouseleave', () => {
-							vscode.postMessage({
-								__vscode_notebook_message: true,
-								type: 'mouseleave',
-								id: outputId,
-								data: { }
-							});
-						});
-
-						const lowerWrapperElement = createFocusSink(id, outputId, true);
-						container.appendChild(lowerWrapperElement);
-					}
-
-					let outputNode = document.createElement('div');
-					outputNode.style.position = 'absolute';
-					outputNode.style.top = event.data.top + 'px';
-					outputNode.style.left = event.data.left + 'px';
-					outputNode.style.width = 'calc(100% - ' + event.data.left + 'px)';
-					outputNode.style.minHeight = '32px';
-
-					outputNode.id = outputId;
-					let content = event.data.content;
-					outputNode.innerHTML = content;
-					cellOutputContainer.appendChild(outputNode);
-
-					// eval
-					domEval(outputNode);
-					resizeObserve(outputNode, outputId);
-
-					vscode.postMessage({
-						__vscode_notebook_message: true,
-						type: 'dimension',
-						id: outputId,
-						data: {
-							height: outputNode.clientHeight
-						}
-					});
-
-					// don't hide until after this step so that the height is right
-					cellOutputContainer.style.display = event.data.initiallyHidden ? 'none' : 'block';
-				}
-				break;
-			case 'view-scroll':
-				{
-					// const date = new Date();
-					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
-
-					for (let i = 0; i < event.data.widgets.length; i++) {
-						let widget = document.getElementById(event.data.widgets[i].id);
-						widget.style.top = event.data.widgets[i].top + 'px';
-						widget.parentNode.style.display = 'block';
-					}
-					break;
-				}
-			case 'clear':
-				document.getElementById('container').innerHTML = '';
-				for (let i = 0; i < observers.length; i++) {
-					observers[i].disconnect();
-				}
-
-				observers = [];
-				break;
-			case 'clearOutput':
-				{
-					let output = document.getElementById(id);
-					if (output && output.parentNode) {
-						document.getElementById(id).parentNode.removeChild(output);
-					}
-					// @TODO remove observer
-				}
-				break;
-			case 'hideOutput':
-				document.getElementById(id).parentNode.style.display = 'none';
-				break;
-			case 'showOutput':
-				{
-					let output = document.getElementById(id);
-					output.parentNode.style.display = 'block';
-					output.style.top = event.data.top + 'px';
-				}
-				break;
-			case 'preload':
-				let resources = event.data.resources;
-				let preloadsContainer = document.getElementById('__vscode_preloads');
-				for (let i = 0; i < resources.length; i++) {
-					let scriptTag = document.createElement('script');
-					scriptTag.setAttribute('src', resources[i]);
-					preloadsContainer.appendChild(scriptTag)
-				}
-				break;
-			case 'focus-output':
-				{
-					focusFirstFocusableInCell(id);
-					break;
-				}
-		}
-	});
-
-	vscode.postMessage({
-		__vscode_notebook_message: true,
-		type: 'initialized'
-	});
-}());
-
-</script>
-</body>
-`;
+				<script>${preloadsScriptStr(outputNodePadding)}</script>
+			</body>
+		</html>`;
 	}
 
 	private resolveOutputId(id: string): { cell: CodeCellViewModel, output: IProcessedOutput } | undefined {
@@ -577,7 +332,7 @@ ${loaderJs}
 			this.preloadsCache.clear();
 			for (const [output, inset] of this.insetMapping.entries()) {
 				this.updateRendererPreloads(inset.preloads);
-				this.webview.sendMessage({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
+				this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
 			}
 		}));
 
@@ -755,14 +510,12 @@ ${loaderJs}
 			};
 		});
 
-		let message: IViewScrollTopRequestMessage = {
+		this._sendMessageToWebview({
 			top,
 			type: 'view-scroll',
 			version: version++,
 			widgets: widgets
-		};
-
-		this.webview.sendMessage(message);
+		});
 	}
 
 	createInset(cell: CodeCellViewModel, output: IProcessedOutput, cellTop: number, offset: number, shadowContent: string, preloads: Set<string>) {
@@ -778,7 +531,7 @@ ${loaderJs}
 
 			if (outputCache) {
 				this.hiddenInsetMapping.delete(output);
-				this.webview.sendMessage({
+				this._sendMessageToWebview({
 					type: 'showOutput',
 					id: outputCache.outputId,
 					top: initialTop
@@ -788,17 +541,25 @@ ${loaderJs}
 		}
 
 		let outputId = UUID.generateUuid();
+		let apiNamespace: string | undefined;
+		if (output.outputKind === CellOutputKind.Rich && output.pickedMimeTypeIndex !== undefined) {
+			const pickedMimeTypeRenderer = output.orderedMimeTypes?.[output.pickedMimeTypeIndex];
+			if (pickedMimeTypeRenderer?.rendererId) {
+				apiNamespace = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId)?.id;
+			}
+		}
 
 		let message: ICreationRequestMessage = {
 			type: 'html',
 			content: shadowContent,
 			id: cell.id,
+			apiNamespace,
 			outputId: outputId,
 			top: initialTop,
 			left: 0
 		};
 
-		this.webview.sendMessage(message);
+		this._sendMessageToWebview(message);
 		this.insetMapping.set(output, { outputId: outputId, cell: cell, preloads, cachedCreation: message });
 		this.hiddenInsetMapping.delete(output);
 		this.reversedInsetMapping.set(outputId, output);
@@ -816,8 +577,10 @@ ${loaderJs}
 
 		let id = outputCache.outputId;
 
-		this.webview.sendMessage({
+		this._sendMessageToWebview({
 			type: 'clearOutput',
+			apiNamespace: outputCache.cachedCreation.apiNamespace,
+			cellUri: outputCache.cell.uri.toString(),
 			id: id
 		});
 		this.insetMapping.delete(output);
@@ -837,7 +600,7 @@ ${loaderJs}
 		let id = outputCache.outputId;
 		this.hiddenInsetMapping.add(output);
 
-		this.webview.sendMessage({
+		this._sendMessageToWebview({
 			type: 'hideOutput',
 			id: id
 		});
@@ -848,7 +611,7 @@ ${loaderJs}
 			return;
 		}
 
-		this.webview.sendMessage({
+		this._sendMessageToWebview({
 			type: 'clear'
 		});
 
@@ -863,7 +626,7 @@ ${loaderJs}
 
 		this.webview.focus();
 		setTimeout(() => { // Need this, or focus decoration is not shown. No clue.
-			this.webview.sendMessage({
+			this._sendMessageToWebview({
 				type: 'focus-output',
 				id: cellId
 			});
@@ -877,7 +640,7 @@ ${loaderJs}
 
 		await this._loaded;
 
-		let resources: string[] = [];
+		let resources: IPreloadResource[] = [];
 		preloads = preloads.map(preload => {
 			if (this.environmentService.isExtensionDevelopment && (preload.scheme === 'http' || preload.scheme === 'https')) {
 				return preload;
@@ -887,7 +650,7 @@ ${loaderJs}
 
 		preloads.forEach(e => {
 			if (!this.preloadsCache.has(e.toString())) {
-				resources.push(e.toString());
+				resources.push({ uri: e.toString() });
 				this.preloadsCache.set(e.toString(), true);
 			}
 		});
@@ -907,7 +670,7 @@ ${loaderJs}
 
 		await this._loaded;
 
-		let resources: string[] = [];
+		let resources: IPreloadResource[] = [];
 		let extensionLocations: URI[] = [];
 		preloads.forEach(preload => {
 			let rendererInfo = this.notebookService.getRendererInfo(preload);
@@ -922,7 +685,7 @@ ${loaderJs}
 				extensionLocations.push(rendererInfo.extensionLocation);
 				preloadResources.forEach(e => {
 					if (!this.preloadsCache.has(e.toString())) {
-						resources.push(e.toString());
+						resources.push({ uri: e.toString() });
 						this.preloadsCache.set(e.toString(), true);
 					}
 				});
@@ -937,17 +700,19 @@ ${loaderJs}
 		this._updatePreloads(resources, 'renderer');
 	}
 
-	private _updatePreloads(resources: string[], source: string) {
+	private _updatePreloads(resources: IPreloadResource[], source: 'renderer' | 'kernel') {
 		const mixedResourceRoots = [...(this.localResourceRootsCache || []), ...this.rendererRootsCache, ...this.kernelRootsCache];
 
 		this.webview.localResourcesRoot = mixedResourceRoots;
 
-		let message: IUpdatePreloadResourceMessage = {
+		this._sendMessageToWebview({
 			type: 'preload',
 			resources: resources,
 			source: source
-		};
+		});
+	}
 
+	private _sendMessageToWebview(message: ToWebviewMessage) {
 		this.webview.sendMessage(message);
 	}
 

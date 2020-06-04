@@ -1162,12 +1162,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: IEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
 
-		// When moving an editor, try to preserve as much view state as possible by checking
-		// for the editor to be a text editor and creating the options accordingly if so
+		// When moving/copying an editor, try to preserve as much view state as possible
+		// by checking for the editor to be a text editor and creating the options accordingly
+		// if so
 		const options = getActiveTextEditorOptions(this, editor, EditorOptions.create({
 			...moveOptions,
-			pinned: true, 							// always pin moved editor
-			sticky: this._group.isSticky(editor)	// preserve sticky state
+			pinned: true, 										// always pin moved editor
+			sticky: !keepCopy && this._group.isSticky(editor)	// preserve sticky state only if editor is moved (https://github.com/microsoft/vscode/issues/99035)
 		}));
 
 		// A move to another group is an open first...
@@ -1509,7 +1510,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Forward to title control
-		this.titleAreaControl.closeEditors(editors);
+		if (editors.length) {
+			this.titleAreaControl.closeEditors(editors);
+		}
 	}
 
 	//#endregion
@@ -1557,7 +1560,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Forward to title control
-		this.titleAreaControl.closeEditors(editorsToClose);
+		if (editorsToClose.length) {
+			this.titleAreaControl.closeEditors(editorsToClose);
+		}
 	}
 
 	//#endregion

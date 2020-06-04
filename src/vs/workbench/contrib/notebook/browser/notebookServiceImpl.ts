@@ -7,8 +7,8 @@ import * as nls from 'vs/nls';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { notebookProviderExtensionPoint, notebookRendererExtensionPoint, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { NotebookProviderInfo, NotebookEditorDescriptor } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookTextModel, INotebookRendererInfo, NotebookDocumentMetadata, ICellDto2, INotebookKernelInfo, CellOutputKind, ITransformedDisplayOutputDto, IDisplayOutput, ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, NOTEBOOK_DISPLAY_ORDER, sortMimeTypes, IOrderedMimeType, mimeTypeSupportedByCore, IOutputRenderRequestOutputInfo, IOutputRenderRequestCellInfo, NotebookCellOutputsSplice, ICellEditOperation, CellEditType, ICellInsertEdit, IOutputRenderResponse, IProcessedOutput, BUILTIN_RENDERER_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -26,12 +26,51 @@ import { basename } from 'vs/base/common/path';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { Memento } from 'vs/workbench/common/memento';
+import { StorageScope, IStorageService } from 'vs/platform/storage/common/storage';
+import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
 }
 
-export class NotebookProviderInfoStore {
+export class NotebookProviderInfoStore implements IDisposable {
+	private static readonly CUSTOM_EDITORS_STORAGE_ID = 'notebookEditors';
+	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
+
+	private readonly _memento: Memento;
+	constructor(storageService: IStorageService) {
+		this._memento = new Memento(NotebookProviderInfoStore.CUSTOM_EDITORS_STORAGE_ID, storageService);
+
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
+		for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
+			this.add(new NotebookProviderInfo(info));
+		}
+	}
+
+	update(extensions: readonly IExtensionPointUser<INotebookEditorContribution[]>[]) {
+		this.clear();
+
+		for (const extension of extensions) {
+			for (const notebookContribution of extension.value) {
+				this.add(new NotebookProviderInfo({
+					id: notebookContribution.viewType,
+					displayName: notebookContribution.displayName,
+					selector: notebookContribution.selector || [],
+					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
+					providerExtensionLocation: extension.description.extensionLocation
+				}));
+			}
+		}
+
+		const mementoObject = this._memento.getMemento(StorageScope.GLOBAL);
+		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this.contributedEditors.values());
+		this._memento.saveMemento();
+	}
+
+	dispose(): void {
+	}
+
 	private readonly contributedEditors = new Map<string, NotebookProviderInfo>();
 
 	clear() {
@@ -101,7 +140,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	private readonly _notebookProviders = new Map<string, { controller: IMainNotebookController, extensionData: NotebookExtensionDescription }>();
 	private readonly _notebookRenderers = new Map<string, INotebookRendererInfo>();
 	private readonly _notebookKernels = new Map<string, INotebookKernelInfo>();
-	notebookProviderInfoStore: NotebookProviderInfoStore = new NotebookProviderInfoStore();
+	notebookProviderInfoStore: NotebookProviderInfoStore;
 	notebookRenderersInfoStore: NotebookOutputRendererInfoStore = new NotebookOutputRendererInfoStore();
 	private readonly _models = new Map<string, ModelData>();
 	private _onDidChangeActiveEditor = new Emitter<string | null>();
@@ -131,26 +170,19 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
 
 		this.modelManager = this.instantiationService.createInstance(NotebookEditorModelManager);
+		this._register(this.modelManager);
+		this.notebookProviderInfoStore = new NotebookProviderInfoStore(this.storageService);
+		this._register(this.notebookProviderInfoStore);
 
 		notebookProviderExtensionPoint.setHandler((extensions) => {
-			this.notebookProviderInfoStore.clear();
+			this.notebookProviderInfoStore.update(extensions);
 
-			for (const extension of extensions) {
-				for (const notebookContribution of extension.value) {
-					this.notebookProviderInfoStore.add(new NotebookProviderInfo({
-						id: notebookContribution.viewType,
-						displayName: notebookContribution.displayName,
-						selector: notebookContribution.selector || [],
-						providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
-						providerExtensionLocation: extension.description.extensionLocation
-					}));
-				}
-			}
 			// console.log(this._notebookProviderInfoStore);
 		});
 

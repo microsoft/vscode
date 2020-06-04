@@ -211,7 +211,7 @@ export class UserDataSyncError extends Error {
 
 	constructor(message: string, public readonly code: UserDataSyncErrorCode, public readonly resource?: SyncResource) {
 		super(message);
-		this.name = `${this.code} (UserDataSyncError) ${this.resource}`;
+		this.name = `${this.code} (UserDataSyncError) ${this.resource || ''}`;
 	}
 
 	static toUserDataSyncError(error: Error): UserDataSyncError {
@@ -360,6 +360,8 @@ export const IUserDataAutoSyncService = createDecorator<IUserDataAutoSyncService
 export interface IUserDataAutoSyncService {
 	_serviceBrand: any;
 	readonly onError: Event<UserDataSyncError>;
+	enable(): void;
+	disable(): void;
 	triggerAutoSync(sources: string[]): Promise<void>;
 }
 

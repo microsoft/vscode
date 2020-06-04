@@ -280,8 +280,8 @@ export class MainThreadWebviews extends Disposable implements extHostProtocol.Ma
 				if (webviewInput.webview.state) {
 					try {
 						state = JSON.parse(webviewInput.webview.state);
-					} catch {
-						// noop
+					} catch (e) {
+						console.error('Could not load webview state', e, webviewInput.webview.state);
 					}
 				}
 

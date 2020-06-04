@@ -161,7 +161,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 				return actions;
 			},
-			getContextMenuActionsForComposite: () => [],
+			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
@@ -180,6 +180,31 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	focusActivityBar(): void {
 		this.compositeBar.focus();
+	}
+
+	private getContextMenuActionsForComposite(compositeId: string): Action[] {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
+
+		const actions = [];
+		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
+		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
+			actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation);
+			}));
+		} else {
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			if (viewContainerModel.allViewDescriptors.length === 1) {
+				const viewToReset = viewContainerModel.allViewDescriptors[0];
+				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
+				if (defaultContainer !== viewContainer) {
+					actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
+						this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer);
+					}));
+				}
+			}
+		}
+
+		return actions;
 	}
 
 	private registerListeners(): void {

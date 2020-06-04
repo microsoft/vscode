@@ -13,7 +13,16 @@ export interface NotebookSelector {
 	readonly excludeFileNamePattern?: string;
 }
 
-export class NotebookProviderInfo {
+export interface NotebookEditorDescriptor {
+	readonly id: string;
+	readonly displayName: string;
+	readonly selector: readonly NotebookSelector[];
+	readonly providerDisplayName: string;
+	readonly providerExtensionLocation: URI;
+	kernel?: INotebookKernelInfoDto;
+}
+
+export class NotebookProviderInfo implements NotebookEditorDescriptor {
 
 	readonly id: string;
 	readonly displayName: string;
@@ -22,13 +31,7 @@ export class NotebookProviderInfo {
 	readonly providerExtensionLocation: URI;
 	kernel?: INotebookKernelInfoDto;
 
-	constructor(descriptor: {
-		readonly id: string;
-		readonly displayName: string;
-		readonly selector: readonly NotebookSelector[];
-		readonly providerDisplayName: string;
-		readonly providerExtensionLocation: URI;
-	}) {
+	constructor(descriptor: NotebookEditorDescriptor) {
 		this.id = descriptor.id;
 		this.displayName = descriptor.displayName;
 		this.selector = descriptor.selector;

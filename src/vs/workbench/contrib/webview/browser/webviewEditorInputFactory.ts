@@ -126,6 +126,8 @@ function reviveIconPath(data: SerializedIconPath | undefined) {
 	return light && dark ? { light, dark } : undefined;
 }
 
+function reviveUri(data: string | UriComponents): URI;
+function reviveUri(data: string | UriComponents | undefined): URI | undefined;
 function reviveUri(data: string | UriComponents | undefined): URI | undefined {
 	if (!data) {
 		return undefined;
@@ -148,6 +150,6 @@ function reviveState(state: unknown | undefined): undefined | string {
 function reviveOptions(options: WebviewInputOptions): WebviewInputOptions {
 	return {
 		...options,
-		localResourceRoots: options.localResourceRoots?.map(components => URI.from(components)),
+		localResourceRoots: options.localResourceRoots?.map(uri => reviveUri(uri)),
 	};
 }

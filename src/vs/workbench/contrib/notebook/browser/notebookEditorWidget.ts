@@ -25,7 +25,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, editorBackground, focusBorder, foreground, registerColor, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, errorForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditorMemento } from 'vs/workbench/common/editor';
@@ -42,13 +42,13 @@ import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewStat
 import { CellKind, IProcessedOutput, INotebookKernelInfo, INotebookKernelInfoDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { URI } from 'vs/base/common/uri';
+import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugToolBar';
 
 const $ = DOM.$;
@@ -404,6 +404,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							...selection,
 							endLineNumber: selection.endLineNumber || selection.startLineNumber,
 							endColumn: selection.endColumn || selection.startColumn
+						});
+						editor.revealPositionInCenterIfOutsideViewport({
+							lineNumber: selection.startLineNumber,
+							column: selection.startColumn
 						});
 					}
 					if (!cellOptions.options?.preserveFocus) {
@@ -896,6 +900,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
+		if (!cell.metadata?.editable) {
+			return null;
+		}
+
 		let splitPoints = cell.getSelectionsStartPosition();
 		if (splitPoints && splitPoints.length > 0) {
 			await cell.resolveTextModel();
@@ -932,6 +940,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
+		if (!cell.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
+			return null;
+		}
+
 		if (constraint && cell.cellKind !== constraint) {
 			return null;
 		}
@@ -948,6 +960,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (direction === 'above') {
 			const above = this.notebookViewModel!.viewCells[index - 1];
 			if (constraint && above.cellKind !== constraint) {
+				return null;
+			}
+
+			if (!above.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
 				return null;
 			}
 
@@ -968,6 +984,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			const below = this.notebookViewModel!.viewCells[index + 1];
 			if (constraint && below.cellKind !== constraint) {
+				return null;
+			}
+
+			if (below.metadata && !below.metadata.editable) {
 				return null;
 			}
 
@@ -1073,10 +1093,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		cell.editState = CellEditState.Editing;
 
 		this.renderedEditors.get(cell)?.focus();
-	}
-
-	saveNotebookCell(cell: ICellViewModel): void {
-		cell.editState = CellEditState.Preview;
 	}
 
 	getActiveCell() {
@@ -1320,7 +1336,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 }
 
-const embeddedEditorBackground = 'walkThrough.embeddedEditorBackground';
+export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
+	dark: transparent(PANEL_BORDER, .6),
+	light: transparent(PANEL_BORDER, .4),
+	hc: PANEL_BORDER
+}, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
 export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {
 	light: new Color(new RGBA(102, 175, 224)),
@@ -1347,8 +1367,8 @@ export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.fo
 }, nls.localize('notebookStatusRunningIcon.foreground', "The running icon color of notebook cells in the cell status bar."));
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
-	dark: new Color(new RGBA(255, 255, 255, 0.06)),
-	light: new Color(new RGBA(237, 239, 249)),
+	dark: notebookCellBorder,
+	light: notebookCellBorder,
 	hc: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
@@ -1371,7 +1391,8 @@ registerThemingParticipant((theme, collector) => {
 		box-sizing: border-box;
 	}`);
 
-	const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
+	// const color = getExtraColor(theme, embeddedEditorBackground, { dark: 'rgba(0, 0, 0, .4)', extra_dark: 'rgba(200, 235, 255, .064)', light: '#f4f4f4', hc: null });
+	const color = theme.getColor(editorBackground);
 	if (color) {
 		collector.addRule(`.notebookOverlay .cell .monaco-editor-background,
 			.notebookOverlay .cell .margin-view-overlays,
@@ -1433,6 +1454,16 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .monaco-list-row .notebook-cell-focus-indicator { border-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay > .cell-list-container > .cell-list-insertion-indicator { background-color: ${focusedCellIndicatorColor}; }`);
 		collector.addRule(`.notebookOverlay .monaco-list-row.cell-editor-focus .cell-editor-part:before { outline: solid 1px ${focusedCellIndicatorColor}; }`);
+	}
+
+	const editorBorderColor = theme.getColor(notebookCellBorder);
+	if (editorBorderColor) {
+		collector.addRule(`.notebookOverlay .monaco-list-row .cell-editor-part:before { outline: solid 1px ${editorBorderColor}; }`);
+	}
+
+	const headingBorderColor = theme.getColor(notebookCellBorder);
+	if (headingBorderColor) {
+		collector.addRule(`.notebookOverlay .cell.markdown h1 { border-color: ${headingBorderColor}; }`);
 	}
 
 	const cellStatusSuccessIcon = theme.getColor(cellStatusIconSuccess);

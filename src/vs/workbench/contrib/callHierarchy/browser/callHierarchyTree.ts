@@ -154,7 +154,7 @@ export class AccessibilityProvider implements IListAccessibilityProvider<Call> {
 		if (this.getDirection() === CallHierarchyDirection.CallsFrom) {
 			return localize('from', "calls from {0}", element.item.name);
 		} else {
-			return localize('to', "callers fo {0}", element.item.name);
+			return localize('to', "callers of {0}", element.item.name);
 		}
 	}
 }

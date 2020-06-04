@@ -14,7 +14,7 @@ namespace NotebookEditorContribution {
 	export const selector = 'selector';
 }
 
-interface INotebookEditorContribution {
+export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.viewType]: string;
 	readonly [NotebookEditorContribution.displayName]: string;
 	readonly [NotebookEditorContribution.selector]?: readonly NotebookSelector[];

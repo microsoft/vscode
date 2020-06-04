@@ -6,13 +6,13 @@
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, toggleClass, addClass, $, EventHelper } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, toggleClass, addClass, $, EventHelper, addDisposableGenericMouseDownListner } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce } from 'vs/base/common/arrays';
 import { IEditorGroupsAccessor, IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions } from 'vs/workbench/browser/parts/editor/editor';
@@ -149,7 +149,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		this.gridWidgetView = new GridWidgetView<IEditorGroupView>();
 
-		this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
+		this._partOptions = getEditorPartOptions(this.configurationService, this.themeService);
 
 		this.workspaceMemento = this.getMemento(StorageScope.WORKSPACE);
 		this.globalMemento = this.getMemento(StorageScope.GLOBAL);
@@ -161,6 +161,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
+		this._register(this.themeService.onDidFileIconThemeChange(() => this.handleChangedPartOptions()));
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
@@ -171,7 +172,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 	private handleChangedPartOptions(): void {
 		const oldPartOptions = this._partOptions;
-		const newPartOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
+		const newPartOptions = getEditorPartOptions(this.configurationService, this.themeService);
 
 		this.enforcedPartOptions.forEach(enforcedPartOptions => {
 			Object.assign(newPartOptions, enforcedPartOptions); // check for overrides
@@ -829,6 +830,11 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		const overlay = document.createElement('div');
 		addClass(overlay, 'drop-block-overlay');
 		parent.appendChild(overlay);
+
+		// Hide the block if a mouse down event occurs #99065
+		this._register(addDisposableGenericMouseDownListner(overlay, e => {
+			toggleClass(overlay, 'visible', false);
+		}));
 
 		this._register(CompositeDragAndDropObserver.INSTANCE.registerTarget(this.element, {
 			onDragStart: e => {

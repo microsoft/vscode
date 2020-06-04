@@ -300,7 +300,14 @@ export enum NotebookCellsChangeType {
 	Move = 2,
 	CellClearOutput = 3,
 	CellsClearOutput = 4,
-	ChangeLanguage = 5
+	ChangeLanguage = 5,
+	Initialize = 6
+}
+
+export interface NotebookCellsInitializeEvent {
+	readonly kind: NotebookCellsChangeType.Initialize;
+	readonly changes: NotebookCellsSplice2[];
+	readonly versionId: number;
 }
 
 export interface NotebookCellsModelChangedEvent {
@@ -334,7 +341,7 @@ export interface NotebookCellsChangeLanguageEvent {
 	readonly language: string;
 }
 
-export type NotebookCellsChangedEvent = NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
+export type NotebookCellsChangedEvent = NotebookCellsInitializeEvent | NotebookCellsModelChangedEvent | NotebookCellsModelMoveEvent | NotebookCellClearOutputEvent | NotebookCellsClearOutputEvent | NotebookCellsChangeLanguageEvent;
 export enum CellEditType {
 	Insert = 1,
 	Delete = 2
@@ -378,11 +385,12 @@ export interface NotebookDataDto {
 export namespace CellUri {
 
 	export const scheme = 'vscode-notebook-cell';
+	const _regex = /^\d{7,}/;
 
 	export function generate(notebook: URI, handle: number): URI {
 		return notebook.with({
 			scheme,
-			fragment: `${handle}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
+			fragment: `${handle.toString().padStart(7, '0')}${notebook.scheme !== Schemas.file ? notebook.scheme : ''}`
 		});
 	}
 
@@ -390,14 +398,15 @@ export namespace CellUri {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
-		const handle = parseInt(cell.fragment);
-		if (isNaN(handle)) {
+		const match = _regex.exec(cell.fragment);
+		if (!match) {
 			return undefined;
 		}
+		const handle = Number(match[0]);
 		return {
 			handle,
 			notebook: cell.with({
-				scheme: cell.fragment.substr(handle.toString().length) || Schemas.file,
+				scheme: cell.fragment.substr(match[0].length) || Schemas.file,
 				fragment: null
 			})
 		};

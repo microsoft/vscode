@@ -96,7 +96,11 @@ export class NotebookEditor extends BaseEditor {
 			this.saveEditorViewState(this.input);
 		}
 
-		this._widget?.onWillHide();
+		if (this.input && NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput) === this._widget) {
+			// the widget is not transfered to other editor inputs
+			this._widget?.onWillHide();
+		}
+
 		super.onWillHide();
 	}
 
@@ -137,6 +141,9 @@ export class NotebookEditor extends BaseEditor {
 			// make sure the editor widget is removed from the view
 			const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(this.input as NotebookEditorInput);
 			if (existingEditorWidgetForInput) {
+				// the editor widget is only referenced by the editor input
+				// clear its state
+				existingEditorWidgetForInput?.onWillHide();
 				existingEditorWidgetForInput?.getDomNode().remove();
 				existingEditorWidgetForInput?.dispose();
 				NotebookRegistry.releaseNotebookEditorWidget(this.input as NotebookEditorInput);
@@ -147,8 +154,12 @@ export class NotebookEditor extends BaseEditor {
 
 		const existingEditorWidgetForInput = NotebookRegistry.getNotebookEditorWidget(input);
 		if (existingEditorWidgetForInput) {
-			// hide current widget
-			this._widget?.onWillHide();
+			// hide previous widget
+			if (NotebookRegistry.getNotebookEditorWidget(this.input! as NotebookEditorInput) === this._widget) {
+				// the widet is not transfered to other editor inputs
+				this._widget?.onWillHide();
+			}
+
 			// previous widget is then detached
 			// set the new one
 			this._widget = existingEditorWidgetForInput;
@@ -204,7 +215,7 @@ export class NotebookEditor extends BaseEditor {
 			return;
 		}
 
-		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString()) {
+		if (this._input.resource?.toString() !== this._widget?.viewModel?.uri.toString() && this._widget?.viewModel) {
 			// input and widget mismatch
 			// this happens when
 			// 1. open document A, pin the document
