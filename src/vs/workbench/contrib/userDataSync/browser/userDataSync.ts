@@ -298,7 +298,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				this.disableSync();
 				this.notificationService.notify({
 					severity: Severity.Error,
-					message: localize('error upgrade required', "Preferences sync is disabled because the current version ({0}, {1}) of is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit),
+					message: localize('error upgrade required', "Preferences sync is disabled because the current version ({0}, {1}) is not compatible with the sync service. Please update before turning on sync.", this.productService.version, this.productService.commit),
 				});
 				return true;
 		}
