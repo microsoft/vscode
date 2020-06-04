@@ -498,10 +498,6 @@ export class CustomEditorContribution extends Disposable implements IWorkbenchCo
 		}
 
 		if (id) {
-			if (editor instanceof FileEditorInput && id === defaultCustomEditor.id) {
-				return undefined;
-			}
-
 			return {
 				override: this.customEditorService.openWith(resource, id, { ...options, ignoreOverrides: true }, group)
 			};
