@@ -229,6 +229,10 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 			this._removeNotebookEditor(editors);
 		}));
 
+		this._register(this._notebookService.onNotebookDocumentAdd(() => {
+			this._updateState();
+		}));
+
 		this._register(this._notebookService.onNotebookDocumentRemove(() => {
 			this._updateState();
 		}));
@@ -318,9 +322,7 @@ export class MainThreadNotebooks extends Disposable implements MainThreadNoteboo
 
 		const documents = new Set<NotebookTextModel>();
 		this._notebookService.listNotebookDocuments().forEach(document => {
-			if (documentEditorsMap.has(document.uri.toString())) {
-				documents.add(document);
-			}
+			documents.add(document);
 		});
 
 		if (!activeEditor && focusedNotebookEditor && focusedNotebookEditor.hasModel()) {

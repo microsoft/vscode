@@ -151,6 +151,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
 	private readonly _onNotebookEditorsRemove: Emitter<INotebookEditor[]> = this._register(new Emitter<INotebookEditor[]>());
 	public readonly onNotebookEditorsRemove: Event<INotebookEditor[]> = this._onNotebookEditorsRemove.event;
+	private readonly _onNotebookDocumentAdd: Emitter<URI[]> = this._register(new Emitter<URI[]>());
+	public readonly onNotebookDocumentAdd: Event<URI[]> = this._onNotebookDocumentAdd.event;
 	private readonly _onNotebookDocumentRemove: Emitter<URI[]> = this._register(new Emitter<URI[]>());
 	public readonly onNotebookDocumentRemove: Event<URI[]> = this._onNotebookDocumentRemove.event;
 	private readonly _notebookEditors = new Map<string, INotebookEditor>();
@@ -338,6 +340,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			(model) => this._onWillDisposeDocument(model),
 		);
 		this._models.set(modelId, modelData);
+		this._onNotebookDocumentAdd.fire([notebookModel.uri]);
 		return modelData.model;
 	}
 
@@ -348,6 +351,10 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		const notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId);
+		if (!notebookModel) {
+			return undefined;
+		}
+
 		await this.transformTextModelOutputs(notebookModel!);
 
 		// new notebook model created
@@ -358,6 +365,7 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		);
 
 		this._models.set(modelId, modelData);
+		this._onNotebookDocumentAdd.fire([notebookModel!.uri]);
 		return modelData.model;
 	}
 

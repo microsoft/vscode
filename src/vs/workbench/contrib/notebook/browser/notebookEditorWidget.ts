@@ -1211,6 +1211,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
+		if (this._isDisposed) {
+			return;
+		}
+
 		if (focusItem === 'editor') {
 			this.selectElement(cell);
 			this.list?.focusView();
