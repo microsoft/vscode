@@ -358,7 +358,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	onWillHide() {
 		this.editorFocus?.set(false);
 		this.overlayContainer.style.visibility = 'hidden';
-		this.overlayContainer.style.display = 'none';
+		this.overlayContainer.style.left = '-50000px';
 	}
 
 	getInnerWebview(): Webview | undefined {
