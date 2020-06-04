@@ -48,7 +48,11 @@ class UnusualLineTerminatorsDetector extends Disposable implements IEditorContri
 			this._checkForUnusualLineTerminators();
 		}));
 
-		this._register(this._editor.onDidChangeModelContent(() => {
+		this._register(this._editor.onDidChangeModelContent((e) => {
+			if (e.isUndoing) {
+				// skip checking in case of undoing
+				return;
+			}
 			this._checkForUnusualLineTerminators();
 		}));
 	}
