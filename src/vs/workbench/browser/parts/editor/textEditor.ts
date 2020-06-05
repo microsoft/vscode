@@ -44,10 +44,18 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 	private lastAppliedEditorOptions?: IEditorOptions;
 	private editorMemento: IEditorMemento<IEditorViewState>;
 
+	private _instantiationService: IInstantiationService;
+	protected get instantiationService(): IInstantiationService {
+		return this._instantiationService;
+	}
+	protected set instantiationService(value: IInstantiationService) {
+		this._instantiationService = value;
+	}
+
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService protected readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
@@ -55,6 +63,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditorPa
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService
 	) {
 		super(id, telemetryService, themeService, storageService);
+		this._instantiationService = instantiationService;
 
 		this.editorMemento = this.getEditorMemento<IEditorViewState>(editorGroupService, BaseTextEditor.TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
