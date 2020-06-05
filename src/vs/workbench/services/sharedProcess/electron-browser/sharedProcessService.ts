@@ -15,7 +15,7 @@ import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron
 
 export class SharedProcessService implements ISharedProcessService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private withSharedProcessConnection: Promise<Client<string>>;
 	private sharedProcessMainChannel: IChannel;

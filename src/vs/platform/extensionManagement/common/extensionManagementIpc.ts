@@ -77,7 +77,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 
 export class ExtensionManagementChannelClient implements IExtensionManagementService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		private readonly channel: IChannel,

@@ -98,7 +98,7 @@ const PyModulesToLookFor = [
 ];
 
 export class WorkspaceTagsService implements IWorkspaceTagsService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private _tags: Tags | undefined;
 
 	constructor(

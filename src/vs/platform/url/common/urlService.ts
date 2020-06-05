@@ -12,7 +12,7 @@ import product from 'vs/platform/product/common/product';
 
 export abstract class AbstractURLService extends Disposable implements IURLService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private handlers = new Set<IURLHandler>();
 

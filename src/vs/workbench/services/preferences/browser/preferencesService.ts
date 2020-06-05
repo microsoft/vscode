@@ -46,7 +46,7 @@ const emptyEditableSettingsContent = '{\n}';
 
 export class PreferencesService extends Disposable implements IPreferencesService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private lastOpenedSettingsInput: PreferencesEditorInput | null = null;
 

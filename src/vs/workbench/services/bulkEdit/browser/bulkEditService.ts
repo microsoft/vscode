@@ -377,7 +377,7 @@ class BulkEdit {
 
 export class BulkEditService implements IBulkEditService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _previewHandler?: IBulkEditPreviewHandler;
 

@@ -368,7 +368,7 @@ class EditStackSnapshot {
 }
 
 export class UndoRedoService implements IUndoRedoService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _editStacks: Map<string, ResourceEditStack>;
 	private readonly _uriComparisonKeyComputers: UriComparisonKeyComputer[];

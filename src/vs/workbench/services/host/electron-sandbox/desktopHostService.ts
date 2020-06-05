@@ -14,7 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 
 export class DesktopHostService extends Disposable implements IHostService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IElectronService private readonly electronService: IElectronService,

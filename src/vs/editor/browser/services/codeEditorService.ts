@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
 export interface ICodeEditorService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly onCodeEditorAdd: Event<ICodeEditor>;
 	readonly onCodeEditorRemove: Event<ICodeEditor>;

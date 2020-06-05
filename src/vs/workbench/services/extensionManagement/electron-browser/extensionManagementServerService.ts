@@ -24,7 +24,7 @@ const localExtensionManagementServerAuthority: string = 'vscode-local';
 
 export class ExtensionManagementServerService implements IExtensionManagementServerService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	readonly localExtensionManagementServer: IExtensionManagementServer;
 	readonly remoteExtensionManagementServer: IExtensionManagementServer | null = null;
