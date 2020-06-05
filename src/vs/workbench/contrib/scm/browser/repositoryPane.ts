@@ -75,6 +75,7 @@ import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -683,7 +684,7 @@ export class ToggleViewModeAction extends Action {
 }
 
 export class RepositoryPane extends ViewPane {
-	private readonly defaultInputFontFamily = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif';
+	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
