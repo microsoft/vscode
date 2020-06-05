@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { coalesce, distinct } from 'vs/base/common/arrays';
+import { Schemas } from 'vs/base/common/network';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
@@ -24,17 +26,17 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput, Extensions as EditorInputExtensions, IEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CustomEditorsAssociations, customEditorsAssociationsSettingId } from 'vs/workbench/services/editor/common/editorAssociationsSetting';
-import { coalesce, distinct } from 'vs/base/common/arrays';
 import { CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -70,42 +72,73 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	]
 );
 
+class NotebookEditorFactory implements IEditorInputFactory {
+	canSerialize(): boolean {
+		return true;
+	}
+	serialize(input: EditorInput): string {
+		assertType(input instanceof NotebookEditorInput);
+		return JSON.stringify({
+			resource: input.resource,
+			name: input.name,
+			viewType: input.viewType,
+			group: input.group
+		});
+	}
+	deserialize(instantiationService: IInstantiationService, raw: string) {
+		type Data = { resource: URI, name: string, viewType: string, group: number };
+		const data = <Data>parse(raw);
+		if (!data) {
+			return undefined;
+		}
+		const { resource, name, viewType } = data;
+		if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
+			return undefined;
+		}
+
+		// if we have two editors open with the same resource (in different editor groups), we should then create two different
+		// editor inputs, instead of `getOrCreate`.
+		const input = NotebookEditorInput.create(instantiationService, resource, name, viewType);
+		if (typeof data.group === 'number') {
+			input.updateGroup(data.group);
+		}
+
+		return input;
+	}
+
+	static async createCustomEditorInput(resource: URI, instantiationService: IInstantiationService): Promise<NotebookEditorInput> {
+		return instantiationService.invokeFunction(async accessor => {
+			const backupFileService = accessor.get<IBackupFileService>(IBackupFileService);
+
+			const backup = await backupFileService.resolve<NotebookDocumentBackupData>(resource);
+			if (!backup?.meta) {
+				throw new Error(`No backup found for Notebook editor: ${resource}`);
+			}
+
+			const input = NotebookEditorInput.create(instantiationService, resource, backup.meta.name, backup.meta.viewType, { startDirty: true });
+			return input;
+		});
+	}
+
+	static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+		if (editorInput instanceof NotebookEditorInput) {
+			if (isEqual(editorInput.resource.with({ scheme: Schemas.vscodeNotebook }), backupResource)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
+
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputFactory(
 	NotebookEditorInput.ID,
-	class implements IEditorInputFactory {
-		canSerialize(): boolean {
-			return true;
-		}
-		serialize(input: EditorInput): string {
-			assertType(input instanceof NotebookEditorInput);
-			return JSON.stringify({
-				resource: input.resource,
-				name: input.name,
-				viewType: input.viewType,
-				group: input.group
-			});
-		}
-		deserialize(instantiationService: IInstantiationService, raw: string) {
-			type Data = { resource: URI, name: string, viewType: string, group: number };
-			const data = <Data>parse(raw);
-			if (!data) {
-				return undefined;
-			}
-			const { resource, name, viewType } = data;
-			if (!data || !URI.isUri(resource) || typeof name !== 'string' || typeof viewType !== 'string') {
-				return undefined;
-			}
+	NotebookEditorFactory
+);
 
-			// if we have two editors open with the same resource (in different editor groups), we should then create two different
-			// editor inputs, instead of `getOrCreate`.
-			const input = NotebookEditorInput.create(instantiationService, resource, name, viewType);
-			if (typeof data.group === 'number') {
-				input.updateGroup(data.group);
-			}
-
-			return input;
-		}
-	}
+Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerCustomEditorInputFactory(
+	Schemas.vscodeNotebook,
+	NotebookEditorFactory
 );
 
 function getFirstNotebookInfo(notebookService: INotebookService, uri: URI): NotebookProviderInfo | undefined {
@@ -227,7 +260,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 				// Create a copy of the input.
 				// Unlike normal editor inputs, we do not want to share custom editor inputs
 				// between multiple editors / groups.
-				const copiedInput = this.instantiationService.createInstance(NotebookEditorInput, originalInput.resource, originalInput.name, originalInput.viewType);
+				const copiedInput = NotebookEditorInput.create(this.instantiationService, originalInput.resource, originalInput.name, originalInput.viewType);
 				copiedInput.updateGroup(group.id);
 
 				if (context === OpenEditorContext.MOVE_EDITOR) {

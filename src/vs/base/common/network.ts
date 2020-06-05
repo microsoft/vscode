@@ -56,6 +56,8 @@ export namespace Schemas {
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
 
+	export const vscodeNotebook = 'vscode-notebook';
+
 	export const vscodeSettings = 'vscode-settings';
 
 	export const webviewPanel = 'webview-panel';

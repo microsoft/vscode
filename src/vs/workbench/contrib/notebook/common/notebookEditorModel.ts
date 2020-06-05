@@ -5,7 +5,7 @@
 
 import { EditorModel, IRevertOptions } from 'vs/workbench/common/editor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookEditorModel, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
@@ -17,6 +17,7 @@ import { basename } from 'vs/base/common/resources';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { DefaultEndOfLine, ITextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
+import { Schemas } from 'vs/base/common/network';
 
 export interface INotebookEditorModelManager {
 	models: NotebookEditorModel[];
@@ -66,7 +67,7 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 		super();
 
 		const input = this;
-		this._workingCopyResource = resource.with({ scheme: 'vscode-notebook' });
+		this._workingCopyResource = resource.with({ scheme: Schemas.vscodeNotebook });
 		const workingCopyAdapter = new class implements IWorkingCopy {
 			readonly resource = input._workingCopyResource;
 			get name() { return input.name; }
@@ -84,8 +85,14 @@ export class NotebookEditorModel extends EditorModel implements IWorkingCopy, IN
 
 	capabilities = 0;
 
-	async backup(): Promise<IWorkingCopyBackup> {
-		return { content: this._notebook.createSnapshot(true) };
+	async backup(): Promise<IWorkingCopyBackup<NotebookDocumentBackupData>> {
+		return {
+			meta: {
+				name: this._name,
+				viewType: this._notebook.viewType
+			},
+			content: this._notebook.createSnapshot(true)
+		};
 	}
 
 	async revert(options?: IRevertOptions | undefined): Promise<void> {

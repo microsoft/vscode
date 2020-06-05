@@ -124,4 +124,8 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 			return editor;
 		});
 	}
+
+	public static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+		return false;
+	}
 }
