@@ -97,7 +97,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					cwd: args.cwd,
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
 				};
-				delete args.cwd;
+				delete (args as any).cwd; // TODO: remove this any cast
 				this._integratedTerminalInstance = this._terminalService.createTerminalFromOptions(options);
 			}
 
