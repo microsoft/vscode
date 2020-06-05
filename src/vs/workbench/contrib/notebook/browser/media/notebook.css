@@ -128,7 +128,7 @@
 
 .monaco-workbench .notebookOverlay .output > div.foreground .output-stream,
 .monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 	white-space: pre-wrap;
 }
 
@@ -306,7 +306,7 @@
 	position: absolute;
 	top: 2px;
 	font-size: 10px;
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 	visibility: visible;
 	white-space: pre;
 	width: 100%;
@@ -569,7 +569,7 @@
 }
 
 .monaco-workbench .notebookOverlay .cell.markdown code {
-	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-family: var(--monaco-monospace-font);
 	font-size: 1em;
 	line-height: 1.357em;
 }
