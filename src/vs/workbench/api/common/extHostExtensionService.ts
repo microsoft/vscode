@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import { originalFSPath, joinPath } from 'vs/base/common/resources';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
@@ -426,41 +426,44 @@ export abstract class AbstractExtHostExtensionService implements ExtHostExtensio
 
 	// -- eager activation
 
-	// Handle "eager" activation extensions
-	private _handleEagerExtensions(): Promise<void> {
-		this._activateByEvent('*', true).then(undefined, (err) => {
+	private _activateOneStartupFinished(desc: IExtensionDescription, activationEvent: string): void {
+		this._activateById(desc.identifier, {
+			startup: false,
+			extensionId: desc.identifier,
+			activationEvent: activationEvent
+		}).then(undefined, (err) => {
 			this._logService.error(err);
 		});
+	}
 
+	private _activateAllStartupFinished(): void {
 		for (const desc of this._registry.getAllExtensionDescriptions()) {
 			if (desc.activationEvents) {
 				for (const activationEvent of desc.activationEvents) {
-					if (/^onStartup:/.test(activationEvent)) {
-						const strTime = activationEvent.substr('onStartup:'.length);
-						const time = parseInt(strTime, 10);
-						if (!isNaN(time)) {
-							this._activateDelayed(desc, activationEvent, time);
-						}
+					if (activationEvent === 'onStartupFinished') {
+						this._activateOneStartupFinished(desc, activationEvent);
 					}
 				}
 			}
 		}
+	}
+
+	// Handle "eager" activation extensions
+	private _handleEagerExtensions(): Promise<void> {
+		const starActivation = this._activateByEvent('*', true).then(undefined, (err) => {
+			this._logService.error(err);
+		});
 
 		this._disposables.add(this._extHostWorkspace.onDidChangeWorkspace((e) => this._handleWorkspaceContainsEagerExtensions(e.added)));
 		const folders = this._extHostWorkspace.workspace ? this._extHostWorkspace.workspace.folders : [];
-		return this._handleWorkspaceContainsEagerExtensions(folders);
-	}
+		const workspaceContainsActivation = this._handleWorkspaceContainsEagerExtensions(folders);
+		const eagerExtensionsActivation = Promise.all([starActivation, workspaceContainsActivation]).then(() => { });
 
-	private _activateDelayed(desc: IExtensionDescription, activationEvent: string, delayMs: number): void {
-		setTimeout(() => {
-			this._activateById(desc.identifier, {
-				startup: true,
-				extensionId: desc.identifier,
-				activationEvent: activationEvent
-			}).then(undefined, (err) => {
-				this._logService.error(err);
-			});
-		}, delayMs);
+		Promise.race([eagerExtensionsActivation, timeout(10000)]).then(() => {
+			this._activateAllStartupFinished();
+		});
+
+		return eagerExtensionsActivation;
 	}
 
 	private _handleWorkspaceContainsEagerExtensions(folders: ReadonlyArray<vscode.WorkspaceFolder>): Promise<void> {

@@ -831,10 +831,10 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			markdownDescription: nls.localize('search.searchEditor.reusePriorSearchConfiguration', "When enabled, new Search Editors will reuse the includes, excludes, and flags of the previously opened Search Editor")
 		},
-		'search.searchEditor.defaultShowContextValue': {
+		'search.searchEditor.defaultNumberOfContextLines': {
 			type: ['number', 'null'],
 			default: null,
-			markdownDescription: nls.localize('search.searchEditor.defaultShowContextValue', "The default number of surrounding context lines to show in Search Editor results. If defined, this overrides `#search.searchEditor.reusePriorSearchConfiguration#` for context line configuration in new Search Editors.")
+			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors with `Search Editor: Open new Search Editor` and `Search Editor: Open new Search Editor to the Side`. If defined, this overrides `#search.searchEditor.reusePriorSearchConfiguration#`.")
 		},
 		'search.sortOrder': {
 			'type': 'string',

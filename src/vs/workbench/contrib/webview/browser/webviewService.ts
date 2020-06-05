@@ -7,7 +7,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWebviewService, WebviewContentOptions, WebviewOverlay, WebviewElement, WebviewIcons, WebviewOptions, WebviewExtensionDescription } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/common/themeing';
+import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { DynamicWebviewEditorOverlay } from './dynamicWebviewEditorOverlay';
 import { WebviewIconManager } from './webviewIconManager';
 

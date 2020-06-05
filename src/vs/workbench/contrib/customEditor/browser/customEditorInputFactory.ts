@@ -57,11 +57,12 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 	}
 
 	public serialize(input: CustomEditorInput): string | undefined {
+		const dirty = input.isDirty();
 		const data: SerializedCustomEditor = {
 			...this.toJson(input),
 			editorResource: input.resource.toJSON(),
-			dirty: input.isDirty(),
-			backupId: input.backupId,
+			dirty,
+			backupId: dirty ? input.backupId : undefined,
 		};
 
 		try {
