@@ -6,7 +6,7 @@
 import { lstat, Stats } from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, QuickPick } from 'vscode';
+import { commands, Disposable, LineChange, MessageOptions, OutputChannel, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, QuickPick, debug } from 'vscode';
 import TelemetryReporter from 'vscode-extension-telemetry';
 import * as nls from 'vscode-nls';
 import { Branch, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourceProvider, RemoteSource } from './api/git';
@@ -68,6 +68,11 @@ class CheckoutRemoteHeadItem extends CheckoutItem {
 			await repository.checkoutTracking(this.ref.name);
 		}
 	}
+}
+
+interface RefTypeAndCheckoutItem {
+	refType: RefType;
+	checkoutItemCtor: { new(ref: Ref): CheckoutItem; };
 }
 
 class BranchDeleteItem implements QuickPickItem {
@@ -203,35 +208,37 @@ async function categorizeResourceByResolution(resources: Resource[]): Promise<{ 
 
 function createCheckoutItems(repository: Repository): CheckoutItem[] {
 	const config = workspace.getConfiguration('git');
-	const checkoutType = config.get<string>('checkoutType') || 'local,remote,tags';
-	const checkoutTypes = checkoutType.trim().split(',').map(type => type.trim());
+	const checkoutTypeString = config.get<string>('checkoutType');
+
+	const checkoutTypeOptions = ['local', 'remote', 'tags'];
+	const checkoutTypes = checkoutTypeString?.trim().split(',').map(type => type.trim()).filter(type => checkoutTypeOptions.includes(type));
 
 	const results: CheckoutItem[] = [];
-	const invalids = new Set<string>();
 	const seens = new Set<string>();
-	checkoutTypes.forEach(type => {
+	(checkoutTypes && checkoutTypes.length ? checkoutTypes : checkoutTypeOptions).forEach(type => {
 		if (seens.has(type)) {
 			return;
 		}
 		seens.add(type);
 
-		switch (type) {
-			case 'local':
-				results.push(...repository.refs.filter(ref => ref.type === RefType.Head).map(ref => new CheckoutItem(ref)));
-				break;
-			case 'remote':
-				results.push(...repository.refs.filter(ref => ref.type === RefType.RemoteHead).map(ref => new CheckoutRemoteHeadItem(ref)));
-				break;
-			case 'tags':
-				results.push(...repository.refs.filter(ref => ref.type === RefType.Tag).map(ref => new CheckoutTagItem(ref)));
-				break;
-			default:
-				invalids.add(type);
-				break;
-		}
+		const { refType, checkoutItemCtor } = getRefTypeAndCheckoutItem(type);
+		results.push(...repository.refs.filter(ref => ref.type === refType).map(ref => new checkoutItemCtor(ref)));
 	});
 
 	return results;
+}
+
+function getRefTypeAndCheckoutItem(type: string): RefTypeAndCheckoutItem {
+	switch (type) {
+		case 'local':
+			return { refType: RefType.Head, checkoutItemCtor: CheckoutItem };
+		case 'remote':
+			return { refType: RefType.RemoteHead, checkoutItemCtor: CheckoutRemoteHeadItem };
+		case 'tags':
+			return { refType: RefType.Tag, checkoutItemCtor: CheckoutTagItem };
+		default:
+			throw new Error(`Unexpected type: ${type}`);
+	}
 }
 
 function sanitizeRemoteName(name: string) {
