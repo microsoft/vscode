@@ -36,6 +36,7 @@ export interface INotebookService {
 	onNotebookEditorAdd: Event<IEditor>;
 	onNotebookEditorsRemove: Event<IEditor[]>;
 	onNotebookDocumentRemove: Event<URI[]>;
+	onNotebookDocumentAdd: Event<URI[]>;
 	onDidChangeKernels: Event<void>;
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: IMainNotebookController): void;
 	unregisterNotebookProvider(viewType: string): void;

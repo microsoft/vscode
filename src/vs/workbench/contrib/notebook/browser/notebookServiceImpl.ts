@@ -151,6 +151,8 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 	public readonly onNotebookEditorAdd: Event<INotebookEditor> = this._onNotebookEditorAdd.event;
 	private readonly _onNotebookEditorsRemove: Emitter<INotebookEditor[]> = this._register(new Emitter<INotebookEditor[]>());
 	public readonly onNotebookEditorsRemove: Event<INotebookEditor[]> = this._onNotebookEditorsRemove.event;
+	private readonly _onNotebookDocumentAdd: Emitter<URI[]> = this._register(new Emitter<URI[]>());
+	public readonly onNotebookDocumentAdd: Event<URI[]> = this._onNotebookDocumentAdd.event;
 	private readonly _onNotebookDocumentRemove: Emitter<URI[]> = this._register(new Emitter<URI[]>());
 	public readonly onNotebookDocumentRemove: Event<URI[]> = this._onNotebookDocumentRemove.event;
 	private readonly _notebookEditors = new Map<string, INotebookEditor>();
@@ -326,7 +328,6 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		const notebookModel = await provider.controller.createNotebook(viewType, uri, { metadata, languages, cells }, false, editorId);
-		await this.transformTextModelOutputs(notebookModel!);
 		if (!notebookModel) {
 			return undefined;
 		}
@@ -338,6 +339,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 			(model) => this._onWillDisposeDocument(model),
 		);
 		this._models.set(modelId, modelData);
+		this._onNotebookDocumentAdd.fire([notebookModel.uri]);
+		// after the document is added to the store and sent to ext host, we transform the ouputs
+		await this.transformTextModelOutputs(notebookModel!);
 		return modelData.model;
 	}
 
@@ -348,7 +352,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		}
 
 		const notebookModel = await provider.controller.createNotebook(viewType, uri, undefined, forceReload, editorId);
-		await this.transformTextModelOutputs(notebookModel!);
+		if (!notebookModel) {
+			return undefined;
+		}
 
 		// new notebook model created
 		const modelId = MODEL_ID(uri);
@@ -358,6 +364,9 @@ export class NotebookService extends Disposable implements INotebookService, ICu
 		);
 
 		this._models.set(modelId, modelData);
+		this._onNotebookDocumentAdd.fire([notebookModel!.uri]);
+		// after the document is added to the store and sent to ext host, we transform the ouputs
+		await this.transformTextModelOutputs(notebookModel!);
 		return modelData.model;
 	}
 

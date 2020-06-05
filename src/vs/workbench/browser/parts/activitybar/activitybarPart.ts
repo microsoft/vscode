@@ -35,8 +35,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -117,8 +115,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@IProductService private readonly productService: IProductService
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -508,15 +505,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			cssClass: Codicon.settingsGear.classNames
 		});
 
-		if (getUserDataSyncStore(this.productService, this.configurationService)) {
-			this.accountsActivityAction = new ActivityAction({
-				id: 'workbench.actions.accounts',
-				name: nls.localize('accounts', "Accounts"),
-				cssClass: Codicon.account.classNames
-			});
+		this.accountsActivityAction = new ActivityAction({
+			id: 'workbench.actions.accounts',
+			name: nls.localize('accounts', "Accounts"),
+			cssClass: Codicon.account.classNames
+		});
 
-			this.globalActivityActionBar.push(this.accountsActivityAction);
-		}
+		this.globalActivityActionBar.push(this.accountsActivityAction);
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
 	}
