@@ -408,6 +408,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this.saveViewContainerLocationsToCache();
 		}
 
+		this.getOrCreateDefaultViewContainerLocationContextKey(container).set(true);
+
 		return container;
 	}
 
