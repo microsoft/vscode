@@ -42,7 +42,15 @@
         "jsdoc/no-types": "warn",
         "semi": "off",
         "@typescript-eslint/semi": "warn",
-        "@typescript-eslint/class-name-casing": "warn",
+        "@typescript-eslint/naming-convention": [
+            "warn",
+            {
+                "selector": "class",
+                "format": [
+                    "PascalCase"
+                ]
+            }
+        ],
         "code-no-unused-expressions": [
             "warn",
             {

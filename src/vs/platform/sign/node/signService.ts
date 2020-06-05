@@ -6,7 +6,7 @@
 import { ISignService } from 'vs/platform/sign/common/sign';
 
 declare module vsda {
-	// eslint-disable-next-line @typescript-eslint/class-name-casing
+	// eslint-disable-next-line @typescript-eslint/naming-convention
 	export class signer {
 		sign(arg: any): any;
 	}
