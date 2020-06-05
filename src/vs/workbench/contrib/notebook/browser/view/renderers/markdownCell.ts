@@ -62,9 +62,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					// not first time, we don't need to create editor or bind listeners
 					viewCell.attachTextEditor(this.editor);
-					if (notebookEditor.getActiveCell() === viewCell) {
-						this.editor.focus();
-					}
+					this.focusEditorIfNeeded();
 
 					this.bindEditorListeners(this.editor.getModel()!);
 				} else {
@@ -97,9 +95,7 @@ export class StatefullMarkdownCell extends Disposable {
 						}
 
 						this.editor!.setModel(model);
-						if (notebookEditor.getActiveCell() === viewCell) {
-							this.editor!.focus();
-						}
+						this.focusEditorIfNeeded();
 
 						const realContentHeight = this.editor!.getContentHeight();
 						if (realContentHeight !== editorHeight) {
@@ -115,7 +111,7 @@ export class StatefullMarkdownCell extends Disposable {
 						viewCell.attachTextEditor(this.editor!);
 
 						if (viewCell.editState === CellEditState.Editing) {
-							this.editor!.focus();
+							this.focusEditorIfNeeded();
 						}
 
 						this.bindEditorListeners(model, {
@@ -135,7 +131,7 @@ export class StatefullMarkdownCell extends Disposable {
 				const totalHeight = editorHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
 				this.viewCell.totalHeight = totalHeight;
 				notebookEditor.layoutNotebookCell(viewCell, totalHeight);
-				this.editor.focus();
+				this.focusEditorIfNeeded();
 				renderedEditors.set(this.viewCell, this.editor!);
 			} else {
 				this.viewCell.detachTextEditor();
@@ -174,6 +170,15 @@ export class StatefullMarkdownCell extends Disposable {
 						}
 					}));
 
+					this.localDisposables.add(viewCell.textBuffer.onDidChangeContent(() => {
+						this.markdownContainer.innerHTML = '';
+						viewCell.clearHTML();
+						let renderedHTML = viewCell.getHTML();
+						if (renderedHTML) {
+							this.markdownContainer.appendChild(renderedHTML);
+						}
+					}));
+
 					const clientHeight = templateData.container.clientHeight;
 					this.viewCell.totalHeight = clientHeight;
 					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
@@ -196,7 +201,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 		const updateForFocusMode = () => {
 			if (viewCell.focusMode === CellFocusMode.Editor) {
-				this.editor?.focus();
+				this.focusEditorIfNeeded();
 			}
 
 			toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
@@ -236,6 +241,12 @@ export class StatefullMarkdownCell extends Disposable {
 		}));
 
 		viewUpdate();
+	}
+
+	private focusEditorIfNeeded() {
+		if (this.viewCell.focusMode === CellFocusMode.Editor) {
+			this.editor?.focus();
+		}
 	}
 
 	private layoutEditor(dimension: IDimension): void {

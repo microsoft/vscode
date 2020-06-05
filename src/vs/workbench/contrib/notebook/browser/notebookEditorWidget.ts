@@ -358,7 +358,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	onWillHide() {
 		this.editorFocus?.set(false);
 		this.overlayContainer.style.visibility = 'hidden';
-		this.overlayContainer.style.display = 'none';
+		this.overlayContainer.style.left = '-50000px';
 	}
 
 	getInnerWebview(): Webview | undefined {
@@ -404,6 +404,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 							...selection,
 							endLineNumber: selection.endLineNumber || selection.startLineNumber,
 							endColumn: selection.endColumn || selection.startColumn
+						});
+						editor.revealPositionInCenterIfOutsideViewport({
+							lineNumber: selection.startLineNumber,
+							column: selection.startColumn
 						});
 					}
 					if (!cellOptions.options?.preserveFocus) {
@@ -789,6 +793,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		let relayout = (cell: ICellViewModel, height: number) => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			this.list?.updateElementHeight2(cell, height);
 		};
 
@@ -896,6 +904,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
+		if (!cell.metadata?.editable) {
+			return null;
+		}
+
 		let splitPoints = cell.getSelectionsStartPosition();
 		if (splitPoints && splitPoints.length > 0) {
 			await cell.resolveTextModel();
@@ -932,6 +944,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			return null;
 		}
 
+		if (!cell.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
+			return null;
+		}
+
 		if (constraint && cell.cellKind !== constraint) {
 			return null;
 		}
@@ -948,6 +964,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (direction === 'above') {
 			const above = this.notebookViewModel!.viewCells[index - 1];
 			if (constraint && above.cellKind !== constraint) {
+				return null;
+			}
+
+			if (!above.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
 				return null;
 			}
 
@@ -968,6 +988,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			const below = this.notebookViewModel!.viewCells[index + 1];
 			if (constraint && below.cellKind !== constraint) {
+				return null;
+			}
+
+			if (!below.getEvaluatedMetadata(this.viewModel!.notebookDocument.metadata).editable) {
 				return null;
 			}
 
@@ -992,6 +1016,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	async deleteNotebookCell(cell: ICellViewModel): Promise<boolean> {
 		if (!this.notebookViewModel!.metadata.editable) {
 			return false;
+		}
+
+		if (this.pendingLayouts.has(cell)) {
+			this.pendingLayouts.get(cell)!.dispose();
 		}
 
 		const index = this.notebookViewModel!.getCellIndex(cell);
@@ -1073,10 +1101,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		cell.editState = CellEditState.Editing;
 
 		this.renderedEditors.get(cell)?.focus();
-	}
-
-	saveNotebookCell(cell: ICellViewModel): void {
-		cell.editState = CellEditState.Preview;
 	}
 
 	getActiveCell() {
@@ -1187,6 +1211,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
+		if (this._isDisposed) {
+			return;
+		}
+
 		if (focusItem === 'editor') {
 			this.selectElement(cell);
 			this.list?.focusView();
@@ -1323,7 +1351,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 export const notebookCellBorder = registerColor('notebook.cellBorderColor', {
 	dark: transparent(PANEL_BORDER, .6),
 	light: transparent(PANEL_BORDER, .4),
-	hc: null
+	hc: PANEL_BORDER
 }, nls.localize('notebook.cellBorderColor', "The border color for notebook cells."));
 
 export const focusedCellIndicator = registerColor('notebook.focusedCellIndicator', {

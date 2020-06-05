@@ -178,7 +178,11 @@ export abstract class ViewPane extends Pane implements IView {
 
 	private _isVisible: boolean = false;
 	readonly id: string;
-	title: string;
+
+	private _title: string;
+	public get title(): string {
+		return this._title;
+	}
 
 	private readonly menuActions: ViewMenuActions;
 	private progressBar!: ProgressBar;
@@ -211,7 +215,7 @@ export abstract class ViewPane extends Pane implements IView {
 		super({ ...options, ...{ orientation: viewDescriptorService.getViewLocationById(options.id) === ViewContainerLocation.Panel ? Orientation.HORIZONTAL : Orientation.VERTICAL } });
 
 		this.id = options.id;
-		this.title = options.title;
+		this._title = options.title;
 		this.showActionsAlways = !!options.showActionsAlways;
 		this.focusedViewContextKey = FocusedViewContext.bindTo(contextKeyService);
 
@@ -370,7 +374,7 @@ export abstract class ViewPane extends Pane implements IView {
 			this.iconContainer.setAttribute('aria-label', calculatedTitle);
 		}
 
-		this.title = title;
+		this._title = title;
 		this._onDidChangeTitleArea.fire();
 	}
 
@@ -1315,7 +1319,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			}
 		});
 
-		const isPanel = this.viewDescriptorService.getViewLocationById(this.viewContainer.id) === ViewContainerLocation.Panel;
+		const isPanel = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
 		const paneStyler = attachStyler<IPaneColors>(this.themeService, {
 			headerForeground: isPanel ? PANEL_SECTION_HEADER_FOREGROUND : SIDE_BAR_SECTION_HEADER_FOREGROUND,
 			headerBackground: isPanel ? PANEL_SECTION_HEADER_BACKGROUND : SIDE_BAR_SECTION_HEADER_BACKGROUND,

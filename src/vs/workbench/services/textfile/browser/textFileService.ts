@@ -41,7 +41,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
  */
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	//#region events
 

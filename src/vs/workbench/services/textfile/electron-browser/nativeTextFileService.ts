@@ -325,7 +325,13 @@ export interface IEncodingOverride {
 }
 
 export class EncodingOracle extends Disposable implements IResourceEncodings {
-	protected encodingOverrides: IEncodingOverride[];
+	private _encodingOverrides: IEncodingOverride[];
+	protected get encodingOverrides(): IEncodingOverride[] {
+		return this._encodingOverrides;
+	}
+	protected set encodingOverrides(value: IEncodingOverride[]) {
+		this._encodingOverrides = value;
+	}
 
 	constructor(
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
@@ -335,7 +341,7 @@ export class EncodingOracle extends Disposable implements IResourceEncodings {
 	) {
 		super();
 
-		this.encodingOverrides = this.getDefaultEncodingOverrides();
+		this._encodingOverrides = this.getDefaultEncodingOverrides();
 
 		this.registerListeners();
 	}

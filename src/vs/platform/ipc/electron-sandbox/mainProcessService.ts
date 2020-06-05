@@ -12,7 +12,7 @@ export const IMainProcessService = createDecorator<IMainProcessService>('mainPro
 
 export interface IMainProcessService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	getChannel(channelName: string): IChannel;
 
@@ -21,7 +21,7 @@ export interface IMainProcessService {
 
 export class MainProcessService extends Disposable implements IMainProcessService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private mainProcessConnection: Client;
 

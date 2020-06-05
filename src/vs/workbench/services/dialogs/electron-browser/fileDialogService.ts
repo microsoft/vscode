@@ -26,7 +26,7 @@ import { NativeSimpleFileDialog } from 'vs/workbench/services/dialogs/electron-b
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IHostService hostService: IHostService,

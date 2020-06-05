@@ -23,6 +23,7 @@ import { CellRevealPosition, CellRevealType, CursorAtBoundary, getVisibleCells, 
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { diff, IProcessedOutput, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { clamp } from 'vs/base/common/numbers';
+import { SCROLLABLE_ELEMENT_PADDING_TOP } from 'vs/workbench/contrib/notebook/browser/constants';
 
 export class NotebookCellList extends WorkbenchList<CellViewModel> implements IDisposable, IStyleController, INotebookCellList {
 	get onWillScroll(): Event<ScrollEvent> { return this.view.onWillScroll; }
@@ -546,28 +547,35 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		super.domFocus();
 	}
 
+	getViewScrollTop() {
+		return this.view.getScrollTop();
+	}
+
+	getViewScrollBottom() {
+		return this.getViewScrollTop() + this.view.renderHeight - SCROLLABLE_ELEMENT_PADDING_TOP;
+	}
+
 	private _revealRange(viewIndex: number, range: Range, revealType: CellRevealType, newlyCreated: boolean, alignToBottom: boolean) {
 		const element = this.view.element(viewIndex);
-		const scrollTop = this.view.getScrollTop();
-		const wrapperBottom = scrollTop + this.view.renderHeight;
-		const startLineNumber = range.startLineNumber;
-		const lineOffset = element.getLineScrollTopOffset(startLineNumber);
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
+		const positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
 		const elementTop = this.view.elementTop(viewIndex);
-		const lineTop = elementTop + lineOffset;
+		const positionTop = elementTop + positionOffset;
 
 		// TODO@rebornix 30 ---> line height * 1.5
-		if (lineTop < scrollTop) {
-			this.view.setScrollTop(lineTop - 30);
-		} else if (lineTop > wrapperBottom) {
-			this.view.setScrollTop(scrollTop + lineTop - wrapperBottom + 30);
+		if (positionTop < scrollTop) {
+			this.view.setScrollTop(positionTop - 30);
+		} else if (positionTop > wrapperBottom) {
+			this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
 		} else if (newlyCreated) {
 			// newly scrolled into view
 			if (alignToBottom) {
 				// align to the bottom
-				this.view.setScrollTop(scrollTop + lineTop - wrapperBottom + 30);
+				this.view.setScrollTop(scrollTop + positionTop - wrapperBottom + 30);
 			} else {
 				// align to to top
-				this.view.setScrollTop(lineTop - 30);
+				this.view.setScrollTop(positionTop - 30);
 			}
 		}
 
@@ -580,8 +588,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	// For example, we scroll item 10 into the view upwards, in the first round, items 7, 8, 9, 10 are all in the viewport. Then item 7 and 8 resize themselves to be larger and finally item 10 is removed from the view.
 	// To ensure that item 10 is always there, we need to scroll item 10 to the top edge of the viewport.
 	private _revealRangeInternal(viewIndex: number, range: Range, revealType: CellRevealType) {
-		const scrollTop = this.view.getScrollTop();
-		const wrapperBottom = scrollTop + this.view.renderHeight;
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
 		const elementTop = this.view.elementTop(viewIndex);
 		const element = this.view.element(viewIndex);
 
@@ -624,9 +632,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _revealRangeInCenterInternal(viewIndex: number, range: Range, revealType: CellRevealType) {
 		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
 			const element = this.view.element(viewIndex);
-			let lineOffset = element.getLineScrollTopOffset(range.startLineNumber);
-			let lineOffsetInView = this.view.elementTop(viewIndex) + lineOffset;
-			this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
+			let positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+			let positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
+			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {
 				element.revealRangeInCenter(range);
@@ -656,24 +664,25 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _revealRangeInCenterIfOutsideViewportInternal(viewIndex: number, range: Range, revealType: CellRevealType) {
 		const reveal = (viewIndex: number, range: Range, revealType: CellRevealType) => {
 			const element = this.view.element(viewIndex);
-			let lineOffset = element.getLineScrollTopOffset(range.startLineNumber);
-			let lineOffsetInView = this.view.elementTop(viewIndex) + lineOffset;
-			this.view.setScrollTop(lineOffsetInView - this.view.renderHeight / 2);
+			let positionOffset = element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
+			let positionOffsetInView = this.view.elementTop(viewIndex) + positionOffset;
+			this.view.setScrollTop(positionOffsetInView - this.view.renderHeight / 2);
 
 			if (revealType === CellRevealType.Range) {
 				element.revealRangeInCenter(range);
 			}
 		};
 
-		const scrollTop = this.view.getScrollTop();
-		const wrapperBottom = scrollTop + this.view.renderHeight;
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
 		const elementTop = this.view.elementTop(viewIndex);
 		const viewItemOffset = elementTop;
 		const element = this.view.element(viewIndex);
+		const positionOffset = viewItemOffset + element.getPositionScrollTopOffset(range.startLineNumber, range.startColumn);
 
-		if (viewItemOffset < scrollTop || viewItemOffset > wrapperBottom) {
+		if (positionOffset < scrollTop || positionOffset > wrapperBottom) {
 			// let it render
-			this.view.setScrollTop(viewItemOffset - this.view.renderHeight / 2);
+			this.view.setScrollTop(positionOffset - this.view.renderHeight / 2);
 
 			// after rendering, it might be pushed down due to markdown cell dynamic height
 			const elementTop = this.view.elementTop(viewIndex);
@@ -708,8 +717,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		const scrollTop = this.view.getScrollTop();
-		const wrapperBottom = scrollTop + this.view.renderHeight;
+		const scrollTop = this.getViewScrollTop();
+		const wrapperBottom = this.getViewScrollBottom();
 		const elementTop = this.view.elementTop(viewIndex);
 
 		if (ignoreIfInsideViewport && elementTop >= scrollTop && elementTop < wrapperBottom) {

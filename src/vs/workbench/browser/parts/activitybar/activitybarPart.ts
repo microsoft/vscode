@@ -35,8 +35,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { isWeb } from 'vs/base/common/platform';
 import { IStorageKeysSyncRegistryService } from 'vs/platform/userDataSync/common/storageKeys';
-import { getUserDataSyncStore } from 'vs/platform/userDataSync/common/userDataSync';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { Before2D } from 'vs/workbench/browser/dnd';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -69,7 +67,7 @@ interface ICachedViewContainer {
 
 export class ActivitybarPart extends Part implements IActivityBarService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly ACTION_HEIGHT = 48;
 	static readonly PINNED_VIEW_CONTAINERS = 'workbench.activity.pinnedViewlets2';
@@ -117,8 +115,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService,
-		@IProductService private readonly productService: IProductService
+		@IStorageKeysSyncRegistryService storageKeysSyncRegistryService: IStorageKeysSyncRegistryService
 	) {
 		super(Parts.ACTIVITYBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -161,7 +158,7 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 				actions.push(this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar")));
 				return actions;
 			},
-			getContextMenuActionsForComposite: () => [],
+			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)!.id,
 			hidePart: () => this.layoutService.setSideBarHidden(true),
 			dndHandler: new CompositeDragAndDrop(this.viewDescriptorService, ViewContainerLocation.Sidebar,
@@ -180,6 +177,31 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 
 	focusActivityBar(): void {
 		this.compositeBar.focus();
+	}
+
+	private getContextMenuActionsForComposite(compositeId: string): Action[] {
+		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
+
+		const actions = [];
+		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
+		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
+			actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
+				this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation);
+			}));
+		} else {
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			if (viewContainerModel.allViewDescriptors.length === 1) {
+				const viewToReset = viewContainerModel.allViewDescriptors[0];
+				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
+				if (defaultContainer !== viewContainer) {
+					actions.push(new Action('resetLocationAction', nls.localize('resetLocation', "Reset Location"), undefined, true, async () => {
+						this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer);
+					}));
+				}
+			}
+		}
+
+		return actions;
 	}
 
 	private registerListeners(): void {
@@ -483,15 +505,13 @@ export class ActivitybarPart extends Part implements IActivityBarService {
 			cssClass: Codicon.settingsGear.classNames
 		});
 
-		if (getUserDataSyncStore(this.productService, this.configurationService)) {
-			this.accountsActivityAction = new ActivityAction({
-				id: 'workbench.actions.accounts',
-				name: nls.localize('accounts', "Accounts"),
-				cssClass: Codicon.account.classNames
-			});
+		this.accountsActivityAction = new ActivityAction({
+			id: 'workbench.actions.accounts',
+			name: nls.localize('accounts', "Accounts"),
+			cssClass: Codicon.account.classNames
+		});
 
-			this.globalActivityActionBar.push(this.accountsActivityAction);
-		}
+		this.globalActivityActionBar.push(this.accountsActivityAction);
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
 	}

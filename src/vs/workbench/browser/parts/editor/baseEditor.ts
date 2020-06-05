@@ -38,10 +38,10 @@ export abstract class BaseEditor extends Composite implements IEditorPane {
 
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<any>>();
 
-	readonly minimumWidth = DEFAULT_EDITOR_MIN_DIMENSIONS.width;
-	readonly maximumWidth = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
-	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
-	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
+	get minimumWidth() { return DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get maximumWidth() { return DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	readonly onDidSizeConstraintsChange = Event.None;
 

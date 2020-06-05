@@ -41,7 +41,7 @@ import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOpti
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
 export interface IPrivateBreakpointWidgetService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	close(success: boolean): void;
 }
 const DECORATION_KEY = 'breakpointwidgetdecoration';
@@ -75,7 +75,7 @@ function createDecorations(theme: IColorTheme, placeHolder: string): IDecoration
 }
 
 export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWidgetService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private selectContainer!: HTMLElement;
 	private inputContainer!: HTMLElement;

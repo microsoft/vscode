@@ -360,7 +360,7 @@ class CellContentProvider implements ITextModelContentProvider {
 			return null;
 		}
 
-		const editorModel = this._notebookService.modelManager.get(data.notebook);
+		const editorModel = await this._notebookService.modelManager.resolve(data.notebook, info.id);
 		if (!editorModel) {
 			return null;
 		}

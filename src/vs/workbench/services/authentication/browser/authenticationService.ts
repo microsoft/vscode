@@ -19,7 +19,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
 
 export interface IAuthenticationService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	isAuthenticationProviderRegistered(id: string): boolean;
 	getProviderIds(): string[];
@@ -66,7 +66,7 @@ export interface SessionRequestInfo {
 }
 
 export class AuthenticationService extends Disposable implements IAuthenticationService {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 	private _placeholderMenuItem: IDisposable | undefined;
 	private _noAccountsMenuItem: IDisposable | undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();

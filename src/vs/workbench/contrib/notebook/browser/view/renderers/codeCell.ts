@@ -394,7 +394,7 @@ export class CodeCell extends Disposable {
 		let renderInfo = this.notebookService.getRendererInfo(renderId);
 
 		if (renderInfo) {
-			return renderInfo.extensionId.value;
+			return `${renderId} (${renderInfo.extensionId.value})`;
 		}
 
 		return nls.localize('builtinRenderInfo', "built-in");
@@ -407,9 +407,8 @@ export class CodeCell extends Disposable {
 			id: mimeType.mimeType,
 			index: index,
 			picked: index === currIndex,
-			description: this.generateRendererInfo(mimeType.rendererId) + (index === currIndex
-				? nls.localize('curruentActiveMimeType', " (Currently Active)")
-				: ''),
+			detail: this.generateRendererInfo(mimeType.rendererId),
+			description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
 		}));
 
 		const picker = this.quickInputService.createQuickPick();

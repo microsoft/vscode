@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IUserDataSyncService, IUserDataSyncEnablementService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncService, IUserDataSyncEnablementService, IAuthenticationProvider, getUserDataSyncStore, isAuthenticationProvider, IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataSyncWorkbenchService, IUserDataSyncAccount, AccountStatus, CONTEXT_SYNC_ENABLEMENT, CONTEXT_SYNC_STATE, CONTEXT_ACCOUNT_STATE, SHOW_SYNCED_DATA_COMMAND_ID } from 'vs/workbench/services/userDataSync/common/userDataSync';
@@ -82,6 +82,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUserDataSyncEnablementService private readonly userDataSyncEnablementService: IUserDataSyncEnablementService,
+		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService productService: IProductService,
@@ -103,8 +104,8 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 
 			this.syncStatusContext.set(this.userDataSyncService.status);
 			this._register(userDataSyncService.onDidChangeStatus(status => this.syncStatusContext.set(status)));
-			this.syncEnablementContext.set(this.userDataSyncEnablementService.isEnabled());
-			this._register(this.userDataSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
+			this.syncEnablementContext.set(userDataSyncEnablementService.isEnabled());
+			this._register(userDataSyncEnablementService.onDidChangeEnablement(enabled => this.syncEnablementContext.set(enabled)));
 
 			extensionService.whenInstalledExtensionsRegistered().then(() => {
 				if (this.authenticationProviders.every(({ id }) => authenticationService.isAuthenticationProviderRegistered(id))) {
@@ -222,18 +223,19 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		}
 
 		await this.handleFirstTimeSync();
-		this.userDataSyncEnablementService.setEnablement(true);
+		this.userDataAutoSyncService.enable();
 		this.notificationService.info(localize('sync turned on', "Preferences sync is turned on"));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
+		this.userDataAutoSyncService.disable();
+
 		if (everywhere) {
 			this.telemetryService.publicLog2('sync/turnOffEveryWhere');
 			await this.userDataSyncService.reset();
 		} else {
 			await this.userDataSyncService.resetLocal();
 		}
-		this.userDataSyncEnablementService.setEnablement(false);
 	}
 
 	private async handleFirstTimeSync(): Promise<void> {
@@ -246,12 +248,12 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			localize('Replace or Merge', "Replace or Merge"),
 			[
 				localize('show synced data', "Show Synced Data"),
-				localize('cancel', "Cancel"),
 				localize('merge', "Merge"),
 				localize('replace local', "Replace Local"),
+				localize('cancel', "Cancel"),
 			],
 			{
-				cancelId: 1,
+				cancelId: 3,
 				detail: localize('first time sync detail', "It looks like you last synced from another machine.\nWould you like to replace or merge with the synced data?"),
 			}
 		);
@@ -261,15 +263,15 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 				await this.commandService.executeCommand(SHOW_SYNCED_DATA_COMMAND_ID);
 				throw canceled();
 			case 1:
-				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
-				throw canceled();
-			case 2:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'merge' });
 				break;
-			case 3:
+			case 2:
 				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'replace-local' });
 				await this.userDataSyncService.pull();
 				break;
+			case 3:
+				this.telemetryService.publicLog2<{ action: string }, FirstTimeSyncClassification>('sync/firstTimeSync', { action: 'cancelled' });
+				throw canceled();
 		}
 	}
 

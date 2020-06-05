@@ -59,7 +59,7 @@ export interface IWorkspaceProvider {
 
 export class BrowserHostService extends Disposable implements IHostService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private workspaceProvider: IWorkspaceProvider;
 

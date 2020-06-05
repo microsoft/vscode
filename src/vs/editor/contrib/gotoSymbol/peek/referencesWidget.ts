@@ -87,6 +87,9 @@ class DecorationsManager implements IDisposable {
 			if (this._decorationIgnoreSet.has(oneReference.id)) {
 				continue;
 			}
+			if (oneReference.uri.toString() !== this._editor.getModel().uri.toString()) {
+				continue;
+			}
 			newDecorations.push({
 				range: oneReference.range,
 				options: DecorationsManager.DecorationOptions

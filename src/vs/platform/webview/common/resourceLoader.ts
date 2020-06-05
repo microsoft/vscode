@@ -124,12 +124,18 @@ function normalizeRequestPath(requestUri: URI) {
 			fragment: requestUri.fragment
 		});
 	} else if (requestUri.scheme === Schemas.oldVscodeWebviewResource) {
-		// The `vscode-resource` puts the scheme as the authority
-		const resourceUri = URI.parse(`${requestUri.authority}:${encodeURIComponent(requestUri.path).replace(/%2F/g, '/')}`);
-		return resourceUri.with({
-			query: requestUri.query,
-			fragment: requestUri.fragment
-		});
+		// Modern `vscode-resource` uris puts the scheme as the authority
+		if (requestUri.authority) {
+			const resourceUri = URI.parse(`${requestUri.authority}:${encodeURIComponent(requestUri.path).replace(/%2F/g, '/')}`);
+			return resourceUri.with({
+				query: requestUri.query,
+				fragment: requestUri.fragment
+			});
+		}
+
+		// Old style vscode-resource uris lose the scheme of the resource which means they are unable to
+		// load a mix of local and remote content properly.
+		return requestUri.with({ scheme: 'file' });
 	} else {
 		return requestUri;
 	}

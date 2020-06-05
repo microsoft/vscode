@@ -1202,7 +1202,7 @@ interface IEditorPartConfiguration {
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {
-	iconTheme?: string;
+	hasIcons?: boolean;
 }
 
 export interface IEditorPartOptionsChangeEvent {

@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 
-import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
+import { IAction, Action } from 'vs/base/common/actions';
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -26,8 +26,6 @@ export interface IRemoteSelectItem extends ISelectOptionItem {
 }
 
 export class SwitchRemoteViewItem extends SelectActionViewItem {
-
-	actionRunner!: IActionRunner;
 
 	constructor(
 		action: IAction,

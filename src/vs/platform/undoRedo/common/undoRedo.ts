@@ -53,7 +53,7 @@ export interface UriComparisonKeyComputer {
 }
 
 export interface IUndoRedoService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	registerUriComparisonKeyComputer(uriComparisonKeyComputer: UriComparisonKeyComputer): IDisposable;
 

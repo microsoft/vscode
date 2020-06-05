@@ -1051,7 +1051,29 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return false;
 	}
 
-	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined): Promise<boolean> {
+	private async formatTaskForJson(resource: URI, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask): Promise<string> {
+		let reference: IReference<IResolvedTextEditorModel> | undefined;
+		let stringValue: string = '';
+		try {
+			reference = await this.textModelResolverService.createModelReference(resource);
+			const model = reference.object.textEditorModel;
+			const { tabSize, insertSpaces } = model.getOptions();
+			const eol = model.getEOL();
+			const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
+			let stringified = applyEdits(JSON.stringify(task), edits);
+			const regex = new RegExp(eol + '\\t', 'g');
+			stringified = stringified.replace(regex, eol + '\t\t\t');
+			const twoTabs = '\t\t';
+			stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
+		} finally {
+			if (reference) {
+				reference.dispose();
+			}
+		}
+		return stringValue;
+	}
+
+	private openEditorAtTask(resource: URI | undefined, task: TaskConfig.CustomTask | TaskConfig.ConfiguringTask | string | undefined, configIndex: number = -1): Promise<boolean> {
 		if (resource === undefined) {
 			return Promise.resolve(false);
 		}
@@ -1062,26 +1084,18 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			if (task) {
 				const contentValue = content.toString();
-				let stringValue: string;
-				if (typeof task === 'string') {
-					stringValue = task;
-				} else {
-					let reference: IReference<IResolvedTextEditorModel> | undefined;
-					try {
-						reference = await this.textModelResolverService.createModelReference(resource);
-						const model = reference.object.textEditorModel;
-						const { tabSize, insertSpaces } = model.getOptions();
-						const eol = model.getEOL();
-						const edits = format(JSON.stringify(task), undefined, { eol, tabSize, insertSpaces });
-						let stringified = applyEdits(JSON.stringify(task), edits);
-						const regex = new RegExp(eol + '\\t', 'g');
-						stringified = stringified.replace(regex, eol + '\t\t\t');
-						const twoTabs = '\t\t';
-						stringValue = twoTabs + stringified.slice(0, stringified.length - 1) + twoTabs + stringified.slice(stringified.length - 1);
-					} finally {
-						if (reference) {
-							reference.dispose();
-						}
+				let stringValue: string | undefined;
+				if (configIndex !== -1) {
+					const json: TaskConfig.ExternalTaskRunnerConfiguration = JSON.parse(contentValue);
+					if (json.tasks && (json.tasks.length > configIndex)) {
+						stringValue = await this.formatTaskForJson(resource, json.tasks[configIndex]);
+					}
+				}
+				if (!stringValue) {
+					if (typeof task === 'string') {
+						stringValue = task;
+					} else {
+						stringValue = await this.formatTaskForJson(resource, task);
 					}
 				}
 
@@ -1280,14 +1294,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
+	public async openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
 		let resource: URI | undefined;
 		if (task) {
 			resource = this.getResourceForTask(task);
 		} else {
 			resource = (this._workspaceFolders && (this._workspaceFolders.length > 0)) ? this._workspaceFolders[0].toResource('.vscode/tasks.json') : undefined;
 		}
-		return this.openEditorAtTask(resource, task ? task._label : undefined);
+		return this.openEditorAtTask(resource, task ? task._label : undefined, task ? task._source.config.index : -1);
 	}
 
 	private createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } | undefined {
