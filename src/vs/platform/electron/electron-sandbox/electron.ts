@@ -14,7 +14,7 @@ export interface IElectronService extends ICommonElectronService { }
 
 export class ElectronService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		readonly windowId: number,

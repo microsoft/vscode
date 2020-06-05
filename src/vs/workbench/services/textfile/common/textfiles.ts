@@ -27,7 +27,7 @@ export interface TextFileCreateEvent extends IWaitUntil {
 
 export interface ITextFileService extends IDisposable {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Access to the manager of text file editor models providing further

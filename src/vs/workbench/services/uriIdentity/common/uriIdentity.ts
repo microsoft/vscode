@@ -16,7 +16,7 @@ export const IUriIdentityService = createDecorator<IUriIdentityService>('IUriIde
 
 export interface IUriIdentityService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Uri extensions that are aware of casing.

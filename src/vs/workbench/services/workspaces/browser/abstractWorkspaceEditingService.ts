@@ -27,7 +27,7 @@ import { Schemas } from 'vs/base/common/network';
 
 export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditingService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,

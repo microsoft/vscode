@@ -473,7 +473,7 @@ export interface IView {
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// View Container APIs
 	readonly onDidChangeViewContainerVisibility: Event<{ id: string, visible: boolean, location: ViewContainerLocation }>;
@@ -501,7 +501,7 @@ export const IViewDescriptorService = createDecorator<IViewDescriptorService>('v
 
 export interface IViewDescriptorService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// ViewContainers
 	readonly viewContainers: ReadonlyArray<ViewContainer>;

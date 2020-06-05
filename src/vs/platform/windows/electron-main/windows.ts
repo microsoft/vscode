@@ -99,7 +99,7 @@ export interface IWindowsCountChangedEvent {
 
 export interface IWindowsMainService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	readonly onWindowReady: Event<ICodeWindow>;
 	readonly onWindowsCountChanged: Event<IWindowsCountChangedEvent>;

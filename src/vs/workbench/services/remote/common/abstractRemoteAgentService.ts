@@ -25,7 +25,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 
 export abstract class AbstractRemoteAgentService extends Disposable {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _environment: Promise<IRemoteAgentEnvironment | null> | null;
 

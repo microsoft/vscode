@@ -30,7 +30,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 	static readonly VARIABLE_REGEXP = /\$\{(.*?)\}/g;
 	static readonly VARIABLE_REGEXP_SINGLE = /\$\{(.*?)\}/;
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _context: IVariableResolveContext;
 	private _envVariables?: IProcessEnvironment;

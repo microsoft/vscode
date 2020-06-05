@@ -51,7 +51,7 @@ function createMockEditor(model: TextModel): ITestCodeEditor {
 			[IStorageService, new InMemoryStorageService()],
 			[IKeybindingService, new MockKeybindingService()],
 			[ISuggestMemoryService, new class implements ISuggestMemoryService {
-				_serviceBrand: undefined;
+				declare readonly _serviceBrand: undefined;
 				memorize(): void {
 				}
 				select(): number {

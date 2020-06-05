@@ -74,7 +74,7 @@ function revealLastElement(tree: WorkbenchAsyncDataTree<any, any, any>) {
 const sessionsToIgnore = new Set<IDebugSession>();
 
 export class Repl extends ViewPane implements IHistoryNavigationWidget {
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private static readonly REFRESH_DELAY = 100; // delay in ms to refresh the repl for new elements to show
 	private static readonly URI = uri.parse(`${DEBUG_SCHEME}:replinput`);

@@ -24,7 +24,7 @@ export const ITerminalInstanceService = createDecorator<ITerminalInstanceService
  * dependency on ITerminalService.
  */
 export interface ITerminalInstanceService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// These events are optional as the requests they make are only needed on the browser side
 	onRequestDefaultShellAndArgs?: Event<IDefaultShellAndArgsRequest>;
@@ -70,7 +70,7 @@ export interface ITerminalTab {
 }
 
 export interface ITerminalService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	activeTabIndex: number;
 	configHelper: ITerminalConfigHelper;

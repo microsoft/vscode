@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 
 export abstract class AbstractCodeEditorService extends Disposable implements ICodeEditorService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _onCodeEditorAdd: Emitter<ICodeEditor> = this._register(new Emitter<ICodeEditor>());
 	public readonly onCodeEditorAdd: Event<ICodeEditor> = this._onCodeEditorAdd.event;

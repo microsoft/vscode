@@ -97,6 +97,8 @@ export class BackupRestorer implements IWorkbenchContribution {
 			return { resource: toLocalResource(resource, this.environmentService.configuration.remoteAuthority), options, forceUntitled: true };
 		}
 
+		// handle custom editors by asking the custom editor input factory
+		// to create the input.
 		if (resource.scheme === Schemas.vscodeCustomEditor) {
 			const editor = await Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getCustomEditorInputFactory()
 				.createCustomEditorInput(resource, this.instantiationService);
