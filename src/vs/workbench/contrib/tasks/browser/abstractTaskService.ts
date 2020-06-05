@@ -1294,7 +1294,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 	}
 
-	public async openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
+	public openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> {
 		let resource: URI | undefined;
 		if (task) {
 			resource = this.getResourceForTask(task);
