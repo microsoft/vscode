@@ -7,7 +7,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookCellTextModelSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, ICellInsertEdit, NotebookCellsChangedEvent, CellKind, IProcessedOutput, notebookDocumentMetadataDefaults, diff, ICellDeleteEdit, NotebookCellsChangeType, ICellDto2, IMainCellDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 function compareRangesUsingEnds(a: [number, number], b: [number, number]): number {
 	if (a[1] === b[1]) {
@@ -17,27 +18,74 @@ function compareRangesUsingEnds(a: [number, number], b: [number, number]): numbe
 	return a[1] - b[1];
 }
 
+export class NotebookTextModelSnapshot implements ITextSnapshot {
+	// private readonly _pieces: Ce[] = [];
+	private _index: number = -1;
+
+	constructor(private _model: NotebookTextModel) {
+		// for (let i = 0; i < this._model.cells.length; i++) {
+		// 	const cell = this._model.cells[i];
+		// 	this._pieces.push(this._model.cells[i].textBuffer.createSnapshot(true));
+		// }
+	}
+
+	read(): string | null {
+
+		if (this._index === -1) {
+			this._index++;
+			return `{ "metadata": ${JSON.stringify(this._model.metadata)}, "languages": ${JSON.stringify(this._model.languages)}, "cells": [`;
+		}
+
+		if (this._index < this._model.cells.length) {
+			const cell = this._model.cells[this._index];
+
+			const data = {
+				source: cell.getValue(),
+				metadata: cell.metadata,
+				cellKind: cell.cellKind,
+				language: cell.language,
+				outputs: cell.outputs
+			};
+
+			const rawStr = JSON.stringify(data);
+			const isLastCell = this._index === this._model.cells.length - 1;
+
+			this._index++;
+			return isLastCell ? rawStr : (rawStr + ',');
+		} else if (this._index === this._model.cells.length) {
+			this._index++;
+			return `]}`;
+		} else {
+			return null;
+		}
+	}
+
+}
+
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
-	private static _cellhandlePool: number = 0;
+
+	private _cellhandlePool: number = 0;
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	readonly onWillDispose: Event<void> = this._onWillDispose.event;
 	private readonly _onDidChangeCells = new Emitter<NotebookCellTextModelSplice[]>();
 	get onDidChangeCells(): Event<NotebookCellTextModelSplice[]> { return this._onDidChangeCells.event; }
 	private _onDidModelChangeProxy = new Emitter<NotebookCellsChangedEvent>();
-	get onDidModelChange(): Event<NotebookCellsChangedEvent> { return this._onDidModelChangeProxy.event; }
+	get onDidModelChangeProxy(): Event<NotebookCellsChangedEvent> { return this._onDidModelChangeProxy.event; }
 	private _onDidSelectionChangeProxy = new Emitter<number[] | null>();
 	get onDidSelectionChange(): Event<number[] | null> { return this._onDidSelectionChangeProxy.event; }
 	private _onDidChangeContent = new Emitter<void>();
 	onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	private _onDidChangeMetadata = new Emitter<NotebookDocumentMetadata>();
 	onDidChangeMetadata: Event<NotebookDocumentMetadata> = this._onDidChangeMetadata.event;
+	private readonly _onDidChangeUnknown = new Emitter<void>();
+	readonly onDidChangeUnknown: Event<void> = this._onDidChangeUnknown.event;
 	private _mapping: Map<number, NotebookCellTextModel> = new Map();
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	cells: NotebookCellTextModel[];
 	languages: string[] = [];
 	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
-	renderers = new Set<number>();
+	renderers = new Set<string>();
 	private _isUntitled: boolean | undefined = undefined;
 	private _versionId = 0;
 
@@ -69,15 +117,27 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		source: string | string[],
 		language: string,
 		cellKind: CellKind,
-		outputs: IOutput[],
+		outputs: IProcessedOutput[],
 		metadata: NotebookCellMetadata | undefined
 	) {
-		const cellHandle = NotebookTextModel._cellhandlePool++;
+		const cellHandle = this._cellhandlePool++;
 		const cellUri = CellUri.generate(this.uri, cellHandle);
 		return new NotebookCellTextModel(cellUri, cellHandle, source, language, cellKind, outputs || [], metadata);
 	}
 
-	applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[]): boolean {
+	initialize(cells: ICellDto2[]) {
+		this.cells = [];
+		this._versionId = 0;
+
+		const mainCells = cells.map(cell => {
+			const cellHandle = this._cellhandlePool++;
+			const cellUri = CellUri.generate(this.uri, cellHandle);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
+		});
+		this.insertNewCell(0, mainCells, false);
+	}
+
+	$applyEdit(modelVersionId: number, rawEdits: ICellEditOperation[], emitToExtHost: boolean = true): boolean {
 		if (modelVersionId !== this._versionId) {
 			return false;
 		}
@@ -120,14 +180,14 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 				case CellEditType.Insert:
 					const insertEdit = operations[i] as ICellInsertEdit;
 					const mainCells = insertEdit.cells.map(cell => {
-						const cellHandle = NotebookTextModel._cellhandlePool++;
+						const cellHandle = this._cellhandlePool++;
 						const cellUri = CellUri.generate(this.uri, cellHandle);
 						return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs || [], cell.metadata);
 					});
-					this.insertNewCell(insertEdit.index, mainCells);
+					this.insertNewCell(insertEdit.index, mainCells, false);
 					break;
 				case CellEditType.Delete:
-					this.removeCell(operations[i].index);
+					this.removeCell(operations[i].index, operations[i].end - operations[i].start, false);
 					break;
 			}
 		}
@@ -138,12 +198,36 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			return [diff.start, diff.deleteCount, diff.toInsert] as [number, number, NotebookCellTextModel[]];
 		});
 
+		if (emitToExtHost) {
+			this._onDidModelChangeProxy.fire({
+				kind: NotebookCellsChangeType.ModelChange,
+				versionId: this._versionId,
+				changes: diffs.map(diff => [diff[0], diff[1], diff[2].map(cell => ({
+					handle: cell.handle,
+					uri: cell.uri,
+					source: cell.textBuffer.getLinesContent(),
+					language: cell.language,
+					cellKind: cell.cellKind,
+					outputs: cell.outputs,
+					metadata: cell.metadata
+				}))] as [number, number, IMainCellDto[]])
+			});
+		}
+
 		this._onDidChangeCells.fire(diffs);
 		return true;
 	}
 
+	createSnapshot(preserveBOM?: boolean): ITextSnapshot {
+		return new NotebookTextModelSnapshot(this);
+	}
+
 	private _increaseVersionId(): void {
 		this._versionId = this._versionId + 1;
+	}
+
+	handleUnknownChange() {
+		this._onDidChangeUnknown.fire();
 	}
 
 	updateLanguages(languages: string[]) {
@@ -168,7 +252,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		}
 	}
 
-	updateRenderers(renderers: number[]) {
+	updateRenderers(renderers: string[]) {
 		renderers.forEach(render => {
 			this.renderers.add(render);
 		});
@@ -183,7 +267,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.cells = [cell];
 		this._mapping.set(cell.handle, cell);
 
-		let dirtyStateListener = Event.any(cell.onDidChangeContent, cell.onDidChangeOutputs)(() => {
+		let dirtyStateListener = cell.onDidChangeContent(() => {
 			this._isUntitled = false;
 			this._onDidChangeContent.fire();
 		});
@@ -193,8 +277,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 		this._onDidModelChangeProxy.fire({
 			kind: NotebookCellsChangeType.ModelChange,
-			versionId: this._versionId, changes: [
-				[
+			versionId: this._versionId, changes:
+				[[
 					0,
 					0,
 					[{
@@ -206,19 +290,18 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						outputs: cell.outputs,
 						metadata: cell.metadata
 					}]
-				]
-			]
+				]]
 		});
 
 		return;
 	}
 
-	insertNewCell(index: number, cells: NotebookCellTextModel[]): void {
+	insertNewCell(index: number, cells: NotebookCellTextModel[], emitToExtHost: boolean = true): void {
 		this._isUntitled = false;
 
 		for (let i = 0; i < cells.length; i++) {
 			this._mapping.set(cells[i].handle, cells[i]);
-			let dirtyStateListener = Event.any(cells[i].onDidChangeContent, cells[i].onDidChangeOutputs)(() => {
+			let dirtyStateListener = cells[i].onDidChangeContent(() => {
 				this._onDidChangeContent.fire();
 			});
 
@@ -228,50 +311,60 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this.cells.splice(index, 0, ...cells);
 		this._onDidChangeContent.fire();
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({
-			kind: NotebookCellsChangeType.ModelChange,
-			versionId: this._versionId, changes: [
-				[
-					index,
-					0,
-					cells.map(cell => ({
-						handle: cell.handle,
-						uri: cell.uri,
-						source: cell.textBuffer.getLinesContent(),
-						language: cell.language,
-						cellKind: cell.cellKind,
-						outputs: cell.outputs,
-						metadata: cell.metadata
-					}))
-				]
-			]
-		});
+
+		if (emitToExtHost) {
+			this._onDidModelChangeProxy.fire({
+				kind: NotebookCellsChangeType.ModelChange,
+				versionId: this._versionId, changes:
+					[[
+						index,
+						0,
+						cells.map(cell => ({
+							handle: cell.handle,
+							uri: cell.uri,
+							source: cell.textBuffer.getLinesContent(),
+							language: cell.language,
+							cellKind: cell.cellKind,
+							outputs: cell.outputs,
+							metadata: cell.metadata
+						}))
+					]]
+			});
+		}
 
 		return;
 	}
 
-	removeCell(index: number) {
+	removeCell(index: number, count: number, emitToExtHost: boolean = true) {
 		this._isUntitled = false;
 
-		let cell = this.cells[index];
-		this._cellListeners.get(cell.handle)?.dispose();
-		this._cellListeners.delete(cell.handle);
-		this.cells.splice(index, 1);
+		for (let i = index; i < index + count; i++) {
+			let cell = this.cells[i];
+			this._cellListeners.get(cell.handle)?.dispose();
+			this._cellListeners.delete(cell.handle);
+		}
+		this.cells.splice(index, count);
 		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, 1, []]] });
+		if (emitToExtHost) {
+			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.ModelChange, versionId: this._versionId, changes: [[index, count, []]] });
+		}
 	}
 
-	moveCellToIdx(index: number, newIdx: number) {
+	moveCellToIdx(index: number, newIdx: number, emitToExtHost: boolean = true) {
 		this.assertIndex(index);
 		this.assertIndex(newIdx);
 
 		const cells = this.cells.splice(index, 1);
 		this.cells.splice(newIdx, 0, ...cells);
+		this._onDidChangeContent.fire();
 
 		this._increaseVersionId();
-		this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, newIdx });
+
+		if (emitToExtHost) {
+			this._onDidModelChangeProxy.fire({ kind: NotebookCellsChangeType.Move, versionId: this._versionId, index, newIdx });
+		}
 	}
 
 	assertIndex(index: number) {

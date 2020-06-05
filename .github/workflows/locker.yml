@@ -3,6 +3,7 @@ on:
   schedule:
     - cron: 20 23 * * * # 4:20pm Redmond
   repository_dispatch:
+    types: [trigger-locker]
 
 jobs:
   main:
@@ -13,7 +14,7 @@ jobs:
         with:
           repository: 'microsoft/vscode-github-triage-actions'
           path: ./actions
-          ref: v14
+          ref: v19
       - name: Install Actions
         run: npm install --production --prefix ./actions
       - name: Run Locker

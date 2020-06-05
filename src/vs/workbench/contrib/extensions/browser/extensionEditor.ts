@@ -588,7 +588,7 @@ export class ExtensionEditor extends BaseEditor {
 
 			const webview = this.contentDisposables.add(this.webviewService.createWebviewOverlay('extensionEditor', {
 				enableFindWidget: true,
-			}, {}));
+			}, {}, undefined));
 
 			webview.claim(this);
 			webview.layoutWebviewOverElement(template.content);

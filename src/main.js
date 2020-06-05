@@ -16,9 +16,8 @@ const fs = require('fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
 const paths = require('./paths');
-// @ts-ignore
+/** @type {any} */
 const product = require('../product.json');
-// @ts-ignore
 const { app, protocol } = require('electron');
 
 // Enable portable support
@@ -35,8 +34,18 @@ app.setPath('userData', userDataPath);
 // Set temp directory based on crash-reporter-directory CLI argument
 // The crash reporter will store crashes in temp folder so we need
 // to change that location accordingly.
-const crashReporterDirectory = args['crash-reporter-directory'];
+
+// If a crash-reporter-directory is specified we setup the crash reporter
+// right from the beginning as early as possible to monitor all processes.
+let crashReporterDirectory = args['crash-reporter-directory'];
 if (crashReporterDirectory) {
+	crashReporterDirectory = path.normalize(crashReporterDirectory);
+
+	if (!path.isAbsolute(crashReporterDirectory)) {
+		console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory must be absolute.`);
+		app.exit(1);
+	}
+
 	if (!fs.existsSync(crashReporterDirectory)) {
 		try {
 			fs.mkdirSync(crashReporterDirectory);
@@ -45,7 +54,22 @@ if (crashReporterDirectory) {
 			app.exit(1);
 		}
 	}
+
+	// Crashes are stored in the temp directory by default, so we
+	// need to change that directory to the provided one
+	console.log(`Found --crash-reporter-directory argument. Setting temp directory to be '${crashReporterDirectory}'`);
 	app.setPath('temp', crashReporterDirectory);
+
+	// Start crash reporter
+	const { crashReporter } = require('electron');
+	const productName = (product.crashReporter && product.crashReporter.productName) || product.nameShort;
+	const companyName = (product.crashReporter && product.crashReporter.companyName) || 'Microsoft';
+	crashReporter.start({
+		companyName: companyName,
+		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
+		submitURL: '',
+		uploadToServer: false
+	});
 }
 
 // Set logs path before app 'ready' event if running portable
@@ -61,7 +85,22 @@ setCurrentWorkingDirectory();
 
 // Register custom schemes with privileges
 protocol.registerSchemesAsPrivileged([
-	{ scheme: 'vscode-resource', privileges: { secure: true, supportFetchAPI: true, corsEnabled: true } }
+	{
+		scheme: 'vscode-resource',
+		privileges: {
+			secure: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+		}
+	}, {
+		scheme: 'vscode-webview-resource',
+		privileges: {
+			secure: true,
+			standard: true,
+			supportFetchAPI: true,
+			corsEnabled: true,
+		}
+	},
 ]);
 
 // Global app listeners
@@ -96,7 +135,6 @@ if (locale) {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		// @ts-ignore
 		const contentTracing = require('electron').contentTracing;
 
 		const traceOptions = {
@@ -443,6 +481,7 @@ function getNodeCachedDir() {
 }
 
 //#region NLS Support
+
 /**
  * Resolve the NLS configuration
  *
@@ -538,4 +577,5 @@ function getLegacyUserDefinedLocaleSync(localeConfigPath) {
 		// ignore
 	}
 }
+
 //#endregion

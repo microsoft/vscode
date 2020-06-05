@@ -6,11 +6,11 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { WindowDriverChannel, WindowDriverRegistryChannelClient } from 'vs/platform/driver/node/driver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMainProcessService } from 'vs/platform/ipc/electron-browser/mainProcessService';
-import * as electron from 'electron';
+import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
+import { remote } from 'electron';
 import { timeout } from 'vs/base/common/async';
 import { BaseWindowDriver } from 'vs/platform/driver/browser/baseDriver';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 
 class WindowDriver extends BaseWindowDriver {
 
@@ -32,7 +32,7 @@ class WindowDriver extends BaseWindowDriver {
 	private async _click(selector: string, clickCount: number, offset?: { x: number, y: number }): Promise<void> {
 		const { x, y } = await this._getElementXY(selector, offset);
 
-		const webContents: electron.WebContents = (electron as any).remote.getCurrentWebContents();
+		const webContents = remote.getCurrentWebContents();
 		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
 		await timeout(10);
 

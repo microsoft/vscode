@@ -10,7 +10,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 export const IActivityBarService = createDecorator<IActivityBarService>('activityBarService');
 
 export interface IActivityBarService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Show an activity in a viewlet.
@@ -26,4 +26,9 @@ export interface IActivityBarService {
 	 * Returns id of visible viewlets following the visual order.
 	 */
 	getVisibleViewContainerIds(): string[];
+
+	/**
+	 * Focuses the activity bar.
+	 */
+	focusActivityBar(): void;
 }

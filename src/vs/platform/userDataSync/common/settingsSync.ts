@@ -14,11 +14,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { updateIgnoredSettings, merge, getIgnoredSettings, isEmpty } from 'vs/platform/userDataSync/common/settingsMerge';
 import { edit } from 'vs/platform/userDataSync/common/content';
-import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
+import { IFileSyncPreviewResult, AbstractJsonFileSynchroniser, IRemoteUserData, ISyncData } from 'vs/platform/userDataSync/common/abstractSynchronizer';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { URI } from 'vs/base/common/uri';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { joinPath, isEqual, dirname, basename } from 'vs/base/common/resources';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { Edit } from 'vs/base/common/jsonFormatter';
+import { setProperty, applyEdits } from 'vs/base/common/jsonEdit';
 
 export interface ISettingsSyncContent {
 	settings: string;
@@ -41,6 +44,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 	constructor(
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
+		@IStorageService storageService: IStorageService,
 		@IUserDataSyncStoreService userDataSyncStoreService: IUserDataSyncStoreService,
 		@IUserDataSyncBackupStoreService userDataSyncBackupStoreService: IUserDataSyncBackupStoreService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
@@ -50,7 +54,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 	) {
-		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
+		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
 	protected setStatus(status: SyncStatus): void {
@@ -90,6 +94,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 					hasLocalChanged: true,
 					hasRemoteChanged: false,
 					hasConflicts: false,
+					isLastSyncFromCurrentMachine: false
 				}));
 
 				await this.apply();
@@ -136,6 +141,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 					hasRemoteChanged: true,
 					hasLocalChanged: false,
 					hasConflicts: false,
+					isLastSyncFromCurrentMachine: false
 				}));
 
 				await this.apply(true);
@@ -257,6 +263,28 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 		}
 	}
 
+	protected async performReplace(syncData: ISyncData, remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null): Promise<void> {
+		const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+		if (settingsSyncContent) {
+			const fileContent = await this.getLocalFileContent();
+			const formatUtils = await this.getFormattingOptions();
+			const ignoredSettings = await this.getIgnoredSettings();
+			const content = updateIgnoredSettings(settingsSyncContent.settings, fileContent ? fileContent.value.toString() : '{}', ignoredSettings, formatUtils);
+			this.syncPreviewResultPromise = createCancelablePromise(() => Promise.resolve<IFileSyncPreviewResult>({
+				fileContent,
+				remoteUserData,
+				lastSyncUserData,
+				content,
+				hasLocalChanged: true,
+				hasRemoteChanged: true,
+				hasConflicts: false,
+				isLastSyncFromCurrentMachine: false
+			}));
+
+			await this.apply();
+		}
+	}
+
 	private async apply(forcePush?: boolean): Promise<void> {
 		if (!this.syncPreviewResultPromise) {
 			return;
@@ -315,7 +343,15 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 		const fileContent = await this.getLocalFileContent();
 		const formattingOptions = await this.getFormattingOptions();
 		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
-		const lastSettingsSyncContent = lastSyncUserData ? this.getSettingsSyncContent(lastSyncUserData) : null;
+		const isLastSyncFromCurrentMachine = await this.isLastSyncFromCurrentMachine(remoteUserData);
+		let lastSettingsSyncContent: ISettingsSyncContent | null = null;
+		if (lastSyncUserData === null) {
+			if (isLastSyncFromCurrentMachine) {
+				lastSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+			}
+		} else {
+			lastSettingsSyncContent = this.getSettingsSyncContent(lastSyncUserData);
+		}
 
 		let content: string | null = null;
 		let hasLocalChanged: boolean = false;
@@ -350,14 +386,14 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 
 		this.setConflicts(hasConflicts && !token.isCancellationRequested ? [{ local: this.localPreviewResource, remote: this.remotePreviewResource }] : []);
 
-		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts };
+		return { fileContent, remoteUserData, lastSyncUserData, content, hasLocalChanged, hasRemoteChanged, hasConflicts, isLastSyncFromCurrentMachine };
 	}
 
 	private getSettingsSyncContent(remoteUserData: IRemoteUserData): ISettingsSyncContent | null {
 		return remoteUserData.syncData ? this.parseSettingsSyncContent(remoteUserData.syncData.content) : null;
 	}
 
-	private parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
+	parseSettingsSyncContent(syncContent: string): ISettingsSyncContent | null {
 		try {
 			const parsed = <ISettingsSyncContent>JSON.parse(syncContent);
 			return isSettingsSyncContent(parsed) ? parsed : /* migrate */ { settings: syncContent };
@@ -391,4 +427,49 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser {
 			throw new UserDataSyncError(localize('errorInvalidSettings', "Unable to sync settings as there are errors/warning in settings file."), UserDataSyncErrorCode.LocalInvalidContent, this.resource);
 		}
 	}
+
+	async recoverSettings(): Promise<void> {
+		try {
+			const fileContent = await this.getLocalFileContent();
+			if (!fileContent) {
+				return;
+			}
+
+			const syncData: ISyncData = JSON.parse(fileContent.value.toString());
+			if (!isSyncData(syncData)) {
+				return;
+			}
+
+			this.telemetryService.publicLog2('sync/settingsCorrupted');
+			const settingsSyncContent = this.parseSettingsSyncContent(syncData.content);
+			if (!settingsSyncContent || !settingsSyncContent.settings) {
+				return;
+			}
+
+			let settings = settingsSyncContent.settings;
+			const formattingOptions = await this.getFormattingOptions();
+			for (const key in syncData) {
+				if (['version', 'content', 'machineId'].indexOf(key) === -1 && (syncData as any)[key] !== undefined) {
+					const edits: Edit[] = setProperty(settings, [key], (syncData as any)[key], formattingOptions);
+					if (edits.length) {
+						settings = applyEdits(settings, edits);
+					}
+				}
+			}
+
+			await this.fileService.writeFile(this.file, VSBuffer.fromString(settings));
+		} catch (e) {/* ignore */ }
+	}
+}
+
+function isSyncData(thing: any): thing is ISyncData {
+	if (thing
+		&& (thing.version !== undefined && typeof thing.version === 'number')
+		&& (thing.content !== undefined && typeof thing.content === 'string')
+		&& (thing.machineId !== undefined && typeof thing.machineId === 'string')
+	) {
+		return true;
+	}
+
+	return false;
 }

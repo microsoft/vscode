@@ -66,10 +66,8 @@
 /* Debug viewlet trees */
 
 .debug-pane .line-number {
-	border-radius: 2px;
-	font-size: 0.9em;
-	padding: 0 3px;
-	line-height: 20px;
+	padding-left: 4px;
+	padding-right: 4px;
 }
 
 .debug-pane .disabled {
@@ -84,7 +82,8 @@
 
 /* Call stack */
 
-.debug-pane .debug-call-stack-title {
+.debug-pane.expanded .debug-call-stack-title,
+.debug-pane.vertical .debug-call-stack-title {
 	display: flex;
 	width: 100%;
 }
@@ -118,6 +117,8 @@
 
 .debug-pane .debug-call-stack .thread > .state,
 .debug-pane .debug-call-stack .session > .state {
+	display: flex;
+	align-items: center;
 	text-align: right;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -159,9 +160,8 @@
 
 .debug-pane .debug-call-stack .thread > .state > .label,
 .debug-pane .debug-call-stack .session > .state > .label {
-	border-radius: 2px;
 	font-size: 0.8em;
-	padding: 0 3px;
+	min-height: auto;
 }
 
 .debug-pane .debug-call-stack .stack-frame {

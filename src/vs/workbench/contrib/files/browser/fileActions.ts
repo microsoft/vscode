@@ -48,7 +48,7 @@ import { sequence, timeout } from 'vs/base/common/async';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { once } from 'vs/base/common/functional';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, OpenEditorContext } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Codicon } from 'vs/base/common/codicons';
 import { IViewsService } from 'vs/workbench/common/views';
 import { openEditorWith, getAllAvailableEditors } from 'vs/workbench/contrib/files/common/openWith';
@@ -576,7 +576,7 @@ export class ToggleEditorTypeCommand extends Action {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(input, options, group, firstNonActiveOverride[1].id)?.override;
+		await firstNonActiveOverride[0].open(input, options, group, OpenEditorContext.NEW_EDITOR, firstNonActiveOverride[1].id)?.override;
 	}
 }
 
@@ -1060,20 +1060,20 @@ export const deleteFileHandler = async (accessor: ServicesAccessor) => {
 };
 
 let pasteShouldMove = false;
-export const copyFileHandler = (accessor: ServicesAccessor) => {
+export const copyFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
 	if (stats.length > 0) {
-		explorerService.setToCopy(stats, false);
+		await explorerService.setToCopy(stats, false);
 		pasteShouldMove = false;
 	}
 };
 
-export const cutFileHandler = (accessor: ServicesAccessor) => {
+export const cutFileHandler = async (accessor: ServicesAccessor) => {
 	const explorerService = accessor.get(IExplorerService);
 	const stats = explorerService.getContext(true);
 	if (stats.length > 0) {
-		explorerService.setToCopy(stats, true);
+		await explorerService.setToCopy(stats, true);
 		pasteShouldMove = true;
 	}
 };
@@ -1140,7 +1140,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 	const configurationService = accessor.get(IConfigurationService);
 
 	const context = explorerService.getContext(true);
-	const toPaste = resources.distinctParents(clipboardService.readResources(), r => r);
+	const toPaste = resources.distinctParents(await clipboardService.readResources(), r => r);
 	const element = context.length ? context[0] : explorerService.roots[0];
 
 	// Check if target is ancestor of pasted folder
@@ -1178,7 +1178,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 	if (pasteShouldMove) {
 		// Cut is done. Make sure to clear cut state.
-		explorerService.setToCopy([], false);
+		await explorerService.setToCopy([], false);
 		pasteShouldMove = false;
 	}
 	if (stats.length >= 1) {

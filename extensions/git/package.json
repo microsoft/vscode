@@ -106,6 +106,12 @@
         "icon": "$(add)"
       },
       {
+        "command": "git.stageAllMerge",
+        "title": "%command.stageAllMerge%",
+        "category": "Git",
+        "icon": "$(add)"
+      },
+      {
         "command": "git.stageSelectedRanges",
         "title": "%command.stageSelectedRanges%",
         "category": "Git"
@@ -409,6 +415,11 @@
         "command": "git.timeline.copyCommitMessage",
         "title": "%command.timelineCopyCommitMessage%",
         "category": "Git"
+      },
+      {
+        "command": "git.rebaseAbort",
+        "title": "%command.rebaseAbort%",
+        "category": "Git"
       }
     ],
     "keybindings": [
@@ -483,6 +494,10 @@
         },
         {
           "command": "git.stageAllUntracked",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.stageAllMerge",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -892,12 +907,12 @@
       ],
       "scm/resourceGroup/context": [
         {
-          "command": "git.stageAll",
+          "command": "git.stageAllMerge",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "1_modification"
         },
         {
-          "command": "git.stageAll",
+          "command": "git.stageAllMerge",
           "when": "scmProvider == git && scmResourceGroup == merge",
           "group": "inline"
         },
@@ -1673,10 +1688,7 @@
           "description": "%config.terminalAuthentication%"
         },
         "git.githubAuthentication": {
-          "type": "boolean",
-          "scope": "resource",
-          "default": true,
-          "description": "%config.githubAuthentication%"
+          "deprecationMessage": "This setting is now deprecated, please use `github.gitAuthentication` instead."
         }
       }
     },
@@ -1838,26 +1850,27 @@
       {
         "view": "scm",
         "contents": "%view.workbench.scm.empty%",
-        "when": "config.git.enabled && !git.missing && workbenchState == empty"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == empty"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.folder%",
-        "when": "config.git.enabled && !git.missing && workbenchState == folder"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == folder"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.workspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount != 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount != 0"
       },
       {
         "view": "scm",
         "contents": "%view.workbench.scm.emptyWorkspace%",
-        "when": "config.git.enabled && !git.missing && workbenchState == workspace && workspaceFolderCount == 0"
+        "when": "config.git.enabled && git.state == initialized && workbenchState == workspace && workspaceFolderCount == 0"
       },
       {
         "view": "explorer",
-        "contents": "%view.workbench.cloneRepository%"
+        "contents": "%view.workbench.cloneRepository%",
+        "when": "config.git.enabled"
       }
     ]
   },

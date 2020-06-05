@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { virtualMachineHint } from 'vs/base/node/id';
 import * as perf from 'vs/base/common/performance';
 import * as os from 'os';
-import { IElectronService } from 'vs/platform/electron/node/electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -292,13 +292,13 @@ export interface IStartupMetrics {
 }
 
 export interface ITimerService {
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 	readonly startupMetrics: Promise<IStartupMetrics>;
 }
 
 class TimerService implements ITimerService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _startupMetrics?: Promise<IStartupMetrics>;
 

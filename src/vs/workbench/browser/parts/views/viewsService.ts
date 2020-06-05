@@ -20,7 +20,7 @@ import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
-import { PaneCompositePanel, PanelRegistry, PanelDescriptor, Extensions as PanelExtensions } from 'vs/workbench/browser/panel';
+import { PanelRegistry, PanelDescriptor, Extensions as PanelExtensions, Panel } from 'vs/workbench/browser/panel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -34,7 +34,7 @@ import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 
 export class ViewsService extends Disposable implements IViewsService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private readonly viewDisposable: Map<IViewDescriptor, IDisposable>;
 	private readonly viewPaneContainers: Map<string, { viewPaneContainer: ViewPaneContainer, disposable: IDisposable }>;
@@ -127,13 +127,8 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.deregisterViewletOrPanel(container, location);
 		}
 		for (const { container, location } of added) {
-			this.registerViewletOrPanel(container, location);
+			this.onDidRegisterViewContainer(container, location);
 		}
-	}
-
-	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
-		this.deregisterViewletOrPanel(viewContainer, from);
-		this.registerViewletOrPanel(viewContainer, to);
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
@@ -144,6 +139,11 @@ export class ViewsService extends Disposable implements IViewsService {
 			this.onViewDescriptorsAdded(added, viewContainer);
 			this.onViewDescriptorsRemoved(removed);
 		}));
+	}
+
+	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
+		this.deregisterViewletOrPanel(viewContainer, from);
+		this.registerViewletOrPanel(viewContainer, to);
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {
@@ -186,8 +186,8 @@ export class ViewsService extends Disposable implements IViewsService {
 					super({
 						id: `${viewDescriptor.id}.resetViewLocation`,
 						title: {
-							original: 'Reset View Location',
-							value: localize('resetViewLocation', "Reset View Location")
+							original: 'Reset Location',
+							value: localize('resetViewLocation', "Reset Location")
 						},
 						menu: [{
 							id: MenuId.ViewTitleContext,
@@ -202,6 +202,15 @@ export class ViewsService extends Disposable implements IViewsService {
 				}
 				run(accessor: ServicesAccessor): void {
 					const viewDescriptorService = accessor.get(IViewDescriptorService);
+					const defaultContainer = viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!;
+					const containerModel = viewDescriptorService.getViewContainerModel(defaultContainer)!;
+
+					// The default container is hidden so we should try to reset its location first
+					if (defaultContainer.hideIfEmpty && containerModel.visibleViewDescriptors.length === 0) {
+						const defaultLocation = viewDescriptorService.getDefaultViewContainerLocation(defaultContainer)!;
+						viewDescriptorService.moveViewContainerToLocation(defaultContainer, defaultLocation);
+					}
+
 					viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getDefaultContainerById(viewDescriptor.id)!);
 					accessor.get(IViewsService).openView(viewDescriptor.id, true);
 				}
@@ -414,7 +423,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private registerPanel(viewContainer: ViewContainer): void {
 		const that = this;
-		class PaneContainerPanel extends PaneCompositePanel {
+		class PaneContainerPanel extends Panel {
 			constructor(
 				@ITelemetryService telemetryService: ITelemetryService,
 				@IStorageService storageService: IStorageService,

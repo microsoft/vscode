@@ -21,8 +21,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IElectronService } from 'vs/platform/electron/node/electron';
-import { MessageBoxOptions } from 'electron';
+import { IElectronService } from 'vs/platform/electron/electron-sandbox/electron';
+import { MessageBoxOptions } from 'vs/base/parts/sandbox/common/electronTypes';
 import { fromNow } from 'vs/base/common/date';
 
 interface IMassagedMessageBoxOptions {
@@ -42,7 +42,7 @@ interface IMassagedMessageBoxOptions {
 
 export class DialogService implements IDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private nativeImpl: IDialogService;
 	private customImpl: IDialogService;
@@ -89,7 +89,7 @@ export class DialogService implements IDialogService {
 
 class NativeDialogService implements IDialogService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

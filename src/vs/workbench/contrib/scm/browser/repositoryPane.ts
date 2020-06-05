@@ -40,7 +40,7 @@ import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames } from 'vs/base/common/comparers';
-import { FuzzyScore, createMatches } from 'vs/base/common/filters';
+import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten, find } from 'vs/base/common/arrays';
@@ -74,8 +74,43 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILabelService } from 'vs/platform/label/common/label';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
 
 type TreeElement = ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
+
+function splitMatches(uri: URI, filterData: FuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+	let matches: IMatch[] | undefined;
+	let descriptionMatches: IMatch[] | undefined;
+
+	if (filterData) {
+		matches = [];
+		descriptionMatches = [];
+
+		const fileName = basename(uri);
+		const allMatches = createMatches(filterData);
+
+		for (const match of allMatches) {
+			if (match.start < fileName.length) {
+				matches!.push(
+					{
+						start: match.start,
+						end: Math.min(match.end, fileName.length)
+					}
+				);
+			} else {
+				descriptionMatches!.push(
+					{
+						start: match.start - (fileName.length + 1),
+						end: match.end - (fileName.length + 1)
+					}
+				);
+			}
+		}
+	}
+
+	return [matches, descriptionMatches];
+}
 
 interface ResourceGroupTemplate {
 	readonly name: HTMLElement;
@@ -188,7 +223,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	renderTemplate(container: HTMLElement): ResourceTemplate {
 		const element = append(container, $('.resource'));
 		const name = append(element, $('.name'));
-		const fileLabel = this.labels.create(name, { supportHighlights: true });
+		const fileLabel = this.labels.create(name, { supportDescriptionHighlights: true, supportHighlights: true });
 		const actionsContainer = append(fileLabel.element, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: this.actionViewItemProvider,
@@ -214,11 +249,13 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
 
+		const [matches, descriptionMatches] = splitMatches(uri, node.filterData);
 		template.fileLabel.setFile(uri, {
 			fileDecorations: { colors: false, badges: !icon },
 			hidePath: viewModel.mode === ViewModelMode.Tree,
 			fileKind,
-			matches: createMatches(node.filterData)
+			matches,
+			descriptionMatches
 		});
 
 		template.actionBar.clear();
@@ -270,10 +307,12 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const label = compressed.elements.map(e => e.name).join('/');
 		const fileKind = FileKind.FOLDER;
 
+		const [matches, descriptionMatches] = splitMatches(folder.uri, node.filterData);
 		template.fileLabel.setResource({ resource: folder.uri, name: label }, {
 			fileDecorations: { colors: false, badges: true },
 			fileKind,
-			matches: createMatches(node.filterData)
+			matches,
+			descriptionMatches
 		});
 
 		template.actionBar.clear();
@@ -358,13 +397,20 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<TreeElement> {
 
+	constructor(@ILabelService private readonly labelService: ILabelService) { }
+
 	getKeyboardNavigationLabel(element: TreeElement): { toString(): string; } | undefined {
 		if (ResourceTree.isResourceNode(element)) {
 			return element.name;
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			return basename(element.sourceUri);
+			// Since a match in the file name takes precedence over a match
+			// in the folder name we are returning the label as file/folder.
+			const fileName = basename(element.sourceUri);
+			const filePath = this.labelService.getUriLabel(dirname(element.sourceUri), { relative: true });
+
+			return filePath.length !== 0 ? `${fileName} ${filePath}` : fileName;
 		}
 	}
 
@@ -638,6 +684,7 @@ export class ToggleViewModeAction extends Action {
 }
 
 export class RepositoryPane extends ViewPane {
+	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
 
 	private cachedHeight: number | undefined = undefined;
 	private cachedWidth: number | undefined = undefined;
@@ -766,13 +813,12 @@ export class RepositoryPane extends ViewPane {
 			cursorWidth: 1,
 			fontSize: 13,
 			lineHeight: 20,
-			fontFamily: ' -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif',
+			fontFamily: this.getInputEditorFontFamily(),
 			wrappingStrategy: 'advanced',
 			wrappingIndent: 'none',
 			padding: { top: 3, bottom: 3 },
 			quickSuggestions: false
 		};
-
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
@@ -796,6 +842,9 @@ export class RepositoryPane extends ViewPane {
 		this._register(this.inputEditor.onDidFocusEditorText(() => addClass(editorContainer, 'synthetic-focus')));
 		this._register(this.inputEditor.onDidBlurEditorText(() => removeClass(editorContainer, 'synthetic-focus')));
 
+		const onInputFontFamilyChanged = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.inputFontFamily'));
+		this._register(onInputFontFamilyChanged(() => this.inputEditor.updateOptions({ fontFamily: this.getInputEditorFontFamily() })));
+
 		let query: string | undefined;
 
 		if (this.repository.provider.rootUri) {
@@ -815,6 +864,10 @@ export class RepositoryPane extends ViewPane {
 		this.inputEditor.setModel(this.inputModel);
 
 		this._register(this.inputEditor.onDidChangeCursorPosition(triggerValidation));
+
+		const opts = this.modelService.getCreationOptions(this.inputModel.getLanguageIdentifier().language, this.inputModel.uri, this.inputModel.isForSimpleWidget);
+		const onEnter = Event.filter(this.inputEditor.onKeyDown, e => e.keyCode === KeyCode.Enter);
+		this._register(onEnter(() => this.inputModel.detectIndentation(opts.insertSpaces, opts.tabSize)));
 
 		// Keep model in sync with API
 		this.inputModel.setValue(this.repository.input.value);
@@ -874,7 +927,7 @@ export class RepositoryPane extends ViewPane {
 
 		const filter = new SCMTreeFilter();
 		const sorter = new SCMTreeSorter(() => this.viewModel);
-		const keyboardNavigationLabelProvider = new SCMTreeKeyboardNavigationLabelProvider();
+		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider);
 		const identityProvider = new SCMResourceIdentityProvider();
 
 		this.tree = this.instantiationService.createInstance(
@@ -939,7 +992,7 @@ export class RepositoryPane extends ViewPane {
 	private updateIndentStyles(theme: IFileIconTheme): void {
 		toggleClass(this.listContainer, 'list-view-mode', this.viewModel.mode === ViewModelMode.List);
 		toggleClass(this.listContainer, 'tree-view-mode', this.viewModel.mode === ViewModelMode.Tree);
-		toggleClass(this.listContainer, 'align-icons-and-twisties', this.viewModel.mode === ViewModelMode.Tree && theme.hasFileIcons && !theme.hasFolderIcons);
+		toggleClass(this.listContainer, 'align-icons-and-twisties', (this.viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
 		toggleClass(this.listContainer, 'hide-arrows', this.viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
@@ -1113,6 +1166,20 @@ export class RepositoryPane extends ViewPane {
 		if (this.cachedHeight) {
 			this.layoutBody(this.cachedHeight);
 		}
+	}
+
+	private getInputEditorFontFamily(): string {
+		const inputFontFamily = this.configurationService.getValue<string>('scm.inputFontFamily').trim();
+
+		if (inputFontFamily.toLowerCase() === 'editor') {
+			return this.configurationService.getValue<string>('editor.fontFamily').trim();
+		}
+
+		if (inputFontFamily.length !== 0 && inputFontFamily.toLowerCase() !== 'default') {
+			return inputFontFamily;
+		}
+
+		return this.defaultInputFontFamily;
 	}
 }
 

@@ -233,7 +233,7 @@ export class InstallAction extends ExtensionAction {
 
 		const extension = await this.install(this.extension);
 
-		alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+		alert(localize('installExtensionComplete', "Installing extension {0} is completed.", this.extension.displayName));
 
 		if (extension && extension.local) {
 			const runningExtension = await this.getRunningExtension(extension.local);
@@ -808,7 +808,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 
 	constructor(
 		private readonly action: IAction,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(action.id, action.label);
 	}
@@ -818,7 +818,7 @@ export class MenuItemExtensionAction extends ExtensionAction {
 			return;
 		}
 		if (this.action.id === TOGGLE_IGNORE_EXTENSION_ACTION_ID) {
-			this.checked = !this.configurationService.getValue<string[]>('sync.ignoredExtensions').some(id => areSameExtensions({ id }, this.extension!.identifier));
+			this.checked = !this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension);
 		}
 	}
 
@@ -1359,7 +1359,7 @@ export class ReloadAction extends ExtensionAction {
 						this.enabled = true;
 						this.label = localize('reloadRequired', "Reload Required");
 						this.tooltip = localize('postEnableTooltip', "Please reload Visual Studio Code to enable this extension.");
-						alert(localize('installExtensionComplete', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
+						alert(localize('installExtensionCompletedAndReloadRequired', "Installing extension {0} is completed. Please reload Visual Studio Code to enable it.", this.extension.displayName));
 						return;
 					}
 				}
@@ -1608,11 +1608,11 @@ export class ShowInstalledExtensionsAction extends Action {
 		super(id, label, undefined, true);
 	}
 
-	run(): Promise<void> {
+	run(refresh?: boolean): Promise<void> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer)
 			.then(viewlet => {
-				viewlet.search('@installed ');
+				viewlet.search('@installed ', refresh);
 				viewlet.focus();
 			});
 	}
@@ -2660,7 +2660,8 @@ export class SyncIgnoredIconAction extends ExtensionAction {
 	private static readonly DISABLE_CLASS = `${SyncIgnoredIconAction.ENABLE_CLASS} hide`;
 
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super('extensions.syncignore', '', SyncIgnoredIconAction.DISABLE_CLASS, false);
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectedKeys.includes('sync.ignoredExtensions'))(() => this.update()));
@@ -2670,11 +2671,8 @@ export class SyncIgnoredIconAction extends ExtensionAction {
 
 	update(): void {
 		this.class = SyncIgnoredIconAction.DISABLE_CLASS;
-		if (this.extension) {
-			const ignoredExtensions = this.configurationService.getValue<string[]>('sync.ignoredExtensions') || [];
-			if (ignoredExtensions.some(id => areSameExtensions({ id }, this.extension!.identifier))) {
-				this.class = SyncIgnoredIconAction.ENABLE_CLASS;
-			}
+		if (this.extension && this.extensionsWorkbenchService.isExtensionIgnoredToSync(this.extension)) {
+			this.class = SyncIgnoredIconAction.ENABLE_CLASS;
 		}
 	}
 
@@ -2966,37 +2964,40 @@ export class InstallVSIXAction extends Action {
 		super(id, label, 'extension-action install-vsix', true);
 	}
 
-	run(): Promise<any> {
-		return Promise.resolve(this.fileDialogService.showOpenDialog({
-			title: localize('installFromVSIX', "Install from VSIX"),
-			filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
-			canSelectFiles: true,
-			openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
-		})).then(result => {
-			if (!result) {
-				return Promise.resolve();
-			}
+	async run(vsixPaths?: URI[]): Promise<void> {
+		if (!vsixPaths) {
+			vsixPaths = await this.fileDialogService.showOpenDialog({
+				title: localize('installFromVSIX', "Install from VSIX"),
+				filters: [{ name: 'VSIX Extensions', extensions: ['vsix'] }],
+				canSelectFiles: true,
+				openLabel: mnemonicButtonLabel(localize({ key: 'installButton', comment: ['&& denotes a mnemonic'] }, "&&Install"))
+			});
 
-			return Promise.all(result.map(vsix => this.extensionsWorkbenchService.install(vsix)))
-				.then(extensions => {
-					for (const extension of extensions) {
-						const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));
-						const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.displayName || extension.name)
-							: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.displayName || extension.name);
-						const actions = requireReload ? [{
-							label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
-							run: () => this.hostService.reload()
-						}] : [];
-						this.notificationService.prompt(
-							Severity.Info,
-							message,
-							actions,
-							{ sticky: true }
-						);
-					}
-					return this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run();
-				});
-		});
+			if (!vsixPaths) {
+				return;
+			}
+		}
+
+		// Install extension(s), display notification(s), display @installed extensions
+		await Promise.all(vsixPaths.map(async (vsix) => await this.extensionsWorkbenchService.install(vsix)))
+			.then(async (extensions) => {
+				for (const extension of extensions) {
+					const requireReload = !(extension.local && this.extensionService.canAddExtension(toExtensionDescription(extension.local)));
+					const message = requireReload ? localize('InstallVSIXAction.successReload', "Please reload Visual Studio Code to complete installing the extension {0}.", extension.displayName || extension.name)
+						: localize('InstallVSIXAction.success', "Completed installing the extension {0}.", extension.displayName || extension.name);
+					const actions = requireReload ? [{
+						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+						run: () => this.hostService.reload()
+					}] : [];
+					this.notificationService.prompt(
+						Severity.Info,
+						message,
+						actions,
+						{ sticky: true }
+					);
+				}
+				await this.instantiationService.createInstance(ShowInstalledExtensionsAction, ShowInstalledExtensionsAction.ID, ShowInstalledExtensionsAction.LABEL).run(true);
+			});
 	}
 }
 

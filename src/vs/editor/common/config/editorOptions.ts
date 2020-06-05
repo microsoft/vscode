@@ -94,6 +94,11 @@ export interface IEditorOptions {
 	*/
 	renderFinalNewline?: boolean;
 	/**
+	 * Remove unusual line terminators like LINE SEPARATOR (LS), PARAGRAPH SEPARATOR (PS).
+	 * Defaults to 'prompt'.
+	 */
+	unusualLineTerminators?: 'off' | 'prompt' | 'auto';
+	/**
 	 * Should the corresponding line be selected when clicking on the line number?
 	 * Defaults to true.
 	 */
@@ -2872,8 +2877,8 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 				useShadows: true,
 				verticalHasArrows: false,
 				horizontalHasArrows: false,
-				horizontalScrollbarSize: 10,
-				horizontalSliderSize: 10,
+				horizontalScrollbarSize: 12,
+				horizontalSliderSize: 12,
 				verticalScrollbarSize: 14,
 				verticalSliderSize: 14,
 				handleMouseWheel: true,
@@ -3576,6 +3581,7 @@ export const enum EditorOption {
 	suggestOnTriggerCharacters,
 	suggestSelection,
 	tabCompletion,
+	unusualLineTerminators,
 	useTabStops,
 	wordSeparators,
 	wordWrap,
@@ -4132,6 +4138,19 @@ export const EditorOptions = {
 				nls.localize('tabCompletion.onlySnippets', "Tab complete snippets when their prefix match. Works best when 'quickSuggestions' aren't enabled."),
 			],
 			description: nls.localize('tabCompletion', "Enables tab completions.")
+		}
+	)),
+	unusualLineTerminators: register(new EditorStringEnumOption(
+		EditorOption.unusualLineTerminators, 'unusualLineTerminators',
+		'prompt' as 'off' | 'prompt' | 'auto',
+		['off', 'prompt', 'auto'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('unusualLineTerminators.off', "Unusual line terminators are ignored."),
+				nls.localize('unusualLineTerminators.prompt', "Unusual line terminators prompt to be removed."),
+				nls.localize('unusualLineTerminators.auto', "Unusual line terminators are automatically removed."),
+			],
+			description: nls.localize('unusualLineTerminators', "Remove unusual line terminators that might cause problems.")
 		}
 	)),
 	useTabStops: register(new EditorBooleanOption(

@@ -1,6 +1,7 @@
 name: Feature Request Manager
 on:
   repository_dispatch:
+    types: [trigger-feature-request-manager]
   issues:
     types: [milestoned]
   schedule:
@@ -17,7 +18,7 @@ jobs:
         with:
           repository: 'microsoft/vscode-github-triage-actions'
           path: ./actions
-          ref: v14
+          ref: v19
       - name: Install Actions
         if: github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'feature-request')
         run: npm install --production --prefix ./actions

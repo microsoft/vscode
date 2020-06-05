@@ -41,28 +41,37 @@ suite('NotebookConcatDocument', function () {
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
 			async $registerNotebookProvider() { }
 			async $unregisterNotebookProvider() { }
-			async $createNotebookDocument() { }
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors);
-		let reg = extHostNotebooks.registerNotebookProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookProvider>() {
-			async resolveNotebook() { }
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, { isExtensionDevelopmentDebug: false, webviewCspSource: '', webviewResourceRoot: '' });
+		let reg = extHostNotebooks.registerNotebookContentProvider(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookContentProvider>() {
+			// async openNotebook() { }
 		});
-		await extHostNotebooks.$resolveNotebook('test', notebookUri);
-		extHostNotebooks.$acceptModelChanged(notebookUri, {
-			kind: NotebookCellsChangeType.ModelChange,
-			versionId: 0,
-			changes: [[0, 0, [{
+		await extHostNotebooks.$acceptDocumentAndEditorsDelta({
+			addedDocuments: [{
 				handle: 0,
-				uri: CellUri.generate(notebookUri, 0),
-				source: ['### Heading'],
-				language: 'markdown',
-				cellKind: CellKind.Markdown,
-				outputs: [],
-			}]]]
+				uri: notebookUri,
+				viewType: 'test',
+				cells: [{
+					handle: 0,
+					uri: CellUri.generate(notebookUri, 0),
+					source: ['### Heading'],
+					language: 'markdown',
+					cellKind: CellKind.Markdown,
+					outputs: [],
+				}],
+				versionId: 0
+			}],
+			addedEditors: [
+				{
+					documentUri: notebookUri,
+					id: '_notebook_editor_0',
+					selections: [0]
+				}
+			]
 		});
-		await extHostNotebooks.$updateActiveEditor('test', notebookUri);
+		await extHostNotebooks.$acceptDocumentAndEditorsDelta({ newActiveEditor: '_notebook_editor_0' });
 
 		notebook = extHostNotebooks.activeNotebookDocument!;
 

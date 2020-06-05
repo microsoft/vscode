@@ -22,6 +22,7 @@ import { SetMap } from 'vs/base/common/collections';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import Severity from 'vs/base/common/severity';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
 
 export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
@@ -49,8 +50,6 @@ export interface IViewContainerDescriptor {
 
 	readonly alwaysUseContainerInfo?: boolean;
 
-	readonly order?: number;
-
 	readonly focusCommand?: { id: string, keybindings?: IKeybindings };
 
 	readonly viewOrderDelegate?: ViewOrderDelegate;
@@ -60,6 +59,8 @@ export interface IViewContainerDescriptor {
 	readonly extensionId?: ExtensionIdentifier;
 
 	readonly rejectAddedViews?: boolean;
+
+	order?: number;
 }
 
 export interface IViewContainersRegistry {
@@ -211,6 +212,8 @@ export interface IViewDescriptor {
 
 	readonly containerIcon?: string | URI;
 
+	readonly containerTitle?: string;
+
 	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 
@@ -232,6 +235,11 @@ export interface IViewDescriptorRef {
 export interface IAddedViewDescriptorRef extends IViewDescriptorRef {
 	collapsed: boolean;
 	size?: number;
+}
+
+export interface IAddedViewDescriptorState {
+	viewDescriptor: IViewDescriptor,
+	collapsed?: boolean;
 }
 
 export interface IViewContainerModel {
@@ -465,7 +473,7 @@ export interface IView {
 export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// View Container APIs
 	readonly onDidChangeViewContainerVisibility: Event<{ id: string, visible: boolean, location: ViewContainerLocation }>;
@@ -493,7 +501,7 @@ export const IViewDescriptorService = createDecorator<IViewDescriptorService>('v
 
 export interface IViewDescriptorService {
 
-	_serviceBrand: undefined;
+	readonly _serviceBrand: undefined;
 
 	// ViewContainers
 	readonly viewContainers: ReadonlyArray<ViewContainer>;
@@ -507,7 +515,7 @@ export interface IViewDescriptorService {
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation }>;
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation): void;
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, order?: number): void;
 
 	// Views
 	getViewDescriptorById(id: string): IViewDescriptor | null;
@@ -632,6 +640,8 @@ export interface ITreeItem {
 	command?: Command;
 
 	children?: ITreeItem[];
+
+	accessibilityInformation?: IAccessibilityInformation;
 }
 
 export interface ITreeViewDataProvider {

@@ -23,7 +23,12 @@ export interface ITelemetryData {
 
 export interface ITelemetryService {
 
-	_serviceBrand: undefined;
+	/**
+	 * Whether error telemetry will get sent. If false, `publicLogError` will no-op.
+	 */
+	readonly sendErrorTelemetry: boolean;
+
+	readonly _serviceBrand: undefined;
 
 	/**
 	 * Sends a telemetry event that has been privacy approved.

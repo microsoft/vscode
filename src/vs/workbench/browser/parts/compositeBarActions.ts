@@ -119,7 +119,7 @@ export interface ICompositeBarColors {
 	inactiveForegroundColor?: Color;
 	badgeBackground?: Color;
 	badgeForeground?: Color;
-	dragAndDropBackground?: Color;
+	dragAndDropBorder?: Color;
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
@@ -169,16 +169,14 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 					this.label.style.color = foreground ? foreground.toString() : '';
 					this.label.style.backgroundColor = '';
 				}
-
-				const dragColor = colors.activeBackgroundColor || colors.activeForegroundColor;
-				this.container.style.setProperty('--insert-border-color', dragColor ? dragColor.toString() : '');
 			} else {
 				const foreground = this._action.checked ? colors.activeForegroundColor : colors.inactiveForegroundColor;
 				const borderBottomColor = this._action.checked ? colors.activeBorderBottomColor : null;
 				this.label.style.color = foreground ? foreground.toString() : '';
 				this.label.style.borderBottomColor = borderBottomColor ? borderBottomColor.toString() : '';
-				this.container.style.setProperty('--insert-border-color', colors.activeForegroundColor ? colors.activeForegroundColor.toString() : '');
 			}
+
+			this.container.style.setProperty('--insert-border-color', colors.dragAndDropBorder ? colors.dragAndDropBorder.toString() : '');
 		}
 
 		// Badge
@@ -203,7 +201,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		// Make the container tab-able for keyboard navigation
 		this.container.tabIndex = 0;
-		this.container.setAttribute('role', this.options.icon ? 'button' : 'tab');
+		this.container.setAttribute('role', 'tab');
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
 		this._register(dom.addDisposableListener(this.container, dom.EventType.MOUSE_DOWN, () => {
@@ -649,9 +647,11 @@ export class CompositeActionViewItem extends ActivityActionViewItem {
 		if (this.getAction().checked) {
 			dom.addClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', nls.localize('compositeActive', "{0} active", this.container.title));
+			this.container.setAttribute('aria-expanded', 'true');
 		} else {
 			dom.removeClass(this.container, 'checked');
 			this.container.setAttribute('aria-label', this.container.title);
+			this.container.setAttribute('aria-expanded', 'false');
 		}
 		this.updateStyles();
 	}

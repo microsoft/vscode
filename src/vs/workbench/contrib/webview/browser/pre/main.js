@@ -11,7 +11,8 @@
  *   focusIframeOnCreate?: boolean,
  *   ready?: Promise<void>,
  *   onIframeLoaded?: (iframe: HTMLIFrameElement) => void,
- *   fakeLoad: boolean
+ *   fakeLoad: boolean,
+ *   rewriteCSP: (existingCSP: string, endpoint?: string) => string,
  * }} WebviewHost
  */
 
@@ -178,7 +179,7 @@
 		let pendingMessages = [];
 
 		const initData = {
-			initialScrollProgress: undefined
+			initialScrollProgress: undefined,
 		};
 
 
@@ -194,6 +195,9 @@
 			if (body) {
 				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast');
 				body.classList.add(initData.activeTheme);
+
+				body.dataset.vscodeThemeKind = initData.activeTheme;
+				body.dataset.vscodeThemeName = initData.themeName || '';
 			}
 
 			if (initData.styles) {
@@ -360,14 +364,10 @@
 			if (!csp) {
 				host.postMessage('no-csp-found');
 			} else {
-				// Rewrite vscode-resource in csp
-				if (data.endpoint) {
-					try {
-						const endpointUrl = new URL(data.endpoint);
-						csp.setAttribute('content', csp.getAttribute('content').replace(/vscode-resource:(?=(\s|;|$))/g, endpointUrl.origin));
-					} catch (e) {
-						console.error('Could not rewrite csp');
-					}
+				try {
+					csp.setAttribute('content', host.rewriteCSP(csp.getAttribute('content'), data.endpoint));
+				} catch (e) {
+					console.error('Could not rewrite csp');
 				}
 			}
 
@@ -386,6 +386,7 @@
 			host.onMessage('styles', (_event, data) => {
 				initData.styles = data.styles;
 				initData.activeTheme = data.activeTheme;
+				initData.themeName = data.themeName;
 
 				const target = getActiveFrame();
 				if (!target) {
@@ -517,6 +518,8 @@
 						});
 						pendingMessages = [];
 					}
+
+					host.postMessage('did-load');
 				};
 
 				/**

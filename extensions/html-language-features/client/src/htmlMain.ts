@@ -9,9 +9,9 @@ import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
 import {
-	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace,
+	languages, ExtensionContext, IndentAction, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
 	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens
+	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands
 } from 'vscode';
 import {
 	LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, RequestType, TextDocumentPositionParams, DocumentRangeFormattingParams,
@@ -39,6 +39,12 @@ namespace SemanticTokenRequest {
 }
 namespace SemanticTokenLegendRequest {
 	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any, any> = new RequestType0('html/semanticTokenLegend');
+}
+
+namespace SettingIds {
+	export const renameOnType = 'editor.renameOnType';
+	export const formatEnable = 'html.format.enable';
+
 }
 
 interface IPackageInfo {
@@ -140,7 +146,7 @@ export function activate(context: ExtensionContext) {
 		// manually register / deregister format provider based on the `html.format.enable` setting avoiding issues with late registration. See #71652.
 		updateFormatterRegistration();
 		toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
-		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration('html.format.enable') && updateFormatterRegistration()));
+		toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(SettingIds.formatEnable) && updateFormatterRegistration()));
 
 		client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
 			if (legend) {
@@ -180,7 +186,7 @@ export function activate(context: ExtensionContext) {
 	});
 
 	function updateFormatterRegistration() {
-		const formatEnabled = workspace.getConfiguration().get('html.format.enable');
+		const formatEnabled = workspace.getConfiguration().get(SettingIds.formatEnable);
 		if (!formatEnabled && rangeFormatting) {
 			rangeFormatting.dispose();
 			rangeFormatting = undefined;
@@ -290,6 +296,28 @@ export function activate(context: ExtensionContext) {
 			return results;
 		}
 	});
+
+	const promptForTypeOnRenameKey = 'html.promptForTypeOnRename';
+	const promptForTypeOnRename = extensions.getExtension('formulahendry.auto-rename-tag') !== undefined &&
+		(context.globalState.get(promptForTypeOnRenameKey) !== false) &&
+		!workspace.getConfiguration('editor', { languageId: 'html' }).get('renameOnType');
+
+	if (promptForTypeOnRename) {
+		const activeEditorListener = window.onDidChangeActiveTextEditor(async e => {
+			if (e && documentSelector.indexOf(e.document.languageId) !== -1) {
+				context.globalState.update(promptForTypeOnRenameKey, false);
+				activeEditorListener.dispose();
+				const configure = localize('configureButton', 'Configure');
+				const res = await window.showInformationMessage(localize('renameOnTypeQuestion', 'VS Code now has built-in support for auto-renaming tags. Do you want to enable it?'), configure);
+				if (res === configure) {
+					commands.executeCommand('workbench.action.openSettings', SettingIds.renameOnType);
+				}
+			}
+		});
+		toDispose.push(activeEditorListener);
+	}
+
+	toDispose.push();
 }
 
 function getPackageInfo(context: ExtensionContext): IPackageInfo | null {

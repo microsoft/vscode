@@ -92,7 +92,7 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 
 export class LabelService extends Disposable implements ILabelService {
 
-	_serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private formatters: ResourceLabelFormatter[] = [];
 

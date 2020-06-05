@@ -18,7 +18,6 @@ exports.assign = function assign(destination, source) {
 };
 
 /**
- *
  * @param {string[]} modulePaths
  * @param {(result, configuration: object) => any} resultCallback
  * @param {{ forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean, canModifyDOM?: (config: object) => void, beforeLoaderConfig?: (config: object, loaderConfig: object) => void, beforeRequire?: () => void }=} options
@@ -198,6 +197,10 @@ function registerDeveloperKeybindings(disallowReloadKeybinding) {
 	};
 }
 
+/**
+ * @param {string | Error} error
+ * @param {boolean} enableDeveloperTools
+ */
 function onUnexpectedError(error, enableDeveloperTools) {
 
 	const ipc = require('electron').ipcRenderer;
@@ -208,7 +211,7 @@ function onUnexpectedError(error, enableDeveloperTools) {
 
 	console.error('[uncaught exception]: ' + error);
 
-	if (error && error.stack) {
+	if (error && typeof error !== 'string' && error.stack) {
 		console.error(error.stack);
 	}
 }

@@ -14,13 +14,13 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EDITOR_BOTTOM_PADDING, EDITOR_TOP_PADDING, CELL_STATUSBAR_HEIGHT } from 'vs/workbench/contrib/notebook/browser/constants';
 import { CellEditState, CellFocusMode, INotebookEditor, MarkdownCellRenderTemplate, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/renderers/sizeObserver';
 
 export class StatefullMarkdownCell extends Disposable {
 
@@ -62,9 +62,7 @@ export class StatefullMarkdownCell extends Disposable {
 
 					// not first time, we don't need to create editor or bind listeners
 					viewCell.attachTextEditor(this.editor);
-					if (notebookEditor.getActiveCell() === viewCell) {
-						this.editor.focus();
-					}
+					this.focusEditorIfNeeded();
 
 					this.bindEditorListeners(this.editor.getModel()!);
 				} else {
@@ -97,9 +95,7 @@ export class StatefullMarkdownCell extends Disposable {
 						}
 
 						this.editor!.setModel(model);
-						if (notebookEditor.getActiveCell() === viewCell) {
-							this.editor!.focus();
-						}
+						this.focusEditorIfNeeded();
 
 						const realContentHeight = this.editor!.getContentHeight();
 						if (realContentHeight !== editorHeight) {
@@ -115,7 +111,7 @@ export class StatefullMarkdownCell extends Disposable {
 						viewCell.attachTextEditor(this.editor!);
 
 						if (viewCell.editState === CellEditState.Editing) {
-							this.editor!.focus();
+							this.focusEditorIfNeeded();
 						}
 
 						this.bindEditorListeners(model, {
@@ -135,7 +131,7 @@ export class StatefullMarkdownCell extends Disposable {
 				const totalHeight = editorHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
 				this.viewCell.totalHeight = totalHeight;
 				notebookEditor.layoutNotebookCell(viewCell, totalHeight);
-				this.editor.focus();
+				this.focusEditorIfNeeded();
 				renderedEditors.set(this.viewCell, this.editor!);
 			} else {
 				this.viewCell.detachTextEditor();
@@ -174,6 +170,15 @@ export class StatefullMarkdownCell extends Disposable {
 						}
 					}));
 
+					this.localDisposables.add(viewCell.textBuffer.onDidChangeContent(() => {
+						this.markdownContainer.innerHTML = '';
+						viewCell.clearHTML();
+						let renderedHTML = viewCell.getHTML();
+						if (renderedHTML) {
+							this.markdownContainer.appendChild(renderedHTML);
+						}
+					}));
+
 					const clientHeight = templateData.container.clientHeight;
 					this.viewCell.totalHeight = clientHeight;
 					notebookEditor.layoutNotebookCell(viewCell, clientHeight);
@@ -188,9 +193,15 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		}));
 
+		this._register(getResizesObserver(this.markdownContainer, undefined, () => {
+			if (viewCell.editState === CellEditState.Preview) {
+				this.viewCell.totalHeight = templateData.container.clientHeight;
+			}
+		})).startObserving();
+
 		const updateForFocusMode = () => {
 			if (viewCell.focusMode === CellFocusMode.Editor) {
-				this.editor?.focus();
+				this.focusEditorIfNeeded();
 			}
 
 			toggleClass(templateData.container, 'cell-editor-focus', viewCell.focusMode === CellFocusMode.Editor);
@@ -220,7 +231,44 @@ export class StatefullMarkdownCell extends Disposable {
 			}
 		}));
 
+		this._register(viewCell.onDidChangeLayout((e) => {
+			const layoutInfo = this.editor?.getLayoutInfo();
+			if (e.outerWidth && layoutInfo && layoutInfo.width !== viewCell.layoutInfo.editorWidth) {
+				this.onCellWidthChange();
+			} else if (e.totalHeight) {
+				this.relayoutCell();
+			}
+		}));
+
 		viewUpdate();
+	}
+
+	private focusEditorIfNeeded() {
+		if (this.viewCell.focusMode === CellFocusMode.Editor) {
+			this.editor?.focus();
+		}
+	}
+
+	private layoutEditor(dimension: IDimension): void {
+		this.editor?.layout(dimension);
+		this.templateData.statusBarContainer.style.width = `${dimension.width}px`;
+	}
+
+	private onCellWidthChange(): void {
+		const realContentHeight = this.editor!.getContentHeight();
+		this.layoutEditor(
+			{
+				width: this.viewCell.layoutInfo.editorWidth,
+				height: realContentHeight
+			}
+		);
+
+		this.viewCell.editorHeight = realContentHeight;
+		this.relayoutCell();
+	}
+
+	private relayoutCell(): void {
+		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
 	updateEditorOptions(newValue: IEditorOptions): any {
@@ -250,7 +298,6 @@ export class StatefullMarkdownCell extends Disposable {
 	bindEditorListeners(model: ITextModel, dimension?: IDimension) {
 		this.localDisposables.add(model.onDidChangeContent(() => {
 			// we don't need to update view cell text anymore as the textbuffer is shared
-			// this.viewCell.setText(model.getLinesContent());
 			this.viewCell.clearHTML();
 			let clientHeight = this.markdownContainer.clientHeight;
 			this.markdownContainer.innerHTML = '';
@@ -275,7 +322,7 @@ export class StatefullMarkdownCell extends Disposable {
 					}
 				);
 				const clientHeight = this.markdownContainer.clientHeight;
-				this.viewCell.totalHeight = e.contentHeight + 32 + clientHeight;
+				this.viewCell.totalHeight = e.contentHeight + 32 + clientHeight + CELL_STATUSBAR_HEIGHT;
 				this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 			}
 		}));
@@ -292,25 +339,6 @@ export class StatefullMarkdownCell extends Disposable {
 				this.notebookEditor.revealLineInView(this.viewCell, primarySelection!.positionLineNumber);
 			}
 		}));
-
-		let cellWidthResizeObserver = getResizesObserver(this.templateData.editorContainer, dimension, () => {
-			let newWidth = cellWidthResizeObserver.getWidth();
-			let realContentHeight = this.editor!.getContentHeight();
-			let layoutInfo = this.editor!.getLayoutInfo();
-
-			// the dimension generated by the resize observer are float numbers, let's round it a bit to avoid relayout.
-			if (newWidth < layoutInfo.width - 0.3 || layoutInfo.width + 0.3 < newWidth) {
-				this.editor!.layout(
-					{
-						width: newWidth,
-						height: realContentHeight
-					}
-				);
-			}
-		});
-
-		cellWidthResizeObserver.startObserving();
-		this.localDisposables.add(cellWidthResizeObserver);
 
 		let markdownRenderer = this.viewCell.getMarkdownRenderer();
 		this.markdownContainer.innerHTML = '';

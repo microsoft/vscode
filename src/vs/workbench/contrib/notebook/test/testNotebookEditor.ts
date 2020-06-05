@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { CellKind, IOutput, CellUri, NotebookCellMetadata, INotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookViewModel, IModelDecorationsChangeAccessor, CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INotebookEditor, NotebookLayoutInfo, ICellViewModel, ICellRange, INotebookEditorMouseEvent, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { Range } from 'vs/editor/common/core/range';
-import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { Emitter, Event } from 'vs/base/common/event';
 import { EditorModel } from 'vs/workbench/common/editor';
+import { ICellRange, ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookEditorMouseEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
+import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CellKind, CellUri, INotebookEditorModel, IProcessedOutput, NotebookCellMetadata, INotebookKernelInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
+import { ICompositeCodeEditor, IEditor } from 'vs/editor/common/editorCommon';
+
 export class TestCell extends NotebookCellTextModel {
 	constructor(
 		public viewType: string,
@@ -28,7 +30,7 @@ export class TestCell extends NotebookCellTextModel {
 		public source: string[],
 		language: string,
 		cellKind: CellKind,
-		outputs: IOutput[]
+		outputs: IProcessedOutput[]
 	) {
 		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined);
 	}
@@ -42,12 +44,29 @@ export class TestNotebookEditor implements INotebookEditor {
 
 	constructor(
 	) { }
+
+	hasModel(): boolean {
+		return true;
+	}
+
+	onDidFocusEditorWidget: Event<void> = new Emitter<void>().event;
+	hasFocus(): boolean {
+		return true;
+	}
+	getId(): string {
+		return 'notebook.testEditor';
+	}
+
+	activeKernel: INotebookKernelInfo | undefined;
+	onDidChangeKernel: Event<void> = new Emitter<void>().event;
+	onDidChangeActiveEditor: Event<ICompositeCodeEditor> = new Emitter<ICompositeCodeEditor>().event;
+	activeCodeEditor: IEditor | undefined;
 	getDomNode(): HTMLElement {
 		throw new Error('Method not implemented.');
 	}
 
-	private _onDidChangeModel = new Emitter<void>();
-	onDidChangeModel: Event<void> = this._onDidChangeModel.event;
+	private _onDidChangeModel = new Emitter<NotebookTextModel | undefined>();
+	onDidChangeModel: Event<NotebookTextModel | undefined> = this._onDidChangeModel.event;
 	getContribution<T extends INotebookEditorContribution>(id: string): T {
 		throw new Error('Method not implemented.');
 	}
@@ -165,13 +184,7 @@ export class TestNotebookEditor implements INotebookEditor {
 	deleteNotebookCell(cell: CellViewModel): Promise<boolean> {
 		throw new Error('Method not implemented.');
 	}
-	editNotebookCell(cell: CellViewModel): void {
-		// throw new Error('Method not implemented.');
-	}
-	saveNotebookCell(cell: CellViewModel): void {
-		// throw new Error('Method not implemented.');
-	}
-	focusNotebookCell(cell: CellViewModel, focusEditor: boolean): void {
+	focusNotebookCell(cell: CellViewModel, focusItem: 'editor' | 'container' | 'output'): void {
 		// throw new Error('Method not implemented.');
 	}
 	getActiveCell(): CellViewModel | undefined {
@@ -182,10 +195,10 @@ export class TestNotebookEditor implements INotebookEditor {
 		// throw new Error('Method not implemented.');
 		return;
 	}
-	createInset(cell: CellViewModel, output: IOutput, shadowContent: string, offset: number): void {
+	createInset(cell: CellViewModel, output: IProcessedOutput, shadowContent: string, offset: number): void {
 		// throw new Error('Method not implemented.');
 	}
-	removeInset(output: IOutput): void {
+	removeInset(output: IProcessedOutput): void {
 		// throw new Error('Method not implemented.');
 	}
 	triggerScroll(event: IMouseWheelEvent): void {
@@ -258,7 +271,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	}
 }
 
-export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
+export function withTestNotebook(instantiationService: IInstantiationService, blukEditService: IBulkEditService, undoRedoService: IUndoRedoService, cells: [string[], string, CellKind, IProcessedOutput[], NotebookCellMetadata][], callback: (editor: TestNotebookEditor, viewModel: NotebookViewModel, textModel: NotebookTextModel) => void) {
 	const viewType = 'notebook';
 	const editor = new TestNotebookEditor();
 	const notebook = new NotebookTextModel(0, viewType, URI.parse('test'));

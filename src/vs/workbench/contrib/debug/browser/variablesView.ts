@@ -194,8 +194,8 @@ export class VariablesView extends ViewPane {
 			}
 			if (session && session.capabilities.supportsDataBreakpoints) {
 				const response = await session.dataBreakpointInfo(variable.name, variable.parent.reference);
-				const dataid = response.dataId;
-				if (dataid) {
+				const dataid = response?.dataId;
+				if (response && dataid) {
 					actions.push(new Separator());
 					actions.push(new Action('debug.breakWhenValueChanges', nls.localize('breakWhenValueChanges', "Break When Value Changes"), undefined, true, () => {
 						return this.debugService.addDataBreakpoint(response.description, dataid, !!response.canPersist, response.accessTypes);
@@ -359,7 +359,7 @@ class VariablesAccessibilityProvider implements IListAccessibilityProvider<IExpr
 			return nls.localize('variableScopeAriaLabel', "Scope {0}", element.name);
 		}
 		if (element instanceof Variable) {
-			return nls.localize('variableAriaLabel', "{0}, value {1}", element.name, element.value);
+			return nls.localize({ key: 'variableAriaLabel', comment: ['Placeholders are variable name and variable value respectivly. They should not be translated.'] }, "{0}, value {1}", element.name, element.value);
 		}
 
 		return null;

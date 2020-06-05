@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./list';
-import { localize } from 'vs/nls';
 import { IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { isNumber } from 'vs/base/common/types';
 import { range, firstIndex, binarySearch } from 'vs/base/common/arrays';
@@ -17,7 +16,7 @@ import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardE
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListError, IKeyboardNavigationDelegate } from './list';
-import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider } from './listView';
+import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider, IListViewOptionsUpdate } from './listView';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { ScrollbarVisibility, ScrollEvent } from 'vs/base/common/scrollable';
@@ -26,6 +25,7 @@ import { CombinedSpliceable } from 'vs/base/browser/ui/list/splice';
 import { clamp } from 'vs/base/common/numbers';
 import { matchesPrefix } from 'vs/base/common/filters';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 
 interface ITraitChangeEvent {
 	indexes: number[];
@@ -344,6 +344,7 @@ class TypeLabelController<T> implements IDisposable {
 
 	private automaticKeyboardNavigation = true;
 	private triggered = false;
+	private previouslyFocused = -1;
 
 	private readonly enabledDisposables = new DisposableStore();
 	private readonly disposables = new DisposableStore();
@@ -393,6 +394,7 @@ class TypeLabelController<T> implements IDisposable {
 		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i));
 
 		onInput(this.onInput, this, this.enabledDisposables);
+		onClear(this.onClear, this, this.enabledDisposables);
 
 		this.enabled = true;
 		this.triggered = false;
@@ -406,6 +408,19 @@ class TypeLabelController<T> implements IDisposable {
 		this.enabledDisposables.clear();
 		this.enabled = false;
 		this.triggered = false;
+	}
+
+	private onClear(): void {
+		const focus = this.list.getFocus();
+		if (focus.length > 0 && focus[0] === this.previouslyFocused) {
+			// List: re-anounce element on typing end since typed keys will interupt aria label of focused element
+			// Do not announce if there was a focus change at the end to prevent duplication https://github.com/microsoft/vscode/issues/95961
+			const ariaLabel = this.list.options.accessibilityProvider?.getAriaLabel(this.list.element(focus[0]));
+			if (ariaLabel) {
+				alert(ariaLabel);
+			}
+		}
+		this.previouslyFocused = -1;
 	}
 
 	private onInput(word: string | null): void {
@@ -426,6 +441,7 @@ class TypeLabelController<T> implements IDisposable {
 			const labelStr = label && label.toString();
 
 			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
+				this.previouslyFocused = start;
 				this.list.setFocus([index]);
 				this.list.reveal(index);
 				return;
@@ -1091,10 +1107,9 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	}
 }
 
-export interface IListOptionsUpdate {
+export interface IListOptionsUpdate extends IListViewOptionsUpdate {
 	readonly enableKeyboardNavigation?: boolean;
 	readonly automaticKeyboardNavigation?: boolean;
-	readonly additionalScrollHeight?: number;
 }
 
 export class List<T> implements ISpliceable<T>, IDisposable {
@@ -1272,9 +1287,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 			this.typeLabelController.updateOptions(this._options);
 		}
 
-		if (optionsUpdate.additionalScrollHeight !== undefined) {
-			this.view.updateOptions(optionsUpdate);
-		}
+		this.view.updateOptions(optionsUpdate);
 	}
 
 	get options(): IListOptions<T> {
@@ -1363,7 +1376,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 
 	set ariaLabel(value: string) {
 		this._ariaLabel = value;
-		this.view.domNode.setAttribute('aria-label', localize('aria list', "{0}. Use the navigation keys to navigate.", value));
+		this.view.domNode.setAttribute('aria-label', value);
 	}
 
 	domFocus(): void {
