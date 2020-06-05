@@ -87,4 +87,14 @@ suite('Links', () => {
 			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
 		);
 	});
+
+	test('node module subfolder resolving for scss', function () {
+
+		let testUri = getTestResource('subdir/about.scss');
+		let folders = [{ name: 'x', uri: getTestResource('') }];
+
+		assertLinks('@import "~bootstrap/scss/bootstrap-grid";',
+			[{ offset: 8, value: '"~bootstrap/scss/bootstrap-grid"', target: getTestResource('node_modules/bootstrap/scss/bootstrap-grid.scss') }], testUri, folders
+		);
+	});
 });
