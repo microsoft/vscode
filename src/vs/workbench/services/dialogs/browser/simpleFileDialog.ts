@@ -927,8 +927,9 @@ export class SimpleFileDialog {
 		}
 		let fullPath = resources.joinPath(parent, stat.name);
 		if (stat.isDirectory) {
+			const filename = resources.basename(fullPath);
 			fullPath = resources.addTrailingPathSeparator(fullPath, this.separator);
-			return { label: resources.basename(fullPath), uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
+			return { label: filename, uri: fullPath, isFolder: true, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined, FileKind.FOLDER) };
 		} else if (!stat.isDirectory && this.allowFileSelection && this.filterFile(fullPath)) {
 			return { label: stat.name, uri: fullPath, isFolder: false, iconClasses: getIconClasses(this.modelService, this.modeService, fullPath || undefined) };
 		}
