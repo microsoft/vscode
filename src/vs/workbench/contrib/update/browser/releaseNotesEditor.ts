@@ -257,8 +257,9 @@ export class ReleaseNotesManager {
 					}
 
 					code {
-						font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
-						font-size: 14px;
+						font-family: var(--vscode-editor-font-family);
+						font-weight: var(--vscode-editor-font-weight);
+						font-size: var(--vscode-editor-font-size);
 						line-height: 19px;
 					}
 
