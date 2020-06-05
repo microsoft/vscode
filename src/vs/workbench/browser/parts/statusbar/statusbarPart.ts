@@ -18,7 +18,7 @@ import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedC
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector, ThemeColor, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { isThemeColor } from 'vs/editor/common/editorCommon';
 import { Color } from 'vs/base/common/color';
 import { addClass, EventHelper, createStyleSheet, addDisposableListener, addClasses, removeClass, EventType, hide, show, removeClasses, isAncestor } from 'vs/base/browser/dom';
