@@ -12,6 +12,8 @@ import { IWebviewService, WebviewExtensionDescription } from 'vs/workbench/contr
 import { reviveWebviewExtensionDescription, SerializedWebview, WebviewEditorInputFactory, DeserializedWebview } from 'vs/workbench/contrib/webview/browser/webviewEditorInputFactory';
 import { IWebviewWorkbenchService, WebviewInputOptions } from 'vs/workbench/contrib/webview/browser/webviewWorkbenchService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { isEqual } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
 
 export interface CustomDocumentBackupData {
 	readonly viewType: string;
@@ -126,6 +128,12 @@ export class CustomEditorInputFactory extends WebviewEditorInputFactory {
 	}
 
 	public static canResolveBackup(editorInput: IEditorInput, backupResource: URI): boolean {
+		if (editorInput instanceof CustomEditorInput) {
+			if (editorInput.resource.path === backupResource.path && backupResource.authority === editorInput.viewType) {
+				return true;
+			}
+		}
+
 		return false;
 	}
 }
