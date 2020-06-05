@@ -56,7 +56,7 @@ export class CompletionItem {
 	word?: string;
 
 	// resolving
-	private _isResolved: boolean = false;
+	private _isResolved?: boolean;
 	private _resolveCache?: Promise<void>;
 
 	constructor(
@@ -109,8 +109,8 @@ export class CompletionItem {
 
 	// ---- resolving
 
-	get isResolved() {
-		return this._isResolved;
+	get isResolved(): boolean {
+		return !!this._isResolved;
 	}
 
 	async resolve(token: CancellationToken) {
