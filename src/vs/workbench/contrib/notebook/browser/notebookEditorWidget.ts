@@ -1090,6 +1090,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		let r: (val: boolean) => void;
 		DOM.scheduleAtNextAnimationFrame(() => {
+			if (this._isDisposed) {
+				r(false);
+			}
+
 			this.list?.revealElementInView(this.notebookViewModel!.viewCells[newIdx]);
 			r(true);
 		});
