@@ -600,21 +600,25 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return resource.with({ path: path.posix.join(dirName, fileName), query: '' }).toString(true);
 		}
 
-		if (resource.scheme !== fileSchemes.file) {
-			return undefined;
-		}
-
 		let result = resource.fsPath;
 		if (!result) {
 			return undefined;
 		}
 
-		if (resource.scheme === fileSchemes.file) {
-			result = path.normalize(result);
+		if (!fileSchemes.isSupportedScheme(resource.scheme)) {
+			return undefined;
 		}
 
+		result = path.normalize(result);
+
 		// Both \ and / must be escaped in regular expressions
-		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
+		result = result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
+
+		if (resource.scheme !== fileSchemes.file) {
+			result = `${resource.scheme}:${result}`;
+		}
+
+		return result;
 	}
 
 	public toPath(resource: vscode.Uri): string | undefined {

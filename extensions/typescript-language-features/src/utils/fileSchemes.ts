@@ -7,11 +7,13 @@ export const file = 'file';
 export const untitled = 'untitled';
 export const git = 'git';
 export const walkThroughSnippet = 'walkThroughSnippet';
+export const zip = 'zip';
 
 export const supportedSchemes = [
 	file,
 	untitled,
-	walkThroughSnippet
+	walkThroughSnippet,
+	zip
 ];
 
 export function isSupportedScheme(scheme: string): boolean {
