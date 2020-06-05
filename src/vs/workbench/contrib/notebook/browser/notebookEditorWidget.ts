@@ -527,6 +527,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this.localStore.add(this.list!.onDidChangeContentHeight(() => {
 			DOM.scheduleAtNextAnimationFrame(() => {
+				if (this._isDisposed) {
+					return;
+				}
+
 				const scrollTop = this.list?.scrollTop || 0;
 				const scrollHeight = this.list?.scrollHeight || 0;
 				this.webview!.element.style.height = `${scrollHeight}px`;
@@ -1330,7 +1334,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		this.localStore.clear();
-		this.list?.clear();
+		this.list?.dispose();
 		this.webview?.dispose();
 
 		this.overlayContainer.remove();
