@@ -18,12 +18,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Widget } from 'vs/base/browser/ui/widget';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D } from 'vs/workbench/browser/dnd';
-import { generateUuid } from 'vs/base/common/uuid';
 
 export interface ICompositeBarItem {
 	id: string;
