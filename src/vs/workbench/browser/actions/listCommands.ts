@@ -497,17 +497,17 @@ function listFocusLast(accessor: ServicesAccessor, options?: { fromFocused: bool
 
 function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): void {
 	const focused = accessor.get(IListService).lastFocusedList;
-
+	const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', retainCurrentFocus);
 	// List
 	if (focused instanceof List || focused instanceof PagedList) {
 		const list = focused;
-		list.setSelection(list.getFocus());
+		list.setSelection(list.getFocus(), fakeKeyboardEvent);
+		list.open(list.getFocus(), fakeKeyboardEvent);
 	}
 
-	// ObjectTree
+	// Trees
 	else if (focused instanceof ObjectTree || focused instanceof DataTree || focused instanceof AsyncDataTree) {
 		const list = focused;
-		const fakeKeyboardEvent = getSelectionKeyboardEvent('keydown', retainCurrentFocus);
 		const focus = list.getFocus();
 
 		if (focus.length > 0) {
@@ -523,7 +523,6 @@ function focusElement(accessor: ServicesAccessor, retainCurrentFocus: boolean): 
 				list.toggleCollapsed(focus[0]);
 			}
 		}
-
 		list.setSelection(focus, fakeKeyboardEvent);
 		list.open(focus, fakeKeyboardEvent);
 	}
