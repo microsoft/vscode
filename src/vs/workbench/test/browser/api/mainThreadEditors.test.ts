@@ -111,7 +111,8 @@ suite('MainThreadEditors', () => {
 				movedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}
-			copy(source: URI, target: URI) {
+			copy(files: { source: URI, target: URI }[]) {
+				const { source, target } = files[0];
 				copiedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}

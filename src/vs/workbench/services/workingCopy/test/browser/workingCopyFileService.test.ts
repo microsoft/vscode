@@ -142,7 +142,7 @@ suite('WorkingCopyFileService', () => {
 		if (move) {
 			await accessor.workingCopyFileService.move(sourceModel.resource, targetModel.resource, true);
 		} else {
-			await accessor.workingCopyFileService.copy(sourceModel.resource, targetModel.resource, true);
+			await accessor.workingCopyFileService.copy([{ source: sourceModel.resource, target: targetModel.resource }], true);
 		}
 
 		assert.equal(targetModel.textEditorModel!.getValue(), 'foo');

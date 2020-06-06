@@ -1263,7 +1263,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 					const sourceFile = resource;
 					const targetFile = joinPath(target.resource, basename(sourceFile));
 
-					const stat = await this.workingCopyFileService.copy(sourceFile, targetFile, true);
+					const stat = (await this.workingCopyFileService.copy([{ source: sourceFile, target: targetFile }], true))[0];
 					// if we only add one file, just open it directly
 					if (resources.length === 1 && !stat.isDirectory) {
 						this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
@@ -1350,7 +1350,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		// Reuse duplicate action if user copies
 		if (isCopy) {
 			const incrementalNaming = this.configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
-			const stat = await this.workingCopyFileService.copy(source.resource, findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming));
+			const stat = (await this.workingCopyFileService.copy([{ source: source.resource, target: findValidPasteFileTarget(this.explorerService, target, { resource: source.resource, isDirectory: source.isDirectory, allowOverwrite: false }, incrementalNaming) }]))[0];
 			if (!stat.isDirectory) {
 				await this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}

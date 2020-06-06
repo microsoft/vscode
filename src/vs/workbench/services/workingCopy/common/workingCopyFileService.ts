@@ -137,13 +137,13 @@ export interface IWorkingCopyFileService {
 	moveMany(files: { source: URI, target: URI }[], overwrite?: boolean): Promise<IFileStatWithMetadata[]>;
 
 	/**
-	 * Will copy working copies matching the provided resource and children
-	 * to the target using the associated file service for that resource.
+	 * Will copy working copies matching the provided resources and corresponding children
+	 * to the target resources using the associated file service for those resources.
 	 *
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata>;
+	copy(files: { source: URI, target: URI }[], overwrite?: boolean): Promise<IFileStatWithMetadata[]>;
 
 	/**
 	 * Will delete working copies matching the provided resource and children
@@ -225,8 +225,8 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		return this.moveOrCopyMany(files, true, overwrite);
 	}
 
-	async copy(source: URI, target: URI, overwrite?: boolean): Promise<IFileStatWithMetadata> {
-		return this.moveOrCopy(source, target, false, overwrite);
+	async copy(files: { source: URI, target: URI }[], overwrite?: boolean): Promise<IFileStatWithMetadata[]> {
+		return this.moveOrCopyMany(files, false, overwrite);
 	}
 
 	private async moveOrCopy(source: URI, target: URI, move: boolean, overwrite?: boolean): Promise<IFileStatWithMetadata> {

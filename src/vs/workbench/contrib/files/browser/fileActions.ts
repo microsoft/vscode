@@ -1033,7 +1033,7 @@ const downloadFileHandler = (accessor: ServicesAccessor) => {
 				defaultUri
 			});
 			if (destination) {
-				await workingCopyFileService.copy(s.resource, destination, true);
+				await workingCopyFileService.copy([{ source: s.resource, target: destination }], true);
 			} else {
 				// User canceled a download. In case there were multiple files selected we should cancel the remainder of the prompts #86100
 				canceled = true;
@@ -1085,7 +1085,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 			if (pasteShouldMove) {
 				return await workingCopyFileService.move(fileToPaste, targetFile);
 			} else {
-				return await workingCopyFileService.copy(fileToPaste, targetFile);
+				return (await workingCopyFileService.copy([{ source: fileToPaste, target: targetFile }]))[0];
 			}
 		} catch (e) {
 			onError(notificationService, new Error(nls.localize('fileDeleted', "The file to paste has been deleted or moved since you copied it. {0}", getErrorMessage(e))));
