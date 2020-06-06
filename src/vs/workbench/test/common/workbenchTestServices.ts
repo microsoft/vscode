@@ -142,13 +142,9 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	getDirty(resource: URI): IWorkingCopy[] { return []; }
 
-	move(source: URI, target: URI, overwrite?: boolean | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+	move(files: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
 
-	moveMany(files: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> {
-		throw new Error('Method not implemented.');
-	}
-
-	copy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
+	copy(files: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> { throw new Error('Method not implemented.'); }
 }
 
 export function mock<T>(): Ctor<T> {

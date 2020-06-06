@@ -947,7 +947,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 				const targetResource = resources.joinPath(parentResource, value);
 				if (stat.resource.toString() !== targetResource.toString()) {
 					try {
-						await workingCopyFileService.move(stat.resource, targetResource);
+						await workingCopyFileService.move([{ source: stat.resource, target: targetResource }]);
 						await refreshIfSeparator(value, explorerService);
 					} catch (e) {
 						notificationService.error(e);
@@ -1083,7 +1083,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor) => {
 
 			// Move/Copy File
 			if (pasteShouldMove) {
-				return await workingCopyFileService.move(fileToPaste, targetFile);
+				return (await workingCopyFileService.move([{ source: fileToPaste, target: targetFile }]))[0];
 			} else {
 				return (await workingCopyFileService.copy([{ source: fileToPaste, target: targetFile }]))[0];
 			}

@@ -107,7 +107,8 @@ suite('MainThreadEditors', () => {
 		});
 		services.set(IWorkingCopyFileService, new class extends mock<IWorkingCopyFileService>() {
 			onDidRunWorkingCopyFileOperation = Event.None;
-			move(source: URI, target: URI) {
+			move(files: { source: URI, target: URI }[]) {
+				const { source, target } = files[0];
 				movedResources.set(source, target);
 				return Promise.resolve(Object.create(null));
 			}

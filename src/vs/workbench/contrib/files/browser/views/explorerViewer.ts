@@ -1366,7 +1366,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		}
 
 		try {
-			await this.workingCopyFileService.move(source.resource, targetResource);
+			await this.workingCopyFileService.move([{ source: source.resource, target: targetResource }]);
 		} catch (error) {
 			// Conflict
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
@@ -1375,7 +1375,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				const { confirmed } = await this.dialogService.confirm(confirm);
 				if (confirmed) {
 					try {
-						await this.workingCopyFileService.move(source.resource, targetResource, true /* overwrite */);
+						await this.workingCopyFileService.move([{ source: source.resource, target: targetResource }], true /* overwrite */);
 					} catch (error) {
 						this.notificationService.error(error);
 					}

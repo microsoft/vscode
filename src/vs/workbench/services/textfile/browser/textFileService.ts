@@ -246,7 +246,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// However, this will only work if the source exists
 		// and is not orphaned, so we need to check that too.
 		if (this.fileService.canHandleResource(source) && this.uriIdentityService.extUri.isEqual(source, target) && (await this.fileService.exists(source))) {
-			await this.workingCopyFileService.move(source, target);
+			await this.workingCopyFileService.move([{ source, target }]);
 
 			return this.save(target, options);
 		}

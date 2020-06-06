@@ -73,101 +73,40 @@ suite('WorkingCopyFileService', () => {
 	});
 
 	test('move - dirty file', async function () {
-		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true);
+		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], true);
 	});
 
 	test('move multiple - dirty file', async function () {
-		await testMoveOrCopyMany([
+		await testMoveOrCopy([
 			{ source: toResource.call(this, '/path/file1.txt'), target: toResource.call(this, '/path/file1_target.txt') },
 			{ source: toResource.call(this, '/path/file2.txt'), target: toResource.call(this, '/path/file2_target.txt') }],
 			true);
 	});
 
 	test('move - dirty file (target exists and is dirty)', async function () {
-		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), true, true);
+		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], true, true);
 	});
 
 	test('copy - dirty file', async function () {
-		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), false);
+		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false);
+	});
+
+	test('copy multiple - dirty file', async function () {
+		await testMoveOrCopy([
+			{ source: toResource.call(this, '/path/file1.txt'), target: toResource.call(this, '/path/file_target1.txt') },
+			{ source: toResource.call(this, '/path/file2.txt'), target: toResource.call(this, '/path/file_target2.txt') },
+			{ source: toResource.call(this, '/path/file3.txt'), target: toResource.call(this, '/path/file_target3.txt') }],
+			false);
 	});
 
 	test('copy - dirty file (target exists and is dirty)', async function () {
-		await testMoveOrCopy(toResource.call(this, '/path/file.txt'), toResource.call(this, '/path/file_target.txt'), false, true);
+		await testMoveOrCopy([{ source: toResource.call(this, '/path/file.txt'), target: toResource.call(this, '/path/file_target.txt') }], false, true);
 	});
 
-	async function testMoveOrCopy(source: URI, target: URI, move: boolean, targetDirty?: boolean): Promise<void> {
-		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
-		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
-		(<TestTextFileEditorModelManager>accessor.textFileService.files).add(targetModel.resource, targetModel);
-
-		await sourceModel.load();
-		sourceModel.textEditorModel!.setValue('foo');
-		assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
-
-		if (targetDirty) {
-			await targetModel.load();
-			targetModel.textEditorModel!.setValue('bar');
-			assert.ok(accessor.textFileService.isDirty(targetModel.resource));
-		}
+	async function testMoveOrCopy(files: { source: URI, target: URI }[], move: boolean, targetDirty?: boolean): Promise<void> {
 
 		let eventCounter = 0;
-		let correlationId: number | undefined = undefined;
-
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async ([{ target, source }], operation) => {
-				assert.equal(target.toString(), targetModel.resource.toString());
-				assert.equal(source?.toString(), sourceModel.resource.toString());
-				assert.equal(operation, move ? FileOperation.MOVE : FileOperation.COPY);
-				eventCounter++;
-			}
-		});
-
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
-			assert.equal(e.target.toString(), targetModel.resource.toString());
-			assert.equal(e.source?.toString(), sourceModel.resource.toString());
-			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
-			eventCounter++;
-			correlationId = e.correlationId;
-		});
-
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
-			assert.equal(e.target.toString(), targetModel.resource.toString());
-			assert.equal(e.source?.toString(), sourceModel.resource.toString());
-			assert.equal(e.operation, move ? FileOperation.MOVE : FileOperation.COPY);
-			eventCounter++;
-			assert.equal(e.correlationId, correlationId);
-		});
-
-		if (move) {
-			await accessor.workingCopyFileService.move(sourceModel.resource, targetModel.resource, true);
-		} else {
-			await accessor.workingCopyFileService.copy([{ source: sourceModel.resource, target: targetModel.resource }], true);
-		}
-
-		assert.equal(targetModel.textEditorModel!.getValue(), 'foo');
-
-		if (move) {
-			assert.ok(!accessor.textFileService.isDirty(sourceModel.resource));
-		} else {
-			assert.ok(accessor.textFileService.isDirty(sourceModel.resource));
-		}
-		assert.ok(accessor.textFileService.isDirty(targetModel.resource));
-
-		assert.equal(eventCounter, 3);
-
-		sourceModel.dispose();
-		targetModel.dispose();
-
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
-	}
-
-	async function testMoveOrCopyMany(data: { source: URI, target: URI }[], move: boolean, targetDirty?: boolean): Promise<void> {
-
-		let eventCounter = 0;
-		const models = await Promise.all(data.map(async ({ source, target }, i) => {
+		const models = await Promise.all(files.map(async ({ source, target }, i) => {
 			let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, source, 'utf8', undefined);
 			let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, target, 'utf8', undefined);
 			(<TestTextFileEditorModelManager>accessor.textFileService.files).add(sourceModel.resource, sourceModel);
@@ -223,9 +162,9 @@ suite('WorkingCopyFileService', () => {
 		});
 
 		if (move) {
-			await accessor.workingCopyFileService.moveMany(models.map(m => ({ source: m.sourceModel.resource, target: m.targetModel.resource })), true);
+			await accessor.workingCopyFileService.move(models.map(m => ({ source: m.sourceModel.resource, target: m.targetModel.resource })), true);
 		} else {
-			// await accessor.workingCopyFileService.copy(sourceModel.resource, targetModel.resource, true);
+			await accessor.workingCopyFileService.copy(models.map(m => ({ source: m.sourceModel.resource, target: m.targetModel.resource })), true);
 		}
 
 		for (let i = 0; i < models.length; i++) {
