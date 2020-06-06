@@ -57,8 +57,8 @@ export class MainThreadFileSystemEventService {
 
 		// BEFORE file operation
 		workingCopyFileService.addFileOperationParticipant({
-			participate: (data, operation, progress, timeout, token) => {
-				return proxy.$onWillRunFileOperation(operation, data, timeout, token);
+			participate: (files, operation, progress, timeout, token) => {
+				return proxy.$onWillRunFileOperation(operation, files, timeout, token);
 			}
 		});
 

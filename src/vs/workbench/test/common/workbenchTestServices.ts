@@ -144,7 +144,7 @@ export class TestWorkingCopyFileService implements IWorkingCopyFileService {
 
 	move(source: URI, target: URI, overwrite?: boolean | undefined): Promise<IFileStatWithMetadata> { throw new Error('Method not implemented.'); }
 
-	moveMany(data: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> {
+	moveMany(files: { source: URI; target: URI; }[], overwrite?: boolean | undefined): Promise<IFileStatWithMetadata[]> {
 		throw new Error('Method not implemented.');
 	}
 

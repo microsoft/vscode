@@ -186,9 +186,9 @@ suite('WorkingCopyFileService', () => {
 		}));
 
 		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
-			participate: async (data, operation) => {
-				for (let i = 0; i < data.length; i++) {
-					const { target, source } = data[i];
+			participate: async (files, operation) => {
+				for (let i = 0; i < files.length; i++) {
+					const { target, source } = files[i];
 					const { targetModel, sourceModel } = models[i];
 
 					assert.equal(target.toString(), targetModel.resource.toString());
