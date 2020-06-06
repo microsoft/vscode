@@ -20,7 +20,7 @@ import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRed
 
 class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorModel>> {
 
-	private readonly providers: { [scheme: string]: ITextModelContentProvider[] } = Object.create(null);
+	private readonly providers = new Map<string, ITextModelContentProvider[]>();
 	private readonly modelsToDispose = new Set<string>();
 
 	constructor(
@@ -59,7 +59,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		}
 
 		// Virtual documents
-		if (this.providers[resource.scheme]) {
+		if (this.providers.has(resource.scheme)) {
 			await this.resolveTextModelContent(key);
 
 			return this.instantiationService.createInstance(ResourceEditorModel, resource);
@@ -77,63 +77,83 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 
 	destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
-		// Track as being disposed
+		// untitled and inMemory are bound to a different lifecycle
+		const resource = URI.parse(key);
+		if (resource.scheme === network.Schemas.untitled || resource.scheme === network.Schemas.inMemory) {
+			return;
+		}
+
+		// Track as being disposed before waiting for model to load
+		// to handle the case that the reference is aquired again
 		this.modelsToDispose.add(key);
 
-		modelPromise.then(model => {
-			if (!this.modelsToDispose.has(key)) {
-				return; // return if model has been aquired again meanwhile
-			}
+		(async () => {
+			try {
+				const model = await modelPromise;
 
-			const resource = URI.parse(key);
-			if (resource.scheme === network.Schemas.untitled || resource.scheme === network.Schemas.inMemory) {
-				// untitled and inMemory are bound to a different lifecycle
-			} else if (model instanceof TextFileEditorModel) {
-				this.textFileService.files.disposeModel(model);
-			} else {
+				if (!this.modelsToDispose.has(key)) {
+					// return if model has been aquired again meanwhile
+					return;
+				}
+
+				if (model instanceof TextFileEditorModel) {
+					// text file models have conditions that prevent them
+					// from dispose, so we have to wait until we can dispose
+					await this.textFileService.files.canDispose(model);
+				}
+
+				if (!this.modelsToDispose.has(key)) {
+					// return if model has been aquired again meanwhile
+					return;
+				}
+
+				// Finally we can dispose the model
 				model.dispose();
+			} catch (error) {
+				// ignore
+			} finally {
+				this.modelsToDispose.delete(key); // Untrack as being disposed
 			}
-		}, err => {
-			// ignore
-		});
+		})();
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
-		const registry = this.providers;
-		const providers = registry[scheme] || (registry[scheme] = []);
+		let providers = this.providers.get(scheme);
+		if (!providers) {
+			providers = [];
+			this.providers.set(scheme, providers);
+		}
 
 		providers.unshift(provider);
 
 		return toDisposable(() => {
-			const array = registry[scheme];
-
-			if (!array) {
+			const providersForScheme = this.providers.get(scheme);
+			if (!providersForScheme) {
 				return;
 			}
 
-			const index = array.indexOf(provider);
-
+			const index = providersForScheme.indexOf(provider);
 			if (index === -1) {
 				return;
 			}
 
-			array.splice(index, 1);
+			providersForScheme.splice(index, 1);
 
-			if (array.length === 0) {
-				delete registry[scheme];
+			if (providersForScheme.length === 0) {
+				this.providers.delete(scheme);
 			}
 		});
 	}
 
 	hasTextModelContentProvider(scheme: string): boolean {
-		return this.providers[scheme] !== undefined;
+		return this.providers.get(scheme) !== undefined;
 	}
 
 	private async resolveTextModelContent(key: string): Promise<ITextModel> {
 		const resource = URI.parse(key);
-		const providers = this.providers[resource.scheme] || [];
+		const providersForScheme = this.providers.get(resource.scheme) || [];
 
-		for (const provider of providers) {
+		for (const provider of providersForScheme) {
 			const value = await provider.provideTextContent(resource);
 			if (value) {
 				return value;
