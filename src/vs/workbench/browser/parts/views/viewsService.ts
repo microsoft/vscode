@@ -481,7 +481,7 @@ export class ViewsService extends Disposable implements IViewsService {
 			viewContainer.name,
 			isString(viewContainer.icon) ? viewContainer.icon : undefined,
 			viewContainer.order,
-			undefined,
+			viewContainer.requestedIndex,
 			viewContainer.icon instanceof URI ? viewContainer.icon : undefined
 		));
 	}
